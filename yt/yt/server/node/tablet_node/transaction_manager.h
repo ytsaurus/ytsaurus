@@ -164,6 +164,7 @@ public:
     TTimestamp GetMinCommitTimestamp();
 
     void SetDecommission(bool decommission);
+    void SetRemoving();
 
     //! Returns true if transaction manager is decommissioned and threre are
     //! no alive transactions in it, so tablet cell can be safely removed.

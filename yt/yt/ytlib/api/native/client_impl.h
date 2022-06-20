@@ -1396,6 +1396,8 @@ private:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options);
 
+    void SyncCellsIfNeeded(const std::vector<NObjectClient::TCellId>& cellIds);
+
     //
     // Internal
     //

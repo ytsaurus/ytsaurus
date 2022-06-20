@@ -605,6 +605,15 @@ public:
         Decommissioned_ = decommission;
     }
 
+    void SetRemoving()
+    {
+        YT_VERIFY(HasHydraContext());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction manager observes tablet cell removal");
+
+        Removing_ = true;
+    }
+
     bool IsDecommissioned() const
     {
         return Decommissioned_ && PersistentTransactionMap_.empty();
@@ -637,6 +646,8 @@ private:
     std::optional<TTimestamp> MinCommitTimestamp_;
 
     bool Decommissioned_ = false;
+    bool Removing_ = false;
+
     ETabletReign SnapshotReign_ = TEnumTraits<ETabletReign>::GetMaxValue();
 
 
@@ -851,6 +862,7 @@ private:
         PersistentTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
         Save(context, Decommissioned_);
+        Save(context, Removing_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -871,6 +883,12 @@ private:
         PersistentTransactionMap_.LoadValues(context);
         Load(context, LastSerializedCommitTimestamps_);
         Load(context, Decommissioned_);
+
+        if (context.GetVersion() >= ETabletReign::FixSuspendTabletCells) {
+            Load(context, Removing_);
+        } else {
+            Removing_ = false;
+        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -904,6 +922,7 @@ private:
         LastSerializedCommitTimestamps_.clear();
         MinCommitTimestamp_.reset();
         Decommissioned_ = false;
+        Removing_ = false;
     }
 
 
@@ -1147,7 +1166,8 @@ private:
             return;
         }
 
-        if (TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
+        if (Removing_ &&
+            TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
             transaction->AuthenticationIdentity() == GetRootAuthenticationIdentity())
         {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Allow transaction in decommissioned state to proceed "
@@ -1374,6 +1394,11 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
 void TTransactionManager::SetDecommission(bool decommission)
 {
     Impl_->SetDecommission(decommission);
+}
+
+void TTransactionManager::SetRemoving()
+{
+    Impl_->SetRemoving();
 }
 
 bool TTransactionManager::IsDecommissioned() const
