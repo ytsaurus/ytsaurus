@@ -2500,6 +2500,8 @@ private:
 
         CellLifeStage_ = ETabletCellLifeStage::DecommissioningOnNode;
         SetTabletCellSuspend(/*suspend*/ true);
+
+        Slot_->GetTransactionManager()->SetRemoving();
     }
 
     void HydraSuspendTabletCell(TReqSuspendTabletCell* /*request*/)

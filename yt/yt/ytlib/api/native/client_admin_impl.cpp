@@ -322,6 +322,8 @@ void TClient::DoSuspendTabletCells(
     const std::vector<TCellId>& cellIds,
     const TSuspendTabletCellsOptions& options)
 {
+    SyncCellsIfNeeded(cellIds);
+
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
@@ -342,6 +344,8 @@ void TClient::DoResumeTabletCells(
     const std::vector<TCellId>& cellIds,
     const TResumeTabletCellsOptions& options)
 {
+    SyncCellsIfNeeded(cellIds);
+
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
@@ -356,6 +360,24 @@ void TClient::DoResumeTabletCells(
 
     return WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
+}
+
+void TClient::SyncCellsIfNeeded(const std::vector<TCellId>& cellIds)
+{
+    bool needToSyncCells = false;
+
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    for (auto cellId : cellIds) {
+        if (!cellDirectory->FindChannelByCellId(cellId)) {
+            needToSyncCells = true;
+        }
+    }
+
+    if (needToSyncCells) {
+        const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+        WaitFor(cellDirectorySynchronizer->Sync())
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
