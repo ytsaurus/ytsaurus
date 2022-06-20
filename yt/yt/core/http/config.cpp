@@ -69,7 +69,7 @@ TCorsConfig::TCorsConfig()
         .Default(false);
     RegisterParameter("host_allow_list", HostAllowList)
         .Default({"localhost"});
-    RegisterParameter("host_suffix_allow_list", HostAllowList)
+    RegisterParameter("host_suffix_allow_list", HostSuffixAllowList)
         .Default({".yandex-team.ru"});
 }
 
