@@ -601,7 +601,7 @@ private:
             }
 
             case EInternedAttributeKey::JobProxyBuildVersion: {
-                auto jobProxyBuildVersion = node->JobProxyBuildVersion();
+                const auto& jobProxyBuildVersion = node->JobProxyBuildVersion();
                 if (!jobProxyBuildVersion) {
                     break;
                 }
