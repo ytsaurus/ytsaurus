@@ -58,11 +58,24 @@ public:
 
     void Enable() override
     {
-        FiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this), BIND(&TChaosAgent::FiberIteration, MakeWeak(this)))
+        YT_LOG_DEBUG("Starting chaos agent (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
+            MountConfig_->ReplicationTickPeriod,
+            MountConfig_->ReplicationProgressUpdateTickPeriod);
+
+        FiberFuture_ = BIND(
+            &TChaosAgent::FiberMain,
+            MakeWeak(this),
+            BIND(&TChaosAgent::FiberIteration, MakeWeak(this)),
+            MountConfig_->ReplicationTickPeriod)
             .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
             .Run();
 
-        ProgressReporterFiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this), BIND(&TChaosAgent::ReportUpdatedReplicationProgress, MakeWeak(this)))
+        ProgressReporterFiberFuture_ = BIND(
+            &TChaosAgent::FiberMain,
+            MakeWeak(this),
+            BIND(&TChaosAgent::ReportUpdatedReplicationProgress,
+            MakeWeak(this)),
+            MountConfig_->ReplicationProgressUpdateTickPeriod)
             .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
             .Run();
 
@@ -98,13 +111,13 @@ private:
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
 
-    void FiberMain(TCallback<void()> callback)
+    void FiberMain(TCallback<void()> callback, TDuration period)
     {
         while (true) {
             TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
             NProfiling::TWallTimer timer;
             callback();
-            TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
+            TDelayedExecutor::WaitForDuration(period - timer.GetElapsedTime());
         }
     }
 

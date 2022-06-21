@@ -195,6 +195,13 @@ class ChaosTestBase(DynamicTablesBase):
 
         wait(_check_sync)
 
+    def _create_sorted_table(self, path, **attributes):
+        if "mount_config" not in attributes:
+            attributes["mount_config"] = {}
+        if "replication_progress_update_tick_period" not in attributes["mount_config"]:
+            attributes["mount_config"]["replication_progress_update_tick_period"] = 100
+        super(ChaosTestBase, self)._create_sorted_table(path, **attributes)
+
     def _create_queue_table(self, path, **attributes):
         attributes.update({"dynamic": True})
         if "schema" not in attributes:
