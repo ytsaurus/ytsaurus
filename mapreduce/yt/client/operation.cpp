@@ -705,7 +705,11 @@ template <typename T>
 void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOperationOptions& options, TFluentMap fluent)
 {
     const TProcessState* properties = TProcessState::Get();
-    const TString& pool = TConfig::Get()->Pool;
+    TString pool = TConfig::Get()->Pool;
+
+    if (baseSpec.Pool_) {
+        pool = *baseSpec.Pool_;
+    }
 
     fluent
         .Item("started_by")
