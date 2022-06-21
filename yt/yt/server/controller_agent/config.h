@@ -181,8 +181,6 @@ public:
     double LowGpuUsageAlertGpuUsageThreshold;
     // Ratio.
     double LowGpuUsageAlertGpuUtilizationPowerThreshold;
-    // Power in Watts.
-    double LowGpuUsageAlertGpuPowerThreshold;
     std::vector<TString> LowGpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
 
