@@ -520,6 +520,9 @@ struct TOperationSpecBase
 
     /// @brief Title to be shown in web interface.
     FLUENT_FIELD_OPTION(TString, Title);
+
+    /// @brief Pool to be used for this operation.
+    FLUENT_FIELD_OPTION(TString, Pool);
 };
 
 ///
