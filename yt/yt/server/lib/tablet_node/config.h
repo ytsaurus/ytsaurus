@@ -184,6 +184,8 @@ public:
     TRelativeReplicationThrottlerConfigPtr RelativeReplicationThrottler;
     bool EnableReplicationLogging;
 
+    TDuration ReplicationProgressUpdateTickPeriod;
+
     bool EnableProfiling;
 
     bool EnableStructuredLogger;

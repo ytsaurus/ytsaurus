@@ -229,6 +229,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_replication_logging", &TThis::EnableReplicationLogging)
         .Default(false);
 
+    registrar.Parameter("replication_progress_update_tick_period", &TThis::ReplicationProgressUpdateTickPeriod)
+        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
 
