@@ -19,6 +19,7 @@ import java.util.Set;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.base.Preconditions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.misc.io.InputStreamSourceUtils2;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.proxy.MappedObject;
 import ru.yandex.yt.ytclient.proxy.YtClient;
@@ -169,8 +169,16 @@ class YtConnectionTest {
     }
 
     void compareWith(String expect, ResultSet actual) throws SQLException {
-        final List<Map<String, Object>> expectRows =
-                fromJson(InputStreamSourceUtils2.valueOf("classpath:" + expect).readText().trim());
+        String json;
+        try {
+            try (var input = getClass().getClassLoader().getResourceAsStream(expect)) {
+                Preconditions.checkState(input != null, "Unable to find resource " + expect);
+                json = new String(input.readAllBytes()).trim();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to read from " + expect, e);
+        }
+        final List<Map<String, Object>> expectRows = fromJson(json);
         for (Map<String, Object> row : expectRows) {
             row.computeIfPresent("TABLE_NAME", (k, v) -> table);
         }

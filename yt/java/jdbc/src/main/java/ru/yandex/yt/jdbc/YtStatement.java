@@ -10,10 +10,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.misc.lang.StringUtils;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.ytclient.proxy.SelectRowsRequest;
 import ru.yandex.yt.ytclient.proxy.YtClient;
@@ -69,11 +69,14 @@ public class YtStatement extends AbstractWrapper implements Statement {
 
         // maxRows может быть аггрессивно задана в IDE (и быть меньше, чем limit при постраничной выборке)
         final SelectRowsRequest request = SelectRowsRequest.of(sql)
-                .setInputRowsLimit(inputLimit)
-                .setOutputRowsLimit(maxRows)
                 .setFailOnIncompleteResult(false)
                 .setAllowJoinWithoutIndex(allowJoinWithoutIndex)
                 .setUdfRegistryPath(udfRegistryPath);
+
+        if (inputLimit > 0) {
+            request.setInputRowsLimit(inputLimit)
+                    .setOutputRowsLimit(maxRows);
+        }
 
         this.future = client.selectRows(request);
         final UnversionedRowset rowSet;

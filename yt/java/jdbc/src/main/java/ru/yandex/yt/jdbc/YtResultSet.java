@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -32,7 +33,6 @@ import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.lang.CharsetUtils;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -280,7 +280,7 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
     @Deprecated
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        return new ByteArrayInputStream(getString(columnLabel).getBytes(CharsetUtils.UTF8_CHARSET));
+        return new ByteArrayInputStream(getString(columnLabel).getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

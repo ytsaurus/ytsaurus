@@ -3,7 +3,7 @@ package ru.yandex.yt.jdbc;
 import java.net.URISyntaxException;
 import java.util.Properties;
 
-import ru.yandex.misc.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 class YtJdbcUrlParser {
     private static final String JDBC_PREFIX = "jdbc:";
