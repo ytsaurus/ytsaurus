@@ -135,7 +135,7 @@ DEFINE_ENUM(EMasterReign,
     ((SuspendTabletCell)                                            (2033))  // gritukan
     ((MountConfigAttributesInUserAttributes)                        (2034))  // ifsmirnov
     // 22.3 starts here.
-    ((JobProxyBuildVersion)                                         (2100))  // galtsev
+    ((JobProxyVersion)                                              (2100))  // galtsev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

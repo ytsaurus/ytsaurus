@@ -456,7 +456,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, ClusterNodeStatistics_);
     Save(context, DataNodeStatistics_);
     Save(context, ExecNodeStatistics_);
-    Save(context, JobProxyBuildVersion_);
+    Save(context, JobProxyVersion_);
     Save(context, CellarNodeStatistics_);
     Save(context, Alerts_);
     Save(context, ResourceLimits_);
@@ -535,8 +535,8 @@ void TNode::Load(TLoadContext& context)
     Load(context, ExecNodeStatistics_);
 
     // COMPAT(galtsev)
-    if (context.GetVersion() >= EMasterReign::JobProxyBuildVersion) {
-        Load(context, JobProxyBuildVersion_);
+    if (context.GetVersion() >= EMasterReign::JobProxyVersion) {
+        Load(context, JobProxyVersion_);
     }
 
     Load(context, CellarNodeStatistics_);

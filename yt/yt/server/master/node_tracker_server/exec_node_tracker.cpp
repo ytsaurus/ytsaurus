@@ -85,7 +85,7 @@ private:
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
 
-        auto jobProxyBuildVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
+        auto jobProxyVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -97,11 +97,11 @@ private:
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
-                jobProxyBuildVersion,
+                jobProxyVersion,
                 statistics);
 
             nodeTracker->UpdateLastSeenTime(node);
-            node->JobProxyBuildVersion() = jobProxyBuildVersion;
+            node->JobProxyVersion() = jobProxyVersion;
 
             ProcessHeartbeat(node, request, response);
         }
