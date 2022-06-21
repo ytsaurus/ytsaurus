@@ -155,9 +155,6 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Default(0.5)
         .InRange(0.0, 1.0);
 
-    registrar.Parameter("low_gpu_usage_alert_gpu_power_threshold", &TThis::LowGpuUsageAlertGpuPowerThreshold)
-        .Default(100.0);
-
     registrar.Parameter("low_gpu_usage_alert_gpu_utilization_power_threshold", &TThis::LowGpuUsageAlertGpuUtilizationPowerThreshold)
         .Default(0.3)
         .InRange(0.0, 1.0);

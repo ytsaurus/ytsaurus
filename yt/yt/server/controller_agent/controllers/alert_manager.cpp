@@ -544,26 +544,6 @@ private:
                 EOperationAlertType::LowGpuPower,
                 alertMessage);
         }
-
-        {
-            auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-                return ratio < Config_->LowGpuUsageAlertGpuPowerThreshold;
-            };
-
-            static const TString alertMessage = Format(
-                "Average GPU power usage is significantly lower than %v Watts. "
-                "Consider optimizing your GPU process",
-                Config_->LowGpuUsageAlertGpuPowerThreshold);
-
-            AnalyzeProcessingUnitUsage(
-                {"/user_job/gpu/cumulative_power"},
-                Config_->LowGpuUsageAlertJobStates,
-                getGpuLimit,
-                needSetAlert,
-                "gpu",
-                EOperationAlertType::LowGpuPower,
-                alertMessage);
-        }
     }
 
     void AnalyzeGpuPowerUsageOnWindow()
