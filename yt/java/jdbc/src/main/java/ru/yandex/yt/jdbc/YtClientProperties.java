@@ -1,9 +1,11 @@
 package ru.yandex.yt.jdbc;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Properties;
 
-import ru.yandex.misc.io.InputStreamSourceUtils2;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 import static ru.yandex.yt.jdbc.YtClientParameters.ALLOW_JOIN_WITHOUT_INDEX;
@@ -126,7 +128,15 @@ public class YtClientProperties {
 
     private static String readToken(String token) {
         if (token.startsWith("file:")) {
-            return InputStreamSourceUtils2.valueOf(token).readText().trim();
+            var filename = token.substring("file:".length());
+            if (filename.startsWith("~")) {
+                filename = System.getProperty("user.home") + filename.substring(1);
+            }
+            try {
+                return Files.readString(Path.of(filename)).trim();
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to read token from " + filename, e);
+            }
         } else {
             return token;
         }

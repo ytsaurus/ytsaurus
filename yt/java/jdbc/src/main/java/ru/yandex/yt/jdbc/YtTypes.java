@@ -3,7 +3,6 @@ package ru.yandex.yt.jdbc;
 import java.sql.Types;
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 class YtTypes {
@@ -67,9 +66,8 @@ class YtTypes {
     static Class<?> columnTypeToClass(ColumnValueType type) {
         switch (type) {
             case INT64:
-                return Long.class;
             case UINT64:
-                return UnsignedLong.class;
+                return Long.class;
             case DOUBLE:
                 return Double.class;
             case STRING:

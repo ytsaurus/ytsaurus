@@ -3,9 +3,9 @@ package ru.yandex.yt.jdbc;
 import java.sql.DriverPropertyInfo;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
-import ru.yandex.bolts.function.Function;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 public enum YtClientParameters implements Function<Properties, DriverPropertyInfo> {
