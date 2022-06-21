@@ -100,6 +100,11 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     }
 
     @Override
+    public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
+        return executor.execute((client) -> client.selectRowsV2(request));
+    }
+
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return executor.execute((client) -> client.selectRows(request));
     }

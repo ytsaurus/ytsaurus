@@ -28,4 +28,6 @@ public interface ImmutableTransactionalClient {
             SelectRowsRequest request,
             YTreeObjectSerializer<T> serializer
     );
+
+    CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request);
 }

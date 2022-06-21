@@ -515,6 +515,14 @@ public class ApiServiceClientImpl implements ApiServiceClient {
     }
 
     @Override
+    public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
+        return sendRequest(request, ApiServiceMethodTable.SELECT_ROWS.createRequestBuilder(rpcOptions))
+                .thenApply(
+                        response -> new SelectRowsResult(response, heavyExecutor)
+                );
+    }
+
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return selectRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),

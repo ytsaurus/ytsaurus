@@ -119,6 +119,12 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
         return (CompletableFuture<List<T>>) callMethod("selectRows");
     }
 
+    public CompletableFuture<SelectRowsResult> selectRowsV2(
+            SelectRowsRequest request
+    ) {
+        return (CompletableFuture<SelectRowsResult>) callMethod("selectRowsV2");
+    }
+
     public CompletableFuture<GUID> createNode(CreateNode req) {
         return (CompletableFuture<GUID>) callMethod("createNode");
     }

@@ -239,6 +239,26 @@ public class YtClientTest {
     }
 
     @Test
+    public void selectRowsV2WithKnownPool() {
+        final YPath table = YPath.simple(path + "/dir1/table5");
+
+        createDynamicTable(client, table);
+
+        final String poolName = "known_test_pool";
+        client.createNode(new CreateNode(YPath.simple("//sys/ql_pools/" + poolName),
+                CypressNodeType.MAP, Collections.singletonMap("weight", YTree.integerNode(5)))
+                .setRecursive(true)
+                .setIgnoreExisting(true));
+
+        final String query = String.format("* from [%s]", table);
+
+        final SelectRowsRequest request = SelectRowsRequest.of(query).setExecutionPool(poolName);
+        SelectRowsResult result = client.selectRowsV2(request).join();
+        Assert.assertEquals(0, result.getUnversionedRowset().join().getRows().size());
+        Assert.assertEquals(result.isIncompleteOutput(), false);
+    }
+
+    @Test
     public void lookupRowsDefault() throws ExecutionException, InterruptedException {
         final YPath table = YPath.simple(path + "/dir1/table6");
         createDynamicTable(client, table);

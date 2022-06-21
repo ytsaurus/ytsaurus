@@ -307,6 +307,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
+    public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
+        return client.selectRowsV2(request.setTimestamp(startTimestamp));
+    }
+
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return client.selectRows(request.setTimestamp(startTimestamp));
     }
