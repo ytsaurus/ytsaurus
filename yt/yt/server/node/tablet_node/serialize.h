@@ -41,6 +41,7 @@ DEFINE_ENUM(ETabletReign,
     ((PersistLastReadLockTimestamp)       (100504)) // gritukan
     ((SuspendTabletCells)                 (100505)) // gritukan
     ((FixSuspendTabletCells)              (100506)) // gritukan
+    ((AnotherFixSuspendTabletCells)       (100507)) // gritukan
     // 22.3 starts here.
     ((TabletWriteManager)                 (100600)) // gritukan
 );

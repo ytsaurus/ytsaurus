@@ -183,7 +183,7 @@ public:
             bool transactionIsFresh = false;
             bool updateReplicationProgress = false;
             if (atomicity == EAtomicity::Full) {
-                transaction = transactionManager->GetOrCreateTransaction(
+                transaction = transactionManager->GetOrCreateTransactionOrThrow(
                     transactionId,
                     transactionStartTimestamp,
                     transactionTimeout,
@@ -215,6 +215,11 @@ public:
                 }
 
                 updateReplicationProgress = tablet->GetReplicationCardId() && !versioned;
+            } else {
+                YT_VERIFY(atomicity == EAtomicity::None);
+                if (transactionManager->GetDecommission()) {
+                    THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
+                }
             }
 
             if (transaction) {
@@ -419,7 +424,16 @@ private:
         switch (atomicity) {
             case EAtomicity::Full: {
                 const auto& transactionManager = Host_->GetTransactionManager();
-                transaction = transactionManager->MakeTransactionPersistent(transactionId);
+                try {
+                    // NB: May throw if tablet cell is decommissioned or suspended.
+                    transaction = transactionManager->MakeTransactionPersistentOrThrow(transactionId);
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to make transaction persistent (TabletId: %v, TransactionId: %v)",
+                        writeRecord.TabletId,
+                        transactionId);
+                    return;
+                }
+
                 AddPersistentAffectedTablet(transaction, tablet);
 
                 YT_LOG_DEBUG_IF(
@@ -458,6 +472,12 @@ private:
             }
 
             case EAtomicity::None: {
+                const auto& transactionManager = Host_->GetTransactionManager();
+                if (transactionManager->GetDecommission()) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning, skip non-atomic write");
+                    return;
+                }
+
                 // This is ensured by a corresponding check in #Write.
                 YT_VERIFY(generation == InitialTransactionGeneration);
 
@@ -522,11 +542,21 @@ private:
         switch (atomicity) {
             case EAtomicity::Full: {
                 const auto& transactionManager = Host_->GetTransactionManager();
-                auto* transaction = transactionManager->GetOrCreateTransaction(
-                    transactionId,
-                    transactionStartTimestamp,
-                    transactionTimeout,
-                    false);
+                TTransaction* transaction;
+                try {
+                    // NB: May throw if tablet cell is decommissioned.
+                    transaction = transactionManager->GetOrCreateTransactionOrThrow(
+                        transactionId,
+                        transactionStartTimestamp,
+                        transactionTimeout,
+                        false);
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
+                        transactionId,
+                        tabletId);
+                    return;
+                }
+
                 AddPersistentAffectedTablet(transaction, tablet);
 
                 YT_LOG_DEBUG_IF(
@@ -567,6 +597,12 @@ private:
 
 
             case EAtomicity::None: {
+                const auto& transactionManager = Host_->GetTransactionManager();
+                if (transactionManager->GetDecommission()) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning, skip non-atomic write");
+                    return;
+                }
+
                 // This is ensured by a corresponding check in #Write.
                 YT_VERIFY(generation == InitialTransactionGeneration);
 

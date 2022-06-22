@@ -105,8 +105,9 @@ public:
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction
     //! (either persistent or transient, depending on #transient).
+    //! Throws if tablet cell is decommissioned or suspended.
     //! \param fresh An out-param indicating if the transaction was just-created.
-    TTransaction* GetOrCreateTransaction(
+    TTransaction* GetOrCreateTransactionOrThrow(
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
@@ -128,7 +129,8 @@ public:
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found, makes is persistent and returns it.
     //! Fails if no transaction is found.
-    TTransaction* MakeTransactionPersistent(TTransactionId transactionId);
+    //! Throws if tablet cell is decommissioned or suspended.
+    TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId);
 
     //! Removes a given #transaction, which must be transient.
     void DropTransaction(TTransaction* transaction);
@@ -164,6 +166,7 @@ public:
     TTimestamp GetMinCommitTimestamp();
 
     void SetDecommission(bool decommission);
+    bool GetDecommission() const;
     void SetRemoving();
 
     //! Returns true if transaction manager is decommissioned and threre are
