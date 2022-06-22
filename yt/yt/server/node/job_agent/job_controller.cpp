@@ -217,7 +217,7 @@ private:
 
     THashSet<int> FreePorts_;
 
-    TErrorOr<TBuildInfoPtr> CachedJobProxyBuildInfo_;
+    TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -1467,8 +1467,11 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::TImpl::GetJobProxyDynamicCo
 
 TBuildInfoPtr TJobController::TImpl::GetBuildInfo() const
 {
-    if (CachedJobProxyBuildInfo_.IsOK()) {
-        return CachedJobProxyBuildInfo_.Value();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto buildInfo = CachedJobProxyBuildInfo_.Load();
+    if (buildInfo.IsOK()) {
+        return buildInfo.Value();
     } else {
         return nullptr;
     }
@@ -1701,12 +1704,14 @@ void TJobController::TImpl::BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) co
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (CachedJobProxyBuildInfo_.IsOK()) {
-        fluent.Value(CachedJobProxyBuildInfo_.Value());
+    auto buildInfo = CachedJobProxyBuildInfo_.Load();
+
+    if (buildInfo.IsOK()) {
+        fluent.Value(buildInfo.Value());
     } else {
         fluent
             .BeginMap()
-                .Item("error").Value(static_cast<TError>(CachedJobProxyBuildInfo_))
+                .Item("error").Value(static_cast<TError>(buildInfo))
             .EndMap();
     }
 }
@@ -1718,6 +1723,8 @@ void TJobController::TImpl::UpdateJobProxyBuildInfo()
     // TODO(max42): not sure if running ytserver-job-proxy --build --yson from JobThread
     // is a good idea; maybe delegate to another thread?
 
+    TErrorOr<TBuildInfoPtr> buildInfo;
+
     try {
         auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
             .ValueOrThrow();
@@ -1728,14 +1735,15 @@ void TJobController::TImpl::UpdateJobProxyBuildInfo()
         auto result = jobProxy.Execute();
         result.Status.ThrowOnError();
 
-        CachedJobProxyBuildInfo_ = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
+        buildInfo = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
     } catch (const std::exception& ex) {
-        auto error = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
+        buildInfo = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
             << ex;
-        CachedJobProxyBuildInfo_ = error;
     }
 
-    JobProxyBuildInfoUpdated_.Fire(static_cast<TError>(CachedJobProxyBuildInfo_));
+    CachedJobProxyBuildInfo_.Store(buildInfo);
+
+    JobProxyBuildInfoUpdated_.Fire(static_cast<TError>(buildInfo));
 }
 
 IYPathServicePtr TJobController::TImpl::GetOrchidService()
