@@ -766,7 +766,16 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
 
     TNodeList consistentPlacementNodes;
     if (chunk->HasConsistentReplicaPlacementHash() && IsConsistentChunkPlacementEnabled()) {
-        consistentPlacementNodes = GetConsistentPlacementWriteTargets(chunk, mediumIndex);
+        // NB: Do not ask for consistent chunk placement on unexpected medium.
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        const auto& replication = chunk->GetAggregatedReplication(requisitionRegistry);
+        for (const auto& entry : replication) {
+            if (entry.GetMediumIndex() == mediumIndex) {
+                consistentPlacementNodes = GetConsistentPlacementWriteTargets(chunk, mediumIndex);
+                break;
+            }
+        }
     }
 
     auto isInconsistentlyPlaced = [&] (TNode* node) {
