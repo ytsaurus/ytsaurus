@@ -17,16 +17,15 @@ trait SolomonLauncher extends SidecarLauncher {
     config match {
       case c: SolomonConfig =>
         log.info(s"Spark ui port: ${c.sparkUiPort}")
-        c.autoscalerMetricsAtPort.foreach(port => {
-          log.info(s"Autoscaler metrics at port: $port")
-        })
-        templateContent
+        val cfg = templateContent
           .replaceAll("\\$SPARK_COMPONENT", c.sparkComponent)
           .replaceAll("\\$SOLOMON_CONFIG_FILE", c.solomonConfigFile)
           .replaceAll("\\$SPARK_UI_PORT", c.sparkUiPort.toString)
           .replaceAll("\\$SOLOMON_PORT", c.port.toString)
+          .replaceAll("\\$SOLOMON_PUSH_PORT", c.pushPort.toString)
           .replaceAll("\\$SOLOMON_MONITORING_PORT", c.monitoringPort.toString)
-          .replaceAll("\\$AUTOSCALER_METRICS_PORT", c.autoscalerMetricsAtPort.map(_.toString).getOrElse(""))
+        log.info(s"Solomon config file: \n===\n$cfg\n===\n")
+        cfg
     }
   }
 
@@ -45,14 +44,14 @@ case class SolomonConfig(binaryPath: String,
                          configDirectory: String,
                          solomonConfigFile: String,
                          port: Int,
+                         pushPort: Int,
                          monitoringPort: Int,
                          operationAlias: String,
                          ytJobCookie: String,
                          ytConf: YtClientConfiguration,
                          timeout: Duration,
                          sparkComponent: String,
-                         sparkUiPort: Int,
-                         autoscalerMetricsAtPort: Option[Int]) extends SidecarConfig {
+                         sparkUiPort: Int) extends SidecarConfig {
   override def host: String = "::"
 
   override def serviceName: String = "Solomon Agent"
@@ -72,7 +71,7 @@ object SolomonConfig extends SidecarConfigUtils {
 
   def apply(sparkConf: Map[String, String], args: Args, sparkComponent: String, sparkUiPort: Int,
             autoscalerConf: Option[AutoScaler.Conf]): Option[SolomonConfig] = {
-    implicit val a = args
+    implicit val a: Args = args
     if (optionArg("enabled").forall(_.toBoolean)) {
       val agentConfig = "solomon-agent.template.conf"
       val serviceConfig =
@@ -86,14 +85,14 @@ object SolomonConfig extends SidecarConfigUtils {
         configDirectory = optionArg("config-dir").getOrElse("$HOME"),
         solomonConfigFile = optionArg("service-config-file").getOrElse(serviceConfig.replace(".template", "")),
         port = optionArg("port").map(_.toInt).getOrElse(27100),
+        pushPort =  optionArg("push-port").map(_.toInt).getOrElse(sys.env("SOLOMON_PUSH_PORT").toInt),
         monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27101),
         operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
         ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
         ytConf = ytConf,
         timeout = timeout,
         sparkComponent = sparkComponent,
-        sparkUiPort = sparkUiPort,
-        autoscalerMetricsAtPort = autoscalerConf.flatMap(_.metricsPort)
+        sparkUiPort = sparkUiPort
       ))
     } else None
   }

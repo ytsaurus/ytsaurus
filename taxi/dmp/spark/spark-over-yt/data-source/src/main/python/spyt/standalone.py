@@ -390,6 +390,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
+    environment["SOLOMON_PUSH_PORT"] = "27099"
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
     ytserver_binary_name = ytserver_proxy_path.split(
@@ -579,7 +580,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param driver_cores_overhead: additional driver worker cores
     :param driver_timeout: timeout to fail master waiting
     :param autoscaler_period: time between autoscaler calls in scala duration string format
-    :param autoscaler_metrics_port: port for exposing of autoscaler metrics
+    :param autoscaler_metrics_port: port for exposing of autoscaler metrics (deprecated, not used)
     :param autoscaler_sliding_window: size of autoscaler actions sliding window (in number of action) to downscale
     :param autoscaler_max_free_workers: maximum number of free workers
     :param autoscaler_slot_increment_step: autoscaler workers increment step
@@ -628,8 +629,6 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     if autoscaler_period:
         dynamic_config['spark_conf']['spark.autoscaler.enabled'] = True
         dynamic_config['spark_conf']['spark.autoscaler.period'] = autoscaler_period
-        if autoscaler_metrics_port:
-            dynamic_config['spark_conf']['spark.autoscaler.metrics.port'] = autoscaler_metrics_port
         if autoscaler_sliding_window:
             dynamic_config['spark_conf']['spark.autoscaler.sliding_window_size'] = autoscaler_sliding_window
         if autoscaler_max_free_workers:

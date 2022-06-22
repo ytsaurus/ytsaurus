@@ -12,9 +12,9 @@ import scala.util.Success
 class AutoScalerTest extends FlatSpec with Matchers  {
   behavior of "AutoScaler"
 
-  val simpleConf: Conf = AutoScaler.Conf(1.minute, None, 0, 1, 1)
-  val sliding1Conf: Conf = AutoScaler.Conf(1.minute, None, 1, 1, 1)
-  val sliding3Conf: Conf = AutoScaler.Conf(1.minute, None, 3, 1, 1)
+  val simpleConf: Conf = AutoScaler.Conf(1.minute, 0, 1, 1)
+  val sliding1Conf: Conf = AutoScaler.Conf(1.minute, 1, 1, 1)
+  val sliding3Conf: Conf = AutoScaler.Conf(1.minute, 3, 1, 1)
 
   it should "correctly assign action according to cluster state" in {
     val f = AutoScaler.autoScaleFunctionBasic(simpleConf)

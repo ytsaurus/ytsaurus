@@ -4,7 +4,6 @@ import com.codahale.metrics.{Gauge, MetricRegistry}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.spark.launcher.rest.AutoScalerMetricsServer
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
@@ -221,12 +220,9 @@ object AutoScaler {
           log.error("Autoscaler failed", e)
       }
     }, c.period.toNanos, c.period.toNanos, TimeUnit.NANOSECONDS)
-    val metricsServer = c.metricsPort.map(p => AutoScalerMetricsServer.start(p, Metrics.metricRegistry))
-    val r: Closeable = () => {
+    () => {
       f.cancel(false)
-      metricsServer.foreach(_.close())
     }
-    r
   }
 
   case class OperationState(maxJobs: Long, runningJobs: Long, plannedJobs: Long) {
@@ -251,8 +247,7 @@ object AutoScaler {
   case object DoNothing extends Action
   case class SetUserSlot(count: Long) extends Action
 
-  case class Conf(period: FiniteDuration, metricsPort: Option[Int], slidingWindowSize: Int,
-                  maxFreeWorkers: Long, slotIncrementStep: Long)
+  case class Conf(period: FiniteDuration, slidingWindowSize: Int, maxFreeWorkers: Long, slotIncrementStep: Long)
 
   object Conf {
     def apply(props: Map[String, String]): Option[Conf] = {
@@ -266,7 +261,6 @@ object AutoScaler {
             .getOrElse(1.second)
           Conf(
             period = period,
-            metricsPort = props.get("spark.autoscaler.metrics.port").map(_.toInt),
             slidingWindowSize = props.get("spark.autoscaler.sliding_window_size").map(_.toInt).getOrElse(1),
             maxFreeWorkers = props.get("spark.autoscaler.max_free_workers").map(_.toLong).getOrElse(1),
             slotIncrementStep = props.get("spark.autoscaler.slots_increment_step").map(_.toLong).getOrElse(1)
