@@ -84,11 +84,8 @@ private:
     // This value is read and modified only during post update in fair share update invoker.
     EStarvationStatus StarvationStatusAtLastUpdate_ = EStarvationStatus::NonStarving;
 
-    // TODO(eshcherbin): Use TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> here and below.
     using TJobIdList = std::list<TJobId>;
-    TJobIdList NonPreemptibleJobs_;
-    TJobIdList AggressivelyPreemptibleJobs_;
-    TJobIdList PreemptibleJobs_;
+    TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> JobsPerPreemptionStatus_;
 
     // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
     // of jobs' preemption statuses. This is why we use this value, which is shared between all snapshots,
@@ -98,9 +95,7 @@ private:
     std::atomic<bool> Preemptible_ = {true};
 
     std::atomic<int> RunningJobCount_ = {0};
-    TJobResources TotalResourceUsage_;
-    TJobResources NonPreemptibleResourceUsage_;
-    TJobResources AggressivelyPreemptibleResourceUsage_;
+    TEnumIndexedVector<EJobPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
 
     std::atomic<int> UpdatePreemptibleJobsListCount_ = {0};
     const int UpdatePreemptibleJobsListLoggingPeriod_;

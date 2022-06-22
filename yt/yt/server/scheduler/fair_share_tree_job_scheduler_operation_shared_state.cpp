@@ -33,14 +33,12 @@ TJobResources TFairShareTreeJobSchedulerOperationSharedState::Disable()
     }
 
     TotalDiskQuota_ = {};
-    TotalResourceUsage_ = {};
-    NonPreemptibleResourceUsage_ = {};
-    AggressivelyPreemptibleResourceUsage_ = {};
     RunningJobCount_ = 0;
-    PreemptibleJobs_.clear();
-    AggressivelyPreemptibleJobs_.clear();
-    NonPreemptibleJobs_.clear();
     JobPropertiesMap_.clear();
+    for (auto preemptionStatus : TEnumTraits<EJobPreemptionStatus>::GetDomainValues()) {
+        JobsPerPreemptionStatus_[preemptionStatus].clear();
+        ResourceUsagePerPreemptionStatus_[preemptionStatus] = {};
+    }
 
     return resourceUsage;
 }
@@ -166,6 +164,8 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
         const std::function<void(TJobProperties*)>& onMovedLeftToRight,
         const std::function<void(TJobProperties*)>& onMovedRightToLeft)
     {
+        auto initialResourceUsage = resourceUsage;
+
         // Move from left to right and decrease |resourceUsage| until the next move causes
         // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
         // In particular, even if fair share is slightly less than it should be due to precision errors,
@@ -202,7 +202,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
             ++(*moveCount);
         }
 
-        return resourceUsage;
+        return resourceUsage - initialResourceUsage;
     };
 
     auto setPreemptible = [] (TJobProperties* properties) {
@@ -240,39 +240,44 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
     for (int iteration = 0; iteration < 2; ++iteration) {
         YT_LOG_DEBUG_IF(enableLogging,
             "Preemptible lists usage bounds before update "
-            "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemtableResourceUsage: %v, Iteration: %v)",
-            FormatResources(NonPreemptibleResourceUsage_),
-            FormatResources(AggressivelyPreemptibleResourceUsage_),
-            FormatResources(TotalResourceUsage_ - NonPreemptibleResourceUsage_ - AggressivelyPreemptibleResourceUsage_),
+            "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v, Iteration: %v)",
+            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible]),
+            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible]),
+            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible]),
             iteration);
 
-        auto startNonPreemptibleAndAggressivelyPreemptibleResourceUsage_ = NonPreemptibleResourceUsage_ + AggressivelyPreemptibleResourceUsage_;
+        {
+            auto usageDelta = balanceLists(
+                &JobsPerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
+                &JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
+                ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
+                fairShare * aggressivePreemptionSatisfactionThreshold,
+                setAggressivelyPreemptible,
+                setNonPreemptible);
+            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible] += usageDelta;
+            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible] -= usageDelta;
+        }
 
-        NonPreemptibleResourceUsage_ = balanceLists(
-            &NonPreemptibleJobs_,
-            &AggressivelyPreemptibleJobs_,
-            NonPreemptibleResourceUsage_,
-            fairShare * aggressivePreemptionSatisfactionThreshold,
-            setAggressivelyPreemptible,
-            setNonPreemptible);
-
-        auto nonpreemptibleAndAggressivelyPreemptibleResourceUsage_ = balanceLists(
-            &AggressivelyPreemptibleJobs_,
-            &PreemptibleJobs_,
-            startNonPreemptibleAndAggressivelyPreemptibleResourceUsage_,
-            Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
-            setPreemptible,
-            setAggressivelyPreemptible);
-
-        AggressivelyPreemptibleResourceUsage_ = nonpreemptibleAndAggressivelyPreemptibleResourceUsage_ - NonPreemptibleResourceUsage_;
+        {
+            auto usageDelta = balanceLists(
+                &JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
+                &JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible],
+                ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible] +
+                    ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
+                Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
+                setPreemptible,
+                setAggressivelyPreemptible);
+            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible] += usageDelta;
+            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible] -= usageDelta;
+        }
     }
 
     YT_LOG_DEBUG_IF(enableLogging,
         "Preemptible lists usage bounds after update "
-        "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemtableResourceUsage: %v)",
-        FormatResources(NonPreemptibleResourceUsage_),
-        FormatResources(AggressivelyPreemptibleResourceUsage_),
-        FormatResources(TotalResourceUsage_ - NonPreemptibleResourceUsage_ - AggressivelyPreemptibleResourceUsage_));
+        "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v)",
+        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible]),
+        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible]),
+        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible]));
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::SetPreemptible(bool value)
@@ -317,14 +322,14 @@ int TFairShareTreeJobSchedulerOperationSharedState::GetPreemptibleJobCount() con
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
-    return PreemptibleJobs_.size();
+    return JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible].size();
 }
 
 int TFairShareTreeJobSchedulerOperationSharedState::GetAggressivelyPreemptibleJobCount() const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
-    return AggressivelyPreemptibleJobs_.size();
+    return JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible].size();
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage)
@@ -333,19 +338,21 @@ void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const 
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
 
-    PreemptibleJobs_.push_back(jobId);
+    auto& preemptibleJobs = JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible];
+    preemptibleJobs.push_back(jobId);
 
-    auto it = JobPropertiesMap_.emplace(
+    auto it = EmplaceOrCrash(
+        JobPropertiesMap_,
         jobId,
         TJobProperties{
             .PreemptionStatus = EJobPreemptionStatus::Preemptible,
-            .JobIdListIterator = --PreemptibleJobs_.end(),
-            .ResourceUsage = {}});
-    YT_VERIFY(it.second);
+            .JobIdListIterator = --preemptibleJobs.end(),
+            .ResourceUsage = {},
+        });
 
     ++RunningJobCount_;
 
-    SetJobResourceUsage(&it.first->second, resourceUsage.ToJobResources());
+    SetJobResourceUsage(&it->second, resourceUsage.ToJobResources());
 
     TotalDiskQuota_ += resourceUsage.GetDiskQuota();
 }
@@ -362,19 +369,7 @@ std::optional<TJobResources> TFairShareTreeJobSchedulerOperationSharedState::Rem
     YT_VERIFY(it != JobPropertiesMap_.end());
 
     auto* properties = &it->second;
-    switch (properties->PreemptionStatus) {
-        case EJobPreemptionStatus::Preemptible:
-            PreemptibleJobs_.erase(properties->JobIdListIterator);
-            break;
-        case EJobPreemptionStatus::AggressivelyPreemptible:
-            AggressivelyPreemptibleJobs_.erase(properties->JobIdListIterator);
-            break;
-        case EJobPreemptionStatus::NonPreemptible:
-            NonPreemptibleJobs_.erase(properties->JobIdListIterator);
-            break;
-        default:
-            YT_ABORT();
-    }
+    JobsPerPreemptionStatus_[properties->PreemptionStatus].erase(properties->JobIdListIterator);
 
     --RunningJobCount_;
 
@@ -563,20 +558,7 @@ TJobResources TFairShareTreeJobSchedulerOperationSharedState::SetJobResourceUsag
 {
     auto delta = resources - properties->ResourceUsage;
     properties->ResourceUsage = resources;
-    TotalResourceUsage_ += delta;
-    switch (properties->PreemptionStatus) {
-        case EJobPreemptionStatus::Preemptible:
-            // Do nothing.
-            break;
-        case EJobPreemptionStatus::AggressivelyPreemptible:
-            AggressivelyPreemptibleResourceUsage_ += delta;
-            break;
-        case EJobPreemptionStatus::NonPreemptible:
-            NonPreemptibleResourceUsage_ += delta;
-            break;
-        default:
-            YT_ABORT();
-    }
+    ResourceUsagePerPreemptionStatus_[properties->PreemptionStatus] += delta;
 
     return delta;
 }
