@@ -39,7 +39,6 @@ typename TFluentLogEventImpl<TParent>::TThis& TFluentLogEventImpl<TParent>::Item
     return *this;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NEventLog

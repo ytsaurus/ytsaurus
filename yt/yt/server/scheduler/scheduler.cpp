@@ -1964,10 +1964,12 @@ private:
             return;
         }
 
+        auto nodesInfo = BuildYsonStringFluently().BeginMap()
+            .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
+        .EndMap();
+
         LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
-            .Item("nodes").BeginMap()
-                .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
-            .EndMap();
+            .Item("nodes").Value(std::move(nodesInfo));
     }
 
 

@@ -82,15 +82,23 @@ public:
     }
 
     void OnBeginRow() override
-    { }
+    {
+        YT_VERIFY(!std::exchange(BuildingRow_, true));
+        ContextSwitchGuard_.emplace();
+    }
 
     void OnValue(const TUnversionedValue& value) override
     {
+        YT_VERIFY(BuildingRow_);
+
         Builder_.AddValue(value);
     }
 
     void OnEndRow() override
     {
+        YT_VERIFY(std::exchange(BuildingRow_, false));
+        ContextSwitchGuard_.reset();
+
         AddRow_(Builder_.FinishRow());
     }
 
@@ -104,6 +112,9 @@ private:
     const TCallback<void(TUnversionedOwningRow)> AddRow_;
 
     const TTableSchemaPtr Schema_ = New<TTableSchema>();
+
+    bool BuildingRow_ = false;
+    std::optional<TForbidContextSwitchGuard> ContextSwitchGuard_;
 
     TUnversionedOwningRowBuilder Builder_;
 };
