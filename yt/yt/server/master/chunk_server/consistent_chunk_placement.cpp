@@ -437,7 +437,14 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         TChunkPlacementGroupKey{
             chunk->GetConsistentReplicaPlacementHash(),
             mediumIndex});
-    YT_VERIFY(placementGroupIt != PlacementGroups_.end());
+    if (placementGroupIt == PlacementGroups_.end()) {
+        YT_LOG_ALERT("Consistent chunk placement was requested for unknown group, ignored "
+            "(ChunkId: %v, ConsistentReplicaPlacementHash: %v, MediumIndex: %v)",
+            chunk->GetId(),
+            chunk->GetConsistentReplicaPlacementHash(),
+            mediumIndex);
+        return {};
+    }
     auto& placementGroup = placementGroupIt->second;
 
     auto ringIt = Rings_.find(mediumIndex);
