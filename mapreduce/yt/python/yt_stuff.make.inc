@@ -1,3 +1,5 @@
+INCLUDE_ONCE(yes)
+
 PEERDIR(
     mapreduce/yt/python
 )
