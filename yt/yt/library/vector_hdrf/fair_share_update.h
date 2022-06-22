@@ -74,13 +74,6 @@ struct TSchedulableAttributes
 
     std::optional<int> FifoIndex;
 
-    // TODO(eshcherbin): Extract post update attributes to separate structure.
-    // NB: calculated in postupdate.
-    TJobResources UnschedulableOperationsResourceUsage;
-    // NB: calculated in postupdate and used for diagnostics purposes.
-    double SatisfactionRatio = 0.0;
-    double LocalSatisfactionRatio = 0.0;
-
     TResourceVector GetGuaranteeShare() const;
 
     void SetFairShare(const TResourceVector& fairShare);

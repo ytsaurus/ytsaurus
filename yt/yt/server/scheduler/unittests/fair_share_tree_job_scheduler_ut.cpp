@@ -1031,15 +1031,15 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
         EXPECT_RV_NEAR(unit / 3.0, blockingPool->Attributes().FairShare.Total);
         EXPECT_RV_NEAR(unit * 2.0 / 3.0, guaranteedPool->Attributes().FairShare.Total);
-        EXPECT_NEAR(1.5, blockingPool->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(0.75, guaranteedPool->Attributes().LocalSatisfactionRatio, 1e-7);
+        EXPECT_NEAR(1.5, blockingPool->PostUpdateAttributes().LocalSatisfactionRatio, 1e-7);
+        EXPECT_NEAR(0.75, guaranteedPool->PostUpdateAttributes().LocalSatisfactionRatio, 1e-7);
 
         EXPECT_RV_NEAR(unit / 3.0, blockingOperationElement->Attributes().FairShare.Total);
         EXPECT_RV_NEAR(unit / 3.0, donorOperationElement->Attributes().FairShare.Total);
         EXPECT_RV_NEAR(unit / 3.0, starvingOperationElement->Attributes().FairShare.Total);
-        EXPECT_NEAR(1.5, blockingOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(1.5, donorOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(0.0, starvingOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
+        EXPECT_NEAR(1.5, blockingOperationElement->PostUpdateAttributes().LocalSatisfactionRatio, 1e-7);
+        EXPECT_NEAR(1.5, donorOperationElement->PostUpdateAttributes().LocalSatisfactionRatio, 1e-7);
+        EXPECT_NEAR(0.0, starvingOperationElement->PostUpdateAttributes().LocalSatisfactionRatio, 1e-7);
 
         EXPECT_NEAR(0.8, starvingOperationElement->GetEffectiveFairShareStarvationTolerance(), 1e-7);
         EXPECT_NEAR(0.8, guaranteedPool->GetEffectiveFairShareStarvationTolerance(), 1e-7);

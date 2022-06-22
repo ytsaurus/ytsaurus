@@ -112,8 +112,8 @@ void TSchedulerElement::ComputeSatisfactionRatioAtUpdate()
 {
     YT_VERIFY(Mutable_);
 
-    Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
-    Attributes_.SatisfactionRatio = Attributes_.LocalSatisfactionRatio;
+    PostUpdateAttributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
+    PostUpdateAttributes_.SatisfactionRatio = PostUpdateAttributes_.LocalSatisfactionRatio;
 }
 
 const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
@@ -130,8 +130,8 @@ void TSchedulerElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrap
     delimitedBuilder->AppendFormat("LimitsShare: %.6g", Attributes_.LimitsShare);
     delimitedBuilder->AppendFormat("StrongGuaranteeShare: %.6g", Attributes_.StrongGuaranteeShare);
     delimitedBuilder->AppendFormat("FairShare: %.6g", Attributes_.FairShare);
-    delimitedBuilder->AppendFormat("Satisfaction: %.4lg", Attributes_.SatisfactionRatio);
-    delimitedBuilder->AppendFormat("LocalSatisfaction: %.4lg", Attributes_.LocalSatisfactionRatio);
+    delimitedBuilder->AppendFormat("Satisfaction: %.4lg", PostUpdateAttributes_.SatisfactionRatio);
+    delimitedBuilder->AppendFormat("LocalSatisfaction: %.4lg", PostUpdateAttributes_.LocalSatisfactionRatio);
     delimitedBuilder->AppendFormat("PromisedFairShare: %.6g", Attributes_.PromisedFairShare);
     delimitedBuilder->AppendFormat("StarvationStatus: %v", GetStarvationStatus());
     delimitedBuilder->AppendFormat("Weight: %v", GetWeight());
@@ -728,7 +728,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
 int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
-    Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
+    PostUpdateAttributes_.UnschedulableOperationsResourceUsage = TJobResources();
     SchedulableChildren_.clear();
     SchedulableElementCount_ = 0;
 
@@ -737,7 +737,7 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
     if (Mode_ == ESchedulingMode::FairShare || !maxSchedulableElementCount.has_value()) {
         for (const auto& child : EnabledChildren_) {
             SchedulableElementCount_ += child->BuildSchedulableChildrenLists(context);
-            Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
+            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
             if (child->IsSchedulable()) {
                 SchedulableChildren_.push_back(child);
             }
@@ -757,7 +757,7 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
 
         for (auto* child : sortedChildren) {
             int childSchedulableElementCount = child->BuildSchedulableChildrenLists(context);
-            Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
+            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
             if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
                 Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
             {
@@ -784,7 +784,7 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
             case ESchedulingMode::Fifo:
                 return HasHigherPriorityInFifoMode(lhs, rhs);
             case ESchedulingMode::FairShare:
-                return lhs->Attributes().SatisfactionRatio < rhs->Attributes().SatisfactionRatio;
+                return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
             default:
                 YT_ABORT();
         }
@@ -804,7 +804,7 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     }
 
     if (bestChild) {
-        Attributes_.SatisfactionRatio = std::min(bestChild->Attributes().SatisfactionRatio, Attributes_.SatisfactionRatio);
+        PostUpdateAttributes_.SatisfactionRatio = std::min(bestChild->PostUpdateAttributes().SatisfactionRatio, PostUpdateAttributes_.SatisfactionRatio);
     }
 }
 
@@ -1645,7 +1645,7 @@ int TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpda
 {
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
-        Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
+        PostUpdateAttributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
         return 0;
     }
     return 1;
@@ -1655,7 +1655,7 @@ void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFair
 {
     UnschedulableReason_ = EUnschedulableReason::FifoSchedulableElementCountLimitReached;
     ++context->UnschedulableReasons[*UnschedulableReason_];
-    Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
+    PostUpdateAttributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
 }
 
 void TSchedulerOperationElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)

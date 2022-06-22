@@ -2676,8 +2676,8 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "proposed_integral_share", attributes.ProposedIntegralShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
 
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", attributes.SatisfactionRatio)
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", attributes.LocalSatisfactionRatio)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", element->PostUpdateAttributes().SatisfactionRatio)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
             .Do(BIND(&TFairShareTreeJobScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
@@ -2733,7 +2733,7 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
             .Item("dominant_fair_share").Value(MaxComponent(attributes.FairShare.Total))
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("satisfaction_ratio").Value(element->PostUpdateAttributes().SatisfactionRatio)
             .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(element->IsOperation(), [&] (TFluentMap fluent) {
                 fluent
