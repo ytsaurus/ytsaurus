@@ -15,6 +15,7 @@ import yt.yson as yson
 
 from copy import deepcopy
 
+import os
 import random
 import time
 import pytest
@@ -902,7 +903,8 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
         },
     }
 
-    def _validate_basic_tags(self, event, op_id, op_type, users=None, pool_tree="default", pool="/root"):
+    def _validate_basic_tags(self, event, op_id, op_type, users=None, pool_tree="default", pool="/root",
+                             allow_zero=False):
         if users is None:
             users = ["job:root"]
         assert event["pool_tree@"] == pool_tree
@@ -911,8 +913,13 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
         assert event["operation_id"] == op_id
         assert event["operation_type@"] == op_type
         assert "job_id" in event
-        assert event["bytes"] > 0
-        assert event["io_requests"] > 0
+        if allow_zero:
+            assert event["bytes"] >= 0
+            assert event["io_requests"] >= 0
+            assert event["bytes"] + event["io_requests"] > 0
+        else:
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
         assert event["user@"] in users
 
     def _gather_events(self, raw_events, op, task_to_kind=None, kind_to_job=None,
@@ -2311,3 +2318,71 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
         assert read_count >= 3
 
         set_node_banned(node_to_ban, False, driver=self.remote_driver)
+
+##################################################################
+
+
+class TestUserJobIOTracking(TestJobIOTrackingBase):
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 0,
+                },
+                "uncompressed_data": {
+                    "capacity": 0,
+                },
+            },
+        },
+        "exec_agent": {
+            "job_proxy_heartbeat_period": 100,
+        },
+    }
+
+    @authors("gepardo")
+    def test_simple(self):
+        table_data = [{"a": 42}]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        os.makedirs(self.default_disk_path)
+        os.chmod(self.default_disk_path, 0o777)
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="""
+                dd if=/dev/urandom of={0}/myfile count=1000 bs=1024 oflag=direct && \
+                sleep 1 && \
+                dd if={0}/myfile of={0}/myfile2 count=1000 bs=1024 iflag=direct oflag=direct && \
+                sleep 1 && \
+                dd if=/dev/urandom of={0}/myfile3 count=1000 bs=1024 oflag=direct && \
+                sync && \
+                sleep 1 && \
+                cat""".format(self.default_disk_path),
+        )
+        time.sleep(3.0)
+        statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]["block_io"]
+        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier,
+                                              filter=lambda e: e.get("job_io_kind@") == "user_job",
+                                              check_event_count=False)
+
+        sum_bytes = {"read": 0, "write": 0}
+        sum_io_requests = {"read": 0, "write": 0}
+        for event in raw_events:
+            self._validate_basic_tags(event, op.id, "map", users=["root", "job:root"], allow_zero=True)
+            sum_bytes[event["direction@"]] += event["bytes"]
+            sum_io_requests[event["direction@"]] += event["io_requests"]
+
+        assert statistics["bytes_read"]["$"]["completed"]["map"]["sum"] == sum_bytes["read"]
+        assert statistics["bytes_written"]["$"]["completed"]["map"]["sum"] == sum_bytes["write"]
+        assert statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["read"]
+        assert statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["write"]
