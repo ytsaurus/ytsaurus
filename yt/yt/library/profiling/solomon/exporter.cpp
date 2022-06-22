@@ -23,6 +23,7 @@
 #include <library/cpp/cgiparam/cgiparam.h>
 
 #include <util/datetime/base.h>
+
 #include <util/stream/str.h>
 
 namespace NYT::NProfiling {
@@ -63,7 +64,8 @@ TSolomonExporterConfig::TSolomonExporterConfig()
     RegisterParameter("thread_pool_size", ThreadPoolSize)
         .Default();
 
-    RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
+    RegisterParameter("convert_counters_to_rate_for_solomon", ConvertCountersToRateForSolomon)
+        .Alias("convert_counters_to_rate")
         .Default(true);
     RegisterParameter("rename_converted_counters", RenameConvertedCounters)
         .Default(true);
@@ -738,7 +740,8 @@ void TSolomonExporter::DoHandleShard(
         options.Host = Config_->Host;
         options.InstanceTags = std::vector<TTag>{Config_->InstanceTags.begin(), Config_->InstanceTags.end()};
 
-        if (Config_->ConvertCountersToRate) {
+        auto isSolomon = format == NMonitoring::EFormat::JSON || format == NMonitoring::EFormat::SPACK;
+        if (Config_->ConvertCountersToRateForSolomon && isSolomon) {
             options.ConvertCountersToRateGauge = true;
             options.RenameConvertedCounters = Config_->RenameConvertedCounters;
 
@@ -748,7 +751,7 @@ void TSolomonExporter::DoHandleShard(
             }
         }
 
-        options.EnableSolomonAggregationWorkaround = true;
+        options.EnableSolomonAggregationWorkaround = isSolomon;
         options.Times = readWindow;
         options.ExportSummary = Config_->ExportSummary;
         options.ExportSummaryAsMax = Config_->ExportSummaryAsMax;

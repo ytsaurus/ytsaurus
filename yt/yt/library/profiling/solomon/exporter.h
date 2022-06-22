@@ -49,7 +49,7 @@ struct TSolomonExporterConfig
 
     std::optional<int> ThreadPoolSize;
 
-    bool ConvertCountersToRate;
+    bool ConvertCountersToRateForSolomon;
     bool RenameConvertedCounters;
 
     bool ExportSummary;
