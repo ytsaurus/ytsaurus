@@ -127,6 +127,16 @@ struct TResourceDistributionInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerElementPostUpdateAttributes
+{
+    TJobResources UnschedulableOperationsResourceUsage;
+
+    double SatisfactionRatio = 0.0;
+    double LocalSatisfactionRatio = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerElementFixedState
 {
 public:
@@ -158,6 +168,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestStarvingAncestor, nullptr);
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestAggressivelyStarvingAncestor, nullptr);
 
+    DEFINE_BYREF_RO_PROPERTY(TSchedulerElementPostUpdateAttributes, PostUpdateAttributes);
+
 protected:
     TSchedulerElementFixedState(
         ISchedulerStrategyHost* strategyHost,
@@ -172,7 +184,7 @@ protected:
     TJobResources SchedulingTagFilterResourceLimits_;
 
     // These attributes are calculated during fair share update and further used in schedule jobs.
-    NVectorHdrf::TSchedulableAttributes Attributes_;
+    TSchedulableAttributes Attributes_;
 
     // Used everywhere.
     TSchedulerCompositeElement* Parent_ = nullptr;

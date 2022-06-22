@@ -768,16 +768,16 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
-        EXPECT_EQ(0.5, operationElements[0]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.0, operationElements[1]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, operationElements[2]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.0, operationElements[3]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.0, poolA->Attributes().SatisfactionRatio);
-        EXPECT_EQ(InfiniteSatisfactionRatio, poolB->Attributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[0]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.0, operationElements[1]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[2]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.0, operationElements[3]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.0, poolA->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, poolB->PostUpdateAttributes().SatisfactionRatio);
         // NB(eshcherbin): Here it's 1/3 because in FIFO pools we don't search for the least satisfied child;
         // in this case, we take the minimum of the pool's local satisfaction (1/3) and the first child's satisfaction (0.5).
-        EXPECT_NEAR(1.0 / 3.0, poolC->Attributes().SatisfactionRatio, 1e-7);
-        EXPECT_EQ(InfiniteSatisfactionRatio, poolD->Attributes().SatisfactionRatio);
+        EXPECT_NEAR(1.0 / 3.0, poolC->PostUpdateAttributes().SatisfactionRatio, 1e-7);
+        EXPECT_EQ(InfiniteSatisfactionRatio, poolD->PostUpdateAttributes().SatisfactionRatio);
     }
 
     for (int i = 0; i < 10; ++i) {
@@ -790,14 +790,14 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
-        EXPECT_EQ(0.5, operationElements[0]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, operationElements[1]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, operationElements[2]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, operationElements[3]->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, poolA->Attributes().SatisfactionRatio);
-        EXPECT_EQ(InfiniteSatisfactionRatio, poolB->Attributes().SatisfactionRatio);
-        EXPECT_EQ(0.5, poolC->Attributes().SatisfactionRatio);
-        EXPECT_EQ(InfiniteSatisfactionRatio, poolD->Attributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[0]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[1]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[2]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, operationElements[3]->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, poolA->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, poolB->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(0.5, poolC->PostUpdateAttributes().SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, poolD->PostUpdateAttributes().SatisfactionRatio);
     }
 }
 

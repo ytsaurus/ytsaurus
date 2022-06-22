@@ -340,7 +340,7 @@ TJobResources TDynamicAttributesList::FillResourceUsageAtCompositeElement(
 {
     auto& attributes = AttributesOf(element);
 
-    attributes.ResourceUsage = element->Attributes().UnschedulableOperationsResourceUsage;
+    attributes.ResourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
     for (const auto& child : element->SchedulableChildren()) {
         attributes.ResourceUsage += FillResourceUsage(child.Get(), treeSnapshot, resourceUsageSnapshot);
     }
@@ -1079,7 +1079,7 @@ TJobResources TScheduleJobsContext::GetCurrentResourceUsage(const TSchedulerElem
     if (element->IsSchedulable()) {
         return DynamicAttributesOf(element).ResourceUsage;
     } else {
-        return element->Attributes().UnschedulableOperationsResourceUsage;
+        return element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
     }
 }
 
