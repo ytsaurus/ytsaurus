@@ -189,6 +189,13 @@ TStringBuf FindProtobufEnumLiteralByValue(
     const TProtobufEnumType* type,
     T value);
 
+//! Converts a string or integral #node to enum underlying value type T.
+//! Throws if #node is not of string or integral type or if #node corresponds to an unknown enum value.
+template <class T>
+T ConvertToProtobufEnumValue(
+    const TProtobufEnumType* type,
+    const NYTree::INodePtr& node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This method is assumed to be called during static initialization only.

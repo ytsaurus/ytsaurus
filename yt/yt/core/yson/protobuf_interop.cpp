@@ -20,6 +20,7 @@
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
@@ -706,6 +707,35 @@ TStringBuf FindProtobufEnumLiteralByValueUntyped(
     int value)
 {
     return type->FindLiteralByValue(value);
+}
+
+int ConvertToProtobufEnumValueUntyped(
+    const TProtobufEnumType* type,
+    const NYTree::INodePtr& node)
+{
+    switch (node->GetType()) {
+        case NYTree::ENodeType::Int64:
+        case NYTree::ENodeType::Uint64: {
+            int value = NYTree::ConvertTo<int>(node);
+            THROW_ERROR_EXCEPTION_IF_NOT(type->GetUnderlying()->FindValueByNumber(value),
+                "Unknown value %v of enum %Qv",
+                value,
+                type->GetUnderlying()->name());
+            return value;
+        }
+        case NYTree::ENodeType::String: {
+            const TString& literal = node->AsString()->GetValue();
+            auto value = type->FindValueByLiteral(literal);
+            THROW_ERROR_EXCEPTION_IF_NOT(value,
+                "Unknown value %Qv of enum %Qv",
+                literal,
+                type->GetUnderlying()->name());
+            return *value;
+        }
+        default:
+            THROW_ERROR_EXCEPTION("Expected integral or string, got %v",
+                node->GetType());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
