@@ -1,3 +1,5 @@
+INCLUDE_ONCE(yes)
+
 CHECK_DEPENDENT_DIRS(ALLOW_ONLY ALL
     build
     certs
