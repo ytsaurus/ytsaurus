@@ -38,6 +38,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ProbingJobsFix)                       (300907))
     // 22.3 start here
     ((DropUnusedOperationId)                (301001))
+    ((ChangeUnorderedMergeInheritance)      (301002))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

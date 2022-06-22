@@ -1074,17 +1074,22 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedOperationSpecBase::Register(TRegistrar registrar)
+void TOperationWithInputSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
         .NonEmpty();
 
+    registrar.Preprocessor([] (TOperationWithInputSpec* spec) {
+        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedOperationSpecBase::Register(TRegistrar registrar)
+{
     registrar.Preprocessor([] (TUnorderedOperationSpecBase* spec) {
         spec->JobIO->TableReader->MaxBufferSize = 256_MB;
-    });
-
-    registrar.Preprocessor([] (TUnorderedOperationSpecBase* spec) {
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
     });
 }
 
@@ -1111,27 +1116,8 @@ void TMapOperationSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
-{
-    registrar.Parameter("output_table_path", &TThis::OutputTablePath);
-    registrar.Parameter("combine_chunks", &TThis::CombineChunks)
-        .Default(false);
-    registrar.Parameter("force_transform", &TThis::ForceTransform)
-        .Default(false);
-    registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
-        .Default(ESchemaInferenceMode::Auto);
-
-    registrar.Postprocessor([] (TUnorderedMergeOperationSpec* spec) {
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TMergeOperationSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
-        .NonEmpty();
     registrar.Parameter("output_table_path", &TThis::OutputTablePath);
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EMergeMode::Unordered);
@@ -1139,13 +1125,10 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("force_transform", &TThis::ForceTransform)
         .Default(false);
-    registrar.Parameter("merge_by", &TThis::MergeBy)
-        .Default();
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
     registrar.Postprocessor([] (TMergeOperationSpec* spec) {
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
         spec->OutputTablePath = spec->OutputTablePath.Normalize();
     });
 }
@@ -1171,6 +1154,8 @@ void TSortedOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
         .Default(false);
+    registrar.Parameter("merge_by", &TThis::MergeBy)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

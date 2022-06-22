@@ -1205,13 +1205,30 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedOperationSpecBase
-    : public TSimpleOperationSpecBase
-    , public TInputlyQueryableSpec
+class TOperationWithInputSpec
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
+    REGISTER_YSON_STRUCT(TOperationWithInputSpec);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationWithInputSpec, 0xd4e68bb7);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationWithInputSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnorderedOperationSpecBase
+    : public virtual TSimpleOperationSpecBase
+    , public TInputlyQueryableSpec
+    , public virtual TOperationWithInputSpec
+{
+public:
     REGISTER_YSON_STRUCT(TUnorderedOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1246,28 +1263,6 @@ DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedMergeOperationSpec
-    : public TUnorderedOperationSpecBase
-{
-public:
-    NYPath::TRichYPath OutputTablePath;
-    bool CombineChunks;
-    bool ForceTransform;
-    ESchemaInferenceMode SchemaInferenceMode;
-
-    REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
-
-    static void Register(TRegistrar registrar);
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EMergeMode,
     (Sorted)
     (Ordered)
@@ -1275,15 +1270,14 @@ DEFINE_ENUM(EMergeMode,
 );
 
 class TMergeOperationSpec
-    : public TSimpleOperationSpecBase
+    : public virtual TSimpleOperationSpecBase
+    , public virtual TOperationWithInputSpec
 {
 public:
-    std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
     bool ForceTransform;
-    NTableClient::TSortColumns MergeBy;
 
     ESchemaInferenceMode SchemaInferenceMode;
 
@@ -1295,9 +1289,27 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
 };
 
+DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
+class TUnorderedMergeOperationSpec
+    : public TUnorderedOperationSpecBase
+    , public TMergeOperationSpec
+{
+public:
+    REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -1320,6 +1332,7 @@ class TSortedOperationSpec
 {
 public:
     bool UseNewSortedPool;
+    NTableClient::TSortColumns MergeBy;
 
     REGISTER_YSON_STRUCT(TSortedOperationSpec);
 
