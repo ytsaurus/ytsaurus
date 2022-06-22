@@ -8,6 +8,8 @@ import org.apache.spark.sql.{SQLContext, SparkSession}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 
+import java.util.Properties
+import scala.collection.JavaConverters.asScalaSetConverter
 import scala.util.Try
 
 package object conf {
@@ -135,6 +137,12 @@ package object conf {
     }
   }
 
+  implicit class PropertiesConf(props: Properties) extends ConfProvider {
+    override def getYtConf(name: String): Option[String] = Option(props.getProperty(name))
+    override def getAllKeys: Seq[String] = props.stringPropertyNames().asScala.toSeq
+  }
+
+
   implicit class OptionsConf(options: Map[String, String]) extends ConfProvider {
     override def getYtConf(name: String): Option[String] = options.get(name)
 
@@ -151,5 +159,4 @@ package object conf {
       options.keySet().asScala.toList
     }
   }
-
 }
