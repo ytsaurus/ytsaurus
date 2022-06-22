@@ -183,7 +183,7 @@ public:
         return transaction;
     }
 
-    TTransaction* GetOrCreateTransaction(
+    TTransaction* GetOrCreateTransactionOrThrow(
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
@@ -238,7 +238,7 @@ public:
         return transaction;
     }
 
-    TTransaction* MakeTransactionPersistent(TTransactionId transactionId)
+    TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             ValidateNotDecommissioned(transaction);
@@ -592,7 +592,7 @@ public:
     {
         YT_VERIFY(HasHydraContext());
 
-        if (decommission == Decommissioned_) {
+        if (decommission == Decommission_) {
             return;
         }
 
@@ -602,7 +602,12 @@ public:
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction manager is no longer decommissioned");
         }
 
-        Decommissioned_ = decommission;
+        Decommission_ = decommission;
+    }
+
+    bool GetDecommission()
+    {
+        return Decommission_;
     }
 
     void SetRemoving()
@@ -616,7 +621,7 @@ public:
 
     bool IsDecommissioned() const
     {
-        return Decommissioned_ && PersistentTransactionMap_.empty();
+        return Decommission_ && PersistentTransactionMap_.empty();
     }
 
     ETabletReign GetSnapshotReign() const
@@ -645,7 +650,7 @@ private:
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
     std::optional<TTimestamp> MinCommitTimestamp_;
 
-    bool Decommissioned_ = false;
+    bool Decommission_ = false;
     bool Removing_ = false;
 
     ETabletReign SnapshotReign_ = TEnumTraits<ETabletReign>::GetMaxValue();
@@ -861,7 +866,7 @@ private:
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
-        Save(context, Decommissioned_);
+        Save(context, Decommission_);
         Save(context, Removing_);
     }
 
@@ -882,7 +887,7 @@ private:
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
         Load(context, LastSerializedCommitTimestamps_);
-        Load(context, Decommissioned_);
+        Load(context, Decommission_);
 
         if (context.GetVersion() >= ETabletReign::FixSuspendTabletCells) {
             Load(context, Removing_);
@@ -921,7 +926,7 @@ private:
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
         MinCommitTimestamp_.reset();
-        Decommissioned_ = false;
+        Decommission_ = false;
         Removing_ = false;
     }
 
@@ -936,7 +941,7 @@ private:
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
-        auto* transaction = GetOrCreateTransaction(
+        auto* transaction = GetOrCreateTransactionOrThrow(
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
@@ -1162,7 +1167,7 @@ private:
 
     void ValidateNotDecommissioned(TTransaction* transaction)
     {
-        if (!Decommissioned_) {
+        if (!Decommission_) {
             return;
         }
 
@@ -1257,14 +1262,14 @@ IYPathServicePtr TTransactionManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-TTransaction* TTransactionManager::GetOrCreateTransaction(
+TTransaction* TTransactionManager::GetOrCreateTransactionOrThrow(
     TTransactionId transactionId,
     TTimestamp startTimestamp,
     TDuration timeout,
     bool transient,
     bool* fresh)
 {
-    return Impl_->GetOrCreateTransaction(
+    return Impl_->GetOrCreateTransactionOrThrow(
         transactionId,
         startTimestamp,
         timeout,
@@ -1282,9 +1287,9 @@ TTransaction* TTransactionManager::GetPersistentTransaction(TTransactionId trans
     return Impl_->GetPersistentTransaction(transactionId);
 }
 
-TTransaction* TTransactionManager::MakeTransactionPersistent(TTransactionId transactionId)
+TTransaction* TTransactionManager::MakeTransactionPersistentOrThrow(TTransactionId transactionId)
 {
-    return Impl_->MakeTransactionPersistent(transactionId);
+    return Impl_->MakeTransactionPersistentOrThrow(transactionId);
 }
 
 void TTransactionManager::DropTransaction(TTransaction* transaction)
@@ -1394,6 +1399,11 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
 void TTransactionManager::SetDecommission(bool decommission)
 {
     Impl_->SetDecommission(decommission);
+}
+
+bool TTransactionManager::GetDecommission() const
+{
+    return Impl_->GetDecommission();
 }
 
 void TTransactionManager::SetRemoving()
