@@ -24,6 +24,8 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
+#include <yt/yt/server/lib/io/io_tracker.h>
+
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -85,6 +87,7 @@ using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NIO;
 using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
@@ -838,6 +841,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
         EnrichStatisticsWithDiskInfo(&statistics);
 
         EnrichStatisticsWithArtifactsInfo(&statistics);
+
+        UpdateIOStatistics(statistics);
 
         StatisticsYson_ = ConvertToYsonString(statistics);
 
@@ -2498,6 +2503,55 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size", ChunkCacheStatistics_.CacheHitArtifactsSize);
     statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size", ChunkCacheStatistics_.CacheMissArtifactsSize);
     statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size", ChunkCacheStatistics_.CacheBypassedArtifactsSize);
+}
+
+void TJob::UpdateIOStatistics(const TStatistics& statistics)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto getStat = [&] (i64 oldValue, const char *path) {
+        auto iter = statistics.Data().find(path);
+        i64 newValue = iter == statistics.Data().end() ? 0 : iter->second.GetSum();
+        if (newValue < oldValue) {
+            YT_LOG_WARNING("Job I/O statistic decreased over time (Name: %v, OldValue: %v, NewValue: %v)", path, oldValue, newValue);
+            newValue = oldValue;
+        }
+        return newValue;
+    };
+
+    auto newBytesRead = getStat(BytesRead_, "/user_job/block_io/bytes_read");
+    auto newBytesWritten = getStat(BytesWritten_, "/user_job/block_io/bytes_written");
+
+    // NB(gepardo): Porto currently calculates only io_total, without making any difference between read and
+    // write IO requests. So, we use io_total to estimate both. This place must be corrected when Porto will
+    // export read and write IO requests separately (see PORTO-1011 for details).
+    auto newIORequestsRead = getStat(IORequestsRead_, "/user_job/block_io/io_total");
+    auto newIORequestsWritten = getStat(IORequestsWritten_, "/user_job/block_io/io_total");
+
+    if (Bootstrap_->GetIOTracker()->IsEnabled()) {
+        auto processDirection = [&] (const char *direction, i64 byteDelta, i64 ioRequestDelta) {
+            if (byteDelta > 0 || ioRequestDelta > 0) {
+                Bootstrap_->GetIOTracker()->Enqueue(
+                    TIOCounters{
+                        .Bytes = byteDelta,
+                        .IORequests = ioRequestDelta,
+                    },
+                    /*tags*/ {
+                        {FormatIOTag(EAggregateIOTag::Direction), direction},
+                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        {FormatIOTag(EAggregateIOTag::JobIoKind), "user_job"},
+                    });
+            }
+        };
+
+        processDirection("read", newBytesRead - BytesRead_, newIORequestsRead - IORequestsRead_);
+        processDirection("write", newBytesWritten - BytesWritten_, newIORequestsWritten - IORequestsWritten_);
+    }
+
+    BytesRead_ = newBytesRead;
+    BytesWritten_ = newBytesWritten;
+    IORequestsRead_ = newIORequestsRead;
+    IORequestsWritten_ = newIORequestsWritten;
 }
 
 void TJob::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)

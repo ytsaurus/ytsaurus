@@ -312,6 +312,12 @@ private:
 
     bool JobProxyCompleted_ = false;
 
+    // IO statistics.
+    i64 BytesRead_ = 0;
+    i64 BytesWritten_ = 0;
+    i64 IORequestsRead_ = 0;
+    i64 IORequestsWritten_ = 0;
+
     // Tracing.
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
@@ -408,6 +414,8 @@ private:
     void EnrichStatisticsWithGpuInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
+
+    void UpdateIOStatistics(const TStatistics& statistics);
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
