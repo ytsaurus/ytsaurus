@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
+#include <yt/yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
@@ -497,8 +499,26 @@ void TOperationControllerImpl::OnJobFinished(
         .PreemptionReason = job->GetPreemptionReason(),
     };
 
+    auto parseAbortReason = [&] (const TError& error) -> std::optional<EAbortReason>
+    {
+        auto abortReasonString = error.Attributes().Find<TString>("abort_reason");
+        if (!abortReasonString) {
+            return {};
+        }
+
+        auto abortReason = TryParseEnum<EAbortReason>(*abortReasonString);
+        if (!abortReason) {
+            YT_LOG_DEBUG(
+                "Failed to parse abort reason from result (JobId: %v, UnparsedAbortReason: %v)",
+                job->GetId(),
+                *abortReasonString);
+        }
+
+        return abortReason;
+    };
+
     if (auto error = FromProto<TError>(status->result().error()); 
-        error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+        parseAbortReason(error).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
     {
         event.GetSpecFailed = true;
     }
