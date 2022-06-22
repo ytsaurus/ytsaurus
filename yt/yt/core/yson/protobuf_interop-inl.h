@@ -26,6 +26,9 @@ std::optional<int> FindProtobufEnumValueByLiteralUntyped(
 TStringBuf FindProtobufEnumLiteralByValueUntyped(
     const TProtobufEnumType* type,
     int value);
+int ConvertToProtobufEnumValueUntyped(
+    const TProtobufEnumType* type,
+    const NYTree::INodePtr& node);
 
 template <class T>
 std::optional<T> FindProtobufEnumValueByLiteral(
@@ -42,6 +45,14 @@ TStringBuf FindProtobufEnumLiteralByValue(
     T value)
 {
     return FindProtobufEnumLiteralByValueUntyped(type, static_cast<int>(value));
+}
+
+template <class T>
+T ConvertToProtobufEnumValue(
+    const TProtobufEnumType* type,
+    const NYTree::INodePtr& node)
+{
+    return static_cast<T>(ConvertToProtobufEnumValueUntyped(type, node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

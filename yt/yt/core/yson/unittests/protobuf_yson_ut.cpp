@@ -2178,6 +2178,32 @@ TEST(TProtobufEnums, FindLiteralByValueWithAlias)
     ASSERT_EQ("true", FindProtobufEnumLiteralByValue(type, NYT::NYson::NProto::Flag_Yes));
 }
 
+TEST(TProtobufEnums, ConvertToProtobufEnumValueUntyped)
+{
+    static const auto* type = ReflectProtobufEnumType(NYT::NYson::NProto::EColor_descriptor());
+    EXPECT_EQ(
+        NYT::NYson::NProto::Color_Red,
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value(2)));
+    EXPECT_EQ(
+        NYT::NYson::NProto::Color_Red,
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value(2u)));
+    EXPECT_EQ(
+        NYT::NYson::NProto::Color_Red,
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value("red")));
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value(100500)),
+        "Unknown value");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value("kizil")),
+        "Unknown value");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().BeginMap().EndMap()),
+        "Expected integral or string");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertToProtobufEnumValue<NYT::NYson::NProto::EColor>(type, BuildYsonNodeFluently().Value(1ull << 52)),
+        "out of expected range");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TYsonToProtobufTest, ConvertToYsonString)
