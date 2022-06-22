@@ -49,8 +49,8 @@ class TFluentLogEventImpl
     : public NYTree::TFluentYsonBuilder::TFluentFragmentBase<TFluentLogEventImpl, TParent, NYTree::TFluentMap>
 {
 public:
-    typedef TFluentLogEventImpl TThis;
-    typedef NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent, NYTree::TFluentMap> TBase;
+    using TThis = TFluentLogEventImpl;
+    using TBase = NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent, NYTree::TFluentMap>;
 
     TFluentLogEventImpl(std::unique_ptr<NYson::IYsonConsumer> consumer);
 

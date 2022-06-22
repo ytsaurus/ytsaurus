@@ -46,7 +46,6 @@ public:
 
 private:
     bool Active_;
-
 };
 
 class TForbidContextSwitchGuard

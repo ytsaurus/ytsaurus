@@ -360,6 +360,7 @@ void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& er
 void TNodeManager::BuildNodesYson(TFluentMap fluent)
 {
     std::vector<TFuture<TYsonString>> futures;
+    futures.reserve(NodeShards_.size());
     for (const auto& nodeShard : NodeShards_) {
         futures.push_back(
             BIND([nodeShard] {
@@ -371,7 +372,7 @@ void TNodeManager::BuildNodesYson(TFluentMap fluent)
                 .Run());
     }
 
-    auto nodeYsonFragments = WaitFor(AllSucceeded(futures))
+    auto nodeYsonFragments = WaitFor(AllSucceeded(std::move(futures)))
         .ValueOrThrow();
     for (const auto& fragment : nodeYsonFragments) {
         fluent.Items(fragment);
