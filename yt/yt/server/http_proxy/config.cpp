@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/config.h>
 
+#include <yt/yt/server/lib/zookeeper/config.h>
+
 #include <yt/yt/ytlib/auth/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
@@ -171,6 +173,9 @@ void TProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("clickhouse", &TThis::ClickHouse)
         .DefaultNew();
+
+    registrar.Parameter("zookeeper", &TThis::Zookeeper)
+        .Default();
 
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()

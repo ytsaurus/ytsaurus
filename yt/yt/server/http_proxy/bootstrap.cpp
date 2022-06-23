@@ -11,7 +11,14 @@
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
+
+#include <yt/yt/server/lib/zookeeper/client.h>
+#include <yt/yt/server/lib/zookeeper/config.h>
+#include <yt/yt/server/lib/zookeeper/driver.h>
+#include <yt/yt/server/lib/zookeeper/server.h>
+#include <yt/yt/server/lib/zookeeper/session_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -154,6 +161,17 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
 
+    if (Config_->Zookeeper) {
+        ZookeeperQueue_ = New<TActionQueue>("Zookeeper");
+        ZookeeperClient_ = NZookeeper::CreateClient(RootClient_);
+        ZookeeperDriver_ = NZookeeper::CreateDriver(ZookeeperClient_);
+        ZookeeperSessionManager_ = NZookeeper::CreateSessionManager(
+            ZookeeperDriver_,
+            Poller_,
+            ZookeeperQueue_->GetInvoker());
+        ZookeeperServer_ = NZookeeper::CreateServer(Poller_, Config_->Zookeeper->Port);
+    }
+
     AccessChecker_ = CreateAccessChecker(this);
 
     auto driverV3Config = CloneNode(Config_->Driver);
@@ -240,6 +258,12 @@ void TBootstrap::Run()
     Coordinator_->Start();
 
     RpcServer_->Start();
+
+    if (Config_->Zookeeper) {
+        ZookeeperServer_->SubscribeConnectionAccepted(
+            BIND(&NZookeeper::ISessionManager::OnConnectionAccepted, ZookeeperSessionManager_));
+        ZookeeperServer_->Start();
+    }
 
     Sleep(TDuration::Max());
 }

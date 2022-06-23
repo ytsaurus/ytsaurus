@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/zookeeper/public.h>
+
 #include <yt/yt/ytlib/auth/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -205,6 +207,8 @@ public:
     TAccessCheckerConfigPtr AccessChecker;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
+
+    NZookeeper::TZookeeperConfigPtr Zookeeper;
 
     TString UIRedirectUrl;
 

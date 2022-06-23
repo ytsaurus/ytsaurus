@@ -1,0 +1,15 @@
+#include "config.h"
+
+namespace NYT::NZookeeper {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TZookeeperConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("port", &TZookeeperConfig::Port)
+        .Default(6789);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NZookeeper
