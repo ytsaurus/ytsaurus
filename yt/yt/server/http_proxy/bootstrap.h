@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
+#include <yt/yt/server/lib/zookeeper/public.h>
+
 #include <yt/yt/ytlib/auth/public.h>
 
 #include <yt/yt/ytlib/api/public.h>
@@ -103,6 +105,13 @@ private:
     TApiPtr Api_;
 
     NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;
+
+    // Zookeeper stuff.
+    NConcurrency::TActionQueuePtr ZookeeperQueue_;
+    NZookeeper::IClientPtr ZookeeperClient_;
+    NZookeeper::IDriverPtr ZookeeperDriver_;
+    NZookeeper::ISessionManagerPtr ZookeeperSessionManager_;
+    NZookeeper::IServerPtr ZookeeperServer_;
 
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;
