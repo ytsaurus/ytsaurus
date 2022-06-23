@@ -65,23 +65,7 @@ ERASURE_JOURNAL_ATTRIBUTES = {
 ##################################################################
 
 
-class TestJournals(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 7
-    NUM_MASTERS = 1
-    NUM_NODES = 6
-
-    PAYLOAD = [
-        {
-            "payload": "payload-"
-            + str(i)
-            + "-"
-            + "".join(
-                random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
-            )
-        }
-        for i in range(0, 10)
-    ]
-
+class TestJournalsBase(YTEnvSetup):
     def _write_and_wait_until_sealed(self, path, *args, **kwargs):
         write_journal(path, *args, **kwargs)
         wait_until_sealed(path)
@@ -152,6 +136,27 @@ class TestJournals(YTEnvSetup):
             if orchid["flushed_row_count"] == length:
                 result.append(replica)
         return result
+
+
+##################################################################
+
+
+class TestJournals(TestJournalsBase):
+    NUM_TEST_PARTITIONS = 7
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+
+    PAYLOAD = [
+        {
+            "payload": "payload-"
+            + str(i)
+            + "-"
+            + "".join(
+                random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
+            )
+        }
+        for i in range(0, 10)
+    ]
 
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
@@ -528,9 +533,6 @@ class TestJournals(YTEnvSetup):
 
     @authors("gritukan")
     def test_replica_lag_limit(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (20, 3):
-            pytest.skip("Replica lag limit is available in 21.1+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
@@ -540,8 +542,7 @@ class TestJournals(YTEnvSetup):
                    replica_lag_limit,
                    replica_row_limits,
                    expected_replica_length):
-            if exists("//tmp/j"):
-                remove("//tmp/j")
+            remove("//tmp/j", force=True)
 
             rf = len(replica_row_limits)
             rq = 2
@@ -704,7 +705,7 @@ class TestJournalsRpcProxy(TestJournals):
 ##################################################################
 
 
-class TestJournalsChangeMedia(YTEnvSetup):
+class TestJournalsChangeMedia(TestJournalsBase):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
@@ -769,7 +770,9 @@ class TestJournalsChangeMedia(YTEnvSetup):
 ##################################################################
 
 
-class TestErasureJournals(TestJournals):
+class TestErasureJournals(TestJournalsBase):
+    NUM_TEST_PARTITIONS = 4
+    NUM_MASTERS = 1
     NUM_NODES = 20
 
     JOURNAL_ATTRIBUTES = {
@@ -948,35 +951,10 @@ class TestErasureJournalsRpcProxy(TestErasureJournals):
 ##################################################################
 
 
-class TestChunkAutotomizer(YTEnvSetup):
+class TestChunkAutotomizer(TestJournalsBase):
     NUM_TEST_PARTITIONS = 3
     NUM_MASTERS = 1
     NUM_NODES = 20
-
-    def _get_chunk_replica_length(self, chunk_id):
-        result = []
-        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
-            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
-            result.append(orchid["flushed_row_count"])
-        return result
-
-    def _find_replicas_with_length(self, chunk_id, length):
-        result = []
-        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
-            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
-            if orchid["flushed_row_count"] == length:
-                result.append(replica)
-        return result
-
-    def _wait_until_last_chunk_sealed(self, path):
-        def check():
-            try:
-                chunk_ids = get(path + "/@chunk_ids")
-                chunk_id = chunk_ids[-1]
-                return all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id)))
-            except YtError:
-                return False
-        wait(check)
 
     def _write_simple_journal(self):
         write_journal(
