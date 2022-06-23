@@ -154,7 +154,13 @@ def get_driver_instance(client):
 
         lazy_import_driver_bindings(config["backend"], config["allow_fallback_to_native_driver"])
         if driver_bindings is None:
-            raise YtError("Driver class not found, install yt driver bindings.")
+            if config["backend"] == "rpc":
+                raise YtError("Driver class not found, install RPC driver bindings. "
+                              "Bindings are shipped as additional package and "
+                              "can be installed as Debian package \"yandex-yt-python-driver-rpc\" "
+                              "or as pip package \"yandex-yt-driver-rpc-bindings\"")
+            else:
+                raise YtError("Driver class not found, install native yt driver bindings")
 
         configure_logging(logging_config, client)
         configure_address_resolver(address_resolver_config, client)
