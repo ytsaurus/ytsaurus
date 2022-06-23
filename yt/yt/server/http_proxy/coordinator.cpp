@@ -600,6 +600,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
             "version",
             "banned",
             "state",
+            "job_proxy_build_version",
         };
     } else {
         options.Attributes = {
@@ -638,6 +639,8 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
             instance.StartTime = *startTime;
         }
         instance.Banned = banned ? *banned : false;
+
+        instance.JobProxyVersion = node->Attributes().Find<TString>("job_proxy_build_version");
 
         if (instance.Online && (!version || !startTime)) {
             instance.Error = TError("Component is missing some of the required attributes in response")
@@ -785,6 +788,37 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
     return results;
 };
 
+std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
+{
+    std::vector<TInstance> instances;
+    std::vector<TString> fallbackInstances;
+    for (auto& instance : ListComponent("exec_nodes", "node")) {
+        if (instance.JobProxyVersion) {
+            instance.Type = "job_proxy";
+            instance.Version = *instance.JobProxyVersion;
+            instances.emplace_back(std::move(instance));
+        } else {
+            fallbackInstances.emplace_back(std::move(instance.Address));
+        }
+    }
+
+    if (!fallbackInstances.empty()) {
+        YT_LOG_DEBUG("Falling back to fetching job proxy versions from orchids (InstanceCount: %v)", fallbackInstances.size());
+
+        auto fallbackJobProxies = GetAttributes(
+            "//sys/cluster_nodes",
+            fallbackInstances,
+            "job_proxy",
+            "/orchid/job_controller/job_proxy_build");
+
+        for (auto& jobProxy : fallbackJobProxies) {
+            instances.emplace_back(std::move(jobProxy));
+        }
+    }
+
+    return instances;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString FormatInstances(const std::vector<TInstance>& instances)
@@ -900,7 +934,7 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
     add(ListComponent("cluster_nodes", "node"));
-    add(GetAttributes("//sys/cluster_nodes", GetInstances("//sys/exec_nodes"), "job_proxy", "/orchid/job_controller/job_proxy_build"));
+    add(ListJobProxies());
     add(ListProxies("proxies", "http_proxy"));
     add(ListProxies("rpc_proxies", "rpc_proxy"));
 
