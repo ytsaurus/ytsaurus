@@ -170,6 +170,7 @@ struct TInstance
     TString Address;
     TString Version;
     TString StartTime;
+    std::optional<TString> JobProxyVersion;
 
     bool Banned = false;
     bool Online = true;
@@ -199,6 +200,7 @@ protected:
         const std::vector<TString>& instances,
         const TString& type,
         const NYPath::TYPath& suffix = "/orchid/service");
+    std::vector<TInstance> ListJobProxies();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
