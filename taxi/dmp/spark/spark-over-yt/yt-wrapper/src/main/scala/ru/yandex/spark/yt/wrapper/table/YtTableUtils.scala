@@ -7,7 +7,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.misc.io.exec.ProcessUtils
-import ru.yandex.misc.net.HostnameUtils
+import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
@@ -90,7 +90,7 @@ trait YtTableUtils {
       .beginMap
       .key("user").value(System.getProperty("user.name"))
       .key("command").beginList.value("command").endList
-      .key("hostname").value(HostnameUtils.localHostname)
+      .key("hostname").value(Utils.ytHostnameOrIpAddress)
       .key("pid").value(ProcessUtils.getPid)
       .key("wrapper_version").value(BuildInfo.ytClientVersion)
       .endMap

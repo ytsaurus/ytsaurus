@@ -4,7 +4,7 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
-import ru.yandex.spark.yt.wrapper.Utils.parseDuration
+import ru.yandex.spark.yt.wrapper.Utils.{parseDuration, ytHostnameOrIpAddress}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
@@ -42,7 +42,7 @@ trait SparkLauncher {
   def startMaster: MasterService = {
     log.info("Start Spark master")
     val config = SparkDaemonConfig.fromProperties("master", "512M")
-    val thread = runSparkThread(masterClass, config.memory, namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
+    val thread = runSparkThread(masterClass, config.memory, namedArgs = Map("host" -> ytHostnameOrIpAddress))
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
   }
@@ -55,7 +55,7 @@ trait SparkLauncher {
       namedArgs = Map(
         "cores" -> cores.toString,
         "memory" -> memory,
-        "host" -> Utils.ytHostnameOrIpAddress
+        "host" -> ytHostnameOrIpAddress
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
@@ -155,7 +155,7 @@ trait SparkLauncher {
       "SPARK_HOME" -> sparkHome,
       "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
-      "SPARK_LOCAL_HOSTNAME" -> Utils.ytHostnameOrIpAddress,
+      "SPARK_LOCAL_HOSTNAME" -> ytHostnameOrIpAddress,
       "SPARK_DAEMON_MEMORY" -> memory,
       "SPARK_DAEMON_JAVA_OPTS" -> javaOpts
     ).run(ProcessLogger(log.info(_)))

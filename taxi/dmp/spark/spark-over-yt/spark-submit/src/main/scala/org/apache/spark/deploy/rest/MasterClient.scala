@@ -6,6 +6,7 @@ import io.circe.parser.parse
 import io.circe.{Decoder, Error, Json}
 import ru.yandex.spark.yt.wrapper.Utils.flatten
 import sttp.client._
+import sttp.model.Uri
 
 import scala.util.{Failure, Try}
 
@@ -20,7 +21,7 @@ object MasterClient {
   def activeDrivers(master: HostAndPort): Try[Seq[String]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
-      .get(uri"http://$master/v1/submissions/master")
+      .get(Uri.parse(s"http://$master/v1/submissions/master").toOption.get)
       .send()
       .body
       .fold[Try[Seq[String]]](
@@ -47,7 +48,7 @@ object MasterClient {
   def activeWorkers(master: HostAndPort): Try[Seq[WorkerInfo]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
-      .get(uri"http://$master/v1/submissions/master")
+      .get(Uri.parse(s"http://$master/v1/submissions/master").toOption.get)
       .send()
       .body
       .fold[Try[Seq[WorkerInfo]]](

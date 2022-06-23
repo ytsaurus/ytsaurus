@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.wrapper
 
+import java.net.InetAddress
 import scala.concurrent.duration._
 
 object Utils {
@@ -22,5 +23,13 @@ object Utils {
       .find(_.isLeft)
       .map(e => Left(e.left.get))
       .getOrElse(Right(seq.map(_.right.get)))
+  }
+
+  def ytNetworkProjectEnabled: Boolean = sys.env.contains("YT_NETWORK_PROJECT_ID")
+
+  def ytHostIp: String = sys.env("YT_IP_ADDRESS_DEFAULT")
+
+  def ytHostnameOrIpAddress: String = {
+    if (ytNetworkProjectEnabled) ytHostIp else InetAddress.getLocalHost.getHostName
   }
 }
