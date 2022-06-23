@@ -25,7 +25,6 @@ DEFINE_ENUM(EFileChangelogIndexOpenResult,
     (ExistingTruncatedBrokenSegment)
 );
 
-
 //! Maintains an in-memory index of all changelog records.
 /*!
  *  The instances are single-threaded unless noted otherwise.
@@ -75,7 +74,8 @@ public:
     void AppendRecord(int recordIndex, std::pair<i64, i64> range);
     void SetFlushedDataRecordCount(int count);
 
-    TFuture<void> Flush();
+    void AsyncFlush();
+    void SyncFlush();
     bool CanFlush() const;
 
 private:
