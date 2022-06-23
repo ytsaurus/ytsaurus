@@ -15,6 +15,8 @@ import time
 
 
 class TestClickHouseDynamicTables(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def setup(self):
         self._setup()
 

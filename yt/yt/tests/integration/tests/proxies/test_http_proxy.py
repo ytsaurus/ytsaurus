@@ -555,7 +555,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     def setup_method(self, method):
         super(TestHttpProxyFormatConfig, self).setup_method(method)

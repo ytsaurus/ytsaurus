@@ -501,7 +501,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     },
                 },
                 "stderr_table_path": "//tmp/stderr",
-            }
+            },
+            fail_fast=False,
         )
 
         assert Counter(row["data"] for row in read_table("//tmp/stderr")) == {

@@ -632,6 +632,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
             spec={
                 "data_size_per_job": 1,
             },
+            fail_fast=False
         )
 
         orchid_path = self._get_operation_orchid_path(op)

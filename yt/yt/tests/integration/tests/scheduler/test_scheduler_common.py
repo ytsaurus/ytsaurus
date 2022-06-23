@@ -962,7 +962,8 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_suspention_on_job_failure(self):
         op = run_test_vanilla(
             "exit 1",
-            spec={"suspend_on_job_failure": True}
+            spec={"suspend_on_job_failure": True},
+            fail_fast=False
         )
         wait(lambda: get(op.get_path() + "/@suspended"))
 
@@ -1256,7 +1257,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, fail_fast=False)
 
         full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
         wait(lambda: exists(full_spec_path))
@@ -1272,6 +1273,7 @@ class TestSchedulerConfig(YTEnvSetup):
             out="//tmp/t_out",
             reduce_by=["foo"],
             track=False,
+            fail_fast=False,
         )
         wait(lambda: op.get_state() == "running")
 
@@ -1323,7 +1325,7 @@ class TestSchedulerConfig(YTEnvSetup):
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
 
-        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
+        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out", fail_fast=False)
         assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000
         assert get(op.get_path() + "/@full_spec/max_failed_job_count") == 10
 
@@ -1349,7 +1351,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
             assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count") == 50
 
-        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
+        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out", fail_fast=False)
         assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000
         assert get(op.get_path() + "/@full_spec/max_failed_job_count") == 50
 
