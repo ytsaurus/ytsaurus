@@ -3,11 +3,12 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, insert_rows,
-    lookup_rows, delete_rows, select_rows,
+    authors, print_debug, wait, create, ls, get, set, copy, insert_rows,
+    lookup_rows, delete_rows, select_rows, create_dynamic_table,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
-    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag, WaitFailed, raises_yt_error)
+    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
+    get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
@@ -22,6 +23,7 @@ from yt_driver_bindings import Driver
 import pytest
 
 from copy import deepcopy
+from random import randint, choice, sample
 import random
 import time
 
@@ -1090,6 +1092,304 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
         })
         assert _check() > 1
 
+################################################################################
+
+
+class TestLookupCache(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "timestamp_provider": {
+                "update_period": 100
+            }
+        },
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            }
+        }
+    }
+
+    @authors("lukyan")
+    def test_lookup_cache(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        for step in range(1, 5):
+            expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2 * step)]
+            actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2 * step)], use_lookup_cache=True)
+            assert_items_equal(actual, expected)
+
+        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        lookup_rows("//tmp/t", [{"key": 2}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
+
+        # Modify some rows.
+        rows = [{"key": i, "value": str(i + 1)} for i in range(100, 200, 2)]
+        insert_rows("//tmp/t", rows)
+
+        # Check lookup result.
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, rows)
+
+        # Flush table.
+        sync_flush_table("//tmp/t")
+
+        # And check that result after flush is equal.
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, rows)
+
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}])
+
+        wait(lambda: get(path) > 51)
+        assert get(path) == 52
+
+        node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
+        sync_unmount_table("//tmp/t")
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/lookup_rows_cache/used".format(node)) == 0)
+
+    @authors("lukyan")
+    def test_lookup_cache_options(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        # Cache is not configured yet.
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=False)
+        expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2)]
+        assert_items_equal(actual, expected)
+
+        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        lookup_rows("//tmp/t", [{"key": 2}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
+
+        set("//tmp/t/@lookup_cache_rows_ratio", 0.1)
+        set("//tmp/t/@enable_lookup_cache_by_default", True)
+        remount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
+        address = get_cell_leader_address(cell_id)
+
+        def check_tablet_config():
+            config = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/config".format(address, cell_id, tablet_id))
+            return "enable_lookup_cache_by_default" in config
+
+        wait(check_tablet_config)
+
+        # Populate cache and use it.
+        for step in range(1, 5):
+            expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2 * step)]
+            actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2 * step)])
+            assert_items_equal(actual, expected)
+
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}], use_lookup_cache=False)
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 101)
+        assert get(path) == 102
+
+    @authors("lukyan")
+    def test_lookup_cache_flush(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(0, 300, 2)]
+        insert_rows("//tmp/t", rows)
+
+        expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
+
+        # Insert rows again to increase last store timestamp.
+        rows = [{"key": i, "value": str(2 * i)} for i in range(0, 300, 4)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        # Lookup again. Check that rows are in cache.
+        expected = [{"key": i, "value": str(2 * i if i % 4 == 0 else i)} for i in range(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
+
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 0)
+        assert get(path) == 1
+
+    @authors("lukyan")
+    def test_lookup_cache_stress(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+                {"name": "s", "type": "string"},
+                {"name": "t", "type": "string"}],
+            lookup_cache_rows_per_tablet=100)
+
+        sync_mount_table("//tmp/t")
+
+        count = 500
+
+        # Decorate to simplify grep.
+        def decorate_key(key):
+            return 12300000 + key
+
+        for wave in range(1, 30):
+            rows = [{
+                "k": decorate_key(k),
+                "v": wave * count + k,
+                choice(["a", "b", "c"]): randint(1, 10000),
+                choice(["s", "t"]): str(randint(1, 10000))}
+                for k in sample(list(range(1, count)), 200)]
+            insert_rows("//tmp/t", rows, update=True)
+            print_debug("Insert rows ", rows)
+
+            keys = [{"k": decorate_key(k)} for k in sample(list(range(1, count)), 100)]
+            delete_rows("//tmp/t", keys)
+            print_debug("Delete rows ", keys)
+
+            for i in range(1, 10):
+                keys = [{"k": decorate_key(k)} for k in sample(list(range(1, count)), 10)]
+
+                ts = generate_timestamp()
+                no_cache = lookup_rows("//tmp/t", keys, timestamp=ts)
+                cache = lookup_rows("//tmp/t", keys, use_lookup_cache=True, timestamp=ts)
+                assert no_cache == cache
+
+            sync_flush_table("//tmp/t")
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        assert tablet_profiling.get_counter("lookup/cache_hits") > 0
+        assert tablet_profiling.get_counter("lookup/cache_misses") > 0
+
+    @authors("lukyan")
+    def test_lookup_cache_stress2(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+                {"name": "i", "type": "int64"},
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+                {"name": "s", "type": "string"},
+                {"name": "t", "type": "string"},
+                {"name": "md5", "type": "string"}],
+            lookup_cache_rows_per_tablet=100)
+
+        sync_mount_table("//tmp/t")
+
+        count = 500
+
+        verify_map = {}
+        revision_map = {}
+
+        optional_columns = ["a", "b", "c", "s", "t"]
+        required_columns = ["v", "i"]
+
+        def get_checksum(row):
+            row_data = " ".join(str(yson.dumps(row.get(col, yson.YsonEntity())))
+                                for col in (required_columns + optional_columns))
+            return row_data
+
+        def check_row(row, check):
+            check_values = dict(list(zip(required_columns + optional_columns, check.split(" "))))
+            for name, value in row.items():
+                if name in ["k", "md5"]:
+                    continue
+                assert str(yson.dumps(value)) == check_values[name]
+
+        # Decorate to simplify grep.
+        def decorate_key(key):
+            return 12300000 + key
+
+        for wave in range(1, 30):
+            rows = [{
+                "k": decorate_key(k),
+                "v": k,
+                "i": wave,
+                choice(["a", "b", "c"]): randint(1, 10000),
+                choice(["s", "t"]): str(randint(1, 10000))}
+                for k in sample(list(range(1, count)), 200)]
+
+            for row in rows:
+                key = row["k"]
+                item = verify_map.get(key, {})
+                item.update(row)
+                row["md5"] = get_checksum(item)
+                verify_map[key] = item
+
+            print_debug("Insert rows ", rows)
+            insert_rows("//tmp/t", rows, update=True)
+
+            keys = [{"k": decorate_key(k)} for k in sample(list(range(1, count)), 100)]
+            for key in keys:
+                if key["k"] in verify_map:
+                    del verify_map[key["k"]]
+            print_debug("Delete rows ", keys)
+            delete_rows("//tmp/t", keys)
+
+            for i in range(1, 10):
+                keys = [{"k": decorate_key(k)} for k in sample(list(range(1, count)), 10)]
+                lookup_value_columns = \
+                    ["k", "md5"] +\
+                    required_columns +\
+                    sample(optional_columns, randint(2, len(optional_columns)))
+                result = lookup_rows(
+                    "//tmp/t",
+                    keys,
+                    column_names=lookup_value_columns,
+                    use_lookup_cache=True)
+
+                for row in result:
+                    assert row["k"] == decorate_key(row["v"])
+                    check_row(row, row["md5"])
+                    revision = row["i"]
+                    assert revision >= revision_map.get(row["k"], 0)
+                    revision_map[row["k"]] = revision
+
+            sync_flush_table("//tmp/t")
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        assert tablet_profiling.get_counter("lookup/cache_hits") > 0
+        assert tablet_profiling.get_counter("lookup/cache_misses") > 0
 
 ################################################################################
 

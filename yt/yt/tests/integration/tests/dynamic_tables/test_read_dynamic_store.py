@@ -68,6 +68,7 @@ def _make_path_with_range(path, lower_limit, upper_limit):
 
 @authors("ifsmirnov")
 class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 

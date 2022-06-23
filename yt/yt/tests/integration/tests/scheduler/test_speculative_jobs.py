@@ -199,7 +199,8 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     @authors("renadeen")
     def test_original_succeeds_but_speculative_fails_instead_of_abort(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job(
-            command='BREAKPOINT; if [ "$YT_JOB_INDEX" = "1" ]; then exit 1; fi;'
+            command='BREAKPOINT; if [ "$YT_JOB_INDEX" = "1" ]; then exit 1; fi;',
+            fail_fast=False,
         )
         original, speculative = get_sorted_jobs(op)
 
@@ -231,10 +232,10 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert get(op.get_path() + "/@brief_progress/jobs")["total"] == 1
         assert read_table("//tmp/t_out") == [{"x": "0"}]
 
-    def run_vanilla_with_one_regular_and_one_speculative_job(self, spec=None, command="BREAKPOINT", mode="always"):
+    def run_vanilla_with_one_regular_and_one_speculative_job(self, spec=None, command="BREAKPOINT", mode="always", **kwargs):
         spec = spec if spec else {}
         spec["testing"] = {"testing_speculative_launch_mode": mode}
-        op = run_test_vanilla(with_breakpoint(command), spec=spec, job_count=1)
+        op = run_test_vanilla(with_breakpoint(command), spec=spec, job_count=1, **kwargs)
         wait_breakpoint(job_count=2)
         wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 2)
         return op

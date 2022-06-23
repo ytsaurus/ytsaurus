@@ -3,6 +3,8 @@ import yt_error_codes
 
 import yt.yson
 
+import pytest
+
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 import json
@@ -256,51 +258,33 @@ class _TestProxyFormatConfigBase(metaclass=ABCMeta):
             assert actual_content == expected_content
 
     @authors("levysotsky")
-    def test_format_enable(self):
-        for user in ["some_user", "good_user", "bad_user"]:
+    @pytest.mark.parametrize("user, yamr, yamred_dsv, yson", [
+        pytest.param("some_user", False, True, True),
+        pytest.param("root", True, True, True),
+        pytest.param("good_user", True, True, True),
+        pytest.param("bad_user", False, False, True),
+    ])
+    def test_format_enable(self, user, yamr, yamred_dsv, yson):
+        if user != "root":
             create_user(user)
 
-        self._test_format_enable(self.YAMR, "some_user", False)
-        self._test_format_enable(self.YAMR, "root", True)
-        self._test_format_enable(self.YAMR, "good_user", True)
-        self._test_format_enable(self.YAMR, "bad_user", False)
-
-        self._test_format_enable(self.YAMRED_DSV, "some_user", True)
-        self._test_format_enable(self.YAMRED_DSV, "root", True)
-        self._test_format_enable(self.YAMRED_DSV, "good_user", True)
-        self._test_format_enable(self.YAMRED_DSV, "bad_user", False)
-
-        self._test_format_enable(self.YSON, "some_user", True)
-        self._test_format_enable(self.YSON, "root", True)
-        self._test_format_enable(self.YSON, "good_user", True)
-        self._test_format_enable(self.YSON, "bad_user", True)
+        self._test_format_enable(self.YAMR, user, yamr)
+        self._test_format_enable(self.YAMRED_DSV, user, yamred_dsv)
+        self._test_format_enable(self.YSON, user, yson)
 
     @authors("levysotsky")
-    def test_format_defaults(self):
-        for user in ["binary_user", "text_user", "pretty_user", "default_user", "empty_user"]:
-            create_user(user)
+    @pytest.mark.parametrize("user, expected_format", [
+        pytest.param("binary_user", BINARY_YSON),
+        pytest.param("text_user", TEXT_YSON),
+        pytest.param("pretty_user", PRETTY_YSON),
+        pytest.param("default_user", TEXT_YSON),
+        pytest.param("empty_user", BINARY_YSON),
+    ])
+    def test_format_defaults(self, user, expected_format):
+        create_user(user)
 
         content = self.TABLE_CONTENT_ONE_COLUMN
 
-        def check(format, user, expected_format):
-            self._test_format_defaults(format, user, content, expected_format)
-
-        check(self.YSON, "binary_user", self.BINARY_YSON)
-        check(self.TEXT_YSON, "binary_user", self.TEXT_YSON)
-        check(self.BINARY_YSON, "binary_user", self.BINARY_YSON)
-
-        check(self.YSON, "text_user", self.TEXT_YSON)
-        check(self.TEXT_YSON, "text_user", self.TEXT_YSON)
-        check(self.BINARY_YSON, "text_user", self.BINARY_YSON)
-
-        check(self.YSON, "pretty_user", self.PRETTY_YSON)
-        check(self.TEXT_YSON, "pretty_user", self.TEXT_YSON)
-        check(self.BINARY_YSON, "pretty_user", self.BINARY_YSON)
-
-        check(self.YSON, "default_user", self.TEXT_YSON)
-        check(self.TEXT_YSON, "default_user", self.TEXT_YSON)
-        check(self.BINARY_YSON, "default_user", self.BINARY_YSON)
-
-        check(self.YSON, "empty_user", self.BINARY_YSON)
-        check(self.TEXT_YSON, "empty_user", self.TEXT_YSON)
-        check(self.BINARY_YSON, "empty_user", self.BINARY_YSON)
+        self._test_format_defaults(self.YSON, user, content, expected_format)
+        self._test_format_defaults(self.TEXT_YSON, user, content, self.TEXT_YSON)
+        self._test_format_defaults(self.BINARY_YSON, user, content, self.BINARY_YSON)

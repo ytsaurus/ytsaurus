@@ -113,29 +113,6 @@ class TestYamrMode(object):
         assert not yt.exists(embedded_path)
 
     @authors("ignat")
-    @pytest.mark.timeout(1800)
-    @flaky(max_runs=3)
-    def test_mapreduce_binary(self, yt_env_for_yamr):
-        env = get_environment_for_binary_test(yt_env_for_yamr)
-        env["FALSE"] = "false"
-        env["TRUE"] = "true"
-
-        sandbox_dir = os.path.join(get_tests_sandbox(), "TestMapreduceBinary_" + uuid.uuid4().hex[:8])
-        makedirp(sandbox_dir)
-        test_binary = get_test_file_path("test_mapreduce.sh", use_files=False)
-
-        yt.remove("//home/wrapper_tests", recursive=True)
-        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
-        proc.communicate()
-        assert proc.returncode == 0
-
-        env["ENABLE_SCHEMA"] = "1"
-        yt.remove("//home/wrapper_tests", recursive=True, force=True)
-        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
-        proc.communicate()
-        assert proc.returncode == 0
-
-    @authors("ignat")
     def test_empty_write(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"x\ty\tz\n"])
@@ -336,3 +313,29 @@ class TestYamrMode(object):
         yt.write_table(table, [b"1\t2\t3\n"])
         with pytest.raises(yt.YtError):
             yt.run_map("cat", source_table=table, destination_table=None)
+
+
+@pytest.mark.usefixtures("yt_env_for_yamr")
+class TestYamrModeMapreduceBinary(object):
+    NUM_TEST_PARTITIONS = 2
+
+    @authors("ignat")
+    @pytest.mark.timeout(1800)
+    @flaky(max_runs=3)
+    @pytest.mark.parametrize("enable_schema", [False, True])
+    def test_mapreduce_binary(self, yt_env_for_yamr, enable_schema):
+        env = get_environment_for_binary_test(yt_env_for_yamr)
+        env["FALSE"] = "false"
+        env["TRUE"] = "true"
+
+        sandbox_dir = os.path.join(get_tests_sandbox(), "TestMapreduceBinary_" + uuid.uuid4().hex[:8])
+        makedirp(sandbox_dir)
+        test_binary = get_test_file_path("test_mapreduce.sh", use_files=False)
+
+        if enable_schema:
+            env["ENABLE_SCHEMA"] = "1"
+
+        yt.remove("//home/wrapper_tests", recursive=True, force=True)
+        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
+        proc.communicate()
+        assert proc.returncode == 0

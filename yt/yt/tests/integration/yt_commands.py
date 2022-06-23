@@ -1477,6 +1477,13 @@ def start_op(op_type, **kwargs):
     change(kwargs, "reduce_combiner_command", ["spec", "reduce_combiner", "command"])
     change(kwargs, "reducer_command", ["spec", "reducer", "command"])
 
+    fail_fast = kwargs.get("fail_fast", True)
+    if fail_fast in kwargs:
+        del kwargs["fail_fast"]
+
+    if fail_fast and ("spec" not in kwargs or "max_failed_job_count" not in kwargs["spec"]):
+        set_branch(kwargs, ["spec", "max_failed_job_count"], 1)
+
     track = kwargs.get("track", True)
     if "track" in kwargs:
         del kwargs["track"]

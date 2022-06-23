@@ -29,7 +29,7 @@ import random
 
 
 class TestTables(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 10
 
     NUM_MASTERS = 1
     NUM_NODES = 5

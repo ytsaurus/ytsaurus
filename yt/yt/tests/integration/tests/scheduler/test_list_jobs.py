@@ -446,6 +446,7 @@ class TestListJobsBase(YTEnvSetup):
             sort_by="foo",
             reduce_by="foo",
             spec=spec,
+            fail_fast=False,
         )
 
         job_ids = {}

@@ -1250,7 +1250,7 @@ class TestJobStderr(YTEnvSetup):
 
         command = "echo stderr 1>&2 ; exit 1"
 
-        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command)
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False)
 
         with pytest.raises(YtError):
             op.track()

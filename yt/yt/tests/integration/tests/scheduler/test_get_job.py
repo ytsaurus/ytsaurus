@@ -187,6 +187,7 @@ class _TestGetJobCommon(_TestGetJobBase):
                 fi
             """
             ),
+            fail_fast=False,
         )
         (job_id,) = wait_breakpoint()
 
