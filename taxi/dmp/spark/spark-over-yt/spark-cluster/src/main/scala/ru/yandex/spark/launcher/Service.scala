@@ -2,6 +2,7 @@ package ru.yandex.spark.launcher
 
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.yt.wrapper.Utils.ytHostnameOrIpAddress
 import ru.yandex.spark.yt.wrapper.discovery.{Address, DiscoveryService}
 
 import scala.concurrent.duration.Duration
@@ -71,7 +72,7 @@ object Service {
 
   object BasicService {
     def apply(name: String, port: Int, thread: Thread): BasicService = {
-      BasicService(name, HostAndPort.fromParts(Utils.ytHostnameOrIpAddress, port), thread)
+      BasicService(name, HostAndPort.fromParts(ytHostnameOrIpAddress, port), thread)
     }
   }
 
