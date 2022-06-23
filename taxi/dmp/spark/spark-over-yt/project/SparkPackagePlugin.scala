@@ -20,6 +20,7 @@ object SparkPackagePlugin extends AutoPlugin {
 
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
+    val sparkRebuild = taskKey[Unit]("Rebuild spark dist")
     val sparkAddCustomFiles = taskKey[File]("Add custom files to spark dist")
 
     val sparkHome = settingKey[File]("")
@@ -158,7 +159,7 @@ object SparkPackagePlugin extends AutoPlugin {
       sparkAdditionalPython.value.foreach(FileUtils.copyDirectory(_, pythonDir, ignorePython))
       sparkDist
     },
-    sparkPackage := {
+    sparkRebuild := {
       val log = streams.value.log
       val sparkDist = sparkHome.value / "dist"
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).forall(_.toBoolean) || !sparkDist.exists()
@@ -171,8 +172,11 @@ object SparkPackagePlugin extends AutoPlugin {
           override def accept(dir: File, name: String): Boolean = name.startsWith("spark-yt-")
         })
       }
-      sparkAddCustomFiles.value
     },
+    sparkPackage := Def.sequential(
+      sparkRebuild,
+      sparkAddCustomFiles
+    ).value,
     sparkMvnInstall := {
       mvnInstall(sparkHome.value)
     },
