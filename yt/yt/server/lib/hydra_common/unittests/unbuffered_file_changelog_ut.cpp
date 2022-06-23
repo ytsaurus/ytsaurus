@@ -3,6 +3,7 @@
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/format.h>
 #include <yt/yt/server/lib/hydra_common/unbuffered_file_changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog_index.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
@@ -33,12 +34,12 @@ class TUnbufferedFileChangelogTest
     , public ::testing::WithParamInterface<EFileChangelogFormat>
 {
 protected:
-    std::optional<TTempFile> TemporaryFile;
-    std::optional<TTempFile> TemporaryIndexFile;
+    std::optional<TTempFile> TempFile_;
+    std::optional<TTempFile> TempIndexFile_;
 
-    TFileChangelogConfigPtr DefaultFileChangelogConfig;
+    TFileChangelogConfigPtr DefaultFileChangelogConfig_;
 
-    IIOEnginePtr IOEngine;
+    IIOEnginePtr IOEngine_;
 
     EFileChangelogFormat GetFormatParam()
     {
@@ -47,33 +48,33 @@ protected:
 
     void SetUp() override
     {
-        TemporaryFile.emplace(GenerateRandomFileName("changelog"));
-        TemporaryIndexFile.emplace((TemporaryFile->Name() + "." + ChangelogIndexExtension));
+        TempFile_.emplace(GenerateRandomFileName("changelog"));
+        TempIndexFile_.emplace((TempFile_->Name() + "." + ChangelogIndexExtension));
 
-        DefaultFileChangelogConfig = New<TFileChangelogConfig>();
-        DefaultFileChangelogConfig->IndexFlushSize = 64;
+        DefaultFileChangelogConfig_ = New<TFileChangelogConfig>();
+        DefaultFileChangelogConfig_->IndexFlushSize = 64;
 
-        IOEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
+        IOEngine_ = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
     }
 
     void TearDown() override
     {
-        NFS::Remove(TemporaryFile->Name());
-        NFS::Remove(TemporaryIndexFile->Name());
-        TemporaryFile.reset();
-        TemporaryIndexFile.reset();
+        NFS::Remove(TempFile_->Name());
+        NFS::Remove(TempIndexFile_->Name());
+        TempFile_.reset();
+        TempIndexFile_.reset();
     }
 
     IUnbufferedFileChangelogPtr CreateChangelog(int recordCount, TFileChangelogConfigPtr config = nullptr)
     {
         if (!config) {
-            config = DefaultFileChangelogConfig;
+            config = DefaultFileChangelogConfig_;
         }
 
         auto changelog = CreateUnbufferedFileChangelog(
-            IOEngine,
+            IOEngine_,
             /*memoryUsageTracker*/ nullptr,
-            TemporaryFile->Name(),
+            TempFile_->Name(),
             config);
         changelog->Create(/*meta*/ {}, GetFormatParam());
         AppendRecords(changelog, 0, recordCount);
@@ -115,20 +116,20 @@ protected:
 
     i64 GetFileSize()
     {
-        TFile file(TemporaryFile->Name(), RdWr);
+        TFile file(TempFile_->Name(), RdWr);
         return file.GetLength();
     }
 
     IUnbufferedFileChangelogPtr OpenChangelog(TFileChangelogConfigPtr config = nullptr)
     {
         if (!config) {
-            config = DefaultFileChangelogConfig;
+            config = DefaultFileChangelogConfig_;
         }
 
         auto changelog = CreateUnbufferedFileChangelog(
-            IOEngine,
+            IOEngine_,
             /*memoryUsageTracker*/ nullptr,
-            TemporaryFile->Name(),
+            TempFile_->Name(),
             config);
         changelog->Open();
         return changelog;
@@ -176,9 +177,9 @@ protected:
 
     void TestCorruptedDataFile(i64 newFileSize, int initialRecordCount, int correctRecordCount)
     {
-        NFS::Remove(TemporaryIndexFile->Name());
+        NFS::Remove(TempIndexFile_->Name());
 
-        CorruptFile(TemporaryFile->Name(), newFileSize);
+        CorruptFile(TempFile_->Name(), newFileSize);
 
         auto changelog = OpenChangelog();
 
@@ -194,7 +195,7 @@ protected:
 
     void TestCorruptedIndexFile(i64 newFileSize, int recordCount)
     {
-        CorruptFile(TemporaryIndexFile->Name(), newFileSize);
+        CorruptFile(TempIndexFile_->Name(), newFileSize);
 
         auto changelog = OpenChangelog();
 
@@ -207,18 +208,18 @@ TEST_P(TUnbufferedFileChangelogTest, Empty)
 {
     {
         auto changelog = CreateUnbufferedFileChangelog(
-            IOEngine,
+            IOEngine_,
             /*memoryUsageTracker*/ nullptr,
-            TemporaryFile->Name(),
+            TempFile_->Name(),
             New<TFileChangelogConfig>());
         changelog->Create(/*meta*/ {}, GetFormatParam());
         EXPECT_EQ(0, changelog->GetRecordCount());
     }
     {
         auto changelog = CreateUnbufferedFileChangelog(
-            IOEngine,
+            IOEngine_,
             /*memoryUsageTracker*/ nullptr,
-            TemporaryFile->Name(),
+            TempFile_->Name(),
             New<TFileChangelogConfig>());
         changelog->Open();
         EXPECT_EQ(0, changelog->GetRecordCount());
@@ -244,7 +245,7 @@ TEST_P(TUnbufferedFileChangelogTest, TestCorruptedDataFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
-    auto fileSize = TFile(TemporaryFile->Name(), RdOnly).GetLength();
+    auto fileSize = TFile(TempFile_->Name(), RdOnly).GetLength();
     TestCorruptedDataFile(fileSize - 1, RecordCount, RecordCount - 1);
     TestCorruptedDataFile(sizeof(TChangelogHeader_5), RecordCount, 0);
     TestCorruptedDataFile(fileSize + 1, RecordCount, RecordCount);
@@ -256,7 +257,7 @@ TEST_P(TUnbufferedFileChangelogTest, TestCorruptedIndexFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
-    auto fileSize = TFile(TemporaryIndexFile->Name(), RdOnly).GetLength();
+    auto fileSize = TFile(TempIndexFile_->Name(), RdOnly).GetLength();
     TestCorruptedIndexFile(0, RecordCount);
     TestCorruptedIndexFile(1, RecordCount);
     TestCorruptedIndexFile(sizeof(TChangelogIndexHeader_5), RecordCount);
@@ -297,7 +298,7 @@ TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex)
     CreateChangelog(RecordCount);
 
     for (auto recoveryBufferSize : {static_cast<i64>(1), static_cast<i64>(100), 16_MBs}) {
-        NFS::Remove(TemporaryIndexFile->Name());
+        NFS::Remove(TempIndexFile_->Name());
 
         auto config = New<TFileChangelogConfig>();
         config->RecoveryBufferSize = recoveryBufferSize;
@@ -330,6 +331,27 @@ TEST_P(TUnbufferedFileChangelogTest, TruncateWrite)
     AppendRecords(changelog, RecordCount2, RecordCount3 - RecordCount2);
     EXPECT_EQ(RecordCount3, changelog->GetRecordCount());
     CheckRead(changelog, 0, RecordCount3);
+}
+
+TEST_P(TUnbufferedFileChangelogTest, TestIndexFlushOnClose)
+{
+    constexpr int RecordCount = 1;
+
+    {
+        auto changelog = CreateChangelog(RecordCount);
+        changelog->Close();
+    }
+
+    {
+        auto index = New<TFileChangelogIndex>(
+            IOEngine_,
+            /*memoryUsageTracker*/ nullptr,
+            TempIndexFile_->Name(),
+            DefaultFileChangelogConfig_);
+
+        EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
+        EXPECT_EQ(RecordCount, index->GetRecordCount());
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(

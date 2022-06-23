@@ -275,7 +275,7 @@ void TFileChangelogIndex::SetFlushedDataRecordCount(int count)
     FlushedDataRecordCount_.store(count);
 }
 
-TFuture<void> TFileChangelogIndex::Flush()
+void TFileChangelogIndex::AsyncFlush()
 {
     auto flushRecordCount = FlushedDataRecordCount_.load() - FlushedIndexRecordCount_;
     auto size = sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * flushRecordCount;
@@ -309,14 +309,20 @@ TFuture<void> TFileChangelogIndex::Flush()
     IndexFilePosition_ += size;
     FlushedIndexRecordCount_ += flushRecordCount;
 
-    auto future = IOEngine_->Write({.Handle = Handle_, .Offset = currentPosition, .Buffers = {std::move(buffer)}, .Flush = Config_->EnableSync})
+    FlushFuture_ = IOEngine_->Write({.Handle = Handle_, .Offset = currentPosition, .Buffers = {std::move(buffer)}, .Flush = Config_->EnableSync})
         .Apply(BIND([=, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));
             YT_LOG_DEBUG("Finished flushing changelog file index segment");
         }));
+}
 
-    FlushFuture_ = future;
-    return future;
+void TFileChangelogIndex::SyncFlush()
+{
+    WaitFor(FlushFuture_)
+        .ThrowOnError();
+    AsyncFlush();
+    WaitFor(FlushFuture_)
+        .ThrowOnError();
 }
 
 bool TFileChangelogIndex::CanFlush() const

@@ -151,9 +151,7 @@ TEST_P(TFileChangelogIndexTest, Flush)
 
         AppendRecords(index);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
-
+        index->SyncFlush();
         index->Close();
     }
 
@@ -211,9 +209,7 @@ TEST_P(TFileChangelogIndexTest, BrokenSegment1)
 
         AppendRecords(index);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
-
+        index->SyncFlush();
         index->Close();
     }
 
@@ -235,14 +231,11 @@ TEST_P(TFileChangelogIndexTest, BrokenSegment2)
 
         AppendRecords(index, 0, 10);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
+        index->SyncFlush();
 
         AppendRecords(index, 10, 10);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
-
+        index->SyncFlush();
         index->Close();
     }
 
@@ -264,14 +257,11 @@ TEST_P(TFileChangelogIndexTest, BrokenSegment3)
 
         AppendRecords(index, 0, 10);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
+        index->SyncFlush();
 
         AppendRecords(index, 10, 10);
 
-        WaitFor(index->Flush())
-            .ThrowOnError();
-
+        index->SyncFlush();
         index->Close();
     }
 

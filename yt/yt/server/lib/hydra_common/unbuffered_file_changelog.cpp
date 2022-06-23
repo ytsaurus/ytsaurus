@@ -210,9 +210,7 @@ public:
                 RecordCount_.store(currentRecordIndex);
 
                 Index_->SetFlushedDataRecordCount(currentRecordIndex);
-
-                WaitFor(Index_->Flush())
-                    .ThrowOnError();
+                Index_->SyncFlush();
             });
         } catch (const std::exception& ex) {
             Cleanup();
@@ -238,22 +236,26 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Closing changelog");
-
-        Cleanup();
+        auto recordCount = GetRecordCount();
+        YT_LOG_DEBUG("Closing changelog (RecordCount: %v)",
+            recordCount);
 
         try {
             NFS::ExpectIOErrors([&] {
                 WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = Config_->EnableSync}))
                     .ThrowOnError();
 
+                Index_->SetFlushedDataRecordCount(recordCount);
+                Index_->SyncFlush();
                 Index_->Close();
             });
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error closing changelog");
-            Error_ = ex;
-            throw;
+            Cleanup();
+            RecordErrorAndThrow(TError("Error closing changelog")
+                << ex);
         }
+
+        Cleanup();
 
         YT_LOG_DEBUG("Changelog closed");
     }
@@ -357,7 +359,7 @@ public:
             if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&
                 Index_->CanFlush())
             {
-                Index_->Flush();
+                Index_->AsyncFlush();
                 AppendedDataSizeSinceLastIndexFlush_ = 0;
             }
         } catch (const std::exception& ex) {
@@ -431,9 +433,7 @@ public:
             }
 
             newIndex->SetFlushedDataRecordCount(recordCount);
-
-            WaitFor(newIndex->Flush())
-                .ThrowOnError();
+            newIndex->SyncFlush();
 
             Index_->Close();
             NFS::Remove(indexFileName);
