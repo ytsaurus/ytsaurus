@@ -500,12 +500,6 @@ void TTask::ScheduleJob(
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
-    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
-
-    if (HasUserJob()) {
-        joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
-    }
-
     auto findIt = ResourceOverdraftedOutputCookieToState_.find(joblet->OutputCookie);
     if (findIt != ResourceOverdraftedOutputCookieToState_.end()) {
         const auto& state = findIt->second;
@@ -519,6 +513,11 @@ void TTask::ScheduleJob(
         }
         if (HasUserJob()) {
             joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
+        }
+    } else {
+        joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
+        if (HasUserJob()) {
+            joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
         }
     }
 
@@ -1102,7 +1101,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
                         jobProxyMemoryReserveUpperBound);
                 } else {
                     state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
-                    state.DedicatedUserJobMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
+                    state.DedicatedJobProxyMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
                 }
             }
         } else {
