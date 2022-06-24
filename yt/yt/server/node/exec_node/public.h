@@ -79,6 +79,12 @@ DEFINE_ENUM(ESlotType,
     ((Idle)      (1))
 );
 
+struct TNumaNodeInfo
+{
+    i64 NumaNodeId;
+    TString CpuSet;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

@@ -105,6 +105,23 @@ DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNumaNodeConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    i64 NumaNodeId;
+    i64 CpuCount;
+    TString CpuSet;
+
+    REGISTER_YSON_STRUCT(TNumaNodeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNumaNodeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSlotManagerTestingConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -160,6 +177,8 @@ public:
     double IdleCpuFraction;
 
     TSlotManagerTestingConfigPtr Testing;
+
+    std::vector<TNumaNodeConfigPtr> NumaNodes;
 
     REGISTER_YSON_STRUCT(TSlotManagerConfig);
 
@@ -463,6 +482,8 @@ public:
 
     //! How to distribute cpu resources between 'common' and 'idle' slots.
     std::optional<double> IdleCpuFraction;
+
+    bool EnableNumaNodeScheduling;
 
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 

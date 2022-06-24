@@ -120,7 +120,8 @@ ISlotPtr CreateSlot(
     IVolumeManagerPtr volumeManager,
     const TString& nodeTag,
     ESlotType slotType,
-    double requestedCpu);
+    double requestedCpu,
+    const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 
 ////////////////////////////////////////////////////////////////////////////////
 

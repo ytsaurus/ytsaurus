@@ -45,14 +45,16 @@ public:
         IVolumeManagerPtr volumeManager,
         const TString& nodeTag,
         ESlotType slotType,
-        double requestedCpu)
+        double requestedCpu,
+        const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
-        , SlotGuard_(slotManager->AcquireSlot(slotType, requestedCpu))
+        , SlotGuard_(slotManager->AcquireSlot(slotType, requestedCpu, numaNodeAffinity))
         , SlotIndex_(SlotGuard_->GetSlotIndex())
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
+        , NumaNodeAffinity_(numaNodeAffinity)
     {
         Location_->IncreaseSessionCount();
     }
@@ -97,7 +99,8 @@ public:
                     Location_->GetSlotPath(SlotIndex_),
                     jobId,
                     operationId,
-                    config->StderrPath);
+                    config->StderrPath,
+                    NumaNodeAffinity_);
             },
             // Job proxy preparation is uncancelable, otherwise we might try to kill
             // a never-started job proxy process.
@@ -276,6 +279,8 @@ private:
 
     const TString JobProxyUnixDomainSocketPath_;
 
+    const std::optional<TNumaNodeInfo> NumaNodeAffinity_;
+
     template <class T>
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
     {
@@ -310,7 +315,8 @@ ISlotPtr CreateSlot(
     IVolumeManagerPtr volumeManager,
     const TString& nodeTag,
     ESlotType slotType,
-    double requestedCpu)
+    double requestedCpu,
+    const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
     auto slot = New<TSlot>(
         slotManager,
@@ -319,7 +325,8 @@ ISlotPtr CreateSlot(
         std::move(volumeManager),
         nodeTag,
         slotType,
-        requestedCpu);
+        requestedCpu,
+        numaNodeAffinity);
 
     return slot;
 }
