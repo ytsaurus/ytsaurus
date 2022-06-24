@@ -48,6 +48,17 @@ void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
     config.SetClusterName(ToString(cluster));
 }
 
+NYT::NCompression::ECodec GetResponseCodecFromProto(const ECompressionCodec& protoCodec)
+{
+    switch (protoCodec) {
+        case ECompressionCodec::None:
+            return NYT::NCompression::ECodec::None;
+        case ECompressionCodec::Lz4:
+            return NYT::NCompression::ECodec::Lz4;
+    }
+    Y_UNREACHABLE();
+}
+
 NApi::IClientPtr CreateClient(const TConfig& config, const NApi::TClientOptions& options)
 {
     auto ytConfig = New<NApi::NRpcProxy::TConnectionConfig>();
@@ -72,11 +83,14 @@ NApi::IClientPtr CreateClient(const TConfig& config, const NApi::TClientOptions&
 
     SET_TIMEOUT_OPTION(DefaultTransactionTimeout);
     SET_TIMEOUT_OPTION(DefaultSelectRowsTimeout);
+    SET_TIMEOUT_OPTION(DefaultLookupRowsTimeout);
     SET_TIMEOUT_OPTION(DefaultTotalStreamingTimeout);
     SET_TIMEOUT_OPTION(DefaultStreamingStallTimeout);
     SET_TIMEOUT_OPTION(DefaultPingPeriod);
 
 #undef SET_TIMEOUT_OPTION
+
+    ytConfig->ResponseCodec = GetResponseCodecFromProto(config.GetResponseCodec());
 
     ytConfig->EnableRetries = config.GetEnableRetries();
 
