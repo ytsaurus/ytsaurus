@@ -214,6 +214,7 @@ public:
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
         HintManager_->Start();
+        InMemoryManager_->Start();
     }
 
     const ITabletSnapshotStorePtr& GetTabletSnapshotStore() const override
