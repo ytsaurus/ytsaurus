@@ -545,11 +545,33 @@ class TableRowsSerializer<T> {
         int mergedRowSizeIndex = buf.writerIndex();
         buf.writeLongLE(0); // reserve space
 
-        writeMergedRow(buf, serializedRows, rowsCount);
+        // Write rows count
+        WireProtocolWriter writer = new WireProtocolWriter();
+        writer.writeRowCount(rowsCount);
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
 
-        buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
+        // Save serialized rows data's size
+        buf.setLongLE(mergedRowSizeIndex,
+            serializedRows.readableBytes() + (buf.writerIndex() - mergedRowSizeIndex) - 8);
 
-        return bufToArray(buf);
+        int bufSize = buf.readableBytes();
+
+        // Convert to array
+        byte[] result = new byte[bufSize + serializedRows.readableBytes()];
+        buf.readBytes(result, 0, bufSize);
+        if (buf.readableBytes() != 0) {
+            throw new IllegalStateException();
+        }
+
+        // Write serialized rows data
+        serializedRows.readBytes(result, bufSize, serializedRows.readableBytes());
+        if (serializedRows.readableBytes() != 0) {
+            throw new IllegalStateException();
+        }
+
+        return result;
     }
 
     public byte[] serialize(List<T> rows, TableSchema schema) throws IOException {
@@ -622,7 +644,6 @@ class TableRowsSerializer<T> {
     }
 
     private byte[] bufToArray(ByteBuf buf) {
-        buf.array();
         byte[] attachment = new byte[buf.readableBytes()];
         buf.readBytes(attachment, 0, attachment.length);
 
@@ -656,15 +677,6 @@ class TableRowsSerializer<T> {
         WireProtocolWriter writer = new WireProtocolWriter();
         rowSerializer.updateSchema(descriptor);
         writer.writeUnversionedRowsetWithoutCount(rows, rowSerializer, idMapping);
-
-        for (byte[] bytes : writer.finish()) {
-            buf.writeBytes(bytes);
-        }
-    }
-
-    private void writeMergedRow(ByteBuf buf, ByteBuf serializedRows, int rowsCount) {
-        WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeUnversionedRowset(serializedRows, rowsCount);
 
         for (byte[] bytes : writer.finish()) {
             buf.writeBytes(bytes);

@@ -10,7 +10,6 @@ import java.util.function.Function;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
-import io.netty.buffer.ByteBuf;
 
 import ru.yandex.yt.ytclient.object.WireProtocolWriteable;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -319,11 +318,6 @@ public class WireProtocolWriter {
         for (T row : rows) {
             writeUnversionedRow(row, serializer, idMapping);
         }
-    }
-
-    public <T> void writeUnversionedRowset(ByteBuf serializedRows, int rowsCount) {
-        writeRowCount(rowsCount);
-        writeable.onBytes(serializedRows.array());
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer,
