@@ -1,5 +1,10 @@
 package NYT.NClient.NHedging.NRpc;
 
+enum ECompressionCodec {
+    None = 0;
+    Lz4 = 1;
+};
+
 // Connection options.
 message TConfig
 {
@@ -11,15 +16,18 @@ message TConfig
     // All timeouts in milliseconds.
     optional uint32 DefaultTransactionTimeout = 5;
     optional uint32 DefaultSelectRowsTimeout = 6;
-    optional uint32 DefaultTotalStreamingTimeout = 7;
-    optional uint32 DefaultStreamingStallTimeout = 8;
-    optional uint32 DefaultPingPeriod = 9;
-    optional uint32 ModifyRowsBatchCapacity = 10;
+    optional uint32 DefaultLookupRowsTimeout = 7;
+    optional uint32 DefaultTotalStreamingTimeout = 8;
+    optional uint32 DefaultStreamingStallTimeout = 9;
+    optional uint32 DefaultPingPeriod = 10;
+    optional uint32 ModifyRowsBatchCapacity = 11;
 
-    optional bool EnableRetries = 11;
-    optional uint32 RetryBackoffTime = 13;
-    optional uint32 RetryAttempts = 14;
-    optional uint32 RetryTimeout = 15;
+    optional ECompressionCodec ResponseCodec = 12 [default = None];
+
+    optional bool EnableRetries = 13;
+    optional uint32 RetryBackoffTime = 14;
+    optional uint32 RetryAttempts = 15;
+    optional uint32 RetryTimeout = 16;
 };
 
 message TClustersConfig
