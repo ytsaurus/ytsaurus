@@ -254,7 +254,7 @@ private:
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
             job->SetStatistics(ysonStatistics);
-            jobReport.SetStatistics(ysonStatistics);
+            jobReport.SetStatistics(job->GetStatistics());
         }
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
