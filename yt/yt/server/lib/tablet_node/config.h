@@ -522,6 +522,21 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInMemoryManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<int> MaxConcurrentPreloads;
+
+    REGISTER_YSON_STRUCT(TInMemoryManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInMemoryManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionBalancerConfig
     : public NYTree::TYsonStruct
 {
@@ -704,6 +719,7 @@ public:
     TStoreTrimmerDynamicConfigPtr StoreTrimmer;
     THunkChunkSweeperDynamicConfigPtr HunkChunkSweeper;
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
+    TInMemoryManagerDynamicConfigPtr InMemoryManager;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 

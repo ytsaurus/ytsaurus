@@ -576,6 +576,15 @@ void TInMemoryManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TInMemoryManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
+        .GreaterThan(0)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPartitionBalancerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("chunk_location_throttler", &TThis::ChunkLocationThrottler)
@@ -697,6 +706,8 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("hunk_chunk_sweeper", &TThis::HunkChunkSweeper)
         .DefaultNew();
     registrar.Parameter("partition_balancer", &TThis::PartitionBalancer)
+        .DefaultNew();
+    registrar.Parameter("in_memory_manager", &TThis::InMemoryManager)
         .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)

@@ -14,6 +14,8 @@
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -203,6 +205,11 @@ public:
         return chunkData;
     }
 
+    void Start() override
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     void FinalizeChunk(TChunkId chunkId, TInMemoryChunkDataPtr chunkData) override
     {
@@ -235,6 +242,14 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->TabletNode->InMemoryManager;
+        PreloadSemaphore_->SetTotal(config->MaxConcurrentPreloads.value_or(Config_->MaxConcurrentPreloads));
+    }
 
     void ScanSlot(const ITabletSlotPtr& slot)
     {
