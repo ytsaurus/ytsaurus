@@ -67,7 +67,7 @@ struct IJob
     virtual int GetSlotIndex() const = 0;
 
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const = 0;
-    virtual bool GpuRequested() const = 0;
+    virtual bool IsGpuRequested() const = 0;
 
     virtual std::vector<int> GetPorts() const = 0;
     virtual void SetPorts(const std::vector<int>& ports) = 0;

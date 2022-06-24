@@ -260,7 +260,7 @@ public:
         return ResourceLimits_;
     }
 
-    bool GpuRequested() const override
+    bool IsGpuRequested() const override
     {
         return false;
     }
