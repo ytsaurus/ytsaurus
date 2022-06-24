@@ -89,11 +89,22 @@ public:
         const TString& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
-        const std::optional<TString>& stderrPath) override
+        const std::optional<TString>& stderrPath,
+        const std::optional<TNumaNodeInfo>& numaNodeAffinity) override
     {
         ValidateEnabled();
 
         try {
+            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+            const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+            if (dynamicConfig && dynamicConfig->EnableNumaNodeScheduling) {
+                if (numaNodeAffinity) {
+                    UpdateSlotCpuSet(slotIndex, slotType, numaNodeAffinity->CpuSet);
+                } else {
+                    // Without cpu restrictions.
+                    UpdateSlotCpuSet(slotIndex, slotType, EmptyCpuSet);
+                }
+            }
             auto process = CreateJobProxyProcess(slotIndex, slotType, jobId);
 
             process->AddArguments({
@@ -149,6 +160,9 @@ public:
     { }
 
     void UpdateIdleCpuFraction(double /*idleCpuFraction*/) override
+    { }
+
+    void ClearSlotCpuSets(int /*slotCount*/) override
     { }
 
     double GetCpuLimit(ESlotType /*slotType*/) const override
@@ -263,6 +277,9 @@ private:
     {
         return New<TSimpleProcess>(JobProxyProgramName);
     }
+
+    virtual void UpdateSlotCpuSet(int /*slotIndex*/, ESlotType /*slotType*/, TStringBuf /*cpuSet*/)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,6 +648,28 @@ private:
         return launcher;
     }
 
+    void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
+    {
+        auto metaInstanceName = slotType == ESlotType::Common
+            ? MetaInstance_->GetName()
+            : MetaIdleInstance_->GetName();
+
+        auto slotContainer = GetFullSlotMetaContainerName(
+            metaInstanceName,
+            slotIndex);
+
+        WaitFor(PortoExecutor_->SetContainerProperty(
+            slotContainer,
+            "cpu_set",
+            TString{cpuSet}))
+        .ThrowOnError();
+
+        YT_LOG_INFO("Slot's cpu_set was updated (SlotType: %v, SlotIndex: %v, CpuSet: '%Qv')",
+            slotType,
+            slotIndex,
+            cpuSet);
+    }
+
     TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType slotType, TJobId jobId) override
     {
         auto launcher = CreateJobProxyInstanceLauncher(slotIndex, slotType, jobId);
@@ -664,6 +703,14 @@ private:
         IdleCpuLimit_ = CpuLimit_ * IdleCpuFraction_;
         UpdateContainerCpuLimits();
     }
+
+    void ClearSlotCpuSets(int slotCount) override
+    {
+        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+            UpdateSlotCpuSet(slotIndex, ESlotType::Common, EmptyCpuSet);
+            UpdateSlotCpuSet(slotIndex, ESlotType::Idle, EmptyCpuSet);
+        }
+   }
 
     double GetCpuLimit(ESlotType slotType) const override
     {

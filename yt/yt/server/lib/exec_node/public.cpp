@@ -14,6 +14,8 @@ const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames{
     "logs"
 };
 
+const TString EmptyCpuSet("");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

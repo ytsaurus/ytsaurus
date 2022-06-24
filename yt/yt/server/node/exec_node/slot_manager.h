@@ -34,6 +34,14 @@ DEFINE_ENUM(ESlotManagerAlertType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNumaNodeState
+{
+    TNumaNodeInfo NumaNodeInfo;
+    double FreeCpuCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Controls acquisition and release of slots.
 /*!
  *  \note
@@ -60,17 +68,25 @@ public:
     class TSlotGuard
     {
     public:
-        TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu);
+        TSlotGuard(
+            TSlotManagerPtr slotManager,
+            ESlotType slotType,
+            double requestedCpu,
+            const std::optional<i64>& numaNodeIdAffinity);
         ~TSlotGuard();
 
     private:
         const TSlotManagerPtr SlotManager_;
         const double RequestedCpu_;
+        const std::optional<i64> NumaNodeIdAffinity_;
 
         DEFINE_BYVAL_RO_PROPERTY(ESlotType, SlotType);
         DEFINE_BYVAL_RO_PROPERTY(int, SlotIndex);
     };
-    std::unique_ptr<TSlotGuard> AcquireSlot(ESlotType slotType, double requestedCpu);
+    std::unique_ptr<TSlotGuard> AcquireSlot(
+        ESlotType slotType,
+        double requestedCpu,
+        const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
@@ -132,6 +148,8 @@ private:
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 
+    std::vector<TNumaNodeState> NumaNodeStates_;
+
     IJobEnvironmentPtr JobEnvironment_;
 
     THashSet<int> FreeSlots_;
@@ -158,10 +176,12 @@ private:
 
     double GetIdleCpuFraction() const;
 
+    bool EnableNumaNodeScheduling() const;
+
     void AsyncInitialize();
 
     int DoAcquireSlot(ESlotType slotType);
-    void ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu);
+    void ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity);
 
     /*!
      *  \note

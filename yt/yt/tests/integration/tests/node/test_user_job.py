@@ -2535,3 +2535,181 @@ class TestIdleSlots(YTEnvSetup):
         assert self._get_actual_cpu_policy(op, job_id) == "normal"
 
         wait(lambda: self._check_slot_count(node, 0, 0))
+
+
+##################################################################
+
+
+class TestCpuSet(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 20,
+                    "user_slots": 10,
+                },
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "idle_cpu_fraction": 0.2,
+                },
+                "numa_nodes": [
+                    {
+                        "numa_node_id": 0,
+                        "cpu_count": 4,
+                        "cpu_set": "1-3,7"
+                    },
+                    {
+                        "numa_node_id": 1,
+                        "cpu_count": 3,
+                        "cpu_set": "4-6"
+                    }
+                ],
+            },
+        },
+        "dynamic_config_manager": {
+            "update_period": 50,
+        },
+    }
+
+    def _get_job_info(self, op):
+        wait(lambda: len(op.get_running_jobs()) >= 1)
+        jobs = op.get_running_jobs()
+        job = jobs[list(jobs)[0]]
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) >= 1
+        job_id = job_ids[0]
+
+        return (job_id, job["address"])
+
+    def _get_actual_cpu_set(self, op, job_id):
+        return op.read_stderr(job_id).decode("utf-8").strip()
+
+    def _enable_numa_node_scheduling(self, enable):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "enable_numa_node_scheduling": enable,
+                },
+            },
+        })
+
+    def _get_numa_node_free_cpu_count(self, node, numa_node_id):
+        return get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/numa_node_states/node_{numa_node_id}/free_cpu_count")
+
+    @authors("nadya73")
+    def test_greedy(self):
+        self._enable_numa_node_scheduling(True)
+        node = ""
+
+        all_operations_info = []
+        for cpu_limit, free_cpu_count_after, numa_node_id, expected_cpu_set in [
+            (2, 2.0, 0, "1-3,7"),
+            (2, 1.0, 1, "4-6"),
+            (1, 1.0, 0, "1-3,7"),
+            (2, None, None, None)
+        ]:
+            op = run_test_vanilla(
+                with_breakpoint("portoctl get self cpu_set_affinity >&2; BREAKPOINT"),
+                task_patch={"cpu_limit": cpu_limit, "enable_porto": "isolate"},
+            )
+
+            job_id, node = self._get_job_info(op)
+
+            all_operations_info += [(op, job_id, expected_cpu_set)]
+
+            wait_breakpoint()
+            if numa_node_id is not None:
+                wait(lambda: self._get_numa_node_free_cpu_count(node, numa_node_id) == free_cpu_count_after)
+
+        release_breakpoint()
+        for op, job_id, expected_cpu_set in all_operations_info:
+            op.track()
+            if expected_cpu_set is not None:
+                assert self._get_actual_cpu_set(op, job_id) == expected_cpu_set
+            else:
+                assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
+
+        wait(lambda: self._get_numa_node_free_cpu_count(node, 0) == 4.0)
+        wait(lambda: self._get_numa_node_free_cpu_count(node, 1) == 3.0)
+
+    @authors("nadya73")
+    def test_release_numa_nodes_cpu(self):
+        self._enable_numa_node_scheduling(True)
+
+        op_with_numa_node = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_set_affinity >&2; BREAKPOINT", "1"),
+            task_patch={"cpu_limit": 4, "enable_porto": "isolate"},
+        )
+
+        job_id_with_numa_node, node_with_numa_node = self._get_job_info(op_with_numa_node)
+
+        wait_breakpoint("1")
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
+
+        # Not enough cpu on any numa node for this operation.
+        op_without_numa_node = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_set_affinity >&2; BREAKPOINT", "2"),
+            task_patch={"cpu_limit": 4, "enable_porto": "isolate"},
+        )
+
+        job_id_without_numa_node, node_without_numa_node = self._get_job_info(op_without_numa_node)
+
+        wait_breakpoint("2")
+
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
+
+        release_breakpoint("1")
+        release_breakpoint("2")
+
+        op_with_numa_node.track()
+        op_without_numa_node.track()
+        wait(lambda: get(f"//sys/cluster_nodes/{node_with_numa_node}/orchid/job_controller/slot_manager/free_slot_count") == 10)
+
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 4.0)
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
+
+        assert self._get_actual_cpu_set(op_with_numa_node, job_id_with_numa_node) == "1-3,7"
+        assert self._get_actual_cpu_set(op_without_numa_node, job_id_without_numa_node)[:2] == "0-"
+
+        # Here first operation was finished and we can use her numa_node again.
+        op_with_numa_node = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_set_affinity >&2; BREAKPOINT", "3"),
+            task_patch={"cpu_limit": 4, "enable_porto": "isolate"},
+        )
+
+        job_id_with_numa_node, node_with_numa_node = self._get_job_info(op_with_numa_node)
+        wait_breakpoint("3")
+
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 0) == 0.0)
+        wait(lambda: self._get_numa_node_free_cpu_count(node_with_numa_node, 1) == 3.0)
+
+        release_breakpoint("3")
+
+        op_with_numa_node.track()
+        assert self._get_actual_cpu_set(op_with_numa_node, job_id_with_numa_node) == "1-3,7"
+
+    @authors("nadya73")
+    def test_disable_by_config(self):
+        self._enable_numa_node_scheduling(False)
+        op = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_set_affinity >&2; BREAKPOINT"),
+            task_patch={"cpu_limit": 4, "enable_porto": "isolate"},
+        )
+
+        job_id, node = self._get_job_info(op)
+        wait_breakpoint()
+        release_breakpoint()
+        op.track()
+
+        assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"

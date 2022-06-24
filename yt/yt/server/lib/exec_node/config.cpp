@@ -73,6 +73,18 @@ void TSlotLocationConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNumaNodeConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("numa_node_id", &TThis::NumaNodeId)
+        .Default(0);
+    registrar.Parameter("cpu_count", &TThis::CpuCount)
+        .Default(0);
+    registrar.Parameter("cpu_set", &TThis::CpuSet)
+        .Default(EmptyCpuSet);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSlotManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("skip_job_proxy_unavailable_alert", &TThis::SkipJobProxyUnavailableAlert)
@@ -119,6 +131,20 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
+    
+    registrar.Parameter("numa_nodes", &TThis::NumaNodes)
+        .Default();
+        
+    registrar.Postprocessor([] (TThis* config) {
+        std::unordered_set<i64> numaNodeIds;
+        for (const auto& numaNode : config->NumaNodes) {
+            if (numaNodeIds.contains(numaNode->NumaNodeId)) {
+                THROW_ERROR_EXCEPTION("Numa nodes ids must be unique in \"numa_nodes\" list, but duplicate found")
+                    << TErrorAttribute("numa_node_id", numaNode->NumaNodeId);
+            }
+            numaNodeIds.insert(numaNode->NumaNodeId);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -501,6 +527,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("idle_cpu_fraction", &TThis::IdleCpuFraction)
         .Default();
+
+    registrar.Parameter("enable_numa_node_scheduling", &TThis::EnableNumaNodeScheduling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

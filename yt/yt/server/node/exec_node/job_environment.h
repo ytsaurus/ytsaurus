@@ -28,7 +28,8 @@ struct IJobEnvironment
         const TString& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
-        const std::optional<TString>& stderrPath) = 0;
+        const std::optional<TString>& stderrPath,
+        const std::optional<TNumaNodeInfo>& numaNodeAffinity) = 0;
 
     virtual void CleanProcesses(int slotIndex, ESlotType slotType = ESlotType::Common) = 0;
 
@@ -42,6 +43,8 @@ struct IJobEnvironment
     virtual void UpdateCpuLimit(double cpuLimit) = 0;
 
     virtual void UpdateIdleCpuFraction(double idleCpuFraction) = 0;
+
+    virtual void ClearSlotCpuSets(int slotCount) = 0;
 
     virtual double GetCpuLimit(ESlotType slotType) const = 0;
 

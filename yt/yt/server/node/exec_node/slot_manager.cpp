@@ -102,19 +102,35 @@ void TSlotManager::Initialize()
         ++locationIndex;
     }
 
+    for (const auto& numaNode : Config_->NumaNodes) {
+        NumaNodeStates_.push_back(TNumaNodeState{
+            .NumaNodeInfo = TNumaNodeInfo{
+                .NumaNodeId = numaNode->NumaNodeId,
+                .CpuSet = numaNode->CpuSet
+            },
+            .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
+        });
+    }
+
     YT_LOG_INFO("Slot manager sync initialization finished");
 
     Bootstrap_->GetJobInvoker()->Invoke(BIND(&TSlotManager::AsyncInitialize, MakeStrong(this)));
 }
 
 void TSlotManager::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+    const TClusterNodeDynamicConfigPtr& oldNodeConfig,
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newNodeConfig->ExecNode->SlotManager);
     JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
+
+    if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
+        !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
+    {
+        JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+    }
 }
 
 void TSlotManager::UpdateAliveLocations()
@@ -183,6 +199,22 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
         ++UsedIdleSlotCount_;
     }
 
+    std::optional<TNumaNodeInfo> numaNodeAffinity;
+    if (EnableNumaNodeScheduling() && !NumaNodeStates_.empty()) {
+        auto bestNumaNodeIt = std::max_element(
+            NumaNodeStates_.begin(),
+            NumaNodeStates_.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs.FreeCpuCount < rhs.FreeCpuCount;
+            }
+        );
+
+        if (bestNumaNodeIt->FreeCpuCount >= cpuRequest.cpu()) {
+            numaNodeAffinity = bestNumaNodeIt->NumaNodeInfo;
+            bestNumaNodeIt->FreeCpuCount -= cpuRequest.cpu();
+        }
+    }
+
     return CreateSlot(
         this,
         std::move(bestLocation),
@@ -190,14 +222,22 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
         RootVolumeManager_.Load(),
         NodeTag_,
         slotType,
-        cpuRequest.cpu());
+        cpuRequest.cpu(),
+        numaNodeAffinity);
 }
 
-std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(ESlotType slotType, double cpuUsage)
-{
+std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(
+    ESlotType slotType,
+    double requestedCpu,
+    const std::optional<TNumaNodeInfo>& numaNodeAffinity
+) {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return std::make_unique<TSlotManager::TSlotGuard>(this, slotType, cpuUsage);
+    return std::make_unique<TSlotManager::TSlotGuard>(
+        this,
+        slotType,
+        requestedCpu,
+        numaNodeAffinity ? std::optional<i64>(numaNodeAffinity->NumaNodeId) : std::nullopt);
 }
 
 int TSlotManager::GetSlotCount() const
@@ -258,6 +298,14 @@ double TSlotManager::GetIdleCpuFraction() const
     return dynamicConfig
         ? dynamicConfig->IdleCpuFraction.value_or(Config_->IdleCpuFraction)
         : Config_->IdleCpuFraction;
+}
+
+bool TSlotManager::EnableNumaNodeScheduling() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->EnableNumaNodeScheduling
+        : false;
 }
 
 bool TSlotManager::HasFatalAlert() const
@@ -435,6 +483,16 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
             .Item("free_slot_count").Value(FreeSlots_.size())
             .Item("used_idle_slot_count").Value(UsedIdleSlotCount_)
             .Item("idle_policy_requested_cpu").Value(IdlePolicyRequestedCpu_)
+            .Item("numa_node_states").DoMapFor(
+                NumaNodeStates_,
+                [&] (TFluentMap fluent, const TNumaNodeState& numaNodeState) {
+                    fluent
+                        .Item(Format("node_%v", numaNodeState.NumaNodeInfo.NumaNodeId)).BeginMap()
+                            .Item("free_cpu_count").Value(numaNodeState.FreeCpuCount)
+                            .Item("cpu_set").Value(numaNodeState.NumaNodeInfo.CpuSet)
+                        .EndMap();
+                }
+            )
             .Item("alerts").DoMapFor(
                 TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
                 [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
@@ -563,19 +621,28 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     return slotIndex;
 }
 
-void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu)
+void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& jobInvoker = Bootstrap_->GetJobInvoker();
     jobInvoker->Invoke(
-        BIND([this, this_ = MakeStrong(this), slotType, slotIndex, requestedCpu] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(JobThread);
 
             YT_VERIFY(FreeSlots_.insert(slotIndex).second);
             if (slotType == ESlotType::Idle) {
                 --UsedIdleSlotCount_;
                 IdlePolicyRequestedCpu_ -= requestedCpu;
+            }
+
+            if (numaNodeIdAffinity) {
+                for (auto& numaNodeState : NumaNodeStates_) {
+                    if (numaNodeState.NumaNodeInfo.NumaNodeId == *numaNodeIdAffinity) {
+                        numaNodeState.FreeCpuCount += requestedCpu;
+                        break;
+                    }
+                }
             }
 
             YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
@@ -616,16 +683,22 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlotManager::TSlotGuard::TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu)
+TSlotManager::TSlotGuard::TSlotGuard(
+    TSlotManagerPtr slotManager,
+    ESlotType slotType,
+    double requestedCpu,
+    const std::optional<i64>& numaNodeIdAffinity
+)
     : SlotManager_(std::move(slotManager))
     , RequestedCpu_(requestedCpu)
+    , NumaNodeIdAffinity_(numaNodeIdAffinity)
     , SlotType_(slotType)
     , SlotIndex_(SlotManager_->DoAcquireSlot(slotType))
 { }
 
 TSlotManager::TSlotGuard::~TSlotGuard()
 {
-    SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_);
+    SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_, NumaNodeIdAffinity_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
