@@ -109,7 +109,7 @@ public:
     int GetSlotIndex() const override;
 
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const override;
-    bool GpuRequested() const override;
+    bool IsGpuRequested() const override;
 
     std::vector<int> GetPorts() const override;
 
@@ -287,7 +287,7 @@ private:
     IVolumePtr RootVolume_;
 
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
-    bool GpuRequested_;
+    bool IsGpuRequested_;
     double RequestedCpu_;
     i64 RequestedMemory_;
     std::vector<int> Ports_;

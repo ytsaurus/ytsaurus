@@ -148,7 +148,7 @@ TJob::TJob(
         OperationId_,
         GetType()))
     , ResourceUsage_(resourceUsage)
-    , GpuRequested_(ResourceUsage_.gpu() > 0)
+    , IsGpuRequested_(ResourceUsage_.gpu() > 0)
     , RequestedCpu_(resourceUsage.cpu())
     , RequestedMemory_(resourceUsage.user_memory())
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
@@ -674,9 +674,9 @@ TNodeResources TJob::GetResourceUsage() const
     return ResourceUsage_;
 }
 
-bool TJob::GpuRequested() const
+bool TJob::IsGpuRequested() const
 {
-    return GpuRequested_;
+    return IsGpuRequested_;
 }
 
 std::vector<int> TJob::GetPorts() const

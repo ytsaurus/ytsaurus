@@ -351,7 +351,7 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
         }
     }
 
-    if (job->GpuRequested()) {
+    if (job->IsGpuRequested()) {
         if (job->GetState() == EJobState::Failed) {
             ++ConsecutiveFailedGpuJobCount_;
         } else {
