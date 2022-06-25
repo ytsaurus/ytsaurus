@@ -681,7 +681,9 @@ EChunkFormat TChunk::GetChunkFormat() const
 
 bool TChunk::HasConsistentReplicaPlacementHash() const
 {
-    return ConsistentReplicaPlacementHash_ != NullConsistentReplicaPlacementHash;
+    return
+        ConsistentReplicaPlacementHash_ != NullConsistentReplicaPlacementHash &&
+        !IsErasure(); // CRP with erasure is not supported.
 }
 
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)

@@ -270,7 +270,6 @@ private:
         TReplicationPolicy replicationPolicy,
         const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
         TNodePtrWithIndexes unsafelyPlacedSealedReplica,
-        const std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>& inconsistentlyPlacedSealedReplicas,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);
     void ComputeErasureChunkStatisticsCrossMedia(

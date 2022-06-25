@@ -446,8 +446,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
     TMediumMap<TNodePtrWithIndexes> unsafelyPlacedSealedReplicas;
-    // An arbitrary replica that violates consistent placement requirements - per medium.
-    TMediumMap<std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
     TMediumIntMap totalReplicaCounts;
     TMediumIntMap totalDecommissionedReplicaCounts;
@@ -456,15 +454,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     bool totallySealed = chunk->IsSealed();
 
-    auto consistentPlacementNodes = GetChunkConsistentPlacementNodes(chunk);
-
     auto mark = TNode::GenerateVisitMark();
 
     const auto chunkReplication = GetChunkAggregatedReplication(chunk);
     for (const auto& entry : chunkReplication) {
         auto mediumIndex = entry.GetMediumIndex();
         unsafelyPlacedSealedReplicas[mediumIndex] = {};
-        inconsistentlyPlacedSealedReplicas[mediumIndex] = {};
         totalReplicaCounts[mediumIndex] = 0;
         totalDecommissionedReplicaCounts[mediumIndex] = 0;
     }
@@ -514,14 +509,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
                 }
             }
         }
-
-        if (auto it = consistentPlacementNodes.find(mediumIndex); it != consistentPlacementNodes.end()) {
-            const auto& mediumConsistentPlacementNodes = it->second;
-            YT_VERIFY(replicaIndex <= std::ssize(mediumConsistentPlacementNodes));
-            if (mediumConsistentPlacementNodes[replicaIndex] != node) {
-                inconsistentlyPlacedSealedReplicas[mediumIndex][replicaIndex] = TNodePtrWithIndexes(node, replicaIndex, mediumIndex);
-            }
-        }
     }
 
     bool allMediaTransient = true;
@@ -566,7 +553,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             replicationPolicy,
             decommissionedReplicas[mediumIndex],
             unsafelyPlacedSealedReplicas[mediumIndex],
-            inconsistentlyPlacedSealedReplicas[mediumIndex],
             mediumToErasedIndexes[mediumIndex],
             totallySealed);
     }
@@ -638,7 +624,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     TReplicationPolicy replicationPolicy,
     const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
     TNodePtrWithIndexes unsafelyPlacedSealedReplica,
-    const std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>& inconsistentlyPlacedSealedReplicas,
     NErasure::TPartIndexSet& erasedIndexes,
     bool totallySealed)
 {
@@ -663,27 +648,12 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
                 // not allowed by the configuration).
                 // TODO(shakurov): this is unintuitive. Express clashes explicitly.
 
-                // NB: for consistently placed chunks, replica clashes should be
-                // handled with care: it matters which replica gets removed.
-
                 const auto& replicas = decommissionedReplicas[index];
-                const auto& inconsistentReplica = inconsistentlyPlacedSealedReplicas[index];
-                if (inconsistentReplica.GetPtr()) {
-                    for (auto replica : replicas) {
-                        if (IsReplicaDecommissioned(replica) ||
-                            inconsistentReplica == replica)
-                        {
-                            result.DecommissionedRemovalReplicas.push_back(replica);
-                            result.Status |= EChunkStatus::Overreplicated;
-                        }
-                    }
-                } else {
-                    result.DecommissionedRemovalReplicas.insert(
-                        result.DecommissionedRemovalReplicas.end(),
-                        replicas.begin(),
-                        replicas.end());
-                    result.Status |= EChunkStatus::Overreplicated;
-                }
+                result.DecommissionedRemovalReplicas.insert(
+                    result.DecommissionedRemovalReplicas.end(),
+                    replicas.begin(),
+                    replicas.end());
+                result.Status |= EChunkStatus::Overreplicated;
             }
 
             if (replicaCount > targetReplicationFactor && decommissionedReplicaCount == 0) {
@@ -728,19 +698,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         if (result.ReplicationIndexes.empty()) {
             result.ReplicationIndexes.push_back(unsafelyPlacedSealedReplica.GetReplicaIndex());
             result.UnsafelyPlacedReplica = unsafelyPlacedSealedReplica;
-        }
-    }
-
-    if (None(result.Status & EChunkStatus::Overreplicated) &&
-        result.ReplicationIndexes.empty())
-    {
-        for (auto inconsistentReplica : inconsistentlyPlacedSealedReplicas) {
-            if (!inconsistentReplica.GetPtr()) {
-                continue;
-            }
-            result.Status |= EChunkStatus::InconsistentlyPlaced;
-            result.ReplicationIndexes.push_back(inconsistentReplica.GetReplicaIndex());
-            break;
         }
     }
 }

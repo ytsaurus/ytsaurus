@@ -644,37 +644,6 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         wait(lambda: self._are_chunks_collocated(chunk_ids))
 
     @authors("shakurov")
-    def test_erasure(self):
-        self._create_table_with_two_consistently_placed_chunks("//tmp/t2", {"erasure_codec": "reed_solomon_3_3"})
-        chunk_ids = get("//tmp/t2/@chunk_ids")
-        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 6)
-        wait(lambda: self._are_chunks_collocated(chunk_ids))
-
-    @authors("shakurov")
-    def test_change_regular_to_erasure(self):
-        self._create_table_with_two_consistently_placed_chunks("//tmp/t3")
-        chunk_ids = get("//tmp/t3/@chunk_ids")
-        wait(lambda: self._are_chunks_collocated(chunk_ids))
-
-        set("//tmp/t3/@erasure_codec", "reed_solomon_3_3")
-
-        row3 = {"key": "k1", "value": "v1"}
-        self._mount_insert_unmount("//tmp/t3", row3)
-        row4 = {"key": "k2", "value": "v2"}
-        self._mount_insert_unmount("//tmp/t3", row4)
-
-        def are_chunks_erasure():
-            chunk_ids = get("//tmp/t3/@chunk_ids")
-            for chunk_id in chunk_ids:
-                if get("#{}/@type".format(chunk_id)) != "erasure_chunk":
-                    return False
-            return True
-
-        wait(are_chunks_erasure)
-        chunk_ids = get("//tmp/t3/@chunk_ids")
-        assert self._are_chunks_collocated(chunk_ids)
-
-    @authors("shakurov")
     def test_chunk_destruction(self):
         self._create_table_with_two_consistently_placed_chunks("//tmp/t4")
         chunk_ids = get("//tmp/t4/@chunk_ids")
@@ -691,11 +660,10 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 
     @authors("shakurov")
     @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
-    # TODO(shakurov): @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
     def test_node_trouble(self, trouble_mode):
         self._disable_token_redistribution()
 
-        self._create_table_with_two_consistently_placed_chunks("//tmp/t5", {"erasure_codec": "none"})
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t5")
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
@@ -863,18 +831,18 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         self._disable_token_redistribution()
 
         self._create_table_with_two_consistently_placed_chunks("//tmp/t10")
-        regular_chunk_ids = get("//tmp/t10/@chunk_ids")
-        wait(lambda: len(get("#{}/@stored_replicas".format(regular_chunk_ids[0]))) == 3)
-        wait(lambda: self._are_chunks_collocated(regular_chunk_ids))
+        chunk_ids_1 = get("//tmp/t10/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids_1[0]))) == 3)
+        wait(lambda: self._are_chunks_collocated(chunk_ids_1))
 
-        self._create_table_with_two_consistently_placed_chunks("//tmp/t11", {"erasure_codec": "reed_solomon_3_3"})
-        erasure_chunk_ids = get("//tmp/t11/@chunk_ids")
-        wait(lambda: len(get("#{}/@stored_replicas".format(erasure_chunk_ids[0]))) == 6)
-        wait(lambda: self._are_chunks_collocated(erasure_chunk_ids))
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t11", {"replication_factor": 6})
+        chunk_ids_2 = get("//tmp/t11/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids_2[0]))) == 6)
+        wait(lambda: self._are_chunks_collocated(chunk_ids_2))
 
         set("//sys/@config/chunk_manager/consistent_replica_placement/replicas_per_chunk", 50)
-        wait(lambda: self._are_chunks_collocated(regular_chunk_ids))
-        wait(lambda: self._are_chunks_collocated(erasure_chunk_ids))
+        wait(lambda: self._are_chunks_collocated(chunk_ids_1))
+        wait(lambda: self._are_chunks_collocated(chunk_ids_2))
 
 
 ##################################################################
