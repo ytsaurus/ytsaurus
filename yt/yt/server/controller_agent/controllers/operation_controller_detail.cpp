@@ -4718,11 +4718,16 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
                     TError("Failed to update account usage lease")
                         << TErrorAttribute("account", account)
                         << TErrorAttribute("lease_id", info.LeaseId)
+                        << TErrorAttribute("operation_id", OperationId)
                         << TErrorAttribute("resource_usage", info.DiskQuota)
                         << error);
             } else {
                 Host->Disconnect(
                     TError("Failed to update account usage lease")
+                        << TErrorAttribute("account", account)
+                        << TErrorAttribute("lease_id", info.LeaseId)
+                        << TErrorAttribute("operation_id", OperationId)
+                        << TErrorAttribute("resource_usage", info.DiskQuota)
                         << error);
             }
             return;
