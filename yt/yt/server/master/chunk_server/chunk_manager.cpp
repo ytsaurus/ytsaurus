@@ -2436,6 +2436,7 @@ public:
     {
         YT_ASSERT(!chunk->IsForeign());
         YT_ASSERT(chunk->HasConsistentReplicaPlacementHash());
+        YT_ASSERT(!chunk->IsErasure());
 
         TNodePtrWithIndexesList result;
 
