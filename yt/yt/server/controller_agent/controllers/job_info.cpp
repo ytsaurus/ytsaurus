@@ -155,6 +155,11 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::IsStartedFlag) {
+        Persist(context, IsStarted);
+    } else {
+        IsStarted = true;
+    }
     Persist(context, DebugArtifactsAccount);
     Persist(context, Suspicious);
     Persist(context, LastActivityTime);

@@ -36,6 +36,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ResourceOverdraftJobId)               (300905))
     ((DropLogAndProfile)                    (300906))
     ((ProbingJobsFix)                       (300907))
+    ((IsStartedFlag)                        (300908))
     // 22.3 start here
     ((DropUnusedOperationId)                (301001))
     ((ChangeUnorderedMergeInheritance)      (301002))
