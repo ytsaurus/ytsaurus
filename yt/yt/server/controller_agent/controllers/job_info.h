@@ -48,6 +48,9 @@ struct TJobInfoBase
     TInstant FinishTime;
     TInstant LastUpdateTime = TInstant();
 
+    // XXX: refactor possibles job states, that identified by presence of StartTime and IsStarted flag.
+    bool IsStarted = false;
+
     TString DebugArtifactsAccount;
     bool Suspicious = false;
     TInstant LastActivityTime;
@@ -59,6 +62,7 @@ struct TJobInfoBase
     TEnumIndexedVector<EJobCompetitionType, TJobId> CompetitionIds;
     TEnumIndexedVector<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
+
 
     virtual void Persist(const TPersistenceContext& context);
 };

@@ -2839,6 +2839,7 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
 
     joblet->LastActivityTime = jobSummary->StartTime;
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
+    joblet->IsStarted = true;
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
@@ -5120,7 +5121,9 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
         RetainedJobsCoreInfoCount_ += coreInfoCount;
     }
 
-    IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
+    if (joblet->IsStarted) {
+        IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
+    }
 }
 
 bool TOperationControllerBase::IsPrepared() const
