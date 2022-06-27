@@ -18,11 +18,11 @@ DECLARE_REFCOUNTED_STRUCT(TThrottlerRequest)
 struct TThrottlerRequest
     : public TRefCounted
 {
-    explicit TThrottlerRequest(i64 count)
-        : Count(count)
+    explicit TThrottlerRequest(i64 amount)
+        : Amount(amount)
     { }
 
-    i64 Count;
+    i64 Amount;
     TPromise<void> Promise;
     std::atomic_flag Set = ATOMIC_FLAG_INIT;
     NProfiling::TCpuInstant StartTime = NProfiling::GetCpuInstant();
@@ -55,26 +55,26 @@ public:
         return DoThrottle(0);
     }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         // Fast lane.
-        if (count == 0) {
+        if (amount == 0) {
             return VoidFuture;
         }
 
-        return DoThrottle(count);
+        return DoThrottle(amount);
     }
 
-    bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         // Fast lane (only).
-        if (count == 0) {
+        if (amount == 0) {
             return true;
         }
 
@@ -85,23 +85,23 @@ public:
                 if (available < 0) {
                     return false;
                 }
-                if (Available_.compare_exchange_weak(available, available - count)) {
+                if (Available_.compare_exchange_weak(available, available - amount)) {
                     break;
                 }
             }
         }
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
         return true;
     }
 
-    i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         // Fast lane (only).
-        if (count == 0) {
+        if (amount == 0) {
             return 0;
         }
 
@@ -112,34 +112,34 @@ public:
                 if (available < 0) {
                     return 0;
                 }
-                i64 acquire = std::min(count, available);
+                i64 acquire = std::min(amount, available);
                 if (Available_.compare_exchange_weak(available, available - acquire)) {
-                    count = acquire;
+                    amount = acquire;
                     break;
                 }
             }
         }
 
-        ValueCounter_.Increment(count);
-        return count;
+        ValueCounter_.Increment(amount);
+        return amount;
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         // Fast lane (only).
-        if (count == 0) {
+        if (amount == 0) {
             return;
         }
 
         TryUpdateAvailable();
         if (Limit_.load() >= 0) {
-            Available_ -= count;
+            Available_ -= amount;
         }
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
     }
 
     bool IsOverdraft() override
@@ -170,19 +170,19 @@ public:
         DoReconfigure(limit, Period_);
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Fast lane (only).
-        return QueueTotalCount_;
+        return QueueTotalAmount_;
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto queueTotalCount = QueueTotalCount_.load();
+        auto queueTotalCount = QueueTotalAmount_.load();
         auto limit = Limit_.load();
         if (queueTotalCount == 0 || limit <= 0) {
             return TDuration::Zero();
@@ -200,7 +200,7 @@ private:
 
     std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
     std::atomic<i64> Available_ = 0;
-    std::atomic<i64> QueueTotalCount_ = 0;
+    std::atomic<i64> QueueTotalAmount_ = 0;
 
     //! Protects the section immediately following it.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -211,11 +211,11 @@ private:
 
     std::queue<TThrottlerRequestPtr> Requests_;
 
-    TFuture<void> DoThrottle(i64 count)
+    TFuture<void> DoThrottle(i64 amount)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
         if (Limit_.load() < 0) {
             return VoidFuture;
         }
@@ -223,7 +223,7 @@ private:
         while (true) {
             TryUpdateAvailable();
 
-            if (QueueTotalCount_ > 0) {
+            if (QueueTotalAmount_ > 0) {
                 break;
             }
 
@@ -232,7 +232,7 @@ private:
                 break;
             }
 
-            if (Available_.compare_exchange_strong(available, available - count)) {
+            if (Available_.compare_exchange_strong(available, available - amount)) {
                 return VoidFuture;
             }
         }
@@ -245,23 +245,23 @@ private:
         }
 
         // Enqueue request to be executed later.
-        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+        YT_LOG_DEBUG("Started waiting for throttler (Amount: %v)", amount);
         auto promise = NewPromise<void>();
-        auto request = New<TThrottlerRequest>(count);
-        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] (const TError& error) {
+        auto request = New<TThrottlerRequest>(amount);
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), amount, this, this_ = MakeStrong(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
-                QueueTotalCount_ -= count;
-                QueueSizeCounter_.Update(QueueTotalCount_);
+                QueueTotalAmount_ -= amount;
+                QueueSizeCounter_.Update(QueueTotalAmount_);
             }
         }));
 
         request->Promise = std::move(promise);
         Requests_.push(request);
-        QueueTotalCount_ += count;
-        QueueSizeCounter_.Update(QueueTotalCount_);
+        QueueTotalAmount_ += amount;
+        QueueSizeCounter_.Update(QueueTotalAmount_);
 
         ScheduleUpdate();
 
@@ -382,16 +382,16 @@ private:
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
                 auto waitTime = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - request->StartTime);
-                YT_LOG_DEBUG("Finished waiting for throttler (Count: %v, WaitTime: %v)",
-                    request->Count,
+                YT_LOG_DEBUG("Finished waiting for throttler (Amount: %v, WaitTime: %v)",
+                    request->Amount,
                     waitTime);
 
                 if (limit) {
-                    Available_ -= request->Count;
+                    Available_ -= request->Amount;
                 }
                 readyList.push_back(request);
-                QueueTotalCount_ -= request->Count;
-                QueueSizeCounter_.Update(QueueTotalCount_);
+                QueueTotalAmount_ -= request->Amount;
+                QueueSizeCounter_.Update(QueueTotalAmount_);
                 WaitTimer_.Record(waitTime);
             }
             Requests_.pop();
@@ -444,39 +444,39 @@ public:
         : ValueCounter_(profiler.Counter("/value"))
     { }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
         return VoidFuture;
     }
 
-    bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
         return true;
     }
 
-    i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
-        ValueCounter_.Increment(count);
-        return count;
+        ValueCounter_.Increment(amount);
+        return amount;
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
-        ValueCounter_.Increment(count);
+        ValueCounter_.Increment(amount);
     }
 
     bool IsOverdraft() override
@@ -485,7 +485,7 @@ public:
         return false;
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return 0;
@@ -524,42 +524,42 @@ public:
         : Throttlers_(throttlers)
     { }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
-        SelfQueueSize_ += count;
+        SelfQueueSize_ += amount;
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& throttler : Throttlers_) {
-            asyncResults.push_back(throttler->Throttle(count));
+            asyncResults.push_back(throttler->Throttle(amount));
         }
 
-        return AllSucceeded(asyncResults).Apply(BIND([weakThis = MakeWeak(this), count] (const TError& /* error */ ) {
+        return AllSucceeded(asyncResults).Apply(BIND([weakThis = MakeWeak(this), amount] (const TError& /* error */ ) {
             if (auto this_ = weakThis.Lock()) {
-                this_->SelfQueueSize_ -= count;
+                this_->SelfQueueSize_ -= amount;
             }
         }));
     }
 
-    bool TryAcquire(i64 /*count*/) override
+    bool TryAcquire(i64 /*amount*/) override
     {
         YT_ABORT();
     }
 
-    i64 TryAcquireAvailable(i64 /*count*/) override
+    i64 TryAcquireAvailable(i64 /*amount*/) override
     {
         YT_ABORT();
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         for (const auto& throttler : Throttlers_) {
-            throttler->Acquire(count);
+            throttler->Acquire(amount);
         }
     }
 
@@ -575,13 +575,13 @@ public:
         return false;
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto totalQueueSize = SelfQueueSize_.load();
         for (const auto& throttler : Throttlers_) {
-            totalQueueSize += std::max<i64>(throttler->GetQueueTotalCount() - SelfQueueSize_.load(), 0);
+            totalQueueSize += std::max<i64>(throttler->GetQueueTotalAmount() - SelfQueueSize_.load(), 0);
         }
 
         return totalQueueSize;
@@ -621,39 +621,39 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
-        auto future = Stealer_->Throttle(count);
+        auto future = Stealer_->Throttle(amount);
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
-                Underlying_->Acquire(count);
+                Underlying_->Acquire(amount);
             }
         }));
         return future;
     }
 
-    bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 amount) override
     {
-        if (Stealer_->TryAcquire(count)) {
-            Underlying_->Acquire(count);
+        if (Stealer_->TryAcquire(amount)) {
+            Underlying_->Acquire(amount);
             return true;
         }
 
         return false;
     }
 
-    i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 amount) override
     {
-        auto result = Stealer_->TryAcquireAvailable(count);
+        auto result = Stealer_->TryAcquireAvailable(amount);
         Underlying_->Acquire(result);
 
         return result;
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
-        Stealer_->Acquire(count);
-        Underlying_->Acquire(count);
+        Stealer_->Acquire(amount);
+        Underlying_->Acquire(amount);
     }
 
     bool IsOverdraft() override
@@ -661,9 +661,9 @@ public:
         return Stealer_->IsOverdraft();
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
-        return Stealer_->GetQueueTotalCount();
+        return Stealer_->GetQueueTotalAmount();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override

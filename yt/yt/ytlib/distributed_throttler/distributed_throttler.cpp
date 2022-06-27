@@ -81,7 +81,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
         auto config = Config_.Load();
 
@@ -92,50 +92,50 @@ public:
                 auto req = proxy.Throttle();
                 req->SetTimeout(ThrottleRpcTimeout_);
                 req->set_throttler_id(ThrottlerId_);
-                req->set_count(count);
+                req->set_amount(amount);
 
                 return req->Invoke().As<void>();
             }
             // Either we are leader or we dont know the leader yet.
         }
 
-        auto future = Underlying_->Throttle(count);
+        auto future = Underlying_->Throttle(amount);
         future.Subscribe(BIND([=] (const TError& error) {
             if (error.IsOK()) {
-                UpdateHistoricUsage(count);
+                UpdateHistoricUsage(amount);
             }
         }));
         return future;
     }
 
-    bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 amount) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
-        auto result = Underlying_->TryAcquire(count);
+        auto result = Underlying_->TryAcquire(amount);
         if (result) {
-            UpdateHistoricUsage(count);
+            UpdateHistoricUsage(amount);
         }
         return result;
     }
 
-    i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 amount) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
-        auto result = Underlying_->TryAcquireAvailable(count);
+        auto result = Underlying_->TryAcquireAvailable(amount);
         if (result > 0) {
             UpdateHistoricUsage(result);
         }
         return result;
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
-        UpdateHistoricUsage(count);
-        Underlying_->Acquire(count);
+        UpdateHistoricUsage(amount);
+        Underlying_->Acquire(amount);
     }
 
     bool IsOverdraft() override
@@ -145,11 +145,11 @@ public:
         return Underlying_->IsOverdraft();
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
-        return Underlying_->GetQueueTotalCount();
+        return Underlying_->GetQueueTotalAmount();
     }
 
     void Reconfigure(TThroughputThrottlerConfigPtr config) override
@@ -190,10 +190,10 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
-    void UpdateHistoricUsage(i64 count)
+    void UpdateHistoricUsage(i64 amount)
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
-        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
     }
 };
 
@@ -480,13 +480,13 @@ private:
         }
 
         const auto& throttlerId = request->throttler_id();
-        auto count = request->count();
+        auto amount = request->amount();
 
-        context->SetRequestInfo("ThrottlerId: %v, Count: %v",
+        context->SetRequestInfo("ThrottlerId: %v, Amount: %v",
             throttlerId,
-            count);
+            amount);
 
-        Throttle(throttlerId, count).Subscribe(BIND([=] (const TError& error) {
+        Throttle(throttlerId, amount).Subscribe(BIND([=] (const TError& error) {
             context->Reply(error);
         }));
     }
@@ -502,14 +502,14 @@ private:
         return it->second.Lock();
     }
 
-    TFuture<void> Throttle(const TString& throttlerId, i64 count)
+    TFuture<void> Throttle(const TString& throttlerId, i64 amount)
     {
         auto throttler = FindThrottler(throttlerId);
         if (!throttler) {
             return MakeFuture(TError(NDistributedThrottler::EErrorCode::NoSuchThrottler, "No such throttler %Qv", throttlerId));
         }
 
-        return throttler->Throttle(count);
+        return throttler->Throttle(amount);
     }
 
     int GetShardIndex(const TMemberId& memberId)
@@ -529,13 +529,13 @@ private:
 
     void UpdateUniformLimitDistribution()
     {
-        auto countRspOrError = WaitFor(DiscoveryClient_->GetGroupMeta(GroupId_));
-        if (!countRspOrError.IsOK()) {
-            YT_LOG_WARNING(countRspOrError, "Error updating throttler limits");
+        auto amountRspOrError = WaitFor(DiscoveryClient_->GetGroupMeta(GroupId_));
+        if (!amountRspOrError.IsOK()) {
+            YT_LOG_WARNING(amountRspOrError, "Error updating throttler limits");
             return;
         }
 
-        auto totalCount = countRspOrError.Value().MemberCount;
+        auto totalCount = amountRspOrError.Value().MemberCount;
         if (totalCount == 0) {
             YT_LOG_WARNING("No members in current group");
             return;

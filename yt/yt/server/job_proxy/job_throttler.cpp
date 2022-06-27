@@ -31,12 +31,12 @@ public:
         Proxy_.SetDefaultTimeout(jobThrottlerConfig->RpcTimeout);
     }
 
-    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
+    TFuture<void> Throttle(i64 amount, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
     {
         auto request = Proxy_.ThrottleJob();
         SetRequestWorkloadDescriptor(request, descriptor);
         request->set_throttler_type(ToProto<int>(throttleDirection));
-        request->set_count(count);
+        request->set_amount(amount);
         ToProto(request->mutable_job_id(), jobId);
 
         request->Invoke().Subscribe(BIND(&TThrottlingSession::OnThrottlingResponse, MakeStrong(this)));
@@ -122,23 +122,23 @@ public:
         , JobId_(jobId)
     { }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
         auto throttlingSession = New<TThrottlingSession>(Config_, Channel_);
-        return throttlingSession->Throttle(count, ThrottlerType_, Descriptor_, JobId_);
+        return throttlingSession->Throttle(amount, ThrottlerType_, Descriptor_, JobId_);
     }
 
-    bool TryAcquire(i64 /*count*/) override
+    bool TryAcquire(i64 /*amount*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    i64 TryAcquireAvailable(i64 /*count*/) override
+    i64 TryAcquireAvailable(i64 /*amount*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    void Acquire(i64 /*count*/) override
+    void Acquire(i64 /*amount*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -148,7 +148,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         YT_UNIMPLEMENTED();
     }

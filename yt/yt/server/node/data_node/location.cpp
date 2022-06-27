@@ -759,7 +759,7 @@ i64 TChunkLocation::GetReadQueueSize(const TWorkloadDescriptor& workloadDescript
 {
     return
         GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
-        GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+        GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
 }
 
 bool TChunkLocation::CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool incrementCounter) const
