@@ -4,6 +4,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
@@ -107,25 +108,50 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
-  it should "read utf8, date, datetime, timestamp, interval datatypes" in {
+  it should "read utf8" in {
     writeTableFromYson(Seq(
-      """{utf8 = "12"; date = 1; datetime = 1000; timestamp = 1; interval = 1}""",
-      """{utf8 = "23"; date = 2; datetime = 3000; timestamp = 4; interval = 5}"""
+      """{utf8 = "12"}""",
+      """{utf8 = "23"}""",
+      """{utf8 = #}""",
+      """{utf8 = " apache "}""",
     ), tmpPath, new TableSchema.Builder()
       .setUniqueKeys(false)
-      .addValue("utf8", TiType.utf8())
+      .addValue("utf8", TiType.optional(TiType.utf8()))
+      .build()
+    )
+    val res = spark.read.yt(tmpPath)
+
+    res.select("utf8")
+      .collect() should contain theSameElementsAs Seq(
+      Row("12"),
+      Row("23"),
+      Row(null),
+      Row(" apache ")
+    )
+  }
+
+  it should "read date, datetime, timestamp, interval datatypes" in {
+    writeTableFromYson(Seq(
+      """{date = 1; datetime = 1; timestamp = 1; interval = 1}""",
+      """{date = 9999; datetime = 1611733954; timestamp = 4; interval = 5}"""
+    ), tmpPath, new TableSchema.Builder()
+      .setUniqueKeys(false)
       .addValue("date", TiType.date())
       .addValue("datetime", TiType.datetime())
       .addValue("timestamp", TiType.timestamp())
       .addValue("interval", TiType.interval())
       .build()
     )
-    val res = spark.read.yt(tmpPath)
 
-    res.select("utf8", "date", "datetime", "timestamp", "interval")
-      .collect() should contain theSameElementsAs Seq(
-      Row("12", Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1), 1, 1),
-      Row("23", Date.valueOf(LocalDate.ofEpochDay(2)), new Timestamp(3), 4, 5)
+    val cols = Seq("date", "datetime", "timestamp", "interval").map(col)
+    val res = spark.read.yt(tmpPath)
+    res.select(cols : _*).collect() should contain theSameElementsAs Seq(
+      Row(Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1000), 1, 1),
+      Row(Date.valueOf(LocalDate.ofEpochDay(9999)), new Timestamp(1611733954000L), 4, 5)
+    )
+    res.select(cols.map(_.cast(StringType)) : _*).collect() should contain theSameElementsAs Seq(
+      Row("1970-01-02", "1970-01-01 03:00:01", "1", "1"),
+      Row("1997-05-18", "2021-01-27 10:52:34", "4", "5")
     )
   }
 
