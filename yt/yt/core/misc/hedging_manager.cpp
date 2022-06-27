@@ -26,10 +26,6 @@ public:
 
     TDuration OnPrimaryRequestsStarted(int requestCount) override
     {
-        if (Config_->MaxBackupRequestRatio == 1.) {
-            return TDuration::Zero();
-        }
-
         auto statistics = AcquireHedgingStatistics();
         statistics->PrimaryRequestCount.fetch_add(requestCount, std::memory_order_relaxed);
 
@@ -38,10 +34,6 @@ public:
 
     bool OnHedgingDelayPassed(int attemptCount) override
     {
-        if (Config_->MaxBackupRequestRatio == 1.) {
-            return true;
-        }
-
         auto statistics = AcquireHedgingStatistics();
 
         double previousStatisticsWeight = 1. - (GetInstant() - statistics->StartInstant) / Config_->TickPeriod;

@@ -971,8 +971,6 @@ private:
 
     using TPerPeerPlanPtr = TIntrusivePtr<TPerPeerPlan>;
 
-    bool HasErasureChunks_ = false;
-
 
     static bool IsFatalError(const TError& error)
     {
@@ -1037,10 +1035,6 @@ private:
 
             auto it = ChunkIdToChunkState_.find(request.ChunkId);
             if (it == ChunkIdToChunkState_.end()) {
-                if (IsErasureChunkId(request.ChunkId)) {
-                    HasErasureChunks_ = true;
-                }
-
                 it = ChunkIdToChunkState_.emplace(request.ChunkId, TChunkState()).first;
                 it->second.Controller = CreateChunkFragmentReadController(
                     request.ChunkId,
@@ -1210,9 +1204,7 @@ private:
         auto peerInfoToPlan = MakePlans();
         auto peerCount = std::ssize(peerInfoToPlan);
 
-        auto applyHedgingManager = !HasErasureChunks_ && Options_.HedgingManager;
-
-        if (isHedged && applyHedgingManager) {
+        if (isHedged && Options_.HedgingManager) {
             if (!Options_.HedgingManager->OnHedgingDelayPassed(peerCount)) {
                 YT_LOG_DEBUG("Hedging manager restrained hedging requests (PeerCount: %v)",
                     peerCount);
@@ -1228,7 +1220,7 @@ private:
 
         if (!isHedged && peerCount > 0) {
             // TODO(akozhikhov): Support cancellation of primary requests?
-            auto hedgingDelay = applyHedgingManager
+            auto hedgingDelay = Options_.HedgingManager
                 ? std::make_optional(Options_.HedgingManager->OnPrimaryRequestsStarted(peerCount))
                 : Reader_->Config_->FragmentReadHedgingDelay;
 
