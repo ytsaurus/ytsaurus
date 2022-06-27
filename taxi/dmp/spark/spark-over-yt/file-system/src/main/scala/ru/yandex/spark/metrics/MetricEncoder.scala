@@ -11,6 +11,8 @@ private[metrics] trait MetricEncoder {
   def contentType: String
   def solomonConfig: SolomonConfig
 
+  log.info(s"solomonConfig: $solomonConfig")
+
   def encode(ts: Instant,
              gauges: util.SortedMap[String, Gauge[_]],
              counters: util.SortedMap[String, CCounter],
@@ -19,14 +21,30 @@ private[metrics] trait MetricEncoder {
              timers: util.SortedMap[String, Timer]): Array[Byte] = {
     import collection.JavaConverters._
 
-    val metrics = gauges.asScala.flatMap(g => fromGauge(fixName(g._1), g._2)).toSeq ++
-      counters.asScala.flatMap(c => fromCounter(fixName(c._1), c._2)) ++
-      histograms.asScala.flatMap(h => fromHistogram(fixName(h._1), h._2)) ++
-      meters.asScala.flatMap(m => fromMeter(fixName(m._1), m._2)) ++
-      timers.asScala.flatMap(t => fromTimer(fixName(t._1), t._2))
+    val metrics = gauges.asScala.flatMap(g => fromGauge(g._1, g._2)).toSeq ++
+      counters.asScala.flatMap(c => fromCounter(c._1, c._2)) ++
+      histograms.asScala.flatMap(h => fromHistogram(h._1, h._2)) ++
+      meters.asScala.flatMap(m => fromMeter(m._1, m._2)) ++
+      timers.asScala.flatMap(t => fromTimer(t._1, t._2))
 
-    encodeMetrics(MetricMessage(metrics, solomonConfig.commonLabels, ts))
+    log.info(s"Available metrics: $metrics")
+    encodeMetrics(MetricMessage(
+      metrics.filter(isRequiredMetric)
+        .map(_.updateLabel("name", n => transformMetricName(fixName(n)))),
+      solomonConfig.commonLabels,
+      ts
+    ))
   }
+
+  private def isRequiredMetric(metric: Metric): Boolean = {
+    val name = metric.labels("name")
+    val ms = name.matches(solomonConfig.metricNameRegex)
+    log.info(s"name=$name matches=$ms re=/${solomonConfig.metricNameRegex}/")
+    ms
+  }
+
+  private def transformMetricName(name: String): String =
+    solomonConfig.metricNameTransform.map(_.replace("$0", name)).getOrElse(name)
 
   def encodeMetrics(message: MetricMessage): Array[Byte]
 }
@@ -44,7 +62,7 @@ private[metrics] object MetricEncoder {
     if (name == "project") "project_label"
     else if (name == "cluster") "host_label"
     else if (name == "service") "service_label"
-    else name
+    else name.replace('.', '_')
 
 
   private def fromGauge[T](name: String, gauge: Gauge[T]): Option[Metric] =
@@ -63,7 +81,7 @@ private[metrics] object MetricEncoder {
         log.debug(s"Gauge $name is null")
         None
       case v =>
-        log.warn(s"Unsupported gauge type: ${v.getClass} for metric $name")
+        log.debug(s"Unsupported gauge type: ${v.getClass} for metric $name")
         None
     }
 

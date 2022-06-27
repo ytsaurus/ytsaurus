@@ -19,7 +19,8 @@ class SolomonSinkTest extends FunSuite {
   def json(req: Request): Json = parser.parse(body(req)).right.get
 
 
-  def checkSink(prepareMetrics: MetricRegistry => Unit)(assert: Json => Unit): Assertion = {
+  def checkSink(prepareMetrics: MetricRegistry => Unit, extraProps: Map[String, String] = Map())
+               (assert: Json => Unit): Assertion = {
     val server = TestHttpServer()
     val registry: MetricRegistry = new MetricRegistry()
     prepareMetrics(registry)
@@ -28,6 +29,7 @@ class SolomonSinkTest extends FunSuite {
       server.start()
       val port = server.port
       props.setProperty("solomon_port", port.toString)
+      extraProps.foreach(p => props.setProperty(p._1, p._2))
       val sink = new SolomonSink(props, registry, null)
       server.assert(req => assert(json(req)))
       sink.report()
@@ -102,17 +104,17 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 5
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1.count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 12L
-      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1.mean_rate")
+      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_mean_rate")
       metrics(1).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
       metrics(1).hcursor.downField("value").as[Double].right.get should be > 0D
-      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1.rate_1min")
+      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_1min")
       metrics(2).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
-      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1.rate_5min")
+      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_5min")
       metrics(3).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
-      metrics(4).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1.rate_15min")
+      metrics(4).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_15min")
       metrics(4).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
     })
   }
@@ -127,12 +129,12 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 9
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "hist1.count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "hist1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
       metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("name"))
-        .toSet shouldBe Set("hist1.max", "hist1.mean", "hist1.median", "hist1.min", "hist1.stddev", "hist1.p75",
-          "hist1.p95", "hist1.p99")
+        .toSet shouldBe Set("hist1_max", "hist1_mean", "hist1_median", "hist1_min", "hist1_stddev", "hist1_p75",
+          "hist1_p95", "hist1_p99")
       metrics.tail.map(_.hcursor.downField("type").as[String].right.get).foreach(_ shouldBe "DGAUGE")
     })
   }
@@ -147,13 +149,46 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 13
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "timer1.count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "timer1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
       metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("name"))
-        .toSet shouldBe Set("timer1.max", "timer1.mean", "timer1.median", "timer1.min", "timer1.stddev", "timer1.p75",
-        "timer1.p95", "timer1.p99", "timer1.mean_rate", "timer1.rate_1min", "timer1.rate_5min", "timer1.rate_15min")
+        .toSet shouldBe Set("timer1_max", "timer1_mean", "timer1_median", "timer1_min", "timer1_stddev", "timer1_p75",
+        "timer1_p95", "timer1_p99", "timer1_mean_rate", "timer1_rate_1min", "timer1_rate_5min", "timer1_rate_15min")
       metrics.tail.map(_.hcursor.downField("type").as[String].right.get).foreach(_ shouldBe "DGAUGE")
     })
+  }
+
+  test("filter out all metrics") {
+    checkSink(reg => {
+      val timer1 = new Timer
+      reg.register("timer1", timer1)
+      timer1.update(1, TimeUnit.SECONDS)
+      timer1.update(2, TimeUnit.SECONDS)
+      timer1.update(3, TimeUnit.SECONDS)
+    }, Map("accept_metrics" -> "^.*count$")) { json =>
+      val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
+      metrics.size shouldBe 1
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "timer1_count")
+      metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
+      metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
+    }
+  }
+
+  test("transform_name") {
+    checkSink(reg => {
+      val timer1 = new Timer
+      reg.register("timer1", timer1)
+      timer1.update(1, TimeUnit.SECONDS)
+      timer1.update(2, TimeUnit.SECONDS)
+      timer1.update(3, TimeUnit.SECONDS)
+    }, Map("accept_metrics" -> "^.*count$", "rename_metrics" -> "metrics_$0_Value")) { json =>
+      val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
+      metrics.size shouldBe 1
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" ->
+        "metrics_timer1_count_Value")
+      metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
+      metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
+    }
   }
 }
