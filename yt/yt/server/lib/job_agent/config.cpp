@@ -161,6 +161,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_cpu_to_vcpu_factor", &TThis::EnableCpuToVCpuFactor)
         .Default(false);
 
+    registrar.Parameter("cpu_model_to_cpu_to_vcpu_factor", &TThis::CpuModelToCpuToVCpuFactor)
+        .Default();
+
     registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
         .Default();
 
@@ -187,6 +190,22 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
+            THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greated than 0")
+                << TErrorAttribute("cpu_to_vcpu_factor", *config->CpuToVCpuFactor);
+        }
+        if (config->CpuModelToCpuToVCpuFactor) {
+            for (const auto& [cpu_model, factor] : config->CpuModelToCpuToVCpuFactor.value()) {
+                if (factor <= 0) {
+                    THROW_ERROR_EXCEPTION("Factor in `cpu_model_to_cpu_to_vcpu_factor` must be greated than 0")
+                        << TErrorAttribute("cpu_model", cpu_model)
+                        << TErrorAttribute("cpu_to_vcpu_factor", factor);
+                }
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +247,10 @@ void TJobControllerConfig::Register(TRegistrar registrar)
         .Default(1.0);
 
     registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
-        .Default(1.0);
+        .Default();
+
+    registrar.Parameter("cpu_model", &TThis::CpuModel)
+        .Default();
 
     registrar.Parameter("start_port", &TThis::StartPort)
         .Default(20000);
