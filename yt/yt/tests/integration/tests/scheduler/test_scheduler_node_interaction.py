@@ -130,7 +130,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
-                "cpu_to_vcpu_factor": 1.21,
+                "cpu_model": "AMD EPYC 7702 64-Core Processor",
                 "resource_limits": {
                     "cpu": 19.3,
                 },
@@ -149,6 +149,9 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             "exec_agent": {
                 "job_controller": {
                     "enable_cpu_to_vcpu_factor": True,
+                    "cpu_model_to_cpu_to_vcpu_factor": {
+                        "AMD EPYC 7702 64-Core Processor": 1.21
+                    }
                 },
             },
         })
@@ -206,6 +209,31 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
         assert resource_limits["cpu"] == 23.35
 
+    @authors("nadya73")
+    def test_factor_from_dynamic_config(self):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "job_controller": {
+                    "enable_cpu_to_vcpu_factor": True,
+                    "cpu_to_vcpu_factor": 1.21,
+                    "cpu_model_to_cpu_to_vcpu_factor": {
+                        "AMD EPYC 7702 64-Core Processor": 10
+                    }
+                }
+            }
+        })
+
+        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+            run_test_vanilla(
+                "sleep 1",
+                task_patch={"cpu_limit": 24},
+                track=True,
+            )
+
+        node = ls("//sys/exec_nodes")[0]
+        resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
+        assert resource_limits["cpu"] == 23.35
+
 
 class TestVCpuDisableByDefault(YTEnvSetup):
     NUM_MASTERS = 1
@@ -215,7 +243,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
-                "cpu_to_vcpu_factor": 1.21,
+                "cpu_model": "AMD EPYC 7702 64-Core Processor",
                 "resource_limits": {
                     "cpu": 19.3,
                 }
@@ -225,6 +253,16 @@ class TestVCpuDisableByDefault(YTEnvSetup):
 
     @authors("nadya73")
     def test_one_cpu_to_vcpu_factor(self):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "job_controller": {
+                    "cpu_model_to_cpu_to_vcpu_factor": {
+                        "AMD EPYC 7702 64-Core Processor": 1.21
+                    }
+                },
+            },
+        })
+
         with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",

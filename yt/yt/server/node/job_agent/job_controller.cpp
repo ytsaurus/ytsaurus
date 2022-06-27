@@ -1915,7 +1915,19 @@ double TJobController::TImpl::GetCpuToVCpuFactor() const
 {
     auto dynamicConfig = DynamicConfig_.Load();
     if (dynamicConfig && dynamicConfig->EnableCpuToVCpuFactor) {
-        return dynamicConfig->CpuToVCpuFactor.value_or(Config_->CpuToVCpuFactor);
+        if (dynamicConfig->CpuToVCpuFactor) {
+            return dynamicConfig->CpuToVCpuFactor.value();
+        }
+        if (Config_->CpuToVCpuFactor) {
+            return Config_->CpuToVCpuFactor.value();
+        }
+        if (dynamicConfig->CpuModelToCpuToVCpuFactor && Config_->CpuModel) {
+            const auto& cpuModel = *Config_->CpuModel;
+            const auto& cpuModelToCpuToVCpuFactor = *dynamicConfig->CpuModelToCpuToVCpuFactor;
+            if (auto it = cpuModelToCpuToVCpuFactor.find(cpuModel); it != cpuModelToCpuToVCpuFactor.end()) {
+                return it->second;
+            }
+        }
     }
     return 1;
 }

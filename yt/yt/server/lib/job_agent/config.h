@@ -146,6 +146,7 @@ public:
     std::optional<TDuration> CpuOverdraftTimeout;
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
+    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
     std::optional<TDuration> MemoryOverdraftTimeout;
 
     std::optional<TDuration> ProfilingPeriod;
@@ -195,7 +196,8 @@ public:
 
     double CpuPerTabletSlot;
 
-    double CpuToVCpuFactor;
+    std::optional<double> CpuToVCpuFactor;
+    std::optional<TString> CpuModel;
 
     //! Port set has higher priority than StartPort ans PortCount if it is specified.
     int StartPort;
