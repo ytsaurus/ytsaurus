@@ -790,8 +790,8 @@ void DoLookupRows(
 
         auto sharedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
 
-        if (hedgingManagerRegistry) {
-            chunkReadOptions.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+        if (tabletSnapshot->HedgingManagerRegistry) {
+            chunkReadOptions.HedgingManager = tabletSnapshot->HedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
                     .UserTag = GetCurrentProfilingUser(),
                     .HunkChunk = true,

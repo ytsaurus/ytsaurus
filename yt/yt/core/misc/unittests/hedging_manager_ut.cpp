@@ -38,13 +38,14 @@ TEST_F(TAdaptiveHedgingManagerTest, Simple)
     EXPECT_TRUE(HedgingManager_->OnHedgingDelayPassed(1));
 }
 
-TEST_F(TAdaptiveHedgingManagerTest, Unlimited)
+TEST_F(TAdaptiveHedgingManagerTest, RatioGreaterThanOne)
 {
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestRatio = 1.0;
+    Config_->MaxBackupRequestRatio = 2.0;
     CreateHedgingManager();
 
-    EXPECT_EQ(TDuration::Zero(), HedgingManager_->OnPrimaryRequestsStarted(1));
+    EXPECT_EQ(TDuration::Seconds(1), HedgingManager_->OnPrimaryRequestsStarted(1));
+    EXPECT_TRUE(HedgingManager_->OnHedgingDelayPassed(1));
     EXPECT_TRUE(HedgingManager_->OnHedgingDelayPassed(1));
 }
 
