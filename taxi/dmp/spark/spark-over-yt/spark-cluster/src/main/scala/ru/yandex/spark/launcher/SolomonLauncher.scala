@@ -24,7 +24,7 @@ trait SolomonLauncher extends SidecarLauncher {
           .replaceAll("\\$SOLOMON_PORT", c.port.toString)
           .replaceAll("\\$SOLOMON_PUSH_PORT", c.pushPort.toString)
           .replaceAll("\\$SOLOMON_MONITORING_PORT", c.monitoringPort.toString)
-        log.info(s"Solomon config file: \n===\n$cfg\n===\n")
+        log.debug(s"Solomon config file: \n===\n$cfg\n===\n")
         cfg
     }
   }

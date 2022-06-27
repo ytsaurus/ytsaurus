@@ -10,6 +10,8 @@ case object SolomonSinkSettings {
     Option(System.getenv("SOLOMON_PUSH_PORT")).map(_.toInt))
   case object SolomonToken extends StringConfigEntry("solomon_token", None)
   case object SolomonCommonLabels extends StringMapConfigEntry("common_labels", Some(Map()))
+  case object SolomonMetricNameRegex extends StringConfigEntry("accept_metrics", Some(".*"))
+  case object SolomonMetricNameTransform extends StringConfigEntry("rename_metrics", Some(""))
 
   case object ReporterPollPeriod extends DurationSecondsConfigEntry("poll_period",
     Some(60.seconds))

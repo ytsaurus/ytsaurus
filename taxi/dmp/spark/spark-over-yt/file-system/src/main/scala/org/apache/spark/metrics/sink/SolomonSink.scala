@@ -44,6 +44,8 @@ private[spark] object SolomonSink {
     val port = props.ytConf(SolomonSinkSettings.SolomonPort)
     val token = props.getYtConf(SolomonSinkSettings.SolomonToken)
     val commonLabels = props.ytConf(SolomonSinkSettings.SolomonCommonLabels)
+    val metricNameRegex = props.ytConf(SolomonSinkSettings.SolomonMetricNameRegex)
+    val metricNameTransform = Some(props.ytConf(SolomonSinkSettings.SolomonMetricNameTransform)).filter(!_.isBlank)
     //noinspection UnstableApiUsage
     val hostAndPort = HostAndPort.fromParts(host, port)
     log.info(s"Solomon host: $host, port: $port commonLabels=$commonLabels")
@@ -51,7 +53,9 @@ private[spark] object SolomonSink {
       url = s"http://$hostAndPort",
       encoding = JsonEncoding,
       commonLabels,
-      token
+      token,
+      metricNameRegex,
+      metricNameTransform
     )
   }
 

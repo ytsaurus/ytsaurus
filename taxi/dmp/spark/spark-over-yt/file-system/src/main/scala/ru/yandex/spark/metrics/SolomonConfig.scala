@@ -5,8 +5,10 @@ import ru.yandex.spark.metrics.SolomonConfig.Encoding
 case class SolomonConfig(
   url: String,
   encoding: Encoding,
-  commonLabels: Map[String, String] = Map(),
-  token: Option[String]
+  commonLabels: Map[String, String],
+  token: Option[String],
+  metricNameRegex: String,
+  metricNameTransform: Option[String]
 )
 
 object SolomonConfig {
