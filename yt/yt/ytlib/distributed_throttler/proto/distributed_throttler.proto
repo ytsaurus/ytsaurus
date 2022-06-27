@@ -28,7 +28,7 @@ message TRspHeartbeat
 message TReqThrottle
 {
     required string throttler_id = 1;
-    required int64 count = 2;
+    required int64 amount = 2;
 }
 
 message TRspThrottle

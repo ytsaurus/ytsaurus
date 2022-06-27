@@ -488,7 +488,7 @@ private:
                 return false;
             }
             YT_LOG_DEBUG("Bandwidth limit reached; interrupting batch (QueueTotalCount: %v)",
-                Throttler_->GetQueueTotalCount());
+                Throttler_->GetQueueTotalAmount());
             return true;
         };
 

@@ -2148,7 +2148,7 @@ private:
         const TWorkloadDescriptor& workloadDescriptor)
     {
         const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalAmount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         return netThrottlerQueueSize + netOutQueueSize;
     }

@@ -350,18 +350,18 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleJob)
     {
         auto throttlerType = CheckedEnumCast<EJobThrottlerType>(request->throttler_type());
-        auto count = request->count();
+        auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("ThrottlerType: %v, Count: %v, JobId: %v, WorkloadDescriptor: %v",
+        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v",
             throttlerType,
-            count,
+            amount,
             jobId,
             workloadDescriptor);
 
         const auto& throttler = GetJobThrottler(throttlerType);
-        auto future = throttler->Throttle(count);
+        auto future = throttler->Throttle(amount);
         if (auto optionalResult = future.TryGet()) {
             optionalResult->ThrowOnError();
         } else {

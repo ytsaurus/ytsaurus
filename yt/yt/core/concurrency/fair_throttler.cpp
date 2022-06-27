@@ -252,8 +252,8 @@ DECLARE_REFCOUNTED_STRUCT(TBucketThrottleRequest)
 struct TBucketThrottleRequest
     : public TRefCounted
 {
-    explicit TBucketThrottleRequest(i64 count)
-        : Pending(count)
+    explicit TBucketThrottleRequest(i64 amount)
+        : Pending(amount)
     { }
 
     i64 Pending;
@@ -345,7 +345,7 @@ public:
         , DistributionPeriod_(config->DistributionPeriod)
     {
         profiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
-            return GetQueueTotalCount();
+            return GetQueueTotalAmount();
         });
 
         profiler.AddFuncGauge("/quota", MakeStrong(this), [this] {
@@ -357,57 +357,57 @@ public:
         });
     }
 
-    TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 amount) override
     {
-        if (TryAcquire(count)) {
+        if (TryAcquire(amount)) {
             return VoidFuture;
         }
 
-        auto request = New<TBucketThrottleRequest>(count);
-        QueueSize_ += count;
+        auto request = New<TBucketThrottleRequest>(amount);
+        QueueSize_ += amount;
 
         request->Promise.OnCanceled(BIND(&TBucketThrottleRequest::Cancel, MakeWeak(request)));
-        request->Promise.ToFuture().Subscribe(BIND(&TBucketThrottler::OnRequestComplete, MakeWeak(this), count));
+        request->Promise.ToFuture().Subscribe(BIND(&TBucketThrottler::OnRequestComplete, MakeWeak(this), amount));
 
-        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+        YT_LOG_DEBUG("Started waiting for throttler (Amount: %v)", amount);
 
         auto guard = Guard(Lock_);
         Queue_.push_back(request);
         return request->Promise.ToFuture();
     }
 
-    bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 amount) override
     {
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         auto available = Quota_.Value->load();
         auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value->load();
 
-        if (count > available + globalAvailable) {
+        if (amount > available + globalAvailable) {
             return false;
         }
 
-        auto globalConsumed = std::min(count - available, globalAvailable);
-        *Quota_.Value -= count - globalConsumed;
+        auto globalConsumed = std::min(amount - available, globalAvailable);
+        *Quota_.Value -= amount - globalConsumed;
         *SharedBucket_->Limit.Value -= globalConsumed;
 
-        Value_.Increment(count);
-        Usage_ += count;
+        Value_.Increment(amount);
+        Usage_ += amount;
 
         return true;
     }
 
-    i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 amount) override
     {
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         auto available = Quota_.Value->load();
         auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value->load();
 
-        auto consumed = std::min(count, available + globalAvailable);
+        auto consumed = std::min(amount, available + globalAvailable);
 
         auto globalConsumed = std::min(consumed - available, globalAvailable);
-        *Quota_.Value -= count - globalConsumed;
+        *Quota_.Value -= amount - globalConsumed;
         *SharedBucket_->Limit.Value -= globalConsumed;
 
         Value_.Increment(consumed);
@@ -416,35 +416,35 @@ public:
         return consumed;
     }
 
-    void Acquire(i64 count) override
+    void Acquire(i64 amount) override
     {
-        YT_VERIFY(count >= 0);
+        YT_VERIFY(amount >= 0);
 
         auto available = Quota_.Value->load();
         auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value->load();
 
-        auto globalConsumed = std::min(count - available, globalAvailable);
-        *Quota_.Value -= count - globalConsumed;
+        auto globalConsumed = std::min(amount - available, globalAvailable);
+        *Quota_.Value -= amount - globalConsumed;
         *SharedBucket_->Limit.Value -= globalConsumed;
 
-        Value_.Increment(count);
-        Usage_ += count;
+        Value_.Increment(amount);
+        Usage_ += amount;
     }
 
     bool IsOverdraft() override
     {
-        return GetQueueTotalCount() > 0;
+        return GetQueueTotalAmount() > 0;
     }
 
-    i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalAmount() const override
     {
         return Max(-Quota_.Value->load(), 0l) + QueueSize_.load();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
     {
-        auto queueTotalCount = GetQueueTotalCount();
-        if (queueTotalCount == 0) {
+        auto queueTotalAmount = GetQueueTotalAmount();
+        if (queueTotalAmount == 0) {
             return TDuration::Zero();
         }
 
@@ -454,7 +454,7 @@ public:
             return distributionPeriod;
         }
 
-        return queueTotalCount / limit * distributionPeriod;
+        return queueTotalAmount / limit * distributionPeriod;
     }
 
     struct TBucketState
@@ -566,9 +566,9 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TBucketThrottleRequestPtr> Queue_;
 
-    void OnRequestComplete(i64 count, const TError& /*error*/)
+    void OnRequestComplete(i64 amount, const TError& /*error*/)
     {
-        QueueSize_ -= count;
+        QueueSize_ -= amount;
     }
 };
 
@@ -693,7 +693,7 @@ void TFairThrottler::DoUpdateLeader()
         }
 
         demands.push_back(demand);
-        
+
         bucketDemands[name] = demands.back();
         states.push_back(state);
     }

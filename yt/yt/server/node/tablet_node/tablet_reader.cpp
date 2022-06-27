@@ -73,7 +73,7 @@ void ThrowUponDistributedThrottlerOverdraft(
             tabletThrottlerKind)
             << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
             << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", distributedThrottler->GetQueueTotalCount());
+            << TErrorAttribute("queue_total_count", distributedThrottler->GetQueueTotalAmount());
     }
 }
 
@@ -93,7 +93,7 @@ void ThrowUponNodeThrottlerOverdraft(
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to node throttler overdraft")
             << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalCount())
+            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalAmount())
             << TErrorAttribute("max_overdraft_duration", maxOverdraftDuration);
     }
 }

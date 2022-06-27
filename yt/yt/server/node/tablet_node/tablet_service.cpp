@@ -227,7 +227,7 @@ private:
                     "%v to tablet %v is throttled",
                     throttlerKind,
                     tabletId)
-                    << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalCount());
+                    << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalAmount());
             }
         } catch (const std::exception& ex) {
             THROW_ERROR ex

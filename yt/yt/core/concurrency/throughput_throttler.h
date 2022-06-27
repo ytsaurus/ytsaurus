@@ -26,34 +26,34 @@ namespace NYT::NConcurrency {
 struct IThroughputThrottler
     : public virtual TRefCounted
 {
-    //! Assuming that we are about to transfer #count bytes,
+    //! Assuming that we are about to utilize #amount units of some resource (e.g. bytes or requests),
     //! returns a future that is set when enough time has passed
     //! to ensure proper bandwidth utilization.
     /*!
      *  \note Thread affinity: any
      */
-    virtual TFuture<void> Throttle(i64 count) = 0;
+    virtual TFuture<void> Throttle(i64 amount) = 0;
 
-    //! Tries to acquire #count bytes for transfer.
+    //! Tries to acquire #amount units for utilization.
     //! Returns |true| if the request could be served without overdraft.
     /*!
      *  \note Thread affinity: any
      */
-    virtual bool TryAcquire(i64 count) = 0;
+    virtual bool TryAcquire(i64 amount) = 0;
 
-    //! Tries to acquire #count bytes for transfer.
+    //! Tries to acquire #amount units for utilization.
     //! Returns number of bytes that could be served without overdraft.
     /*!
      *  \note Thread affinity: any
      */
-    virtual i64 TryAcquireAvailable(i64 count) = 0;
+    virtual i64 TryAcquireAvailable(i64 amount) = 0;
 
-    //! Unconditionally acquires #count bytes for transfer.
+    //! Unconditionally acquires #amount units for utilization.
     //! This request could easily lead to an overdraft.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void Acquire(i64 count) = 0;
+    virtual void Acquire(i64 amount) = 0;
 
     //! Returns |true| if the throttling limit has been exceeded.
     /*!
@@ -61,11 +61,11 @@ struct IThroughputThrottler
      */
     virtual bool IsOverdraft() = 0;
 
-    //! Returns total byte count of all waiting requests.
+    //! Returns total byte amount of all waiting requests.
     /*!
      *  \note Thread affinity: any
      */
-    virtual i64 GetQueueTotalCount() const = 0;
+    virtual i64 GetQueueTotalAmount() const = 0;
 
     //! Returns estimated duration to drain current request queue.
     /*!
