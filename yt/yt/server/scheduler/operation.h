@@ -381,7 +381,6 @@ public:
     NYson::TYsonString BuildResultString() const;
 
     void SetAgent(const TControllerAgentPtr& agent);
-    TControllerAgentPtr GetAgentOrCancelFiber();
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
