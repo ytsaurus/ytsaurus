@@ -793,6 +793,9 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
     std::vector<TInstance> instances;
     std::vector<TString> fallbackInstances;
     for (auto& instance : ListComponent("exec_nodes", "node")) {
+        if (instance.Banned) {
+            continue;
+        }
         if (instance.JobProxyVersion) {
             instance.Type = "job_proxy";
             instance.Version = *instance.JobProxyVersion;
