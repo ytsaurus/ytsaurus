@@ -1697,6 +1697,10 @@ private:
             MaybeUpdateSeeds(probeResult.AllyReplicas);
         }
 
+        if (addedNewPeers) {
+            SessionOptions_.ChunkReaderStatistics->P2PActivationCount.fetch_add(1, std::memory_order_relaxed);
+        }
+
         return addedNewPeers;
     }
 
