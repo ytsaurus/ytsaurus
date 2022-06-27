@@ -497,15 +497,6 @@ void TOperation::SetAgent(const TControllerAgentPtr& agent)
     Agent_ = agent;
 }
 
-TControllerAgentPtr TOperation::GetAgentOrCancelFiber()
-{
-    auto agent = Agent_.Lock();
-    if (!agent) {
-        throw NConcurrency::TFiberCanceledException();
-    }
-    return agent;
-}
-
 TControllerAgentPtr TOperation::FindAgent()
 {
     return Agent_.Lock();

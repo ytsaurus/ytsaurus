@@ -2981,7 +2981,14 @@ private:
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
     {
-        auto agent = operation->GetAgentOrCancelFiber();
+        auto agent = operation->FindAgent();
+        if (!agent || agent->GetState() != EControllerAgentState::Registered) {
+            YT_LOG_INFO("Assigned agent is missing or not registered, operation returned to waiting for agent state (OperationId: %v)",
+                operation->GetId());
+            operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
+            throw NConcurrency::TFiberCanceledException();
+        }
+
         const auto& controller = operation->GetController();
         controller->AssignAgent(agent, operation->ControllerEpoch());
         WaitFor(controller->Register(operation))
