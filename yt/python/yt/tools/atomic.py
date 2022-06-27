@@ -13,6 +13,7 @@ CANCEL = -2
 RETRIES_COUNT = 10
 DELAY = 5.0
 
+
 def atomic_pop(client, list):
     with client.Transaction():
         for i in xrange(RETRIES_COUNT):
@@ -49,6 +50,7 @@ def atomic_push(client, list, value):
             else:
                 raise
 
+
 def is_hashable(obj):
     try:
         hash(obj)
@@ -56,8 +58,9 @@ def is_hashable(obj):
     except:
         return False
 
+
 def process_tasks_from_list(client, list, action, limit=10000, process_forever=False,
-                            empty_queue_sleep_delay=5.0):
+                            empty_queue_sleep_delay=5.0, raise_exceptions=False):
     processed_values = set()
     counter = 0
     while True:
@@ -99,10 +102,12 @@ def process_tasks_from_list(client, list, action, limit=10000, process_forever=F
             logger.exception("Process interrupted or error occurred, processing stopped")
             if value is not None:
                 atomic_push(client, list, value)
-            break
+            if raise_exceptions:
+                raise
+            else:
+                break
 
         counter += 1
         if counter == limit:
             logger.warning("Too many values are processed (%d), aborting", limit)
             break
-
