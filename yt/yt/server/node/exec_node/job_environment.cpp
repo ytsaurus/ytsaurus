@@ -566,7 +566,7 @@ private:
                     throw;
                 }
             }
-            
+
             WaitFor(PortoExecutor_->CreateContainer(name))
                 .ThrowOnError();
         };
@@ -607,7 +607,7 @@ private:
                         "controllers",
                         "freezer;cpu;cpuacct;cpuset;net_cls"))
                         .ThrowOnError();
-                    
+
                     if (slotType == ESlotType::Idle) {
                         WaitFor(PortoExecutor_->SetContainerProperty(
                             slotContainer,
@@ -635,7 +635,7 @@ private:
     {
         TString jobProxyContainerName = Config_->UseShortContainerNames
             ? "/jp"
-            : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
+            : Format("/jp-%x-%x", jobId.Parts32[3], jobId.Parts32[2]);
 
         auto instanceName = slotType == ESlotType::Common
             ? MetaInstance_->GetName()
@@ -696,7 +696,7 @@ private:
         UpdateContainerCpuLimits();
 
     }
-    
+
     void UpdateIdleCpuFraction(double idleCpuFraction) override
     {
         IdleCpuFraction_ = idleCpuFraction;
