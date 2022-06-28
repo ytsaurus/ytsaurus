@@ -213,7 +213,8 @@ private:
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
         TChunkPtrWithIndexes chunkWithIndex,
-        TMedium* targetMedium);
+        TMedium* targetMedium,
+        TNodeId targetNodeId);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,
         TChunkPtrWithIndexes chunkWithIndex,
@@ -334,7 +335,14 @@ private:
 
     TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
 
-    void RemoveChunkFromPullQueue(const TJobPtr& job);
+    void RemoveFromChunkReplicationQueues(
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes);
+    void RemoveChunkFromPullReplicationQueue(const TJobPtr& job);
+    void MaybeRemoveFromPullReplicaitonSet(
+        TNodeId nodeId,
+        TChunkId chunkId,
+        int mediumIndex);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);

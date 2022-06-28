@@ -59,6 +59,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = NodeTrackerServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TIncrementalHeartbeatCounters::TIncrementalHeartbeatCounters(const TProfiler& profiler)
     : RemovedChunks(profiler.Counter("/removed_chunk_count"))
     , RemovedUnapprovedReplicas(profiler.Counter("/removed_unapproved_replica_count"))
@@ -766,19 +770,70 @@ void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int tar
     ChunkPullReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
 }
 
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex)
+void TNode::AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
+{
+    YT_ASSERT(ReportedDataNodeHeartbeat());
+    ChunksBeingPulled_[chunkId].set(targetMediumIndex);
+
+}
+
+void TNode::AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node)
+{
+    YT_ASSERT(ReportedDataNodeHeartbeat());
+    if (!PushReplicationTargetNodeIds_[chunkId].emplace(targetMediumIndex, node->GetId()).second) {
+        YT_LOG_ALERT("Pull replication is already planned for this chunk to another destination (ChunkId: %v, SourceNodeId: %v, TargetNodeId: %v)",
+            chunkId,
+            GetId(),
+            node->GetId());
+    }
+}
+
+TNodeId TNode::GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex)
+{
+    auto it = PushReplicationTargetNodeIds_.find(chunkId);
+    if (it == PushReplicationTargetNodeIds_.end()) {
+        return InvalidNodeId;
+    }
+
+    auto idIt = it->second.find(targetMediumIndex);
+    if (idIt == it->second.end()) {
+        return InvalidNodeId;
+    }
+    return idIt->second;
+}
+
+void TNode::RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex)
+{
+    auto it = PushReplicationTargetNodeIds_.find(chunkId);
+    if (it == PushReplicationTargetNodeIds_.end()) {
+        return;
+    }
+
+    it->second.erase(targetMediumIndex);
+}
+
+void TNode::RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
+{
+    auto it = ChunksBeingPulled_.find(chunkId);
+    if (it == ChunksBeingPulled_.end()) {
+        return;
+    }
+
+    if (targetMediumIndex == AllMediaIndex) {
+        ChunksBeingPulled_.erase(it);
+    } else {
+        it->second.reset(targetMediumIndex);
+        if (it->second.none()) {
+            ChunksBeingPulled_.erase(it);
+        }
+    }
+}
+
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
 {
     auto removeFromQueue = [&] (auto& queue) {
-        auto it = queue.find(replica.ToGenericState());
-        if (it != queue.end()) {
-            if (targetMediumIndex == AllMediaIndex) {
-                queue.erase(it);
-            } else {
-                it->second.reset(targetMediumIndex);
-                if (it->second.none()) {
-                    queue.erase(it);
-                }
-            }
+        if (auto it = queue.find(replica.ToGenericState()); it != queue.end()) {
+            queue.erase(it);
         }
     };
 
@@ -789,7 +844,12 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int t
         removeFromQueue(queue);
     }
 
-    PullReplicationChunkIds_.erase(replica.GetPtr()->GetId());
+    auto chunkId = replica.GetPtr()->GetId();
+    RemoveFromPullReplicationSet(chunkId, AllMediaIndex);
+
+    if (auto it = PushReplicationTargetNodeIds_.find(chunkId); it != PushReplicationTargetNodeIds_.end()) {
+        PushReplicationTargetNodeIds_.erase(it);
+    }
 }
 
 void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes replica)
@@ -912,7 +972,7 @@ void TNode::ShrinkHashTables()
     for (auto& queue : ChunkPullReplicationQueues_) {
         ShrinkHashTable(&queue);
     }
-    ShrinkHashTable(&PullReplicationChunkIds_);
+    ShrinkHashTable(&ChunksBeingPulled_);
     ShrinkHashTable(&ChunkRemovalQueue_);
     ShrinkHashTable(&ChunkSealQueue_);
 }
@@ -929,7 +989,8 @@ void TNode::Reset()
     for (auto& queue : ChunkPullReplicationQueues_) {
         queue.clear();
     }
-    PullReplicationChunkIds_.clear();
+    ChunksBeingPulled_.clear();
+    PushReplicationTargetNodeIds_.clear();
     ChunkSealQueue_.clear();
     FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
@@ -1292,7 +1353,7 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
     for (const auto& queue : ChunkPullReplicationQueues_) {
         result.ChunkPullReplicationQueuesSize += std::ssize(queue);
     }
-    result.PullReplicationChunkCount += std::ssize(PullReplicationChunkIds_);
+    result.PullReplicationChunkCount += std::ssize(ChunksBeingPulled_);
     return result;
 }
 
