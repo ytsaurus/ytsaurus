@@ -24,6 +24,7 @@ class ICompetitiveJobManagerHost
 public:
     virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) = 0;
     virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+    virtual void AbortJobFromController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +87,7 @@ protected:
 
 protected:
     void OnJobFinished(const TJobletPtr& joblet);
+    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie, EAbortReason reason);
     void MarkCompetitionAsCompleted(const TJobletPtr& joblet);
     void BanCookie(NChunkPools::IChunkPoolOutput::TCookie cookie);
 

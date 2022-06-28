@@ -433,6 +433,7 @@ public:
     void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
     void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+    void AbortJobFromController(TJobId jobId, EAbortReason abortReason) override;
 
     bool CanInterruptJobs() const override;
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;

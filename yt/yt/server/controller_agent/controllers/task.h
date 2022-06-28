@@ -442,9 +442,10 @@ private:
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
-    virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) override;
+    void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) override;
 
-    virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
+    void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
+    void AbortJobFromController(TJobId jobId, NScheduler::EAbortReason abortReason) override;
 
     double GetJobProxyMemoryReserveFactor() const;
 

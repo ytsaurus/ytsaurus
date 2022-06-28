@@ -11,8 +11,10 @@ from yt_env_setup import (
 from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt_commands import (
-    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get,
-    run_test_vanilla, map)
+    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get, set, ls,
+    run_test_vanilla, map, map_reduce, events_on_fs)
+
+from yt.common import YtError
 
 
 def get_sorted_jobs(op):
@@ -58,6 +60,94 @@ class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
         wait_breakpoint(job_count=1, timeout=datetime.timedelta(seconds=15))
         release_breakpoint()
         op.track()
+
+
+class TestCrashOnLostProbingJobResult(YTEnvSetup):
+    # YT-17172
+    # Scenario:
+    # 1. map reduce operation is started
+    # 2. one original and one probing map jobs are scheduled
+    # 3. the probing job completes, the original hangs, first reduce job is launched
+    # 4. ban node with intermidiate chunk
+    # 5. first reduce job completes
+    # 6. second reduce job fails to start due to unavailable chunk, map job is restarted
+    # 7. probing job manager sees original map job running and another non-probing job with the same cookie beeing scheduled
+    # 8. CRASH
+
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
+            },
+        }
+    }
+
+    @authors("renadeen")
+    def test_lost_probing_jobs(self):
+        create_custom_pool_tree_with_one_node("cloud_tree")
+
+        create_test_tables(row_count=10)
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            mapper_command='cat; if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; fi',
+            reducer_command=reducer_cmd,
+            spec={
+                "probing_ratio": 1,
+                "probing_pool_tree": "cloud_tree",
+                "partition_count": 2,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "resource_limits": {"user_slots": 2},
+            },
+            track=False,
+        )
+
+        # We wait for the first reducer to start (second is pending due to resource_limits).
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(seconds=20))
+
+        self.ban_nodes_with_intermediate_chunks()
+
+        events_on_fs().notify_event("continue_reducer")
+        op.track()
+
+    def ban_nodes_with_intermediate_chunks(self):
+        chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
+        intermediate_chunk_ids = []
+        for c in chunks:
+            if "staging_transaction_id" in c.attributes:
+                tx_id = c.attributes["staging_transaction_id"]
+                try:
+                    if 'Scheduler "output" transaction' in get("#{}/@title".format(tx_id)):
+                        intermediate_chunk_ids.append(str(c))
+                except YtError:
+                    # Transaction may vanish
+                    pass
+
+        assert len(intermediate_chunk_ids) == 1
+        intermediate_chunk_id = intermediate_chunk_ids[0]
+
+        replicas = get("#{}/@stored_replicas".format(intermediate_chunk_id))
+        assert len(replicas) == 1
+        node_id = replicas[0]
+
+        set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
+        return [node_id]
 
 
 class TestProbingJobs(YTEnvSetup):

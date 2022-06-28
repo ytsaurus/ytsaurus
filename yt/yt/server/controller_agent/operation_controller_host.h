@@ -168,7 +168,7 @@ public:
     TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
-    
+
 private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;

@@ -1847,7 +1847,7 @@ void TOperationControllerBase::SafeAbortJobWithPartiallyReceivedJobInfo(const TJ
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(
             jobId,
             EAbortReason::JobStatisticsWaitTimeout);
-        
+
         OnJobAborted(std::move(abortedJobSummary));
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to abort job with partially received job info (JobId: %v)", jobId);
@@ -3270,7 +3270,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         jobId,
         abortReason,
         jobSummary->AbortedByScheduler);
-    
+
     auto joblet = GetJoblet(jobId);
 
     TJobFinishedResult taskJobResult;
@@ -3522,7 +3522,7 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
                 OperationId,
                 joblet->JobType);
     }
-    
+
     OnJobCompleted(CreateAbandonedJobSummary(jobId));
 }
 
@@ -3535,7 +3535,7 @@ void TOperationControllerBase::FinalizeJoblet(
 
     if (scheduled) {
         joblet->FinishTime = *jobSummary->FinishTime;
-        
+
         YT_VERIFY(jobSummary->Statistics);
         auto& statistics = *jobSummary->Statistics;
 
@@ -5698,7 +5698,7 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
             jobSummary->Id,
             finishedJobInfo->NodeJobSummary->State,
             finishedJobInfo->NodeJobSummary->FinishTime);
-        
+
         YT_VERIFY(finishedJobInfo->NodeJobSummary->State == jobSummary->State);
         return;
     }
@@ -5709,7 +5709,7 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         !finishedJobInfo->SchedulerJobSummary,
         "Finished job info does not contain summary from either scheduler or node (JobId: %v)",
         jobId);
-    
+
     TDelayedExecutor::Cancel(finishedJobInfo->JobAbortCookie);
 
     auto& schedulerSummary = *finishedJobInfo->SchedulerJobSummary;
@@ -9788,6 +9788,30 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
     Host->AbortJob(
         jobId,
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
+}
+
+void TOperationControllerBase::AbortJobFromController(TJobId jobId, EAbortReason abortReason)
+{
+    // NB(renadeen): there must be no context switches before call OnJobAborted.
+
+    YT_LOG_DEBUG("Job abort from controller is started (JobId: %v)", jobId);
+
+    Host->AbortJob(
+        jobId,
+        TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
+
+    auto finishedJobInfo = FindJobWaitingForFinalization(jobId);
+    if (!finishedJobInfo) {
+        finishedJobInfo = TFinishedJobInfo::CreateRemovingInfo();
+        EmplaceOrCrash(JobsWaitingForFinalization_, jobId, finishedJobInfo);
+    } else if (finishedJobInfo->IsRemoving()) {
+        YT_LOG_DEBUG("Job is already finalizing, abort skipped (JobId: %v)", jobId);
+        return;
+    } else {
+        finishedJobInfo->StartRemoving();
+    }
+
+    OnJobAborted(std::make_unique<TAbortedJobSummary>(jobId, abortReason));
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const

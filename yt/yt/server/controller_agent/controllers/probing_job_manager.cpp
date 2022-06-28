@@ -9,9 +9,10 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
-////////////////////////////////////////////////////////////////////////////////
-
+using namespace NChunkPools;
 using namespace NScheduler;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TProbingJobManager::TProbingJobManager()
     : ProbingRatio_(0)
@@ -60,6 +61,11 @@ void TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
     OnJobFinished(joblet);
     MarkCompetitionAsCompleted(joblet);
+}
+
+void TProbingJobManager::OnJobLost(IChunkPoolOutput::TCookie cookie)
+{
+    TCompetitiveJobManagerBase::OnJobLost(cookie, EAbortReason::ProbingCompetitorResultLost);
 }
 
 bool TProbingJobManager::OnUnsuccessfulJobFinish(
