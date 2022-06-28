@@ -2,44 +2,16 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/public.h>
-
 #include <yt/yt/server/lib/tablet_balancer/public.h>
+#include <yt/yt/server/lib/tablet_balancer/table.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NTabletBalancer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTableMutableInfo
-    : public TRefCounted
-{
-    struct TTabletInfo
-    {
-        struct TTabletStatistics
-        {
-            i64 CompressedDataSize;
-            i64 UncompressedDataSize;
-        };
-
-        i64 TabletIndex;
-        TTabletId TabletId;
-        TTabletStatistics Statistics;
-    };
-
-    TTableTabletBalancerConfigPtr TableConfig;
-    std::vector<TTabletInfo> Tablets;
-    bool Dynamic = false;
-
-    TTableMutableInfo(
-        TTableTabletBalancerConfigPtr config,
-        bool isDynamic);
-};
-
-DEFINE_REFCOUNTED_TYPE(TTableMutableInfo)
-
-void Deserialize(TTableMutableInfo::TTabletInfo& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,39 +19,11 @@ class TBundleState
     : public TRefCounted
 {
 public:
-    struct TImmutableTableInfo
-    {
-        const bool Sorted;
-        const NYPath::TYPath Path;
-        const TCellTag ExternalCellTag;
-    };
+    using TTabletMap = THashMap<TTabletId, TTabletPtr>;
 
-    struct TImmutableTabletInfo
-    {
-        const TTableId tableId;
-    };
-
-private:
-    struct TCellTagBatch
-    {
-        NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr Request;
-        TFuture<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> Response;
-    };
-
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TString, Name);
+    DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<TTabletCellId>, CellIds);
-    DEFINE_BYVAL_RO_PROPERTY(TBundleTabletBalancerConfigPtr, Config);
-
-private:
-    const NApi::NNative::IClientPtr Client_; 
-    const IInvokerPtr Invoker_;
-
-    THashMap<TTableId, TTableMutableInfoPtr> TableMutableInfo_;
-
-    THashMap<TTabletId, TImmutableTabletInfo> TabletImmutableInfo_;
-    THashMap<TTableId, TImmutableTableInfo> TableImmutableInfo_;
+    DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle, nullptr);
 
 public:
     TBundleState(
@@ -91,36 +35,65 @@ public:
 
     bool IsBalancingAllowed() const;
 
-    TTableMutableInfoPtr GetTableMutableInfo(const TTableId& tableId) const;
-    const THashMap<TTableId, TImmutableTableInfo>& GetTableImmutableInfo() const;
-    const THashMap<TTabletId, TImmutableTabletInfo>& GetTabletImmutableInfo() const;
-
-    TFuture<void> UpdateMetaRegistry();
-    TFuture<void> FetchTableMutableInfo();
+    TFuture<void> UpdateState();
+    TFuture<void> FetchStatistics();
 
 private:
-    void ExecuteBatchRequests(THashMap<TCellTag, TCellTagBatch>* batchReqs) const;
+    struct TTabletCellInfo
+    {
+        TTabletCellPtr TabletCell;
+        std::vector<TTabletId> TabletIds;
+    };
 
-    THashMap<NCypressClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttributes(
-        const THashSet<NCypressClient::TObjectId>& objectIds,
-        const std::vector<TString>& attributeKeys,
-        bool useExternalCellTagForTables = false) const;
+    struct TTableSettings
+    {
+        TTableTabletBalancerConfigPtr Config;
+        EInMemoryMode InMemoryMode;
+        bool Dynamic;
+    };
 
-    void DoUpdateMetaRegistry();
+    struct TTableStatisticsResponse
+    {
+        struct TTabletResponse
+        {
+            i64 Index;
+            TTabletId TabletId;
 
-    THashSet<TTabletId> FetchTabletIds() const;
-    THashMap<TTabletId, TImmutableTabletInfo> FetchTabletInfos(
+            ETabletState State;
+            TTabletStatistics Statistics;
+            std::optional<TTabletCellId> CellId;
+        };
+
+        std::vector<TTabletResponse> Tablets;
+        i64 CompressedDataSize;
+        i64 UncompressedDataSize;
+        i64 DataWeight;
+    };
+
+    NLogging::TLogger Logger;
+
+    const NApi::NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+
+    std::vector<TTabletCellId> CellIds_;
+
+    friend void Deserialize(TTableStatisticsResponse::TTabletResponse& value, const NYTree::INodePtr& node);
+
+    void DoUpdateState();
+
+    THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells() const;
+    THashMap<TTabletId, TTableId> FetchTabletTableIds(
         const THashSet<TTabletId>& tabletIds) const;
-    THashMap<TTableId, TImmutableTableInfo> FetchTableInfos(
+    THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
 
-    void DoFetchTableMutableInfo();
+    void DoFetchStatistics();
 
-    THashMap<TTableId, TTableMutableInfoPtr> FetchActualTableConfigs() const;
-    THashMap<TTableId, std::vector<TTableMutableInfo::TTabletInfo>> FetchTablets(
+    THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
+    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
         const THashSet<TTableId>& tableIds) const;
 
-    bool IsTableBalancingAllowed(const TTableMutableInfoPtr& tableInfo) const;
+    bool IsTableBalancingAllowed(const TTableSettings& table) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleState)

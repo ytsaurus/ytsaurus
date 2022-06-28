@@ -32,7 +32,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChaosClient;
 using namespace NObjectClient;
-using namespace NTabletBalancer;
 using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -55,7 +54,7 @@ void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
-    : TabletBalancerConfig(New<TTableTabletBalancerConfig>())
+    : TabletBalancerConfig(New<NTabletBalancer::TTableTabletBalancerConfig>())
     , MountConfigStorage(New<TMountConfigStorage>())
 { }
 
@@ -228,7 +227,7 @@ void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
     FOR_EACH_COPYABLE_ATTRIBUTE(XX)
     #undef XX
 
-    TabletBalancerConfig = ConvertTo<TTableTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+    TabletBalancerConfig = ConvertTo<NTabletBalancer::TTableTabletBalancerConfigPtr>(Load<TYsonString>(*context));
     MountConfigStorage = ConvertTo<TMountConfigStoragePtr>(Load<TYsonString>(*context));
 }
 

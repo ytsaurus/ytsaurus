@@ -6,7 +6,7 @@ from yt_commands import authors
 ##################################################################
 
 
-class TestCellBalancer(YTEnvSetup):
+class TestTabletBalancer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_TABLET_BALANCERS = 3
