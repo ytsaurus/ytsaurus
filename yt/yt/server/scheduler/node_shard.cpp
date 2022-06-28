@@ -2072,7 +2072,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     auto codicilGuard = MakeOperationCodicilGuard(job->GetOperationId());
 
-    auto Logger = job->Logger();
+    const auto& Logger = job->Logger();
 
     // Check if the job is running on a proper node.
     if (node->GetId() != job->GetNode()->GetId()) {
