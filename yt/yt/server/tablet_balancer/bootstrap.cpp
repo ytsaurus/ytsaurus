@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "config.h"
+#include "private.h"
 #include "tablet_balancer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -8,8 +9,8 @@
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -203,7 +204,7 @@ void TBootstrap::RegisterInstance()
         ToYPathLiteral(LocalAddress_));
     auto orchidPath = instancePath + "/orchid";
 
-    YT_LOG_DEBUG("RegisterInstance started. (instancePath: %v, orchidPath: %v", instancePath, orchidPath);
+    YT_LOG_DEBUG("RegisterInstance started (InstancePath: %v, OrchidPath: %v", instancePath, orchidPath);
 
     NObjectClient::TObjectServiceProxy proxy(Client_
         ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));

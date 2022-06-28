@@ -1,9 +1,10 @@
 #pragma once
 
-#include "private.h"
 #include "public.h"
 
 #include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletBalancer {
 
