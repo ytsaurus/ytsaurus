@@ -112,6 +112,7 @@ DEFINE_ENUM(EAbortReason,
     ((JobProxyFailed)                  ( 34))
     ((InterruptionTimeout)             ( 35))
     ((NodeResourceOvercommit)          ( 36))
+    ((ProbingCompetitorResultLost)     ( 37))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

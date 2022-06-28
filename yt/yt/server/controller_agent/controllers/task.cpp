@@ -1082,7 +1082,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
         auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
         auto userJobSpec = GetUserJobSpec();
-        auto multiplier = 
+        auto multiplier =
             (TaskHost_->GetConfig()->UseResourceOverdraftMemoryReserveMultiplierFromSpec && userJobSpec)
             ? userJobSpec->ResourceOverdraftMemoryReserveMultiplier
             : TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
@@ -1151,6 +1151,7 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
     YT_VERIFY(LostJobCookieMap.emplace(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie).second);
+    ProbingJobManager_.OnJobLost(completedJob->OutputCookie);
 }
 
 void TTask::OnStripeRegistrationFailed(
@@ -1869,6 +1870,11 @@ void TTask::LogTentativeTreeStatistics() const
 void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
 {
     GetTaskHost()->AbortJobViaScheduler(jobId, reason);
+}
+
+void TTask::AbortJobFromController(TJobId jobId, EAbortReason reason)
+{
+    GetTaskHost()->AbortJobFromController(jobId, reason);
 }
 
 void TTask::OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

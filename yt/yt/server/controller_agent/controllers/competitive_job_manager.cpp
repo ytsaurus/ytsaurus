@@ -127,6 +127,18 @@ bool TCompetitiveJobManagerBase::OnJobFailed(const TJobletPtr& joblet)
         [=] (TProgressCounterGuard* guard) { guard->OnFailed(); });
 }
 
+void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie, EAbortReason abortReason)
+{
+    auto it = CookieToCompetition_.find(cookie);
+    if (it != CookieToCompetition_.end()) {
+        YT_LOG_DEBUG("Aborting competititve job from controller since job result is lost (OutputCookie: %v, AbortReason: %v)",
+            cookie,
+            abortReason);
+        YT_VERIFY(it->second->Competitors.size() == 1);
+        Host_->AbortJobFromController(it->second->Competitors[0], abortReason);
+    }
+}
+
 void TCompetitiveJobManagerBase::OnJobFinished(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
