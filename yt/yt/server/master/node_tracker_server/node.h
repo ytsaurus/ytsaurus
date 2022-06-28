@@ -234,11 +234,20 @@ public:
     //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkReplicationQueues = std::vector<THashMap<TChunkPtrWithIndexes, TMediumIndexSet>>;
+    using TChunkReplicationQueue = THashMap<TChunkPtrWithIndexes, TMediumIndexSet>;
+    using TChunkReplicationQueues = std::vector<TChunkReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPushReplicationQueues);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPullReplicationQueues);
+
+    // For chunks in push queue, its correspondent pull queue node id.
+    // Used for CRP-enabled chunks only.
+    using TChunkNodeIds = THashMap<TChunkId, THashMap<int, TNodeId>>;
+    DEFINE_BYREF_RW_PROPERTY(TChunkNodeIds, PushReplicationTargetNodeIds);
+
     // A set of chunk ids with an ongoing replication to this node as a destination.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TChunkId>, PullReplicationChunkIds);
+    // Used for CRP-enabled chunks only.
+    using TChunkPullReplicationSet = THashMap<TChunkId, TMediumIndexSet>;
+    DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
 
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
@@ -371,8 +380,15 @@ public:
 
     void AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
     void AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
-    //! Handles the case |targetMediumIndex == AllMediaIndex| correctly.
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex);
+
+    void AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
+    void RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
+
+    void AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node);
+    void RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
+    TNodeId GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
+
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica);
 
     void AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
     void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);

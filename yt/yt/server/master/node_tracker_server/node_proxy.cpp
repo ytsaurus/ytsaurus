@@ -517,6 +517,8 @@ private:
             }
 
             case EInternedAttributeKey::PushReplicationQueueSize: {
+                RequireLeader();
+
                 if (!isGood) {
                     break;
                 }
@@ -532,6 +534,8 @@ private:
             }
 
             case EInternedAttributeKey::PullReplicationQueueSize: {
+                RequireLeader();
+
                 if (!isGood) {
                     break;
                 }
@@ -547,6 +551,8 @@ private:
             }
 
             case EInternedAttributeKey::PullReplicationChunkCount: {
+                RequireLeader();
+
                 if (!isGood) {
                     break;
                 }
