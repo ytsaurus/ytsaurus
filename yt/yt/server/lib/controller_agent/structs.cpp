@@ -316,8 +316,8 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
     TFinishedJobSummary&& schedulerJobSummary,
     const TLogger& Logger)
 {
-    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
     nodeJobSummary->PreemptedFor = std::move(schedulerJobSummary.PreemptedFor);
+    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
 
     auto error = FromProto<TError>(nodeJobSummary->GetJobResult().error());
     if (schedulerJobSummary.Preempted) {
@@ -344,8 +344,8 @@ std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
     TFinishedJobSummary&& schedulerJobSummary,
     const TLogger& /*Logger*/)
 {
-    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
     nodeJobSummary->InterruptReason = schedulerJobSummary.InterruptReason.value_or(EInterruptReason::None);
+    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
 
     return nodeJobSummary;
 }
