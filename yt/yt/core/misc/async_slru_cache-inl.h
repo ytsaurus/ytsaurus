@@ -213,17 +213,30 @@ NYT::TAsyncCacheValueBase<TKey, TValue, THash>::~TAsyncCacheValueBase()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
+TAsyncSlruCacheBase<TKey, TValue, THash>::TCounters::TCounters(
+    const NProfiling::TProfiler& profiler)
+{
+    MissedWeightCounter = profiler.Counter("/missed_weight");
+    MissedCounter = profiler.Counter("/missed_count");
+
+    auto profilerWithSyncTag = profiler.WithTag("hit_type", "sync");
+    SyncHitWeightCounter = profilerWithSyncTag.Counter("/hit_weight");
+    SyncHitCounter = profilerWithSyncTag.Counter("/hit_count");
+
+    auto profilerWithAsyncTag = profiler.WithTag("hit_type", "async");
+    AsyncHitWeightCounter = profilerWithAsyncTag.Counter("/hit_weight");
+    AsyncHitCounter = profilerWithAsyncTag.Counter("/hit_count");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Capacity_(Config_->Capacity)
-    , SyncHitWeightCounter_(profiler.Counter("/hit_weight_sync"))
-    , AsyncHitWeightCounter_(profiler.Counter("/hit_weight_async"))
-    , MissedWeightCounter_(profiler.Counter("/missed_weight"))
-    , SyncHitCounter_(profiler.Counter("/hit_count_sync"))
-    , AsyncHitCounter_(profiler.Counter("/hit_count_async"))
-    , MissedCounter_(profiler.Counter("/missed_count"))
+    , Counters_(profiler)
     , SmallGhostCounters_(profiler.WithPrefix("/small_ghost_cache"))
     , LargeGhostCounters_(profiler.WithPrefix("/large_ghost_cache"))
 {
@@ -231,16 +244,19 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
         std::is_base_of_v<TAsyncCacheValueBase<TKey, TValue, THash>, TValue>,
         "TValue must be derived from TAsyncCacheValueBase");
 
-    profiler.AddFuncGauge("/younger_weight", MakeStrong(this), [this] {
+    auto youngerSegmentProfiler = profiler.WithTag("segment", "younger");
+    auto olderSegmentProfiler = profiler.WithTag("segment", "older");
+
+    youngerSegmentProfiler.AddFuncGauge("/weight", MakeStrong(this), [this] {
         return YoungerWeightCounter_.load();
     });
-    profiler.AddFuncGauge("/older_weight", MakeStrong(this), [this] {
+    olderSegmentProfiler.AddFuncGauge("/weight", MakeStrong(this), [this] {
         return OlderWeightCounter_.load();
     });
-    profiler.AddFuncGauge("/younger_size", MakeStrong(this), [this] {
+    youngerSegmentProfiler.AddFuncGauge("/size", MakeStrong(this), [this] {
         return YoungerSizeCounter_.load();
     });
-    profiler.AddFuncGauge("/older_size", MakeStrong(this), [this] {
+    olderSegmentProfiler.AddFuncGauge("/size", MakeStrong(this), [this] {
         return OlderSizeCounter_.load();
     });
 
@@ -323,21 +339,21 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 
     auto itemIt = shard->ItemMap.find(key);
     if (itemIt == shard->ItemMap.end()) {
-        MissedCounter_.Increment();
+        Counters_.MissedCounter.Increment();
         return nullptr;
     }
 
     auto* item = itemIt->second;
     auto value = item->Value;
     if (!value) {
-        MissedCounter_.Increment();
+        Counters_.MissedCounter.Increment();
         return nullptr;
     }
 
     bool needToDrain = shard->TouchItem(item);
 
-    SyncHitWeightCounter_.Increment(item->CachedWeight);
-    SyncHitCounter_.Increment();
+    Counters_.SyncHitWeightCounter.Increment(item->CachedWeight);
+    Counters_.SyncHitCounter.Increment();
 
     readerGuard.Release();
 
@@ -394,7 +410,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
     auto valueFuture = DoLookup(shard, key);
     if (!valueFuture) {
-        MissedCounter_.Increment();
+        Counters_.MissedCounter.Increment();
     }
     return valueFuture;
 }
@@ -440,10 +456,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
         auto valueFuture = item->GetValueFuture();
 
         if (item->Value) {
-            SyncHitWeightCounter_.Increment(item->CachedWeight);
-            SyncHitCounter_.Increment();
+            Counters_.SyncHitWeightCounter.Increment(item->CachedWeight);
+            Counters_.SyncHitCounter.Increment();
         } else {
-            AsyncHitCounter_.Increment();
+            Counters_.AsyncHitCounter.Increment();
             item->AsyncHitCount.fetch_add(1);
         }
 
@@ -478,10 +494,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
         auto valueFuture = item->GetValueFuture();
 
         if (item->Value) {
-            SyncHitWeightCounter_.Increment(item->CachedWeight);
-            SyncHitCounter_.Increment();
+            Counters_.SyncHitWeightCounter.Increment(item->CachedWeight);
+            Counters_.SyncHitCounter.Increment();
         } else {
-            AsyncHitCounter_.Increment();
+            Counters_.AsyncHitCounter.Increment();
             item->AsyncHitCount.fetch_add(1);
         }
 
@@ -503,8 +519,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
 
         i64 weight = GetWeight(item->Value);
         shard->PushToYounger(item, weight);
-        SyncHitWeightCounter_.Increment(weight);
-        SyncHitCounter_.Increment();
+        Counters_.SyncHitWeightCounter.Increment(weight);
+        Counters_.SyncHitCounter.Increment();
 
         // NB: Releases the lock.
         NotifyOnTrim(shard->Trim(writerGuard), value);
@@ -566,10 +582,10 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             auto valueFuture = item->GetValueFuture();
 
             if (item->Value) {
-                SyncHitWeightCounter_.Increment(item->CachedWeight);
-                SyncHitCounter_.Increment();
+                Counters_.SyncHitWeightCounter.Increment(item->CachedWeight);
+                Counters_.SyncHitCounter.Increment();
             } else {
-                AsyncHitCounter_.Increment();
+                Counters_.AsyncHitCounter.Increment();
                 item->AsyncHitCount.fetch_add(1);
             }
 
@@ -607,7 +623,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
 
-            MissedCounter_.Increment();
+            Counters_.MissedCounter.Increment();
 
             guard.Release();
 
@@ -634,8 +650,8 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             i64 weight = GetWeight(item->Value);
             shard->PushToYounger(item, weight);
-            SyncHitWeightCounter_.Increment(weight);
-            SyncHitCounter_.Increment();
+            Counters_.SyncHitWeightCounter.Increment(weight);
+            Counters_.SyncHitCounter.Increment();
 
             // NB: Releases the lock.
             NotifyOnTrim(shard->Trim(guard), value);
@@ -685,9 +701,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(const TInsertCookie& in
 
     i64 weight = GetWeight(item->Value);
     shard->PushToYounger(item, weight);
-    // MissedCounter_ and AsyncHitCounter_ have already been incremented in BeginInsert.
-    MissedWeightCounter_.Increment(weight);
-    AsyncHitWeightCounter_.Increment(weight * item->AsyncHitCount.load());
+    // MissedCounter and AsyncHitCounter have already been incremented in BeginInsert.
+    Counters_.MissedWeightCounter.Increment(weight);
+    Counters_.AsyncHitWeightCounter.Increment(weight * item->AsyncHitCount.load());
 
     // NB: Releases the lock.
     NotifyOnTrim(shard->Trim(guard), value);
@@ -856,7 +872,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TKey& key)
     // If item weight increases, it means that some parts of the item were missing in cache,
     // so add delta to missed weight.
     if (weightDelta > 0) {
-        MissedWeightCounter_.Increment(weightDelta);
+        Counters_.MissedWeightCounter.Increment(weightDelta);
     }
 
     NotifyOnTrim(shard->Trim(guard), nullptr);
@@ -900,13 +916,13 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::IsResurrectionSupported() const
 }
 
 template <class TKey, class TValue, class THash>
-auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetSmallGhostCounters() const -> const TGhostCounters&
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetSmallGhostCounters() const -> const TCounters&
 {
     return SmallGhostCounters_;
 }
 
 template <class TKey, class TValue, class THash>
-auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetLargeGhostCounters() const -> const TGhostCounters&
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetLargeGhostCounters() const -> const TCounters&
 {
     return LargeGhostCounters_;
 }
@@ -1059,7 +1075,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::EndInsert(const TVal
     item->Inserted = true;
 
     this->PushToYounger(item, weight);
-    // MissedCounter_ and AsyncHitCounter_ have already been incremented in BeginInsert.
+    // MissedCounter and AsyncHitCounter have already been incremented in BeginInsert.
     Counters_->MissedWeightCounter.Increment(weight);
     Counters_->AsyncHitWeightCounter.Increment(weight * item->AsyncHitCount.load());
 
@@ -1182,19 +1198,6 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Trim(NThreading::TWr
     // NB. Evicted items must die outside of critical section.
     guard.Release();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, class THash>
-TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostCounters::TGhostCounters(
-    const NProfiling::TProfiler& profiler)
-    : SyncHitWeightCounter(profiler.Counter("/hit_weight_sync"))
-    , AsyncHitWeightCounter(profiler.Counter("/hit_weight_async"))
-    , MissedWeightCounter(profiler.Counter("/missed_weight"))
-    , SyncHitCounter(profiler.Counter("/hit_count_sync"))
-    , AsyncHitCounter(profiler.Counter("/hit_count_async"))
-    , MissedCounter(profiler.Counter("/missed_count"))
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
