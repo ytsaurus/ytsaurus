@@ -228,23 +228,35 @@ protected:
     virtual bool IsResurrectionSupported() const;
 
 protected:
-    //! Counters for ghost shards. This struct is per-cache, not per-shard. So, there are two such structs per
-    //! cache: one for small ghost shards and one for large ghost shards.
-    struct TGhostCounters
+    /*!
+     * Every request counts to one of the following metric types:
+     *
+     * SyncHit* - Item is present in the cache and contains the value.
+     *
+     * AsyncHit* - Item is present in the cache and contains the value future.
+     * Caller should wait till the concurrent request sets the value.
+     *
+     * Missed* - Item is missing in the cache and should be requested.
+     *
+     * Hit/Missed counters are updated immediately, while the update of
+     * all Weight* metrics can be delayed till the EndInsert call,
+     * because we do not know the weight of the object before it arrives.
+     */
+    struct TCounters
     {
+        explicit TCounters(const NProfiling::TProfiler& profiler);
+
         NProfiling::TCounter SyncHitWeightCounter;
         NProfiling::TCounter AsyncHitWeightCounter;
         NProfiling::TCounter MissedWeightCounter;
         NProfiling::TCounter SyncHitCounter;
         NProfiling::TCounter AsyncHitCounter;
         NProfiling::TCounter MissedCounter;
-
-        explicit TGhostCounters(const NProfiling::TProfiler& profiler);
     };
 
     //! For testing purposes only.
-    const TGhostCounters& GetSmallGhostCounters() const;
-    const TGhostCounters& GetLargeGhostCounters() const;
+    const TCounters& GetSmallGhostCounters() const;
+    const TCounters& GetLargeGhostCounters() const;
 
 private:
     friend class TAsyncCacheValueBase<TKey, TValue, THash>;
@@ -335,7 +347,7 @@ private:
 
         void Reconfigure(i64 capacity, double youngerSizeFraction);
 
-        DEFINE_BYVAL_RW_PROPERTY(TGhostCounters*, Counters);
+        DEFINE_BYVAL_RW_PROPERTY(TCounters*, Counters);
 
     private:
         friend class TAsyncSlruCacheListManager<TGhostItem, TGhostShard>;
@@ -406,32 +418,14 @@ private:
     std::atomic<int> Size_ = 0;
     std::atomic<i64> Capacity_;
 
-    /*
-     * Every request counts to one of the following metric types:
-     *
-     * SyncHit* - Item is present in the cache and contains the value.
-     *
-     * AsyncHit* - Item is present in the cache and contains the value future.
-     * Caller should wait till the concurrent request set the value.
-     *
-     * Missed* - Item is missing in the cache and should be requested.
-     *
-     * Hit/Missed counters are updated immediately, while the update of
-     * all Weight* metrics can be delayed till the EndInsert call,
-     * because we do not know the weight of the object before it arrives.
-     */
-    NProfiling::TCounter SyncHitWeightCounter_;
-    NProfiling::TCounter AsyncHitWeightCounter_;
-    NProfiling::TCounter MissedWeightCounter_;
-    NProfiling::TCounter SyncHitCounter_;
-    NProfiling::TCounter AsyncHitCounter_;
-    NProfiling::TCounter MissedCounter_;
+    TCounters Counters_;
+    TCounters SmallGhostCounters_;
+    TCounters LargeGhostCounters_;
+
     std::atomic<i64> YoungerWeightCounter_ = 0;
     std::atomic<i64> OlderWeightCounter_ = 0;
     std::atomic<i64> YoungerSizeCounter_ = 0;
     std::atomic<i64> OlderSizeCounter_ = 0;
-    TGhostCounters SmallGhostCounters_;
-    TGhostCounters LargeGhostCounters_;
 
     std::atomic<bool> GhostCachesEnabled_;
 

@@ -44,7 +44,7 @@ public:
         : TAsyncSlruCacheBase(std::move(config), std::move(profiler))
     { }
 
-    struct TGhostCountersState
+    struct TCountersState
     {
         i64 SyncHitWeight;
         i64 AsyncHitWeight;
@@ -53,9 +53,9 @@ public:
         i64 AsyncHit;
         i64 Missed;
 
-        TGhostCountersState operator -(const TGhostCountersState& other) const
+        TCountersState operator -(const TCountersState& other) const
         {
-            return TGhostCountersState {
+            return TCountersState {
                 .SyncHitWeight = SyncHitWeight - other.SyncHitWeight,
                 .AsyncHitWeight = AsyncHitWeight - other.AsyncHitWeight,
                 .MissedWeight = MissedWeight - other.MissedWeight,
@@ -66,14 +66,14 @@ public:
         }
     };
 
-    TGhostCountersState ReadSmallGhostCounters() const
+    TCountersState ReadSmallGhostCounters() const
     {
-        return ReadGhostCounters(GetSmallGhostCounters());
+        return ReadCounters(GetSmallGhostCounters());
     }
 
-    TGhostCountersState ReadLargeGhostCounters() const
+    TCountersState ReadLargeGhostCounters() const
     {
-        return ReadGhostCounters(GetLargeGhostCounters());
+        return ReadCounters(GetLargeGhostCounters());
     }
 
 protected:
@@ -82,15 +82,15 @@ protected:
         return value->Weight;
     }
 
-    static TGhostCountersState ReadGhostCounters(const TGhostCounters& ghostCounters)
+    static TCountersState ReadCounters(const TCounters& counters)
     {
-        return TGhostCountersState {
-            .SyncHitWeight = TTesting::ReadCounter(ghostCounters.SyncHitWeightCounter),
-            .AsyncHitWeight = TTesting::ReadCounter(ghostCounters.AsyncHitWeightCounter),
-            .MissedWeight = TTesting::ReadCounter(ghostCounters.MissedWeightCounter),
-            .SyncHit = TTesting::ReadCounter(ghostCounters.SyncHitCounter),
-            .AsyncHit = TTesting::ReadCounter(ghostCounters.AsyncHitCounter),
-            .Missed = TTesting::ReadCounter(ghostCounters.MissedCounter)
+        return TCountersState {
+            .SyncHitWeight = TTesting::ReadCounter(counters.SyncHitWeightCounter),
+            .AsyncHitWeight = TTesting::ReadCounter(counters.AsyncHitWeightCounter),
+            .MissedWeight = TTesting::ReadCounter(counters.MissedWeightCounter),
+            .SyncHit = TTesting::ReadCounter(counters.SyncHitCounter),
+            .AsyncHit = TTesting::ReadCounter(counters.AsyncHitCounter),
+            .Missed = TTesting::ReadCounter(counters.MissedCounter)
         };
     }
 };
