@@ -202,7 +202,7 @@ TOperationControllerHost::TOperationControllerHost(
 
 void TOperationControllerHost::Disconnect(const TError& error)
 {
-    Bootstrap_->GetControllerAgent()->Disconnect(error);
+    Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
 }
 
 void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
