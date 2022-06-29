@@ -280,26 +280,7 @@ private:
         JobProxyConfigTemplate_->JobThrottler = GetConfig()->JobThrottler;
 
         JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(GetConfig()->ClusterConnection);
-        JobProxyConfigTemplate_->ClusterConnection->MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
-
-        auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
-            config->Addresses = {localAddress};
-            config->Endpoints = nullptr;
-            if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
-                config->RpcTimeout = *config->RetryTimeout;
-            }
-            config->RetryTimeout = std::nullopt;
-            config->RetryAttempts = 1;
-        };
-
-        patchMasterConnectionConfig(JobProxyConfigTemplate_->ClusterConnection->PrimaryMaster);
-        for (const auto& config : JobProxyConfigTemplate_->ClusterConnection->SecondaryMasters) {
-            patchMasterConnectionConfig(config);
-        }
-        if (JobProxyConfigTemplate_->ClusterConnection->MasterCache) {
-            patchMasterConnectionConfig(JobProxyConfigTemplate_->ClusterConnection->MasterCache);
-            JobProxyConfigTemplate_->ClusterConnection->MasterCache->EnableMasterCacheDiscovery = false;
-        }
+        JobProxyConfigTemplate_->ClusterConnection->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TTcpBusClientConfig>();
 

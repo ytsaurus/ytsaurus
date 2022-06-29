@@ -14,6 +14,8 @@ void TPeerConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_id", &TThis::CellId)
         .Default();
+    registrar.Parameter("ignore_peer_state", &TThis::IgnorePeerState)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         // Query all peers in parallel.

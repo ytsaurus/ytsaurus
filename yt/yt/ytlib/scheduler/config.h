@@ -1626,6 +1626,10 @@ public:
     //! are missing at the source cluster.
     bool RepairErasureChunks;
 
+    //! If true, jobs will never open a channel to masters and will always use
+    //! remote master caches.
+    bool UseRemoteMasterCaches;
+
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 
     static void Register(TRegistrar registrar);

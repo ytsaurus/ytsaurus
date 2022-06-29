@@ -47,6 +47,17 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+        },
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommandsBase, cls).setup_class()
@@ -57,12 +68,6 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
 
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "snapshot_period": 500,
-        }
-    }
-
     @authors("ignat")
     def test_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
