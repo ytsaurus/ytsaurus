@@ -165,7 +165,9 @@ private:
                     THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
                         tabletSnapshot->UpstreamReplicaId);
                 } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
-                    THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                    THROW_ERROR_EXCEPTION(
+                        NTabletClient::EErrorCode::UpstreamReplicaMismatch,
+                        "Mismatched upstream replica: expected %v, got %v",
                         tabletSnapshot->UpstreamReplicaId,
                         upstreamReplicaId);
                 }

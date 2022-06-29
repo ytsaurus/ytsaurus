@@ -817,7 +817,9 @@ private:
             [&] {
                 auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
-                    THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                    THROW_ERROR_EXCEPTION(
+                        NTabletClient::EErrorCode::UpstreamReplicaMismatch,
+                        "Mismatched upstream replica: expected %v, got %v",
                         tabletSnapshot->UpstreamReplicaId,
                         upstreamReplicaId);
                 }

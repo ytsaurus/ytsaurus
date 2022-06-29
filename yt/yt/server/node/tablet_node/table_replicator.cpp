@@ -428,6 +428,8 @@ private:
             }
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
+            } else if (error.FindMatching(NTabletClient::EErrorCode::UpstreamReplicaMismatch)) {
+                DoHardBackoff(error);
             } else {
                 DoSoftBackoff(error);
             }
