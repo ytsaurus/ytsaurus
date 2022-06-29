@@ -1654,6 +1654,8 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(15));
     registrar.Parameter("repair_erasure_chunks", &TThis::RepairErasureChunks)
         .Default(false);
+    registrar.Parameter("use_remote_master_caches", &TThis::UseRemoteMasterCaches)
+        .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: in remote copy operation chunks are never decompressed,

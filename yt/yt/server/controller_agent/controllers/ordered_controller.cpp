@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -1334,6 +1335,16 @@ private:
             connectionConfig->Networks = *Networks_;
         }
 
+        auto masterCacheAddresses = GetRemoteMasterCacheAddresses();
+        if (masterCacheAddresses.empty()) {
+            YT_LOG_DEBUG("Not using remote master caches for remote copy operation");
+        } else {
+            connectionConfig->OverrideMasterAddresses(masterCacheAddresses);
+
+            YT_LOG_DEBUG("Using remote master caches for remote copy operation (Addresses: %v)",
+                masterCacheAddresses);
+        }
+
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).ToString());
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
@@ -1371,6 +1382,30 @@ private:
         } else {
             THROW_ERROR_EXCEPTION("No remote cluster is specified");
         }
+    }
+
+    std::vector<TString> GetRemoteMasterCacheAddresses() const
+    {
+        try {
+            return GuardedGetRemoteMasterCacheAddresses();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to get remote master cache addresses")
+                << ex;
+        }
+    }
+
+    std::vector<TString> GuardedGetRemoteMasterCacheAddresses() const
+    {
+        if (!Spec_->UseRemoteMasterCaches) {
+            return {};
+        }
+
+        TGetClusterMetaOptions options{
+            .PopulateMasterCacheNodeAddresses = true,
+        };
+        auto clusterMeta = WaitFor(InputClient->GetClusterMeta(options))
+            .ValueOrThrow();
+        return clusterMeta.MasterCacheNodeAddresses;
     }
 
     EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override

@@ -193,6 +193,10 @@ public:
     TDuration SequoiaTransactionTimeout;
 
     TConnectionConfig();
+
+    //! Replaces all master addresses with given master cache addresses.
+    //! Used to proxy all job requests through cluster nodes.
+    void OverrideMasterAddresses(const std::vector<TString>& addresses);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

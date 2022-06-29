@@ -274,6 +274,32 @@ TConnectionConfig::TConnectionConfig()
     });
 }
 
+void TConnectionConfig::OverrideMasterAddresses(const std::vector<TString>& addresses)
+{
+    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
+        config->Addresses = addresses;
+        config->Endpoints = nullptr;
+        if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
+            config->RpcTimeout = *config->RetryTimeout;
+        }
+        config->RetryTimeout = std::nullopt;
+        config->RetryAttempts = 1;
+        config->IgnorePeerState = true;
+    };
+
+    patchMasterConnectionConfig(PrimaryMaster);
+    for (const auto& config : SecondaryMasters) {
+        patchMasterConnectionConfig(config);
+    }
+    if (!MasterCache) {
+        MasterCache = NYTree::CloneYsonSerializable(PrimaryMaster);
+    }
+    patchMasterConnectionConfig(MasterCache);
+    MasterCache->EnableMasterCacheDiscovery = false;
+
+    MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnectionDynamicConfig::TConnectionDynamicConfig()
