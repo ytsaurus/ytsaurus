@@ -208,8 +208,8 @@ TEST_F(TModifyRowsTest, TestAttachTabletTransaction)
         expectedContent.emplace_back(100 + i, 110 + i);
     }
 
-    // #FlushModifications as opposed to #Flush does not change the transaction state
-    // within RPC proxy allowing to send modifications from the second transaction after that.
+    // #FlushModifications as opposed to #Flush does not change the transaction state within RPC proxy
+    // allowing to send modifications from the second transaction afterward.
     WaitFor(transaction->As<NRpcProxy::TTransaction>()->FlushModifications())
         .ThrowOnError();
 
@@ -231,6 +231,24 @@ TEST_F(TModifyRowsTest, TestAttachTabletTransaction)
     // Double-commit.
     WriteSimpleRow(transaction3, 4, 14, /*sequenceNumber*/ std::nullopt);
     EXPECT_THROW(WaitFor(transaction3->Commit()).ValueOrThrow(), TErrorException);
+}
+
+TEST_F(TModifyRowsTest, TestModificationsFlushedSignal)
+{
+    auto transaction = WaitFor(Client_->StartTransaction(
+        NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow()
+        ->As<NRpcProxy::TTransaction>();
+
+    std::atomic<bool> flushed = false;
+    transaction->SubscribeModificationsFlushed(BIND([&] {
+        flushed = true;
+    }));
+
+    WaitFor(transaction->FlushModifications())
+        .ThrowOnError();
+
+    EXPECT_TRUE(flushed.load());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1053,8 +1053,20 @@ TFuture<void> TTransaction::FlushModifications()
 
             YT_LOG_DEBUG("Transaction modifications flushed");
 
+            ModificationsFlushed_.Fire();
+
             return TError();
         }));
+}
+
+void TTransaction::SubscribeModificationsFlushed(const TModificationsFlushedHandler& handler)
+{
+    ModificationsFlushed_.Subscribe(handler);
+}
+
+void TTransaction::UnsubscribeModificationsFlushed(const TModificationsFlushedHandler& handler)
+{
+    ModificationsFlushed_.Unsubscribe(handler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
