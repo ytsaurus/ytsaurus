@@ -219,6 +219,11 @@ public:
     //! Useful for sending modifications to the same transaction from several different sources.
     TFuture<void> FlushModifications();
 
+    using TModificationsFlushedHandlerSignature = void();
+    using TModificationsFlushedHandler = TCallback<TModificationsFlushedHandlerSignature>;
+    void SubscribeModificationsFlushed(const TModificationsFlushedHandler& handler);
+    void UnsubscribeModificationsFlushed(const TModificationsFlushedHandler& handler);
+
 private:
     const TConnectionPtr Connection_;
     const TClientPtr Client_;
@@ -252,6 +257,7 @@ private:
 
     TSingleShotCallbackList<TCommittedHandlerSignature> Committed_;
     TSingleShotCallbackList<TAbortedHandlerSignature> Aborted_;
+    TSingleShotCallbackList<TModificationsFlushedHandlerSignature> ModificationsFlushed_;
 
     TFuture<void> SendPing();
     void RunPeriodicPings();
