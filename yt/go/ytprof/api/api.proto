@@ -11,36 +11,48 @@ option go_package = "a.yandex-team.ru/yt/go/ytprof/api";
 
 
 message TimePeriod {
-    string PeriodStartTime = 1;
-    string PeriodEndTime = 2;
+    string period_start_time = 1;
+    string period_end_time = 2;
 }
 
 message Metaquery {
-    TimePeriod TimePeriod = 1;
-    string Query = 2;
-    int32 ResultSkip = 3;
-    int32 ResultLimit = 4;
+    TimePeriod time_period = 1;
+    string query = 2;
+    int32 result_skip = 3;
+    int32 result_limit = 4;
 }
 
 message Metadata {
-    string ProfileType = 1;
-    string Host = 2;
-    string ArcRevision = 3;
-    string ProfileID = 4;
-    string Timestamp = 5;
-    map<string, string> UserTags = 6;
-}
-
-message ListRequest {
-    Metaquery Metaquery = 1;
+    string profile_type = 1;
+    string host = 2;
+    string arc_revision = 3;
+    string profile_id = 4;
+    string timestamp = 5;
+    map<string, string> user_tags = 6;
 }
 
 message GetRequest {
-    string ProfileID = 1;
+    string profile_id = 1;
+}
+
+message ListRequest {
+    Metaquery metaquery = 1;
 }
 
 message ListResponse {
-    repeated Metadata Metadata = 1;
+    repeated Metadata metadata = 1;
+}
+
+message SuggestTagsResponse {
+    repeated string tag = 1;
+}
+
+message SuggestValuesRequest {
+    string tag = 1;
+}
+
+message SuggestValuesResponse {
+    repeated string value = 1;
 }
 
 
@@ -55,6 +67,18 @@ service YTProfService {
     rpc Get(GetRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
             get: "/ytprof/api/get"
+        };
+    }
+    
+    rpc SuggestTags(google.protobuf.Empty) returns (SuggestTagsResponse) {
+        option (google.api.http) = {
+            get: "/ytprof/api/suggest_tags"
+        };
+    }
+    
+    rpc SuggestValues(SuggestValuesRequest) returns (SuggestValuesResponse) {
+        option (google.api.http) = {
+            get: "/ytprof/api/suggest_values"
         };
     }
 }

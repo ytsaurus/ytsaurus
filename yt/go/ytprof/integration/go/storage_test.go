@@ -216,7 +216,7 @@ func TestMetadataIdsQuery(t *testing.T) {
 	require.NotEmpty(t, resultIDs)
 }
 
-func TestMetadataQuery(t *testing.T) {
+func TestMetadataQueryAndTags(t *testing.T) {
 	l, err := ytlog.New()
 	require.NoError(t, err)
 
@@ -238,4 +238,14 @@ func TestMetadataQuery(t *testing.T) {
 	result, err := tsData.MetadataQuery(env.Ctx, tLow, tHigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
+
+	require.NoError(t, tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
+
+	tags, err := tsData.FindTags(env.Ctx)
+	require.NoError(t, err)
+	require.Equal(t, 5, len(tags))
+
+	values, err := tsData.FindTagValues(env.Ctx, "BinaryVersion")
+	require.NoError(t, err)
+	require.Equal(t, 2, len(values))
 }

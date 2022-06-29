@@ -18,18 +18,24 @@ import (
 )
 
 const (
-	TableMetadata = "metadata"
-	TableData     = "data"
-	TimeFormat    = "2006-01-02T15:04:05"
+	TableMetadata           = "metadata"
+	TableData               = "data"
+	TableMetadataTags       = "metadata_tags"
+	TableMetadataTagsValues = "metadata_tags_values"
+	TimeFormat              = "2006-01-02T15:04:05"
 )
 
 var (
-	SchemaMetadata = schema.MustInfer(&ProfileMetadata{})
-	SchemaData     = schema.MustInfer(&ProfileData{})
+	SchemaMetadata           = schema.MustInfer(&ProfileMetadata{})
+	SchemaData               = schema.MustInfer(&ProfileData{})
+	SchemaMetadataTags       = schema.MustInfer(&ProfileMetadataTags{})
+	SchemaMetadataTagsValues = schema.MustInfer(&ProfileMetadataTagsValues{})
 
 	Schema = map[string]schema.Schema{
-		TableMetadata: SchemaMetadata,
-		TableData:     SchemaData,
+		TableMetadata:           SchemaMetadata,
+		TableData:               SchemaData,
+		TableMetadataTags:       SchemaMetadataTags,
+		TableMetadataTagsValues: SchemaMetadataTagsValues,
 	}
 )
 
@@ -76,6 +82,19 @@ type ProfileData struct {
 	ProfIDLow  uint64 `yson:",key"`
 
 	Data []byte `yson:",omitempty"`
+}
+
+type ProfileMetadataTags struct {
+	Tag string `yson:",key"`
+
+	Empty string `yson:",omitempty"`
+}
+
+type ProfileMetadataTagsValues struct {
+	Tag   string `yson:",key"`
+	Value string `yson:",key"`
+
+	Empty string `yson:",omitempty"`
 }
 
 func (s *ProfileMetadata) ProfID() ProfID {

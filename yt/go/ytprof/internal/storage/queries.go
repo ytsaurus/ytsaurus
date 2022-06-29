@@ -38,3 +38,11 @@ func (m *TableStorage) queryLookupData(IDs []ytprof.ProfID, limit int) string {
 		limit,
 	)
 }
+
+func (m *TableStorage) queryGetTags() string {
+	return fmt.Sprintf("* from [%s]", m.tableMetadataTags)
+}
+
+func (m *TableStorage) queryLookupTagValues(tag string) string {
+	return fmt.Sprintf("* from [%s] where Tag = '%s'", m.tableMetadataTagsValues, tag)
+}

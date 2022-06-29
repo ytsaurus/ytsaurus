@@ -41,11 +41,13 @@ type Metaquery struct {
 }
 
 type TableStorage struct {
-	tableData     ypath.Path
-	tableMetadata ypath.Path
-	yc            yt.Client
+	tableData               ypath.Path
+	tableMetadata           ypath.Path
+	tableMetadataTags       ypath.Path
+	tableMetadataTagsValues ypath.Path
 
-	l *logzap.Logger
+	yc yt.Client
+	l  *logzap.Logger
 }
 
 func (p TimestampPeriod) Timestamps() (tmin schema.Timestamp, tmax schema.Timestamp, err error) {
@@ -59,12 +61,14 @@ func (p TimestampPeriod) Timestamps() (tmin schema.Timestamp, tmax schema.Timest
 }
 
 func NewTableStorage(yc yt.Client, path ypath.Path, l *logzap.Logger) *TableStorage {
-	p := new(TableStorage)
-	p.yc = yc
-	p.tableData = path.Child(ytprof.TableData)
-	p.tableMetadata = path.Child(ytprof.TableMetadata)
-	p.l = l
-	return p
+	return &TableStorage{
+		yc:                      yc,
+		l:                       l,
+		tableData:               path.Child(ytprof.TableData),
+		tableMetadata:           path.Child(ytprof.TableMetadata),
+		tableMetadataTags:       path.Child(ytprof.TableMetadataTags),
+		tableMetadataTagsValues: path.Child(ytprof.TableMetadataTagsValues),
+	}
 }
 
 func NewTableStorageMigrate(yt yt.Client, path ypath.Path, l *logzap.Logger) (*TableStorage, error) {
@@ -107,13 +111,10 @@ func (m *TableStorage) FormMetadata(profile *profile.Profile, host string, profi
 }
 
 func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile, hosts []string, profileType string, cluster string, service string) error {
-	tx, err := m.yc.BeginTabletTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
 	rowsData := make([]interface{}, 0, len(profiles))
 	rowsMetadata := make([]interface{}, 0, len(profiles))
+	rowsMetadataTags := make([]interface{}, 0, len(profiles))
+	rowsMetadataTagsValues := make([]interface{}, 0, len(profiles))
 
 	curTime := time.Now()
 	timestamp, err := schema.NewTimestamp(curTime)
@@ -129,6 +130,8 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 		}
 		uID := GenerateNewUID()
 
+		metadata := m.FormMetadata(profileData, hosts[id], profileType, cluster, service)
+
 		rowsData = append(rowsData, ytprof.ProfileData{
 			ProfIDHigh: uID.ProfIDHigh,
 			ProfIDLow:  uID.ProfIDLow,
@@ -138,8 +141,22 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 			ProfIDHigh: uID.ProfIDHigh,
 			ProfIDLow:  uID.ProfIDLow,
 			Timestamp:  timestamp,
-			Metadata:   m.FormMetadata(profileData, hosts[id], profileType, cluster, service),
+			Metadata:   metadata,
 		})
+		for key, value := range metadata.MapData {
+			rowsMetadataTags = append(rowsMetadataTags, ytprof.ProfileMetadataTags{
+				Tag: key,
+			})
+			rowsMetadataTagsValues = append(rowsMetadataTagsValues, ytprof.ProfileMetadataTagsValues{
+				Tag:   key,
+				Value: value,
+			})
+		}
+	}
+
+	tx, err := m.yc.BeginTabletTx(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	err = tx.InsertRows(ctx, m.tableData, rowsData, nil)
@@ -148,6 +165,16 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 	}
 
 	err = tx.InsertRows(ctx, m.tableMetadata, rowsMetadata, nil)
+	if err != nil {
+		return err
+	}
+
+	err = tx.InsertRows(ctx, m.tableMetadataTags, rowsMetadataTags, nil)
+	if err != nil {
+		return err
+	}
+
+	err = tx.InsertRows(ctx, m.tableMetadataTagsValues, rowsMetadataTagsValues, nil)
 	if err != nil {
 		return err
 	}
@@ -348,6 +375,50 @@ func (m *TableStorage) FindData(ctx context.Context, profID ytprof.ProfID) (data
 
 	err = errRowNotFound(m.tableData, profID)
 	return
+}
+
+func (m *TableStorage) FindTags(ctx context.Context) ([]string, error) {
+	r, err := m.yc.SelectRows(ctx, m.queryGetTags(), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	resultTags := make([]string, 0)
+
+	for r.Next() {
+		var nextVal ytprof.ProfileMetadataTags
+		err = r.Scan(&nextVal)
+		if err != nil {
+			return nil, err
+		}
+
+		resultTags = append(resultTags, nextVal.Tag)
+	}
+
+	return resultTags, r.Err()
+}
+
+func (m *TableStorage) FindTagValues(ctx context.Context, tag string) ([]string, error) {
+	r, err := m.yc.SelectRows(ctx, m.queryLookupTagValues(tag), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	resultTags := make([]string, 0)
+
+	for r.Next() {
+		var nextVal ytprof.ProfileMetadataTagsValues
+		err = r.Scan(&nextVal)
+		if err != nil {
+			return nil, err
+		}
+
+		resultTags = append(resultTags, nextVal.Value)
+	}
+
+	return resultTags, r.Err()
 }
 
 func (m *TableStorage) FindProfile(ctx context.Context, profID ytprof.ProfID) (*profile.Profile, error) {
