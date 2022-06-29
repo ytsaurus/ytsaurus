@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-#include <contrib/libs/zlib/zlib.h>
+#include <zlib.h>
 
 #include <array>
 #include <iostream>
