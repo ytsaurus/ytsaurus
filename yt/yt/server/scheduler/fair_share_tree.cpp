@@ -32,6 +32,8 @@
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ypath/tokenizer.h>
+
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
@@ -41,6 +43,7 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -993,12 +996,12 @@ public:
 
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+        
+        dynamicOrchidService->AddChild("pools", New<TPoolsOrchidService>(MakeStrong(this))
+            ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             const auto buildOperationInfo = [&] (TFluentMap fluent, const TSchedulerOperationElement* const operation) {
                 fluent
@@ -1025,28 +1028,19 @@ public:
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->TreeConfig());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceUsage());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
@@ -1058,23 +1052,8 @@ public:
                 .Value(GetPoolCount());
         })));
 
-        dynamicOrchidService->AddChild("pools", FromProducer(BIND(
-            [this_ = MakeStrong(this), this] (IYsonConsumer* consumer, const TFieldsFilter& filter) {
-                auto treeSnapshot = GetTreeSnapshot();
-                if (!treeSnapshot) {
-                    ThrowOrchidIsNotReady();
-                }
-
-                BuildYsonFluently(consumer).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshot), filter))
-                .EndMap();
-            }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
-
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).BeginMap()
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
@@ -1152,6 +1131,160 @@ private:
 
     TSchedulerRootElementPtr RootElement_;
 
+    class TPoolsOrchidService
+        : public TYPathServiceBase
+        , public TSupportsGet
+        , public TSupportsList
+    {
+    public:
+        explicit TPoolsOrchidService(TIntrusivePtr<const TFairShareTree> tree)
+            : FairShareTree_{std::move(tree)}
+        { }
+
+
+    private:
+        TIntrusivePtr<const TFairShareTree> FairShareTree_;
+
+        TResolveResult ResolveSelf(
+            const TYPath& path,
+            const IServiceContextPtr& context) final
+        {
+            if (context->GetMethod() == "List") {
+                auto typedContext = New<TCtxGet>(context, NRpc::THandlerInvocationOptions{});
+                if (!typedContext->DeserializeRequest()) {
+                    THROW_ERROR_EXCEPTION("Error deserializing request");
+                }
+
+                const auto& request = typedContext->Request();
+                if (!request.has_attributes()) {
+                    return TResolveResultHere{path};
+                }
+            }
+
+            auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
+
+            // TODO(pogorelov): May be support limit here
+            auto service = TFairShareTree::FromProducer(BIND(
+                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}] (IYsonConsumer* consumer, const TFieldsFilter& filter) mutable {
+                    BuildYsonFluently(consumer).BeginMap()
+                        .Do(
+                            std::bind(
+                                &TFairShareTree::BuildPoolsInfo,
+                                std::move(fairShareTreeSnapshot),
+                                std::cref(filter),
+                                std::placeholders::_1))
+                    .EndMap();
+                }));
+            return TResolveResultThere{std::move(service), path};
+        }
+
+        IYPathService::TResolveResult ResolveAttributes(
+            const TYPath& path,
+            const IServiceContextPtr& context) final
+        {
+            return ResolveSelf("/@" + path, context);
+        }
+
+        IYPathService::TResolveResult ResolveRecursive(
+            const TYPath& path,
+            const IServiceContextPtr& /*context*/) final
+        {
+            auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
+
+            NYPath::TTokenizer tokenizer(path);
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+
+            const auto& poolName = tokenizer.GetLiteralValue();
+            if (poolName != RootPoolName && !fairShareTreeSnapshot->PoolMap().contains(poolName)) {
+                THROW_ERROR_EXCEPTION("Pool tree %Qv has no pool %Qv",
+                    FairShareTree_->TreeId_,
+                    poolName);
+            }
+
+            auto service = TFairShareTree::FromProducer(BIND(
+                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}, poolName] (IYsonConsumer* consumer, const TFieldsFilter& filter) {
+                    BuildYsonFluently(consumer).BeginMap()
+                        .Do([&] (TFluentMap fluent) {
+                            if (poolName == RootPoolName) {
+                                TFairShareTree::BuildCompositeElementInfo(
+                                    fairShareTreeSnapshot,
+                                    fairShareTreeSnapshot->RootElement().Get(),
+                                    filter,
+                                    std::move(fluent));
+                            } else {
+                                auto* pool = GetOrCrash(fairShareTreeSnapshot->PoolMap(), poolName);
+                                TFairShareTree::BuildPoolInfo(
+                                    fairShareTreeSnapshot,
+                                    pool,
+                                    filter,
+                                    std::move(fluent));
+                            }
+                        })
+                    .EndMap();
+                }));
+
+            return TResolveResultThere{std::move(service), NYPath::TYPath{tokenizer.GetSuffix()}};
+        }
+
+        bool DoInvoke(const IServiceContextPtr& context) final
+        {
+            DISPATCH_YPATH_SERVICE_METHOD(Get);
+            DISPATCH_YPATH_SERVICE_METHOD(List);
+            return TYPathServiceBase::DoInvoke(context);
+        }
+
+        void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) final
+        {
+            i64 limit = request->has_limit()
+                ? request->limit()
+                : DefaultVirtualChildLimit;
+
+            if (limit <= 0) {
+                THROW_ERROR_EXCEPTION("Invalid value for limit: %v", limit);
+            }
+
+            auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
+
+            bool incomplete = false;
+            const auto& poolMap = fairShareTreeSnapshot->PoolMap();
+
+            std::vector<TString> result;
+            result.reserve(std::ssize(poolMap) + 1);
+            result.push_back(RootPoolName);
+            for (const auto& [name, _] : poolMap) {
+                result.push_back(name);
+            }
+
+            // NB: We do not have many pools, so we can just sort all of it, without finding top min elements.
+            std::sort(std::begin(result), std::end(result));
+            if (std::ssize(result) > limit) {
+                result.resize(limit);
+                incomplete = true;
+            }
+
+            auto ysonString = BuildYsonStringFluently().BeginAttributes()
+                    .DoIf(incomplete, [] (TFluentMap fluent) {
+                        fluent.Item("incomplete").Value(true);
+                    })
+                .EndAttributes()
+                .List(result);
+
+            response->set_value(ysonString.ToString());
+            context->Reply();
+        }
+
+        void ListRecursive(const TYPath& /*path*/, TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& /*context*/) final
+        {
+            YT_ABORT();
+        }
+
+        void ListAttribute(const TYPath& /*path*/, TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& /*context*/) final
+        {
+            YT_ABORT();
+        }
+    };
+
     class TOperationsByPoolOrchidService
         : public TVirtualMapBase
     {
@@ -1164,7 +1297,9 @@ private:
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
-            return std::ssize(FairShareTree_->GetTreeSnapshot()->PoolMap());
+            auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
+
+            return std::ssize(fairShareTreeSnapshot->PoolMap());
         }
 
         std::vector<TString> GetKeys(const i64 limit) const final
@@ -1175,10 +1310,7 @@ private:
                 return {};
             }
 
-            const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshot();
-            if (!fairShareTreeSnapshot) {
-                FairShareTree_->ThrowOrchidIsNotReady();
-            }
+            const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
             std::vector<TString> result;
             result.reserve(std::min(limit, std::ssize(fairShareTreeSnapshot->PoolMap())));
@@ -1197,10 +1329,7 @@ private:
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
-            const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshot();
-            if (!fairShareTreeSnapshot) {
-                FairShareTree_->ThrowOrchidIsNotReady();
-            }
+            const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
             const auto poolIterator = fairShareTreeSnapshot->PoolMap().find(poolName);
             if (poolIterator == std::cend(fairShareTreeSnapshot->PoolMap())) {
@@ -1215,11 +1344,12 @@ private:
                         for (const auto operation : operations) {
                             fluent
                                 .Item(operation->GetId()).BeginMap()
-                                    .Do(BIND(
+                                    .Do(std::bind(
                                         &TFairShareTree::DoBuildOperationProgress,
-                                        ConstRef(fairShareTreeSnapshot),
-                                        Unretained(operation),
-                                        FairShareTree_->StrategyHost_))
+                                        std::cref(fairShareTreeSnapshot),
+                                        operation,
+                                        FairShareTree_->StrategyHost_,
+                                        std::placeholders::_1))
                                 .EndMap();
                         }
                     })
@@ -1264,8 +1394,25 @@ private:
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        auto guard = Guard(TreeSnapshotLock_);
+
+        // No need to use lock in feasible invokers.
+        auto guard = [this] () -> std::optional<decltype(Guard(TreeSnapshotLock_))> {
+            if (VerifyInvokersAffinity(FeasibleInvokers_)) {
+                return std::nullopt;
+            }
+            return Guard(TreeSnapshotLock_);
+        }();
         return TreeSnapshot_;
+    }
+
+    TFairShareTreeSnapshotPtr GetTreeSnapshotForOrchid() const
+    {
+        auto treeSnapshot = GetTreeSnapshot();
+        if (!treeSnapshot) {
+            ThrowOrchidIsNotReady();
+        }
+
+        return treeSnapshot;
     }
 
     std::pair<IFairShareTreePtr, TError> DoFairShareUpdateAt(TInstant now)
@@ -2383,7 +2530,7 @@ private:
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("pool_count").Value(treeSnapshot->PoolMap().size())
             .Item("pools").BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), ConstRef(treeSnapshot), TFieldsFilter{}))
+                .Do(std::bind(&TFairShareTree::BuildPoolsInfo, std::cref(treeSnapshot), TFieldsFilter{}, std::placeholders::_1))
             .EndMap()
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -2430,65 +2577,80 @@ private:
         return fairShareInfo;
     }
 
-    void DoBuildPoolsInformation(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& filter, TFluentMap fluent) const
+    static void BuildCompositeElementInfo(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TSchedulerCompositeElement* element,
+        const TFieldsFilter& filter,
+        TFluentMap fluent)
     {
-        auto buildCompositeElementInfo = [&] (const TSchedulerCompositeElement* element, TFluentMap fluent) {
-            const auto& attributes = element->Attributes();
-            fluent
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_operation_count", element->GetMaxOperationCount())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "forbid_immediate_operations", element->AreImmediateOperationsForbidden())
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_resource_flow_ratio", attributes.TotalResourceFlowRatio)
-                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_burst_ratio", attributes.TotalBurstRatio)
-                .DoIf(element->GetParent(), ([&] (TFluentMap fluent) {
+        const auto& attributes = element->Attributes();
+        fluent
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_operation_count", element->GetMaxOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "forbid_immediate_operations", element->AreImmediateOperationsForbidden())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_resource_flow_ratio", attributes.TotalResourceFlowRatio)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_burst_ratio", attributes.TotalBurstRatio)
+            .DoIf(element->GetParent(), ([&] (TFluentMap fluent) {
+                fluent
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
+            }))
+            .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
+    }
+
+    static void BuildPoolInfo(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TSchedulerPoolElement* pool,
+        const TFieldsFilter& filter,
+        TFluentMap fluent)
+    {
+        fluent
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "mode", pool->GetMode())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "is_ephemeral", pool->IsDefaultConfigured())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_guarantee_type", pool->GetIntegralGuaranteeType())
+            .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
+                auto burstRatio = pool->GetSpecifiedBurstRatio();
+                auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
+                fluent
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_pool_capacity", pool->GetIntegralPoolCapacity())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_ratio", burstRatio)
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_guarantee_resources", pool->GetTotalResourceLimits() * burstRatio)
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow_ratio", resourceFlowRatio)
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow", pool->GetTotalResourceLimits() * resourceFlowRatio)
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_ratio_volume", pool->GetAccumulatedResourceRatioVolume())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_volume", pool->GetAccumulatedResourceVolume());
+                if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
                     fluent
-                        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
-                }))
-                .Do(std::bind(&TFairShareTree::DoBuildElementYson, treeSnapshot, element, filter, std::placeholders::_1));
-        };
+                        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_burst_usage_duration_seconds",
+                            pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
+                }
+            })
+            .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
+                fluent
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters());
+            })
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
+            .Do(std::bind(&TFairShareTree::BuildCompositeElementInfo, std::cref(treeSnapshot), pool, std::cref(filter), std::placeholders::_1));
+    }
 
-        auto buildPoolInfo = [&] (const TSchedulerPoolElement* pool, TFluentMap fluent) {
-            const auto& id = pool->GetId();
-            fluent
-                .Item(id).BeginMap()
-                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "mode", pool->GetMode())
-                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "is_ephemeral", pool->IsDefaultConfigured())
-                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_guarantee_type", pool->GetIntegralGuaranteeType())
-                    .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
-                        auto burstRatio = pool->GetSpecifiedBurstRatio();
-                        auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
-                        fluent
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_pool_capacity", pool->GetIntegralPoolCapacity())
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_ratio", burstRatio)
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_guarantee_resources", pool->GetTotalResourceLimits() * burstRatio)
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow_ratio", resourceFlowRatio)
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow", pool->GetTotalResourceLimits() * resourceFlowRatio)
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_ratio_volume", pool->GetAccumulatedResourceRatioVolume())
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_volume", pool->GetAccumulatedResourceVolume());
-                        if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
-                            fluent
-                                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_burst_usage_duration_seconds",
-                                    pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
-                        }
-                    })
-                    .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
-                        fluent
-                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters());
-                    })
-                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
-                    .Do(std::bind(buildCompositeElementInfo, pool, std::placeholders::_1))
-                .EndMap();
-        };
-
+    static void BuildPoolsInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& filter, TFluentMap fluent)
+    {
         fluent
             .DoFor(treeSnapshot->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
-                buildPoolInfo(pair.second, fluent);
+                fluent.Item(pair.second->GetId()).BeginMap()
+                    .Do(std::bind(&TFairShareTree::BuildPoolInfo, treeSnapshot, pair.second, filter, std::placeholders::_1))
+                .EndMap();
             })
             .Item(RootPoolName).BeginMap()
-                .Do(std::bind(buildCompositeElementInfo, treeSnapshot->RootElement().Get(), std::placeholders::_1))
+                .Do(
+                    std::bind(
+                        &TFairShareTree::BuildCompositeElementInfo,
+                        std::cref(treeSnapshot),
+                        treeSnapshot->RootElement().Get(),
+                        std::cref(filter),
+                        std::placeholders::_1))
             .EndMap();
     }
 
@@ -2667,7 +2829,7 @@ private:
             .ITEM_DO_IF_SUITABLE_FOR_FILTER(
                 filter,
                 "detailed_dominant_fair_share",
-                std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
+                std::bind(&SerializeDominant, std::cref(attributes.FairShare), std::placeholders::_1))
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share", attributes.PromisedFairShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare))

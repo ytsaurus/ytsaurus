@@ -80,6 +80,28 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             scheduler_new_orchid_pool_tree_path("default") + "/pool_count") == get(
                 scheduler_orchid_pool_tree_path("default") + "/pool_count"))
 
+    @authors("pogorelov")
+    def test_list_pools(self):
+        create_pool("pool")
+        create_pool("child", parent_name="pool", attributes={"weight": 3.0})
+
+        wait(lambda: ls(
+            scheduler_new_orchid_pool_tree_path("default") + "/pools") == ls(
+                scheduler_orchid_pool_tree_path("default") + "/pools"))
+
+    @authors("pogorelov")
+    def test_pools_single_pool(self):
+        create_pool("pool")
+        create_pool("child", parent_name="pool", attributes={"weight": 3.0})
+
+        wait(lambda: get(
+            scheduler_new_orchid_pool_tree_path("default") + "/pools/pool") == get(
+                scheduler_orchid_pool_tree_path("default") + "/pools/pool"))
+
+        wait(lambda: get(
+            scheduler_new_orchid_pool_tree_path("default") + "/pools/pool/mode") == get(
+                scheduler_orchid_pool_tree_path("default") + "/pools/pool/mode"))
+
     @authors("ignat")
     def test_weird_requests(self):
         # See details in YT-16814
@@ -127,6 +149,16 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             '<Root>': {
                 'running_operation_count': 0,
             },
+        }
+
+        assert client.get(scheduler_new_orchid_pool_tree_path("default") + "/pools/child") == {
+            'mode': 'fair_share',
+            'is_ephemeral': False,
+            'running_operation_count': 0,
+        }
+
+        assert client.get(scheduler_new_orchid_pool_tree_path("default") + "/pools/<Root>") == {
+            'running_operation_count': 0,
         }
 
 
