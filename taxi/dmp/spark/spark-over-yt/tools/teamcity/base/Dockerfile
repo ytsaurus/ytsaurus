@@ -28,19 +28,4 @@ RUN \
 
 WORKDIR /app
 
-RUN groupadd --gid 1001 sbtuser && useradd -m --gid 1001 --uid 1001 sbtuser -G docker --shell /bin/bash
-RUN chown sbtuser:sbtuser /app
-USER sbtuser
-
-# Prepare sbt (warm cache)
-RUN \
-  sbt sbtVersion && \
-  mkdir -p project && \
-  echo "scalaVersion := \"${SCALA_VERSION}\"" > build.sbt && \
-  echo "sbt.version=${SBT_VERSION}" > project/build.properties && \
-  echo "// force sbt compiler-bridge download" > project/Dependencies.scala && \
-  echo "case object Temp" > Temp.scala && \
-  sbt compile && \
-  rm -r project && rm build.sbt && rm Temp.scala && rm -r target
-
 CMD ["sbt", "test"]
