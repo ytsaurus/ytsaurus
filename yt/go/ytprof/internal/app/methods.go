@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/guid"
@@ -42,7 +43,7 @@ func (a *App) storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, er
 		ProfileType: sm.Metadata.MapData["ProfileType"],
 		Host:        sm.Metadata.MapData["Host"],
 		ArcRevision: sm.Metadata.MapData["ArcRevision"],
-		ProfileID:   ytprof.GUIDFormProfID(sm.ProfID()).String(),
+		ProfileId:   ytprof.GUIDFormProfID(sm.ProfID()).String(),
 		UserTags:    sm.Metadata.MapData,
 	}
 
@@ -85,9 +86,9 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 }
 
 func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
-	profileGUID, err := guid.ParseString(in.ProfileID)
+	profileGUID, err := guid.ParseString(in.ProfileId)
 	if err != nil {
-		a.l.Error("parsing guid failed", log.Error(err), log.String("guid", in.ProfileID))
+		a.l.Error("parsing guid failed", log.Error(err), log.String("guid", in.ProfileId))
 		return nil, err
 	}
 
@@ -97,10 +98,38 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 		return nil, err
 	}
 
-	a.l.Error("get request succeded", log.String("ProfileID", in.ProfileID))
+	a.l.Error("get request succeded", log.String("ProfileID", in.ProfileId))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",
 		Data:        resp.Data,
+	}, nil
+}
+
+func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.SuggestTagsResponse, error) {
+	resp, err := a.ts.FindTags(ctx)
+	if err != nil {
+		a.l.Error("find_tags failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Error("find_tags request succeded")
+
+	return &api.SuggestTagsResponse{
+		Tag: resp,
+	}, nil
+}
+
+func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, opts ...grpc.CallOption) (*api.SuggestValuesResponse, error) {
+	resp, err := a.ts.FindTagValues(ctx, in.Tag)
+	if err != nil {
+		a.l.Error("find_tags failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Error("find_values request succeded")
+
+	return &api.SuggestValuesResponse{
+		Value: resp,
 	}, nil
 }

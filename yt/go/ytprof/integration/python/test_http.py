@@ -55,12 +55,12 @@ def fetch_data(running_app, name, body):
 
 def test_list(running_app):
     fetch_data(running_app, "list", {
-        'Metaquery': {
-            'Query': 'true',
-            'QueryLimit': 10000,
-            'TimePeriod': {
-                'PeriodStartTime': '2022-04-24T00:00:00.000000Z',
-                'PeriodEndTime': '2022-04-29T00:00:00.000000Z',
+        'metaquery': {
+            'query': 'true',
+            'query_limit': 10000,
+            'time_period': {
+                'period_start_time': '2022-04-24T00:00:00.000000Z',
+                'period_end_time': '2022-04-29T00:00:00.000000Z',
             },
         },
     })

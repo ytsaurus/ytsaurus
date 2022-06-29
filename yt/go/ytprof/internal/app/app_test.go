@@ -121,7 +121,7 @@ func TestAppGet(t *testing.T) {
 	client := resty.New()
 
 	rsp, err := client.R().
-		SetQueryParam("ProfileID", ytprof.GUIDFormProfID(resultIDs[0]).String()).
+		SetQueryParam("profile_id", ytprof.GUIDFormProfID(resultIDs[0]).String()).
 		Get(a.URL() + "/ytprof/api/get")
 
 	require.NoError(t, err)
