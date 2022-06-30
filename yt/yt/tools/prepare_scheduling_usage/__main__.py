@@ -405,7 +405,12 @@ def main():
         client = yt.YtClient(args.cluster)
 
         if args.mode == "table":
-            process_scheduler_log_on_yt(client, args.input_path, args.output_path)
+            if client.get(args.output_path + "/@type") == "map_node":
+                input_dir_name, input_base_name = yt.ypath_split(args.input_path)
+                output_path = yt.ypath_join(args.output_path, input_base_name)
+            else:
+                output_path = args.output_path
+            process_scheduler_log_on_yt(client, args.input_path, output_path)
         else:  # "dir"
             for name in client.list(args.input_path):
                 if args.filter is not None and not re.match(args.filter, name):
