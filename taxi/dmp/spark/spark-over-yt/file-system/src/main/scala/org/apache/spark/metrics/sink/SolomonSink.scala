@@ -21,8 +21,8 @@ private[spark] case class SolomonSink(props: Properties, registry: MetricRegistr
   private val reporter: SolomonReporter = SolomonReporter(registry, solomonConfig, reporterConfig)
 
   override def start(): Unit = {
-    SolomonSink.log.info(s"Starting SolomonSink with period ${reporterConfig.pollPeriodSeconds} seconds")
-    reporter.start(reporterConfig.pollPeriodSeconds, TimeUnit.SECONDS)
+    SolomonSink.log.info(s"Starting SolomonSink with period ${reporterConfig.pollPeriodMillis} millis")
+    reporter.start(reporterConfig.pollPeriodMillis, TimeUnit.MILLISECONDS)
   }
 
   override def stop(): Unit = {
@@ -65,6 +65,6 @@ private[spark] object SolomonSink {
         filter = MetricFilter.ALL,
         rateUnit = TimeUnit.SECONDS,
         durationUnit = TimeUnit.SECONDS,
-        pollPeriodSeconds = props.ytConf(SolomonSinkSettings.ReporterPollPeriod).toSeconds
+        pollPeriodMillis = props.ytConf(SolomonSinkSettings.ReporterPollPeriod).toMillis
       )
 }

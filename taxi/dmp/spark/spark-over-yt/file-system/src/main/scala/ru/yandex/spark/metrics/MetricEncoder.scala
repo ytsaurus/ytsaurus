@@ -11,7 +11,7 @@ private[metrics] trait MetricEncoder {
   def contentType: String
   def solomonConfig: SolomonConfig
 
-  log.info(s"solomonConfig: $solomonConfig")
+  log.debug(s"solomonConfig: $solomonConfig")
 
   def encode(ts: Instant,
              gauges: util.SortedMap[String, Gauge[_]],
@@ -27,20 +27,17 @@ private[metrics] trait MetricEncoder {
       meters.asScala.flatMap(m => fromMeter(m._1, m._2)) ++
       timers.asScala.flatMap(t => fromTimer(t._1, t._2))
 
-    log.info(s"Available metrics: $metrics")
     encodeMetrics(MetricMessage(
       metrics.filter(isRequiredMetric)
-        .map(_.updateLabel("name", n => transformMetricName(fixName(n)))),
+        .map(_.updateLabel("sensor", n => transformMetricName(fixName(n)))),
       solomonConfig.commonLabels,
       ts
     ))
   }
 
   private def isRequiredMetric(metric: Metric): Boolean = {
-    val name = metric.labels("name")
-    val ms = name.matches(solomonConfig.metricNameRegex)
-    log.info(s"name=$name matches=$ms re=/${solomonConfig.metricNameRegex}/")
-    ms
+    val name = metric.labels("sensor")
+    name.matches(solomonConfig.metricNameRegex)
   }
 
   private def transformMetricName(name: String): String =
@@ -68,15 +65,15 @@ private[metrics] object MetricEncoder {
   private def fromGauge[T](name: String, gauge: Gauge[T]): Option[Metric] =
     gauge.getValue match {
       case v: Integer =>
-        Some(IGauge(Map("name" -> name), v.longValue()))
+        Some(IGauge(Map("sensor" -> name), v.longValue()))
       case v: Long =>
-        Some(IGauge(Map("name" -> name), v))
+        Some(IGauge(Map("sensor" -> name), v))
       case v: Float =>
         if (v.isNaN) None
-        else Some(DGauge(Map("name" -> name), v.doubleValue()))
+        else Some(DGauge(Map("sensor" -> name), v.doubleValue()))
       case v: Double =>
         if (v.isNaN) None
-        else Some(DGauge(Map("name" -> name), v))
+        else Some(DGauge(Map("sensor" -> name), v))
       case null =>
         log.debug(s"Gauge $name is null")
         None
@@ -86,30 +83,30 @@ private[metrics] object MetricEncoder {
     }
 
   private def fromCounter(name: String, counter: CCounter): Option[Metric] =
-    Some(Counter(Map("name" -> name), counter.getCount))
+    Some(Counter(Map("sensor" -> name), counter.getCount))
 
   private def fromMeter(name: String, meter: Metered): Seq[Metric] =
     Seq(
-      Counter(Map("name" -> s"$name.count"), meter.getCount),
-      DGauge(Map("name" -> s"$name.mean_rate"), meter.getMeanRate),
-      DGauge(Map("name" -> s"$name.rate_1min"), meter.getOneMinuteRate),
-      DGauge(Map("name" -> s"$name.rate_5min"), meter.getFiveMinuteRate),
-      DGauge(Map("name" -> s"$name.rate_15min"), meter.getFifteenMinuteRate),
+      Counter(Map("sensor" -> s"$name.count"), meter.getCount),
+      DGauge(Map("sensor" -> s"$name.mean_rate"), meter.getMeanRate),
+      DGauge(Map("sensor" -> s"$name.rate_1min"), meter.getOneMinuteRate),
+      DGauge(Map("sensor" -> s"$name.rate_5min"), meter.getFiveMinuteRate),
+      DGauge(Map("sensor" -> s"$name.rate_15min"), meter.getFifteenMinuteRate),
     )
 
   private def fromHistogram(name: String, hist: Histogram): Seq[Metric] =
-    Counter(Map("name" -> s"$name.count"), hist.getCount) +: fromSnapshot(name, hist.getSnapshot)
+    Counter(Map("sensor" -> s"$name.count"), hist.getCount) +: fromSnapshot(name, hist.getSnapshot)
 
   private def fromSnapshot(name: String, snapshot: Snapshot): Seq[Metric] =
     Seq(
-      DGauge(Map("name" -> s"$name.mean"), snapshot.getMean),
-      DGauge(Map("name" -> s"$name.max"), snapshot.getMax),
-      DGauge(Map("name" -> s"$name.min"), snapshot.getMin),
-      DGauge(Map("name" -> s"$name.stddev"), snapshot.getStdDev),
-      DGauge(Map("name" -> s"$name.median"), snapshot.getMedian),
-      DGauge(Map("name" -> s"$name.p75"), snapshot.get75thPercentile()),
-      DGauge(Map("name" -> s"$name.p95"), snapshot.get95thPercentile()),
-      DGauge(Map("name" -> s"$name.p99"), snapshot.get99thPercentile()),
+      DGauge(Map("sensor" -> s"$name.mean"), snapshot.getMean),
+      DGauge(Map("sensor" -> s"$name.max"), snapshot.getMax),
+      DGauge(Map("sensor" -> s"$name.min"), snapshot.getMin),
+      DGauge(Map("sensor" -> s"$name.stddev"), snapshot.getStdDev),
+      DGauge(Map("sensor" -> s"$name.median"), snapshot.getMedian),
+      DGauge(Map("sensor" -> s"$name.p75"), snapshot.get75thPercentile()),
+      DGauge(Map("sensor" -> s"$name.p95"), snapshot.get95thPercentile()),
+      DGauge(Map("sensor" -> s"$name.p99"), snapshot.get99thPercentile()),
     )
 
   private def fromTimer(name: String, timer: Timer): Seq[Metric] =

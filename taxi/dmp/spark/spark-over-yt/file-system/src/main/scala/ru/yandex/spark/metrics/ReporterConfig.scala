@@ -9,5 +9,5 @@ case class ReporterConfig(
                            filter: MetricFilter,
                            rateUnit: TimeUnit,
                            durationUnit: TimeUnit,
-                           pollPeriodSeconds: Long
+                           pollPeriodMillis: Long
 )
