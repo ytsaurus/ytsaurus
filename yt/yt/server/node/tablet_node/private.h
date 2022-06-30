@@ -46,7 +46,7 @@ static constexpr auto WriteThrottlerRpcTimeout = TDuration::Seconds(15);
 
 inline const TErrorAttribute HardErrorAttribute("hard", true);
 
-inline const NLogging::TLogger LsmLogger("Lsm");
+inline const auto LsmLogger = NLogging::TLogger("Lsm").WithEssential();
 
 ////////////////////////////////////////////////////////////////////////////////
 
