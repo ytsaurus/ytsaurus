@@ -207,21 +207,6 @@ DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoverVersionsHandlerV1
-    : public TDiscoverVersionsHandler
-{
-public:
-    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
-
-    void HandleRequest(
-        const NHttp::IRequestPtr& req,
-        const NHttp::IResponseWriterPtr& rsp) override;
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV1)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDiscoverVersionsHandlerV2
     : public TDiscoverVersionsHandler
 {

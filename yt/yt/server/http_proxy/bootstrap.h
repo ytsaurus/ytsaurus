@@ -116,7 +116,6 @@ private:
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;
     TPingHandlerPtr PingHandler_;
-    TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV1_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
     IAccessCheckerPtr AccessChecker_;
 

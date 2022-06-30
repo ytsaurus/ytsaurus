@@ -156,7 +156,6 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
-    DiscoverVersionsHandlerV1_ = New<TDiscoverVersionsHandlerV1>(Connection_, RootClient_, Config_->Coordinator);
     DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_, Config_->Coordinator);
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
@@ -355,10 +354,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
     server->AddHandler("/hosts/", HostsHandler_);
     server->AddHandler("/ping/", PingHandler_);
 
-    server->AddHandler("/internal/discover_versions", DiscoverVersionsHandlerV1_);
     server->AddHandler("/internal/discover_versions/v2", DiscoverVersionsHandlerV2_);
-    // Legacy.
-    server->AddHandler("/api/v3/_discover_versions", DiscoverVersionsHandlerV1_);
 
     server->AddHandler("/version", MakeStrong(this));
     server->AddHandler("/service", MakeStrong(this));

@@ -824,61 +824,6 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString FormatInstances(const std::vector<TInstance>& instances)
-{
-    return BuildYsonStringFluently()
-        .DoMapFor(instances, [&] (TFluentMap fluent, const TInstance& instance) {
-            if (instance.Error.IsOK()) {
-                fluent
-                    .Item(instance.Address)
-                    .BeginMap()
-                        .Item("start_time").Value(instance.StartTime)
-                        .Item("version").Value(instance.Version)
-                    .EndMap();
-            } else {
-                fluent
-                    .Item(instance.Address)
-                    .BeginMap()
-                        .Item("error").Value(instance.Error)
-                    .EndMap();
-            }
-        });
-}
-
-void TDiscoverVersionsHandlerV1::HandleRequest(
-    const NHttp::IRequestPtr& req,
-    const NHttp::IResponseWriterPtr& rsp)
-{
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
-    rsp->SetStatus(EStatusCode::OK);
-
-    ReplyJson(rsp, [this] (IYsonConsumer* consumer) {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("primary_masters").Value(FormatInstances(
-                    GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters"), "primary_master")
-                 ))
-                .Item("secondary_masters").Value(FormatInstances(
-                    GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master")
-                ))
-                .Item("schedulers").Value(FormatInstances(
-                    GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler")
-                ))
-                .Item("controller_agents").Value(FormatInstances(
-                    GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent")
-                ))
-                .Item("nodes").Value(FormatInstances(ListComponent("cluster_nodes", "node")))
-                .Item("http_proxies").Value(FormatInstances(ListProxies("proxies", "http_proxy")))
-                .Item("rpc_proxies").Value(FormatInstances(ListProxies("rpc_proxies", "rpc_proxy")))
-            .EndMap();
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TVersionCounter {
     int Total = 0;
     int Banned = 0;
