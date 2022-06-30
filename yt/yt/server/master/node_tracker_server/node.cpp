@@ -810,6 +810,9 @@ void TNode::RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumInde
     }
 
     it->second.erase(targetMediumIndex);
+    if (it->second.empty()) {
+        PushReplicationTargetNodeIds_.erase(it);
+    }
 }
 
 void TNode::RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
