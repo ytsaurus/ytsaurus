@@ -11,36 +11,38 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Executes a bunch of row lookup requests. Request parameters are parsed via #reader,
-//! response is written into #writer.
-void LookupRows(
-    const TTabletSnapshotPtr& tabletSnapshot,
+DECLARE_REFCOUNTED_STRUCT(ILookupSession)
+
+struct ILookupSession
+    : public TRefCounted
+{
+    virtual void AddTabletRequest(
+        TTabletId tabletId,
+        TCellId cellId,
+        NHydra::TRevision mountRevision,
+        TSharedRef requestData) = 0;
+
+    virtual TFuture<std::vector<TSharedRef>> Run() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ILookupSession)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILookupSessionPtr CreateLookupSession(
+    NTabletClient::EInMemoryMode inMemoryMode,
+    int tabletRequestCount,
+    NCompression::ICodec* responseCodec,
+    int maxRetryCount,
+    int maxSubqueries,
     NTabletClient::TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer,
-    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry = nullptr);
-
-void VersionedLookupRows(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
-    std::optional<bool> useLookupCache,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const NTableClient::TRetentionConfigPtr& retentionConfig,
-    NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer,
-    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry = nullptr);
-
-void LookupRead(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    NTabletClient::TReadTimestampRange timestampRange,
-    std::optional<bool> useLookupCache,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const NTableClient::TRetentionConfigPtr& retentionConfig,
-    NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer,
-    const ITabletHedgingManagerRegistryPtr& hedgingManagerRegistry);
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    NTableClient::TRetentionConfigPtr retentionConfig,
+    bool enablePartialResult,
+    const ITabletSnapshotStorePtr& snapshotStore,
+    std::optional<TString> profilingUser,
+    IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

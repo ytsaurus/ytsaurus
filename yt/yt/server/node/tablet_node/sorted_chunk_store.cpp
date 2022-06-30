@@ -305,7 +305,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         ReadRange_,
         enableNewScanReader))
     {
-        return MaybeWrapWithTimestampResettingAdapter(reader);
+        return MaybeWrapWithTimestampResettingAdapter(std::move(reader));
     }
 
     // Another fast lane: check for backing store.
@@ -482,7 +482,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                 skippedAfter);
         }
         if (needSetTimestamp) {
-            return MaybeWrapWithTimestampResettingAdapter(underlyingReader);
+            return MaybeWrapWithTimestampResettingAdapter(std::move(underlyingReader));
         } else {
             return underlyingReader;
         }

@@ -100,14 +100,58 @@ public:
         return YsonToSchemafulRow(rowString, *TableSchema_, /*treatMissingAsNull*/ false);
     }
 
+    std::vector<TUnversionedOwningRow> DoLookupRows(
+        const std::vector<TUnversionedRow>& keys,
+        TTimestamp timestamp = SyncLastCommittedTimestamp,
+        std::optional<TTimestamp> retentionTimestamp = std::nullopt,
+        const std::vector<int>& columnIndexes = {},
+        TTabletSnapshotPtr tabletSnapshot = nullptr,
+        NChunkClient::TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
+    {
+        TReadTimestampRange timestampRange {
+            .Timestamp = timestamp,
+        };
+        if (retentionTimestamp) {
+            timestampRange.RetentionTimestamp = *retentionTimestamp;
+        }
+
+        return BIND(&LookupRowsImpl,
+            Tablet_.get(),
+            keys,
+            timestampRange,
+            columnIndexes,
+            tabletSnapshot,
+            chunkReadOptions)
+            .AsyncVia(LookupQueue_->GetInvoker())
+            .Run()
+            .Get()
+            .ValueOrThrow();
+    }
+
+    TVersionedOwningRow DoVersionedLookupRow(const TUnversionedOwningRow& key)
+    {
+        return BIND(&VersionedLookupRowImpl,
+            Tablet_.get(),
+            key,
+            /*minDataVersions*/ 100,
+            AsyncLastCommittedTimestamp,
+            ChunkReadOptions_)
+            .AsyncVia(LookupQueue_->GetInvoker())
+            .Run()
+            .Get()
+            .ValueOrThrow();
+    }
+
     void ValidateLookup(
         const std::vector<TUnversionedRow>& keys,
         const std::vector<TUnversionedOwningRow>& expected)
     {
-        EXPECT_EQ(expected, LookupRows(keys));
+        EXPECT_EQ(expected, DoLookupRows(keys));
     }
 
 private:
+    const TActionQueuePtr LookupQueue_ = New<TActionQueue>("LookupTest");
+
     TTableSchemaPtr TableSchema_;
 
 
@@ -206,7 +250,7 @@ TEST_F(TLookupTest, Empty)
 {
     OnChunkStoresAdded();
 
-    EXPECT_FALSE(LookupRows({YsonToKey("0")})[0]);
+    EXPECT_FALSE(DoLookupRows({YsonToKey("0")})[0]);
 }
 
 TEST_F(TLookupTest, OverlappingChunks)
@@ -271,7 +315,7 @@ TEST_F(TLookupTest, RetentionTimestamp)
     OnChunkStoresAdded();
 
     EXPECT_FALSE(
-        LookupRows(
+        DoLookupRows(
             {YsonToKey("0")},
             /*timestamp*/ SyncLastCommittedTimestamp,
             /*retentionTimestamp*/ TTimestamp(200))[0]);
@@ -290,7 +334,7 @@ TEST_F(TLookupTest, ColumnFilter)
     OnChunkStoresAdded();
 
     EXPECT_EQ(
-        LookupRows(
+        DoLookupRows(
             {YsonToKey("0")},
             SyncLastCommittedTimestamp,
             std::nullopt,
@@ -313,7 +357,7 @@ TEST_F(TLookupTest, MissingRow)
 
     OnChunkStoresAdded();
 
-    auto lookupResult = LookupRows({YsonToKey("0"), YsonToKey("1"), YsonToKey("2")});
+    auto lookupResult = DoLookupRows({YsonToKey("0"), YsonToKey("1"), YsonToKey("2")});
     EXPECT_EQ(BuildRow("k=0;v=0"), lookupResult[0]);
     EXPECT_FALSE(lookupResult[1]);
     EXPECT_EQ(BuildRow("k=2;v=2"), lookupResult[2]);
@@ -343,8 +387,8 @@ TEST_F(TLookupTest, DeletedRow)
 
     OnChunkStoresAdded();
 
-    EXPECT_FALSE(LookupRows({YsonToKey("0")})[0]);
-    EXPECT_FALSE(LookupRows({YsonToKey("1")})[0]);
+    EXPECT_FALSE(DoLookupRows({YsonToKey("0")})[0]);
+    EXPECT_FALSE(DoLookupRows({YsonToKey("1")})[0]);
 }
 
 TEST_F(TLookupTest, ExplicitTimestamp)
@@ -371,7 +415,7 @@ TEST_F(TLookupTest, ExplicitTimestamp)
     OnChunkStoresAdded();
 
     EXPECT_EQ(
-        LookupRows(
+        DoLookupRows(
             {YsonToKey("0"), YsonToKey("1")},
             TTimestamp(150)),
         std::vector<TUnversionedOwningRow>({BuildRow("k=0;v=0"), BuildRow("k=1;v=1")}));
@@ -500,7 +544,7 @@ TEST_F(TLookupTest, VersionedLookup)
     OnChunkStoresAdded();
 
     EXPECT_EQ(
-        ToString(VersionedLookupRow(BuildRow("k=0"))),
+        ToString(DoVersionedLookupRow(BuildRow("k=0"))),
         ToString(row));
 }
 

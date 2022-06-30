@@ -9,6 +9,7 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
@@ -147,10 +148,12 @@ protected:
         const std::vector<int>& columnIndexes = {},
         TTabletSnapshotPtr tabletSnapshot = nullptr)
     {
-        return LookupRows(
+        return LookupRowsImpl(
+            Tablet_.get(),
             {key},
-            timestamp,
-            /*retentionTimestamp*/ std::nullopt,
+            TReadTimestampRange{
+                .Timestamp = timestamp,
+            },
             columnIndexes,
             tabletSnapshot,
             ChunkReadOptions_)[0];
@@ -167,30 +170,6 @@ protected:
             minDataVersions,
             timestamp,
             ChunkReadOptions_);
-    }
-
-    std::vector<TUnversionedOwningRow> LookupRows(
-        const std::vector<TUnversionedRow>& keys,
-        TTimestamp timestamp = SyncLastCommittedTimestamp,
-        std::optional<TTimestamp> retentionTimestamp = std::nullopt,
-        const std::vector<int>& columnIndexes = {},
-        TTabletSnapshotPtr tabletSnapshot = nullptr,
-        NChunkClient::TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
-    {
-        TReadTimestampRange timestampRange{
-            .Timestamp = timestamp,
-        };
-        if (retentionTimestamp) {
-            timestampRange.RetentionTimestamp = *retentionTimestamp;
-        }
-
-        return LookupRowsImpl(
-            Tablet_.get(),
-            keys,
-            timestampRange,
-            columnIndexes,
-            tabletSnapshot,
-            chunkReadOptions);
     }
 
     TSortedDynamicStorePtr GetActiveStore()

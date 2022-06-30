@@ -3,6 +3,7 @@
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/store_detail.h>
+#include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -17,6 +18,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NTabletClient;
@@ -162,6 +164,7 @@ inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
         }
 
         auto writer = CreateWireProtocolWriter();
+        writer->WriteCommand(EWireProtocolCommand::LookupRows);
         writer->WriteMessage(req);
         writer->WriteSchemafulRowset(keys);
 
@@ -171,17 +174,31 @@ inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
 
     TSharedRef response;
     {
-        auto reader = CreateWireProtocolReader(request);
-        auto writer = CreateWireProtocolWriter();
-        LookupRows(
-            tabletSnapshot,
+        auto snapshotStore = CreateDummyTabletSnapshotStore(tabletSnapshot);
+
+        auto lookupSession = CreateLookupSession(
+            EInMemoryMode::None,
+            /*tabletRequestCount*/ 1,
+            NCompression::GetCodec(NCompression::ECodec::None),
+            /*maxRetryCount*/ 1,
+            /*maxConcurrentSubqueries*/ 1,
             timestampRange,
             /*useLookupCache*/ false,
             chunkReadOptions,
-            reader.get(),
-            writer.get());
-        struct TMergedTag { };
-        response = MergeRefsToRef<TMergedTag>(writer->Finish());
+            /*retentionConfig*/ nullptr,
+            /*enablePartialResult*/ false,
+            /*snapshotStore*/ snapshotStore,
+            /*profilingUser*/ std::nullopt,
+            GetCurrentInvoker());
+
+        lookupSession->AddTabletRequest(
+            /*tabletId*/ NullObjectId,
+            /*cellId*/ NullObjectId,
+            /*mountRevision*/ NHydra::NullRevision,
+            request);
+
+        response = NConcurrency::WaitFor(lookupSession->Run())
+            .ValueOrThrow()[0];
     }
 
     {
@@ -198,9 +215,9 @@ inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
 inline TVersionedOwningRow VersionedLookupRowImpl(
     TTablet* tablet,
     const TLegacyOwningKey& key,
-    int minDataVersions = 100,
-    TTimestamp timestamp = AsyncLastCommittedTimestamp,
-    TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
+    int minDataVersions,
+    TTimestamp timestamp,
+    TClientChunkReadOptions chunkReadOptions)
 {
     TSharedRef request;
     {
@@ -208,6 +225,7 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
         std::vector<TUnversionedRow> keys(1, key);
 
         auto writer = CreateWireProtocolWriter();
+        writer->WriteCommand(EWireProtocolCommand::VersionedLookupRows);
         writer->WriteMessage(req);
         writer->WriteSchemafulRowset(keys);
 
@@ -221,18 +239,33 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
         retentionConfig->MinDataVersions = minDataVersions;
         retentionConfig->MaxDataVersions = minDataVersions;
 
-        auto reader = CreateWireProtocolReader(request);
-        auto writer = CreateWireProtocolWriter();
-        VersionedLookupRows(
-            tablet->BuildSnapshot(nullptr),
-            timestamp,
-            false,
+        auto snapshotStore = CreateDummyTabletSnapshotStore(tablet->BuildSnapshot(nullptr));
+
+        auto lookupSession = CreateLookupSession(
+            EInMemoryMode::None,
+            /*tabletRequestCount*/ 1,
+            NCompression::GetCodec(NCompression::ECodec::None),
+            /*maxRetryCount*/ 1,
+            /*maxConcurrentSubqueries*/ 1,
+            TReadTimestampRange{
+                .Timestamp = timestamp,
+            },
+            /*useLookupCache*/ false,
             chunkReadOptions,
             retentionConfig,
-            reader.get(),
-            writer.get());
-        struct TMergedTag { };
-        response = MergeRefsToRef<TMergedTag>(writer->Finish());
+            /*enablePartialResult*/ false,
+            /*snapshotStore*/ snapshotStore,
+            /*profilingUser*/ std::nullopt,
+            GetCurrentInvoker());
+
+        lookupSession->AddTabletRequest(
+            /*tabletId*/ NullObjectId,
+            /*cellId*/ NullObjectId,
+            /*mountRevision*/ NHydra::NullRevision,
+            request);
+
+        response = NConcurrency::WaitFor(lookupSession->Run())
+            .ValueOrThrow()[0];
     }
 
     {

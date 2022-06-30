@@ -2,6 +2,7 @@
 #include "query_service.h"
 #include "public.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -105,14 +106,6 @@ static constexpr double DefaultQLExecutionPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsRetriableError(const TError& error)
-{
-    return
-        error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed) ||
-        error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk) ||
-        error.FindMatching(NTabletClient::EErrorCode::TabletSnapshotExpired);
-}
-
 template <class T>
 T ExecuteRequestWithRetries(
     int maxRetries,
@@ -126,7 +119,7 @@ T ExecuteRequestWithRetries(
             return callback();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            if (IsRetriableError(error)) {
+            if (IsRetriableQueryError(error)) {
                 YT_LOG_INFO(error, "Request failed, retrying");
                 errors.push_back(error);
                 continue;
@@ -138,6 +131,8 @@ T ExecuteRequestWithRetries(
     THROW_ERROR_EXCEPTION("Request failed after %v retries", maxRetries)
         << errors;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ValidateColumnFilterContainsAllKeyColumns(
     const TColumnFilter& columnFilter,
@@ -581,12 +576,10 @@ private:
         auto retentionTimestamp = FromProto<TTimestamp>(request->retention_timestamp());
 
         // TODO(sandello): Extract this out of RPC request.
-        TClientChunkReadOptions chunkReadOptionsBase{
+        TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
             .ReadSessionId = TReadSessionId::Create(),
             .MultiplexingBand = EMultiplexingBand::Interactive,
-            // NB: ChunkReaderStatistics will be created per lookup call.
-            .ChunkReaderStatistics = nullptr
         };
 
         TRetentionConfigPtr retentionConfig;
@@ -594,17 +587,15 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonStringBuf(request->retention_config()));
         }
 
-        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-
-        int subrequestCount = request->tablet_ids_size();
-        if (subrequestCount != request->mount_revisions_size()) {
+        int tabletCount = request->tablet_ids_size();
+        if (tabletCount != request->mount_revisions_size()) {
             THROW_ERROR_EXCEPTION("Wrong number of revisions: expected %v, got %v",
-                subrequestCount,
+                tabletCount,
                 request->mount_revisions_size());
         }
-        if (subrequestCount != std::ssize(request->Attachments())) {
+        if (tabletCount != std::ssize(request->Attachments())) {
             THROW_ERROR_EXCEPTION("Wrong number of attachments: expected %v, got %v",
-                subrequestCount,
+                tabletCount,
                 request->mount_revisions_size());
         }
 
@@ -620,7 +611,7 @@ private:
             retentionTimestamp,
             requestCodecId,
             responseCodecId,
-            chunkReadOptionsBase.ReadSessionId,
+            chunkReadOptions.ReadSessionId,
             inMemoryMode,
             retentionConfig);
 
@@ -639,137 +630,63 @@ private:
             useLookupCache = request->use_lookup_cache();
         }
 
-        auto addResult = [] (auto* request, auto* response, const TErrorOr<TSharedRef>& result) {
-            if (request->enable_partial_result() && !result.IsOK()) {
-                response->Attachments().emplace_back();
-                return;
-            }
-            response->Attachments().push_back(result.ValueOrThrow());
-        };
+        if (RejectUponThrottlerOverdraft_.load()) {
+            ThrowUponNodeThrottlerOverdraft(
+                context->GetStartTime(),
+                context->GetTimeout(),
+                chunkReadOptions,
+                Bootstrap_);
+        }
 
-        struct TSession final
-        {
-            struct TSubrequest
-            {
-                TServiceProfilerGuard ProfilerGuard;
-                NTabletNode::TTabletSnapshotPtr TabletSnapshot;
-                std::function<TSharedRef()> Callback;
-            };
+        auto lookupSession = CreateLookupSession(
+            inMemoryMode,
+            tabletCount,
+            responseCodec,
+            Config_->MaxQueryRetries,
+            Config_->MaxSubqueries,
+            TReadTimestampRange{
+                .Timestamp = timestamp,
+                .RetentionTimestamp = retentionTimestamp
+            },
+            useLookupCache,
+            std::move(chunkReadOptions),
+            std::move(retentionConfig),
+            request->enable_partial_result(),
+            Bootstrap_->GetTabletSnapshotStore(),
+            GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
+            Bootstrap_->GetTabletLookupPoolInvoker());
 
-            TCompactVector<TSubrequest, 16> Subrequests;
-        };
-
-        auto session = New<TSession>();
-        session->Subrequests.resize(subrequestCount);
-
-        auto identity = NRpc::GetCurrentAuthenticationIdentity();
-        auto currentProfilingUser = GetProfilingUser(identity);
-
-        for (int index = 0; index < subrequestCount; ++index) {
+        for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
             auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
             auto mountRevision = request->mount_revisions(index);
-            auto attachment = request->Attachments()[index];
-            auto& subrequest = session->Subrequests[index];
 
-            if (RejectUponThrottlerOverdraft_.load()) {
-                ThrowUponNodeThrottlerOverdraft(
-                    context->GetStartTime(),
-                    context->GetTimeout(),
-                    chunkReadOptionsBase,
-                    Bootstrap_);
-            }
-
-            subrequest.TabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
-            if (subrequest.TabletSnapshot) {
-                auto counters = subrequest.TabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
-                // TODO(akozhikhov): Distinguish failed requests.
-                subrequest.ProfilerGuard.Start(counters->Multiread);
-            }
-
-            subrequest.Callback = [=] {
-                try {
-                    return ExecuteRequestWithRetries<TSharedRef>(
-                        Config_->MaxQueryRetries,
-                        Logger,
-                        [&] {
-                            TCurrentAuthenticationIdentityGuard identityGuard(&identity);
-
-                            auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
-                            snapshotStore->ValidateTabletAccess(tabletSnapshot, timestamp);
-
-                            auto chunkReadOptions = chunkReadOptionsBase;
-                            chunkReadOptions.MultiplexingParallelism = tabletSnapshot->Settings.MountConfig->LookupRpcMultiplexingParallelism;
-
-                            ThrowUponDistributedThrottlerOverdraft(
-                                ETabletDistributedThrottlerKind::Lookup,
-                                tabletSnapshot,
-                                chunkReadOptions);
-
-                            auto requestData = requestCodec->Decompress(attachment);
-
-                            struct TLookupRowBufferTag
-                            { };
-                            auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                            auto writer = CreateWireProtocolWriter();
-
-                            const auto& hedgingManagerRegistry = inMemoryMode == EInMemoryMode::None
-                                ? tabletSnapshot->HedgingManagerRegistry
-                                : nullptr;
-
-                            LookupRead(
-                                tabletSnapshot,
-                                TReadTimestampRange{
-                                    .Timestamp = timestamp,
-                                    .RetentionTimestamp = retentionTimestamp
-                                },
-                                useLookupCache,
-                                chunkReadOptions,
-                                retentionConfig,
-                                reader.get(),
-                                writer.get(),
-                                hedgingManagerRegistry);
-
-                            return responseCodec->Compress(writer->Finish());
-                        });
-                } catch (const std::exception&) {
-                    if (auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId)) {
-                        ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
-                    }
-
-                    throw;
-                }
-            };
+            // TODO(akozhikhov): Consider compressing/decompressing all requests' data at once.
+            auto requestData = requestCodec->Decompress(request->Attachments()[index]);
+            lookupSession->AddTabletRequest(
+                tabletId,
+                cellId,
+                mountRevision,
+                std::move(requestData));
         }
 
-        // Fast path for single subrequest.
-        if (subrequestCount == 1) {
-            TErrorOr<TSharedRef> result;
-            try {
-                result = session->Subrequests[0].Callback();
-            } catch (const std::exception& ex) {
-                result = TError(ex);
-            }
-            addResult(request, response, result);
+        auto future = lookupSession->Run();
+
+        if (auto maybeResult = future.TryGetUnique()) {
+            auto results = std::move(maybeResult->ValueOrThrow());
+            YT_VERIFY(std::ssize(results) == tabletCount);
+            response->Attachments() = std::move(results);
             context->Reply();
-            return;
+        } else {
+            context->ReplyFrom(future.ApplyUnique(BIND(
+                [
+                    =,
+                    context = context
+                ] (std::vector<TSharedRef>&& results) {
+                    YT_VERIFY(std::ssize(results) == tabletCount);
+                    response->Attachments() = std::move(results);
+                })));
         }
-
-        std::vector<TCallback<TFuture<TSharedRef>()>> subrequestCallbacks;
-        for (int index = 0; index < subrequestCount; ++index) {
-            const auto& subrequest = session->Subrequests[index];
-            subrequestCallbacks.push_back(
-                BIND(std::move(subrequest.Callback))
-                    .AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker()));
-        }
-
-        context->ReplyFrom(
-            CancelableRunWithBoundedConcurrency(std::move(subrequestCallbacks), Config_->MaxSubqueries)
-            .Apply(BIND([=, session = std::move(session)] (const std::vector<TErrorOr<TSharedRef>>& results) {
-                for (const auto& result : results) {
-                    addResult(request, response, result);
-                }
-            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PullRows)
