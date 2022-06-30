@@ -300,6 +300,8 @@ void TBlobChunkBase::OnBlocksExtLoaded(
 
     const auto& config = Context_->DataNodeConfig;
 
+    session->BlocksExt = blocksExt;
+
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         const auto& blockInfo = blocksExt->Blocks[entry.BlockIndex];
@@ -503,7 +505,8 @@ void TBlobChunkBase::DoReadBlockSet(
         auto asyncBlocks = reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
-            blocksToRead);
+            blocksToRead,
+            session->BlocksExt);
         asyncBlocks.Subscribe(
             BIND(
                 &TBlobChunkBase::OnBlocksRead,
