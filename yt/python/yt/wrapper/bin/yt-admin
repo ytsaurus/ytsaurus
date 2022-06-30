@@ -58,14 +58,18 @@ def main():
         "build-snapshot",
         help="Build snapshot for a given cell (either master or tablet)")
     build_snapshot_parser.set_defaults(func=build_snapshot)
-    build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    set_read_only_action = build_snapshot_parser.add_mutually_exclusive_group(required=True)
+    set_read_only_action.add_argument("--read-only", action="store_true")
+    set_read_only_action.add_argument("--no-read-only", action="store_true")
     build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_snapshot_parser.add_argument("--cell-id", required=True)
 
     build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots",
                                                          help="Build snapshots for all master cells")
     build_master_snapshot_parser.set_defaults(func=build_master_snapshots)
-    build_master_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    set_read_only_action = build_master_snapshot_parser.add_mutually_exclusive_group(required=True)
+    set_read_only_action.add_argument("--read-only", action="store_true")
+    set_read_only_action.add_argument("--no-read-only", action="store_true")
     build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
