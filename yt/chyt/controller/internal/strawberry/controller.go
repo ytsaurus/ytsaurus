@@ -13,13 +13,15 @@ import (
 // how operations should be started, which files to bring with them, how to check liveness, etc.
 type Controller interface {
 	// Prepare builds all necessary operation spec fields.
-	Prepare(ctx context.Context, alias string, incarnationIndex int, speclet yson.RawValue) (
+	Prepare(ctx context.Context, oplet Oplet) (
 		spec map[string]interface{}, description map[string]interface{}, annotation map[string]interface{}, err error)
 
 	// Family returns short lowercase_with_underscore identifier which is included to all vanilla
 	// operation annotations started by this strawberry controller. This allows efficient operation
 	// filtering using YT list_operations API.
 	Family() string
+
+	NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool
 }
 
 type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller

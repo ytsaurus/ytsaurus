@@ -1,13 +1,10 @@
 package chyt
 
 import (
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 )
 
 type Speclet struct {
-	strawberry.Speclet
-
 	Resources
 
 	CHYTVersion       *string `yson:"chyt_version"`
@@ -37,3 +34,38 @@ const (
 	DefaultEnableGeoData = true
 	DefaultGeoDataPath   = ypath.Path("//sys/clickhouse/geodata/geodata.gz")
 )
+
+func (speclet *Speclet) CHYTVersionOrDefault() string {
+	if speclet.CHYTVersion != nil {
+		return *speclet.CHYTVersion
+	}
+	return DefaultCHYTVersion
+}
+
+func (speclet *Speclet) LogTailerVersionOrDefault() string {
+	if speclet.LogTailerVersion != nil {
+		return *speclet.LogTailerVersion
+	}
+	return DefaultLogTailerVersion
+}
+
+func (speclet *Speclet) TrampolineVersionOrDefault() string {
+	if speclet.TrampolineVersion != nil {
+		return *speclet.TrampolineVersion
+	}
+	return DefaultTrampolineVersion
+}
+
+func (speclet *Speclet) EnableGeoDataOrDefault() bool {
+	if speclet.EnableGeoData != nil {
+		return *speclet.EnableGeoData
+	}
+	return DefaultEnableGeoData
+}
+
+func (speclet *Speclet) GeoDataPathOrDefault() ypath.Path {
+	if speclet.GeoDataPath != nil {
+		return *speclet.GeoDataPath
+	}
+	return DefaultGeoDataPath
+}

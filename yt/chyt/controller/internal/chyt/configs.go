@@ -133,7 +133,7 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	if err != nil {
 		return
 	}
-	path := c.root.Child(alias).Child(filename)
+	path := c.artifactDir(alias).Child(filename)
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
 	if err != nil {
 		return
@@ -154,6 +154,21 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	return
 }
 
+func (c Controller) artifactDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("artifacts")
+}
+
+func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias string) error {
+	_, err := c.ytc.CreateNode(ctx, c.artifactDir(alias), yt.NodeMap,
+		&yt.CreateNodeOptions{
+			IgnoreExisting: true,
+			Attributes: map[string]interface{}{
+				"opaque": true,
+			},
+		})
+	return err
+}
+
 func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
 	r := speclet.Resources
 
@@ -165,6 +180,12 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 	if err != nil {
 		return fmt.Errorf("invalid yt config: %v", err)
 	}
+
+	err = c.createArtifactDirIfNotExists(ctx, alias)
+	if err != nil {
+		return fmt.Errorf("error creating artifact dir: %v", err)
+	}
+
 	ytServerClickHouseConfig := map[string]interface{}{
 		"clickhouse":         clickhouseConfig,
 		"yt":                 ytConfig,

@@ -3,6 +3,7 @@ package chyt
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -20,13 +21,14 @@ type Controller struct {
 	cluster           string
 }
 
-func (c *Controller) Prepare(ctx context.Context, alias string, incarnationIndex int, specletYson yson.RawValue) (
+func (c *Controller) Prepare(ctx context.Context, oplet strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
+	alias := oplet.Alias()
 
 	description = buildDescription(c.cluster, alias)
 
 	var speclet Speclet
-	err = yson.Unmarshal(specletYson, &speclet)
+	err = yson.Unmarshal(oplet.Speclet(), &speclet)
 	if err != nil {
 		return
 	}
@@ -56,7 +58,7 @@ func (c *Controller) Prepare(ctx context.Context, alias string, incarnationIndex
 	}
 
 	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPath.Child(alias), alias, incarnationIndex)
+	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPath.Child(alias), alias, oplet.NextIncarnationIndex())
 	if err != nil {
 		return
 	}
@@ -99,6 +101,21 @@ func (c *Controller) Prepare(ctx context.Context, alias string, incarnationIndex
 
 func (c *Controller) Family() string {
 	return "chyt"
+}
+
+func (c Controller) NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool {
+	var oldSpeclet, newSpeclet Speclet
+	err := yson.Unmarshal(oldSpecletYson, &oldSpeclet)
+	if err != nil {
+		c.l.Error("error parsing old speclet", log.Error(err), log.String("old_speclet", string(oldSpecletYson)))
+		return false
+	}
+	err = yson.Unmarshal(newSpecletYson, &newSpeclet)
+	if err != nil {
+		c.l.Error("error parsing new speclet", log.Error(err), log.String("new_speclet", string(newSpecletYson)))
+		return false
+	}
+	return !reflect.DeepEqual(oldSpeclet, newSpeclet)
 }
 
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {

@@ -30,40 +30,54 @@ func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 		"strawberry_family":              oplet.c.Family(),
 		"strawberry_stage":               a.config.Stage,
 		"strawberry_operation_namespace": a.OperationNamespace(),
-		"strawberry_node":                a.config.Root.Child(oplet.Alias),
+		"strawberry_node":                a.opletNode(oplet),
 		"strawberry_controller": map[string]interface{}{
 			"address": a.hostname,
 			// TODO(max42): build Revision, etc.
 		},
-		"strawberry_incarnation":           oplet.IncarnationIndex + 1,
-		"strawberry_previous_operation_id": oplet.YTOpID,
+		"strawberry_incarnation":           oplet.NextIncarnationIndex(),
+		"strawberry_previous_operation_id": oplet.persistentState.YTOpID,
 	}
 }
 
 func opDescription(a *Agent, oplet *Oplet) map[string]interface{} {
 	desc := map[string]interface{}{
-		"strawberry_node":        navigationURL(a.Proxy, a.config.Root.Child(oplet.Alias)),
-		"strawberry_incarnation": oplet.IncarnationIndex + 1,
+		"strawberry_node":        navigationURL(a.proxy, a.opletNode(oplet)),
+		"strawberry_incarnation": oplet.NextIncarnationIndex(),
 	}
-	if oplet.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
-		desc["strawberry_previous_operation"] = operationURL(a.Proxy, oplet.YTOpID)
+	if oplet.persistentState.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
+		desc["strawberry_previous_operation"] = operationURL(a.proxy, oplet.persistentState.YTOpID)
 	}
 	return desc
 }
 
-func cypAnnotation(a *Agent, state *Oplet) string {
+func cypAnnotation(a *Agent, oplet *Oplet) string {
 	data := struct {
-		A     *Agent
-		State *Oplet
+		Proxy             string
+		Alias             string
+		PersistentState   PersistentState
+		InfoState         InfoState
+		StrawberrySpeclet Speclet
 	}{
-		a,
-		state,
+		a.proxy,
+		oplet.alias,
+		oplet.persistentState,
+		oplet.infoState,
+		oplet.strawberrySpeclet,
 	}
 
 	t := template.Must(template.New("cypAnnotation").Parse(`
-## Strawberry operation {{.State.Alias}}
-Current operation id: [{{.State.YTOpID}}](https://yt.yandex-team.ru/{{.A.Proxy}}/operations/{{.State.YTOpID}})
-Current incarnation: {{.State.IncarnationIndex}}
+## Strawberry operation {{.Alias}}
+Active: {{.StrawberrySpeclet.Active}}
+Current operation id: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.Proxy}}/operations/{{.PersistentState.YTOpID}})
+Current operation state: {{.InfoState.YTOpState}}
+Current incarnation: {{.PersistentState.IncarnationIndex}}
+Curent operation speclet revision:
+Cypress speclet revision: {{.PersistentState.SpecletRevision}}
+Speclet change requires restart: {{.PersistentState.SpecletChangeRequiresRestart}}
+Pool: {{.StrawberrySpeclet.Pool}}
+Restart on speclet change: {{.StrawberrySpeclet.RestartOnSpecletChange}}
+{{if .InfoState.Error}}Error: {{.InfoState.Error}}{{end}}
 `))
 
 	b := new(bytes.Buffer)

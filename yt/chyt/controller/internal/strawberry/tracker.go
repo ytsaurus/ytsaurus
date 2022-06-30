@@ -86,6 +86,8 @@ func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, y
 					}
 				}
 
+				l.Debug("walking nodes finished", log.Int("nodes_changed", len(toEmit)))
+
 				eventCh <- toEmit
 			}
 		}

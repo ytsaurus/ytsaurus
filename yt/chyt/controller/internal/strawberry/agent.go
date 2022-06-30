@@ -18,44 +18,80 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
-var aliasAlreadyUsedRE, _ = regexp.Compile("alias is already used by an operation")
+var aliasAlreadyUsedRE = regexp.MustCompile("alias is already used by an operation")
+var noSuchOperationRE = regexp.MustCompile("[Nn]o such operation")
+var prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 
 type Oplet struct {
-	// Fields below are public since they are accessed via reflection in fancy functions.
-	Alias            string
-	YTOpID           yt.OperationID
-	IncarnationIndex int
+	alias           string
+	persistentState PersistentState
+	infoState       InfoState
+
+	// specletYson is the last speclet seen by the agent.
+	specletYson yson.RawValue
+	// strawberrySpeclet is a parsed part of the specletYson with general options.
+	strawberrySpeclet Speclet
+
+	// flushedPersistentState is the last flushed persistentState. It is used to detect an external
+	// state change in the cypress and a local change of persistentState. It would be enough to
+	// store just a hash of flushed state, but the cool reflection hash-lib is not in arcadia yet.
+	flushedPersistentState PersistentState
+	// flushedInfoState is the last flushed infoState. It used to detect a local change of the state
+	// alongside with flushedPersistentState.
+	flushedInfoState InfoState
+	// flushedStateRevision is the last known revision of a cypress node where persistenState and
+	// infoState are stored. It is used as a prerequisite revision during a flushPersistentState
+	// phase to guarantee that we will not override the cypress state if it was changed externally.
+	flushedStateRevision yt.Revision
+
+	// pendingUpdateFromCypress is set when we know that the oplet cypress state has been changed
+	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
+	pendingUpdateFromCypress bool
+	// pendingUpdateACLFromNode is set when we know that the oplet acl is changed and we need to
+	// reload it from the access node during the next pass.
+	pendingUpdateACLFromNode bool
+	// pendingRestart is set when agent scheduled a restart of coresponding yt operation on the
+	// next pass. It should be set via setPendingRestart only for proper log information.
+	pendingRestart bool
+	// pendingUpdateOpParameters is set when agent scheduled an operation parameters update on the
+	// next pass. It should be set via setPendingUpdateOpParameters only for proper log information.
+	pendingUpdateOpParameters bool
+
+	acl []yt.ACE
 
 	l log.Logger
 	c Controller
+}
 
-	speclet yson.RawValue
+// Public API of oplet for usage in controllers.
 
-	pendingRestart            bool
-	pendingFlush              bool
-	pendingUpdateOpParameters bool
+func (oplet Oplet) Alias() string {
+	return oplet.alias
+}
 
-	acl       []yt.ACE
-	ytOpState yt.OperationState
-	err       error
+func (oplet Oplet) NextIncarnationIndex() int {
+	return oplet.persistentState.IncarnationIndex + 1
+}
+
+func (oplet Oplet) Speclet() yson.RawValue {
+	return oplet.specletYson
+}
+
+// Private API of oplet for inner usage only.
+
+func (oplet Oplet) needFlushPersistentState() bool {
+	return !reflect.DeepEqual(oplet.persistentState, oplet.flushedPersistentState) ||
+		!reflect.DeepEqual(oplet.infoState, oplet.flushedInfoState)
 }
 
 func (oplet *Oplet) setError(err error) {
 	oplet.l.Debug("operation is in error state", log.Error(err))
-	oplet.pendingFlush = true
-	oplet.err = err
+	stringError := err.Error()
+	oplet.infoState.Error = &stringError
 }
 
 func (oplet *Oplet) clearError() {
-	if oplet.err != nil {
-		oplet.err = nil
-		oplet.pendingFlush = true
-	}
-}
-
-func (oplet *Oplet) setYTOpID(id yt.OperationID) {
-	oplet.pendingFlush = true
-	oplet.YTOpID = id
+	oplet.infoState.Error = nil
 }
 
 func (oplet *Oplet) setPendingRestart(reason string) {
@@ -87,15 +123,10 @@ type Agent struct {
 	aliasToOp map[string]*Oplet
 
 	hostname string
-	Proxy    string
+	proxy    string
 
 	// nodeCh receives events of form "particular node in root has changed revision"
 	nodeCh <-chan []ypath.Path
-
-	// pendingUpdateFromNode contains all aliases that should be updated from Cypress attributes.
-	pendingUpdateFromNode map[string]struct{}
-	// pendingUpdateACLFromNode contains all aliases that should be updated from access node.
-	pendingUpdateACLFromNode map[string]struct{}
 
 	started   bool
 	ctx       context.Context
@@ -116,22 +147,18 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller Controller, 
 		controller:       controller,
 		config:           config,
 		hostname:         hostname,
-		Proxy:            proxy,
+		proxy:            proxy,
 		backgroundStopCh: make(chan struct{}),
 	}
 }
 
-func (a *Agent) restartOp(oplet *Oplet) {
-	var strawberrySpeclet Speclet
-	err := yson.Unmarshal(oplet.speclet, &strawberrySpeclet)
-	if err != nil {
-		oplet.l.Info("error parsing speclet", log.Error(err))
-		oplet.setError(err)
-		return
-	}
+func (a Agent) opletNode(oplet *Oplet) ypath.Path {
+	return a.config.Root.Child(oplet.alias)
+}
 
-	oplet.l.Info("restarting operation")
-	spec, description, annotations, err := oplet.c.Prepare(a.ctx, oplet.Alias, oplet.IncarnationIndex+1, oplet.speclet)
+func (a *Agent) restartOp(oplet *Oplet) {
+	oplet.l.Info("restarting operation", log.Int("next_incarnation_index", oplet.NextIncarnationIndex()))
+	spec, description, annotations, err := oplet.c.Prepare(a.ctx, *oplet)
 
 	if err != nil {
 		oplet.l.Info("error restarting operation", log.Error(err))
@@ -151,9 +178,9 @@ func (a *Agent) restartOp(oplet *Oplet) {
 
 	spec["annotations"] = annotations
 	spec["description"] = description
-	spec["alias"] = "*" + oplet.Alias
-	if strawberrySpeclet.Pool != nil {
-		spec["pool"] = strawberrySpeclet.Pool
+	spec["alias"] = "*" + oplet.alias
+	if oplet.strawberrySpeclet.Pool != nil {
+		spec["pool"] = *oplet.strawberrySpeclet.Pool
 	}
 	if oplet.acl != nil {
 		spec["acl"] = oplet.acl
@@ -190,61 +217,87 @@ func (a *Agent) restartOp(oplet *Oplet) {
 		oplet.clearError()
 	}
 
-	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
-		log.Int("incarnation_index", oplet.IncarnationIndex))
+	oplet.persistentState.YTOpID = opID
+	oplet.persistentState.OperationSpecletRevision = oplet.persistentState.SpecletRevision
+	oplet.persistentState.IncarnationIndex++
+	oplet.persistentState.SpecletChangeRequiresRestart = false
 
-	oplet.setYTOpID(opID)
+	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
+		log.Int("incarnation_index", oplet.persistentState.IncarnationIndex))
 
 	oplet.pendingRestart = false
 	oplet.pendingUpdateOpParameters = false
-
-	oplet.IncarnationIndex++
-	oplet.pendingFlush = true
 }
 
 func (a *Agent) updateOpParameters(oplet *Oplet) {
-	oplet.l.Debug("updating operation parameters")
+	oplet.l.Info("updating operation parameters")
 
 	err := a.ytc.UpdateOperationParameters(
 		a.ctx,
-		oplet.YTOpID,
+		oplet.persistentState.YTOpID,
 		map[string]interface{}{
-			"acl": oplet.acl,
+			"acl":  oplet.acl,
+			"pool": oplet.strawberrySpeclet.Pool,
 		},
 		nil)
 
 	if err != nil {
 		oplet.l.Error("error updating operation parameters", log.Error(err))
 		oplet.setError(err)
-	} else {
-		oplet.pendingUpdateOpParameters = false
+		return
 	}
+
+	oplet.l.Info("operation parameters updated")
+
+	oplet.pendingUpdateOpParameters = false
 }
 
-func (a *Agent) flushOp(oplet *Oplet) {
-	oplet.l.Debug("flushing operation")
+func (a *Agent) flushPersistentState(oplet *Oplet) {
+	oplet.l.Info("flushing new operation's state",
+		log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)))
 
 	annotation := cypAnnotation(a, oplet)
 
 	err := a.ytc.MultisetAttributes(
 		a.ctx,
-		a.config.Root.Child(oplet.Alias).Attrs(),
+		a.opletNode(oplet).Attrs(),
 		map[string]interface{}{
-			"strawberry_error":             oplet.err,
-			"strawberry_operation_id":      oplet.YTOpID,
-			"strawberry_incarnation_index": oplet.IncarnationIndex,
-			"strawberry_controller": map[string]string{
-				"address": a.hostname,
-				// TODO(max42): build Revision, etc.
-			},
-			"annotation": annotation,
+			"strawberry_persistent_state": oplet.persistentState,
+			"strawberry_info_state":       oplet.infoState,
+			"annotation":                  annotation,
 		},
-		nil)
+		&yt.MultisetAttributesOptions{
+			PrerequisiteOptions: &yt.PrerequisiteOptions{
+				Revisions: []yt.PrerequisiteRevision{
+					{
+						Path:     a.opletNode(oplet),
+						Revision: oplet.flushedStateRevision,
+					},
+				},
+			},
+		})
+
 	if err != nil {
-		oplet.l.Error("error flushing operation", log.Error(err))
+		if yterrors.ContainsMessageRE(err, prerequisiteCheckFailedRE) {
+			oplet.l.Info("prerequisite check failed during flushing persistent state", log.Error(err))
+			// If the state revision is outdated, we can not flush the state because we can accidently
+			// override changed cypress state. In that case we assume that cypress state is correct
+			// and reload it on the next pass.
+			oplet.pendingUpdateFromCypress = true
+		} else {
+			oplet.l.Error("error flushing operation", log.Error(err))
+		}
 		return
 	}
-	oplet.pendingFlush = false
+
+	oplet.l.Info("operation's persistent state flushed")
+
+	oplet.flushedPersistentState = oplet.persistentState
+	oplet.flushedInfoState = oplet.infoState
+
+	// flushedStateRevision is outdated after flushing.
+	// We can not do set and get_revision atomically now, so just reload the whole state from cypress.
+	oplet.pendingUpdateFromCypress = true
 }
 
 func (a *Agent) abortDangling() {
@@ -290,94 +343,111 @@ func (a *Agent) abortDangling() {
 
 		alias, ok := op.BriefSpec["alias"]
 		if !ok {
-			l.Debug("operation misses alias (how is that possible?), aborting it", log.String("operation_id", op.ID.String()))
+			l.Debug("operation misses alias (how is that possible?), aborting it",
+				log.String("operation_id", op.ID.String()))
 			needAbort = true
-		} else if _, ok := a.aliasToOp[alias.(string)[1:]]; !ok {
-			l.Debug("operation alias unknown, aborting it", log.String("operation_id", op.ID.String()))
-			needAbort = true
+		} else {
+			oplet, ok := a.aliasToOp[alias.(string)[1:]]
+			if !ok {
+				l.Debug("operation alias unknown, aborting it", log.String("operation_id", op.ID.String()))
+				needAbort = true
+			} else if !oplet.pendingUpdateFromCypress && !oplet.strawberrySpeclet.ActiveOrDefault() {
+				oplet.l.Debug("strawberry operation is in inactive state, aborting its yt operation",
+					log.String("operation_id", op.ID.String()))
+				needAbort = true
+			}
 		}
 
 		if needAbort {
 			err := a.ytc.AbortOperation(a.ctx, op.ID, nil)
 			if err != nil {
-				l.Error("error aborting operation", log.String("operation_id", op.ID.String()), log.Error(err))
+				l.Error("error aborting operation",
+					log.String("operation_id", op.ID.String()),
+					log.Error(err))
 			}
 		}
 	}
 }
 
 func (a *Agent) pass() {
-	a.l.Info("starting pass")
+	startedAt := time.Now()
+
+	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
+
+	broken := make(map[string]bool)
 
 	// Update pending operations from attributes.
-
-	for alias := range a.pendingUpdateFromNode {
-		oplet := a.aliasToOp[alias]
-		err := a.updateFromAttrs(oplet, alias)
-		if err != nil {
-			a.l.Error("error updating operation from attributes", log.String("alias", alias), log.Error(err))
-		} else {
-			delete(a.pendingUpdateFromNode, alias)
+	for alias, oplet := range a.aliasToOp {
+		if oplet.pendingUpdateFromCypress {
+			err := a.updateFromCypress(oplet)
+			if err != nil {
+				a.l.Error("error updating operation from attributes", log.String("alias", alias), log.Error(err))
+				broken[alias] = true
+			}
 		}
 	}
 
 	// Update pending operations from access node.
-
-	for alias := range a.pendingUpdateACLFromNode {
-		oplet := a.aliasToOp[alias]
-		err := a.updateACLFromNode(oplet)
-		if err != nil {
-			a.l.Error("error updating acl from node", log.String("alias", alias), log.Error(err))
-		} else {
-			delete(a.pendingUpdateACLFromNode, alias)
+	for alias, oplet := range a.aliasToOp {
+		if oplet.pendingUpdateACLFromNode {
+			err := a.updateACLFromNode(oplet)
+			if err != nil {
+				a.l.Error("error updating acl from node", log.String("alias", alias), log.Error(err))
+				broken[alias] = true
+			}
 		}
 	}
 
 	// Restart operations which were scheduled for restart.
-
-	a.l.Info("restarting pending operations")
-	for _, op := range a.aliasToOp {
-		if op.pendingRestart {
-			a.restartOp(op)
+	for alias, oplet := range a.aliasToOp {
+		if !broken[alias] && oplet.pendingRestart && oplet.strawberrySpeclet.ActiveOrDefault() {
+			a.restartOp(oplet)
 		}
 	}
 
 	// Update op parameters.
-
-	for _, op := range a.aliasToOp {
-		if op.pendingUpdateOpParameters {
-			a.updateOpParameters(op)
+	for alias, oplet := range a.aliasToOp {
+		if !broken[alias] && oplet.pendingUpdateOpParameters && oplet.strawberrySpeclet.ActiveOrDefault() {
+			a.updateOpParameters(oplet)
 		}
 	}
 
-	// Check liveness of registered operations.
-
 	a.l.Info("checking operations' liveness")
-	for _, op := range a.aliasToOp {
-		opID := op.YTOpID
-
-		if opID == yt.OperationID(guid.FromHalves(0, 0)) {
-			a.l.Debug("operation does not have operation id, skipping it")
+	for alias, oplet := range a.aliasToOp {
+		if broken[alias] {
 			continue
 		}
 
-		a.l.Debug("getting operation info", log.String("operation_id", opID.String()))
+		opID := oplet.persistentState.YTOpID
+
+		if opID == yt.OperationID(guid.FromHalves(0, 0)) {
+			oplet.setPendingRestart("strawberry operation does not have operation id")
+			continue
+		}
+
+		oplet.l.Debug("getting operation info", log.String("operation_id", opID.String()))
 
 		ytOp, err := a.ytc.GetOperation(a.ctx, opID, nil)
 		if err != nil {
-			op.setError(err)
-			op.setPendingRestart("error getting operation info")
+			if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
+				oplet.setPendingRestart("operation with current operation id does not exist")
+			} else {
+				oplet.l.Error("error getting operation info", log.Error(err))
+				oplet.setError(err)
+			}
 			continue
 		}
 
-		a.l.Debug("operation found",
+		oplet.l.Debug("operation found",
 			log.String("operation_id", opID.String()),
 			log.String("operation_state", string(ytOp.State)))
 
-		op.ytOpState = ytOp.State
+		if oplet.infoState.YTOpState != ytOp.State {
+			oplet.infoState.YTOpState = ytOp.State
+		}
 
 		if requiresRestart(ytOp.State) {
-			op.setPendingRestart("operation state requires restart")
+			oplet.setPendingRestart("operation state requires restart")
 		}
 	}
 
@@ -385,11 +455,10 @@ func (a *Agent) pass() {
 	// be flushed into operations or even lead to unexpected abortions of operations.
 
 	// Flush operation states.
-
 	a.l.Info("flushing operations")
-	for _, op := range a.aliasToOp {
-		if op.pendingFlush {
-			a.flushOp(op)
+	for _, oplet := range a.aliasToOp {
+		if oplet.needFlushPersistentState() {
+			a.flushPersistentState(oplet)
 		}
 	}
 
@@ -401,11 +470,13 @@ func (a *Agent) pass() {
 	a.abortDangling()
 
 	// Sanity check.
-	for alias, op := range a.aliasToOp {
-		if op.Alias != alias {
-			panic(fmt.Errorf("invariant violation: alias %v points to oplet for operation with alias %v", alias, op.Alias))
+	for alias, oplet := range a.aliasToOp {
+		if oplet.alias != alias {
+			panic(fmt.Errorf("invariant violation: alias %v points to oplet for operation with alias %v", alias, oplet.alias))
 		}
 	}
+
+	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
 }
 
 func tokenize(path ypath.Path) []string {
@@ -431,10 +502,22 @@ loop:
 		case paths := <-a.nodeCh:
 			for _, path := range paths {
 				tokens := tokenize(path)
-				if len(tokens) == 1 {
-					a.pendingUpdateFromNode[tokens[0]] = struct{}{}
-				} else if len(tokens) == 2 && tokens[1] == "access" {
-					a.pendingUpdateACLFromNode[tokens[0]] = struct{}{}
+				if len(tokens) >= 1 {
+					alias := tokens[0]
+					subnodes := tokens[1:]
+					oplet, ok := a.aliasToOp[alias]
+					switch {
+					case reflect.DeepEqual(subnodes, []string{}) || reflect.DeepEqual(subnodes, []string{"speclet"}):
+						if ok {
+							oplet.pendingUpdateFromCypress = true
+						} else {
+							a.registerNewOplet(alias)
+						}
+					case reflect.DeepEqual(subnodes, []string{"access"}):
+						if ok {
+							oplet.pendingUpdateACLFromNode = true
+						}
+					}
 				}
 			}
 		case <-ticker.C:
@@ -443,13 +526,6 @@ loop:
 	}
 	a.l.Info("background activity stopped")
 	a.backgroundStopCh <- struct{}{}
-}
-
-type CypressState struct {
-	ACL              []yt.ACE
-	OperationID      yt.OperationID
-	IncarnationIndex int
-	Speclet          yson.RawValue
 }
 
 func requiresRestart(state yt.OperationState) bool {
@@ -461,42 +537,33 @@ func requiresRestart(state yt.OperationState) bool {
 		state == yt.StateFailing
 }
 
-func (a *Agent) newOplet(alias string, controller Controller, cState CypressState) Oplet {
-	opID := cState.OperationID
-
-	opState := Oplet{
-		Alias:            alias,
-		acl:              cState.ACL,
-		IncarnationIndex: cState.IncarnationIndex,
-		YTOpID:           opID,
-		speclet:          cState.Speclet,
-		pendingFlush:     true,
-		l:                log.With(a.l, log.String("alias", alias)),
-		c:                controller,
+func (a *Agent) registerNewOplet(alias string) *Oplet {
+	oplet := &Oplet{
+		alias:                    alias,
+		pendingUpdateFromCypress: true,
+		pendingUpdateACLFromNode: true,
+		l:                        log.With(a.l, log.String("alias", alias)),
+		c:                        a.controller,
 	}
+	oplet.infoState.Controller.Address = a.hostname
+	// Set same to the flushedInfoState to avoid flushing it after controller change.
+	oplet.flushedInfoState = oplet.infoState
 
-	if opID == yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
-		opState.setPendingRestart("missing yt operation id")
-		return opState
+	if _, ok := a.aliasToOp[oplet.alias]; ok {
+		panic(fmt.Errorf("invariant violation: alias %v is already registered", oplet.alias))
 	}
+	a.aliasToOp[oplet.alias] = oplet
 
-	return opState
-}
-
-func (a *Agent) registerOplet(oplet *Oplet) {
-	if _, ok := a.aliasToOp[oplet.Alias]; ok {
-		panic(fmt.Errorf("invariant violation: alias %v is already registered", oplet.Alias))
-	}
-	a.aliasToOp[oplet.Alias] = oplet
 	oplet.l.Info("operation registered")
+	return oplet
 }
 
 func (a *Agent) unregisterOplet(oplet *Oplet) {
-	if actual := a.aliasToOp[oplet.Alias]; actual != oplet {
+	if actual := a.aliasToOp[oplet.alias]; actual != oplet {
 		panic(fmt.Errorf("invariant violation: alias %v expected to match oplet %v, actual %v",
-			oplet.Alias, oplet, actual))
+			oplet.alias, oplet, actual))
 	}
-	delete(a.aliasToOp, oplet.Alias)
+	delete(a.aliasToOp, oplet.alias)
 	oplet.l.Info("operation unregistered")
 }
 
@@ -505,105 +572,147 @@ func (a *Agent) getACLFromNode(alias string) (acl []yt.ACE, err error) {
 	return
 }
 
-func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
-	l := log.With(a.l, log.String("alias", alias))
-	l.Info("updating operations from node attributes")
+func (a *Agent) updateFromCypress(oplet *Oplet) error {
+	oplet.l.Info("updating strawberry operations state from cypress",
+		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
+		log.UInt64("speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
 
 	// Collect full attributes of the node.
 
 	var node struct {
-		OperationID      yt.OperationID `yson:"strawberry_operation_id"`
-		IncarnationIndex int            `yson:"strawberry_incarnation_index"`
-		Speclet          yson.RawValue  `yson:"strawberry_speclet"`
-		Family           string         `yson:"strawberry_family"`
-		Stage            string         `yson:"strawberry_stage"`
-		Pool             *string        `yson:"strawberry_pool"`
+		PersistentState PersistentState `yson:"strawberry_persistent_state,attr"`
+		Revision        yt.Revision     `yson:"revision,attr"`
+		Speclet         struct {
+			Value    yson.RawValue `yson:"value,attr"`
+			Revision yt.Revision   `yson:"revision,attr"`
+		} `yson:"speclet"`
 	}
 
 	// Keep in sync with structure above.
 	attributes := []string{
-		"strawberry_operation_id", "strawberry_incarnation_index",
-		"strawberry_speclet", "strawberry_family", "strawberry_stage", "strawberry_pool",
+		"strawberry_persistent_state", "revision", "value",
 	}
 
-	err := a.ytc.GetNode(a.ctx, a.config.Root.Child(alias).Attrs(), &node, &yt.GetNodeOptions{Attributes: attributes})
+	err := a.ytc.GetNode(a.ctx, a.opletNode(oplet), &node, &yt.GetNodeOptions{Attributes: attributes})
 
 	if yterrors.ContainsResolveError(err) {
 		// Node has gone. Remove this oplet.
-		if oplet != nil {
-			a.unregisterOplet(oplet)
-		}
+		a.unregisterOplet(oplet)
 		return nil
 	} else if err != nil {
-		a.l.Error("error getting attributes", log.Error(err))
+		a.l.Error("error getting operation state from cypress", log.Error(err))
 		return err
 	}
 
+	oplet.pendingUpdateFromCypress = false
+
 	// Validate operation node
-	if node.Family != a.controller.Family() {
-		l.Debug("skipping node from unknown family",
-			log.String("family", node.Family))
+
+	if node.Speclet.Value == nil {
+		oplet.l.Debug("skipping oplet: `speclet` node is empty or missing")
+
+		a.unregisterOplet(oplet)
+		return err
+	}
+
+	var strawberrySpeclet Speclet
+	err = yson.Unmarshal(node.Speclet.Value, &strawberrySpeclet)
+	if err != nil {
+		oplet.l.Error("skipping oplet: error parsing `speclet` node",
+			log.Error(err),
+			log.String("speclet_yson", string(node.Speclet.Value)),
+			log.UInt64("speclet_revision", uint64(node.Speclet.Revision)))
+
+		a.unregisterOplet(oplet)
+		return err
+	}
+
+	if strawberrySpeclet.Family == nil || *strawberrySpeclet.Family != a.controller.Family() {
+		oplet.l.Debug("skipping oplet from unknown family",
+			log.Any("family", strawberrySpeclet.Family))
+
+		a.unregisterOplet(oplet)
 		return nil
 	}
 
-	if node.Stage != a.config.Stage {
-		l.Debug("skipping node from another stage",
-			log.String("stage", node.Stage))
+	if strawberrySpeclet.StageOrDefault() != a.config.Stage {
+		oplet.l.Debug("skipping oplet from another stage",
+			log.String("stage", strawberrySpeclet.StageOrDefault()))
 
 		// Strawberry stage has changed and we do not need to maintain it any more.
-		if oplet != nil {
-			a.unregisterOplet(oplet)
-		}
+		a.unregisterOplet(oplet)
 		return nil
 	}
 
-	if node.Speclet == nil {
-		l.Debug("skipping operation due to missing `strawberry_speclet` attribute")
-		return nil
+	oplet.l.Debug("state collected and validated")
+
+	// Handle persistent state change.
+	if oplet.flushedStateRevision != 0 && !reflect.DeepEqual(node.PersistentState, oplet.flushedPersistentState) {
+		oplet.l.Info("cypress persistent state change detected; loading it",
+			log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)),
+			log.UInt64("cypress_state_revision", uint64(node.Revision)))
+
+		if !reflect.DeepEqual(oplet.persistentState, oplet.flushedPersistentState) {
+			oplet.l.Warn("cypress and local state conflict detected; local state will be overridden",
+				log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)),
+				log.UInt64("cypress_state_revision", uint64(node.Revision)))
+		}
+	}
+	oplet.persistentState = node.PersistentState
+	oplet.flushedPersistentState = node.PersistentState
+	oplet.flushedStateRevision = node.Revision
+
+	// Handle speclet change.
+	if oplet.persistentState.SpecletRevision != node.Speclet.Revision {
+		if NeedRestartOnSpecletChange(&oplet.strawberrySpeclet, &strawberrySpeclet) ||
+			oplet.c.NeedRestartOnSpecletChange(oplet.specletYson, node.Speclet.Value) {
+			if !oplet.persistentState.SpecletChangeRequiresRestart {
+				oplet.persistentState.SpecletChangeRequiresRestart = true
+				oplet.l.Info("speclet change requires restart")
+			}
+		}
+		if !reflect.DeepEqual(strawberrySpeclet.Pool, strawberrySpeclet.Pool) {
+			oplet.setPendingUpdateOpParameters("pool change")
+		}
+	}
+	oplet.strawberrySpeclet = strawberrySpeclet
+	oplet.specletYson = node.Speclet.Value
+	oplet.persistentState.SpecletRevision = node.Speclet.Revision
+
+	// If the speclet was not changed or its change does not require a restart,
+	// then we assume that the operation is running with the latest speclet revision.
+	if !oplet.persistentState.SpecletChangeRequiresRestart {
+		oplet.persistentState.OperationSpecletRevision = node.Speclet.Revision
 	}
 
-	l.Debug("node attributes collected and validated")
-
-	if oplet != nil {
-		if !reflect.DeepEqual(oplet.speclet, node.Speclet) {
-			oplet.speclet = node.Speclet
-			oplet.setPendingRestart("Speclet change")
-		}
-	} else {
-		// TODO(max42): current implementation does not restart operation in following case:
-		// - ACL changes
-		// - agent1 dies before noticing that
-		// - agent2 starts and registers new oplet for the operation
-		// Correct way to handle that is to compare ACL, pool and speclet from operation runtime information
-		// with the intended values.
-
-		acl, err := a.getACLFromNode(alias)
-		if err != nil {
-			return err
-		}
-
-		newOplet := a.newOplet(alias, a.controller, CypressState{
-			ACL:              acl,
-			OperationID:      node.OperationID,
-			IncarnationIndex: node.IncarnationIndex,
-			Speclet:          node.Speclet,
-		})
-		a.registerOplet(&newOplet)
+	if oplet.strawberrySpeclet.RestartOnSpecletChangeOrDefault() && oplet.persistentState.SpecletChangeRequiresRestart {
+		oplet.setPendingRestart("speclet change")
 	}
 
-	l.Info("operation updated from node attributes")
+	if oplet.persistentState.OperationSpecletRevision < oplet.strawberrySpeclet.MinSpecletRevision {
+		// Sanity check to avoid infinite restart.
+		if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.SpecletRevision {
+			oplet.l.Warn("min_speclet_revision is larger than the last speclet_revision",
+				log.UInt64("min_speclet_revision", uint64(oplet.strawberrySpeclet.MinSpecletRevision)),
+				log.UInt64("last_speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
+		} else {
+			oplet.setPendingRestart("unsatisfied min speclet revision")
+		}
+	}
+
+	oplet.l.Info("strawberry operation state updated from cypress",
+		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
+		log.UInt64("speclet_revision", uint64(oplet.flushedStateRevision)))
 
 	return nil
 }
 
 func (a *Agent) updateACLFromNode(oplet *Oplet) error {
-	// Acl updated for nonexistent oplet, ignore it.
-	if oplet == nil {
-		return nil
-	}
+	oplet.l.Info("updating acl from access node")
 
-	newACL, err := a.getACLFromNode(oplet.Alias)
+	newACL, err := a.getACLFromNode(oplet.alias)
 	if err != nil {
+		oplet.l.Error("error geting acl from access node")
 		return err
 	}
 
@@ -611,6 +720,10 @@ func (a *Agent) updateACLFromNode(oplet *Oplet) error {
 		oplet.acl = newACL
 		oplet.setPendingUpdateOpParameters("ACL change")
 	}
+
+	oplet.l.Info("acl updated from access node")
+
+	oplet.pendingUpdateACLFromNode = false
 
 	return nil
 }
@@ -625,8 +738,6 @@ func (a *Agent) Start() {
 	a.ctx, a.cancelCtx = context.WithCancel(context.Background())
 
 	a.aliasToOp = make(map[string]*Oplet)
-	a.pendingUpdateFromNode = make(map[string]struct{})
-	a.pendingUpdateACLFromNode = make(map[string]struct{})
 
 	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
@@ -636,11 +747,9 @@ func (a *Agent) Start() {
 		panic(err)
 	}
 
+	// TODO(dakovalkov): we can do initialization more optimal with get on the whole directory.
 	for _, alias := range initialAliases {
-		err := a.updateFromAttrs(nil, alias)
-		if err != nil {
-			panic(err)
-		}
+		a.registerNewOplet(alias)
 	}
 
 	go a.background(time.Duration(a.config.PassPeriod))
@@ -657,8 +766,6 @@ func (a *Agent) Stop() {
 
 	a.ctx = nil
 	a.aliasToOp = nil
-	a.pendingUpdateFromNode = nil
-	a.pendingUpdateACLFromNode = nil
 	a.nodeCh = nil
 	a.started = false
 	a.l.Info("agent stopped")
