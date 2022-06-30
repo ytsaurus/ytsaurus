@@ -182,7 +182,7 @@ void TVirtualMulticellMapBase::GetSelf(
             const auto& str = stream.Str();
             response->set_value(str);
 
-            context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
+            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
                 session->Items.size(),
                 limit,
                 str.length());
@@ -242,7 +242,7 @@ void TVirtualMulticellMapBase::ListSelf(
             const auto& str = stream.Str();
             response->set_value(str);
 
-            context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
+            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
                 session->Items.size(),
                 limit,
                 str.length());
