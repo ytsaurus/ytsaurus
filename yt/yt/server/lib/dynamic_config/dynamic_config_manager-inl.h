@@ -141,6 +141,7 @@ void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
         } else {
             YT_LOG_DEBUG("Dynamic config was not updated");
         }
+        ConfigLoadedPromise_.TrySet();
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to update dynamic config");
         error = ex;
@@ -164,7 +165,6 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
         YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
             Options_.ConfigPath);
-        ConfigLoadedPromise_.TrySet();
         return false;
     }
 
@@ -236,8 +236,6 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                 << TErrorAttribute("dynamic_config_name", Options_.Name);
         }
     }
-
-    ConfigLoadedPromise_.TrySet();
 
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
         return false;
