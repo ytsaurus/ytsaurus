@@ -78,6 +78,8 @@ public:
     NTracing::TJaegerTracerConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
     TTCMallocConfigPtr TCMalloc;
+    bool EnableRefCountedTrackerProfiling;
+    bool EnableResourceTracker;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 

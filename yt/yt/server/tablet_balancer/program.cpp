@@ -28,7 +28,6 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    EnableRefCountedTrackerProfiling();
     ConfigureAllocator({});
 
     if (HandleSetsidOptions()) {
@@ -42,10 +41,11 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
     }
 
     auto config = GetConfig();
-    auto configNode = GetConfigNode();
 
     ConfigureSingletons(config);
     StartDiagnosticDump(config);
+
+    auto configNode = GetConfigNode();
 
     auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
     bootstrap->Run();

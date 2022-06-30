@@ -176,6 +176,7 @@ class TestJobProxyProfiling(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+    ENABLE_RESOURCE_TRACKING = True
 
     @authors("prime")
     def test_sensors(self):

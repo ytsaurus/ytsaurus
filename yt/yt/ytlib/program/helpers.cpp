@@ -5,14 +5,17 @@
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
-#include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 #include <yt/yt/library/profiling/perf/counters.h>
+
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
@@ -35,7 +38,7 @@
 
 #include <library/cpp/yt/threading/spin_wait_hook.h>
 
-#include <util/string//split.h>
+#include <util/string/split.h>
 
 namespace NYT {
 
@@ -96,6 +99,14 @@ void ConfigureSingletonsImpl(const TConfig& config)
     }
 
     ConfigureTCMalloc(config->TCMalloc);
+
+    if (config->EnableRefCountedTrackerProfiling) {
+        EnableRefCountedTrackerProfiling();
+    }
+
+    if (config->EnableResourceTracker) {
+        NProfiling::EnableResourceTracker();
+    }
 }
 
 void ConfigureSingletons(const TSingletonsConfigPtr& config)

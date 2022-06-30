@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
-
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,8 +92,6 @@ public:
 
     //! Registers or updates a tag that is attached to every sample generated in this process.
     void SetGlobalTag(TTagId id);
-
-    TResourceTrackerPtr GetResourceTracker() const;
 
 private:
     TProfileManager();

@@ -230,6 +230,7 @@ class YTEnvSetup(object):
     NUM_CELL_BALANCERS = 0
     NUM_QUEUE_AGENTS = 0
     NUM_TABLET_BALANCERS = 0
+    ENABLE_RESOURCE_TRACKING = False
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -397,6 +398,7 @@ class YTEnvSetup(object):
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
             cluster_name=cls.get_cluster_name(index),
+            enable_resource_tracking=cls.get_param("ENABLE_RESOURCE_TRACKING", index),
         )
 
         instance = YTInstance(
