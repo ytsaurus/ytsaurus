@@ -143,6 +143,45 @@ func TestDataExpr(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(resultData), 2)
 }
+
+func TestDataRegexp(t *testing.T) {
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
+
+	tmpPath := env.TmpPath()
+
+	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
+
+	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
+
+	require.NoError(t, tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
+
+	tLow := time.Now().Add(-time.Hour)
+	require.NoError(t, err)
+	tHigh := time.Now().Add(time.Hour)
+	require.NoError(t, err)
+
+	metaquery := storage.Metaquery{
+		Query:      "true",
+		QueryLimit: 10000,
+		Period: storage.TimestampPeriod{
+			Start: tLow,
+			End:   tHigh,
+		},
+		MatadataPatterns: map[string]string{
+			"BinaryVersion": "-c1.*",
+		},
+	}
+
+	resultIDs, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery)
+	require.NoError(t, err)
+	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(resultData))
+}
+
 func TestDataSkip(t *testing.T) {
 	l, err := ytlog.New()
 	require.NoError(t, err)

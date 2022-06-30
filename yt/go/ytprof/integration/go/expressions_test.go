@@ -45,7 +45,7 @@ var (
 
 func TestQueries(t *testing.T) {
 	for _, value := range MetadataQueries {
-		expr, err := expressions.NewExpression(value.Query)
+		expr, err := expressions.NewExpression(value.Query, map[string]string{})
 		require.NoError(t, err)
 		result, err := expr.Evaluate(value.Metadata)
 		require.NoError(t, err)

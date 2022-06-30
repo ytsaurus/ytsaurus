@@ -15,13 +15,6 @@ message TimePeriod {
     string period_end_time = 2;
 }
 
-message Metaquery {
-    TimePeriod time_period = 1;
-    string query = 2;
-    int32 result_skip = 3;
-    int32 result_limit = 4;
-}
-
 message Metadata {
     string profile_type = 1;
     string host = 2;
@@ -29,6 +22,14 @@ message Metadata {
     string profile_id = 4;
     string timestamp = 5;
     map<string, string> user_tags = 6;
+}
+
+message Metaquery {
+    TimePeriod time_period = 1;
+    string query = 2;
+    Metadata metadata_pattern = 3;
+    int32 result_skip = 4;
+    int32 result_limit = 5;
 }
 
 message GetRequest {
