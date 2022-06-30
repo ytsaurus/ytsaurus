@@ -466,7 +466,7 @@ public:
     //! Schedule jobs related methods.
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
-    NYPath::TYPath GetFullPath(bool explicitOnly) const;
+    NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;

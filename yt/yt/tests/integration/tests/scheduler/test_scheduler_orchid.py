@@ -132,7 +132,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
                 "backend": "native",
                 "driver_config": get_driver().get_config(),
             }),
-            fields=["running_operation_count", "mode", "is_ephemeral"],
+            fields=["running_operation_count", "mode", "is_ephemeral", "full_path"],
         )
 
         assert client.get(scheduler_new_orchid_pool_tree_path("default") + "/pools") == {
@@ -140,11 +140,13 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
                 'mode': 'fair_share',
                 'is_ephemeral': False,
                 'running_operation_count': 0,
+                'full_path': '/pool/child',
             },
             'pool': {
                 'mode': 'fair_share',
                 'is_ephemeral': False,
                 'running_operation_count': 0,
+                'full_path': '/pool',
             },
             '<Root>': {
                 'running_operation_count': 0,
@@ -155,6 +157,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             'mode': 'fair_share',
             'is_ephemeral': False,
             'running_operation_count': 0,
+            'full_path': '/pool/child',
         }
 
         assert client.get(scheduler_new_orchid_pool_tree_path("default") + "/pools/<Root>") == {
