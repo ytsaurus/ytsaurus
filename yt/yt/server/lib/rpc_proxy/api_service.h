@@ -29,7 +29,6 @@ IApiServicePtr CreateApiService(
     IBootstrap* bootstrap,
     NLogging::TLogger logger,
     TApiServiceConfigPtr config,
-    TApiServiceDynamicConfigPtr dynamicConfig,
     NProfiling::TProfiler profiler,
     NApi::IStickyTransactionPoolPtr stickyTransactionPool = {});
 

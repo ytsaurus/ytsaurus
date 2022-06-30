@@ -147,6 +147,7 @@ void TBootstrap::DoRun()
     TraceSampler_ = New<NTracing::TSampler>();
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     AccessChecker_ = CreateAccessChecker(this);
 
@@ -184,23 +185,21 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    DynamicConfigManager_->Initialize();
-    DynamicConfigManager_->Start();
-
-    YT_LOG_INFO("Waiting for dynamic config");
-    WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
-        .ThrowOnError();
-
     ApiService_ = CreateApiService(
         this,
         RpcProxyLogger,
         Config_->ApiService,
-        DynamicConfigManager_->GetConfig()->Api,
         RpcProxyProfiler);
 
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-
     RpcServer_->RegisterService(ApiService_);
+
+    DynamicConfigManager_->Initialize();
+    DynamicConfigManager_->Start();
+
+    // NB: We must apply the first dynamic config before ApiService_ starts.
+    YT_LOG_INFO("Waiting for dynamic config");
+    WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
+        .ThrowOnError();
 
     if (Config_->DiscoveryService->Enable) {
         DiscoveryService_ = CreateDiscoveryService(this);

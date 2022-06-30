@@ -561,7 +561,6 @@ public:
         IBootstrap* bootstrap,
         NLogging::TLogger logger,
         TApiServiceConfigPtr config,
-        TApiServiceDynamicConfigPtr dynamicConfig,
         TProfiler profiler,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TServiceBase(
@@ -572,7 +571,7 @@ public:
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
         , Profiler_(std::move(profiler))
-        , Config_(dynamicConfig)
+        , Config_(New<TApiServiceDynamicConfig>())
         , Coordinator_(Bootstrap_->GetProxyCoordinator())
         , AccessChecker_(Bootstrap_->GetAccessChecker())
         , SecurityManager_(config->SecurityManager, Bootstrap_, Logger)
@@ -4592,7 +4591,6 @@ IApiServicePtr CreateApiService(
     IBootstrap* bootstrap,
     NLogging::TLogger logger,
     TApiServiceConfigPtr config,
-    TApiServiceDynamicConfigPtr dynamicConfig,
     TProfiler profiler,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
@@ -4600,7 +4598,6 @@ IApiServicePtr CreateApiService(
         bootstrap,
         std::move(logger),
         std::move(config),
-        std::move(dynamicConfig),
         std::move(profiler),
         std::move(stickyTransactionPool));
 }
