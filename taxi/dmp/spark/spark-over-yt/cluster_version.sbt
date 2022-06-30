@@ -1,3 +1,3 @@
 import spyt.SpytPlugin.autoImport._
 
-ThisBuild / spytClusterVersion := "1.44.1-SNAPSHOT"
+ThisBuild / spytClusterVersion := "1.45.1-SNAPSHOT"
