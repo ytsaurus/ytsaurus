@@ -14,6 +14,6 @@ case object SolomonSinkSettings {
   case object SolomonMetricNameTransform extends StringConfigEntry("rename_metrics", Some(""))
 
   case object ReporterPollPeriod extends DurationSecondsConfigEntry("poll_period",
-    Some(60.seconds))
+    Some(500.milliseconds))
   case object ReporterName extends StringConfigEntry("reporter_name", Some("spyt"))
 }

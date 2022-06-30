@@ -65,16 +65,16 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 4
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "gauge1")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "gauge1")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "IGAUGE"
       metrics.head.hcursor.downField("value").as[Int].right.get shouldBe 1
-      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "gauge2")
+      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "gauge2")
       metrics(1).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
       metrics(1).hcursor.downField("value").as[Float].right.get shouldBe 2.0F
-      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "gauge3")
+      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "gauge3")
       metrics(2).hcursor.downField("type").as[String].right.get shouldBe "IGAUGE"
       metrics(2).hcursor.downField("value").as[Long].right.get shouldBe 3L
-      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "gauge4")
+      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "gauge4")
       metrics(3).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
       metrics(3).hcursor.downField("value").as[Double].right.get shouldBe 4.0D
     })
@@ -88,7 +88,7 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 1
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "counter1")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "counter1")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
     })
@@ -104,17 +104,17 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 5
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "meter1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 12L
-      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_mean_rate")
+      metrics(1).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "meter1_mean_rate")
       metrics(1).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
       metrics(1).hcursor.downField("value").as[Double].right.get should be > 0D
-      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_1min")
+      metrics(2).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "meter1_rate_1min")
       metrics(2).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
-      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_5min")
+      metrics(3).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "meter1_rate_5min")
       metrics(3).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
-      metrics(4).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "meter1_rate_15min")
+      metrics(4).hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "meter1_rate_15min")
       metrics(4).hcursor.downField("type").as[String].right.get shouldBe "DGAUGE"
     })
   }
@@ -129,10 +129,10 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 9
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "hist1_count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "hist1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
-      metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("name"))
+      metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("sensor"))
         .toSet shouldBe Set("hist1_max", "hist1_mean", "hist1_median", "hist1_min", "hist1_stddev", "hist1_p75",
           "hist1_p95", "hist1_p99")
       metrics.tail.map(_.hcursor.downField("type").as[String].right.get).foreach(_ shouldBe "DGAUGE")
@@ -149,10 +149,10 @@ class SolomonSinkTest extends FunSuite {
     })(json => {
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 13
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "timer1_count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "timer1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
-      metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("name"))
+      metrics.tail.map(_.hcursor.downField("labels").as[Map[String, String]].right.get).map(_ ("sensor"))
         .toSet shouldBe Set("timer1_max", "timer1_mean", "timer1_median", "timer1_min", "timer1_stddev", "timer1_p75",
         "timer1_p95", "timer1_p99", "timer1_mean_rate", "timer1_rate_1min", "timer1_rate_5min", "timer1_rate_15min")
       metrics.tail.map(_.hcursor.downField("type").as[String].right.get).foreach(_ shouldBe "DGAUGE")
@@ -169,7 +169,7 @@ class SolomonSinkTest extends FunSuite {
     }, Map("accept_metrics" -> "^.*count$")) { json =>
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 1
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" -> "timer1_count")
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" -> "timer1_count")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
     }
@@ -185,7 +185,7 @@ class SolomonSinkTest extends FunSuite {
     }, Map("accept_metrics" -> "^.*count$", "rename_metrics" -> "metrics_$0_Value")) { json =>
       val metrics = json.hcursor.downField("metrics").as[List[Json]].right.get
       metrics.size shouldBe 1
-      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("name" ->
+      metrics.head.hcursor.downField("labels").as[Map[String, String]].right.get shouldBe Map("sensor" ->
         "metrics_timer1_count_Value")
       metrics.head.hcursor.downField("type").as[String].right.get shouldBe "COUNTER"
       metrics.head.hcursor.downField("value").as[Long].right.get shouldBe 3L
