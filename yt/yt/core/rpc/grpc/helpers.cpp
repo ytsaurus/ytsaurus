@@ -20,7 +20,7 @@
 
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
 
-#include <contrib/libs/openssl/include/openssl/pem.h>
+#include <openssl/pem.h>
 
 #include <array>
 
