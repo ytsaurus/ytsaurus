@@ -4,10 +4,10 @@
 
 #include <util/string/hex.h>
 
-#include <contrib/libs/openssl/include/openssl/hmac.h>
-#include <contrib/libs/openssl/include/openssl/md5.h>
-#include <contrib/libs/openssl/include/openssl/evp.h>
-#include <contrib/libs/openssl/include/openssl/sha.h>
+#include <openssl/hmac.h>
+#include <openssl/md5.h>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
 
 namespace NYT::NCrypto {
 

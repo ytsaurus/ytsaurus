@@ -13,13 +13,13 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <contrib/libs/openssl/include/openssl/bio.h>
-#include <contrib/libs/openssl/include/openssl/ssl.h>
-#include <contrib/libs/openssl/include/openssl/err.h>
-#include <contrib/libs/openssl/include/openssl/evp.h>
-#include <contrib/libs/openssl/include/openssl/pem.h>
-
 #include <library/cpp/openssl/io/stream.h>
+
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 
 namespace NYT::NCrypto {
 
