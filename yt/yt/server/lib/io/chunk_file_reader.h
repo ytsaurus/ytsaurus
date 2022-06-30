@@ -66,12 +66,14 @@ public:
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes);
+        const std::vector<int>& blockIndexes,
+        NIO::TBlocksExtPtr blocksExt = nullptr);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
-        int blockCount);
+        int blockCount,
+        NIO::TBlocksExtPtr blocksExt = nullptr);
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,

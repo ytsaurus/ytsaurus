@@ -87,6 +87,7 @@ private:
         std::vector<TFuture<void>> AsyncResults;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
+        NIO::TBlocksExtPtr BlocksExt;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;

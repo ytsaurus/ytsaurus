@@ -74,7 +74,8 @@ TChunkFileReader::TChunkFileReader(
 
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
-    const std::vector<int>& blockIndexes)
+    const std::vector<int>& blockIndexes,
+    TBlocksExtPtr blocksExt)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
     auto count = std::ssize(blockIndexes);
@@ -93,7 +94,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subfuture = DoReadBlocks(options, startBlockIndex, blockCount);
+            auto subfuture = DoReadBlocks(options, startBlockIndex, blockCount, blocksExt);
             futures.push_back(std::move(subfuture));
 
             localIndex = endLocalIndex;
@@ -123,12 +124,13 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
-    int blockCount)
+    int blockCount,
+    TBlocksExtPtr blocksExt)
 {
     YT_VERIFY(firstBlockIndex >= 0);
 
     try {
-        return DoReadBlocks(options, firstBlockIndex, blockCount);
+        return DoReadBlocks(options, firstBlockIndex, blockCount, std::move(blocksExt));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
