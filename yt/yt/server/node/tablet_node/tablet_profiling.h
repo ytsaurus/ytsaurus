@@ -43,10 +43,13 @@ struct TLookupCounters
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
     NProfiling::TCounter UnmergedDataWeight;
+    NProfiling::TCounter WastedUnmergedDataWeight;
 
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
     NYT::NProfiling::TEventTimer LookupDuration;
+
+    NProfiling::TCounter RetryCount;
 
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 

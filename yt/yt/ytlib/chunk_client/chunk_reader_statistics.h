@@ -80,6 +80,8 @@ private:
     NProfiling::TCounter WastedDataBytesReadFromCache_;
 
     NProfiling::TCounter MetaBytesReadFromDisk_;
+    NProfiling::TCounter WastedMetaBytesReadFromDisk_;
+
     NProfiling::TCounter OmittedSuspiciousNodeCount_;
 
     NProfiling::TCounter P2PActivationCount_;

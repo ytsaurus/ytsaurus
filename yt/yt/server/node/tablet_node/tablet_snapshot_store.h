@@ -77,9 +77,14 @@ struct ITabletSnapshotStore
 
 DEFINE_REFCOUNTED_TYPE(ITabletSnapshotStore)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ITabletSnapshotStorePtr CreateTabletSnapshotStore(
     TTabletNodeConfigPtr config,
     IBootstrap* bootstrap);
+
+//! Dummy snapshot store for testing purposes.
+ITabletSnapshotStorePtr CreateDummyTabletSnapshotStore(TTabletSnapshotPtr tabletSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

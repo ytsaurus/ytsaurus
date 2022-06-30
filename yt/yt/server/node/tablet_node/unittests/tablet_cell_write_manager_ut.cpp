@@ -50,9 +50,21 @@ protected:
         return TVersionedOwningRow(builder.FinishRow());
     }
 
-    TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key, int minDataVersions = 100, TTimestamp timestamp = AsyncLastCommittedTimestamp)
+    TVersionedOwningRow VersionedLookupRow(
+        const TLegacyOwningKey& key,
+        int minDataVersions = 100,
+        TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
-        return VersionedLookupRowImpl(TabletSlot_->TabletManager()->GetTablet(), key, minDataVersions, timestamp);
+        return BIND(&VersionedLookupRowImpl,
+            TabletSlot_->TabletManager()->GetTablet(),
+            key,
+            minDataVersions,
+            timestamp,
+            TClientChunkReadOptions())
+            .AsyncVia(AutomatonInvoker())
+            .Run()
+            .Get()
+            .ValueOrThrow();
     }
 
 private:

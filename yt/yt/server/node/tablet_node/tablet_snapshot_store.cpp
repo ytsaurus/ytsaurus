@@ -543,4 +543,89 @@ ITabletSnapshotStorePtr CreateTabletSnapshotStore(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDummyTabletSnapshotStore
+    : public ITabletSnapshotStore
+{
+public:
+    TDummyTabletSnapshotStore(TTabletSnapshotPtr tabletSnapshot)
+        : TabletSnapshot_(std::move(tabletSnapshot))
+    { }
+
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
+    {
+        return {TabletSnapshot_};
+    }
+
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId /*tabletId*/) override
+    {
+        return TabletSnapshot_;
+    }
+
+    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
+        TTabletId /*tabletId*/,
+        TCellId /*cellId*/) override
+    {
+        return TabletSnapshot_;
+    }
+
+    TTabletSnapshotPtr FindTabletSnapshot(
+        TTabletId /*tabletId*/,
+        NHydra::TRevision /*mountRevision*/) override
+    {
+        return TabletSnapshot_;
+    }
+
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(
+        TTabletId /*tabletId*/,
+        TCellId /*cellId*/,
+        NHydra::TRevision /*mountRevision*/) override
+    {
+        return TabletSnapshot_;
+    }
+
+    void ValidateTabletAccess(
+        const TTabletSnapshotPtr& /*tabletSnapshot*/,
+        NTransactionClient::TTimestamp /*timestamp*/) override
+    {
+        return;
+    }
+
+    void RegisterTabletSnapshot(
+        const ITabletSlotPtr& /*slot*/,
+        TTablet* /*tablet*/,
+        std::optional<TLockManagerEpoch> /*epoch*/) override
+    {
+        YT_ABORT();
+    }
+
+    void UnregisterTabletSnapshot(
+        const ITabletSlotPtr& /*slot*/,
+        TTablet* /*tablet*/) override
+    {
+        YT_ABORT();
+    }
+
+    void UnregisterTabletSnapshots(const ITabletSlotPtr& /*slot*/) override
+    {
+        YT_ABORT();
+    }
+
+    NYTree::IYPathServicePtr GetOrchidService() const override
+    {
+        YT_ABORT();
+    }
+
+private:
+    const TTabletSnapshotPtr TabletSnapshot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletSnapshotStorePtr CreateDummyTabletSnapshotStore(TTabletSnapshotPtr tabletSnapshot)
+{
+    return New<TDummyTabletSnapshotStore>(std::move(tabletSnapshot));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTabletNode::NYT

@@ -61,12 +61,14 @@ TLookupCounters::TLookupCounters(
     , DataWeight(profiler.Counter("/lookup/data_weight"))
     , UnmergedRowCount(profiler.Counter("/lookup/unmerged_row_count"))
     , UnmergedDataWeight(profiler.Counter("/lookup/unmerged_data_weight"))
+    , WastedUnmergedDataWeight(profiler.Counter("/lookup/wasted_unmerged_data_weight"))
     , CpuTime(profiler.TimeCounter("/lookup/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/lookup/decompression_cpu_time"))
     , LookupDuration(profiler.Histogram(
         "/lookup/duration",
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
+    , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
     , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
 { }

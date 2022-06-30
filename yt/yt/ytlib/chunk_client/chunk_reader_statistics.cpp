@@ -90,6 +90,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling:
     , WastedDataBytesTransmitted_(profiler.Counter("/wasted_data_bytes_transmitted"))
     , WastedDataBytesReadFromCache_(profiler.Counter("/wasted_data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
+    , WastedMetaBytesReadFromDisk_(profiler.Counter("/wasted_meta_bytes_read_from_disk"))
     , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
     , P2PActivationCount_(profiler.Counter("/p2p_activation_count"))
     , DataWaitTime_(profiler.TimeCounter("/data_wait_time"))
@@ -106,11 +107,6 @@ void TChunkReaderStatisticsCounters::Increment(
     DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order_relaxed));
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order_relaxed));
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order_relaxed));
-    if (failed) {
-        WastedDataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed));
-        WastedDataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order_relaxed));
-        WastedDataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order_relaxed));
-    }
 
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed));
     OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order_relaxed));
@@ -121,6 +117,13 @@ void TChunkReaderStatisticsCounters::Increment(
     MetaWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->MetaWaitTime.load(std::memory_order_relaxed)));
     MetaReadFromDiskTime_.Add(TDuration::FromValue(chunkReaderStatistics->MetaReadFromDiskTime.load(std::memory_order_relaxed)));
     PickPeerWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->PickPeerWaitTime.load(std::memory_order_relaxed)));
+
+    if (failed) {
+        WastedDataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed));
+        WastedDataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order_relaxed));
+        WastedDataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order_relaxed));
+        WastedMetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
