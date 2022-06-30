@@ -135,5 +135,6 @@ func (a *App) grpcErrorHandler(ctx context.Context, mux *runtime.ServeMux, marsh
 		"API request failed",
 		yterrors.Attr("url", r.URL.Path),
 		yterrors.Attr("origin", hostname),
+		err,
 	))
 }

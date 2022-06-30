@@ -40,6 +40,9 @@ func (a *App) apiMetaqueryToStorage(am *api.Metaquery) (storage.Metaquery, error
 	if metaquery.MatadataPatterns == nil {
 		metaquery.MatadataPatterns = map[string]string{}
 	}
+	if metaquery.Query == "" {
+		metaquery.Query = "true"
+	}
 	if len(am.MetadataPattern.ProfileType) > 0 {
 		metaquery.MatadataPatterns["ProfileType"] = am.MetadataPattern.ProfileType
 	}
