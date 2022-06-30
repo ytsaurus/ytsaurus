@@ -16,6 +16,7 @@ import yt.yson as yson
 
 import pytest
 
+import collections
 import json
 import os
 import struct
@@ -145,24 +146,6 @@ class TestHttpProxy(HttpProxyTestBase):
         assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()
 
     @authors("prime")
-    def test_discover_versions(self):
-        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions").json()
-        service = requests.get(self._get_proxy_address() + "/service").json()
-
-        assert len(rsp["primary_masters"]) == 1
-        assert len(rsp["secondary_masters"]) == 2
-        assert len(rsp["nodes"]) == 5
-        assert len(rsp["schedulers"]) == 1
-        assert len(rsp["controller_agents"]) == 1
-        assert len(rsp["http_proxies"]) == 1
-        assert len(rsp["rpc_proxies"]) == 2
-        for component in rsp:
-            for instant in rsp[component]:
-                assert "version" in rsp[component][instant]
-                assert "start_time" in rsp[component][instant]
-                assert "version" in service
-
-    @authors("prime")
     def test_discover_versions_v2(self):
         rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
         rsp.raise_for_status()
@@ -170,6 +153,24 @@ class TestHttpProxy(HttpProxyTestBase):
         versions = rsp.json()
         assert "details" in versions
         assert "summary" in versions
+
+        counts = collections.Counter()
+
+        for instance in versions["details"]:
+            assert "address" in instance
+            assert "start_time" in instance
+            assert "type" in instance
+            assert "version" in instance
+
+            counts[instance["type"]] += 1
+
+        assert counts["primary_master"] == 1
+        assert counts["secondary_master"] == 2
+        assert counts["node"] == 5
+        assert counts["scheduler"] == 1
+        assert counts["controller_agent"] == 1
+        assert counts["http_proxy"] == 1
+        assert counts["rpc_proxy"] == 2
 
     @authors("prime")
     def test_cache_control(self):
