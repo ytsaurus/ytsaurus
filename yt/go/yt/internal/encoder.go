@@ -269,6 +269,20 @@ func (e *Encoder) TransferAccountResources(
 	return
 }
 
+func (e *Encoder) CheckPermission(
+	ctx context.Context,
+	user string,
+	permission yt.Permission,
+	path ypath.YPath,
+	options *yt.CheckPermissionOptions,
+) (response *yt.CheckPermissionResponse, err error) {
+	call := e.newCall(NewCheckPermissionParams(user, permission, path, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
 func (e *Encoder) StartTx(
 	ctx context.Context,
 	options *yt.StartTxOptions,

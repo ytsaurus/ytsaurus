@@ -185,7 +185,8 @@ func convertReadKind(k yt.ReadKind) *rpc_proxy.EMasterReadKind {
 		ret = rpc_proxy.EMasterReadKind_MRK_FOLLOWER
 	case yt.ReadFromCache:
 		ret = rpc_proxy.EMasterReadKind_MRK_CACHE
-	// todo EMasterReadKind_MRK_MASTER_CACHE
+	case yt.ReadFromMasterCache:
+		ret = rpc_proxy.EMasterReadKind_MRK_MASTER_CACHE
 	default:
 		return nil
 	}
@@ -256,6 +257,116 @@ func convertAtomicity(a *yt.Atomicity) (*rpc_proxy.EAtomicity, error) {
 	}
 
 	return &ret, nil
+}
+
+func convertPermissionType(typ *yt.Permission) (*int32, error) {
+	if typ == nil {
+		return nil, nil
+	}
+
+	var ret int32
+
+	switch *typ {
+	case yt.PermissionRead:
+		ret = 0x0001
+	case yt.PermissionWrite:
+		ret = 0x0002
+	case yt.PermissionUse:
+		ret = 0x0004
+	case yt.PermissionAdminister:
+		ret = 0x0008
+	case yt.PermissionCreate:
+		ret = 0x0100
+	case yt.PermissionRemove:
+		ret = 0x0200
+	case yt.PermissionMount:
+		ret = 0x0400
+	case yt.PermissionManage:
+		ret = 0x0800
+	case yt.PermissionModifyChildren:
+		ret = 0x1000
+	default:
+		return nil, xerrors.Errorf("unexpected permission type %q", *typ)
+	}
+
+	return &ret, nil
+}
+
+func convertCheckPermissionColumns(columns []string) *rpc_proxy.TReqCheckPermission_TColumns {
+	if columns == nil {
+		return nil
+	}
+	return &rpc_proxy.TReqCheckPermission_TColumns{
+		Items: columns,
+	}
+}
+
+func makeSecurityActionType(typ rpc_proxy.ESecurityAction) (yt.SecurityAction, error) {
+	var ret yt.SecurityAction
+
+	switch typ {
+	case rpc_proxy.ESecurityAction_SA_ALLOW:
+		ret = yt.ActionAllow
+	case rpc_proxy.ESecurityAction_SA_DENY:
+		ret = yt.ActionDeny
+	case rpc_proxy.ESecurityAction_SA_UNDEFINED:
+		return "", xerrors.Errorf("unsupported security action type %q", typ)
+	default:
+		return "", xerrors.Errorf("unexpected security action type %q", typ)
+	}
+
+	return ret, nil
+}
+
+func makeCheckPermissionResult(result *rpc_proxy.TCheckPermissionResult) (yt.CheckPermissionResult, error) {
+	if result == nil {
+		return yt.CheckPermissionResult{}, xerrors.Errorf("unable to convert nil check permission result")
+	}
+
+	action, err := makeSecurityActionType(result.GetAction())
+	if err != nil {
+		return yt.CheckPermissionResult{}, err
+	}
+
+	ret := yt.CheckPermissionResult{
+		Action:      action,
+		ObjectID:    makeNodeID(result.ObjectId),
+		ObjectName:  result.ObjectName,
+		SubjectID:   makeNodeID(result.SubjectId),
+		SubjectName: result.SubjectName,
+	}
+
+	return ret, nil
+}
+
+func makeCheckPermissionResponse(response *rpc_proxy.TRspCheckPermission) (*yt.CheckPermissionResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	result, err := makeCheckPermissionResult(response.Result)
+	if err != nil {
+		return nil, err
+	}
+
+	var columns []yt.CheckPermissionResult
+
+	if response.Columns != nil {
+		columns = make([]yt.CheckPermissionResult, len(response.Columns.GetItems()))
+		for index, item := range response.Columns.GetItems() {
+			columns[index], err = makeCheckPermissionResult(item)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	ret := &yt.CheckPermissionResponse{
+		CheckPermissionResult: result,
+		Columns:               columns,
+	}
+
+	return ret, nil
 }
 
 func convertOperationType(typ *yt.OperationType) (*rpc_proxy.EOperationType, error) {

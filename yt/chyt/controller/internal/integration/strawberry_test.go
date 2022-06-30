@@ -318,14 +318,14 @@ func TestACLUpdate(t *testing.T) {
 
 	defaultACL := []yt.ACE{
 		{
-			Action:      "allow",
+			Action:      yt.ActionAllow,
 			Subjects:    []string{"admins"},
-			Permissions: []string{"read", "administer", "manage"},
+			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionAdminister, yt.PermissionManage},
 		},
 		{
-			Action:      "allow",
+			Action:      yt.ActionAllow,
 			Subjects:    []string{"root"},
-			Permissions: []string{"read", "manage"},
+			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
 		},
 	}
 	realACL := getOpACL(t, env, "test")
@@ -334,9 +334,9 @@ func TestACLUpdate(t *testing.T) {
 
 	customACL := []yt.ACE{
 		{
-			Action:      "allow",
+			Action:      yt.ActionAllow,
 			Subjects:    []string{"everyone"},
-			Permissions: []string{"read"},
+			Permissions: []yt.Permission{yt.PermissionRead},
 		},
 	}
 	setACL(t, env, "test", customACL)

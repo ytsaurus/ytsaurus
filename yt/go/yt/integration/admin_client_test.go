@@ -1,10 +1,13 @@
 package integration
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -17,6 +20,8 @@ func TestAdminClient(t *testing.T) {
 		{Name: "AddRemoveMember", Test: suite.TestAddRemoveMember},
 		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
 		{Name: "TransferPoolResources", Test: suite.TestTransferPoolResources, SkipRPC: true},
+		{Name: "CheckPermission", Test: suite.TestCheckPermission},
+		{Name: "CheckColumnPermission", Test: suite.TestCheckColumnPermission},
 	})
 }
 
@@ -228,4 +233,171 @@ func (s *Suite) CreatePoolTree(t *testing.T, poolTreeName string) yt.NodeID {
 
 	require.NoError(t, err)
 	return id
+}
+
+func (s *Suite) TestCheckPermission(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	defer cancel()
+
+	user := guid.New().String()
+	userID, err := yc.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]interface{}{
+			"name": user,
+		},
+	})
+	require.NoError(t, err)
+
+	permissions := []yt.Permission{
+		yt.PermissionRead,
+		yt.PermissionWrite,
+		yt.PermissionUse,
+		yt.PermissionAdminister,
+		yt.PermissionCreate,
+		yt.PermissionRemove,
+		yt.PermissionMount,
+		yt.PermissionManage,
+		yt.PermissionModifyChildren,
+	}
+
+	for _, nodePermission := range permissions {
+		p := tmpPath()
+		nodeID, err := yc.CreateNode(ctx, p, yt.NodeMap, &yt.CreateNodeOptions{
+			Attributes: map[string]interface{}{
+				"acl": []yt.ACE{
+					{
+						Action:      yt.ActionAllow,
+						Subjects:    []string{user},
+						Permissions: []yt.Permission{nodePermission},
+					},
+				},
+				"inherit_acl": false,
+			},
+		})
+		require.NoError(t, err)
+
+		for _, userPermission := range permissions {
+			response, err := yc.CheckPermission(ctx, user, userPermission, p, nil)
+			require.NoError(t, err)
+
+			if userPermission == nodePermission {
+				expectedResponse := &yt.CheckPermissionResponse{
+					CheckPermissionResult: yt.CheckPermissionResult{
+						Action:      yt.ActionAllow,
+						ObjectID:    nodeID,
+						ObjectName:  ptr.String("node " + p.YPath().String()),
+						SubjectID:   userID,
+						SubjectName: &user,
+					},
+				}
+				require.Equal(t, expectedResponse, response)
+			} else {
+				expectedResponse := &yt.CheckPermissionResponse{
+					CheckPermissionResult: yt.CheckPermissionResult{
+						Action: yt.ActionDeny,
+					},
+				}
+				require.Equal(t, expectedResponse, response)
+			}
+		}
+	}
+}
+
+func (s *Suite) TestCheckColumnPermission(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	defer cancel()
+
+	user1 := guid.New().String()
+	user1ID, err := yc.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]interface{}{
+			"name": user1,
+		},
+	})
+
+	require.NoError(t, err)
+	user2 := guid.New().String()
+	_, err = yc.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]interface{}{
+			"name": user2,
+		},
+	})
+	require.NoError(t, err)
+
+	var usersGroupID yt.NodeID
+	err = yc.GetNode(ctx, ypath.Path("//sys/groups/users/@id"), &usersGroupID, nil)
+	require.NoError(t, err)
+
+	p := tmpPath()
+	nodeID, err := yc.CreateNode(ctx, p, yt.NodeMap, &yt.CreateNodeOptions{
+		Attributes: map[string]interface{}{
+			"acl": []yt.ACE{
+				{
+					Action:      yt.ActionAllow,
+					Subjects:    []string{"users"},
+					Permissions: []yt.Permission{yt.PermissionRead},
+				},
+				{
+					Action:      yt.ActionAllow,
+					Subjects:    []string{user1},
+					Permissions: []yt.Permission{yt.PermissionRead},
+					Columns:     []string{"protected_column"},
+				},
+			},
+			"inherit_acl": false,
+		},
+	})
+	require.NoError(t, err)
+
+	allowUsersResult := yt.CheckPermissionResult{
+		Action:      yt.ActionAllow,
+		ObjectID:    nodeID,
+		ObjectName:  ptr.String("node " + p.YPath().String()),
+		SubjectID:   usersGroupID,
+		SubjectName: ptr.String("users"),
+	}
+
+	// check user1's permissions
+
+	response, err := yc.CheckPermission(ctx, user1, yt.PermissionRead, p, &yt.CheckPermissionOptions{
+		Columns: []string{"protected_column", "regular_column"},
+	})
+	require.NoError(t, err)
+
+	expectedResponse := &yt.CheckPermissionResponse{
+		CheckPermissionResult: allowUsersResult,
+		Columns: []yt.CheckPermissionResult{
+			{
+				Action:      yt.ActionAllow,
+				ObjectID:    nodeID,
+				ObjectName:  ptr.String("node " + p.YPath().String()),
+				SubjectID:   user1ID,
+				SubjectName: &user1,
+			},
+			allowUsersResult,
+		},
+	}
+
+	require.Equal(t, expectedResponse, response)
+
+	// check user2's permission
+
+	response, err = yc.CheckPermission(ctx, user2, yt.PermissionRead, p, &yt.CheckPermissionOptions{
+		Columns: []string{"protected_column", "regular_column"},
+	})
+	require.NoError(t, err)
+
+	expectedResponse = &yt.CheckPermissionResponse{
+		CheckPermissionResult: allowUsersResult,
+		Columns: []yt.CheckPermissionResult{
+			{
+				Action: yt.ActionDeny,
+			},
+			allowUsersResult,
+		},
+	}
+
+	require.Equal(t, expectedResponse, response)
 }

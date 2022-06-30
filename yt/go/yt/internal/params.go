@@ -611,6 +611,19 @@ func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
+	if o == nil {
+		return
+	}
+	if o.Columns != nil {
+		w.MapKeyString("columns")
+		w.Any(o.Columns)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+	writeMasterReadOptions(w, o.MasterReadOptions)
+}
+
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
 	if o == nil {
 		return
@@ -2600,6 +2613,68 @@ func (p *TransferPoolResourcesParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *TransferPoolResourcesParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
+}
+
+type CheckPermissionParams struct {
+	verb       Verb
+	user       string
+	permission yt.Permission
+	path       ypath.YPath
+	options    *yt.CheckPermissionOptions
+}
+
+func NewCheckPermissionParams(
+	user string,
+	permission yt.Permission,
+	path ypath.YPath,
+	options *yt.CheckPermissionOptions,
+) *CheckPermissionParams {
+	if options == nil {
+		options = &yt.CheckPermissionOptions{}
+	}
+	return &CheckPermissionParams{
+		Verb("check_permission"),
+		user,
+		permission,
+		path,
+		options,
+	}
+}
+
+func (p *CheckPermissionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CheckPermissionParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *CheckPermissionParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("user", p.user),
+		log.Any("permission", p.permission),
+		log.Any("path", p.path),
+	}
+}
+
+func (p *CheckPermissionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("user")
+	w.Any(p.user)
+	w.MapKeyString("permission")
+	w.Any(p.permission)
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeCheckPermissionOptions(w, p.options)
+}
+
+func (p *CheckPermissionParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+func (p *CheckPermissionParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
+}
+
+func (p *CheckPermissionParams) MasterReadOptions() **yt.MasterReadOptions {
+	return &p.options.MasterReadOptions
 }
 
 type LockNodeParams struct {

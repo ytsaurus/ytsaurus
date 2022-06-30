@@ -862,6 +862,35 @@ func (r *TransferPoolResourcesRequest) SetMutatingOptions(opts *yt.MutatingOptio
 	r.MutatingOptions = convertMutatingOptions(opts)
 }
 
+var _ ReadRetryRequest = (*CheckPermissionRequest)(nil)
+var _ TransactionalRequest = (*CheckPermissionRequest)(nil)
+
+type CheckPermissionRequest struct {
+	*rpc_proxy.TReqCheckPermission
+}
+
+func NewCheckPermissionRequest(r *rpc_proxy.TReqCheckPermission) *CheckPermissionRequest {
+	return &CheckPermissionRequest{TReqCheckPermission: r}
+}
+
+func (r *CheckPermissionRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("path", r.GetPath()),
+		log.String("user", r.GetUser()),
+		log.Int32("permission", r.GetPermission()),
+	}
+}
+
+func (r *CheckPermissionRequest) Path() (string, bool) {
+	return r.GetPath(), true
+}
+
+func (r *CheckPermissionRequest) SetTxOptions(opts *TransactionOptions) {
+	r.TransactionalOptions = convertTransactionOptions(opts.TransactionOptions)
+}
+
+func (r *CheckPermissionRequest) ReadRetryOptions() {}
+
 var _ TransactionalRequest = (*LockNodeRequest)(nil)
 var _ MutatingRequest = (*LockNodeRequest)(nil)
 
