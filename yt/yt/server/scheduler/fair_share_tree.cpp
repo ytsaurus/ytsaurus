@@ -2632,6 +2632,7 @@ private:
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters());
             })
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "full_path", pool->GetFullPath(/*explicitOnly*/ false, /*withTreeId*/ false))
             .Do(std::bind(&TFairShareTree::BuildCompositeElementInfo, std::cref(treeSnapshot), pool, std::cref(filter), std::placeholders::_1));
     }
 

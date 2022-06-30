@@ -1086,7 +1086,7 @@ void TSchedulerCompositeElement::UpdateStarvationStatuses(TInstant now, bool ena
     }
 }
 
-TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly) const
+TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId) const
 {
     std::vector<TString> tokens;
     const auto* current = this;
@@ -1099,7 +1099,10 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly) const
 
     std::reverse(tokens.begin(), tokens.end());
 
-    TYPath path = "/" + NYPath::ToYPathLiteral(TreeId_);
+    TYPath path;
+    if (withTreeId) {
+        path = "/" + NYPath::ToYPathLiteral(TreeId_);
+    }
     for (const auto& token : tokens) {
         path.append('/');
         path.append(NYPath::ToYPathLiteral(token));
