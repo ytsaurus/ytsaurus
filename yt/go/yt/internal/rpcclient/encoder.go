@@ -1222,6 +1222,48 @@ func (e *Encoder) TransferPoolResources(
 	return
 }
 
+func (e *Encoder) CheckPermission(
+	ctx context.Context,
+	user string,
+	permission yt.Permission,
+	path ypath.YPath,
+	opts *yt.CheckPermissionOptions,
+) (response *yt.CheckPermissionResponse, err error) {
+	if opts == nil {
+		opts = &yt.CheckPermissionOptions{}
+	}
+
+	rpcPermission, err := convertPermissionType(&permission)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &rpc_proxy.TReqCheckPermission{
+		User:                 &user,
+		Path:                 ptr.String(path.YPath().String()),
+		Permission:           rpcPermission,
+		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
+		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
+		MasterReadOptions:    convertMasterReadOptions(opts.MasterReadOptions),
+		Columns:              convertCheckPermissionColumns(opts.Columns),
+	}
+
+	call := e.newCall(MethodCheckPermission, NewCheckPermissionRequest(req), nil)
+
+	var rsp rpc_proxy.TRspCheckPermission
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeCheckPermissionResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
 func (e *Encoder) StartOperation(
 	ctx context.Context,
 	opType yt.OperationType,

@@ -74,9 +74,10 @@ type MutatingOptions struct {
 type ReadKind string
 
 const (
-	ReadFromLeader   ReadKind = "leader"
-	ReadFromFollower ReadKind = "follower"
-	ReadFromCache    ReadKind = "cache"
+	ReadFromLeader      ReadKind = "leader"
+	ReadFromFollower    ReadKind = "follower"
+	ReadFromCache       ReadKind = "cache"
+	ReadFromMasterCache ReadKind = "master_cache"
 )
 
 // ReadRetryOptions is marker for distinguishing requests that might be safely retried.
@@ -761,6 +762,50 @@ type RemoveMemberOptions struct {
 	*PrerequisiteOptions
 }
 
+// TODO(dakovalkov): create a different type for Permission
+type Permission = string
+
+const (
+	PermissionRead           Permission = "read"
+	PermissionWrite          Permission = "write"
+	PermissionUse            Permission = "use"
+	PermissionAdminister     Permission = "administer"
+	PermissionCreate         Permission = "create"
+	PermissionRemove         Permission = "remove"
+	PermissionMount          Permission = "mount"
+	PermissionManage         Permission = "manage"
+	PermissionModifyChildren Permission = "modify_children"
+)
+
+type SecurityAction string
+
+const (
+	ActionAllow SecurityAction = "allow"
+	ActionDeny  SecurityAction = "deny"
+)
+
+type CheckPermissionOptions struct {
+	*TransactionOptions
+	*PrerequisiteOptions
+	*MasterReadOptions
+
+	Columns []string `http:"columns,omitnil"`
+}
+
+type CheckPermissionResult struct {
+	Action      SecurityAction `yson:"action"`
+	ObjectID    NodeID         `yson:"object_id,omitempty"`
+	ObjectName  *string        `yson:"object_name,omitempty"`
+	SubjectID   NodeID         `yson:"subject_id,omitempty"`
+	SubjectName *string        `yson:"subject_name,omitempty"`
+}
+
+type CheckPermissionResponse struct {
+	CheckPermissionResult
+
+	Columns []CheckPermissionResult `yson:"columns,omitempty"`
+}
+
 type AdminClient interface {
 	// http:verb:"add_member"
 	// http:params:"group","member"
@@ -800,6 +845,16 @@ type AdminClient interface {
 		resourceDelta interface{},
 		options *TransferPoolResourcesOptions,
 	) (err error)
+
+	// http:verb:"check_permission"
+	// http:params:"user","permission","path"
+	CheckPermission(
+		ctx context.Context,
+		user string,
+		permission Permission,
+		path ypath.YPath,
+		options *CheckPermissionOptions,
+	) (result *CheckPermissionResponse, err error)
 }
 
 type LockNodeOptions struct {
