@@ -62,5 +62,8 @@ def test_list(running_app):
                 'period_start_time': '2022-04-24T00:00:00.000000Z',
                 'period_end_time': '2022-04-29T00:00:00.000000Z',
             },
+            'metadata_pattern': {
+                'profile_type': "*",
+            },
         },
     })

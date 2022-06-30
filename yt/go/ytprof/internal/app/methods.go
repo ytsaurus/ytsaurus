@@ -29,13 +29,28 @@ func apiTimePeriodToStorage(at *api.TimePeriod) (storage.TimestampPeriod, error)
 
 func (a *App) apiMetaqueryToStorage(am *api.Metaquery) (storage.Metaquery, error) {
 	period, err := apiTimePeriodToStorage(am.TimePeriod)
-	return storage.Metaquery{
-		Query:       am.Query,
-		QueryLimit:  int(a.config.QueryLimit),
-		Period:      period,
-		ResultSkip:  int(am.ResultSkip),
-		ResultLimit: int(am.ResultLimit),
-	}, err
+	metaquery := storage.Metaquery{
+		Query:            am.Query,
+		QueryLimit:       int(a.config.QueryLimit),
+		Period:           period,
+		ResultSkip:       int(am.ResultSkip),
+		ResultLimit:      int(am.ResultLimit),
+		MatadataPatterns: am.MetadataPattern.UserTags,
+	}
+	if metaquery.MatadataPatterns == nil {
+		metaquery.MatadataPatterns = map[string]string{}
+	}
+	if len(am.MetadataPattern.ProfileType) > 0 {
+		metaquery.MatadataPatterns["ProfileType"] = am.MetadataPattern.ProfileType
+	}
+	if len(am.MetadataPattern.Host) > 0 {
+		metaquery.MatadataPatterns["Host"] = am.MetadataPattern.Host
+	}
+	if len(am.MetadataPattern.ArcRevision) > 0 {
+		metaquery.MatadataPatterns["ArcRevision"] = am.MetadataPattern.ArcRevision
+	}
+
+	return metaquery, err
 }
 
 func (a *App) storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {

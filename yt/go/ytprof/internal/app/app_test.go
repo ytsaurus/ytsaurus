@@ -80,6 +80,12 @@ func TestAppList(t *testing.T) {
 				PeriodStartTime: "2022-04-24T00:00:00.000000Z",
 				PeriodEndTime:   "2022-04-29T00:00:00.000000Z",
 			},
+			ResultSkip:  0,
+			ResultLimit: 10,
+			MetadataPattern: &api.Metadata{
+				ProfileType: "*",
+				UserTags:    map[string]string{},
+			},
 		},
 	}
 

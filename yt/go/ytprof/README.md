@@ -29,6 +29,8 @@ Here is a [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) t
 
 * `/ytpfof/api/get`: get profile by ProfileID in the format of guid (type GET)
 * `/ytpfof/api/list`: find metadata specified by query (type POST)
+* `/ytpfof/api/suggest_tags`: get all possible tags (type GET)
+* `/ytpfof/api/suggest_values`: get all possible values of a tag (type GET)
 
 See `requsts` and `responces` [here](https://a.yandex-team.ru/arcadia/yt/go/ytprof/api/api.proto).
 

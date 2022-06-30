@@ -33,11 +33,12 @@ type TimestampPeriod struct {
 }
 
 type Metaquery struct {
-	Period      TimestampPeriod
-	Query       string
-	QueryLimit  int
-	ResultSkip  int
-	ResultLimit int
+	Period           TimestampPeriod
+	Query            string
+	QueryLimit       int
+	ResultSkip       int
+	ResultLimit      int
+	MatadataPatterns map[string]string
 }
 
 type TableStorage struct {
@@ -240,7 +241,7 @@ func (m *TableStorage) MetadataQueryExpr(ctx context.Context, metaquery Metaquer
 
 	results := make([]ytprof.ProfileMetadata, 0)
 
-	expr, err := expressions.NewExpression(metaquery.Query)
+	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MatadataPatterns)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, metaquery Metaq
 
 	resultIDs := make([]ytprof.ProfID, 0)
 
-	expr, err := expressions.NewExpression(metaquery.Query)
+	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MatadataPatterns)
 	if err != nil {
 		return nil, err
 	}
