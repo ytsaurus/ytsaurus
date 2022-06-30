@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -362,6 +363,16 @@ double TResourceTracker::GetSystemCpu()
 double TResourceTracker::GetCpuWait()
 {
     return LastCpuWait_.load();
+}
+
+TResourceTrackerPtr GetResourceTracker()
+{
+    return LeakyRefCountedSingleton<TResourceTracker>();
+}
+
+void EnableResourceTracker()
+{
+    GetResourceTracker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

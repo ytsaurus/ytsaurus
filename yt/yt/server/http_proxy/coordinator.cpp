@@ -440,7 +440,7 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
     NSystemInfo::LoadAverage(&loadAverage, 1);
     liveness->LoadAverage = loadAverage;
 
-    auto resourceTracker = NProfiling::TProfileManager::Get()->GetResourceTracker();
+    auto resourceTracker = NProfiling::GetResourceTracker();
     liveness->UserCpu = resourceTracker->GetUserCpu();
     liveness->SystemCpu = resourceTracker->GetSystemCpu();
     liveness->CpuWait = resourceTracker->GetCpuWait();

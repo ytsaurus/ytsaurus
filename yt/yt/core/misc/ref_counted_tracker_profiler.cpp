@@ -2,12 +2,6 @@
 #include "ref_counted_tracker.h"
 #include "singleton.h"
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
-
-#include <yt/yt/core/actions/invoker_util.h>
-
-#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
-
 #include <yt/yt/library/profiling/producer.h>
 
 namespace NYT {

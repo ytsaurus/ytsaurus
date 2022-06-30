@@ -51,9 +51,7 @@ public:
             NConcurrency::GetThreadTags("Profiler")))
         , Thread_(New<TThread>(this))
         , Root_(GetEphemeralNodeFactory(true)->CreateMap())
-    {
-        ResourceTracker_ = New<TResourceTracker>();
-    }
+    { }
 
     void Start()
     {
@@ -172,11 +170,6 @@ public:
         })
             .Via(GetInvoker())
             .Run();
-    }
-
-    TResourceTrackerPtr GetResourceTracker() const
-    {
-        return ResourceTracker_;
     }
 
 private:
@@ -436,8 +429,6 @@ private:
     //! One deque instead of buckets with deques.
     TSampleStorage Storage_;
 
-    TIntrusivePtr<TResourceTracker> ResourceTracker_;
-
     THashMap<TString, TString> GlobalTags_;
 
     TClosure BeginExecute()
@@ -590,11 +581,6 @@ TStringTag TProfileManager::LookupTag(TTagId tag)
 void TProfileManager::SetGlobalTag(TTagId id)
 {
     Impl_->SetGlobalTag(id);
-}
-
-TResourceTrackerPtr TProfileManager::GetResourceTracker() const
-{
-    return Impl_->GetResourceTracker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

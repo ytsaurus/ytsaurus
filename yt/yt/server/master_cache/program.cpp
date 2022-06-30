@@ -38,7 +38,6 @@ void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResu
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    EnableRefCountedTrackerProfiling();
     ConfigureAllocator({});
 
     if (HandleSetsidOptions()) {

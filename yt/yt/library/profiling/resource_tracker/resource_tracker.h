@@ -93,6 +93,10 @@ private:
         i64 timeDeltaUsec);
 };
 
+TResourceTrackerPtr GetResourceTracker();
+
+void EnableResourceTracker();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling

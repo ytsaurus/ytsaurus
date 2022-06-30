@@ -38,7 +38,6 @@ void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*par
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    EnableRefCountedTrackerProfiling();
     ConfigureAllocator({});
 
     if (HandleSetsidOptions()) {

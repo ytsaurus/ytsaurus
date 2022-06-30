@@ -46,7 +46,6 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        EnableRefCountedTrackerProfiling();
         ConfigureAllocator({});
 
         if (HandleSetsidOptions()) {

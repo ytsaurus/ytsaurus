@@ -54,6 +54,10 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("tcmalloc", &TThis::TCMalloc)
         .DefaultNew();
+    registrar.Parameter("enable_ref_counted_tracker_profiling", &TThis::EnableRefCountedTrackerProfiling)
+        .Default(true);
+    registrar.Parameter("enable_resource_tracker", &TThis::EnableResourceTracker)
+        .Default(true);
 
     // COMPAT(prime@): backward compatible config for CHYT
     registrar.Postprocessor([] (TThis* config) {

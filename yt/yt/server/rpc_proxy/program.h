@@ -60,8 +60,8 @@ protected:
         ConfigureUids();
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
-        EnablePhdrCache();
         ConfigureExitZeroOnSigterm();
+        EnablePhdrCache();
         ConfigureAllocator({});
 
         if (HandleSetsidOptions()) {

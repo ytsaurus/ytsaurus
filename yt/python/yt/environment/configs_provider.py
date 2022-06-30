@@ -274,7 +274,9 @@ def _build_master_configs(yt_config,
         for master_index in xrange(yt_config.master_count):
             config = default_config.get_master_config()
 
-            init_singletons(config, yt_config.fqdn, master_index, "master", {
+            init_singletons(config, yt_config.fqdn, master_index, yt_config.enable_resource_tracking)
+
+            init_jaeger_collector(config, "master", {
                 "cell_role": "primary" if cell_index == 0 else "secondary",
                 "master_index": str(master_index),
             })
@@ -360,7 +362,11 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     for clock_index in xrange(yt_config.clock_count):
         config = default_config.get_clock_config()
 
-        init_singletons(config, yt_config.fqdn, "clock", clock_index, {"clock_index": str(clock_index)})
+        init_singletons(config, yt_config.fqdn, clock_index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "clock", {
+            "clock_index": str(clock_index)
+        })
 
         config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -426,7 +432,11 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
     for i in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
 
-        init_singletons(config, yt_config.fqdn, "queue_agent", i, {"queue_agent_index": str(i)})
+        init_singletons(config, yt_config.fqdn, i, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "queue_agent", {
+            "queue_agent_index": str(i)
+        })
 
         config["logging"] = _init_logging(logs_dir,
                                           "queue-agent-" + str(i),
@@ -457,7 +467,11 @@ def _build_timestamp_provider_configs(yt_config,
     for index in xrange(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
-        init_singletons(config, yt_config.fqdn, "timestamp_provider", index, {"timestamp_provider_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "timestamp_provider", {
+            "timestamp_provider_index": str(index)
+        })
 
         set_at(config, "timestamp_provider/addresses",
                _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_config, None))
@@ -488,7 +502,11 @@ def _build_cell_balancer_configs(yt_config,
     for index in xrange(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
-        init_singletons(config, yt_config.fqdn, "cell_balancer", index, {"cell_balancer_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "cell_balancer", {
+            "cell_balancer_index": str(index)
+        })
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -524,7 +542,10 @@ def _build_master_cache_configs(yt_config,
     for index in xrange(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
-        init_singletons(config, yt_config.fqdn, "master_cache", index, {"master_cache_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "master_cache", {"master_cache_index": str(index)})
+
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -560,7 +581,10 @@ def _build_scheduler_configs(scheduler_dirs,
     for index in xrange(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
-        init_singletons(config, yt_config.fqdn, "scheduler", index, {"scheduler_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "scheduler", {"scheduler_index": str(index)})
+
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -595,7 +619,10 @@ def _build_controller_agent_configs(controller_agent_dirs,
     for index in xrange(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
-        init_singletons(config, yt_config.fqdn, "controller_agent", index, {"controller_agent_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "controller_agent", {"controller_agent_index": str(index)})
+
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -634,7 +661,9 @@ def _build_node_configs(node_dirs,
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
-        init_singletons(config, yt_config.fqdn, "node", index, {"node_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "node", {"node_index": str(index)})
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -777,7 +806,9 @@ def _build_chaos_node_configs(chaos_node_dirs,
     for index in xrange(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
-        init_singletons(config, yt_config.fqdn, "chaos_node", index, {"chaos_node_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "chaos_node", {"chaos_node_index": str(index)})
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -834,24 +865,26 @@ def _build_http_proxy_config(proxy_dir,
     proxy_configs = []
 
     for index in xrange(yt_config.http_proxy_count):
-        proxy_config = default_config.get_proxy_config()
-        proxy_config["port"] = \
+        config = default_config.get_proxy_config()
+        config["port"] = \
             yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
-        proxy_config["monitoring_port"] = next(ports_generator)
-        proxy_config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["rpc_port"] = next(ports_generator)
 
-        fqdn = "{0}:{1}".format(yt_config.fqdn, proxy_config["port"])
-        set_at(proxy_config, "coordinator/public_fqdn", fqdn)
-        init_singletons(proxy_config, yt_config.fqdn, "http_proxy", index, {"http_proxy_index": str(index)})
+        fqdn = "{0}:{1}".format(yt_config.fqdn, config["port"])
+        set_at(config, "coordinator/public_fqdn", fqdn)
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
 
-        proxy_config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
+        init_jaeger_collector(config, "http_proxy", {"http_proxy_index": str(index)})
+
+        config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
                                                 has_structured_logs=True)
 
-        proxy_config["driver"] = driver_config
+        config["driver"] = driver_config
 
-        proxy_config["zookeeper"] = {"port": next(ports_generator)}
+        config["zookeeper"] = {"port": next(ports_generator)}
 
-        proxy_configs.append(proxy_config)
+        proxy_configs.append(config)
 
     return proxy_configs
 
@@ -979,7 +1012,10 @@ def _build_rpc_proxy_configs(logs_dir,
                 "tracing_mode": "force",
             }
         }
-        init_singletons(config, yt_config.fqdn, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
+        init_singletons(config, yt_config.fqdn, rpc_proxy_index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
+
         config["cluster_connection"] = _build_cluster_connection_config(
             yt_config,
             master_connection_configs,
@@ -1146,7 +1182,9 @@ def _build_tablet_balancer_configs(yt_config,
     for index in xrange(yt_config.tablet_balancer_count):
         config = default_config.get_tablet_balancer_config()
 
-        init_singletons(config, yt_config.fqdn, "tablet_balancer", index, {"tablet_balancer_index": str(index)})
+        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+
+        init_jaeger_collector(config, "tablet_balancer", {"tablet_balancer_index": str(index)})
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -1294,7 +1332,7 @@ def get_at(config, path, default_value=None):
     return config
 
 
-def init_singletons(config, fqdn, name, index, process_tags={}):
+def init_singletons(config, fqdn, index, enable_resource_tracking):
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })
@@ -1305,7 +1343,11 @@ def init_singletons(config, fqdn, name, index, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
     set_at(config, "cypress_annotations/yt_env_index", index)
+    set_at(config, "enable_ref_counted_tracker_profiling", enable_resource_tracking)
+    set_at(config, "enable_resource_tracker", enable_resource_tracking)
 
+
+def init_jaeger_collector(config, name, process_tags):
     if "JAEGER_COLLECTOR" in os.environ:
         set_at(config, "jaeger", {
             "service_name": name,

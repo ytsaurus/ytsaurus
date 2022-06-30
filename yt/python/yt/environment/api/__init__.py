@@ -44,6 +44,7 @@ class LocalYtConfig(object):
     enable_master_cache = attr.ib(False)
     enable_permission_cache = attr.ib(False)
     enable_rpc_driver_proxy_discovery = attr.ib(False)
+    enable_resource_tracking = attr.ib(False)
 
     """Logging configuration"""
     enable_log_compression = attr.ib(False)

@@ -38,7 +38,6 @@ void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    EnableRefCountedTrackerProfiling();
     ConfigureAllocator({});
 
     if (HandleSetsidOptions()) {
