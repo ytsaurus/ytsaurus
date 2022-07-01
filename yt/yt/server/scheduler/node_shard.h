@@ -260,11 +260,13 @@ private:
             IOperationControllerPtr controller,
             bool jobsReady,
             TShardEpoch shardEpoch,
-            TControllerEpoch controllerEpoch)
+            TControllerEpoch controllerEpoch,
+            TString operationCodicilString)
             : Controller(std::move(controller))
             , JobsReady(jobsReady)
             , ShardEpoch(shardEpoch)
             , ControllerEpoch(controllerEpoch)
+            , OperationCodicilString(std::move(operationCodicilString))
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
@@ -282,6 +284,8 @@ private:
         //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
         TShardEpoch ShardEpoch;
         TControllerEpoch ControllerEpoch;
+
+        const TString OperationCodicilString;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
