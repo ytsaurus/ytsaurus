@@ -122,6 +122,7 @@ private:
     ICoreDumperPtr CoreDumper_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
+    NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;
 
     void SetupClients();
 

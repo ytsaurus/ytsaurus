@@ -225,10 +225,6 @@ void TBootstrap::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     rsp->SetStatus(EStatusCode::OK);
     if (req->GetUrl().Path == "/service") {
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
@@ -347,20 +343,34 @@ const TApiPtr& TBootstrap::GetApi() const
     return Api_;
 }
 
+IHttpHandlerPtr TBootstrap::AllowCors(IHttpHandlerPtr nextHandler) const
+{
+    return New<TCallbackHandler>(BIND([config=Config_, nextHandler] (
+        const IRequestPtr& req,
+        const IResponseWriterPtr& rsp)
+    {
+        if (MaybeHandleCors(req, rsp, config->Api->Cors)) {
+            return;
+        }
+
+        nextHandler->HandleRequest(req, rsp);
+    }));
+}
+
 void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 {
-    server->AddHandler("/auth/whoami", HttpAuthenticator_);
-    server->AddHandler("/api/", Api_);
-    server->AddHandler("/hosts/", HostsHandler_);
-    server->AddHandler("/ping/", PingHandler_);
+    server->AddHandler("/auth/whoami", AllowCors(HttpAuthenticator_));
+    server->AddHandler("/api/", AllowCors(Api_));
+    server->AddHandler("/hosts/", AllowCors(HostsHandler_));
+    server->AddHandler("/ping/", AllowCors(PingHandler_));
 
-    server->AddHandler("/internal/discover_versions/v2", DiscoverVersionsHandlerV2_);
+    server->AddHandler("/internal/discover_versions/v2", AllowCors(DiscoverVersionsHandlerV2_));
 
-    server->AddHandler("/version", MakeStrong(this));
-    server->AddHandler("/service", MakeStrong(this));
+    server->AddHandler("/version", AllowCors(MakeStrong(this)));
+    server->AddHandler("/service", AllowCors(MakeStrong(this)));
 
     // ClickHouse.
-    server->AddHandler("/query", ClickHouseHandler_);
+    server->AddHandler("/query", AllowCors(ClickHouseHandler_));
 
     if (!Config_->UIRedirectUrl.empty()) {
         server->AddHandler("/", New<TCallbackHandler>(BIND([config=Config_] (

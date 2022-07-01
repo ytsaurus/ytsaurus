@@ -276,10 +276,6 @@ void TApi::HandleRequest(
     const IRequestPtr& req,
     const IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp, Config_->Cors)) {
-        return;
-    }
-
     auto context = New<TContext>(MakeStrong(this), req, rsp);
     try {
         if (!context->TryPrepare()) {
