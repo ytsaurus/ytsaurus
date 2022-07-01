@@ -1133,7 +1133,7 @@ private:
 
                 tagToAgentIds.reserve(std::size(tags));
                 for (auto& tag : tags) {
-                    tagToAgentIds[std::move(tag)].push_back(std::move(agentId));
+                    tagToAgentIds[std::move(tag)].push_back(agentId);
                 }
             }
 
