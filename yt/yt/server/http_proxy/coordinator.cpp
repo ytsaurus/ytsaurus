@@ -480,10 +480,6 @@ void THostsHandler::HandleRequest(
     const NHttp::IRequestPtr& req,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     auto role = Coordinator_->GetConfig()->DefaultRoleFilter;
     std::optional<TString> suffix;
     bool returnJson = true;
@@ -564,16 +560,13 @@ TPingHandler::TPingHandler(TCoordinatorPtr coordinator)
 { }
 
 void TPingHandler::HandleRequest(
-    const NHttp::IRequestPtr& req,
+    const NHttp::IRequestPtr& /* req */,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     rsp->SetStatus(Coordinator_->IsUnavailable(TInstant::Now())
         ? EStatusCode::ServiceUnavailable
         : EStatusCode::OK);
+
     WaitFor(rsp->Close())
         .ThrowOnError();
 }
@@ -863,13 +856,9 @@ void Serialize(const TInstance& instance, IYsonConsumer* consumer)
 }
 
 void TDiscoverVersionsHandlerV2::HandleRequest(
-    const NHttp::IRequestPtr& req,
+    const NHttp::IRequestPtr& /* req */,
     const NHttp::IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     std::vector<TInstance> instances;
     auto add = [&] (auto part) {
         for (const auto& instance : part) {

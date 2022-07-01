@@ -54,10 +54,6 @@ THttpAuthenticator::THttpAuthenticator(TBootstrap* bootstrap)
 
 void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
-        return;
-    }
-
     auto result = Authenticate(req, true);
     if (result.IsOK()) {
         rsp->SetStatus(EStatusCode::OK);
