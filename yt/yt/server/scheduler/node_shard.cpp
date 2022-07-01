@@ -2104,7 +2104,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
         case EAllocationState::Running:
         case EAllocationState::Waiting:
-            SetAllocationState(job, allocationState);
+            if (stateChanged) {
+                SetAllocationState(job, allocationState);
+            }
             switch (allocationState) {
                 case EAllocationState::Running:
                     YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
