@@ -961,18 +961,19 @@ class YtClient(ClientState):
 
     def iterate_operations(
             self,
-            user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None, from_time=None,
-            to_time=None, cursor_direction='past', limit_per_request=100, include_archive=None, attributes=None,
-            format=None):
+            user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
+            from_time=None, to_time=None, cursor_direction='past', limit_per_request=100, include_archive=None,
+            attributes=None, format=None):
         """
         Yield operations that satisfy given options.
 
         """
         return client_api.iterate_operations(
             client=self,
-            user=user, state=state, type=type, filter=filter, pool=pool, with_failed_jobs=with_failed_jobs,
-            from_time=from_time, to_time=to_time, cursor_direction=cursor_direction, limit_per_request=limit_per_request,
-            include_archive=include_archive, attributes=attributes, format=format)
+            user=user, state=state, type=type, filter=filter, pool_tree=pool_tree, pool=pool,
+            with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_direction=cursor_direction,
+            limit_per_request=limit_per_request, include_archive=include_archive, attributes=attributes,
+            format=format)
 
     def link(
             self,
