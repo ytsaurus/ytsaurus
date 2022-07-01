@@ -158,6 +158,11 @@ type Spec struct {
 	ClusterName    string `yson:"cluster_name,omitempty"`
 	NetworkName    string `yson:"network_name,omitempty"`
 	CopyAttributes *bool  `yson:"copy_attributes,omitempty"`
+
+	IntermediateDataReplicationFactor int `yson:"intermediate_data_replication_factor,omitempty"`
+
+	ProbingRatio    int    `yson:"probing_ratio,omitempty"`
+	ProbingPoolTree string `yson:"probing_pool_tree,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {
