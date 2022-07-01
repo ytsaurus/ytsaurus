@@ -227,9 +227,6 @@ private:
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter HeartbeatWithScheduleJobsCounter_;
     NProfiling::TCounter HeartbeatJobCount_;
-    NProfiling::TCounter HeartbeatStatisticBytes_;
-    NProfiling::TCounter HeartbeatJobResultBytes_;
-    NProfiling::TCounter HeartbeatProtoMessageBytes_;
     NProfiling::TCounter HeartbeatCount_;
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
