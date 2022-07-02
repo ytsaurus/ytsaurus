@@ -1212,8 +1212,10 @@ private:
             }
         }
 
-        if (peerCount == 0) {
+        // NB: This may happen e.g. if some chunks are lost.
+        if (peerCount == 0 && !isHedged) {
             OnCompleted();
+            return;
         }
 
         RequestFragments(std::move(peerInfoToPlan), isHedged);
