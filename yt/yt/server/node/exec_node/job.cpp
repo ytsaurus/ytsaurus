@@ -2287,7 +2287,7 @@ std::optional<EAbortReason> TJob::GetAbortReason()
     if (resultError.FindMatching(NExecNode::EErrorCode::ResourceOverdraft)) {
         return EAbortReason::ResourceOverdraft;
     }
-    
+
     if (resultError.FindMatching(NExecNode::EErrorCode::NodeResourceOvercommit)) {
         return EAbortReason::NodeResourceOvercommit;
     }
@@ -2383,7 +2383,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
         error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
         error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
-        error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
+        error.FindMatching(NTableClient::EErrorCode::IncomparableTypes) ||
         error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
         error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
         error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||

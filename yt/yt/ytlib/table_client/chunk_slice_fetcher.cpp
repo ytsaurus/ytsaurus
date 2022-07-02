@@ -269,7 +269,7 @@ private:
 
             OnNodeFailed(nodeId, requestedChunkIndexes);
 
-            if (rspOrError.FindMatching(EErrorCode::IncomparableType)) {
+            if (rspOrError.FindMatching(EErrorCode::IncomparableTypes)) {
                 // Any exception thrown here interrupts fetching.
                 rspOrError.ThrowOnError();
             }
