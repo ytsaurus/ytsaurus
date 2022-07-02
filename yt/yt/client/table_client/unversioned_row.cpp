@@ -297,7 +297,7 @@ namespace {
 [[noreturn]] void ThrowIncomparableTypes(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     THROW_ERROR_EXCEPTION(
-        EErrorCode::IncomparableType,
+        NTableClient::EErrorCode::IncomparableTypes,
         "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
         lhs.Type,
         rhs.Type)
@@ -337,7 +337,9 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         try {
             return CompareCompositeValues(lhsData, rhsData);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Cannot compare complex values")
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::IncomparableComplexValues,
+                "Cannot compare complex values")
                 << TErrorAttribute("lhs_value", lhs)
                 << TErrorAttribute("rhs_value", rhs)
                 << ex;
@@ -751,7 +753,9 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
     switch (value.Type) {
         case EValueType::String:
             if (value.Length > MaxStringValueLength) {
-                THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for dynamic data: length %v, limit %v",
+                THROW_ERROR_EXCEPTION(
+                    NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                    "Value of type %Qlv is too long for dynamic data: length %v, limit %v",
                     value.Type,
                     value.Length,
                     MaxStringValueLength);
@@ -760,7 +764,9 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
 
         case EValueType::Any:
             if (value.Length > MaxAnyValueLength) {
-                THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for dynamic data: length %v, limit %v",
+                THROW_ERROR_EXCEPTION(
+                    NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                    "Value of type %Qlv is too long for dynamic data: length %v, limit %v",
                     value.Type,
                     value.Length,
                     MaxAnyValueLength);
@@ -770,7 +776,9 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
 
         case EValueType::Double:
             if (isKey && std::isnan(value.Data.Double)) {
-                THROW_ERROR_EXCEPTION("Key of type \"double\" cannot be NaN");
+                THROW_ERROR_EXCEPTION(
+                    NTableClient::EErrorCode::KeyCannotBeNan,
+                    "Key of type \"double\" cannot be NaN");
             }
             break;
 
@@ -788,7 +796,7 @@ void ValidateClientRow(
     std::optional<int> tabletIndexColumnId = std::nullopt)
 {
     if (!row) {
-        THROW_ERROR_EXCEPTION("Unexpected empty row");
+        THROW_ERROR_EXCEPTION("Row cannot be null");
     }
 
     ValidateRowValueCount(row.GetCount());
@@ -855,7 +863,9 @@ void ValidateClientRow(
 
     auto dataWeight = GetDataWeight(row);
     if (dataWeight >= MaxClientVersionedRowDataWeight) {
-        THROW_ERROR_EXCEPTION("Row is too large: data weight %v, limit %v",
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::RowWeightLimitExceeded,
+            "Row is too large: data weight %v, limit %v",
             dataWeight,
             MaxClientVersionedRowDataWeight);
     }
@@ -984,7 +994,7 @@ void ValidateValueType(
 [[noreturn]] static void ThrowInvalidColumnType(EValueType expected, EValueType actual)
 {
     THROW_ERROR_EXCEPTION(
-        EErrorCode::SchemaViolation,
+        NTableClient::EErrorCode::SchemaViolation,
         "Invalid type, expected type %Qlv but got %Qlv",
         expected,
         actual);
@@ -1054,7 +1064,7 @@ void ValidateValueType(
             }
 
             THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
+                NTableClient::EErrorCode::SchemaViolation,
                 "Required column %v cannot have %Qlv value",
                 columnSchema.GetDiagnosticNameString(),
                 value.Type);
@@ -1125,7 +1135,8 @@ void ValidateValueType(
         }
         YT_ABORT();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::SchemaViolation,
             "Error validating column %v",
             columnSchema.GetDiagnosticNameString())
             << ex;
@@ -1137,7 +1148,9 @@ void ValidateStaticValue(const TUnversionedValue& value)
     ValidateDataValueType(value.Type);
     if (IsStringLikeType(value.Type)) {
         if (value.Length > MaxRowWeightLimit) {
-            THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for static data: length %v, limit %v",
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                "Value of type %Qlv is too long for static data: length %v, limit %v",
                 value.Type,
                 value.Length,
                 MaxRowWeightLimit);
@@ -1163,7 +1176,9 @@ void ValidateRowValueCount(int count)
         THROW_ERROR_EXCEPTION("Negative number of values in row");
     }
     if (count > MaxValuesPerRow) {
-        THROW_ERROR_EXCEPTION("Too many values in row: actual %v, limit %v",
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::TooManyValuesInRow,
+            "Too many values in row: actual %v, limit %v",
             count,
             MaxValuesPerRow);
     }
@@ -1175,7 +1190,9 @@ void ValidateKeyColumnCount(int count)
         THROW_ERROR_EXCEPTION("Negative number of key columns");
     }
     if (count > MaxKeyColumnCount) {
-        THROW_ERROR_EXCEPTION("Too many columns in key: actual %v, limit %v",
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::TooManyColumnsInKey,
+            "Too many columns in key: actual %v, limit %v",
             count,
             MaxKeyColumnCount);
     }
@@ -1187,7 +1204,9 @@ void ValidateRowCount(int count)
         THROW_ERROR_EXCEPTION("Negative number of rows in rowset");
     }
     if (count > MaxRowsPerRowset) {
-        THROW_ERROR_EXCEPTION("Too many rows in rowset: actual %v, limit %v",
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::TooManyRowsInRowset,
+            "Too many rows in rowset: actual %v, limit %v",
             count,
             MaxRowsPerRowset);
     }
@@ -1221,7 +1240,9 @@ void ValidateDuplicateAndRequiredValueColumns(
         const auto& column = schema.Columns()[mappedId];
 
         if (columnSeen[mappedId]) {
-            THROW_ERROR_EXCEPTION("Duplicate column %v",
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::DuplicateColumnInSchema,
+                "Duplicate column %v in table schema",
                 column.GetDiagnosticNameString());
         }
         columnSeen[mappedId] = true;
@@ -1229,7 +1250,9 @@ void ValidateDuplicateAndRequiredValueColumns(
 
     for (int index = schema.GetKeyColumnCount(); index < schema.GetColumnCount(); ++index) {
         if (!columnSeen[index] && schema.Columns()[index].Required()) {
-            THROW_ERROR_EXCEPTION("Missing required column %v",
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::MissingRequiredColumnInSchema,
+                "Missing required column %v in table schema",
                 schema.Columns()[index].GetDiagnosticNameString());
         }
     }
