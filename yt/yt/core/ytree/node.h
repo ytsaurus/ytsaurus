@@ -154,10 +154,10 @@ namespace NDetail {
 template <>
 struct TScalarTypeTraits<TString>
 {
-    static THashSet<ENodeType> GetValueSupportedTypes;
-    static TString GetValueSupportedTypesStringRepresentation;
-    static THashSet<ENodeType> SetValueSupportedTypes;
-    static TString SetValueSupportedTypesStringRepresentation;
+    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
+    static const TString& GetGetValueSupportedTypesStringRepresentation();
+    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
+    static const TString& GetSetValueSupportedTypesStringRepresentation();
     static constexpr ENodeType NodeType = ENodeType::String;
     using TConsumerType = TStringBuf;
     static const TString& GetValue(const IConstNodePtr& node);
@@ -167,10 +167,10 @@ struct TScalarTypeTraits<TString>
 template <>
 struct TScalarTypeTraits<i64>
 {
-    static THashSet<ENodeType> GetValueSupportedTypes;
-    static TString GetValueSupportedTypesStringRepresentation;
-    static THashSet<ENodeType> SetValueSupportedTypes;
-    static TString SetValueSupportedTypesStringRepresentation;
+    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
+    static const TString& GetGetValueSupportedTypesStringRepresentation();
+    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
+    static const TString& GetSetValueSupportedTypesStringRepresentation();
     static constexpr ENodeType NodeType = ENodeType::Int64;
     using TConsumerType = i64;
     static i64 GetValue(const IConstNodePtr& node);
@@ -180,10 +180,10 @@ struct TScalarTypeTraits<i64>
 template <>
 struct TScalarTypeTraits<ui64>
 {
-    static THashSet<ENodeType> GetValueSupportedTypes;
-    static TString GetValueSupportedTypesStringRepresentation;
-    static THashSet<ENodeType> SetValueSupportedTypes;
-    static TString SetValueSupportedTypesStringRepresentation;
+    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
+    static const TString& GetGetValueSupportedTypesStringRepresentation();
+    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
+    static const TString& GetSetValueSupportedTypesStringRepresentation();
     static constexpr ENodeType NodeType = ENodeType::Uint64;
     using TConsumerType = ui64;
     static ui64 GetValue(const IConstNodePtr& node);
@@ -193,10 +193,10 @@ struct TScalarTypeTraits<ui64>
 template <>
 struct TScalarTypeTraits<double>
 {
-    static THashSet<ENodeType> GetValueSupportedTypes;
-    static TString GetValueSupportedTypesStringRepresentation;
-    static THashSet<ENodeType> SetValueSupportedTypes;
-    static TString SetValueSupportedTypesStringRepresentation;
+    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
+    static const TString& GetGetValueSupportedTypesStringRepresentation();
+    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
+    static const TString& GetSetValueSupportedTypesStringRepresentation();
     static constexpr ENodeType NodeType = ENodeType::Double;
     using TConsumerType = double;
     static double GetValue(const IConstNodePtr& node);
@@ -206,10 +206,10 @@ struct TScalarTypeTraits<double>
 template <>
 struct TScalarTypeTraits<bool>
 {
-    static THashSet<ENodeType> GetValueSupportedTypes;
-    static TString GetValueSupportedTypesStringRepresentation;
-    static THashSet<ENodeType> SetValueSupportedTypes;
-    static TString SetValueSupportedTypesStringRepresentation;
+    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
+    static const TString& GetGetValueSupportedTypesStringRepresentation();
+    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
+    static const TString& GetSetValueSupportedTypesStringRepresentation();
     static constexpr ENodeType NodeType = ENodeType::Boolean;
     using TConsumerType = bool;
     static bool GetValue(const IConstNodePtr& node);
