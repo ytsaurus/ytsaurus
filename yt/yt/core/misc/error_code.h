@@ -68,7 +68,7 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeRangeInfo& errorCodeInfo);
 
 #define YT_DEFINE_ERROR_ENUM(seq) \
     DEFINE_ENUM(EErrorCode, seq); \
-    ATTRIBUTE_USED inline const void* ErrorEnum_EErrorCode = [] { \
+    YT_ATTRIBUTE_USED inline const void* ErrorEnum_EErrorCode = [] { \
         for (auto errorCode : ::NYT::TEnumTraits<EErrorCode>::GetDomainValues()) { \
             ::NYT::TErrorCodeRegistry::Get()->RegisterErrorCode( \
                 static_cast<int>(errorCode), \
@@ -81,7 +81,7 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeRangeInfo& errorCodeInfo);
 
 //! NB: This macro should only by used in cpp files.
 #define YT_DEFINE_ERROR_CODE_RANGE(from, to, namespaceName, formatter) \
-    ATTRIBUTE_USED static const void* CONCAT(RegisterErrorCodeRange, __LINE__) = [] { \
+    YT_ATTRIBUTE_USED static const void* CONCAT(RegisterErrorCodeRange, __LINE__) = [] { \
         ::NYT::TErrorCodeRegistry::Get()->RegisterErrorCodeRange(from, to, namespaceName, formatter); \
         return nullptr; \
     } ()
