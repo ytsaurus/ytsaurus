@@ -369,7 +369,7 @@ private:
     TRingQueue<TClosure> Queue_;
     int Semaphore_ = 0;
 
-    static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
+    static thread_local TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
 
 private:
     class TInvocationGuard
@@ -436,7 +436,7 @@ private:
     }
 };
 
-PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedulingInvoker_ = nullptr;
+thread_local TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedulingInvoker_;
 
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
