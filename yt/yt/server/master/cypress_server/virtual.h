@@ -61,6 +61,7 @@ protected:
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool NeedSuppressUpstreamSync() const;
+    virtual bool NeedSuppressTransactionCoordinatorSync() const;
 
 private:
     NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;

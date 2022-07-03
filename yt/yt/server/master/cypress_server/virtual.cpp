@@ -448,6 +448,9 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
     if (NeedSuppressUpstreamSync()) {
         batchReq->SetSuppressUpstreamSync(true);
     }
+    if (NeedSuppressTransactionCoordinatorSync()) {
+        batchReq->SetSuppressTransactionCoordinatorSync(true);
+    }
 
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
@@ -497,6 +500,11 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const std
 }
 
 bool TVirtualMulticellMapBase::NeedSuppressUpstreamSync() const
+{
+    return true;
+}
+
+bool TVirtualMulticellMapBase::NeedSuppressTransactionCoordinatorSync() const
 {
     return true;
 }
