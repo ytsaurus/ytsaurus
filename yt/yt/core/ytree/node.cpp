@@ -295,9 +295,9 @@ std::optional<int> TryAdjustChildIndex(int index, int childCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(INode& value, IYsonConsumer* consumer)
+void Serialize(const INode& value, IYsonConsumer* consumer)
 {
-    VisitTree(&value, consumer, true /*stable*/, std::nullopt /*attributeKeys*/);
+    VisitTree(const_cast<INode*>(&value), consumer, /*stable*/ true, /*attributeKeys*/ std::nullopt);
 }
 
 void Deserialize(INodePtr& value, const INodePtr& node)
