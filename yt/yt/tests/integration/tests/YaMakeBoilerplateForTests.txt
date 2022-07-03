@@ -30,7 +30,7 @@ REQUIREMENTS(
 PEERDIR(
     contrib/python/zstandard
 
-    yt/yt/tests/integration
+    yt/yt/tests/library
     yt/yt/ytlib/query_client/unittests/udf
 )
 
@@ -50,7 +50,7 @@ ELSE()
 ENDIF()
 
 COPY_FILE(
-    yt/yt/tests/integration/tests/conftest.py conftest.py
+    yt/yt/tests/conftest_lib/conftest.py conftest.py
 )
 
 TEST_SRCS(
