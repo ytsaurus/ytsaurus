@@ -113,7 +113,7 @@ TExecutionStack::~TExecutionStack()
     ::DeleteFiber(Handle_);
 }
 
-static PER_THREAD void* FiberTrampolineOpaque;
+static thread_local void* FiberTrampolineOpaque;
 
 void TExecutionStack::SetOpaque(void* opaque)
 {
