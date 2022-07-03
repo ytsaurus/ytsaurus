@@ -439,7 +439,7 @@ struct ITransactionalNodeFactory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(INode& value, NYson::IYsonConsumer* consumer);
+void Serialize(const INode& value, NYson::IYsonConsumer* consumer);
 void Deserialize(INodePtr& value, const INodePtr& node);
 void Deserialize(IStringNodePtr& value, const INodePtr& node);
 void Deserialize(IInt64NodePtr& value, const INodePtr& node);
