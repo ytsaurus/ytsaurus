@@ -29,7 +29,9 @@ const char _m128i_shift_right[31] = {
 // then unaligned read will read 16 - 4 = 12 bytes from the next page causing
 // a page fault; if the next page is unmapped this will incur a segmentation
 // fault and terminate the process.
-static ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void* p, int* length) Y_NO_SANITIZE("memory")
+YT_ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(
+    const void* p,
+    int* length) Y_NO_SANITIZE("memory")
 {
     int offset = (size_t)p & 15; *length = 16 - offset;
 
@@ -45,7 +47,7 @@ static ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void
     }
 }
 
-static ATTRIBUTE_NO_SANITIZE_ADDRESS inline const char* FindNextSymbol(
+YT_ATTRIBUTE_NO_SANITIZE_ADDRESS inline const char* FindNextSymbol(
     const char* begin,
     const char* end,
     __m128i symbols,

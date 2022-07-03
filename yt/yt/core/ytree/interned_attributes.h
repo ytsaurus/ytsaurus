@@ -41,7 +41,7 @@ void InternAttribute(const TString& uninternedKey, TInternedAttributeKey interne
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_INTERNED_ATTRIBUTE(uninternedKey, internedKey) \
-    ATTRIBUTE_USED const void* InternedAttribute_##uninternedKey = [] () -> void* { \
+    YT_ATTRIBUTE_USED const void* InternedAttribute_##uninternedKey = [] () -> void* { \
             ::NYT::NYTree::InternAttribute(#uninternedKey, internedKey); \
             return nullptr; \
         } ();
