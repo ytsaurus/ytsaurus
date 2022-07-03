@@ -63,8 +63,9 @@ void TMediumUpdater::UpdateLocationMedia(
         if (auto it = mediumOverrides.find(location->GetUuid()); it != mediumOverrides.end()) {
             descriptor = mediumDirectory->FindByIndex(it->second);
             if (!descriptor) {
-                YT_LOG_ALERT("Overriden location medium does not exists (LocationId: %v, MediumIndex: %v)",
+                YT_LOG_ALERT("Overriden location medium does not exists (LocationId: %v, LocationUuid: %v, MediumIndex: %v)",
                     location->GetId(),
+                    location->GetUuid(),
                     it->second);
             }
         }
@@ -73,8 +74,9 @@ void TMediumUpdater::UpdateLocationMedia(
             const auto& mediumName = location->GetConfig()->MediumName;
             descriptor = mediumDirectory->FindByName(mediumName);
             if (!descriptor) {
-                YT_LOG_ERROR("Configured location medium does not exist (LocationId: %v, MediumName: %v)",
+                YT_LOG_ERROR("Configured location medium does not exist (LocationId: %v, LocationUuid: %v, MediumName: %v)",
                     location->GetId(),
+                    location->GetUuid(),
                     mediumName);
                 continue;
             }

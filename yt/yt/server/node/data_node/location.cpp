@@ -949,9 +949,10 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor.Index);
     }
 
-    YT_LOG_INFO("Location medium descriptor %v (Location: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
+    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
         onInitialize ? "set" : "changed",
         GetId(),
+        GetUuid(),
         newDescriptor.Name,
         newDescriptor.Index,
         newDescriptor.Priority);
