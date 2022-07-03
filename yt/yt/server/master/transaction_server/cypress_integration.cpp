@@ -102,6 +102,11 @@ public:
     {
         return "//sys/transactions";
     }
+
+    bool NeedSuppressTransactionCoordinatorSync() const override
+    {
+        return false;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
