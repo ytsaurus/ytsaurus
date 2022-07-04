@@ -201,6 +201,7 @@ private:
     public:
         explicit TDiscoverySession(TImpl* owner)
             : Owner_(owner)
+            , Config_(owner->Config_)
             , Logger(owner->Logger)
         { }
 
@@ -229,6 +230,7 @@ private:
 
     private:
         const TWeakPtr<TImpl> Owner_;
+        const TDynamicChannelPoolConfigPtr Config_;
         const NLogging::TLogger Logger;
 
         const TPromise<void> FirstPeerDiscoveredPromise_ = NewPromise<void>();
@@ -239,11 +241,20 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
         THashSet<TString> RequestedAddresses_;
         THashSet<TString> RequestingAddresses_;
-        std::vector<TError> DiscoveryErrors_;
+
+        constexpr static int MaxDiscoveryErrorsToKeep = 100;
+        std::deque<TError> DiscoveryErrors_;
 
         void DoRun()
         {
+            auto deadline = TInstant::Now() + Config_->DiscoverySessionTimeout;
+
             while (true) {
+                if (TInstant::Now() > deadline) {
+                    OnFinished();
+                    break;
+                }
+
                 auto mustBreak = false;
                 auto pickResult = PickPeer();
                 Visit(pickResult,
@@ -376,7 +387,11 @@ private:
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(RequestedAddresses_.erase(address) == 1);
+
                 DiscoveryErrors_.push_back(error);
+                while (std::ssize(DiscoveryErrors_) > MaxDiscoveryErrorsToKeep) {
+                    DiscoveryErrors_.pop_front();
+                }
             }
 
             owner->BanPeer(address, backoffTime);
@@ -385,7 +400,7 @@ private:
         std::vector<TError> GetDiscoveryErrors()
         {
             auto guard = Guard(SpinLock_);
-            return DiscoveryErrors_;
+            return std::vector<TError>(DiscoveryErrors_.begin(), DiscoveryErrors_.end());
         }
 
         void AddViablePeer(const TString& address)
@@ -610,7 +625,7 @@ private:
             << *EndpointAttributes_;
     }
 
-    TError MakePeerDiscoveryFailedError(const TString& address, const TError&  error)
+    TError MakePeerDiscoveryFailedError(const TString& address, const TError& error)
     {
         return TError("Discovery request failed for peer %v", address)
             << *EndpointAttributes_

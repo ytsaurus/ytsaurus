@@ -157,6 +157,10 @@ void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("peer_polling_request_timeout", &TThis::PeerPollingRequestTimeout)
         .Default(TDuration::Seconds(15));
+
+    registrar.Parameter("discovery_session_timeout", &TThis::DiscoverySessionTimeout)
+        .Default(TDuration::Minutes(5))
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
