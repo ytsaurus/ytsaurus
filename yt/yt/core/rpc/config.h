@@ -230,6 +230,8 @@ public:
     TDuration PeerPollingPeriodSplay;
     TDuration PeerPollingRequestTimeout;
 
+    TDuration DiscoverySessionTimeout;
+
     REGISTER_YSON_STRUCT(TDynamicChannelPoolConfig);
 
     static void Register(TRegistrar registrar);
