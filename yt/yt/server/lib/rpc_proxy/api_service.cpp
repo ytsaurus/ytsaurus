@@ -643,7 +643,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultiLookup));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultiLookup)
+            .SetConcurrencyLimit(1'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
