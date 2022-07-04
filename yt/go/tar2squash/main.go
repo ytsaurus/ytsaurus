@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"time"
 
-	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"a.yandex-team.ru/library/go/squashfs"
 	"a.yandex-team.ru/yt/go/tar2squash/internal/tar2squash"
 )
 

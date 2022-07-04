@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"a.yandex-team.ru/library/go/squashfs"
 	"github.com/pkg/xattr"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"

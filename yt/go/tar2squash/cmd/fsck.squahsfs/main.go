@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"a.yandex-team.ru/library/go/squashfs"
 )
 
 func do() error {
