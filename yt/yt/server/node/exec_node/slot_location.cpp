@@ -811,7 +811,7 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
     auto guard = ReaderGuard(SlotsLock_);
 
-    auto it = TmpfsPaths_.lower_bound(path);
+    auto it = TmpfsPaths_.upper_bound(path);
     if (it != TmpfsPaths_.begin()) {
         --it;
         if (path == *it || path.StartsWith(*it + "/")) {
@@ -906,14 +906,20 @@ void TSlotLocation::UpdateDiskResources()
         THashMap<int, TDiskStatistics> diskStatisticsPerSlot;
 
         for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
+            std::vector<TString> pathsInsideTmpfs;
+
             auto config = New<TGetDirectorySizesAsRootConfig>();
             config->IgnoreUnavailableFiles = true;
             config->DeduplicateByINodes = true;
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
-                if (NFS::Exists(path) && !IsInsideTmpfs(path)) {
-                    config->Paths.push_back(path);
+                if (NFS::Exists(path)) {
+                    if (IsInsideTmpfs(path)) {
+                        pathsInsideTmpfs.push_back(path);
+                    } else {
+                        config->Paths.push_back(path);
+                    }
                 }
             }
 
@@ -939,14 +945,15 @@ void TSlotLocation::UpdateDiskResources()
 
             const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
             const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+            YT_LOG_DEBUG("Slot disk usage info (Path: %v, SlotIndex: %v, Usage: %v, Limit: %v, PathsInsideTmpfs: %v)",
+                Config_->Path,
+                slotIndex,
+                slotDiskUsage,
+                sandboxOptions.DiskSpaceLimit,
+                pathsInsideTmpfs);
             if (sandboxOptions.DiskSpaceLimit) {
                 i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
                 diskUsage += slotDiskLimit;
-                YT_LOG_DEBUG("Slot disk usage info (Path: %v, SlotIndex: %v, Usage: %v, Limit: %v)",
-                    Config_->Path,
-                    slotIndex,
-                    slotDiskUsage,
-                    slotDiskLimit);
                 if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
                     auto error = TError("Disk usage overdrafted: %v > %v",
                         slotDiskUsage,
@@ -962,7 +969,7 @@ void TSlotLocation::UpdateDiskResources()
                 diskUsage += slotDiskUsage;
             }
         }
-        
+
         {
             auto guard = WriterGuard(SlotsLock_);
             DiskStatisticsPerSlot_ = diskStatisticsPerSlot;
