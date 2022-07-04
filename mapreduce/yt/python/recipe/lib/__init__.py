@@ -32,6 +32,7 @@ def start(args):
     parser.add_argument("--node-config", action=ParseStructuredArgument)
     parser.add_argument("--master-config", action=ParseStructuredArgument)
     parser.add_argument("--proxy-config", action=ParseStructuredArgument)
+    parser.add_argument("--proxy-port", type=int)
     parser.add_argument("--scheduler-config", action=ParseStructuredArgument)
     parser.add_argument("--controller-agent-config", action=ParseStructuredArgument)
     parser.add_argument("--job-controller-resource-limits", action=ParseStructuredArgument)
@@ -60,6 +61,8 @@ def start(args):
     with open(RECIPE_INFO_FILE, "w") as fout:
         json.dump(recipe_info, fout)
 
+    if os.path.lexists("info.yson"):
+        os.remove("info.yson")
     os.symlink(
         os.path.join(yt_stuff.yt_work_dir, yt_stuff.yt_id, "info.yson"),
         "info.yson"
