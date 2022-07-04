@@ -11,28 +11,33 @@ import ru.yandex.spark.yt.fs.conf.PropertiesConf
 
 import java.util.Properties
 import java.util.concurrent.TimeUnit
+import scala.util.{Failure, Success, Try}
 
 private[spark] case class SolomonSink(props: Properties, registry: MetricRegistry, securityMgr: SecurityManager)
   extends Sink {
 
-  private val solomonConfig: SolomonConfig = readSolomonConfig(props)
-  private val reporterConfig: ReporterConfig = readReporterConfig(props)
+  private val log = LoggerFactory.getLogger(SolomonSink.getClass)
+  private val reporter: Try[SolomonReporter] = for {
+    solomonConfig <- Try(readSolomonConfig(props))
+    reporterConfig <- Try(readReporterConfig(props))
+  } yield SolomonReporter(registry, solomonConfig, reporterConfig)
 
-  private val reporter: SolomonReporter = SolomonReporter(registry, solomonConfig, reporterConfig)
-
-  override def start(): Unit = {
-    SolomonSink.log.info(s"Starting SolomonSink with period ${reporterConfig.pollPeriodMillis} millis")
-    reporter.start(reporterConfig.pollPeriodMillis, TimeUnit.MILLISECONDS)
+  override def start(): Unit = reporter match {
+    case Failure(ex) =>
+      log.warn("No Solomon metrics available", ex)
+    case Success(r) =>
+      log.info(s"Starting solomon reporter with ${r.reporterConfig.pollPeriodMillis} millis period")
+      r.start(r.reporterConfig.pollPeriodMillis, TimeUnit.MILLISECONDS)
   }
 
-  override def stop(): Unit = {
-    SolomonSink.log.info(s"Stopping SolomonSink")
-    reporter.stop()
+  override def stop(): Unit = reporter.foreach { r =>
+    log.info(s"Stopping SolomonSink")
+    r.stop()
   }
 
-  override def report(): Unit = {
-    SolomonSink.log.info(s"Report")
-    reporter.report()
+  override def report(): Unit = reporter.foreach { r =>
+    log.debug(s"Sending report")
+    r.report()
   }
 }
 
