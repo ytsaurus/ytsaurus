@@ -9,7 +9,7 @@ import (
 	"path"
 	"sort"
 
-	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"a.yandex-team.ru/library/go/squashfs"
 )
 
 type Options struct {
