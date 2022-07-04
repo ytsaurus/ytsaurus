@@ -86,8 +86,8 @@ struct TPreemptedFor
     TOperationId OperationId;
 };
 
-void ToProto(NProto::TSchedulerToAgentJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
-void FromProto(TPreemptedFor* preemptedFor, const NProto::TSchedulerToAgentJobEvent::TPreemptedFor& proto);
+void ToProto(NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
+void FromProto(TPreemptedFor* preemptedFor, const NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor& proto);
 
 void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);

@@ -1720,32 +1720,33 @@ private:
             std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
         };
 
-        auto jobEventsPerOperationIdOrError = WaitFor(BIND([&] {
+        auto jobEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
                 THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
-                JobEventsInbox_->HandleIncoming(
-                    rsp->mutable_scheduler_to_agent_job_events(),
-                    [&] (auto* protoEvent) {
-                        auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                        auto& operationJobEvents = jobEventsPerOperationId[operationId];
-                        auto eventType = CheckedEnumCast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
-                        switch (eventType) {
-                            case ESchedulerToAgentJobEventType::Started: {
-                                operationJobEvents.StartedJobEvents.emplace_back();
-                                FromProto(&operationJobEvents.StartedJobEvents.back(), protoEvent);
-                                break;
-                            }
-                            case ESchedulerToAgentJobEventType::Finished: {
-                                operationJobEvents.FinishedJobEvents.emplace_back();
-                                FromProto(&operationJobEvents.FinishedJobEvents.back(), protoEvent);
-                                break;
-                            }
-                            case ESchedulerToAgentJobEventType::AbortedByScheduler: {
-                                operationJobEvents.AbortedJobEvents.emplace_back();
-                                FromProto(&operationJobEvents.AbortedJobEvents.back(), protoEvent);
-                                break;
-                            }
+
+                auto handleJobSummary = [&] (auto&& jobSummary) {
+                    auto& operationJobEvents = jobEventsPerOperationId[jobSummary.OperationId];
+                    auto& storage = TOverloaded{
+                        [&] (const TStartedJobSummary&) -> auto& {
+                            return operationJobEvents.StartedJobEvents;
+                        },
+                        [&] (const TFinishedJobSummary&) -> auto& {
+                            return operationJobEvents.FinishedJobEvents;
+                        },
+                        [&] (const TAbortedBySchedulerJobSummary&) -> auto& {
+                            return operationJobEvents.AbortedJobEvents;
                         }
-                    });
+                    }(jobSummary);
+
+                    storage.push_back(std::move(jobSummary));
+                };
+
+                JobEventsInbox_->HandleIncoming<TSchedulerToAgentJobEvent>(
+                    rsp->mutable_scheduler_to_agent_job_events(),
+                    [&] (TSchedulerToAgentJobEvent&& jobEvent) {
+                        std::visit(
+                            handleJobSummary,
+                            std::move(jobEvent.EventSummary));
+                        });
                 
                 return jobEventsPerOperationId;
             })

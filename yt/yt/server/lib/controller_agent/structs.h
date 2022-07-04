@@ -160,9 +160,20 @@ struct TAbortedBySchedulerJobSummary
     bool Scheduled;
 };
 
-void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent);
-void FromProto(TFinishedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent);
-void FromProto(TAbortedBySchedulerJobSummary* summary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent);
+struct TSchedulerToAgentJobEvent
+{
+    std::variant<TStartedJobSummary, TFinishedJobSummary, TAbortedBySchedulerJobSummary> EventSummary;
+};
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentStartedJobEvent* proto, const TStartedJobSummary& summary);
+void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent);
+void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, const TFinishedJobSummary& summary);
+void FromProto(TFinishedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent);
+void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* proto, const TAbortedBySchedulerJobSummary& summary);
+void FromProto(TAbortedBySchedulerJobSummary* summary, NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent);
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedulerToAgentJobEvent& event);
+void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerToAgentJobEvent* proto);
 
 std::unique_ptr<TJobSummary> ParseJobSummary(
     NJobTrackerClient::NProto::TJobStatus* const status,

@@ -22,28 +22,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerToAgentJobEvent
-{
-    TOperationId OperationId;
-    TJobId JobId;
-
-    ESchedulerToAgentJobEventType EventType;
-    std::optional<TInstant> StartTime;
-
-    std::optional<TInstant> FinishTime;
-
-    std::optional<bool> JobExecutionCompleted;
-    std::optional<EInterruptReason> InterruptReason;
-    std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    std::optional<bool> Preempted;
-    std::optional<TString> PreemptionReason;
-    // COMPAT
-    bool GetSpecFailed = false;
-
-    std::optional<EAbortReason> AbortReason;
-    std::optional<TError> Error;
-    std::optional<bool> Scheduled;
-};
+using TStartedJobSummary = NControllerAgent::TStartedJobSummary;
+using TFinishedJobSummary = NControllerAgent::TFinishedJobSummary;
+using TAbortedBySchedulerJobSummary = NControllerAgent::TAbortedBySchedulerJobSummary;
+using TSchedulerToAgentJobEvent = NControllerAgent::TSchedulerToAgentJobEvent;
 
 ////////////////////////////////////////////////////////////////////////////////
 

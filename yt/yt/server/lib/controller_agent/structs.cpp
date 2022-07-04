@@ -10,10 +10,9 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/variant.h>
 
 #include <util/generic/cast.h>
-
-#define GET_PROTO_FIELD_OR_CRASH(obj, field) ([&] { YT_VERIFY(obj->has_ ## field()); }(), obj->field())
 
 namespace NYT::NControllerAgent {
 
@@ -24,7 +23,6 @@ using NYT::FromProto;
 using NYT::ToProto;
 using NLogging::TLogger;
 using NScheduler::NProto::TSchedulerJobResultExt;
-using NScheduler::ESchedulerToAgentJobEventType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,25 +49,33 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
     }
 }
 
-ESchedulerToAgentJobEventType ParseEventType(NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent)
+void JobEventsCommonPartToProto(auto* proto, const auto& summary)
 {
-    return CheckedEnumCast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+    ToProto(proto->mutable_operation_id(), summary.OperationId);
+    ToProto(proto->mutable_job_id(), summary.Id);
+}
+
+void JobEventsCommonPartFromProto(auto* summary, auto* protoEvent)
+{
+    summary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
+    summary->Id = FromProto<TJobId>(protoEvent->job_id());
 }
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent)
+void ToProto(NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent, const TStartedJobSummary& summary)
 {
-    YT_VERIFY(ParseEventType(protoEvent) == ESchedulerToAgentJobEventType::Started);
-
-    summary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
-    summary->Id = FromProto<TJobId>(protoEvent->job_id());
-
-    summary->StartTime = FromProto<TInstant>(GET_PROTO_FIELD_OR_CRASH(protoEvent, start_time));
+    JobEventsCommonPartToProto(protoEvent, summary);
+    protoEvent->set_start_time(ToProto<ui64>(summary.StartTime));
 }
 
+void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent)
+{
+    JobEventsCommonPartFromProto(summary, protoEvent);
+    summary->StartTime = FromProto<TInstant>(protoEvent->start_time());
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(TJobId id, EJobState state)
@@ -260,22 +266,37 @@ TRunningJobSummary::TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* st
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent)
+void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, const TFinishedJobSummary& finishedJobSummary)
 {
-    YT_VERIFY(ParseEventType(protoEvent) == ESchedulerToAgentJobEventType::Finished);
+    JobEventsCommonPartToProto(protoEvent, finishedJobSummary);
+    protoEvent->set_finish_time(ToProto<ui64>(finishedJobSummary.FinishTime));
+    protoEvent->set_job_execution_completed(finishedJobSummary.JobExecutionCompleted);
+    if (finishedJobSummary.InterruptReason) {
+        protoEvent->set_interrupt_reason(static_cast<int>(*finishedJobSummary.InterruptReason));
+    }
+    if (finishedJobSummary.PreemptedFor) {
+        ToProto(protoEvent->mutable_preempted_for(), *finishedJobSummary.PreemptedFor);
+    }
+    protoEvent->set_preempted(finishedJobSummary.Preempted);
+    if (finishedJobSummary.PreemptionReason) {
+        ToProto(protoEvent->mutable_preemption_reason(), *finishedJobSummary.PreemptionReason);
+    }
 
-    finishedJobSummary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
-    finishedJobSummary->Id = FromProto<TJobId>(protoEvent->job_id());
+    protoEvent->set_get_spec_failed(finishedJobSummary.GetSpecFailed);
+}
 
-    finishedJobSummary->FinishTime = FromProto<TInstant>(GET_PROTO_FIELD_OR_CRASH(protoEvent, finish_time));
-    finishedJobSummary->JobExecutionCompleted = GET_PROTO_FIELD_OR_CRASH(protoEvent, job_execution_completed);
+void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent)
+{
+    JobEventsCommonPartFromProto(finishedJobSummary, protoEvent);
+    finishedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
+    finishedJobSummary->JobExecutionCompleted = protoEvent->job_execution_completed();
     if (protoEvent->has_interrupt_reason()) {
         finishedJobSummary->InterruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
     }
     if (protoEvent->has_preempted_for()) {
         finishedJobSummary->PreemptedFor = FromProto<NScheduler::TPreemptedFor>(protoEvent->preempted_for());
     }
-    finishedJobSummary->Preempted = GET_PROTO_FIELD_OR_CRASH(protoEvent, preempted);
+    finishedJobSummary->Preempted = protoEvent->preempted();
     if (protoEvent->has_preemption_reason()) {
         finishedJobSummary->PreemptionReason = FromProto<TString>(protoEvent->preemption_reason());
     }
@@ -285,18 +306,70 @@ void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TAbortedBySchedulerJobSummary* abortedJobSummary, NScheduler::NProto::TSchedulerToAgentJobEvent* protoEvent)
+void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent, const TAbortedBySchedulerJobSummary& abortedJobSummary)
 {
-    YT_VERIFY(ParseEventType(protoEvent) == ESchedulerToAgentJobEventType::AbortedByScheduler);
+    JobEventsCommonPartToProto(protoEvent, abortedJobSummary);
+    protoEvent->set_finish_time(ToProto<ui64>(abortedJobSummary.FinishTime));
+    if (abortedJobSummary.AbortReason) {
+        protoEvent->set_abort_reason(static_cast<int>(*abortedJobSummary.AbortReason));
+    }
+    ToProto(protoEvent->mutable_error(), abortedJobSummary.Error);
+    protoEvent->set_scheduled(abortedJobSummary.Scheduled);
+}
 
-    abortedJobSummary->OperationId = FromProto<TOperationId>(protoEvent->operation_id());
-    abortedJobSummary->Id = FromProto<TJobId>(protoEvent->job_id());
-    abortedJobSummary->FinishTime = FromProto<TInstant>(GET_PROTO_FIELD_OR_CRASH(protoEvent, finish_time));
+void FromProto(TAbortedBySchedulerJobSummary* abortedJobSummary, NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent)
+{
+    JobEventsCommonPartFromProto(abortedJobSummary, protoEvent);
+    abortedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
     if (protoEvent->has_abort_reason()) {
         abortedJobSummary->AbortReason = CheckedEnumCast<EAbortReason>(protoEvent->abort_reason());
     }
-    abortedJobSummary->Error = FromProto<TError>(GET_PROTO_FIELD_OR_CRASH(protoEvent, error));
-    abortedJobSummary->Scheduled = GET_PROTO_FIELD_OR_CRASH(protoEvent, scheduled);
+    abortedJobSummary->Error = FromProto<TError>(protoEvent->error());
+    abortedJobSummary->Scheduled = protoEvent->scheduled();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedulerToAgentJobEvent& event)
+{
+    Visit(
+        event.EventSummary,
+        [&] (const TStartedJobSummary& summary) {
+            ToProto(proto->mutable_started(), summary);
+        },
+        [&] (const TFinishedJobSummary& summary) {
+            ToProto(proto->mutable_finished(), summary);
+        },
+        [&] (const TAbortedBySchedulerJobSummary& summary) {
+            ToProto(proto->mutable_aborted_by_scheduler(), summary);
+        });
+}
+
+void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerToAgentJobEvent* proto)
+{
+    using TProtoMessage = NScheduler::NProto::TSchedulerToAgentJobEvent;
+    switch (proto->job_event_case()) {
+        case TProtoMessage::JobEventCase::kStarted: {
+            TStartedJobSummary summary;
+            FromProto(&summary, proto->mutable_started());
+            event->EventSummary = std::move(summary);
+            return;
+        }
+        case TProtoMessage::JobEventCase::kFinished: {
+            TFinishedJobSummary summary;
+            FromProto(&summary, proto->mutable_finished());
+            event->EventSummary = std::move(summary);
+            return;
+        }
+        case TProtoMessage::JobEventCase::kAbortedByScheduler: {
+            TAbortedBySchedulerJobSummary summary;
+            FromProto(&summary, proto->mutable_aborted_by_scheduler());
+            event->EventSummary = std::move(summary);
+            return;
+        }
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
