@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.misc.test_get_supported_features \
+from original_tests.yt.yt.tests.integration.tests.misc.test_get_supported_features \
     import TestGetFeatures as BaseTestGetFeatures
 
 

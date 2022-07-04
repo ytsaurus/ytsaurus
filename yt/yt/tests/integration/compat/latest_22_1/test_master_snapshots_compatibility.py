@@ -5,7 +5,7 @@ from yt_commands import (
     commit_transaction, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
     select_rows, lookup_rows, sync_create_cells, wait_for_cells)
 
-from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
+from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 from yt.test_helpers import assert_items_equal
