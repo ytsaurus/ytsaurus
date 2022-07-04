@@ -58,6 +58,18 @@ public:
      * \note Thread affinity: single-threaded
      */
     template <class TProtoMessage>
+    void BuildOutcoming(TProtoMessage* message);
+
+    /*
+     * \note Thread affinity: single-threaded
+     */
+    template <class TProtoMessage>
+    void BuildOutcoming(TProtoMessage* message, i64 itemLimit);
+
+    /*
+     * \note Thread affinity: single-threaded
+     */
+    template <class TProtoMessage>
     void HandleStatus(const TProtoMessage& message);
 
 private:
@@ -108,6 +120,9 @@ public:
     void ReportStatus(TProtoMessage* request);
 
     template <class TProtoMessage, class TConsumer>
+    void HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer);
+
+    template <class TItem, class TProtoMessage, class TConsumer>
     void HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer);
 
 private:

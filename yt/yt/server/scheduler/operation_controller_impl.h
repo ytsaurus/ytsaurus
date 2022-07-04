@@ -118,7 +118,8 @@ private:
     bool ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const;
     bool ShouldSkipJobEvent(const TJobPtr& job) const;
 
-    bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event);
+    template <class TEvent>
+    bool EnqueueJobEvent(TEvent&& event);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
 

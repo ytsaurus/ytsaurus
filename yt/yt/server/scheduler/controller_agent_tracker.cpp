@@ -641,47 +641,6 @@ public:
                 request->scheduler_to_agent_job_events());
             agent->GetJobEventsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_job_events(),
-                [] (auto* protoEvent, const auto& event) {
-                    ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-                    ToProto(protoEvent->mutable_job_id(), event.JobId);
-
-                    protoEvent->set_event_type(static_cast<int>(event.EventType));
-
-                    auto valueOrCrash = [] (const auto& maybeValue) {
-                        YT_VERIFY(maybeValue);
-                        return *maybeValue;
-                    };
-
-                    if (event.EventType == ESchedulerToAgentJobEventType::Started) {
-                        protoEvent->set_start_time(ToProto<ui64>(valueOrCrash(event.StartTime)));
-                        return;
-                    }
-
-                    protoEvent->set_finish_time(ToProto<ui64>(valueOrCrash(event.FinishTime)));
-
-                    if (event.EventType == ESchedulerToAgentJobEventType::Finished) {
-                        protoEvent->set_job_execution_completed(valueOrCrash(event.JobExecutionCompleted));
-
-                        if (event.InterruptReason) {
-                            protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
-                        }
-                        if (event.PreemptedFor) {
-                            ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
-                        }
-                        protoEvent->set_preempted(valueOrCrash(event.Preempted));
-                        if (event.PreemptionReason) {
-                            ToProto(protoEvent->mutable_preemption_reason(), *event.PreemptionReason);
-                        }
-                        protoEvent->set_get_spec_failed(event.GetSpecFailed);
-                    } else {
-                        YT_VERIFY(event.EventType == ESchedulerToAgentJobEventType::AbortedByScheduler);
-                        if (event.AbortReason) {
-                            protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
-                        }
-                        ToProto(protoEvent->mutable_error(), valueOrCrash(event.Error));
-                        protoEvent->set_scheduled(valueOrCrash(event.Scheduled));
-                    }
-                },
                 Config_->MaxMessageJobEventCount);
 
             agent->GetOperationEventsOutbox()->HandleStatus(

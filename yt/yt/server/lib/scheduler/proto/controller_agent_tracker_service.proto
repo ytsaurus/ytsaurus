@@ -89,41 +89,60 @@ message TAgentToSchedulerJobEvent
     optional NYT.NJobTrackerClient.NProto.TReleaseJobFlags release_job_flags = 9;
 }
 
-message TSchedulerToAgentJobEvent
+message TSchedulerToAgentStartedJobEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
     required NYT.NProto.TGuid job_id = 2;
 
-    required int32 event_type = 3; // ESchedulerToAgentJobEventType
-    
-    // For started job.
-    optional uint64 start_time = 4;
+    required uint64 start_time = 3;
+}
 
-    // For finished and aborted job.
-    optional uint64 finish_time = 5;
-
-    // For finished job.
+message TSchedulerToAgentFinishedJobEvent
+{
     message TPreemptedFor
     {
         required NYT.NProto.TGuid operation_id = 1;
         required NYT.NProto.TGuid job_id = 2;
     }
 
-    required bool job_execution_completed = 6;
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required uint64 finish_time = 3;
 
-    // For job aborted on node.
-    optional TPreemptedFor preempted_for = 7;
-    optional bool preempted = 8;
-    optional string preemption_reason = 9;
+    required bool job_execution_completed = 4;
+
+    // for Aborted
+    optional TPreemptedFor preempted_for = 5;
+    optional bool preempted = 6;
+    optional string preemption_reason = 7;
+
     // COMPAT(pogorelov)
-    optional bool get_spec_failed = 10;
-    // For completed job.
-    optional int32 interrupt_reason = 11;
+    required bool get_spec_failed = 8;
 
-    // For job aborted by scheduler
-    optional bool scheduled = 12;
-    optional int32 abort_reason = 13;
-    optional NYT.NProto.TError error = 14;
+    // for Completed
+    optional int32 interrupt_reason = 9; // EInterruptReason
+}
+
+message TSchedulerToAgentAbortedJobEvent
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+
+    required NYT.NProto.TError error = 3;
+
+    required bool scheduled = 4;
+
+    optional uint64 finish_time = 5;
+    optional int32 abort_reason = 6;
+}
+
+message TSchedulerToAgentJobEvent
+{
+    oneof job_event {
+        TSchedulerToAgentStartedJobEvent started = 1;
+        TSchedulerToAgentFinishedJobEvent finished = 2;
+        TSchedulerToAgentAbortedJobEvent aborted_by_scheduler = 3;
+    }
 }
 
 message TSchedulerToAgentOperationEvent

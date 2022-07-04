@@ -461,14 +461,13 @@ bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
         return false;
     }
 
-    TSchedulerToAgentJobEvent event{
+    TStartedJobSummary eventSummary{
         .OperationId = OperationId_,
-        .JobId = job->GetId(),
-        .EventType = ESchedulerToAgentJobEventType::Started,
+        .Id = job->GetId(),
         .StartTime = job->GetStartTime()
     };
 
-    JobEventsOutbox_->Enqueue(std::move(event));
+    JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{std::move(eventSummary)});
     YT_LOG_TRACE("Job start notification enqueued (JobId: %v)",
         job->GetId());
 
@@ -487,10 +486,9 @@ void TOperationControllerImpl::OnJobFinished(
         return;
     }
     
-    TSchedulerToAgentJobEvent event{
+    TFinishedJobSummary eventSummary{
         .OperationId = OperationId_,
-        .JobId = job->GetId(),
-        .EventType = ESchedulerToAgentJobEventType::Finished,
+        .Id = job->GetId(),
         .FinishTime = TInstant::Now(),
         .JobExecutionCompleted = status->job_execution_completed(),
         .InterruptReason = job->GetInterruptReason(),
@@ -520,10 +518,10 @@ void TOperationControllerImpl::OnJobFinished(
     if (auto error = FromProto<TError>(status->result().error()); 
         parseAbortReason(error).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
     {
-        event.GetSpecFailed = true;
+        eventSummary.GetSpecFailed = true;
     }
 
-    auto result = EnqueueJobEvent(std::move(event));
+    auto result = EnqueueJobEvent(std::move(eventSummary));
     YT_LOG_TRACE("Job finish notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
         job->GetId());
@@ -542,17 +540,16 @@ void TOperationControllerImpl::OnJobAborted(
         return;
     }
 
-    TSchedulerToAgentJobEvent event{
+    TAbortedBySchedulerJobSummary eventSummary{
         .OperationId = OperationId_,
-        .JobId = jobId,
-        .EventType = ESchedulerToAgentJobEventType::AbortedByScheduler,
+        .Id = jobId,
         .FinishTime = TInstant::Now(),
         .AbortReason = abortReason,
         .Error = error.Truncate(),
         .Scheduled = scheduled,
     };
 
-    auto result = EnqueueJobEvent(std::move(event));
+    auto result = EnqueueJobEvent(std::move(eventSummary));
     YT_LOG_TRACE("%v abort notification %v (JobId: %v)",
         scheduled ? "Job" : "Nonscheduled job",
         result ? "enqueued" : "dropped",
@@ -828,11 +825,12 @@ bool TOperationControllerImpl::ShouldSkipJobEvent(const TJobPtr& job) const
     return ShouldSkipJobEvent(job->GetId(), job->GetControllerEpoch());
 }
 
-bool TOperationControllerImpl::EnqueueJobEvent(TSchedulerToAgentJobEvent&& event)
+template <class TEvent>
+bool TOperationControllerImpl::EnqueueJobEvent(TEvent&& event)
 {
     auto guard = Guard(SpinLock_);
     if (IncarnationId_) {
-        JobEventsOutbox_->Enqueue(std::move(event));
+        JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{std::move(event)});
         return true;
     } else {
         // All job notifications must be dropped after agent disconnection.

@@ -122,6 +122,25 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
 
 template <class TItem>
 template <class TProtoMessage>
+void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message)
+{
+    BuildOutcoming(message, std::numeric_limits<i64>::max());
+}
+
+template <class TItem>
+template <class TProtoMessage>
+void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, i64 itemCountLimit)
+{
+    BuildOutcoming(
+        message,
+        [] (auto* proto, const auto& item) {
+            ToProto(proto, item);
+        },
+        itemCountLimit);
+}
+
+template <class TItem>
+template <class TProtoMessage>
 void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -212,6 +231,18 @@ void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoI
             message->first_item_id(),
             message->first_item_id() + message->items_size() - 1);
     }
+}
+
+template <class TItem, class TProtoMessage, class TConsumer>
+void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer)
+{
+    HandleIncoming(
+        message,
+        [&] (auto* proto) {
+            TItem item;
+            FromProto(&item, proto);
+            protoItemConsumer(std::move(item));
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
