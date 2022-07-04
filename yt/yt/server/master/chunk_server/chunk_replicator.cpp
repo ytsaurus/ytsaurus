@@ -1528,8 +1528,8 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         auto it = queue.begin();
         while (it != queue.end() && hasSparePullReplicationResources()) {
             auto jt = it++;
-            auto chunkWithIndexes = jt->first;
-            auto* chunk = chunkWithIndexes.GetPtr();
+            auto desiredReplica = jt->first;
+            auto* chunk = desiredReplica.GetPtr();
             auto& mediumIndexSet = jt->second;
 
             for (const auto& replica : chunk->StoredReplicas()) {
@@ -1541,6 +1541,11 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
                             continue;
                         }
 
+                        if (desiredReplica.GetReplicaIndex() != replica.GetReplicaIndex()) {
+                            continue;
+                        }
+
+                        TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
                         pushNode->AddToChunkPushReplicationQueue(chunkWithIndexes, mediumIndex, priority);
                         pushNode->AddTargetReplicationNodeId(chunk->GetId(), mediumIndex, node);
 
