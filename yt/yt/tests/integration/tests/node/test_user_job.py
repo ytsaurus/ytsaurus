@@ -685,7 +685,7 @@ time.sleep(10)
         )
 
     @authors("gritukan")
-    def test_tmpfs_sandbox_and_disk_space_limit(self):
+    def test_quota_with_tmpfs_sandbox_and_disk_space_limit(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -701,6 +701,61 @@ time.sleep(10)
                     "tmpfs_path": ".",
                     "disk_space_limit": 1024 * 1024,
                 },
+                "max_failed_job_count": 1,
+            },
+        )
+
+
+class TestTmpfsWithDiskLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
+                "test_disk_quota": True,
+            },
+        },
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    @authors("ignat")
+    def test_tmpfs_sandbox_with_disk_space_limit(self):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "check_disk_space_limit": True,
+                },
+            },
+        })
+
+        # Should not apply disk space limit to sandbox and check it.
+        run_test_vanilla(
+            track=True,
+            command="dd if=/dev/zero of=local_file  bs=2M  count=1; sleep 5",
+            task_patch={
+                "tmpfs_size": 3 * 1000 ** 2,
+                "tmpfs_path": ".",
+                "disk_request": {
+                    "disk_space": 1000 ** 2,
+                },
+            },
+            spec={
                 "max_failed_job_count": 1,
             },
         )
