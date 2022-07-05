@@ -1,31 +1,31 @@
+# simplified version of https://github.com/hseeberger/scala-sbt/blob/master/debian/Dockerfile
+
 ARG BASE_IMAGE_TAG
-FROM registry.yandex.net/taxi-dmp-spark/spyt-test-base:${BASE_IMAGE_TAG:-latest}
+FROM registry.yandex.net/rtc-base/focal:${BASE_IMAGE_TAG:-stable}
 
-USER root
+ARG SCALA_VERSION
+ENV SCALA_VERSION ${SCALA_VERSION:-2.12.14}
+ARG SBT_VERSION
+ENV SBT_VERSION ${SBT_VERSION:-1.5.4}
 
-# we use these ids to bake the host user into image
-# (you can use actual host ids if there is no docker mapping set)
-ARG USER_ID
-ENV USER_ID ${USER_ID:-1001}
-ARG GROUP_ID
-ENV GROUP_ID ${GROUP_ID:-1001}
-ARG HOST_DOCKER_GROUP_ID
-ENV HOST_DOCKER_GROUP_ID ${HOST_DOCKER_GROUP_ID:-999}
+# add docker for dind tests
+RUN apt-get update && apt-get -y install docker docker.io default-jdk
 
-RUN groupadd --gid $HOST_DOCKER_GROUP_ID hostdocker
-RUN groupadd --gid $GROUP_ID sbtuser && useradd -m --gid $GROUP_ID --uid $USER_ID sbtuser -G hostdocker --shell /bin/bash
+RUN \
+  curl -fsL "https://github.com/sbt/sbt/releases/download/v$SBT_VERSION/sbt-$SBT_VERSION.tgz" | tar xfz - -C /usr/share && \
+  chown -R root:root /usr/share/sbt && \
+  chmod -R 755 /usr/share/sbt && \
+  ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
 
-ENV HOME=/home/sbtuser
-USER sbtuser
-ENV USER=sbtuser
+RUN \
+  curl -fsL https://downloads.typesafe.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar xfz - -C /usr/share && \
+  mv /usr/share/scala-$SCALA_VERSION /usr/share/scala && \
+  chown -R root:root /usr/share/scala && \
+  chmod -R 755 /usr/share/scala && \
+  ln -s /usr/share/scala/bin/* /usr/local/bin && \
+  echo "println(util.Properties.versionMsg)" > test.scala && \
+  scala -nocompdaemon test.scala && rm test.scala
 
-RUN mkdir -p $HOME/.yt
-RUN echo non_valid_token > $HOME/.yt/token
+WORKDIR /app
 
-# This image copies whole application from its context to avoid
-# exporting project from arc and mounting it as a volume
-COPY . /app
-
-USER root
-RUN chown -R sbtuser:sbtuser /app
-USER $USER
+CMD ["sbt", "test"]
