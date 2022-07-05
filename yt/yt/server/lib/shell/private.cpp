@@ -9,7 +9,7 @@ namespace NYT::NShell {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString ShellToolDirectory("/yt_runtime");
-const TString ShellToolPath(NFS::CombinePaths(ShellToolDirectory, NTools::ToolsProgramName));
+const TString ShellToolPath(NFS::CombinePaths(ShellToolDirectory, TString(NTools::ToolsProgramName)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
