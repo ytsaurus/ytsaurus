@@ -41,7 +41,7 @@ def jaeger_server():
 
 def test_start(jaeger_server):
     cmd = [
-        yatest.common.binary_path("yt/yt/library/tracing/example/example"),
+        yatest.common.binary_path("yt/yt/library/tracing/example/tracing-example"),
         f"127.0.0.1:{jaeger_server['collector_port']}"
     ]
 
