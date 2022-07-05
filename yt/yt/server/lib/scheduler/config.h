@@ -888,6 +888,8 @@ public:
 
     bool WaitForAgentHeartbeatDuringOperationUnregistrationAtController;
 
+    bool CrashOnJobHeartbeatProcessingException;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);

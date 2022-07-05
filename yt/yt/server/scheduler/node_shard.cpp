@@ -1836,11 +1836,23 @@ void TNodeShard::ProcessHeartbeatJobs(
     TAllocationStateToJobList ongoingJobsByAllocationState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
     for (auto& jobStatus : *request->mutable_jobs()) {
-        auto job = ProcessJobHeartbeat(
-            node,
-            recentlyFinishedJobIdsToRemove,
-            response,
-            &jobStatus);
+        TJobPtr job;
+        try {
+            job = ProcessJobHeartbeat(
+                node,
+                recentlyFinishedJobIdsToRemove,
+                response,
+                &jobStatus);
+        } catch (const std::exception& ex) {
+            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            if (Config_->CrashOnJobHeartbeatProcessingException) {
+                YT_LOG_FATAL(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
+            } else {
+                YT_LOG_WARNING(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
+                throw;
+            }
+        }
+
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
