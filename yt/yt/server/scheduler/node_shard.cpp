@@ -299,7 +299,7 @@ void TNodeShard::RegisterOperation(
     EmplaceOrCrash(
         IdToOpertionState_,
         operationId,
-        TOperationState(controller, jobsReady, ++CurrentEpoch_, controllerEpoch, MakeOperationCodicilString(operationId)));
+        TOperationState(controller, jobsReady, ++CurrentEpoch_, controllerEpoch));
 
     WaitingForRegisterOperationIds_.erase(operationId);
 
@@ -2064,13 +2064,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         return nullptr;
     }
 
-    auto guard = [&] {
-        if (auto operation = FindOperationState(operationId)) {
-            return TCodicilGuard{operation->OperationCodicilString};
-        }
-        YT_VERIFY(job->GetUnregistered());
-        return MakeOperationCodicilGuard(job->GetOperationId());
-    }();
+    auto guard = TCodicilGuard{job->CodicilString()};
 
     const auto& Logger = job->Logger();
 

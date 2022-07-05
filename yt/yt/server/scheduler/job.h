@@ -115,6 +115,8 @@ class TJob
     //! Logger for this job.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
+    DEFINE_BYREF_RO_PROPERTY(TString, CodicilString);
+
 public:
     TJob(
         TJobId id,
