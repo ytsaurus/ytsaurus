@@ -14,7 +14,7 @@ def test_url():
         port = pm.get_port()
 
         cmd = [
-            yatest.common.binary_path("yt/yt/library/profiling/example/example"),
+            yatest.common.binary_path("yt/yt/library/profiling/example/profiling-example"),
             str(port),
             "--fast"
         ]

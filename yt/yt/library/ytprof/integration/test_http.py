@@ -12,7 +12,7 @@ def running_example():
         port = pm.get_port()
 
         cmd = [
-            yatest.common.binary_path("yt/yt/library/ytprof/example/example"),
+            yatest.common.binary_path("yt/yt/library/ytprof/example/ytprof-example"),
             str(port)
         ]
 
@@ -76,7 +76,7 @@ def test_block_profile(running_example):
 def test_binary_handler(running_example):
     binary = fetch_data(running_example, "binary")
 
-    with open(yatest.common.binary_path("yt/yt/library/ytprof/example/example"), "rb") as f:
+    with open(yatest.common.binary_path("yt/yt/library/ytprof/example/ytprof-example"), "rb") as f:
         real_binary = f.read()
 
     assert binary == real_binary
