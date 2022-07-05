@@ -124,7 +124,8 @@ static const std::vector<TString> PresetKeysSmall = {
 static const std::vector<TString> PresetKeysLarge = {
     BASIC_KEYS
     "schema",
-    "media"
+    "media",
+    "effective_acl"
 };
 
 #undef BASIC_KEYS
