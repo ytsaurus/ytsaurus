@@ -138,17 +138,12 @@ DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     int partitionTag,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 ////////////////////////////////////////////////////////////////////////////////

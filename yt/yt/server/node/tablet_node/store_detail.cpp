@@ -26,6 +26,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -163,6 +164,16 @@ public:
                 ? Bootstrap_->GetHintManager()
                 : nullptr;
 
+            auto chunkReaderHost = New<TChunkReaderHost>(
+                Client_,
+                LocalNodeDescriptor_,
+                std::move(blockCache),
+                /*chunkMetaCache*/ nullptr,
+                std::move(nodeStatusDirectory),
+                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*trafficMeter*/ nullptr);
+
             // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
             setCachedReaders(
                 false,
@@ -170,14 +181,7 @@ public:
                     chunkSpec,
                     ReaderConfig_,
                     New<TRemoteReaderOptions>(),
-                    Client_,
-                    LocalNodeDescriptor_,
-                    std::move(blockCache),
-                    /*chunkMetaCache*/ nullptr,
-                    /*trafficMeter*/ nullptr,
-                    std::move(nodeStatusDirectory),
-                    /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                    /*rpsThrottler*/ GetUnlimitedThrottler()));
+                    std::move(chunkReaderHost)));
 
             YT_LOG_DEBUG("Remote chunk reader created and cached");
         };

@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
@@ -384,16 +385,11 @@ private:
         auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            RemoteClient_,
+            GetRemoteChunkReaderHost(),
             inputChunkId,
             inputReplicas,
             erasureCodec,
-            Host_->GetReaderBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            unavailablePartPolicy,
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            unavailablePartPolicy);
 
         chunkMeta = GetChunkMeta(inputChunkId, readers);
 
@@ -640,16 +636,11 @@ private:
         auto repairPartReaders = CreateErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            Host_->GetClient(),
+            Host_->GetChunkReaderHost(),
             outputSessionId.ChunkId,
             repairSeedReplicas,
             repairPartIndicies,
-            Host_->GetReaderBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            EUnavailablePartPolicy::Crash,
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            EUnavailablePartPolicy::Crash);
         YT_VERIFY(repairPartReaders.size() == repairPartIndicies.size());
 
         auto erasedPartWriters = CreateErasurePartWriters(
@@ -712,16 +703,9 @@ private:
         auto reader = CreateReplicationReader(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            RemoteClient_,
-            Host_->LocalDescriptor(),
+            GetRemoteChunkReaderHost(),
             inputChunkId,
-            inputReplicas,
-            Host_->GetReaderBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            Host_->GetTrafficMeter(),
-            /*nodeStatusDirectory*/ nullptr,
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            inputReplicas);
 
         chunkMeta = GetChunkMeta(inputChunkId, {reader});
 
@@ -957,7 +941,22 @@ private:
     {
         return SchedulerJobSpecExt_.output_table_specs(0).dynamic();
     }
+
+    TChunkReaderHostPtr GetRemoteChunkReaderHost()
+    {
+        return New<TChunkReaderHost>(
+            RemoteClient_,
+            Host_->LocalDescriptor(),
+            Host_->GetReaderBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler(),
+            Host_->GetTrafficMeter());
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateRemoteCopyJob(IJobHostPtr host)
 {

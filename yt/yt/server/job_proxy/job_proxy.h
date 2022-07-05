@@ -199,6 +199,8 @@ private:
         const TString& artifactPath,
         const TError& error) override;
 
+    NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const override;
+
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;
 

@@ -20,15 +20,10 @@ namespace NYT::NJournalClient {
 
 NChunkClient::IChunkReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     NChunkClient::TChunkId chunkId,
     NErasure::ECodec codecId,
-    const NChunkClient::TChunkReplicaList& replicas,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
-    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    const NChunkClient::TChunkReplicaList& replicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 

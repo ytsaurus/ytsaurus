@@ -77,9 +77,7 @@ public:
 
             return CreatePartitionSortReader(
                 tableReaderConfig,
-                Host_->GetClient(),
-                Host_->GetReaderBlockCache(),
-                /*chunkMetaCache*/ nullptr,
+                Host_->GetChunkReaderHost(),
                 outputSchema->ToComparator(),
                 nameTable,
                 BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
@@ -89,9 +87,6 @@ public:
                 SchedulerJobSpecExt_.is_approximate(),
                 *partitionTag,
                 ChunkReadOptions_,
-                Host_->GetTrafficMeter(),
-                Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler(),
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 

@@ -26,8 +26,6 @@ struct IUserJobIOFactory
     : public virtual TRefCounted
 {
     virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateReader(
-        NApi::NNative::IClientPtr client,
-        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
         TClosure onNetworkReleased,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TColumnFilter& columnFilter) = 0;
@@ -50,13 +48,9 @@ DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     TString localHostName,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler);
+    NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

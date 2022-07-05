@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -593,10 +594,7 @@ private:
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
-            client,
-            /*localDescriptor*/ {},
-            client->GetNativeConnection()->GetBlockCache(),
-            client->GetNativeConnection()->GetChunkMetaCache(),
+            TChunkReaderHost::FromClient(client),
             chunkReadOptions,
             std::move(chunks),
             MakeFileDataSource(std::nullopt));

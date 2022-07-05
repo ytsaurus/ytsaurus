@@ -4,6 +4,7 @@
 #include "helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -88,17 +89,11 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const IJobSpecHelperPtr& jobSpecHelper,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& nodeDescriptor,
+    TChunkReaderHostPtr chunkReaderHost,
     bool isParallel,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
@@ -119,19 +114,13 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     return createReader(
         tableReaderConfig,
         std::move(options),
-        std::move(client),
-        nodeDescriptor,
-        std::move(blockCache),
-        std::move(chunkMetaCache),
+        std::move(chunkReaderHost),
         dataSourceDirectory,
         std::move(dataSliceDescriptors),
         std::move(nameTable),
         chunkReadOptions,
         columnFilter,
         /*partitionTag*/ std::nullopt,
-        std::move(trafficMeter),
-        std::move(bandwidthThrottler),
-        std::move(rpsThrottler),
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
         /*interruptDescriptorKeyLength*/ 0);
 }
@@ -146,22 +135,14 @@ struct TUserJobIOFactoryBase
     TUserJobIOFactoryBase(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , ChunkReadOptions_(chunkReadOptions)
+        , ChunkReaderHost_(std::move(chunkReaderHost))
         , LocalHostName_(std::move(localHostName))
-        , BlockCache_(std::move(blockCache))
-        , ChunkMetaCache_(std::move(chunkMetaCache))
-        , TrafficMeter_(std::move(trafficMeter))
-        , InBandwidthThrottler_(std::move(inBandwidthThrottler))
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
-        , OutRpsThrottler_(std::move(outRpsThrottler))
     { }
 
     void Initialize()
@@ -198,7 +179,8 @@ struct TUserJobIOFactoryBase
             transactionId,
             std::move(tableSchema),
             chunkTimestamps,
-            TrafficMeter_,
+            // NB: This is ok, since traffic meter is shared between readers and writers.
+            ChunkReaderHost_->TrafficMeter,
             OutBandwidthThrottler_,
             dataSink);
     }
@@ -206,13 +188,9 @@ struct TUserJobIOFactoryBase
 protected:
     const IJobSpecHelperPtr JobSpecHelper_;
     const TClientChunkReadOptions ChunkReadOptions_;
+    const TChunkReaderHostPtr ChunkReaderHost_;
     const TString LocalHostName_;
-    const IBlockCachePtr BlockCache_;
-    const IClientChunkMetaCachePtr ChunkMetaCache_;
-    const TTrafficMeterPtr TrafficMeter_;
-    const IThroughputThrottlerPtr InBandwidthThrottler_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
-    const IThroughputThrottlerPtr OutRpsThrottler_;
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     virtual i64 GetTotalReaderMemoryLimit() const = 0;
@@ -228,48 +206,32 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(chunkReaderHost),
             std::move(localHostName),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(inBandwidthThrottler),
-            std::move(outBandwidthThrottler),
-            std::move(outRpsThrottler))
+            std::move(outBandwidthThrottler))
         , UseParallelReader_(useParallelReader)
     {
         TUserJobIOFactoryBase::Initialize();
     }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr client,
-        const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
         return CreateRegularReader(
             JobSpecHelper_,
-            std::move(client),
-            nodeDescriptor,
+            ChunkReaderHost_,
             UseParallelReader_,
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
-            BlockCache_,
-            ChunkMetaCache_,
-            TrafficMeter_,
-            InBandwidthThrottler_,
-            OutRpsThrottler_,
             MultiReaderMemoryManager_);
     }
 
@@ -293,31 +255,21 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(chunkReaderHost),
             std::move(localHostName),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(inBandwidthThrottler),
-            std::move(outBandwidthThrottler),
-            std::move(outRpsThrottler))
+            std::move(outBandwidthThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
     {
         TUserJobIOFactoryBase::Initialize();
     }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr client,
-        const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
@@ -364,19 +316,13 @@ public:
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
                 options,
-                client,
-                nodeDescriptor,
-                BlockCache_,
-                ChunkMetaCache_,
+                ChunkReaderHost_,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
-                /* partitionTag */ std::nullopt,
-                TrafficMeter_,
-                InBandwidthThrottler_,
-                OutRpsThrottler_,
+                /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
                 sortColumns.size());
 
@@ -393,19 +339,13 @@ public:
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
                 options,
-                client,
-                nodeDescriptor,
-                BlockCache_,
-                ChunkMetaCache_,
+                ChunkReaderHost_,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
-                /* partitionTag */ std::nullopt,
-                TrafficMeter_,
-                InBandwidthThrottler_,
-                OutRpsThrottler_,
+                /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             foreignReaders.emplace_back(reader);
@@ -445,30 +385,20 @@ public:
     explicit TPartitionMapJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(chunkReaderHost),
             std::move(localHostName),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(inBandwidthThrottler),
-            std::move(outBandwidthThrottler),
-            std::move(outRpsThrottler))
+            std::move(outBandwidthThrottler))
     {
         TUserJobIOFactoryBase::Initialize();
     }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr client,
-        const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
@@ -477,17 +407,11 @@ public:
 
         return CreateRegularReader(
             JobSpecHelper_,
-            std::move(client),
-            nodeDescriptor,
+            ChunkReaderHost_,
             /*isParallel*/ !partitionJobSpecExt.use_sequential_reader(),
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
-            BlockCache_,
-            ChunkMetaCache_,
-            TrafficMeter_,
-            InBandwidthThrottler_,
-            OutRpsThrottler_,
             MultiReaderMemoryManager_);
     }
 
@@ -542,7 +466,7 @@ public:
                 chunkListId,
                 std::move(partitioner),
                 dataSink,
-                TrafficMeter_,
+                ChunkReaderHost_->TrafficMeter,
                 OutBandwidthThrottler_);
         } else {
             // This writer is used for mapper output tables.
@@ -555,7 +479,7 @@ public:
                 transactionId,
                 std::move(tableSchema),
                 chunkTimestamps,
-                TrafficMeter_,
+                ChunkReaderHost_->TrafficMeter,
                 OutBandwidthThrottler_,
                 dataSink);
         }
@@ -577,30 +501,20 @@ public:
     TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(chunkReaderHost),
             std::move(localHostName),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(inBandwidthThrottler),
-            std::move(outBandwidthThrottler),
-            std::move(outRpsThrottler))
+            std::move(outBandwidthThrottler))
     {
         TUserJobIOFactoryBase::Initialize();
     }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr client,
-        const TNodeDescriptor& /*nodeDescriptor*/,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
@@ -640,9 +554,7 @@ public:
 
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
-            std::move(client),
-            BlockCache_,
-            ChunkMetaCache_,
+            ChunkReaderHost_,
             GetComparator(sortColumns),
             nameTable,
             onNetworkReleased,
@@ -652,9 +564,6 @@ public:
             schedulerJobSpecExt.is_approximate(),
             *partitionTag,
             ChunkReadOptions_,
-            TrafficMeter_,
-            InBandwidthThrottler_,
-            OutRpsThrottler_,
             MultiReaderMemoryManager_);
     }
 
@@ -674,28 +583,18 @@ public:
     TVanillaJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr inBandwidthThrottler,
-        IThroughputThrottlerPtr outBandwidthThrottler,
-        IThroughputThrottlerPtr outRpsThrottler)
+        IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(chunkReaderHost),
             std::move(localHostName),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(inBandwidthThrottler),
-            std::move(outBandwidthThrottler),
-            std::move(outRpsThrottler))
+            std::move(outBandwidthThrottler))
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
-        NNative::IClientPtr /*client*/,
-        const TNodeDescriptor& /*nodeDescriptor*/,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr /*nameTable*/,
         const TColumnFilter& /*columnFilter*/) override
@@ -715,13 +614,9 @@ protected:
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientChunkReadOptions& chunkReadOptions,
+    TChunkReaderHostPtr chunkReaderHost,
     TString localHostName,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr inBandwidthThrottler,
-    IThroughputThrottlerPtr outBandwidthThrottler,
-    IThroughputThrottlerPtr outRpsThrottler)
+    IThroughputThrottlerPtr outBandwidthThrottler)
 {
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
@@ -730,64 +625,44 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 true,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         case EJobType::OrderedMap:
             return New<TMapJobIOFactory>(
                 jobSpecHelper,
                 false,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         case EJobType::SortedReduce:
             return New<TSortedReduceJobIOFactory>(
                 jobSpecHelper,
                 true,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         case EJobType::JoinReduce:
             return New<TSortedReduceJobIOFactory>(
                 jobSpecHelper,
                 false,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         case EJobType::PartitionMap:
             return New<TPartitionMapJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         // ToDo(psushin): handle separately to form job result differently.
         case EJobType::ReduceCombiner:
@@ -795,25 +670,17 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionReduceJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         case EJobType::Vanilla:
             return New<TVanillaJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                std::move(trafficMeter),
-                std::move(inBandwidthThrottler),
-                std::move(outBandwidthThrottler),
-                std::move(outRpsThrottler));
+                std::move(outBandwidthThrottler));
 
         default:
             THROW_ERROR_EXCEPTION(

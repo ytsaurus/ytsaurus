@@ -143,14 +143,7 @@ IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
     TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter = nullptr,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    TChunkReaderHostPtr chunkReaderHost);
 
 IChunkReaderPtr CreateRemoteReaderThrottlingAdapter(
     TChunkId chunkId,

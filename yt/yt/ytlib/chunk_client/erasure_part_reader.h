@@ -30,30 +30,20 @@ DEFINE_ENUM(EUnavailablePartPolicy,
 std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
+    TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::TPartIndexList& partIndexList,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    EUnavailablePartPolicy unavailablePartPolicy,
-    TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    EUnavailablePartPolicy unavailablePartPolicy);
 
 std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
+    TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    EUnavailablePartPolicy unavailablePartPolicy,
-    TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    EUnavailablePartPolicy unavailablePartPolicy);
 
 ////////////////////////////////////////////////////////////////////////////////
 

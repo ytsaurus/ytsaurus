@@ -24,6 +24,7 @@
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -129,19 +130,13 @@ TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstima
 std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -150,7 +145,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     chunkFragmentReaderConfig->Postprocess();
     auto chunkFragmentReader = CreateChunkFragmentReader(
         std::move(chunkFragmentReaderConfig),
-        client,
+        chunkReaderHost->Client,
         CreateTrivialNodeStatusDirectory(),
         /*profiler*/ {});
 
@@ -184,14 +179,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             chunkSpec,
                             config,
                             options,
-                            client,
-                            localDescriptor,
-                            blockCache,
-                            chunkMetaCache,
-                            trafficMeter,
-                            /*nodeStatusDirectory*/ nullptr,
-                            bandwidthThrottler,
-                            rpsThrottler);
+                            chunkReaderHost);
                     } catch (const std::exception& ex) {
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
@@ -212,7 +200,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         }
 
                         auto chunkState = New<TChunkState>(
-                            blockCache,
+                            chunkReaderHost->BlockCache,
                             chunkSpec,
                             nullptr,
                             NullTimestamp,
@@ -253,10 +241,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             config->DynamicStoreReader,
                             options,
                             nameTable,
-                            client,
-                            trafficMeter,
-                            bandwidthThrottler,
-                            rpsThrottler,
+                            chunkReaderHost,
                             chunkReadOptions,
                             dataSource.Columns(),
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
@@ -287,18 +272,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     return wrapReader(CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
-                        client,
-                        localDescriptor,
-                        blockCache,
-                        chunkMetaCache,
+                        chunkReaderHost,
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
                         chunkReadOptions,
-                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
-                        trafficMeter,
-                        bandwidthThrottler,
-                        rpsThrottler));
+                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter));
                 });
 
                 auto canCreateReader = BIND([=] {
@@ -538,19 +517,13 @@ const TDataSliceDescriptor& TSchemalessMultiChunkReader::GetCurrentReaderDescrip
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -570,19 +543,13 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
             CreateReaderFactories(
                 config,
                 options,
-                client,
-                localDescriptor,
-                blockCache,
-                chunkMetaCache,
+                std::move(chunkReaderHost),
                 dataSourceDirectory,
                 dataSliceDescriptors,
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
                 partitionTag,
-                trafficMeter,
-                std::move(bandwidthThrottler),
-                std::move(rpsThrottler),
                 multiReaderMemoryManager,
                 interruptDescriptorKeyLength),
             multiReaderMemoryManager),
@@ -595,19 +562,13 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -627,19 +588,13 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
             CreateReaderFactories(
                 config,
                 options,
-                client,
-                localDescriptor,
-                blockCache,
-                chunkMetaCache,
+                std::move(chunkReaderHost),
                 dataSourceDirectory,
                 dataSliceDescriptors,
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
                 partitionTag,
-                trafficMeter,
-                std::move(bandwidthThrottler),
-                std::move(rpsThrottler),
                 multiReaderMemoryManager,
                 interruptDescriptorKeyLength),
             multiReaderMemoryManager),
@@ -656,18 +611,12 @@ public:
     static ISchemalessMultiChunkReaderPtr Create(
         TTableReaderConfigPtr config,
         TTableReaderOptionsPtr options,
-        NNative::IClientPtr client,
-        const TNodeDescriptor& localDescriptor,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
+        TChunkReaderHostPtr chunkReaderHost,
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
         const TClientChunkReadOptions& chunkReadOptions,
         TColumnFilter columnFilter,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     TFuture<void> GetReadyEvent() const override
@@ -979,18 +928,12 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     TColumnFilter columnFilter,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (config->SamplingRate && config->SamplingMode == ESamplingMode::Block) {
@@ -1096,19 +1039,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     auto createVersionedChunkReader = [
         config,
         options,
-        client,
-        localDescriptor,
-        blockCache,
-        chunkMetaCache,
+        chunkReaderHost,
         chunkReadOptions,
         chunkSpecs,
         tableSchema,
         versionedReadSchema = versionedReadSchema,
         performanceCounters,
         timestamp,
-        trafficMeter,
-        bandwidthThrottler,
-        rpsThrottler,
         renameDescriptors,
         multiReaderMemoryManager,
         dataSource,
@@ -1150,14 +1087,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             chunkSpec,
             config,
             options,
-            client,
-            localDescriptor,
-            blockCache,
-            chunkMetaCache,
-            trafficMeter,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottler,
-            rpsThrottler);
+            chunkReaderHost);
 
         auto asyncVersionedChunkMeta = remoteReader->GetMeta(chunkReadOptions)
             .Apply(BIND(
@@ -1169,7 +1099,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(
-            blockCache,
+            chunkReaderHost->BlockCache,
             chunkSpec,
             versionedChunkMeta,
             chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
@@ -1206,18 +1136,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     auto createVersionedReader = [
         config,
         options,
-        client,
-        blockCache,
-        chunkMetaCache,
+        chunkReaderHost,
         chunkReadOptions,
         chunkSpecs,
         tableSchema,
         columnFilter,
         performanceCounters,
         timestamp,
-        trafficMeter,
-        bandwidthThrottler,
-        rpsThrottler,
         multiReaderMemoryManager,
         createVersionedChunkReader,
         Logger
@@ -1231,10 +1156,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 chunkSpec,
                 tableSchema,
                 config->DynamicStoreReader,
-                client,
-                trafficMeter,
-                bandwidthThrottler,
-                rpsThrottler,
+                chunkReaderHost,
                 chunkReadOptions,
                 columnFilter,
                 timestamp,
@@ -1249,12 +1171,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     struct TSchemalessMergingMultiChunkReaderBufferTag
     { };
 
+    const auto& connection = chunkReaderHost->Client->GetNativeConnection();
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
         TColumnFilter(),
-        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(versionedReadSchema),
+        connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp);
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
@@ -1289,51 +1212,37 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr readerMemoryManager)
 {
     return TSchemalessMergingMultiChunkReader::Create(
         config,
         options,
-        client,
-        localDescriptor,
-        blockCache,
-        chunkMetaCache,
+        std::move(chunkReaderHost),
         dataSourceDirectory,
         dataSliceDescriptor,
         nameTable,
         chunkReadOptions,
         columnFilter,
-        trafficMeter,
-        std::move(bandwidthThrottler),
-        std::move(rpsThrottler),
         std::move(readerMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
-    const NNative::IClientPtr& client,
     const TTableReaderOptionsPtr& options,
     const TTableReaderConfigPtr& config,
+    TChunkReaderHostPtr chunkReaderHost,
     TTableReadSpec& tableReadSpec,
     const TClientChunkReadOptions& chunkReadOptions,
     bool unordered,
     const TNameTablePtr& nameTable,
-    const TColumnFilter& columnFilter,
-    const IThroughputThrottlerPtr& bandwidthThrottler,
-    const IThroughputThrottlerPtr& rpsThrottler)
+    const TColumnFilter& columnFilter)
 {
     const auto& dataSourceDirectory = tableReadSpec.DataSourceDirectory;
     auto& dataSliceDescriptors = tableReadSpec.DataSliceDescriptors;
@@ -1355,18 +1264,12 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return CreateSchemalessMergingMultiChunkReader(
                 config,
                 options,
-                client,
-                /*localDescriptor*/ {},
-                client->GetNativeConnection()->GetBlockCache(),
-                client->GetNativeConnection()->GetChunkMetaCache(),
+                std::move(chunkReaderHost),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptor),
                 nameTable,
                 chunkReadOptions,
-                adjustedColumnFilter,
-                /*trafficMeter*/ nullptr,
-                bandwidthThrottler,
-                rpsThrottler);
+                adjustedColumnFilter);
         }
         case EDataSourceType::UnversionedTable: {
             auto factory = unordered
@@ -1375,20 +1278,13 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return factory(
                 config,
                 options,
-                client,
-                // Client doesn't have a node descriptor.
-                /*localDescriptor*/ {},
-                client->GetNativeConnection()->GetBlockCache(),
-                client->GetNativeConnection()->GetChunkMetaCache(),
+                chunkReaderHost,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
-                /*trafficMeter*/ nullptr,
-                bandwidthThrottler,
-                rpsThrottler,
                 /*multiReaderMemoryManager*/ nullptr,
                 /*interruptDescriptorKeyLength*/ 0);
         }

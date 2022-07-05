@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -205,16 +206,14 @@ private:
         TableSchema_ = dataSource.Schema();
         OmittedInaccessibleColumns_ = dataSource.OmittedInaccessibleColumns();
         Reader_ = CreateAppropriateSchemalessMultiChunkReader(
-            Client_,
             tableReaderOptions,
             tableReaderConfig,
+            TChunkReaderHost::FromClient(Client_, BandwidthThrottler_, RpsThrottler_),
             tableReadSpec,
             chunkReadOptions,
             Options_.Unordered,
             NameTable_,
-            ColumnFilter_,
-            BandwidthThrottler_,
-            RpsThrottler_);
+            ColumnFilter_);
 
         WaitFor(Reader_->GetReadyEvent())
             .ThrowOnError();

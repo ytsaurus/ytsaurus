@@ -672,14 +672,7 @@ IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
     TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    INodeStatusDirectoryPtr nodeStatusDirectory,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
@@ -719,16 +712,9 @@ IChunkReaderPtr CreateRemoteReader(
             auto reader = CreateReplicationReader(
                 partConfig,
                 options,
-                client,
-                localDescriptor,
+                chunkReaderHost,
                 partChunkId,
-                partReplicas,
-                blockCache,
-                chunkMetaCache,
-                trafficMeter,
-                nodeStatusDirectory,
-                bandwidthThrottler,
-                rpsThrottler);
+                partReplicas);
             readers.push_back(reader);
         }
 
@@ -739,16 +725,9 @@ IChunkReaderPtr CreateRemoteReader(
         return CreateReplicationReader(
             std::move(config),
             std::move(options),
-            std::move(client),
-            localDescriptor,
+            std::move(chunkReaderHost),
             chunkId,
-            replicas,
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(nodeStatusDirectory),
-            std::move(bandwidthThrottler),
-            std::move(rpsThrottler));
+            replicas);
     }
 }
 

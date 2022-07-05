@@ -53,16 +53,10 @@ IFileReaderPtr CreateFileChunkReader(
 IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     const NChunkClient::TDataSource& dataSource,
-    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

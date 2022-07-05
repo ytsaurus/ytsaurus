@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -42,14 +43,9 @@ namespace {
 
 std::vector<IChunkReaderPtr> CreatePartReaders(
     const TChunkReaderConfigPtr& config,
-    const IClientPtr& client,
+    const TChunkReaderHostPtr& chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList replicas,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    TChunkReplicaWithMediumList replicas)
 {
     if (replicas.empty()) {
         return {};
@@ -75,16 +71,9 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
         partReaders.push_back(CreateReplicationReader(
             config,
             options,
-            client,
-            /*localDescriptor*/ {},
+            chunkReaderHost,
             partChunkId,
-            partReplicas,
-            blockCache,
-            chunkMetaCache,
-            trafficMeter,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottler,
-            rpsThrottler));
+            partReplicas));
     }
     return partReaders;
 }
@@ -125,24 +114,15 @@ class TErasureChunkReader
 public:
     TErasureChunkReader(
         TChunkReaderConfigPtr config,
-        IClientPtr client,
+        TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
         NErasure::ICodec* codec,
-        const TChunkReplicaList& replicas,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        const TChunkReplicaList& replicas)
         : Config_(std::move(config))
-        , Client_(std::move(client))
+        , ChunkReaderHost_(std::move(chunkReaderHost))
+        , Client_(ChunkReaderHost_->Client)
         , ChunkId_(chunkId)
         , Codec_(codec)
-        , BlockCache_(std::move(blockCache))
-        , ChunkMetaCache_(std::move(chunkMetaCache))
-        , TrafficMeter_(std::move(trafficMeter))
-        , BandwidthThrottler_(std::move(bandwidthThrottler))
-        , RpsThrottler_(std::move(rpsThrottler))
         , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , InitialReplicas_(replicas)
     {
@@ -237,14 +217,9 @@ public:
                 Reader_->Codec_,
                 CreatePartReaders(
                     Reader_->Config_,
-                    Reader_->Client_,
+                    Reader_->ChunkReaderHost_,
                     DecodeChunkId(Reader_->ChunkId_).Id,
-                    replicas.Replicas,
-                    Reader_->BlockCache_,
-                    Reader_->ChunkMetaCache_,
-                    Reader_->TrafficMeter_,
-                    Reader_->BandwidthThrottler_,
-                    Reader_->RpsThrottler_),
+                    replicas.Replicas),
                 GetPartIndexesToRead(Reader_->ChunkId_, Reader_->Codec_),
                 Logger);
 
@@ -331,14 +306,10 @@ public:
 
 private:
     const TChunkReaderConfigPtr Config_;
+    const TChunkReaderHostPtr ChunkReaderHost_;
     const IClientPtr Client_;
     const TChunkId ChunkId_;
     NErasure::ICodec* const Codec_;
-    const IBlockCachePtr BlockCache_;
-    const IClientChunkMetaCachePtr ChunkMetaCache_;
-    const TTrafficMeterPtr TrafficMeter_;
-    const IThroughputThrottlerPtr BandwidthThrottler_;
-    const IThroughputThrottlerPtr RpsThrottler_;
 
     const NLogging::TLogger Logger;
 
@@ -351,42 +322,25 @@ DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)
 
 IChunkReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
-    IClientPtr client,
+    TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     NErasure::ECodec codecId,
-    const TChunkReplicaList& replicas,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
+    const TChunkReplicaList& replicas)
 {
     if (codecId == NErasure::ECodec::None) {
         return CreateReplicationReader(
             config,
             New<TRemoteReaderOptions>(),
-            std::move(client),
-            /*localDescriptor*/ {},
+            std::move(chunkReaderHost),
             chunkId,
-            replicas,
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            /*nodeStatusDirectory*/ nullptr,
-            std::move(bandwidthThrottler),
-            std::move(rpsThrottler));
+            replicas);
     } else {
         return New<TErasureChunkReader>(
             config,
-            std::move(client),
+            std::move(chunkReaderHost),
             chunkId,
             NErasure::GetCodec(codecId),
-            replicas,
-            std::move(blockCache),
-            std::move(chunkMetaCache),
-            std::move(trafficMeter),
-            std::move(bandwidthThrottler),
-            std::move(rpsThrottler));
+            replicas);
     }
 }
 

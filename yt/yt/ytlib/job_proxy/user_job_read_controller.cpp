@@ -41,16 +41,12 @@ class TUserJobReadController
 public:
     TUserJobReadController(
         IJobSpecHelperPtr jobSpecHelper,
-        NNative::IClientPtr client,
         IInvokerPtr invoker,
-        TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
         std::optional<TString> udfDirectory)
         : JobSpecHelper_(std::move(jobSpecHelper))
-        , Client_(std::move(client))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
-        , NodeDescriptor_(std::move(nodeDescriptor))
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))
@@ -163,9 +159,7 @@ public:
 
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
-    const NNative::IClientPtr Client_;
     const IInvokerPtr SerializedInvoker_;
-    const TNodeDescriptor NodeDescriptor_;
     const TClosure OnNetworkRelease_;
     const IUserJobIOFactoryPtr UserJobIOFactory_;
 
@@ -266,8 +260,6 @@ private:
     {
         YT_VERIFY(!Reader_);
         Reader_ = UserJobIOFactory_->CreateReader(
-            Client_,
-            NodeDescriptor_,
             OnNetworkRelease_,
             std::move(nameTable),
             columnFilter);
@@ -333,36 +325,24 @@ DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    NNative::IClientPtr client,
+    TChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
-    TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     const TClientChunkReadOptions& chunkReadOptions,
-    TString localHostName,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    TString localHostName)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         return New<TUserJobReadController>(
             jobSpecHelper,
-            client,
             invoker,
-            nodeDescriptor,
             onNetworkRelease,
             CreateUserJobIOFactory(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(chunkReaderHost),
                 std::move(localHostName),
-                std::move(blockCache),
-                std::move(chunkMetaCache),
-                trafficMeter,
-                std::move(bandwidthThrottler),
-                nullptr,
-                std::move(rpsThrottler)),
+                nullptr),
             udfDirectory);
     } else {
         return New<TVanillaUserJobReadController>();

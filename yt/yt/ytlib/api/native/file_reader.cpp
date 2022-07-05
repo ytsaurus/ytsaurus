@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -244,10 +245,7 @@ private:
         Reader_ = CreateFileMultiChunkReader(
             Config_,
             New<TMultiChunkReaderOptions>(),
-            Client_,
-            /*localDescriptor*/ {},
-            Client_->GetNativeConnection()->GetBlockCache(),
-            Client_->GetNativeConnection()->GetChunkMetaCache(),
+            TChunkReaderHost::FromClient(Client_),
             ChunkReadOptions_,
             std::move(chunkSpecs),
             dataSource);

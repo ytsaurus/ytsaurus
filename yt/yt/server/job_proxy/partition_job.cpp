@@ -84,19 +84,13 @@ public:
             return factory(
                 tableReaderConfig,
                 readerOptions,
-                Host_->GetClient(),
-                Host_->LocalDescriptor(),
-                Host_->GetReaderBlockCache(),
-                /*chunkMetaCache*/ nullptr,
+                Host_->GetChunkReaderHost(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
                 partitionTag,
-                Host_->GetTrafficMeter(),
-                Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler(),
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
                 /*interruptDescriptorKeyLength*/ 0);
         };

@@ -217,6 +217,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaCache)
 
+DECLARE_REFCOUNTED_STRUCT(TChunkReaderHost)
+
 struct TChunkReaderMemoryManagerOptions;
 
 struct TUserObject;
