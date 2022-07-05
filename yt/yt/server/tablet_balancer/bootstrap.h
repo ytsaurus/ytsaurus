@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_election/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -15,7 +17,9 @@ struct IBootstrap
     virtual ~IBootstrap() = default;
     virtual void Run() = 0;
 
+    virtual const IInvokerPtr& GetControlInvoker() = 0;
     virtual const NApi::NNative::IClientPtr& GetMasterClient() = 0;
+    virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

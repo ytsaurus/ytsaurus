@@ -76,11 +76,25 @@ public:
         Sleep(TDuration::Max());
     }
 
-    const NApi::NNative::IClientPtr& GetMasterClient() override
+    const NNative::IClientPtr& GetMasterClient() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Client_;
+    }
+
+    const ICypressElectionManagerPtr& GetElectionManager() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ElectionManager_;
+    }
+
+    const IInvokerPtr& GetControlInvoker() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ControlInvoker_;
     }
 
 private:
@@ -111,8 +125,7 @@ private:
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO(
-        "Starting tablet balancer process (NativeCluster: %v)",
+    YT_LOG_INFO("Starting tablet balancer process (NativeCluster: %v)",
         Config_->ClusterConnection->ClusterName);
 
     LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
@@ -204,8 +217,6 @@ void TBootstrap::RegisterInstance()
         ToYPathLiteral(LocalAddress_));
     auto orchidPath = instancePath + "/orchid";
 
-    YT_LOG_DEBUG("RegisterInstance started (InstancePath: %v, OrchidPath: %v", instancePath, orchidPath);
-
     NObjectClient::TObjectServiceProxy proxy(Client_
         ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();
@@ -230,8 +241,7 @@ void TBootstrap::RegisterInstance()
         batchReq->AddRequest(req);
     }
 
-    YT_LOG_INFO(
-        "Registering instance (Path: %Qv, OrchidPath: %Qv)",
+    YT_LOG_INFO("Registering instance (Path: %Qv, OrchidPath: %Qv)",
         instancePath,
         orchidPath);
 

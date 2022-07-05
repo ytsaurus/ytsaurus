@@ -19,11 +19,6 @@ TTable::TTable(
     , Id(tableId)
 { }
 
-bool TTable::IsBalancingAllowed() const
-{
-    return Dynamic && TableConfig->EnableAutoTabletMove;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

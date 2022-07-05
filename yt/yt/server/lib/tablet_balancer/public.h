@@ -29,6 +29,10 @@ DECLARE_REFCOUNTED_STRUCT(TTablet)
 DECLARE_REFCOUNTED_STRUCT(TTabletCell)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
 
+struct TReshardDescriptor;
+struct TMoveDescriptor;
+using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

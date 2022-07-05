@@ -16,6 +16,10 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(3);
+    registrar.Parameter("tablet_action_expiration_time", &TThis::TabletActionExpirationTime)
+        .Default(TDuration::Minutes(20));
+    registrar.Parameter("tablet_action_polling_period", &TThis::TabletActionPollingPeriod)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

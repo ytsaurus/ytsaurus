@@ -1,0 +1,300 @@
+#include "action_manager.h"
+#include "bootstrap.h"
+#include "helpers.h"
+#include "private.h"
+#include "tablet_action.h"
+
+#include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
+namespace NYT::NTabletBalancer {
+
+using namespace NApi;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NTransactionClient;
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TabletBalancerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr unsigned MaxQueueSize = 1000;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TActionManager
+    : public IActionManager
+{
+public:
+    TActionManager(
+        TDuration actionExpirationTime,
+        TDuration pollingPeriod,
+        NApi::NNative::IClientPtr client,
+        IBootstrap* bootstrap);
+
+    void ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor) override;
+    void CreateActions(const TString& bundleName) override;
+
+    bool HasUnfinishedActions(const TString& bundleName) const override;
+
+    void Start(const TTransactionId& prerequisiteTransactionId) override;
+    void Stop() override;
+
+private:
+    const TDuration ExpirationTime_;
+    const NApi::NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+    const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
+
+    THashMap<TString, std::vector<TActionDescriptor>> PendingActionDescriptors_;
+    THashMap<TString, THashSet<TTabletActionPtr>> RunningActions_;
+    THashMap<TString, std::queue<TTabletActionPtr>> FinishedActions_;
+
+    bool Started_ = false;
+    TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
+
+    void Poll();
+
+    IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
+    void MoveFinishedActionsFromRunningToFinished();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TActionManager::TActionManager(
+    TDuration actionExpirationTime,
+    TDuration pollingPeriod,
+    NApi::NNative::IClientPtr client,
+    IBootstrap* bootstrap)
+    : ExpirationTime_(actionExpirationTime)
+    , Client_(std::move(client))
+    , Invoker_(bootstrap->GetControlInvoker())
+    , PollExecutor_(New<TPeriodicExecutor>(
+        Invoker_,
+        BIND(&TActionManager::Poll, MakeWeak(this)),
+        pollingPeriod))
+{ }
+
+void TActionManager::ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    PendingActionDescriptors_[bundleName].emplace_back(descriptor);
+}
+
+void TActionManager::CreateActions(const TString& bundleName)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    YT_VERIFY(Started_);
+
+    if (RunningActions_.contains(bundleName)) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot create new actions since bundle %v has unfinished actions", 
+            bundleName);
+    }
+
+    if (!PendingActionDescriptors_.contains(bundleName)) {
+        YT_LOG_DEBUG("Action manager has no actions to create (BundleName: %v)", bundleName);
+        return;
+    }
+
+    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+    auto batchReq = proxy.ExecuteBatch();
+    const auto& descriptors = PendingActionDescriptors_[bundleName];
+
+    std::vector<TFuture<NObjectClient::TObjectId>> futures;
+    for (const auto& descriptor : descriptors) {
+        auto attributes = MakeActionAttributes(descriptor);
+        YT_LOG_DEBUG("Creating tablet action (Attributes: %v, BundleName: %v)",
+            attributes->ListPairs(),
+            bundleName);
+        TCreateObjectOptions options;
+        options.Attributes = std::move(attributes);
+        options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+        futures.emplace_back(Client_->CreateObject(EObjectType::TabletAction, std::move(options)));
+    }
+
+    auto responses = WaitFor(AllSet(std::move(futures)))
+        .ValueOrThrow();
+
+    THashSet<TTabletActionPtr> runningActions;
+    for (int index = 0; index < std::ssize(descriptors); ++index) {
+        auto rspOrError = responses[index];
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to create tablet action (BundleName: %v)", bundleName);
+            continue;
+        }
+
+        auto actionId = ConvertTo<TTabletActionId>(rspOrError.Value());
+
+        YT_LOG_DEBUG("Created tablet action (TabletActionId: %v, BundleName: %v)",
+            actionId,
+            bundleName);
+        EmplaceOrCrash(runningActions, New<TTabletAction>(actionId, descriptors[index]));
+    }
+
+    if (!runningActions.empty()) {
+        EmplaceOrCrash(RunningActions_, bundleName, std::move(runningActions));
+    }
+
+    EraseOrCrash(PendingActionDescriptors_, bundleName);
+}
+
+bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
+}
+
+void TActionManager::Start(const TTransactionId& prerequisiteTransactionId)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    YT_LOG_INFO("Starting tablet action manager");
+
+    Started_ = true;
+
+    YT_VERIFY(prerequisiteTransactionId);
+    PrerequisiteTransactionId_ = prerequisiteTransactionId;
+
+    RunningActions_.clear();
+    PendingActionDescriptors_.clear();
+
+    PollExecutor_->Start();
+}
+
+void TActionManager::Stop()
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    YT_LOG_INFO("Stopping tablet action manager");
+
+    Started_ = false;
+    PrerequisiteTransactionId_ = NullTransactionId;
+
+    PollExecutor_->Stop();
+
+    YT_LOG_INFO("Tablet action manager stopped");
+}
+
+void TActionManager::Poll()
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    YT_LOG_INFO("Start checking tablet action states");
+
+    THashSet<TTabletActionId> actionIds;
+    for (const auto& [bundleName, actions] : RunningActions_) {
+        for (const auto& action : actions) {
+            actionIds.insert(action->GetId());
+        }
+    }
+
+    static const std::vector<TString> attributeKeys{"state", "error"};
+    auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys);
+
+    for (const auto& [bundle, actions] : RunningActions_) {
+        for (const auto& action : actions) {
+            if (auto it = actionToAttributes.find(action->GetId()); it != actionToAttributes.end()) {
+                const auto& attributes = it->second;
+                auto state = attributes->Get<ETabletActionState>("state");
+                action->SetState(state);
+
+                YT_LOG_DEBUG("Tablet action state fetched (TabletActionId: %v, State: %v)",
+                    action->GetId(),
+                    state);
+                if (attributes->Contains("error")) {
+                    auto error = attributes->Get<TError>("error");
+                    action->Error() = error;
+                    YT_LOG_WARNING(error, "Tablet action failed (TabletActionId: %v)", action->GetId());
+                }
+            } else if (!actionIds.contains(action->GetId())) {
+                YT_LOG_DEBUG("Tablet action status is unknown (TabletActionId: %v, Kind: %v, State: %v)",
+                    action->GetId(),
+                    action->GetKind(),
+                    action->GetState());
+            } else {
+                action->SetLost(true);
+                YT_LOG_DEBUG("Tablet action is lost (TabletActionId: %v, Kind: %v)",
+                    action->GetId(),
+                    action->GetKind());
+            }
+        }
+    }
+
+    MoveFinishedActionsFromRunningToFinished();
+}
+
+void TActionManager::MoveFinishedActionsFromRunningToFinished()
+{
+    THashSet<TString> bundlesToRemove;
+
+    for (auto& [bundleName, runningActions] : RunningActions_) {
+        auto& finishedActions = FinishedActions_[bundleName];
+
+        for (auto it = runningActions.begin(); it != runningActions.end(); ) {
+            if ((*it)->IsFinished()) {
+                finishedActions.emplace(*it);
+                if (finishedActions.size() > MaxQueueSize) {
+                    finishedActions.pop();
+                }
+                runningActions.erase(it++);
+            } else {
+                ++it;
+            }
+        }
+
+        if (runningActions.empty()) {
+            bundlesToRemove.emplace(bundleName);
+        }
+    }
+
+    DropMissingKeys(&RunningActions_, bundlesToRemove);
+}
+
+IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescriptor& descriptor)
+{
+    auto attributes = CreateEphemeralAttributes();
+    Visit(descriptor,
+        [&] (const TMoveDescriptor& descriptor) {
+            attributes->Set("kind", "move");
+            attributes->Set("tablet_ids", std::vector<TTabletId>{descriptor.TabletId});
+            attributes->Set("cell_ids", std::vector<TTabletCellId>{descriptor.TabletCellId});
+        },
+        [&] (const TReshardDescriptor& descriptor) {
+            attributes->Set("kind", "reshard");
+            attributes->Set("tablet_ids", descriptor.Tablets);
+            attributes->Set("tablet_count", descriptor.TabletCount);
+        });
+    attributes->Set("expiration_time", TInstant::Now() + ExpirationTime_);
+    return attributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IActionManagerPtr CreateActionManager(
+    TDuration actionExpirationTime,
+    TDuration pollingPeriod,
+    NApi::NNative::IClientPtr client,
+    IBootstrap* bootstrap)
+{
+    return New<TActionManager>(actionExpirationTime, pollingPeriod, std::move(client), std::move(bootstrap));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancer

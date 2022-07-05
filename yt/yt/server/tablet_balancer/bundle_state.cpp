@@ -219,6 +219,7 @@ void TBundleState::DoFetchStatistics()
                 tablet->Cell = cellIt->second.Get();
             } else {
                 YT_VERIFY(tabletResponse.State == ETabletState::Unmounted);
+                tablet->Cell = nullptr;
             }
 
             tablet->Index = tabletResponse.Index;
