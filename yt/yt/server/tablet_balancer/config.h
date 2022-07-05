@@ -22,6 +22,9 @@ public:
 
     i64 WorkerThreadPoolSize;
 
+    TDuration TabletActionExpirationTime;
+    TDuration TabletActionPollingPeriod;
+
     REGISTER_YSON_STRUCT(TStandaloneTabletBalancerConfig)
 
     static void Register(TRegistrar registrar);

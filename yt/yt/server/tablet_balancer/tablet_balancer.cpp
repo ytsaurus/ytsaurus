@@ -1,9 +1,12 @@
+#include "action_manager.h"
 #include "bootstrap.h"
 #include "bundle_state.h"
 #include "config.h"
 #include "private.h"
 #include "public.h"
 #include "tablet_balancer.h"
+
+#include <yt/yt/server/lib/cypress_election/election_manager.h>
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
@@ -52,10 +55,10 @@ private:
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
     TThreadPoolPtr WorkerPool_;
+    IActionManagerPtr ActionManager_;
 
     i64 IterationIndex_;
 
-    void FetchTablets();
     void BalancerIteration();
 
     void BalanceViaReshard(const TBundleStatePtr& bundle);
@@ -63,8 +66,6 @@ private:
 
     void BalanceBundle(const TBundleState& bundle);
     void UpdateBundleList();
-
-    void DoStop();
 
     void BuildOrchid(IYsonConsumer* consumer) const;
 };
@@ -85,6 +86,11 @@ TTabletBalancer::TTabletBalancer(
     , WorkerPool_(New<TThreadPool>(
         Config_->WorkerThreadPoolSize,
         "TabletBalancer"))
+    , ActionManager_(CreateActionManager(
+        Config_->TabletActionExpirationTime,
+        Config_->TabletActionPollingPeriod,
+        Bootstrap_->GetMasterClient(),
+        Bootstrap_))
     , IterationIndex_(0)
 { }
 
@@ -95,29 +101,20 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance");
 
     PollExecutor_->Start();
+
+    ActionManager_->Start(Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId());
 }
 
 void TTabletBalancer::Stop()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Stopping tablet balancer instance");
 
-    ControlInvoker_->Invoke(BIND(&TTabletBalancer::DoStop, MakeWeak(this)));
-}
+    PollExecutor_->Stop();
+    ActionManager_->Stop();
 
-void TTabletBalancer::FetchTablets()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    // TODO(alexelex): remove debug list request
-
-    auto result = WaitFor(Bootstrap_
-        ->GetMasterClient()
-        ->ListNode("//sys"))
-        .ValueOrThrow();
-
-    YT_LOG_INFO("yt list //sys %v", result);
+    YT_LOG_INFO("Tablet balancer instance stopped");
 }
 
 void TTabletBalancer::BalancerIteration()
@@ -131,6 +128,11 @@ void TTabletBalancer::BalancerIteration()
     YT_LOG_DEBUG("Finished fetching bundles");
 
     for (auto& [bundleName, bundle] : Bundles_) {
+        if (ActionManager_->HasUnfinishedActions(bundleName)) {
+            YT_LOG_DEBUG("Skip balancing iteration since bundle has unfinished actions (BundleName: %v)", bundleName);
+            continue;
+        }
+
         YT_LOG_DEBUG("Started fetching (BundleName: %v)", bundleName);
 
         if (auto result = WaitFor(bundle->UpdateState()); !result.IsOK()) {
@@ -156,28 +158,10 @@ void TTabletBalancer::BalancerIteration()
             BalanceViaReshard(bundle);
         }
 
-        // Get descriptors.
-        // Print descriptors.
-        // Create tablet actions.
+        ActionManager_->CreateActions(bundleName);
     }
 
     ++IterationIndex_;
-    FetchTablets();
-}
-
-void TTabletBalancer::DoStop()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    YT_LOG_INFO("Stopping pool");
-
-    PollExecutor_->Stop();
-
-    // TODO(alexelex): wait all tablet_actions
-
-    // TODO(alexelex): could clear state, could not
-
-    YT_LOG_INFO("Tablet balancer instance stopped");
 }
 
 IYPathServicePtr TTabletBalancer::GetOrchidService()
@@ -245,6 +229,7 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle)
             YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
+            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
         }
 
         actionCount += std::ssize(descriptors);
@@ -299,6 +284,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle)
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize);
+            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
         }
         actionCount += std::ssize(descriptors);
     }

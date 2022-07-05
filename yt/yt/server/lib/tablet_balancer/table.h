@@ -32,8 +32,6 @@ struct TTable final
         NObjectClient::TCellTag cellTag,
         TTableId tableId,
         TTabletCellBundle* bundle);
-
-    bool IsBalancingAllowed() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTable)

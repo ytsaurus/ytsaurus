@@ -1,0 +1,40 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/server/lib/tablet_balancer/public.h>
+
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
+
+namespace NYT::NTabletBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletAction final
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(ETabletActionKind, Kind);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletActionId, Id);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TTabletId>, TabletIds);
+
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TTabletCellId>, CellIds);
+    DEFINE_BYREF_RO_PROPERTY(int, TabletCount);
+
+    DEFINE_BYREF_RW_PROPERTY(TError, Error);
+    DEFINE_BYVAL_RW_PROPERTY(ETabletActionState, State, ETabletActionState::Preparing);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Lost, false);
+
+public:
+    TTabletAction(
+        TTabletActionId id,
+        const TActionDescriptor& descriptor);
+
+    bool IsFinished() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletAction)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancer
