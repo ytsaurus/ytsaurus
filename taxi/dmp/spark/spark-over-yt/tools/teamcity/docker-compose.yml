@@ -1,0 +1,32 @@
+version: "3"
+
+services:
+  test_spyt:
+    image: registry.yandex.net/taxi-dmp-spark/spyt-test-base:${SPYT_TEST_IMAGE_TAG:-latest}
+    network_mode: host
+    user: root
+    volumes:
+      - ../../.:/app
+      - /run/docker.sock:/run/docker.sock
+      - ${HOME}/.docker/config.json:${HOME}/.docker/config.json:ro
+      - ${SPYT_REPORTS_DIR:-reports}:/reports
+      - ${SPYT_CACHE_DIR:-cache}:/${HOME}/.cache
+      - ${SPYT_IVY_DIR:-ivy}:/cache/ivy
+      - ${SPYT_SBT_DIR:-sbt}:/cache/sbt
+
+      # пробрасываем пользователей с хоста
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow:ro
+      - /etc/group:/etc/group:ro
+    entrypoint: /bin/sh tools/teamcity/entrypoint.sh
+    environment:
+      # матчим пользователя с хостом
+      - USER=${USER}
+      - HOME=${HOME}
+
+volumes:
+  # fallback-тома для кеша и сбора junit-отчетов
+  cache:
+  ivy:
+  sbt:
+  reports:
