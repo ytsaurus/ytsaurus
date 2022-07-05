@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
@@ -400,6 +401,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     TLogger Logger(queryContext->Logger);
 
+    auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());
+
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
         subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
     {
@@ -415,36 +418,24 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         reader = CreateSchemalessMergingMultiChunkReader(
             std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
-            queryContext->Client(),
-            /*localDescriptor*/ {},
-            queryContext->Client()->GetNativeConnection()->GetBlockCache(),
-            queryContext->Client()->GetNativeConnection()->GetChunkMetaCache(),
+            std::move(chunkReaderHost),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptor,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /*trafficMeter*/ nullptr,
-            GetUnlimitedThrottler(),
-            GetUnlimitedThrottler(),
-            /*multiReaderMemoryManager*/readerMemoryManager);
+            /*multiReaderMemoryManager*/ readerMemoryManager);
     } else {
         reader = CreateSchemalessParallelMultiReader(
             std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
-            queryContext->Client(),
-            /*localDescriptor*/ {},
-            queryContext->Client()->GetNativeConnection()->GetBlockCache(),
-            queryContext->Client()->GetNativeConnection()->GetChunkMetaCache(),
+            std::move(chunkReaderHost),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptors,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /*partitionTag*/ std::nullopt,
-            /*trafficMeter*/ nullptr,
-            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*multiReaderMemoryManager*/ readerMemoryManager);
     }
 

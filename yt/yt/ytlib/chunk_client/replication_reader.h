@@ -23,16 +23,9 @@ namespace NYT::NChunkClient {
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
+    TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+    const TChunkReplicaList& seedReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 

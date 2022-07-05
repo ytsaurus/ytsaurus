@@ -19,9 +19,7 @@ namespace NYT::NTableClient {
 
 ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
@@ -31,9 +29,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     bool isApproximate,
     int partitionTag,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

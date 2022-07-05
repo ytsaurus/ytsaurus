@@ -195,18 +195,12 @@ public:
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
-            Host_->GetClient(),
+            Host_->GetChunkReaderHost(),
             PipeIOPool_->GetInvoker(),
-            Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             SandboxDirectoryNames[ESandboxKind::Udf],
             ChunkReadOptions_,
-            Host_->GetLocalHostName(),
-            Host_->GetReaderBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            Host_->GetLocalHostName());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),

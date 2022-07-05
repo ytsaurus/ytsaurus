@@ -1,9 +1,11 @@
 #include "replication_reader.h"
+
 #include "private.h"
 #include "traffic_meter.h"
 #include "block_cache.h"
 #include "block_id.h"
 #include "chunk_reader.h"
+#include "chunk_reader_host.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "helpers.h"
@@ -167,28 +169,21 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        NNative::IClientPtr client,
-        const TNodeDescriptor& localDescriptor,
+        TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        const TChunkReplicaList& seedReplicas,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
-        TTrafficMeterPtr trafficMeter,
-        INodeStatusDirectoryPtr nodeStatusDirectory,
-        IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        const TChunkReplicaList& seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
-        , Client_(std::move(client))
+        , Client_(chunkReaderHost->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
-        , LocalDescriptor_(localDescriptor)
+        , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
-        , BlockCache_(std::move(blockCache))
-        , ChunkMetaCache_(std::move(chunkMetaCache))
-        , TrafficMeter_(std::move(trafficMeter))
-        , NodeStatusDirectory_(std::move(nodeStatusDirectory))
-        , BandwidthThrottler_(std::move(bandwidthThrottler))
-        , RpsThrottler_(std::move(rpsThrottler))
+        , BlockCache_(chunkReaderHost->BlockCache)
+        , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
+        , TrafficMeter_(chunkReaderHost->TrafficMeter)
+        , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
+        , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
+        , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , InitialSeeds_(std::move(seedReplicas))
@@ -3354,34 +3349,16 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverridenThrottlers)
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
+    TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    INodeStatusDirectoryPtr nodeStatusDirectory,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    const TChunkReplicaList& seedReplicas)
 {
-    YT_VERIFY(config);
-    YT_VERIFY(blockCache);
-    YT_VERIFY(client);
-
     return New<TReplicationReader>(
         std::move(config),
         std::move(options),
-        std::move(client),
-        localDescriptor,
+        std::move(chunkReaderHost),
         chunkId,
-        seedReplicas,
-        std::move(blockCache),
-        std::move(chunkMetaCache),
-        std::move(trafficMeter),
-        std::move(nodeStatusDirectory),
-        std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        seedReplicas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -199,13 +199,9 @@ void TUserJobWriteController::Init()
     auto userJobIOFactory = CreateUserJobIOFactory(
         Host_->GetJobSpecHelper(),
         TClientChunkReadOptions(),
+        Host_->GetChunkReaderHost(),
         Host_->GetLocalHostName(),
-        Host_->GetWriterBlockCache(),
-        /*chunkMetaCache*/ nullptr,
-        Host_->GetTrafficMeter(),
-        Host_->GetInBandwidthThrottler(),
-        Host_->GetOutBandwidthThrottler(),
-        Host_->GetOutRpsThrottler());
+        Host_->GetOutBandwidthThrottler());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());

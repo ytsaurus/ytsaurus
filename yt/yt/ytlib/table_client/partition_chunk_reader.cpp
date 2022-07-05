@@ -6,6 +6,7 @@
 #include "schemaless_multi_chunk_reader.h"
 #include "helpers.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -176,17 +177,12 @@ void TPartitionMultiChunkReader::OnReaderSwitched()
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NNative::IClientPtr client,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     int partitionTag,
     const TClientChunkReadOptions& chunkReadOptions,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -212,14 +208,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         chunkSpec,
                         config,
                         options,
-                        client,
-                        /*localDescriptor*/ {},
-                        blockCache,
-                        chunkMetaCache,
-                        trafficMeter,
-                        /*nodeStatusDirectory*/ nullptr,
-                        bandwidthThrottler,
-                        rpsThrottler);
+                        chunkReaderHost);
 
                     YT_VERIFY(!chunkSpec.has_lower_limit());
                     YT_VERIFY(!chunkSpec.has_upper_limit());
@@ -230,7 +219,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         sequentialReaderConfig,
                         remoteReader,
                         nameTable,
-                        blockCache,
+                        chunkReaderHost->BlockCache,
                         chunkReadOptions,
                         partitionTag,
                         dataSource,

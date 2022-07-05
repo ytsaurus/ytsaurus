@@ -9,6 +9,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -210,12 +211,10 @@ private:
 
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
-                    Client_,
+                    TChunkReaderHost::FromClient(Client_),
                     chunkId,
                     codecId,
-                    replicas,
-                    Client_->GetNativeConnection()->GetBlockCache(),
-                    Client_->GetNativeConnection()->GetChunkMetaCache());
+                    replicas);
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 if (!chunkSpec.has_lower_limit()) {

@@ -28,7 +28,7 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
@@ -915,19 +915,22 @@ private:
         auto options = New<TRemoteReaderOptions>();
         options->AllowFetchingSeedsFromMaster = false;
 
+        auto chunkReaderHost = New<TChunkReaderHost>(
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            /*bandwidthThrottler*/ Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+
         auto reader = CreateReplicationReader(
             Config_->RepairReader,
             options,
-            Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetLocalDescriptor(),
+            std::move(chunkReaderHost),
             partChunkId,
-            partReplicas,
-            Bootstrap_->GetBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            /*trafficMeter*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler());
+            partReplicas);
 
         return reader;
     }
@@ -1216,16 +1219,21 @@ private:
                 currentRowCount,
                 sealRowCount - 1);
 
-            auto reader = NJournalClient::CreateChunkReader(
-                Config_->SealReader,
+            auto chunkReaderHost = New<TChunkReaderHost>(
                 Bootstrap_->GetMasterClient(),
-                ChunkId_,
-                codecId,
-                sourceReplicas,
+                Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                /*trafficMeter*/ nullptr,
-                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
+                /*nodeStatusDirectory*/ nullptr,
+                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn),
+                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*trafficMeter*/ nullptr);
+            auto reader = NJournalClient::CreateChunkReader(
+                Config_->SealReader,
+                std::move(chunkReaderHost),
+                ChunkId_,
+                codecId,
+                sourceReplicas);
 
             // TODO(savrus): profile chunk reader statistics.
             TClientChunkReadOptions chunkReadOptions{
@@ -1603,10 +1611,8 @@ private:
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        int totalBlockCount = 0;
         for (const auto& chunkReadContext : InputChunkReadContexts_) {
             writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
-            totalBlockCount += chunkReadContext.BlockCount;
         }
 
         for (const auto& chunkReadContext : InputChunkReadContexts_) {
@@ -1743,18 +1749,20 @@ private:
         auto erasureReaderConfig = New<TErasureReaderConfig>();
         erasureReaderConfig->EnableAutoRepair = false;
 
-        return CreateRemoteReader(
-            GetChunkSpec(chunk),
-            erasureReaderConfig,
-            New<TRemoteReaderOptions>(),
+        auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*trafficMeter*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler());
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+        return CreateRemoteReader(
+            GetChunkSpec(chunk),
+            erasureReaderConfig,
+            New<TRemoteReaderOptions>(),
+            std::move(chunkReaderHost));
     }
 
     TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader, const TClientChunkReadOptions& options)
@@ -2171,16 +2179,22 @@ private:
         }
 
         auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
-        auto reader = NJournalClient::CreateChunkReader(
-            Config_->AutotomyReader,
+
+        auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetMasterClient(),
-            BodyChunkId_,
-            ErasureCodecId_,
-            bodyChunkReplicas,
+            Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*trafficMeter*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyIn));
+            /*nodeStatusDirectory*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+        auto reader = NJournalClient::CreateChunkReader(
+            Config_->AutotomyReader,
+            std::move(chunkReaderHost),
+            BodyChunkId_,
+            ErasureCodecId_,
+            bodyChunkReplicas);
 
         TClientChunkReadOptions chunkReadOptions;
         auto& workloadDescriptor = chunkReadOptions.WorkloadDescriptor;

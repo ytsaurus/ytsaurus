@@ -22,6 +22,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
@@ -1033,6 +1034,19 @@ void TJobProxy::OnArtifactPreparationFailed(
 NApi::NNative::IClientPtr TJobProxy::GetClient() const
 {
     return Client_;
+}
+
+TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
+{
+    return New<TChunkReaderHost>(
+        Client_,
+        LocalDescriptor_,
+        ReaderBlockCache_,
+        /*chunkMetaCache*/ nullptr,
+        /*nodeStatusDirectory*/ nullptr,
+        GetInBandwidthThrottler(),
+        GetOutRpsThrottler(),
+        GetTrafficMeter());
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

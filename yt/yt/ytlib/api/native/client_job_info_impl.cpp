@@ -16,6 +16,7 @@
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/combine_data_slices.h>
@@ -573,20 +574,14 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
-        MakeStrong(this),
+        TChunkReaderHost::FromClient(MakeStrong(this)),
         GetConnection()->GetInvoker(),
-        TNodeDescriptor(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
         TClientChunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive)
         },
-        /*localHostName*/ {},
-        GetNullBlockCache(),
-        /*chunkMetaCache*/ nullptr,
-        /*trafficMeter*/ nullptr,
-        /*bandwidthThrottler*/ NConcurrency::GetUnlimitedThrottler(),
-        /*rpsThrottler*/ NConcurrency::GetUnlimitedThrottler());
+        /*localHostName*/ {});
 
     auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
     jobInputReader->Open();

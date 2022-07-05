@@ -23,6 +23,7 @@
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -948,19 +949,22 @@ private:
 
             PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
 
+            auto chunkReaderHost = New<TChunkReaderHost>(
+                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetBlockCache(),
+                /*chunkMetaCache*/ nullptr,
+                /*nodeStatusDirectory*/ nullptr,
+                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+                Bootstrap_->GetReadRpsOutThrottler(),
+                artifactDownloadOptions.TrafficMeter);
+
             auto chunkReader = CreateReplicationReader(
                 artifactCacheReaderConfig,
                 remoteReaderOptions,
-                Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetLocalDescriptor(),
+                std::move(chunkReaderHost),
                 chunkId,
-                seedReplicas,
-                Bootstrap_->GetBlockCache(),
-                /*chunkMetaCache*/ nullptr,
-                artifactDownloadOptions.TrafficMeter,
-                /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
-                Bootstrap_->GetReadRpsOutThrottler());
+                seedReplicas);
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TChunkFileWriter>(
@@ -1091,19 +1095,22 @@ private:
             auto readerOptions = New<TMultiChunkReaderOptions>();
             readerOptions->EnableP2P = true;
 
-            auto reader = CreateFileMultiChunkReader(
-                GetArtifactCacheReaderConfig(),
-                readerOptions,
+            auto chunkReaderHost = New<TChunkReaderHost>(
                 Bootstrap_->GetMasterClient(),
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
+                /*nodeStatusDirectory*/ nullptr,
+                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+                Bootstrap_->GetReadRpsOutThrottler(),
+                artifactDownloadOptions.TrafficMeter);
+            auto reader = CreateFileMultiChunkReader(
+                GetArtifactCacheReaderConfig(),
+                readerOptions,
+                std::move(chunkReaderHost),
                 chunkReadOptions,
                 chunkSpecs,
-                FromProto<NChunkClient::TDataSource>(key.data_source()),
-                artifactDownloadOptions.TrafficMeter,
-                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
-                Bootstrap_->GetReadRpsOutThrottler());
+                FromProto<NChunkClient::TDataSource>(key.data_source()));
 
             auto produceFile = [&] (IOutputStream* /*output*/, const TString& filename) {
                 auto inputStream = CreateFileReaderAdapter(reader);
@@ -1165,19 +1172,22 @@ private:
         auto readerOptions = New<TMultiChunkReaderOptions>();
         readerOptions->EnableP2P = true;
 
-        auto reader = CreateFileMultiChunkReader(
-            GetArtifactCacheReaderConfig(),
-            readerOptions,
+        auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetReadRpsOutThrottler(),
+            trafficMeter);
+        auto reader = CreateFileMultiChunkReader(
+            GetArtifactCacheReaderConfig(),
+            readerOptions,
+            std::move(chunkReaderHost),
             chunkReadOptions,
             chunkSpecs,
-            FromProto<NChunkClient::TDataSource>(key.data_source()),
-            trafficMeter,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
-            Bootstrap_->GetReadRpsOutThrottler());
+            FromProto<NChunkClient::TDataSource>(key.data_source()));
 
         return [=] (IOutputStream* output) {
             TBlock block;
@@ -1294,22 +1304,25 @@ private:
                 YT_ABORT();
         }
 
-        auto reader = CreateSchemalessSequentialMultiReader(
-            GetArtifactCacheReaderConfig(),
-            readerOptions,
+        auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetReadRpsOutThrottler(),
+            trafficMeter);
+        auto reader = CreateSchemalessSequentialMultiReader(
+            GetArtifactCacheReaderConfig(),
+            readerOptions,
+            std::move(chunkReaderHost),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
             chunkReadOptions,
             /*columnFilter*/ {},
-            /*partitionTag*/ std::nullopt,
-            trafficMeter,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
-            Bootstrap_->GetReadRpsOutThrottler());
+            /*partitionTag*/ std::nullopt);
 
         auto schema = dataSource.Schema();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));

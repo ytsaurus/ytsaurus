@@ -254,14 +254,7 @@ private:
             chunkSpec,
             ReaderConfig_,
             ReaderOptions_,
-            Host_->GetClient(),
-            Host_->LocalDescriptor(),
-            Host_->GetReaderBlockCache(),
-            /*chunkMetaCache*/ nullptr,
-            Host_->GetTrafficMeter(),
-            /*nodeStatusDirectory*/ nullptr,
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            Host_->GetChunkReaderHost());
     }
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)

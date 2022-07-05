@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -76,10 +77,11 @@ public:
             .Client = Host_->GetRootClient(),
         });
 
+        auto chunkReaderHost = TChunkReaderHost::FromClient(Host_->GetRootClient());
         auto reader = CreateAppropriateSchemalessMultiChunkReader(
-            Host_->GetRootClient(),
             New<TTableReaderOptions>(),
             New<TTableReaderConfig>(),
+            std::move(chunkReaderHost),
             tableReadSpec,
             TClientChunkReadOptions(),
             true,

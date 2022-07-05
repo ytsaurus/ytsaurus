@@ -46,18 +46,12 @@ DEFINE_REFCOUNTED_TYPE(IUserJobReadController);
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    NApi::NNative::IClientPtr client,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
-    NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TString localHostName,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+    TString localHostName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -55,9 +55,7 @@ class TPartitionSortReader
 public:
     TPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
-        NApi::NNative::IClientPtr client,
-        IBlockCachePtr blockCache,
-        IClientChunkMetaCachePtr chunkMetaCache,
+        TChunkReaderHostPtr chunkReaderHost,
         TComparator comparator,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
@@ -67,9 +65,6 @@ public:
         bool approximate,
         int partitionTag,
         TClientChunkReadOptions chunkReadOptions,
-        TTrafficMeterPtr trafficMeter,
-        IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
         : Comparator_(std::move(comparator))
         , OnNetworkReleased_(std::move(onNetworkReleased))
@@ -94,17 +89,12 @@ public:
         UnderlyingReader_ = CreatePartitionMultiChunkReader(
             std::move(config),
             std::move(options),
-            std::move(client),
-            std::move(blockCache),
-            std::move(chunkMetaCache),
+            std::move(chunkReaderHost),
             std::move(dataSourceDirectory),
             std::move(dataSliceDescriptors),
             NameTable_,
             partitionTag,
             std::move(chunkReadOptions),
-            std::move(trafficMeter),
-            std::move(bandwidthThrottler),
-            std::move(rpsThrottler),
             std::move(multiReaderMemoryManager));
 
         SetReadyEvent(BIND(&TPartitionSortReader::DoOpen, MakeWeak(this))
@@ -556,9 +546,7 @@ private:
 
 ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     TMultiChunkReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
@@ -568,16 +556,11 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     bool approximate,
     int partitionTag,
     TClientChunkReadOptions chunkReadOptions,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
-    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     return New<TPartitionSortReader>(
         std::move(config),
-        std::move(client),
-        std::move(blockCache),
-        std::move(chunkMetaCache),
+        std::move(chunkReaderHost),
         std::move(comparator),
         std::move(nameTable),
         onNetworkReleased,
@@ -587,9 +570,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
         approximate,
         partitionTag,
         std::move(chunkReadOptions),
-        std::move(trafficMeter),
-        std::move(bandwidthThrottler),
-        std::move(rpsThrottler),
         std::move(multiReaderMemoryManager));
 }
 

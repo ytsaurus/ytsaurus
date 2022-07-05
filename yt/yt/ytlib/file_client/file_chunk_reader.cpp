@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -443,16 +444,10 @@ private:
 IFileReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
+    TChunkReaderHostPtr chunkReaderHost,
     const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
     const NChunkClient::TDataSource& dataSource,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -473,14 +468,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 chunkSpec,
                 config,
                 options,
-                client,
-                localDescriptor,
-                blockCache,
-                chunkMetaCache,
-                trafficMeter,
-                /*nodeStatusDirectory*/ nullptr,
-                bandwidthThrottler,
-                rpsThrottler);
+                chunkReaderHost);
 
             auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
@@ -497,7 +485,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
             return CreateFileChunkReader(
                 config,
                 std::move(remoteReader),
-                blockCache,
+                chunkReaderHost->BlockCache,
                 CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
                 chunkReadOptions,
                 startOffset,

@@ -49,19 +49,13 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
-    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
     int interruptDescriptorKeyLength = 0);
 
@@ -70,19 +64,13 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
-    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
     int interruptDescriptorKeyLength = 0);
 
@@ -91,33 +79,25 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
-    const NApi::NNative::IClientPtr& client,
     const TTableReaderOptionsPtr& options,
     const TTableReaderConfigPtr& config,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     TTableReadSpec& tableReadSpec,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     bool unordered,
     const TNameTablePtr& nameTable,
-    const TColumnFilter& columnFilter,
-    const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    const NConcurrency::IThroughputThrottlerPtr& rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    const TColumnFilter& columnFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
