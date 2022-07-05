@@ -6,7 +6,7 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString ToolsProgramName;
+constexpr TStringBuf ToolsProgramName = "ytserver-tools";
 
 DECLARE_REFCOUNTED_STRUCT(TSignalerConfig)
 

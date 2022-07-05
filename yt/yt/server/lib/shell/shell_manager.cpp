@@ -352,11 +352,11 @@ private:
         auto toolDirectory = NFS::JoinPaths(containerRoot, ShellToolDirectory);
         if (!NFS::Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
-            auto toolPathOrError = ResolveBinaryPath(NTools::ToolsProgramName);
+            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
         }
 
         if (NFS::IsDirEmpty(toolDirectory)) {
-            auto toolPathOrError = ResolveBinaryPath(NTools::ToolsProgramName);
+            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
             THashMap<TString, TString> volumeProperties;

@@ -15,8 +15,6 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString ToolsProgramName("ytserver-tools");
-
 using namespace NYson;
 using namespace NYTree;
 
@@ -26,7 +24,7 @@ static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& ser
 
 TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgument)
 {
-    auto process = TSubprocess(ToolsProgramName);
+    auto process = TSubprocess(TString(ToolsProgramName));
     process.AddArguments({
         "--tool-name",
         toolName,
