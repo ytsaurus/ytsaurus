@@ -35,16 +35,18 @@ struct TTabletBalancerContext
 
 bool IsTabletReshardable(const TTabletPtr tablet, bool ignoreConfig);
 
+i64 GetTabletBalancingSize(const TTabletPtr& tablet);
+
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     TRange<TTabletPtr> tabletRange,
     TTabletBalancerContext* context,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
     const std::optional<THashSet<TTableId>>& movableTables,
     bool ignoreTableWiseConfig,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
