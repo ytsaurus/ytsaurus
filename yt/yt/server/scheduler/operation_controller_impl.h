@@ -42,23 +42,15 @@ public:
     void OnJobFinished(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override;
-    void OnJobCompleted(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status);
-    void OnJobFailed(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status);
-    void OnJobAborted(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status,
-        bool byScheduler);
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
         TControllerEpoch jobEpoch) override;
     void OnJobAborted(
         const TJobPtr& job,
-        const TError& error) override;
+        const TError& error,
+        bool scheduled,
+        std::optional<EAbortReason> abortReason) override;
     
     TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
 
@@ -130,11 +122,6 @@ private:
 
     void ProcessControllerAgentError(const TError& error);
 
-    void OnJobAborted(
-        const TJobPtr& job,
-        const TError& error,
-        bool scheduled,
-        std::optional<EAbortReason> abortReason);
     void OnJobAborted(
         TJobId jobId,
         const TError& error,

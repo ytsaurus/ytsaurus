@@ -3378,14 +3378,6 @@ void TOperationControllerBase::SafeOnJobFinishedEventReceivedFromScheduler(TFini
     }
 
     if (!finishedJobInfo) {
-        // COMPAT(pogorelov)
-        if (finishedJobSummary.GetSpecFailed) {
-            YT_LOG_DEBUG("Received job info for job that was aborted because of getting spec failure (JobId: %v)", jobId);
-            EmplaceOrCrash(JobsWaitingForFinalization_, jobId, TFinishedJobInfo::CreateRemovingInfo());
-            OnJobAborted(CreateAbortedSummaryOnGetSpecFailed(std::move(finishedJobSummary)));
-            return;
-        }
-
         StartWaitingJobInfoFromNode(std::move(finishedJobSummary));
         return;
     }

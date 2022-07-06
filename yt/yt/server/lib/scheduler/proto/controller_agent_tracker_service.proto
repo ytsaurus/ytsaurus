@@ -116,9 +116,6 @@ message TSchedulerToAgentFinishedJobEvent
     optional bool preempted = 6;
     optional string preemption_reason = 7;
 
-    // COMPAT(pogorelov)
-    required bool get_spec_failed = 8;
-
     // for Completed
     optional int32 interrupt_reason = 9; // EInterruptReason
 }
