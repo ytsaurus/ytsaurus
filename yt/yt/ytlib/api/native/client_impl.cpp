@@ -578,6 +578,7 @@ TClusterMeta TClient::DoGetClusterMeta(
 
     if (options.PopulateFeatures) {
         auto schedulerOrchidReq = TYPathProxy::Get("//sys/scheduler/orchid/scheduler/supported_features");
+        SetCachingHeader(schedulerOrchidReq, options);
         batchReq->AddRequest(schedulerOrchidReq, "scheduler_features");
     }
 
