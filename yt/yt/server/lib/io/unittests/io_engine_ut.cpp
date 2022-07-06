@@ -173,6 +173,40 @@ TEST_P(TIOEngineTest, DirectIO)
     read(4_KB - 1, 4_KB + 2);
 }
 
+TEST_P(TIOEngineTest, DirectIOUnalignedFile)
+{
+    if (GetIOEngineType() != EIOEngineType::Uring) {
+        GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
+    }
+
+    auto engine = CreateIOEngine();
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    constexpr auto S = 8_KB + 13;
+    auto data = GenerateRandomBlob(S);
+
+    WriteFile(fileName, data);
+
+    auto file = engine->Open({fileName, RdOnly | DirectAligned})
+        .Get()
+        .ValueOrThrow();
+
+    auto read = [&] (i64 offset, i64 size) {
+        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
+            .Get()
+            .ValueOrThrow();
+        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
+    };
+
+    read(1, S - 2);
+    read(0, S);
+    read(S-4_KB-10, 4_KB);
+    read(4_KB, 4_KB);
+}
+
 TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
 {
     if (GetIOEngineType() != EIOEngineType::Uring) {
