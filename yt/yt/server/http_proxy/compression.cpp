@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/ytree/serialize.h>
 
-#include <library/cpp/streams/lzop/lzop.h>
-#include <library/cpp/streams/lz/lz.h>
 #include <library/cpp/streams/brotli/brotli.h>
 
 #include <library/cpp/blockcodecs/codecs.h>
@@ -81,7 +79,7 @@ public:
         if (Finished_) {
             THROW_ERROR_EXCEPTION("Attempting write to closed compression stream");
         }
-        
+
         Compressor_->Write(buffer.Begin(), buffer.Size());
         return VoidFuture;
     }
@@ -143,23 +141,7 @@ private:
             return;
         }
 
-        if (ContentEncoding_ == "x-lzop") {
-            Compressor_.reset(new TLzopCompress(this, DefaultStreamBufferSize));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-lzo") {
-            Compressor_.reset(new TLzoCompress(this, DefaultStreamBufferSize));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-lzf") {
-            Compressor_.reset(new TLzfCompress(this, DefaultStreamBufferSize));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-snappy") {
-            Compressor_.reset(new TSnappyCompress(this, DefaultStreamBufferSize));
+        if (Compressor_ = TryDetectOptionalCompressors(ContentEncoding_, this)) {
             return;
         }
 
@@ -266,23 +248,7 @@ private:
             return;
         }
 
-        if (ContentEncoding_ == "x-lzop") {
-            Decompressor_.reset(new TLzopDecompress(this));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-lzo") {
-            Decompressor_.reset(new TLzoDecompress(this));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-lzf") {
-            Decompressor_.reset(new TLzfDecompress(this));
-            return;
-        }
-
-        if (ContentEncoding_ == "y-snappy") {
-            Decompressor_.reset(new TSnappyDecompress(this));
+        if (Decompressor_ = TryDetectOptionalDecompressors(ContentEncoding_, this)) {
             return;
         }
 
