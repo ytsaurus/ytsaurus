@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/memory_trackers/public.h>
-
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/client/misc/config.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
