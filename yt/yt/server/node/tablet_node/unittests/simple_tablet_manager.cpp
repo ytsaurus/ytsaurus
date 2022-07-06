@@ -125,8 +125,15 @@ TTablet* TSimpleTabletManager::GetTabletOrThrow(TTabletId id)
     return TabletMap_.Get(NullTabletId);
 }
 
-void TSimpleTabletManager::OnTabletUnlocked(TTablet* /*tablet*/)
-{ }
+i64 TSimpleTabletManager::LockTablet(TTablet* /*tablet*/)
+{
+    return 0;
+}
+
+i64 TSimpleTabletManager::UnlockTablet(TTablet* /*tablet*/)
+{
+    return 0;
+}
 
 void TSimpleTabletManager::OnTabletRowUnlocked(TTablet* /*tablet*/)
 { }

@@ -696,6 +696,8 @@ void TTablet::Save(TSaveContext& context) const
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
+    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
+    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
@@ -823,6 +825,12 @@ void TTablet::Load(TLoadContext& context)
             ChaosData_->ReplicationRound = Load<int>(context);
         }
         ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ETabletReign::ReplicationTxLocksTablet) {
+        Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
+        Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
     }
 
     // COMPAT(ifsmirnov)
