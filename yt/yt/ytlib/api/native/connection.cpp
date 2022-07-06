@@ -153,9 +153,6 @@ public:
         MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
             Config_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
-        if (Config_->EnableNetworking) {
-            MasterCellDirectorySynchronizer_->Start();
-        }
 
         InitializeTimestampProvider();
 
