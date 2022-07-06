@@ -1,6 +1,6 @@
-from test_dynamic_tables import DynamicTablesBase
-from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
-from test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
+from .test_dynamic_tables import DynamicTablesBase
+from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_env_setup import Restarter, NODES_SERVICE
 

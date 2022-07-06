@@ -109,7 +109,7 @@ def _configure_logger(path):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
-        logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
+        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     else:
         logger.handlers = [logging.FileHandler(path)]
         logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))

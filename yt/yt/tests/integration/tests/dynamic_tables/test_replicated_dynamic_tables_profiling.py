@@ -1,4 +1,4 @@
-from test_replicated_dynamic_tables import (
+from .test_replicated_dynamic_tables import (
     TestReplicatedDynamicTablesBase,
     SIMPLE_SCHEMA_SORTED,
     SIMPLE_SCHEMA_ORDERED,

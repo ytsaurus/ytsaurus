@@ -1,4 +1,4 @@
-from test_dynamic_tables import DynamicTablesBase
+from .test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
     authors, wait, get_driver,
