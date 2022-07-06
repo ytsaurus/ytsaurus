@@ -1152,6 +1152,7 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie).second);
     ProbingJobManager_.OnJobLost(completedJob->OutputCookie);
+    SpeculativeJobManager_.OnJobLost(completedJob->OutputCookie);
 }
 
 void TTask::OnStripeRegistrationFailed(

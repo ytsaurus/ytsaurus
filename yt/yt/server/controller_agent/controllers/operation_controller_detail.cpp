@@ -2830,9 +2830,14 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
         return;
     }
 
-    YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+    auto joblet = FindJoblet(jobId);
 
-    auto joblet = GetJoblet(jobId);
+    if (!joblet) {
+        YT_LOG_DEBUG("Joblet is not found, looks like job has been aborted in controller, ignore job event (JobId: %v)", jobId);
+        return;
+    }
+
+    YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
 
     YT_VERIFY(jobSummary);
     Host->GetJobProfiler()->ProfileStartedJob(*joblet, *jobSummary);

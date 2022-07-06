@@ -9,6 +9,8 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
+using namespace NChunkPools;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSpeculativeJobManager::TSpeculativeJobManager(
@@ -49,6 +51,11 @@ void TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
             Host_->AbortJobViaScheduler(competitiveJobId, abortReason);
         }
     }
+}
+
+void TSpeculativeJobManager::OnJobLost(IChunkPoolOutput::TCookie cookie)
+{
+    TCompetitiveJobManagerBase::OnJobLost(cookie, EAbortReason::SpeculativeCompetitorResultLost);
 }
 
 bool TSpeculativeJobManager::OnUnsuccessfulJobFinish(
