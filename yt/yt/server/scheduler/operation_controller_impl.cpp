@@ -497,30 +497,6 @@ void TOperationControllerImpl::OnJobFinished(
         .PreemptionReason = job->GetPreemptionReason(),
     };
 
-    auto parseAbortReason = [&] (const TError& error) -> std::optional<EAbortReason>
-    {
-        auto abortReasonString = error.Attributes().Find<TString>("abort_reason");
-        if (!abortReasonString) {
-            return {};
-        }
-
-        auto abortReason = TryParseEnum<EAbortReason>(*abortReasonString);
-        if (!abortReason) {
-            YT_LOG_DEBUG(
-                "Failed to parse abort reason from result (JobId: %v, UnparsedAbortReason: %v)",
-                job->GetId(),
-                *abortReasonString);
-        }
-
-        return abortReason;
-    };
-
-    if (auto error = FromProto<TError>(status->result().error()); 
-        parseAbortReason(error).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
-    {
-        eventSummary.GetSpecFailed = true;
-    }
-
     auto result = EnqueueJobEvent(std::move(eventSummary));
     YT_LOG_TRACE("Job finish notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
@@ -565,15 +541,6 @@ void TOperationControllerImpl::OnJobAborted(
     VERIFY_THREAD_AFFINITY_ANY();
 
     OnJobAborted(job->GetId(), error, scheduled, abortReason, job->GetControllerEpoch());
-}
-
-void TOperationControllerImpl::OnJobAborted(
-    const TJobPtr& job,
-    const TError& error)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    OnJobAborted(job, error, /*scheduled*/ true, /*abortReason*/ std::nullopt);
 }
 
 void TOperationControllerImpl::OnNonscheduledJobAborted(

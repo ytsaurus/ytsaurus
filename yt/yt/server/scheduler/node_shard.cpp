@@ -133,6 +133,24 @@ EAllocationState ParseAllocationStateFromJobStatus(const TJobStatus* jobStatus) 
     return JobStateToAllocationState(EJobState{jobStatus->state()});
 }
 
+std::optional<EAbortReason> ParseAbortReason(const TError& error, TJobId jobId, const NLogging::TLogger& Logger)
+{
+    auto abortReasonString = error.Attributes().Find<TString>("abort_reason");
+    if (!abortReasonString) {
+        return {};
+    }
+
+    auto abortReason = TryParseEnum<EAbortReason>(*abortReasonString);
+    if (!abortReason) {
+        YT_LOG_DEBUG(
+            "Failed to parse abort reason from result (JobId: %v, UnparsedAbortReason: %v)",
+            jobId,
+            *abortReasonString);
+    }
+
+    return abortReason;
+}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2101,10 +2119,21 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     switch (allocationState) {
         case EAllocationState::Finished: {
-            YT_LOG_DEBUG("Job finished, storage scheduled");
-            AddRecentlyFinishedJob(job);
-            OnJobFinished(job, jobStatus);
-            ToProto(response->add_jobs_to_store(), jobId);
+            if (auto error = FromProto<TError>(jobStatus->result().error()); 
+                ParseAbortReason(error, jobId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+            {
+                YT_LOG_DEBUG("Node has failed to get job spec, abort job");
+
+                OnJobAborted(job, error, EAbortReason::GetSpecFailed);
+                ToProto(response->add_jobs_to_remove(), {jobId});
+            } else {
+                YT_LOG_DEBUG("Job finished, storage scheduled");
+
+                AddRecentlyFinishedJob(job);
+                OnJobFinished(job, jobStatus);
+                ToProto(response->add_jobs_to_store(), jobId);
+            }
+
             break;
         }
 
@@ -2392,7 +2421,7 @@ void TNodeShard::OnJobFinished(const TJobPtr& job, TJobStatus* status)
     UnregisterJob(job);
 }
 
-void TNodeShard::OnJobAborted(const TJobPtr& job, const TError& error)
+void TNodeShard::OnJobAborted(const TJobPtr& job, const TError& error, std::optional<EAbortReason> abortReason)
 {
     YT_VERIFY(!error.IsOK());
 
@@ -2408,7 +2437,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, const TError& error)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        controller->OnJobAborted(job, error);
+        controller->OnJobAborted(job, error, /*scheduled*/ true, abortReason);
     }
 
     UnregisterJob(job);

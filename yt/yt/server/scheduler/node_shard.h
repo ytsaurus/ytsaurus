@@ -355,7 +355,7 @@ private:
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
     void OnJobFinished(const TJobPtr& job, TJobStatus* status);
-    void OnJobAborted(const TJobPtr& job, const TError& error);
+    void OnJobAborted(const TJobPtr& job, const TError& error, std::optional<EAbortReason> abortReason = std::nullopt);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void DoAbandonJob(const TJobPtr& job);
 

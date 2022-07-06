@@ -234,20 +234,6 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }
 
-std::unique_ptr<TAbortedJobSummary> CreateAbortedSummaryOnGetSpecFailed(TFinishedJobSummary&& finishedJobSummary)
-{
-    YT_VERIFY(finishedJobSummary.GetSpecFailed);
-    TAbortedJobSummary summary{finishedJobSummary.Id, EAbortReason::GetSpecFailed};
-
-    summary.FinishTime = finishedJobSummary.FinishTime;
-
-    auto error = TError("Failed to get job spec")
-        << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
-    ToProto(summary.Result.emplace().mutable_error(), error);
-
-    return std::make_unique<TAbortedJobSummary>(std::move(summary));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TFailedJobSummary::TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
@@ -281,8 +267,6 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, 
     if (finishedJobSummary.PreemptionReason) {
         ToProto(protoEvent->mutable_preemption_reason(), *finishedJobSummary.PreemptionReason);
     }
-
-    protoEvent->set_get_spec_failed(finishedJobSummary.GetSpecFailed);
 }
 
 void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent)
@@ -300,8 +284,6 @@ void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSch
     if (protoEvent->has_preemption_reason()) {
         finishedJobSummary->PreemptionReason = FromProto<TString>(protoEvent->preemption_reason());
     }
-
-    finishedJobSummary->GetSpecFailed = protoEvent->get_spec_failed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

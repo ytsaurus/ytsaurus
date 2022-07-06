@@ -112,7 +112,6 @@ struct TAbortedJobSummary
 };
 
 std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJobSummary&& eventSummary, const NLogging::TLogger& Logger);
-std::unique_ptr<TAbortedJobSummary> CreateAbortedSummaryOnGetSpecFailed(TFinishedJobSummary&& finishedJobSummary);
 
 struct TFailedJobSummary
     : public TJobSummary
@@ -145,9 +144,6 @@ struct TFinishedJobSummary
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
     bool Preempted;
     std::optional<TString> PreemptionReason;
-
-    // COMPAT(pogorelov)
-    bool GetSpecFailed = false;
 };
 
 struct TAbortedBySchedulerJobSummary
