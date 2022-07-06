@@ -25,6 +25,7 @@ public:
 
     void OnJobScheduled(const TJobletPtr& joblet);
     void OnJobCompleted(const TJobletPtr& joblet);
+    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie);
 
     // If competitive job of this joblet completed we should abort the joblet even if it has completed.
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) const;

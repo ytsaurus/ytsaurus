@@ -113,6 +113,7 @@ DEFINE_ENUM(EAbortReason,
     ((InterruptionTimeout)             ( 35))
     ((NodeResourceOvercommit)          ( 36))
     ((ProbingCompetitorResultLost)     ( 37))
+    ((SpeculativeCompetitorResultLost) ( 38))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))
