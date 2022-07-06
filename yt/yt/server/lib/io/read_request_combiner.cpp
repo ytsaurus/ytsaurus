@@ -248,7 +248,21 @@ public:
         if (bufferTail.Empty()) {
             return {};
         }
+
+        bool noOverlap = std::all_of(OutputRefs_.begin(), OutputRefs_.end(), [&] (const TSharedRef& outBuffer) {
+            return CheckNoOverlap(bufferTail, outBuffer);
+        });
+
+        if (noOverlap) {
+            return {};
+        }
+
         return TError(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request");
+    }
+
+    static bool CheckNoOverlap(TRef left, TRef right)
+    {
+        return left.End() <= right.Begin() || left.Begin() >= right.End();
     }
 
     std::vector<TSharedRef>&& ReleaseOutputBuffers() override
