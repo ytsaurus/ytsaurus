@@ -42,6 +42,14 @@ NConcurrency::IAsyncInputStreamPtr CreateDecompressingAdapter(
     NConcurrency::IAsyncZeroCopyInputStreamPtr underlying,
     TContentEncoding contentEncoding);
 
+std::unique_ptr<IOutputStream> TryDetectOptionalCompressors(
+    TContentEncoding contentEncoding,
+    IOutputStream* inner);
+
+std::unique_ptr<IInputStream> TryDetectOptionalDecompressors(
+    TContentEncoding contentEncoding,
+    IInputStream* inner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy
