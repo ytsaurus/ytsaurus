@@ -245,8 +245,7 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionAbortOptions&>()),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortAdvanceReplicationProgress, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
@@ -521,12 +520,7 @@ public:
         return Slot_->GetLatestTimestamp();
     }
 
-    // FindTablet and Tablets must override corresponding interface methods, so we inline
-    // DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet) here.
-
-    TTablet* FindTablet(const TTabletId& id) const override;
-    TTablet* GetTablet(const TTabletId& id) const override;
-    const TReadOnlyEntityMap<TTablet>& Tablets() const override;
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, TTablet);
 
 private:
     const ITabletSlotPtr Slot_;
@@ -707,6 +701,9 @@ private:
     ETabletCellLifeStage CellLifeStage_ = ETabletCellLifeStage::Running;
     bool Suspending_ = false;
 
+    // COMPAT(gritukan)
+    ETabletReign Reign_ = CheckedEnumCast<ETabletReign>(GetCurrentReign());
+
     TRingQueue<TTablet*> PrelockedTablets_;
 
     THashSet<IDynamicStorePtr> OrphanedStores_;
@@ -780,6 +777,8 @@ private:
         }
 
         Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
+
+        Reign_ = context.GetVersion();
     }
 
     void LoadAsync(TLoadContext& context)
@@ -810,6 +809,22 @@ private:
 
             tablet->Reconfigure(Slot_);
             tablet->OnAfterSnapshotLoaded();
+
+            if (Reign_ >= ETabletReign::ReplicationTxLocksTablet) {
+                for (auto [replicaId, replica] : tablet->Replicas()) {
+                    if (replica.GetPreparedReplicationTransactionId()) {
+                        LockTablet(tablet);
+                    }
+                }
+
+                const auto& chaosData = tablet->ChaosData();
+                if (chaosData->PreparedWritePulledRowsTransactionId) {
+                    LockTablet(tablet);
+                }
+                if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+                    LockTablet(tablet);
+                }
+            }
 
             Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
@@ -2112,11 +2127,23 @@ private:
         ui64 round = request->replication_round();
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        auto replicationRound = tablet->ChaosData()->ReplicationRound.load();
+        const auto& chaosData = tablet->ChaosData();
+        auto replicationRound = chaosData->ReplicationRound.load();
         if (replicationRound != round) {
             THROW_ERROR_EXCEPTION("Replication round mismatch: expected %v, got %v",
                 replicationRound,
                 round);
+        }
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            if (chaosData->PreparedWritePulledRowsTransactionId) {
+                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
+            }
+            chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
+            LockTablet(tablet);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplictionRound: %v)",
@@ -2162,7 +2189,25 @@ private:
             return;
         }
 
-        auto replicationRound = tablet->ChaosData()->ReplicationRound.load();
+        const auto& chaosData = tablet->ChaosData();
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Unexpected write pull rows transaction finalized, ignored "
+                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                    transaction->GetId(),
+                    chaosData->PreparedWritePulledRowsTransactionId,
+                    tablet->GetId());
+                return;
+            }
+
+            chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
+            UnlockTablet(tablet);
+        }
+
+        auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
@@ -2175,8 +2220,8 @@ private:
             YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
         }
 
-        tablet->ChaosData()->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
-        tablet->ChaosData()->ReplicationRound = round + 1;
+        chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
+        chaosData->ReplicationRound = round + 1;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
             inCommit ? "committed" : "serialized",
@@ -2196,6 +2241,18 @@ private:
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
+        }
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            const auto& chaosData = tablet->ChaosData();
+            auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
+            if (expectedTransactionId != transaction->GetId()) {
+                return;
+            }
+
+            expectedTransactionId = NullTransactionId;
+            UnlockTablet(tablet);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
@@ -2220,6 +2277,18 @@ private:
                 tabletId);
         }
 
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            auto& chaosData = tablet->ChaosData();
+            if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
+            }
+            chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
+            LockTablet(tablet);
+        }
+
         transaction->ForceSerialization(tabletId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prepared replication progress advance transaction (TabletId: %v, TransactionId: %v)",
@@ -2233,6 +2302,23 @@ private:
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
+        }
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            const auto& chaosData = tablet->ChaosData();
+            if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Unexpected replication progress advance transaction serialized, ignored "
+                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                    transaction->GetId(),
+                    chaosData->PreparedAdvanceReplicationProgressTransactionId,
+                    tablet->GetId());
+                return;
+            }
+
+            chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
+            UnlockTablet(tablet);
         }
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
@@ -2267,6 +2353,35 @@ private:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serialized replication progress advance transaction (TabletId: %v, TransactionId: %v)",
+            tabletId,
+            transaction->GetId());
+    }
+
+    void HydraAbortAdvanceReplicationProgress(
+        TTransaction* transaction,
+        TReqAdvanceReplicationProgress* request,
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            const auto& chaosData = tablet->ChaosData();
+            auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
+            if (expectedTransactionId != transaction->GetId()) {
+                return;
+            }
+
+            expectedTransactionId = NullTransactionId;
+            UnlockTablet(tablet);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
     }
@@ -2360,6 +2475,11 @@ private:
         replicaInfo->SetPreparedReplicationRowIndex(newReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            LockTablet(tablet);
+        }
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
             tabletId,
@@ -2390,6 +2510,23 @@ private:
             return;
         }
 
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            if (replicaInfo->GetPreparedReplicationTransactionId() != transaction->GetId()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Unexpected replication transaction finalized, ignored "
+                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                    transaction->GetId(),
+                    replicaInfo->GetPreparedReplicationTransactionId(),
+                    tablet->GetId());
+                return;
+            }
+
+            UnlockTablet(tablet);
+        }
+
+        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
+
         BackupManager_->ValidateReplicationTransactionCommit(tablet, transaction);
 
         // COMPAT(babenko)
@@ -2397,9 +2534,7 @@ private:
             YT_VERIFY(replicaInfo->GetCurrentReplicationRowIndex() == request->prev_replication_row_index());
         }
         YT_VERIFY(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
-        YT_VERIFY(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
-        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         auto prevCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
         auto prevCommittedReplicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
@@ -2479,6 +2614,11 @@ private:
 
         replicaInfo->SetPreparedReplicationRowIndex(-1);
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+            UnlockTablet(tablet);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
@@ -2761,7 +2901,7 @@ private:
         YT_VERIFY(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
     }
 
-    void OnTabletUnlocked(TTablet* tablet) override
+    void OnTabletUnlocked(TTablet* tablet)
     {
         CheckIfTabletFullyUnlocked(tablet);
         if (tablet->GetState() == ETabletState::Orphaned && tablet->GetTabletLockCount() == 0) {
@@ -3786,6 +3926,18 @@ private:
     TCellId GetCellId() const override
     {
         return Slot_->GetCellId();
+    }
+
+    i64 LockTablet(TTablet* tablet) override
+    {
+        return tablet->Lock();
+    }
+
+    i64 UnlockTablet(TTablet* tablet) override
+    {
+        auto lockCount = tablet->Unlock();
+        OnTabletUnlocked(tablet);
+        return lockCount;
     }
 
     TTabletNodeDynamicConfigPtr GetDynamicConfig() const override

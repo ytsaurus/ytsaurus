@@ -107,6 +107,8 @@ struct TChaosTabletData
 {
     std::atomic<ui64> ReplicationRound = 0;
     TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
+    TTransactionId PreparedWritePulledRowsTransactionId;
+    TTransactionId PreparedAdvanceReplicationProgressTransactionId;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosTabletData)

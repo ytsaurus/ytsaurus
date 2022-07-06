@@ -24,8 +24,9 @@ struct ITabletCellWriteManagerHost
 
     //! This method is called whenever a (sorted) tablet row is being unlocked.
     virtual void OnTabletRowUnlocked(TTablet* tablet) = 0;
-    //! This method is called whenever tablet lock count decreases.
-    virtual void OnTabletUnlocked(TTablet* tablet) = 0;
+
+    virtual i64 LockTablet(TTablet* tablet) = 0;
+    virtual i64 UnlockTablet(TTablet* tablet) = 0;
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;

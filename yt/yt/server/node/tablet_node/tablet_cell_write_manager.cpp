@@ -1049,14 +1049,12 @@ private:
 
     i64 LockTablet(TTablet* tablet)
     {
-        return tablet->Lock();
+        return Host_->LockTablet(tablet);
     }
 
     i64 UnlockTablet(TTablet* tablet)
     {
-        auto lockCount = tablet->Unlock();
-        Host_->OnTabletUnlocked(tablet);
-        return lockCount;
+        return Host_->UnlockTablet(tablet);
     }
 
     void UnlockLockedTablets(TTransaction* transaction)
