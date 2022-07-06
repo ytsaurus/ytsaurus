@@ -43,6 +43,9 @@ public:
 
     bool EnableInternalCommands;
 
+    // TODO(levysotsky): Remove
+    bool UseWsHackForGetColumnarStatistics;
+
     TDriverConfig();
 };
 

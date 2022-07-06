@@ -55,6 +55,9 @@ TDriverConfig::TDriverConfig()
     RegisterParameter("enable_internal_commands", EnableInternalCommands)
         .Default(false);
 
+    RegisterParameter("use_ws_hack_for_get_columnar_statistics", UseWsHackForGetColumnarStatistics)
+        .Default(true);
+
     RegisterPreprocessor([&] {
         ClientCache->Capacity = 1024_KB;
         ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);

@@ -339,6 +339,8 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     auto transaction = AttachTransaction(context, false);
 
+    auto useWsHack = context->GetConfig()->UseWsHackForGetColumnarStatistics;
+
     // NB(psushin): This keepalive is an ugly hack for a long-running command with structured output - YT-9713.
     // Remove once framing is implemented - YT-9838.
     static auto keepAliveSpace = TSharedRef::FromString(" ");
@@ -364,7 +366,10 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         GetCurrentInvoker(),
         BIND(keepAliveCallback),
         TDuration::MilliSeconds(100));
-    keepAliveExecutor->Start();
+
+    if (useWsHack) {
+        keepAliveExecutor->Start();
+    }
 
     std::vector<TFuture<NYson::TYsonString>> asyncSchemaYsons;
     for (int index = 0; index < std::ssize(Paths); ++index) {
@@ -395,15 +400,17 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     auto allStatisticsOrError = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options));
 
-    {
-        auto guard = Guard(*writeLock);
-        *writeRequested = true;
-    }
+    if (useWsHack) {
+        {
+            auto guard = Guard(*writeLock);
+            *writeRequested = true;
+        }
 
-    WaitFor(writeStopped.ToFuture())
-        .ThrowOnError();
-    WaitFor(keepAliveExecutor->Stop())
-        .ThrowOnError();
+        WaitFor(writeStopped.ToFuture())
+            .ThrowOnError();
+        WaitFor(keepAliveExecutor->Stop())
+            .ThrowOnError();
+    }
 
     auto allStatistics = allStatisticsOrError.ValueOrThrow();
 
