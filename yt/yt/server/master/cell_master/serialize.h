@@ -134,6 +134,7 @@ DEFINE_ENUM(EMasterReign,
     ((CrpPullReplication)                                           (2032))  // aleksandra-zh
     ((SuspendTabletCell)                                            (2033))  // gritukan
     ((MountConfigAttributesInUserAttributes)                        (2034))  // ifsmirnov
+    ((RecomputeResourceUsageOnceAgainᛝ)                             (2035))  // gritukan
     // 22.3 starts here.
     ((JobProxyVersion)                                              (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

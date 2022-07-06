@@ -2811,7 +2811,7 @@ private:
         RecomputeChunkHostCellMasterMemory_ = context.GetVersion() < EMasterReign::AccountGossipStatisticsOptimization;
 
         // COMPAT(aleksandra-zh, gritukan)
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::LetsRecomputeAccountResourceUsageAgainWhyNotItsNice;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::RecomputeResourceUsageOnceAgainᛝ;
 
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
