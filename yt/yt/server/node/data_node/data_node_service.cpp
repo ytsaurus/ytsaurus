@@ -1958,15 +1958,13 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-        std::vector<TFuture<TRefCountedChunkMetaPtr>> futures;
+        std::vector<TFuture<TRefCountedColumnarStatisticsSubresponsePtr>> futures;
 
         auto nameTable = FromProto<TNameTablePtr>(request->name_table());
-
+        
         std::vector<int> subresponseIndices;
-        std::vector<TGuid> chunkIds;
-        chunkIds.reserve(request->subrequests_size());
-        std::vector<std::vector<TStableName>> columnStableNames;
-        columnStableNames.reserve(request->subrequests_size());
+        subresponseIndices.reserve(request->subrequests_size());
+        response->mutable_subresponses()->Reserve(request->subrequests_size());
         for (int index = 0; index < request->subrequests_size(); ++index) {
             response->add_subresponses();
         }
@@ -1987,122 +1985,149 @@ private:
                 continue;
             }
 
-            subresponseIndices.push_back(index);
-            chunkIds.push_back(chunkId);
-
             auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
-            columnStableNames.emplace_back();
+            std::vector<TStableName> columnStableNames;
+            columnStableNames.reserve(columnIds.size());
             for (auto id : columnIds) {
-                columnStableNames.back().push_back(TStableName(TString(nameTable->GetNameOrThrow(id))));
+                columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
             }
 
             TChunkReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-            auto chunkMetaFuture = chunk->ReadMeta(options);
+            auto chunkMetaFuture = chunk->ReadMeta(options)
+                .Apply(BIND(
+                    &TDataNodeService::ExtractColumnarStatisticsFromChunkMeta,
+                    MakeStrong(this),
+                    Passed(std::move(columnStableNames)),
+                    chunkId)
+                .AsyncVia(heavyInvoker));
             // Fault-injection for tests.
             if (Config_->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
-                chunkMetaFuture = chunkMetaFuture.Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedChunkMetaPtr& result) {
-                    auto maxDelay = *config->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay;
-                    auto delay = index * maxDelay / request->subrequests_size();
-                    YT_LOG_DEBUG("Injected a random delay after a chunk meta fetch (Delay: %v)", delay);
-                    TDelayedExecutor::WaitForDuration(delay);
-                    return result;
-                }).AsyncVia(heavyInvoker));
+                chunkMetaFuture = chunkMetaFuture
+                    .Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedColumnarStatisticsSubresponsePtr& result) {
+                        auto maxDelay = *config->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay;
+                        auto delay = index * maxDelay / request->subrequests_size();
+                        YT_LOG_DEBUG("Injected a random delay after a chunk meta fetch (Delay: %v)", delay);
+                        TDelayedExecutor::WaitForDuration(delay);
+                        return result;
+                    })
+                    .AsyncVia(heavyInvoker));
             }
             futures.push_back(chunkMetaFuture);
+            subresponseIndices.push_back(index);
         }
 
-        YT_LOG_DEBUG("Awaiting chunk meta asynchronous read");
+        YT_LOG_DEBUG("Awaiting asynchronous part of columnar statistics fetching");
 
         auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
         context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] {
             YT_LOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
             combinedResult.Cancel(TError("RPC request canceled"));
         }));
-        context->ReplyFrom(combinedResult.Apply(
-            BIND(
-                &TDataNodeService::ProcessColumnarStatistics,
-                MakeWeak(this),
-                subresponseIndices,
-                columnStableNames,
-                chunkIds,
-                context)
-                .AsyncVia(heavyInvoker)));
+        context->ReplyFrom(combinedResult.Apply(BIND(
+            &TDataNodeService::CombineColumnarStatisticsSubresponses,
+            MakeWeak(this),
+            context,
+            subresponseIndices)));
     }
 
-    void ProcessColumnarStatistics(
-        const std::vector<int>& subresponseIndices,
-        const std::vector<std::vector<TStableName>>& columnStableNames,
-        const std::vector<TChunkId>& chunkIds,
+    void CombineColumnarStatisticsSubresponses(
         const TCtxGetColumnarStatisticsPtr& context,
-        const std::vector<TErrorOr<TRefCountedChunkMetaPtr>>& metaOrErrors)
+        const std::vector<int>& subresponseIndices,
+        const std::vector<TErrorOr<TRefCountedColumnarStatisticsSubresponsePtr>>& subresponsesOrErrors)
     {
-        YT_LOG_DEBUG("Extracting columnar statistics from chunk metas");
+        YT_LOG_DEBUG("Combining columnar statistics subresponses (SubresponseCount: %v)", subresponsesOrErrors.size());
 
-        YT_VERIFY(subresponseIndices.size() == columnStableNames.size());
-        YT_VERIFY(subresponseIndices.size() == chunkIds.size());
-        YT_VERIFY(subresponseIndices.size() == metaOrErrors.size());
+        int successCount = 0;
+        int timeoutCount = 0;
+        int errorCount = 0;
 
-        for (int index = 0; index < std::ssize(subresponseIndices); ++index) {
-            auto chunkId = chunkIds[index];
-            const auto& subresponse = context->Response().mutable_subresponses(subresponseIndices[index]);
-            const auto& metaOrError = metaOrErrors[index];
-            try {
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    metaOrError,
-                    "Error getting meta of chunk %v",
-                    chunkId);
-                const auto& meta = *metaOrError.Value();
+        auto& response = context->Response();
+        for (int index = 0; index < std::ssize(subresponsesOrErrors); ++index) {
+            if (subresponsesOrErrors[index].IsOK()) {
+                response.mutable_subresponses(subresponseIndices[index])->Swap(subresponsesOrErrors[index].Value().Get());
 
-                auto type = EChunkType(meta.type());
-                if (type != EChunkType::Table) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid type of chunk %v: expected %Qlv, actual %Qlv",
-                        chunkId,
-                        EChunkType::Table,
-                        type);
-                }
-
-                auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
-                if (!optionalColumnarStatisticsExt) {
-                    ToProto(
-                        subresponse->mutable_error(),
-                        TError(
-                            NChunkClient::EErrorCode::MissingExtension,
-                            "Columnar statistics chunk meta extension missing"));
-                    continue;
-                }
-                const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
-
-                auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
-                TNameTablePtr nameTable;
-                if (nameTableExt) {
-                    nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+                if (subresponsesOrErrors[index].Value()->has_error()) {
+                    ++errorCount;
                 } else {
-                    auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
-                    nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(schemaExt));
+                    ++successCount;
                 }
-
-                for (const auto& columnName: columnStableNames[index]) {
-                    auto id = nameTable->FindId(columnName.Get());
-                    if (id && *id < columnarStatisticsExt.data_weights().size()) {
-                        subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
-                    } else {
-                        subresponse->add_data_weights(0);
-                    }
-                }
-
-                if (columnarStatisticsExt.has_timestamp_weight()) {
-                    subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_weight());
-                }
-            } catch (const std::exception& ex) {
-                auto error = TError(ex);
-                YT_LOG_WARNING(error);
-                ToProto(subresponse->mutable_error(), error);
+            } else {
+                ToProto(
+                    response.mutable_subresponses(subresponseIndices[index])->mutable_error(),
+                    subresponsesOrErrors[index]);
+                ++timeoutCount;
             }
         }
+
+        context->SetResponseInfo(
+            "SuccessCount: %v, TimeoutCount: %v, ErrorCount: %v",
+            successCount,
+            timeoutCount,
+            errorCount);
+    }
+
+    TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
+        const std::vector<TStableName>& columnStableNames,
+        TChunkId chunkId,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        YT_LOG_DEBUG("Extracting columnar statistics from chunk meta (ChunkId: %v)", chunkId);
+
+        auto subresponse = New<TRefCountedColumnarStatisticsSubresponse>();
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta");
+            const auto& meta = *metaOrError.Value();
+
+            auto type = EChunkType(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid type: expected %Qlv, actual %Qlv",
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+            if (!optionalColumnarStatisticsExt) {
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::MissingExtension,
+                    "Columnar statistics chunk meta extension missing");
+            }
+            const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
+
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
+            TNameTablePtr nameTable;
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+                nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(schemaExt));
+            }
+
+            subresponse->mutable_data_weights()->Reserve(columnStableNames.size());
+            for (const auto& columnName: columnStableNames) {
+                auto id = nameTable->FindId(columnName.Get());
+                if (id && *id < columnarStatisticsExt.data_weights().size()) {
+                    subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
+                } else {
+                    subresponse->add_data_weights(0);
+                }
+            }
+
+            if (columnarStatisticsExt.has_timestamp_weight()) {
+                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_weight());
+            }
+
+            YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId) << ex;
+            YT_LOG_WARNING(error);
+            ToProto(subresponse->mutable_error(), error);
+        }
+
+        return subresponse;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
