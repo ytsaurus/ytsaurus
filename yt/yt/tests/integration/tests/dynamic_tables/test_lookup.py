@@ -1245,6 +1245,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert get(path) == 1
 
     @authors("lukyan")
+    @pytest.mark.timeout(150)
     def test_lookup_cache_stress(self):
         sync_create_cells(1)
 
@@ -1297,6 +1298,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert tablet_profiling.get_counter("lookup/cache_misses") > 0
 
     @authors("lukyan")
+    @pytest.mark.timeout(150)
     def test_lookup_cache_stress2(self):
         sync_create_cells(1)
 

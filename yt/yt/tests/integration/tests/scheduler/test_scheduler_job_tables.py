@@ -1134,6 +1134,7 @@ class TestCoreTablePorto(TestCoreTable):
     USE_PORTO = True
 
     @authors("dcherednik", "gritukan")
+    @pytest.mark.timeout(150)
     def test_core_when_user_job_was_killed_porto(self):
         # Breakpoints are not supported in tests with rootfs.
         op, job_ids = self._start_operation(
@@ -1207,6 +1208,7 @@ class TestJobProfiling(YTEnvSetup):
         )
 
     @authors("prime")
+    @pytest.mark.timeout(300)
     def test_job_profiling(self):
         input_table = "//tmp/input_table"
         output_table = "//tmp/output_table"

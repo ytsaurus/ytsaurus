@@ -152,6 +152,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: ls("//sys/scheduler/orchid/scheduler/operations") == [op2.id])
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_disconnect_during_revive(self):
         op_count = 20
 

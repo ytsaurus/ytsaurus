@@ -484,6 +484,7 @@ class TestLastFinishedJobStoreLimit(YTEnvSetup):
     NUM_NODES = 4
 
     @authors("kvk1920")
+    @pytest.mark.timeout(150)
     @pytest.mark.parametrize("limit", [0, 1, 10])
     def test_last_finished_job_limit(self, limit):
         set("//sys/@config/chunk_manager/finished_jobs_queue_size", limit)

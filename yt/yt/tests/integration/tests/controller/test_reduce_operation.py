@@ -876,6 +876,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[2]) == [{"v": 2}]
 
     @authors("ignat", "klyachin")
+    @pytest.mark.timeout(150)
     def test_job_count(self):
         create("table", "//tmp/in", attributes={"compression_codec": "none"})
         create("table", "//tmp/out")

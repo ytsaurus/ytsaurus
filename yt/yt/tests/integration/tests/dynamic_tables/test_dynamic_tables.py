@@ -1483,6 +1483,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         _check(nodes, 1, 1)
 
     @authors("savrus")
+    @pytest.mark.timeout(150)
     def test_cell_bundle_distribution_new(self):
         self._test_cell_bundle_distribution(True)
 
@@ -1766,6 +1767,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert all(check_get_tablet_errors(idx) for idx in range(tablet_count))
 
     @authors("ifsmirnov")
+    @pytest.mark.timeout(150)
     def test_tablet_error_count(self):
         LARGE_STRING = "a" * 15 * 1024 * 1024
         MAX_UNVERSIONED_ROW_WEIGHT = 512 * 1024 * 1024

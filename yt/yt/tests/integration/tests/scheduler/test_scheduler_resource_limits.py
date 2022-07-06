@@ -155,6 +155,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @authors("max42")
+    @pytest.mark.timeout(300)
     def test_memory_reserve_factor(self):
         job_count = 30
 

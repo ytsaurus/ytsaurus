@@ -7,6 +7,7 @@ from yt.packages.six.moves import map as imap
 
 import random
 import copy
+import pytest
 
 
 class TestJoinAndIn(ClickHouseTestBase):
@@ -206,6 +207,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             )
 
     @authors("max42")
+    @pytest.mark.timeout(150)
     def test_sorted_join_stress(self):
         create(
             "table",

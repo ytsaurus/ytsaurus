@@ -544,6 +544,7 @@ class TestListJobsBase(YTEnvSetup):
         assert aborted_map_job.get("abort_reason") == "user_request"
 
     @authors("levysotsky")
+    @pytest.mark.timeout(150)
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs(self):
         op, job_ids = self._run_op_and_fill_job_ids()

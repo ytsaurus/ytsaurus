@@ -651,6 +651,7 @@ time.sleep(10)
         assert ["file", "content_1", "file", "content_2"] == words
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_vanilla(self):
         vanilla(
             spec={

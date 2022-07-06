@@ -617,6 +617,7 @@ class TestSchedulerCommon(YTEnvSetup):
             map(in_="//tmp/t2", out="<append=%true>//tmp/sorted_table", command="cat")
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 

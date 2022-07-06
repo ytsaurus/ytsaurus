@@ -73,6 +73,7 @@ class TestLayers(YTEnvSetup):
         time.sleep(5)
 
     @authors("prime")
+    @pytest.mark.timeout(150)
     def test_corrupted_layer(self):
         self.setup_files()
         create("table", "//tmp/t_in")

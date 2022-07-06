@@ -142,7 +142,7 @@ class TestJournalsBase(YTEnvSetup):
 
 
 class TestJournals(TestJournalsBase):
-    NUM_TEST_PARTITIONS = 7
+    NUM_TEST_PARTITIONS = 10
     NUM_MASTERS = 1
     NUM_NODES = 6
 

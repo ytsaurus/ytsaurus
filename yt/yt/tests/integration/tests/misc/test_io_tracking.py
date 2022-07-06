@@ -2342,6 +2342,7 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
     }
 
     @authors("gepardo")
+    @pytest.mark.timeout(300)
     def test_simple(self):
         table_data = [{"a": 42}]
 

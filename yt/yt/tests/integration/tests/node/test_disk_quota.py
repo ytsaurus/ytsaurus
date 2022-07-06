@@ -1020,6 +1020,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             start_op("ssd", "my_account", 768 * 1024, track=True)
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_disabled_accounting(self):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])

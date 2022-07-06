@@ -1974,6 +1974,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(read_table("//tmp/out")) == n
 
     @authors("ermolovd")
+    @pytest.mark.timeout(150)
     @pytest.mark.parametrize(
         "sort_func",
         [
@@ -2054,6 +2055,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
     @authors("ermolovd")
+    @pytest.mark.timeout(150)
     @pytest.mark.parametrize(
         "sort_func",
         [sort_maniac, sort_2_phase_depth_2, sort_3_phase_depth_2, sort_3_phase],
@@ -2106,6 +2108,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@chunk_count") == 1
 
     @authors("gritukan")
+    @pytest.mark.timeout(300)
     def test_hierarchical_partitions(self):
         p = [x for x in range(100)]
         random.shuffle(p)
