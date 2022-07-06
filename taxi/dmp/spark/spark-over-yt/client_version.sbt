@@ -1,4 +1,4 @@
 import spyt.SpytPlugin.autoImport._
 
-ThisBuild / spytClientVersion := "1.46.1-SNAPSHOT"
-ThisBuild / spytClientPythonVersion := "1.46.1b1"
+ThisBuild / spytClientVersion := "1.47.1-SNAPSHOT"
+ThisBuild / spytClientPythonVersion := "1.47.1b1"
