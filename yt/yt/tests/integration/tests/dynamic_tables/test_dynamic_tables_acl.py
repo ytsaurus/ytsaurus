@@ -1,5 +1,5 @@
-from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
-from test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
+from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_commands import (
     authors, get, set, exists, create_user, make_ace, insert_rows,

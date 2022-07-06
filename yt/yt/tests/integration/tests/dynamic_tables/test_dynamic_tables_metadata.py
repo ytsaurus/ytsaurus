@@ -1,4 +1,4 @@
-from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import skip_if_rpc_driver_backend
 

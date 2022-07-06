@@ -1,4 +1,4 @@
-from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
     authors, wait, ls, get, set, insert_rows, remount_table,
