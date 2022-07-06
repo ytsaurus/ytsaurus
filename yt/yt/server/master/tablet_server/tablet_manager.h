@@ -248,7 +248,8 @@ private:
         const std::optional<int>& tabletCount,
         bool skipFreezing,
         TGuid correlationId,
-        TInstant expirationTime);
+        TInstant expirationTime,
+        const std::optional<TDuration>& expirationTimeout);
     void DestroyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;

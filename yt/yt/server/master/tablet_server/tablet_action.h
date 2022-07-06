@@ -59,6 +59,9 @@ public:
     //! Tablet cell bundle of the participating tablets.
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, TabletCellBundle);
 
+    //! When finished, action will not be destroyed for the specified amount of time.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, ExpirationTimeout);
+
 public:
     using TObject::TObject;
 

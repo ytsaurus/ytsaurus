@@ -134,6 +134,9 @@ private:
                                 fluent.Item("error").Value(action->Error());
                             })
                             .Item("expiration_time").Value(action->GetExpirationTime())
+                            .DoIf(action->GetExpirationTimeout().has_value(), [action] (TFluentMap fluent) {
+                                fluent.Item("expiration_timeout").Value(*action->GetExpirationTimeout());
+                            })
                         .EndMap();
                     });
                 return true;
