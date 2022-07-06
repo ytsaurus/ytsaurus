@@ -12,6 +12,7 @@ from yt_type_helpers import optional_type, list_type, dict_type, struct_type, va
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
+import pytest
 
 from copy import deepcopy
 import random
@@ -167,6 +168,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         return rows
 
     @authors("levysotsky")
+    @pytest.mark.timeout(150)
     def test_large_read(self):
         create("table", "//tmp/t")
         table_config = SCHEMALESS_TABLE_PROTOBUF_CONFIG
@@ -180,6 +182,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         assert_rowsets_equal(parsed_rows, rows)
 
     @authors("levysotsky")
+    @pytest.mark.timeout(150)
     def test_large_write(self):
         create("table", "//tmp/t")
         table_config = SCHEMALESS_TABLE_PROTOBUF_CONFIG
@@ -931,6 +934,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         return rows
 
     @authors("levysotsky")
+    @pytest.mark.timeout(150)
     def test_large_write(self):
         create("table", "//tmp/t", attributes={"schema": SCHEMA})
         table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG
@@ -961,6 +965,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         assert_rowsets_equal(read_rows, expected_rows)
 
     @authors("levysotsky")
+    @pytest.mark.timeout(150)
     def test_large_read(self):
         create("table", "//tmp/t", attributes={"schema": SCHEMA})
         table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG

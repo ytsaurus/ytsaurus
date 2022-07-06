@@ -244,6 +244,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from `//tmp/dyn_off`", settings=settings) == []
 
     @authors("dakovalkov")
+    @pytest.mark.timeout(150)
     def test_write_to_dynamic_table(self):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
         sync_mount_table("//tmp/t")

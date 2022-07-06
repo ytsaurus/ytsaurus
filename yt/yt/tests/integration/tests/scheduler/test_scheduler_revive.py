@@ -117,6 +117,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             time.sleep(2)
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_many_operations_hard(self):
         self._prepare_tables()
 
@@ -159,6 +160,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             time.sleep(2)
 
     @authors("ignat")
+    @pytest.mark.timeout(300)
     def test_many_operations_controller_disconnections(self):
         self._prepare_tables()
 

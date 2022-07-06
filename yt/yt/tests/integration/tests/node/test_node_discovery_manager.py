@@ -10,6 +10,7 @@ from flaky import flaky
 
 import sys
 import time
+import pytest
 
 
 #################################################################
@@ -91,6 +92,7 @@ class Base:
         self.wait_for_config([])
 
     @authors("aleksandra-zh")
+    @pytest.mark.timeout(300)
     def test_ban_node(self):
         self.set_node_tags(0, ["foo"])
         self.set_node_tag_filter("foo")

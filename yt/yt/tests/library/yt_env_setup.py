@@ -702,7 +702,7 @@ class YTEnvSetup(object):
         gc.collect()
 
         class_duration = time() - cls._start_time
-        class_limit = (10 * 60) if is_asan_build() else (5 * 60)
+        class_limit = (16 * 60) if is_asan_build() else (8 * 60)
 
         if class_duration > class_limit:
             pytest.fail(

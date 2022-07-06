@@ -279,6 +279,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         super(TestMasterSnapshotsCompatibility, self).teardown_method(method)
 
     @authors("gritukan", "kvk1920")
+    @pytest.mark.timeout(150)
     def test(self):
         CHECKER_LIST = [
             check_chunk_locations,

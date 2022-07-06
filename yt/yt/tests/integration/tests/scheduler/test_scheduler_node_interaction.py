@@ -627,6 +627,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
     }
 
     @authors("ignat")
+    @pytest.mark.timeout(150)
     def test_scheduler_node_removal(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 2
