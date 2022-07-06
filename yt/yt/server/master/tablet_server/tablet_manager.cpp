@@ -686,7 +686,8 @@ public:
         const std::optional<int>& tabletCount,
         bool skipFreezing,
         TGuid correlationId,
-        TInstant expirationTime)
+        TInstant expirationTime,
+        const std::optional<TDuration>& expirationTimeout)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -810,7 +811,8 @@ public:
             freeze,
             skipFreezing,
             correlationId,
-            expirationTime);
+            expirationTime,
+            expirationTimeout);
 
         OnTabletActionStateChanged(action);
         return action;
@@ -1829,12 +1831,13 @@ public:
                 TObjectId{},
                 ETabletActionKind::Reshard,
                 descriptor.Tablets,
-                {}, // cells
-                {}, // pivotKeys
+                /*cells*/ {},
+                /*pivotKeys*/ {},
                 descriptor.TabletCount,
-                false, // skipFreezing
+                /*skipFreezing*/ false,
                 correlationId,
-                TInstant::Zero());
+                TInstant::Zero(),
+                /*expirationTimeout*/ std::nullopt);
             return action->GetId();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to create tablet action during sync reshard (TabletBalancerCorrelationId: %v)",
@@ -1867,11 +1870,12 @@ public:
                 ETabletActionKind::Move,
                 {descriptor.Tablet},
                 {GetTabletCellOrThrow(descriptor.TabletCellId)},
-                {}, // pivotKeys
-                std::nullopt, // tabletCount
-                false, // skipFreezing
+                /*pivotKeys*/ {},
+                /*tabletCount*/ std::nullopt,
+                /*skipFreezing*/ false,
                 correlationId,
-                TInstant::Zero());
+                TInstant::Zero(),
+                /*expirationTimeout*/ std::nullopt);
             return action->GetId();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG("Failed to create tablet action during sync cells balancing (TabletBalancerCorrelationId: %v)",
@@ -3042,7 +3046,8 @@ private:
         bool freeze,
         bool skipFreezing,
         TGuid correlationId,
-        TInstant expirationTime)
+        TInstant expirationTime,
+        const std::optional<TDuration>& expirationTimeout)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
@@ -3079,6 +3084,7 @@ private:
         action->SetFreeze(freeze);
         action->SetCorrelationId(correlationId);
         action->SetExpirationTime(expirationTime);
+        action->SetExpirationTimeout(expirationTimeout);
         const auto& bundle = action->Tablets()[0]->GetTable()->TabletCellBundle();
         action->SetTabletCellBundle(bundle.Get());
         bundle->TabletActions().insert(action);
@@ -3305,6 +3311,10 @@ private:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
+        if (action->IsFinished() && action->GetExpirationTimeout()) {
+            action->SetExpirationTime(GetCurrentMutationContext()->GetTimestamp() + *action->GetExpirationTimeout());
+        }
+
         auto tableId = action->Tablets().empty()
             ? TTableId{}
             : action->Tablets()[0]->GetTable()->GetId();
@@ -3876,7 +3886,8 @@ private:
                     freeze,
                     /* skipFreezing */ false,
                     /* correlationId */ {},
-                    /* expirationTime */ TInstant::Zero());
+                    /* expirationTime */ TInstant::Zero(),
+                    /* expirationTimeout */ std::nullopt);
                 continue;
             }
 
@@ -4912,11 +4923,9 @@ private:
 
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
     {
-        const auto* context = GetCurrentMutationContext();
-        const auto expirationTime = context->GetTimestamp() + DefaultSyncTabletActionKeepalivePeriod;
         for (auto actionId : actionIds) {
             auto* action = GetTabletAction(actionId);
-            action->SetExpirationTime(expirationTime);
+            action->SetExpirationTimeout(DefaultSyncTabletActionKeepalivePeriod);
         }
     }
 
@@ -6908,6 +6917,9 @@ private:
         if (request->has_expiration_time()) {
             expirationTime = FromProto<TInstant>(request->expiration_time());
         }
+        auto expirationTimeout = request->has_expiration_timeout()
+            ? std::make_optional(FromProto<TDuration>(request->expiration_timeout()))
+            : std::nullopt;
         std::optional<int> tabletCount = request->has_tablet_count()
             ? std::make_optional(request->tablet_count())
             : std::nullopt;
@@ -6936,9 +6948,10 @@ private:
                 cells,
                 pivotKeys,
                 tabletCount,
-                false,
+                /*skipFreezing*/ false,
                 correlationId,
-                expirationTime);
+                expirationTime,
+                expirationTimeout);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), TError(ex), "Error creating tablet action (Kind: %v, "
                 "Tablets: %v, TabletCells: %v, PivotKeys: %v, TabletCount: %v, TabletBalancerCorrelationId: %v)",
@@ -8094,7 +8107,8 @@ TTabletAction* TTabletManager::CreateTabletAction(
     const std::optional<int>& tabletCount,
     bool skipFreezing,
     TGuid correlationId,
-    TInstant expirationTime)
+    TInstant expirationTime,
+    const std::optional<TDuration>& expirationTimeout)
 {
     return Impl_->CreateTabletAction(
         hintId,
@@ -8105,7 +8119,8 @@ TTabletAction* TTabletManager::CreateTabletAction(
         tabletCount,
         skipFreezing,
         correlationId,
-        expirationTime);
+        expirationTime,
+        expirationTimeout);
 }
 
 void TTabletManager::DestroyTabletAction(TTabletAction* action)

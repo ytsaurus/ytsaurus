@@ -237,6 +237,78 @@ class TestTabletActions(TabletActionsBase):
         assert len(get("#{0}/@tablet_ids".format(action))) == 2
         wait(lambda: not exists("#{0}".format(action)))
 
+    @authors("alexelex")
+    def test_action_autoremove_on_timeout(self):
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        timeout = 5
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "expiration_timeout": timeout * 1000,
+                "tablet_ids": [tablet_id],
+                "pivot_keys": [[], [1]],
+            },
+        )
+        wait(lambda: len(ls("//sys/tablet_actions")) > 0)
+        assert action == ls("//sys/tablet_actions")[0]
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert len(get("#{0}/@tablet_ids".format(action))) == 2
+        sleep(timeout + 1)
+        assert not exists("#{0}".format(action))
+
+    @authors("alexelex")
+    def test_action_creation_fail(self):
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        error_text = r"At most one of \"keep_finished\", \"expiration_time\", \"expiration_timeout\" can be specified"
+        with pytest.raises(YtError, match=error_text):
+            create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "expiration_time": "2099-01-01",
+                    "expiration_timeout": 5000,
+                    "tablet_ids": [tablet_id],
+                    "pivot_keys": [[], [1]],
+                },
+            )
+
+        with pytest.raises(YtError, match=error_text):
+            create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "keep_finished": True,
+                    "expiration_timeout": 5000,
+                    "tablet_ids": [tablet_id],
+                    "pivot_keys": [[], [1]],
+                },
+            )
+
+        with pytest.raises(YtError, match=error_text):
+            create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "keep_finished": True,
+                    "expiration_time": "2099-01-01",
+                    "tablet_ids": [tablet_id],
+                    "pivot_keys": [[], [1]],
+                },
+            )
+
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])

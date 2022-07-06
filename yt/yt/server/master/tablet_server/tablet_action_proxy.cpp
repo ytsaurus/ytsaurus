@@ -42,6 +42,8 @@ private:
         attributes->push_back(EInternedAttributeKey::State);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
             .SetPresent(action->GetExpirationTime() != TInstant::Zero()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeout)
+            .SetPresent(action->GetExpirationTimeout().has_value()));
         attributes->push_back(EInternedAttributeKey::SkipFreezing);
         attributes->push_back(EInternedAttributeKey::Freeze);
         attributes->push_back(EInternedAttributeKey::TabletIds);
@@ -78,6 +80,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(action->GetExpirationTime());
+                return true;
+
+            case EInternedAttributeKey::ExpirationTimeout:
+                if (!action->GetExpirationTimeout()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(action->GetExpirationTimeout());
                 return true;
 
             case EInternedAttributeKey::SkipFreezing:

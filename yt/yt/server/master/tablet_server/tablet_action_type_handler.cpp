@@ -60,8 +60,14 @@ public:
         TInstant expirationTime = TInstant::Zero();
         auto optionalKeepFinished = attributes->FindAndRemove<bool>("keep_finished");
         auto optionalExpirationTime = attributes->FindAndRemove<TInstant>("expiration_time");
-        if (optionalKeepFinished && optionalExpirationTime) {
-            THROW_ERROR_EXCEPTION("Attributes \"keep_finished\" and \"expiration_time\" cannot be specified together");
+        auto optionalExpirationTimeout = attributes->FindAndRemove<TDuration>("expiration_timeout");
+
+        if (static_cast<int>(optionalKeepFinished.has_value()) +
+            static_cast<int>(optionalExpirationTime.has_value()) +
+            static_cast<int>(optionalExpirationTimeout.has_value()) > 1)
+        {
+            THROW_ERROR_EXCEPTION("At most one of \"keep_finished\", \"expiration_time\", "
+                "\"expiration_timeout\" can be specified");
         } else if (optionalKeepFinished) {
             if (*optionalKeepFinished) {
                 expirationTime = TInstant::Max();
@@ -95,7 +101,8 @@ public:
             tabletCount,
             skipFreezing,
             correlationId,
-            expirationTime);
+            expirationTime,
+            optionalExpirationTimeout);
     }
 
 private:

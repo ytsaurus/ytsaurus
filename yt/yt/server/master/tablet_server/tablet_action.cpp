@@ -69,6 +69,7 @@ void TTabletAction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Error_);
     Save(context, CorrelationId_);
     Save(context, ExpirationTime_);
+    Save(context, ExpirationTimeout_);
     Save(context, TabletCellBundle_);
     Save(context, SavedTabletIds_);
 }
@@ -89,6 +90,10 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, Error_);
     Load(context, CorrelationId_);
     Load(context, ExpirationTime_);
+    // COMPAT(alexelex)
+    if (context.GetVersion() >= EMasterReign::TabletActionExpirationTimeout) {
+        Load(context, ExpirationTimeout_);
+    }
     Load(context, TabletCellBundle_);
     Load(context, SavedTabletIds_);
 }
@@ -103,7 +108,8 @@ bool TTabletAction::IsFinished() const
 TString ToString(const TTabletAction& action)
 {
     return Format("ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
-        "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, TableId: %v, Bundle: %v",
+        "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, ExpirationTimeout: %v, "
+        "TableId: %v, Bundle: %v",
         action.GetId(),
         action.GetState(),
         action.GetKind(),
@@ -115,6 +121,7 @@ TString ToString(const TTabletAction& action)
         action.PivotKeys(),
         action.GetCorrelationId(),
         action.GetExpirationTime(),
+        action.GetExpirationTimeout(),
         action.Tablets()[0]->GetTable()->GetId(),
         action.GetTabletCellBundle()->GetName());
 }
