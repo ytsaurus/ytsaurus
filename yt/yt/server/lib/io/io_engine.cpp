@@ -30,7 +30,7 @@
 #include <array>
 
 #ifdef _linux_
-    #include <contrib/libs/liburing/src/include/liburing.h>
+    #include <liburing.h>
 
     #include <sys/uio.h>
 
