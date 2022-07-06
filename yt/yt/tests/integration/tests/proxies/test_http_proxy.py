@@ -25,11 +25,18 @@ from datetime import datetime, timedelta
 import time
 
 
-def try_parse_yt_error(rsp):
+def try_parse_yt_error_headers(rsp):
     if "X-YT-Error" in rsp.headers:
         assert "X-YT-Framing" not in rsp.headers
         raise YtResponseError(json.loads(rsp.headers.get("X-YT-Error")))
     rsp.raise_for_status()
+
+
+def try_parse_yt_error_trailers(rsp):
+    trailers = rsp.trailers()
+    if trailers is not None and "X-YT-Error" in trailers:
+        assert "X-YT-Framing" not in trailers
+        raise YtResponseError(json.loads(trailers.get("X-YT-Error")))
 
 ##################################################################
 
@@ -326,6 +333,9 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     DELAY_BEFORE_COMMAND = 10 * 1000
     KEEP_ALIVE_PERIOD = 1 * 1000
     DELTA_PROXY_CONFIG = {
+        "driver": {
+            "use_ws_hack_for_get_columnar_statistics": False,
+        },
         "api": {
             "testing": {
                 "delay_before_command": {
@@ -398,9 +408,12 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
             headers=headers,
         )
-        try_parse_yt_error(rsp)
+        try_parse_yt_error_headers(rsp)
+
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
+        try_parse_yt_error_trailers(rsp)
+
         keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
         assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
         assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
@@ -461,13 +474,9 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         assert len(statistics) == 1
         assert "column_data_weights" in statistics[0]
 
-        params = {
-            # Attention: missing column selector causes error.
-            "paths": [self.SUSPENDING_TABLE],
-        }
-        # TODO(achulkov2): Uncomment this once YT-16109 is closed.
-        # with pytest.raises(YtResponseError):
-        #     self._execute_command("GET", "get_table_columnar_statistics", params)
+        remove(self.SUSPENDING_TABLE)
+        with pytest.raises(YtResponseError):
+            self._execute_command("GET", "get_table_columnar_statistics", params)
 
 
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
@@ -534,7 +543,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
             "{}/api/v4/{}".format(self._get_proxy_address(), "poll_job_shell"),
             headers=headers
         )
-        try_parse_yt_error(rsp)
+        try_parse_yt_error_headers(rsp)
 
         result = yson.loads(rsp.content)
         shell_id = result["result"]["shell_id"]
@@ -594,7 +603,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             headers=headers,
             data=data,
         )
-        try_parse_yt_error(rsp)
+        try_parse_yt_error_headers(rsp)
         return rsp
 
     def _do_run_operation(self, op_type, spec, user, use_start_op):
