@@ -61,6 +61,7 @@ public:
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
     std::optional<TString> DriverVersion;
     TDuration DriverLayerFetchPeriod;
+    TDuration DriverLayerFetchPeriodSplay;
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 

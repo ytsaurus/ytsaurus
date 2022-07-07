@@ -36,8 +36,10 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
         BIND(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
-        ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
-        ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatSplay))
+        TPeriodicExecutorOptions{
+            .Period = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
+            .Splay = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatSplay
+        }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
     , RunningJobInfoSendingBackoff_(
@@ -142,7 +144,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     }
 
     std::vector<TJobPtr> sentEnqueuedJobs;
-    sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_)); 
+    sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_));
     for (const auto& job : EnqueuedFinishedJobs_) {
         sentEnqueuedJobs.push_back(job);
     }
@@ -241,7 +243,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
             HeartbeatInfo_.FailedHeartbeatBackoffTime);
-        
+
         if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
             OnAgentIncarnationOutdated();
         }
@@ -343,7 +345,7 @@ IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
     const TControllerAgentDescriptor& agentDescriptor)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
-    
+
     if (const auto it = ControllerAgentConnectors_.find(agentDescriptor); it != std::cend(ControllerAgentConnectors_)) {
         return it->second->GetChannel();
     }

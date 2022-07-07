@@ -40,8 +40,10 @@ public:
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
-            Config_->SyncPeriod,
-            Config_->SyncPeriodSplay))
+            TPeriodicExecutorOptions{
+                .Period = Config_->SyncPeriod,
+                .Splay = Config_->SyncPeriodSplay
+            }))
         , RandomGenerator_(TInstant::Now().GetValue())
     { }
 

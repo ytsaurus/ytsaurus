@@ -79,6 +79,8 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("driver_layer_fetch_period", &TThis::DriverLayerFetchPeriod)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("driver_layer_fetch_splay", &TThis::DriverLayerFetchPeriodSplay)
+        .Default(TDuration::Minutes(5));
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
         .Alias("toolkit_min_driver_version")
         .Default();
@@ -285,7 +287,7 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 void TJobReporterDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
@@ -330,7 +332,7 @@ void TJobReporterConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("max_in_progress_job_fail_context_data_size", &TThis::MaxInProgressJobFailContextDataSize)
         .Default();
-        
+
     registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
         .Default(true);
     registrar.Parameter("enable_job_spec_reporter", &TThis::EnableJobSpecReporter)
