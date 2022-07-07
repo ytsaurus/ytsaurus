@@ -87,6 +87,8 @@
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -103,6 +105,7 @@ using namespace NYTree;
 using namespace NYTAlloc;
 using namespace NYson;
 using namespace NProfiling;
+using namespace NTracing;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1404,6 +1407,9 @@ private:
             PartitioningOrchidServiceManager_->OnTaskFinished(task);
         });
 
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreCompactor"));
+        auto traceId = GetCurrentTraceContext()->GetTraceId();
+
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->TabletId);
@@ -1425,7 +1431,8 @@ private:
         auto logFailure = [&] (TStringBuf message) {
             return structuredLogger->LogEvent("abort_partitioning")
                 .Item("reason").Value(message)
-                .Item("partition_id").Value(task->PartitionId);
+                .Item("partition_id").Value(task->PartitionId)
+                .Item("trace_id").Value(traceId);
         };
 
 
@@ -1519,7 +1526,8 @@ private:
             structuredLogger->LogEvent("start_partitioning")
                 .Item("partition_id").Value(eden->GetId())
                 .Item("store_ids").Value(task->StoreIds)
-                .Item("current_timestamp").Value(currentTimestamp);
+                .Item("current_timestamp").Value(currentTimestamp)
+                .Item("trace_id").Value(traceId);
 
             YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
@@ -1619,7 +1627,8 @@ private:
                     fluent
                         .Item("hunk_chunk_id_to_add").Value(partitioningResult.HunkWriter->GetChunkId());
                 })
-                .Item("output_row_count").Value(partitioningResult.RowCount);
+                .Item("output_row_count").Value(partitioningResult.RowCount)
+                .Item("trace_id").Value(traceId);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
@@ -1637,7 +1646,8 @@ private:
             YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
 
             structuredLogger->LogEvent("backoff_partitioning")
-                .Item("partition_id").Value(eden->GetId());
+                .Item("partition_id").Value(eden->GetId())
+                .Item("trace_id").Value(traceId);
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -1766,6 +1776,9 @@ private:
             CompactionOrchidServiceManager_->OnTaskFinished(task);
         });
 
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreCompactor"));
+        auto traceId = GetCurrentTraceContext()->GetTraceId();
+
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->TabletId);
@@ -1787,7 +1800,8 @@ private:
         auto logFailure = [&] (TStringBuf message) {
             return structuredLogger->LogEvent("abort_compaction")
                 .Item("reason").Value(message)
-                .Item("partition_id").Value(task->PartitionId);
+                .Item("partition_id").Value(task->PartitionId)
+                .Item("trace_id").Value(traceId);
         };
 
         auto* partition = tablet->GetEden()->GetId() == task->PartitionId
@@ -1893,6 +1907,7 @@ private:
                 .Item("store_ids").Value(task->StoreIds)
                 .Item("current_timestamp").Value(currentTimestamp)
                 .Item("reason").Value(task->Reason)
+                .Item("trace_id").Value(traceId)
                 // NB: deducible.
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
@@ -1980,7 +1995,8 @@ private:
                     fluent
                         .Item("hunk_chunk_id_to_add").Value(compactionResult.HunkWriter->GetChunkId());
                 })
-                .Item("output_row_count").Value(compactionResult.RowCount);
+                .Item("output_row_count").Value(compactionResult.RowCount)
+                .Item("trace_id").Value(traceId);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
@@ -1998,7 +2014,8 @@ private:
             YT_LOG_ERROR(error, "Error compacting partition, backing off");
 
             structuredLogger->LogEvent("backoff_compaction")
-                .Item("partition_id").Value(partition->GetId());
+                .Item("partition_id").Value(partition->GetId())
+                .Item("trace_id").Value(traceId);
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
