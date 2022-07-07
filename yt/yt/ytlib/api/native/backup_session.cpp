@@ -22,16 +22,22 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr static const char* OriginalTabletStateAttributeName = "original_tablet_state";
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClusterBackupSession::TClusterBackupSession(
     TString clusterName,
     TClientPtr client,
     TCreateOrRestoreTableBackupOptions options,
     TTimestamp timestamp,
+    EBackupDirection direction,
     NLogging::TLogger logger)
     : ClusterName_(std::move(clusterName))
     , Client_(std::move(client))
     , Options_(options)
     , Timestamp_(timestamp)
+    , Direction_(direction)
     , Logger(logger
         .WithTag("SessionId: %v", TGuid::Create())
         .WithTag("Cluster: %v", ClusterName_))
@@ -74,7 +80,15 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
         tableInfo.SourcePath,
         &tableInfo.SourceTableId,
         &tableInfo.ExternalCellTag,
-        {"sorted", "upstream_replica_id", "replicas", "dynamic", "commit_ordering"});
+        {
+            "sorted",
+            "upstream_replica_id",
+            "replicas",
+            "dynamic",
+            "commit_ordering",
+            "tablet_state",
+            OriginalTabletStateAttributeName,
+        });
 
     auto dynamic = tableInfo.Attributes->Get<bool>("dynamic");
 
@@ -94,6 +108,14 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
     tableInfo.Replicated = replicated;
     tableInfo.CommitOrdering = commitOrdering;
     tableInfo.OrderedTableBackupMode = manifest->OrderedMode;
+
+    if (Direction_ == EBackupDirection::Backup) {
+        tableInfo.TabletState = tableInfo.Attributes->Get<ETabletState>("tablet_state");
+    } else {
+        tableInfo.TabletState = tableInfo.Attributes->Get<ETabletState>(
+            OriginalTabletStateAttributeName,
+            ETabletState::Unmounted);
+    }
 
     try {
         if (type == EObjectType::ReplicatedTable) {
@@ -162,6 +184,26 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
             THROW_ERROR_EXCEPTION("Table %Qv is beyond the portal",
                 tableInfo.SourcePath);
         }
+
+        if (Direction_ == EBackupDirection::Restore && GetRestoreOptions().Mount) {
+            switch (tableInfo.TabletState) {
+                case ETabletState::Unmounted:
+                case ETabletState::Frozen:
+                case ETabletState::Mounted:
+                    break;
+
+                case ETabletState::Mixed:
+                    THROW_ERROR_EXCEPTION("Cannot mount restored table %Qv since "
+                        "original table tablets were in different states",
+                        tableInfo.SourcePath);
+
+                default:
+                    THROW_ERROR_EXCEPTION("Cannot mount restored table %Qv since "
+                        "original table had unsupported tablet state %Qlv",
+                        tableInfo.SourcePath,
+                        tableInfo.TabletState);
+            }
+        }
     } catch (const TErrorException& e) {
         ThrowWithClusterNameIfFailed(e);
     }
@@ -173,15 +215,18 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
     Tables_.push_back(std::move(tableInfo));
 }
 
-void TClusterBackupSession::StartTransaction(TStringBuf title)
+void TClusterBackupSession::StartTransaction()
 {
+    auto title = Direction_== EBackupDirection::Backup
+        ? "Create backup"
+        : "Restore backup";
+
     auto transactionAttributes = CreateEphemeralAttributes();
-    transactionAttributes->Set(
-        "title",
-        title);
+    transactionAttributes->Set("title", title);
     TNativeTransactionStartOptions options;
     options.Attributes = std::move(transactionAttributes);
     options.ReplicateToMasterCellTags = TCellTagList(CellTags_.begin(), CellTags_.end());
+
     auto asyncTransaction = Client_->StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
         options);
@@ -558,12 +603,30 @@ void TClusterBackupSession::UpdateUpstreamReplicaIds()
         batchReq->AddRequest(req);
     }
 
-    TPrerequisiteOptions prerequisiteOptions;
-    prerequisiteOptions.PrerequisiteTransactionIds.push_back(Transaction_->GetId());
-    SetPrerequisites(batchReq, prerequisiteOptions);
-
     auto rsp = WaitFor(batchReq->Invoke());
     ThrowWithClusterNameIfFailed(rsp);
+}
+
+void TClusterBackupSession::RememberTabletStates()
+{
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
+        auto req = TObjectYPathProxy::Set(FromObjectId(
+            table.DestinationTableId) + "/@" +
+                OriginalTabletStateAttributeName);
+        ToProto(
+            req->mutable_value(),
+            Format("%lv", table.TabletState));
+        SetTransactionId(req, Transaction_->GetId());
+        batchReq->AddRequest(req, ToString(table.DestinationTableId));
+    };
+
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
+        const auto& rsp = batchRsp->template GetResponse<TObjectYPathProxy::TRspSet>(
+            ToString(table->DestinationTableId));
+        ThrowWithClusterNameIfFailed(rsp);
+    };
+
+    ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
 }
 
 void TClusterBackupSession::CommitTransaction()
@@ -571,6 +634,31 @@ void TClusterBackupSession::CommitTransaction()
     auto rsp = WaitFor(Transaction_->Commit());
     ThrowWithClusterNameIfFailed(rsp);
     Transaction_ = nullptr;
+}
+
+void TClusterBackupSession::MountRestoredTables()
+{
+    std::vector<TFuture<void>> asyncRsps;
+
+    for (const auto& table : Tables_) {
+        if (table.TabletState == ETabletState::Unmounted) {
+            continue;
+        }
+
+        TMountTableOptions options;
+        if (table.TabletState == ETabletState::Frozen) {
+            options.Freeze = true;
+        } else {
+            YT_VERIFY(table.TabletState == ETabletState::Mounted);
+        }
+
+        asyncRsps.push_back(Client_->MountTable(
+            FromObjectId(table.DestinationTableId),
+            options));
+    }
+
+    auto rsp = WaitFor(AllSucceeded(asyncRsps));
+    ThrowWithClusterNameIfFailed(rsp);
 }
 
 auto TClusterBackupSession::GetTables() -> std::vector<TTableInfo*>
@@ -711,11 +799,18 @@ void TBackupSession::RunCreate()
         session->UpdateUpstreamReplicaIds();
     }
 
+    YT_LOG_DEBUG("Remembering tablet states");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->RememberTabletStates();
+    }
+
     CommitTransactions();
 }
 
 void TBackupSession::RunRestore()
 {
+    const auto& options = std::get<TRestoreTableBackupOptions>(Options_);
+
     InitializeAndLockTables(EBackupDirection::Restore);
 
     YT_LOG_DEBUG("Starting table restores");
@@ -749,9 +844,18 @@ void TBackupSession::RunRestore()
     }
 
     CommitTransactions();
+
+    if (options.Mount) {
+        YT_LOG_DEBUG("Mounting restored tables");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->MountRestoredTables();
+        }
+    }
 }
 
-TClusterBackupSession* TBackupSession::CreateClusterSession(const TString& clusterName)
+TClusterBackupSession* TBackupSession::CreateClusterSession(
+    const TString& clusterName,
+    EBackupDirection direction)
 {
     const auto& nativeConnection = Client_->GetNativeConnection();
     auto remoteConnection = GetRemoteConnectionOrThrow(
@@ -767,6 +871,7 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(const TString& clust
         std::move(remoteClient),
         Options_,
         Timestamp_,
+        direction,
         Logger);
     auto* clusterSession = holder.get();
     ClusterSessions_[clusterName] = std::move(holder);
@@ -776,7 +881,7 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(const TString& clust
 void TBackupSession::InitializeAndLockTables(EBackupDirection direction)
 {
     for (const auto& [cluster, tables]: Manifest_->Clusters) {
-        auto* clusterSession = CreateClusterSession(cluster);
+        auto* clusterSession = CreateClusterSession(cluster, direction);
         clusterSession->ValidateBackupsEnabled();
         for (const auto& table : tables) {
             clusterSession->RegisterTable(table);
@@ -787,8 +892,7 @@ void TBackupSession::InitializeAndLockTables(EBackupDirection direction)
 
     YT_LOG_DEBUG("Starting backup transactions");
     for (const auto& [name, session] : ClusterSessions_) {
-        session->StartTransaction(
-            direction == EBackupDirection::Backup ? "Create backup" : "Restore backup");
+        session->StartTransaction();
     }
 
     YT_LOG_DEBUG("Locking tables before backup/restore");
