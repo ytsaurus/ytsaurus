@@ -29,6 +29,7 @@ def get_master_config():
 
     object_service = {
         enable_local_read_executor = %true;
+        enable_local_read_busy_wait = %false;
     };
 
     timestamp_manager = {

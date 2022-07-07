@@ -111,6 +111,7 @@ public:
     NObjectClient::TObjectServiceCacheConfigPtr MasterCache;
 
     bool EnableLocalReadExecutor;
+    bool EnableLocalReadBusyWait;
 
     REGISTER_YSON_STRUCT(TObjectServiceConfig);
 
