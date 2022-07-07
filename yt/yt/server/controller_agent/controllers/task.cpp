@@ -1810,6 +1810,9 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
         int tableIndex = inputChunk->GetTableIndex();
+        if (tableIndex == -1) {
+            tableIndex = 0;
+        }
         dataSlice->SetInputStreamIndex(tableIndex);
         YT_VERIFY(tableIndex >= 0);
         YT_VERIFY(tableIndex < tableCount);

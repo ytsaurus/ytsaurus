@@ -1610,11 +1610,15 @@ for l in sys.stdin:
         assert sorted_dicts(result_rows) == sorted_dicts(expected_rows)
 
     @authors("levysotsky")
+    @pytest.mark.parametrize("with_intermediate_sort", [True, False])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_several_intermediate_schemas_trivial_mapper(self, sort_order):
+    def test_several_intermediate_schemas_trivial_mapper(self, sort_order, with_intermediate_sort):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
+        is_compat = "22_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if with_intermediate_sort and is_compat:
+            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
@@ -1656,7 +1660,7 @@ for l in sys.stdin:
         create("table", "//tmp/in2", attributes={"schema": second_schema})
         create("table", "//tmp/out", attributes={"schema": output_schema})
 
-        row_count = 50
+        row_count = 5
         rows1 = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
         if sort_order == "descending":
             rows1 = rows1[::-1]
@@ -1669,16 +1673,34 @@ for l in sys.stdin:
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
 
+        spec = {
+            "reducer": {"format": "json"},
+            "max_failed_job_count": 1,
+        }
+
+        if with_intermediate_sort:
+            spec.update({
+                "partition_job_count": 10,
+                "partition_count": 10,
+                "max_partition_factor": 4,
+                "data_weight_per_sort_job": 1,
+                "data_size_per_sort_job": 1,
+                "data_weight_per_intermediate_partition_job": 10,
+                "partition_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "block_size": 1024,
+                    }
+                },
+            })
+
         map_reduce(
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
-            spec={
-                "reducer": {"format": "json"},
-                "max_failed_job_count": 1,
-            },
+            spec=spec,
         )
 
         result_rows = read_table("//tmp/out")
@@ -1796,8 +1818,31 @@ for l in sys.stdin:
         assert sorted([r["a"] for r in result_rows]) == list(range(row_count * len(input_schemas)))
 
     @authors("levysotsky")
+    @pytest.mark.xfail(reason="levysotsky: schema passing is broken")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_several_intermediate_schemas(self, sort_order):
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "ordered_map_reduce",
+        ],
+    )
+    def test_several_intermediate_schemas_failing(self, sort_order, method):
+        self._test_several_intermediate_schemas(sort_order, method)
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "map_reduce",
+            "map_reduce_1p",
+            "map_reduce_with_hierarchical_partitions",
+        ],
+    )
+    def test_several_intermediate_schemas_passing(self, sort_order, method):
+        self._test_several_intermediate_schemas(sort_order, method)
+
+    def _test_several_intermediate_schemas(self, sort_order, method):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
@@ -1863,26 +1908,105 @@ for l in sys.stdin:
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
 
-        map_reduce(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
-            reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
-            sort_by=[{"name": "a", "sort_order": sort_order}],
-            spec={
-                "mapper": {
-                    "output_streams": [
-                        {"schema": first_schema},
-                        {"schema": second_schema},
-                    ],
-                    "format": "json",
+        if method == "map_reduce":
+            map_reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                mapper_file=["//tmp/mapper.py"],
+                mapper_command="python mapper.py",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=[{"name": "a", "sort_order": sort_order}],
+                spec={
+                    "mapper": {
+                        "output_streams": [
+                            {"schema": first_schema},
+                            {"schema": second_schema},
+                        ],
+                        "format": "json",
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                    "time_limit": 60000,
                 },
-                "reducer": {"format": "json"},
-                "max_failed_job_count": 1,
-            },
-        )
+            )
+        elif method == "map_reduce_1p":
+            map_reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                mapper_file=["//tmp/mapper.py"],
+                mapper_command="python mapper.py",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=[{"name": "a", "sort_order": sort_order}],
+                spec={
+                    "partition_count": 1,
+                    "mapper": {
+                        "output_streams": [
+                            {"schema": first_schema},
+                            {"schema": second_schema},
+                        ],
+                        "format": "json",
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                    "time_limit": 60000,
+                },
+            )
+        elif method == "ordered_map_reduce":
+            map_reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                mapper_file=["//tmp/mapper.py"],
+                mapper_command="python mapper.py",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=[{"name": "a", "sort_order": sort_order}],
+                spec={
+                    "partition_count": 2,
+                    "map_job_count": 2,
+                    "data_size_per_sort_job": 10,
+                    "ordered": True,
+                    "mapper": {
+                        "output_streams": [
+                            {"schema": first_schema},
+                            {"schema": second_schema},
+                        ],
+                        "format": "json",
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                    "time_limit": 60000,
+                },
+            )
+        elif method == "map_reduce_with_hierarchical_partitions":
+            map_reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                mapper_file=["//tmp/mapper.py"],
+                mapper_command="python mapper.py",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=[{"name": "a", "sort_order": sort_order}],
+                spec={
+                    "partition_count": 7,
+                    "max_partition_factor": 2,
+                    "map_job_count": 2,
+                    "data_size_per_sort_job": 10,
+                    "mapper": {
+                        "output_streams": [
+                            {"schema": first_schema},
+                            {"schema": second_schema},
+                        ],
+                        "format": "json",
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                    "time_limit": 60000,
+                },
+            )
+        else:
+            assert False
 
         result_rows = read_table("//tmp/t2")
         expected_rows = []

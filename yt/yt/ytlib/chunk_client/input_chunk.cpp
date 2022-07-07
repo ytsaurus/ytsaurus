@@ -27,7 +27,7 @@ using NYT::ToProto;
 
 TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     : ChunkId_(GetObjectIdFromDataSplit(chunkSpec))
-    , TableIndex_(chunkSpec.table_index())
+    , TableIndex_(chunkSpec.has_table_index() ? chunkSpec.table_index() : -1)
     , ErasureCodec_(FromProto<NErasure::ECodec>(chunkSpec.erasure_codec()))
     , TableRowIndex_(chunkSpec.table_row_index())
     , RangeIndex_(chunkSpec.range_index())
