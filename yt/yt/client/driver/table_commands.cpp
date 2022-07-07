@@ -1295,6 +1295,8 @@ TRestoreTableBackupCommand::TRestoreTableBackupCommand()
     RegisterParameter("manifest", Manifest);
     RegisterParameter("force", Options.Force)
         .Default(false);
+    RegisterParameter("mount", Options.Mount)
+        .Default(false);
 }
 
 void TRestoreTableBackupCommand::DoExecute(ICommandContextPtr context)

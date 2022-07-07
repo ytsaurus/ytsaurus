@@ -47,6 +47,7 @@ public:
 
         bool Sorted = false;
         bool Replicated = false;
+        NTabletClient::ETabletState TabletState;
         NTransactionClient::ECommitOrdering CommitOrdering{};
         NTabletClient::EOrderedTableBackupMode OrderedTableBackupMode;
 
@@ -70,6 +71,7 @@ public:
         TClientPtr client,
         TCreateOrRestoreTableBackupOptions options,
         NTransactionClient::TTimestamp timestamp,
+        EBackupDirection direction,
         NLogging::TLogger logger);
 
     ~TClusterBackupSession();
@@ -78,7 +80,7 @@ public:
 
     void RegisterTable(const TTableBackupManifestPtr& manifest);
 
-    void StartTransaction(TStringBuf title);
+    void StartTransaction();
 
     void LockInputTables();
 
@@ -100,7 +102,11 @@ public:
 
     void UpdateUpstreamReplicaIds();
 
+    void RememberTabletStates();
+
     void CommitTransaction();
+
+    void MountRestoredTables();
 
     std::vector<TTableInfo*> GetTables();
 
@@ -111,6 +117,7 @@ private:
     const TClientPtr Client_;
     const TCreateOrRestoreTableBackupOptions Options_;
     const NTransactionClient::TTimestamp Timestamp_;
+    const EBackupDirection Direction_;
     const NLogging::TLogger Logger;
 
     NApi::NNative::ITransactionPtr Transaction_;
@@ -167,7 +174,9 @@ private:
 
     THashMap<TString, std::unique_ptr<TClusterBackupSession>> ClusterSessions_;
 
-    TClusterBackupSession* CreateClusterSession(const TString& clusterName);
+    TClusterBackupSession* CreateClusterSession(
+        const TString& clusterName,
+        EBackupDirection direction);
 
     void InitializeAndLockTables(EBackupDirection direction);
 

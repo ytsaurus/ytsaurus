@@ -1508,6 +1508,7 @@ struct TRestoreTableBackupOptions
     : public TTimeoutOptions
 {
     bool Force = false;
+    bool Mount = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
