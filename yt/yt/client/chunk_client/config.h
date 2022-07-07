@@ -40,6 +40,9 @@ public:
 
     int MaxChunksPerNodeFetch;
 
+    //! Timeout when waiting for all replicas to appear in the given node directory.
+    TDuration NodeDirectorySynchronizationTimeout;
+
     REGISTER_YSON_STRUCT(TFetcherConfig);
 
     static void Register(TRegistrar registrar);

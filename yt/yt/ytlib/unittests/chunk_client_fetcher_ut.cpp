@@ -175,7 +175,6 @@ protected:
     TFetcherBaseTest()
         : ControlQueue_(New<TActionQueue>())
         , Invoker_(ControlQueue_->GetInvoker())
-        , NodeDirectory_(New<TNodeDirectory>())
     { }
 
     void SetUpFetcher(
@@ -186,8 +185,11 @@ protected:
         bool createChunkScraper = true)
     {
         NodeCount_ = nodeCount;
-        for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
-            NodeDirectory_->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+        if (!NodeDirectory_) {
+            NodeDirectory_ = New<TNodeDirectory>();
+            for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
+                NodeDirectory_->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+            }
         }
 
         Fetcher_ = New<TTestFetcher>(maxChunksPerNodeFetch, NodeDirectory_, Invoker_, Logger, createChunkScraper);
@@ -272,6 +274,52 @@ TEST_F(TFetcherBaseTest, AllTimeoutsCauseDeadNode)
     EXPECT_THROW_WITH_ERROR_CODE(
         WaitFor(GetFetcher()->Fetch()).ThrowOnError(),
         NYT::NChunkClient::EErrorCode::ChunkUnavailable);
+}
+
+TEST_F(TFetcherBaseTest, StaleNodeDirectory)
+{
+    auto nodeDirectory = New<TNodeDirectory>();
+    // Skip some nodes (all replicas of chunk 3, see below).
+    for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
+        if (nodeId == 1 || nodeId == 3 || nodeId == 5) {
+            continue;
+        }
+
+        nodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+    }
+    NodeDirectory_ = nodeDirectory;
+
+    SetUpFetcher(/*maxChunksPerNodeFetch*/ 2, /*nodeCount*/ 5, /*chunkCount*/ 6, /*chunkToReplicas*/ {
+        {1, 2, 4}, // 0
+        {3, 5, 2}, // 1
+        {4, 3, 1}, // 2
+        {1, 5, 3}, // 3
+        {5, 2, 4}, // 4
+        {3, 1, 4}, // 5
+    });
+
+    SetNodeResponse(1, {.NodeResponses = {ENodeResponse::Failure}});
+    SetNodeResponse(3, {.ChunkResponses = {
+        {1, {EChunkResponse::Timeout}},
+        {3, {EChunkResponse::Timeout, EChunkResponse::Timeout}},
+    }});
+    SetNodeResponse(4, {.ChunkResponses = {
+        {0, {EChunkResponse::Failure}},
+        {4, {EChunkResponse::Timeout, EChunkResponse::Timeout}},
+        {5, {EChunkResponse::Timeout, EChunkResponse::Timeout, EChunkResponse::Timeout}},
+    }});
+
+    TDelayedExecutor::Submit(BIND([this] {
+        auto completeNodeDirectory = New<TNodeDirectory>();
+        for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
+            completeNodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+        }
+        NodeDirectory_->MergeFrom(completeNodeDirectory);
+    }), TDuration::Seconds(5));
+
+    WaitFor(GetFetcher()->Fetch())
+        .ThrowOnError();
+    GetFetcher()->AssertFetchingCompleted();
 }
 
 TEST_F(TFetcherBaseTest, ASingleNodeSavesTheDay)

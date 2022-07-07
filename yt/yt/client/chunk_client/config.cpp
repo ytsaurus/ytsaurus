@@ -31,6 +31,9 @@ void TFetcherConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunks_per_node_fetch", &TThis::MaxChunksPerNodeFetch)
         .Default(300);
+
+    registrar.Parameter("node_directory_synchronization_timeout", &TThis::NodeDirectorySynchronizationTimeout)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

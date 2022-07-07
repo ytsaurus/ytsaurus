@@ -238,9 +238,25 @@ TFuture<void> TFetcherBase::Fetch()
         }
     }
 
-    ActiveTaskFuture_.Store(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
-        .AsyncVia(Invoker_)
-        .Run());
+    THashSet<TNodeId> nodeIds;
+    for (int unfetchedChunkIndex : UnfetchedChunkIndexes_) {
+        for (auto replica : Chunks_[unfetchedChunkIndex]->GetReplicaList()) {
+            nodeIds.insert(replica.GetNodeId());
+        }
+    }
+
+    std::vector<TFuture<const TNodeDescriptor*>> asyncNodeDescriptors;
+    asyncNodeDescriptors.reserve(nodeIds.size());
+    for (auto id : nodeIds) {
+        asyncNodeDescriptors.push_back(NodeDirectory_->GetAsyncDescriptor(id));
+    }
+
+    ActiveTaskFuture_.Store(
+        AllSucceeded(std::move(asyncNodeDescriptors))
+            .AsVoid()
+            .WithTimeout(Config_->NodeDirectorySynchronizationTimeout)
+            .Apply(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
+                .AsyncVia(Invoker_)));
     auto future = Promise_.ToFuture();
     if (CancelableContext_) {
         future = future.ToImmediatelyCancelable();
