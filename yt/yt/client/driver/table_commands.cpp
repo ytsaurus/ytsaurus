@@ -398,7 +398,11 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         }
     }
 
+    YT_LOG_DEBUG("Starting fetching columnar statistics");
+
     auto allStatisticsOrError = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options));
+
+    YT_LOG_DEBUG("Finished fetching columnar statistics");
 
     if (useWsHack) {
         {
