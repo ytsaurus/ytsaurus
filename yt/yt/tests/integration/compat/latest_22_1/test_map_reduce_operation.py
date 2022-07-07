@@ -1,6 +1,7 @@
 from original_tests.yt.yt.tests.integration.tests.controller.test_map_reduce_operation \
     import TestSchedulerMapReduceCommands as BaseTestMapReduceCommands
 from yt.common import update
+from yt_commands import authors
 
 
 class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
@@ -19,6 +20,10 @@ class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
             },
         },
     })
+
+    @authors("levysotsky")
+    def test_several_intermediate_schemas_failing(self):
+        pass
 
 
 class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
