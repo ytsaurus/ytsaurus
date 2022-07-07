@@ -1182,6 +1182,9 @@ private:
     // COMPAT(gritukan)
     bool NeedToRecomputeTabletCellBundleRefCounters_ = false;
 
+    // COMPAT(gritukan)
+    bool NeedToReplicatePrerequisiteTransactions_ = false;
+
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -1229,6 +1232,9 @@ private:
         NeedToRecomputeTabletCellBundleRefCounters_ =
             context.GetVersion() >= EMasterReign::RefCountedInheritableAttributes &&
             context.GetVersion() <  EMasterReign::RecomputeTabletCellBundleRefCounters;
+
+        NeedToReplicatePrerequisiteTransactions_ =
+            context.GetVersion() < EMasterReign::FixPrerequisiteTxReplication;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1384,6 +1390,23 @@ private:
             }
         }
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (NeedToReplicatePrerequisiteTransactions_ && multicellManager->IsPrimaryMaster()) {
+            for (auto [transaction, peerInfo] : TransactionToCellMap_) {
+                auto [cell, peerId] = peerInfo;
+                TReqStartPrerequisiteTransaction request;
+                ToProto(request.mutable_cell_id(), cell->GetId());
+                ToProto(request.mutable_transaction_id(), transaction->GetId());
+                if (peerId) {
+                    request.set_peer_id(*peerId);
+                }
+                multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+            }
+
+            YT_LOG_INFO("Replicated cell prerequisite transactions to secondary masters (TransactionCount: %v)",
+                TransactionToCellMap_.size());
+        }
+
         AfterSnapshotLoaded_.Fire();
     }
 
@@ -1405,6 +1428,7 @@ private:
         BundleNodeTracker_->Clear();
 
         NeedToRecomputeTabletCellBundleRefCounters_ = false;
+        NeedToReplicatePrerequisiteTransactions_ = false;
     }
 
     void OnCellStatusGossip(bool incremental)
@@ -2396,7 +2420,9 @@ private:
             return;
         }
 
-        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
+        // COMPAT(gritukan): Use EmplaceOrCrash after EMasterReign::FixPrerequisiteTxReplication.
+        TransactionToCellMap_[transaction] = std::make_pair(cell, peerId);
+        cell->SetPrerequisiteTransaction(peerId, transaction);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
