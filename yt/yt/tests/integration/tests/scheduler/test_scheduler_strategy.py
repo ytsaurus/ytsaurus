@@ -18,7 +18,7 @@ from yt_commands import (
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_banned_flag,
     create_test_tables, PrepareTables,
-    update_pool_tree_config_option)
+    update_pool_tree_config_option, update_scheduler_config)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -394,6 +394,47 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         move("//sys/pools/source_pool", "//sys/pools/destination_pool/source_pool")
 
         release_breakpoint()
+        op.track()
+
+    @authors("ignat")
+    def test_pool_change_with_resource_limits_and_limits_after_move(self):
+        update_scheduler_config("watchers_update_period", 500)
+        update_scheduler_config("fair_share_update_period", 500)
+
+        update_pool_tree_config(
+            "default",
+            {
+                "testing_options": {
+                    "delay_inside_resource_usage_initialization_in_tree": 2000,
+                },
+            })
+
+        resource_limits = {"cpu": 2, "memory": 1000 * 1024 * 1024, "network": 10}
+        create_pool("destination_pool", attributes={"resource_limits": resource_limits})
+
+        create_pool("source_pool")
+
+        op = run_test_vanilla(
+            track=False,
+            command="python3 -c 'import random, time; x = random.randint(1, 5) / 10.0; time.sleep(x)'",
+            job_count=10,
+            pool="source_pool",
+            task_patch={
+                "cpu_limit": 0.5,
+            },
+            spec={
+                "testing": {
+                    "schedule_job_delay": 1000,
+                },
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()) >= 1)
+        time.sleep(0.2)
+
+        move("//sys/pools/source_pool", "//sys/pools/destination_pool/source_pool")
+        set("//sys/pools/destination_pool/source_pool/@resource_limits", resource_limits)
+
         op.track()
 
     @authors("renadeen")

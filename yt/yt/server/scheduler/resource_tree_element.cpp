@@ -56,8 +56,14 @@ void TResourceTreeElement::SetResourceLimits(
 {
     // NB: this method called from Control thread, tree structure supposed to have no changes.
     bool resourceLimitsSpecifiedBeforeUpdate = ResourceLimitsSpecified_;
+    bool resourceLimitsSpecified = resourceLimits != TJobResources::Infinite();
+    
+    bool shouldInitializeResourceUsage = 
+        !resourceLimitsSpecifiedBeforeUpdate &&
+        resourceLimitsSpecified &&
+        Kind_ != EResourceTreeElementKind::Operation;
 
-    {
+    auto setResourceLimits = [&] () {
         auto guard = WriterGuard(ResourceUsageLock_);
 
         ResourceTree_->IncrementUsageLockWriteCount();
@@ -67,11 +73,14 @@ void TResourceTreeElement::SetResourceLimits(
         if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
         }
-    }
+    };
 
-    // XXX(ignat): is it safe to have this element with incorrect resource usage?
-    if (!resourceLimitsSpecifiedBeforeUpdate && ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+    if (shouldInitializeResourceUsage) {
+        auto guard = ResourceTree_->AcquireStructureLock();
+        setResourceLimits();
         ResourceTree_->InitializeResourceUsageFor(this, descendantOperations);
+    } else {
+        setResourceLimits();
     }
 }
 

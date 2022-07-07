@@ -212,6 +212,8 @@ class TTreeTestingOptions
 public:
     std::optional<TDuration> DelayInsideFairShareUpdate;
 
+    std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
+
     REGISTER_YSON_STRUCT(TTreeTestingOptions);
 
     static void Register(TRegistrar registrar);

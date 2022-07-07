@@ -12,6 +12,9 @@ static const auto& Logger = StrategyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+using namespace NThreading;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TResourceTree::TResourceTree(
     const TFairShareStrategyTreeConfigPtr& config,
@@ -29,6 +32,7 @@ void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 
     EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
+    DelayInsideResourceUsageInitializationInTree_ = config->TestingOptions->DelayInsideResourceUsageInitializationInTree;
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
@@ -375,17 +379,24 @@ void TResourceTree::DoInitializeResourceUsageFor(
         FormatResources(newResourceUsagePrecommit));
 }
 
+TWriterGuard<TReaderWriterSpinLock> TResourceTree::AcquireStructureLock()
+{
+    return WriterGuard(StructureLock_);
+}
+
 void TResourceTree::InitializeResourceUsageFor(
     const TResourceTreeElementPtr& targetElement,
     const std::vector<TResourceTreeElementPtr>& operationElements)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+    if (DelayInsideResourceUsageInitializationInTree_) {
+        Sleep(*DelayInsideResourceUsageInitializationInTree_);
+    }
+
     // This method called from Control thread with list of descendant operations elements.
     // All changes of tree structure performed from Control thread, thus we guarantee that
     // all operations are alive.
-    auto structureGuard = WriterGuard(StructureLock_);
-
     DoInitializeResourceUsageFor(targetElement, operationElements);
 }
 

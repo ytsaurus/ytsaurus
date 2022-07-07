@@ -63,6 +63,8 @@ public:
     void IncrementUsageLockReadCount();
     void IncrementUsageLockWriteCount();
 
+    NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> AcquireStructureLock();
+
     void InitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
@@ -72,6 +74,9 @@ private:
 
     std::atomic<bool> EnableStructureLockProfiling = false;
     std::atomic<bool> EnableUsageLockProfiling = false;
+
+    // For testing.
+    std::optional<TDuration> DelayInsideResourceUsageInitializationInTree_;
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
