@@ -47,8 +47,10 @@ TSchedulerConnector::TSchedulerConnector(
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
-        StaticConfig_->HeartbeatPeriod,
-        StaticConfig_->HeartbeatSplay))
+        TPeriodicExecutorOptions{
+            .Period = StaticConfig_->HeartbeatPeriod,
+            .Splay = StaticConfig_->HeartbeatSplay
+        }))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))

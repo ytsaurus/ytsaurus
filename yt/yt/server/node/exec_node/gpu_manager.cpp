@@ -78,8 +78,10 @@ TGpuManager::TGpuManager(
     , FetchDriverLayerExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
-        Config_->DriverLayerFetchPeriod,
-        /*splay*/ Config_->DriverLayerFetchPeriod))
+        TPeriodicExecutorOptions{
+            .Period = Config_->DriverLayerFetchPeriod,
+            .Splay = Config_->DriverLayerFetchPeriodSplay
+        }))
 {
     if (!Config_->Enable) {
         return;

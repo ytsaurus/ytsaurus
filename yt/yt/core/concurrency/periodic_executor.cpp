@@ -14,10 +14,10 @@ namespace NYT::NConcurrency {
 
 TPeriodicExecutorOptions TPeriodicExecutorOptions::WithJitter(TDuration period)
 {
-    TPeriodicExecutorOptions options;
-    options.Period = period;
-    options.Jitter = DefaultJitter;
-    return options;
+    return {
+        .Period = period,
+        .Jitter = DefaultJitter
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,26 +25,11 @@ TPeriodicExecutorOptions TPeriodicExecutorOptions::WithJitter(TDuration period)
 TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
-    std::optional<TDuration> period,
-    TDuration splay)
+    std::optional<TDuration> period)
     : TPeriodicExecutor(
         std::move(invoker),
         std::move(callback),
-        {
-            period,
-            splay,
-            0.0,
-        })
-{
-    YT_VERIFY(Invoker_);
-    YT_VERIFY(Callback_);
-}
-
-TPeriodicExecutor::TPeriodicExecutor(
-    IInvokerPtr invoker,
-    TClosure callback,
-    std::optional<TDuration> period)
-    : TPeriodicExecutor(invoker, callback, period, TDuration::Zero())
+        {.Period = period})
 { }
 
 TPeriodicExecutor::TPeriodicExecutor(

@@ -14,10 +14,12 @@ struct TPeriodicExecutorOptions
 {
     static constexpr double DefaultJitter = 0.2;
 
+    //! Interval between usual consequent invocations; if null then no invocations will be happening.
     std::optional<TDuration> Period;
-    TDuration Splay = TDuration::Zero();
+    TDuration Splay;
     double Jitter = 0.0;
 
+    //! Sets #Period and Applies set#DefaultJitter.
     static TPeriodicExecutorOptions WithJitter(TDuration period);
 };
 
@@ -33,24 +35,17 @@ public:
      *
      *  \param invoker Invoker used for wrapping actions.
      *  \param callback Callback to invoke periodically.
-     *  \param period Interval between usual consequent invocations; if null then no invocations will be happening.
-     *  \param splay First invocation splay time.
+     *  \param options Period, splay, etc.
      */
     TPeriodicExecutor(
         IInvokerPtr invoker,
         TClosure callback,
-        std::optional<TDuration> period,
-        TDuration splay);
-
-    TPeriodicExecutor(
-        IInvokerPtr invoker,
-        TClosure callback,
-        std::optional<TDuration> period = std::nullopt);
-
-    TPeriodicExecutor(
-        IInvokerPtr invoker,
-        TClosure callback,
         TPeriodicExecutorOptions options);
+
+    TPeriodicExecutor(
+        IInvokerPtr invoker,
+        TClosure callback,
+        std::optional<TDuration> period = {});
 
     //! Starts the instance.
     //! The first invocation happens with a random delay within splay time.

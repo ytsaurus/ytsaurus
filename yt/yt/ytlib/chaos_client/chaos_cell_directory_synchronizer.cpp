@@ -41,8 +41,10 @@ public:
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TChaosCellDirectorySynchronizer::OnSync, MakeWeak(this)),
-            Config_->SyncPeriod,
-            Config_->SyncPeriodSplay))
+            TPeriodicExecutorOptions{
+                .Period = Config_->SyncPeriod,
+                .Splay = Config_->SyncPeriodSplay
+            }))
     { }
 
     void AddCellIds(const std::vector<NObjectClient::TCellId>& cellIds) override

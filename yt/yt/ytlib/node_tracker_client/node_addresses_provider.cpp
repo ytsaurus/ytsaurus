@@ -71,8 +71,10 @@ public:
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
-            syncPeriod,
-            syncPeriodSplay))
+            TPeriodicExecutorOptions{
+                .Period = syncPeriod,
+                .Splay = syncPeriodSplay
+            }))
         , Logger(NodeTrackerClientLogger.WithTag("NodeRole: %v", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
     { }
