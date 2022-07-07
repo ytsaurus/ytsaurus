@@ -316,7 +316,7 @@ TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
     RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
         .Default();
     RegisterParameter("enable_early_finish", EnableEarlyFinish)
-        .Default(false);
+        .Default(true);
 }
 
 void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
