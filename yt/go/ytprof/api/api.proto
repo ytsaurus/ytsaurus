@@ -42,6 +42,7 @@ message ListRequest {
 
 message ListResponse {
     repeated Metadata metadata = 1;
+    int32 size = 2;
 }
 
 message SuggestTagsResponse {
