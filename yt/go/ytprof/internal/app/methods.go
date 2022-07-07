@@ -88,6 +88,13 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 		return nil, err
 	}
 
+	// TODO: if this is too slow add cash for sizes
+	respLen, err := a.ts.MetadataIdsQueryExpr(ctx, metaquery)
+	if err != nil {
+		a.l.Error("metaquery failed", log.Error(err))
+		return nil, err
+	}
+
 	res := make([]*api.Metadata, len(resp))
 
 	for id, metadata := range resp {
@@ -100,7 +107,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 
 	a.l.Error("list request succeded", log.Int("profiles found", len(res)))
 
-	return &api.ListResponse{Metadata: res}, nil
+	return &api.ListResponse{Metadata: res, Size: int32(len(respLen))}, nil
 }
 
 func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
