@@ -664,6 +664,8 @@ void TContext::SetupOutputParameters()
     OutputParametersConsumer_->OnBeginMap();
     DriverRequest_.ResponseParametersConsumer = OutputParametersConsumer_.get();
     DriverRequest_.ResponseParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
+        YT_LOG_DEBUG("ResponseParametersFinishedCallback started");
+
         auto strongThis = weakThis.Lock();
         if (!strongThis) {
             return;
@@ -679,6 +681,7 @@ void TContext::SetupOutputParameters()
         }
 
         ProcessDelayBeforeCommandTestingOption();
+        YT_LOG_DEBUG("ResponseParametersFinishedCallback finished");
     };
 }
 
@@ -775,6 +778,8 @@ void TContext::FinishPrepare()
     SetupTracing();
     AddHeaders();
     PrepareFinished_ = true;
+
+    YT_LOG_DEBUG("Prepare finished");
 }
 
 void TContext::Run()
