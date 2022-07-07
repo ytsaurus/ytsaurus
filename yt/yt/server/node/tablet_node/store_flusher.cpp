@@ -45,6 +45,8 @@
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -58,6 +60,7 @@ using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NTracing;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -328,6 +331,8 @@ private:
             .WithTag("%v, StoreId: %v",
                 tablet->GetLoggingTag(),
                 store->GetId());
+
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreFlusher"));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());

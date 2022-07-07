@@ -52,6 +52,8 @@
 
 #include <yt/yt/core/profiling/profiler.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -63,6 +65,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NProfiling;
+using namespace NTracing;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -178,6 +181,8 @@ private:
                 return;
             }
         }
+
+        auto Logger = BuildLogger(slot, partition);
 
         if (request.Immediate) {
             if (!ValidateImmediateSplit(slot, partition)) {
@@ -298,6 +303,8 @@ private:
         TTablet* tablet,
         NLogging::TLogger Logger)
     {
+        TTraceContextGuard TTraceContextGuard(TTraceContext::NewRoot("PartitionBalancer"));
+
         YT_LOG_DEBUG("Splitting partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
@@ -490,6 +497,8 @@ private:
         TTablet* tablet,
         NLogging::TLogger Logger)
     {
+        TTraceContextGuard TTraceContextGuard(TTraceContext::NewRoot("PartitionBalancer"));
+
         YT_LOG_DEBUG("Sampling partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
