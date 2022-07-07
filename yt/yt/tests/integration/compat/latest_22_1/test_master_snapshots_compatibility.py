@@ -3,7 +3,7 @@ from yt_commands import (
     ls, exists, get, set, authors, print_debug, build_master_snapshots, create, start_transaction,
     remove, wait, create_user, make_ace, copy,
     commit_transaction, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
-    select_rows, lookup_rows, sync_create_cells, wait_for_cells)
+    select_rows, lookup_rows, sync_create_cells, wait_for_cells, get_driver)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -241,6 +241,21 @@ def check_mount_config_attributes():
     assert get("//tmp/mount_config/h/@mount_config") == {"min_data_ttl": 333, "max_data_ttl": 444}
 
 
+def check_prerequisite_transaction_replication():
+    cell_id = ls("//sys/tablet_cells")[0]
+
+    def has_prerequisite_tx(cell_index):
+        return exists(f"//sys/tablet_cells/{cell_id}/@prerequisite_transaction_id", driver=get_driver(cell_index))
+
+    assert has_prerequisite_tx(0)
+    assert not has_prerequisite_tx(1)
+
+    yield
+
+    assert has_prerequisite_tx(0)
+    assert has_prerequisite_tx(1)
+
+
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -287,6 +302,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
             check_portal_entrance_validation,
             check_hunks,
             check_mount_config_attributes,
+            check_prerequisite_transaction_replication,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
