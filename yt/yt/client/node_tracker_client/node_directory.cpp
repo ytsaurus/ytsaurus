@@ -34,6 +34,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = NodeTrackerClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TString& NullNodeAddress()
 {
     static const TString Result("<null>");
@@ -553,6 +557,16 @@ void TNodeDirectory::DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& des
     const auto* capturedDescriptor = &*it;
     IdToDescriptor_[id] = capturedDescriptor;
     AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
+
+    OnDescriptorAdded(id, capturedDescriptor);
+}
+
+void TNodeDirectory::OnDescriptorAdded(TNodeId id, const TNodeDescriptor* descriptor)
+{
+    if (auto it = IdToPromise_.find(id); it != IdToPromise_.end()) {
+        it->second.TrySet(descriptor);
+        IdToPromise_.erase(it);
+    }
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
@@ -567,6 +581,26 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(TNodeId id) const
     const auto* result = FindDescriptor(id);
     YT_VERIFY(result);
     return *result;
+}
+
+TFuture<const TNodeDescriptor*> TNodeDirectory::GetAsyncDescriptor(TNodeId id)
+{
+    if (auto* descriptor = FindDescriptor(id)) {
+        return MakeFuture(descriptor);
+    }
+
+    TPromise<const TNodeDescriptor*> promise;
+    {
+        YT_LOG_DEBUG("Waiting for node descriptor (NodeId: %v)", id);
+        auto guard = WriterGuard(SpinLock_);
+        if (auto it = IdToPromise_.find(id); it != IdToPromise_.end()) {
+            promise = it->second;
+        } else {
+            promise = IdToPromise_[id] = NewPromise<const TNodeDescriptor*>();
+        }
+    }
+
+    return promise.ToFuture().ToUncancelable();
 }
 
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(TChunkReplica replica) const

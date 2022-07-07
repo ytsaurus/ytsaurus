@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -157,6 +159,7 @@ public:
 
     const TNodeDescriptor* FindDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(TNodeId id) const;
+    TFuture<const TNodeDescriptor*> GetAsyncDescriptor(TNodeId id);
     const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
     std::vector<TNodeDescriptor> GetDescriptors(const NChunkClient::TChunkReplicaList& replicas) const;
     std::vector<std::pair<NNodeTrackerClient::TNodeId, TNodeDescriptor>> GetAllDescriptors() const;
@@ -173,11 +176,15 @@ private:
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     THashSet<TNodeDescriptor> Descriptors_;
 
+    THashMap<TNodeId, TPromise<const TNodeDescriptor*>> IdToPromise_;
+
     bool CheckNodeDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     bool CheckNodeDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
     void DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& descriptorHolder);
+
+    void OnDescriptorAdded(TNodeId id, const TNodeDescriptor* descriptor);
 };
 
 void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);
