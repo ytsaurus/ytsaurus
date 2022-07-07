@@ -522,7 +522,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
     @staticmethod
     def _signal_instance(pid, signal_number):
-        print_debug("Killing instance with with os.kill({}, {})", pid, signal_number)
+        print_debug("Killing instance with with os.kill({}, {})".format(pid, signal_number))
         os.kill(pid, signal_number)
 
     def _setup(self):

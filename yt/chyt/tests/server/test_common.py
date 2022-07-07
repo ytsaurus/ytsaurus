@@ -1062,13 +1062,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             self._signal_instance(instance.attributes["pid"], signal.SIGINT)
 
-            result = requests.post(
-                "http://{}:{}/query?query_id={}".format(host, port, query_id),
-                data="select 1",
-                headers={"X-ClickHouse-User": "root", "X-Yt-Request-Id": query_id, "X-Clique-Id": clique.op.id},
-            )
-            print_debug(result.content)
-            assert result.status_code == 301
+            def signaled():
+                result = requests.post(
+                    "http://{}:{}/query?query_id={}".format(host, port, query_id),
+                    data="select 1",
+                    headers={"X-ClickHouse-User": "root", "X-Yt-Request-Id": query_id, "X-Clique-Id": clique.op.id},
+                )
+                print_debug(result.content)
+                return result.status_code == 301
+
+            wait(signaled)
 
     @authors("dakovalkov")
     def test_exists_table(self):
