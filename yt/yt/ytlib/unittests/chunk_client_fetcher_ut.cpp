@@ -81,12 +81,13 @@ public:
         int maxChunksPerNodeFetch,
         TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const NLogging::TLogger& logger)
+        const NLogging::TLogger& logger,
+        bool createChunkScraper)
         : TFetcherBase(
         CreateFetcherConfig(maxChunksPerNodeFetch),
             std::move(nodeDirectory),
             std::move(invoker),
-            New<TFakeChunkScraper>(),
+            (createChunkScraper ? New<TFakeChunkScraper>() : nullptr),
             nullptr,
             logger)
     { }
@@ -177,14 +178,19 @@ protected:
         , NodeDirectory_(New<TNodeDirectory>())
     { }
 
-    void SetUpFetcher(int maxChunksPerNodeFetch, int nodeCount, int chunkCount, std::vector<std::vector<int>> chunkToReplicas)
+    void SetUpFetcher(
+        int maxChunksPerNodeFetch,
+        int nodeCount,
+        int chunkCount,
+        std::vector<std::vector<int>> chunkToReplicas,
+        bool createChunkScraper = true)
     {
         NodeCount_ = nodeCount;
         for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
             NodeDirectory_->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
         }
 
-        Fetcher_ = New<TTestFetcher>(maxChunksPerNodeFetch, NodeDirectory_, Invoker_, Logger);
+        Fetcher_ = New<TTestFetcher>(maxChunksPerNodeFetch, NodeDirectory_, Invoker_, Logger, createChunkScraper);
 
         YT_VERIFY(chunkCount == std::ssize(chunkToReplicas));
         ChunkCount_ = chunkCount;
@@ -250,6 +256,22 @@ TEST_F(TFetcherBaseTest, Simple)
     WaitFor(GetFetcher()->Fetch())
         .ThrowOnError();
     GetFetcher()->AssertFetchingCompleted();
+}
+
+TEST_F(TFetcherBaseTest, AllTimeoutsCauseDeadNode)
+{
+    SetUpFetcher(/*maxChunksPerNodeFetch*/ 2, /*nodeCount*/ 1, /*chunkCount*/ 2, /*chunkToReplicas*/ {
+        {1}, // 0
+        {1}, // 1
+    }, /*createChunkScraper*/ false);
+    SetNodeResponse(1, {.ChunkResponses = {
+        {0, {EChunkResponse::OK}},
+        {1, {EChunkResponse::Timeout, EChunkResponse::Timeout}},
+    }});
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        WaitFor(GetFetcher()->Fetch()).ThrowOnError(),
+        NYT::NChunkClient::EErrorCode::ChunkUnavailable);
 }
 
 TEST_F(TFetcherBaseTest, ASingleNodeSavesTheDay)

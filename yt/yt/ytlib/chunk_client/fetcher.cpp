@@ -264,6 +264,8 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
         nodeAddress,
         NodeToChunkIndexesToFetch_[nodeId].size());
     for (auto& chunkIndexesToFetch = NodeToChunkIndexesToFetch_[nodeId]; !chunkIndexesToFetch.empty();) {
+        auto oldChunkIndexesToFetchSize = chunkIndexesToFetch.size();
+
         auto lastIt = std::next(
             chunkIndexesToFetch.begin(),
             static_cast<i64>(std::min(static_cast<ui64>(Config_->MaxChunksPerNodeFetch), chunkIndexesToFetch.size())));
@@ -284,6 +286,15 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
         }
 
         if (DeadNodes_.contains(nodeId)) {
+            break;
+        }
+
+        if (chunkIndexesToFetch.size() == oldChunkIndexesToFetchSize) {
+            YT_LOG_DEBUG(
+                "Fetching iteration did not make any progress, considering node dead (Address: %v)",
+                NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
+            DeadNodes_.insert(nodeId);
+            // All unfetched chunks will be put back into the common pool after this.
             break;
         }
     }
