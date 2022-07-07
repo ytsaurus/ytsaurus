@@ -2287,10 +2287,12 @@ void TObjectService::ProcessSessions()
         TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
         auto readFuture = LocalReadExecutor_->Run(quantumDuration);
 
-        // Busy wait is intended here to account local read time
-        // into automaton thread CPU usage.
-        while (!readFuture.IsSet())
-        { }
+        if (Config_->EnableLocalReadBusyWait) {
+            // Busy wait is intended here to account local read time
+            // into automaton thread CPU usage.
+            while (!readFuture.IsSet())
+            { }
+        }
 
         readFuture
             .Get()
