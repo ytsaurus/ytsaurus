@@ -206,6 +206,9 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("delay_inside_fair_share_update", &TThis::DelayInsideFairShareUpdate)
         .Default();
+
+    registrar.Parameter("delay_inside_resource_usage_initialization_in_tree", &TThis::DelayInsideResourceUsageInitializationInTree)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
