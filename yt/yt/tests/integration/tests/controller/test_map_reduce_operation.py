@@ -799,26 +799,27 @@ print "x={0}\ty={1}".format(x, y)
             sort_by="x",
             reducer_command=reducer_cmd,
             spec={
-                "partition_count": 2,
                 "sort_locality_timeout": 0,
                 "sort_assignment_timeout": 0,
                 "enable_partitioned_data_balancing": False,
                 "intermediate_data_replication_factor": 1,
                 "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
-                "resource_limits": {"user_slots": 1},
                 "ordered": ordered,
             },
             track=False,
         )
 
-        # We wait for the first reducer to start (second is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
         self._ban_nodes_with_intermediate_chunks()
 
-        # First reducer will probably compelete successfully, but the second one
-        # must fail due to unavailable intermediate chunk.
+        jobs = op.get_running_jobs().keys()
+        assert len(jobs) == 1
+        abort_job(list(jobs)[0])
+        # We abort reducer and restarted job will fail
+        # due to unavailable intermediate chunk.
         # This will lead to a lost map job.
+
         events_on_fs().notify_event("continue_reducer")
         op.track()
 
