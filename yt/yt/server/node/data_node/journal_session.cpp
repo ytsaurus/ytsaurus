@@ -64,7 +64,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    auto result = Changelog_->Close();
+    auto result = Changelog_->Finish();
 
     if (blockCount) {
         if (*blockCount != Changelog_->GetRecordCount()) {

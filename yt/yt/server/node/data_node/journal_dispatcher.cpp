@@ -197,7 +197,8 @@ public:
 
     TFuture<void> Flush() override
     {
-        return UnderlyingChangelog_->Flush().ToUncancelable();
+        return UnderlyingChangelog_->Flush()
+            .ToUncancelable();
     }
 
     TFuture<std::vector<TSharedRef>> Read(
@@ -216,7 +217,8 @@ public:
 
     TFuture<void> Truncate(int recordCount) override
     {
-        return UnderlyingChangelog_->Truncate(recordCount);
+        return UnderlyingChangelog_->Truncate(recordCount)
+            .ToUncancelable();
     }
 
     TFuture<void> Close() override
@@ -225,6 +227,12 @@ public:
             Owner_->TryRemoveValue(this, /*forbidResurrection*/ true);
             return error;
         })).ToUncancelable();
+    }
+
+    TFuture<void> Finish() override
+    {
+        return UnderlyingChangelog_->Finish()
+            .ToUncancelable();
     }
 
 private:

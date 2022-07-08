@@ -297,7 +297,7 @@ private:
             TEventTimerGuard guard(ChangelogFlushIOTimer_);
             try {
                 Changelog_->Append(FlushedRecordCount_, FlushQueue_);
-                Changelog_->Flush();
+                Changelog_->Flush(/*withIndex*/ false);
                 LastFlushed_.store(NProfiling::GetCpuInstant());
             } catch (const std::exception& ex) {
                 error = ex;
@@ -455,6 +455,13 @@ public:
             .Run(queue);
     }
 
+    TFuture<void> FinishQueue(const TFileChangelogQueuePtr& queue)
+    {
+        return BIND(&TFileChangelogDispatcher::DoFinishQueue, MakeStrong(this))
+            .AsyncVia(queue->GetInvoker())
+            .Run(queue);
+    }
+
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
@@ -545,6 +552,15 @@ private:
         changelog->Close();
     }
 
+    void DoFinishQueue(const TFileChangelogQueuePtr& queue)
+    {
+        YT_VERIFY(!queue->HasUnflushedRecords());
+
+        TEventTimerGuard guard(ChangelogCloseIOTimer_);
+        const auto& changelog = queue->GetChangelog();
+        changelog->Flush(/*withIndex*/ true);
+    }
+
     IFileChangelogPtr DoCreateChangelog(
         int id,
         const TString& path,
@@ -629,7 +645,6 @@ public:
 
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
-        YT_VERIFY(!Closed_ && !Truncated_);
         i64 byteSize = GetByteSize(records);
         RecordCount_ += records.Size();
         DataSize_ += byteSize;
@@ -666,7 +681,7 @@ public:
     {
         YT_VERIFY(recordCount <= RecordCount_);
         RecordCount_ = recordCount;
-        Truncated_ = true;
+
         // NB: Ignoring the result seems fine since the changelog
         // will propagate any possible error as the result of all further calls.
         Dispatcher_->ForceFlushQueue(Queue_);
@@ -675,10 +690,16 @@ public:
 
     TFuture<void> Close() override
     {
-        Closed_ = true;
         // NB: See #Truncate above.
         Dispatcher_->ForceFlushQueue(Queue_);
         return Dispatcher_->CloseQueue(Queue_);
+    }
+
+    TFuture<void> Finish() override
+    {
+        // NB: See #Truncate above.
+        Dispatcher_->ForceFlushQueue(Queue_);
+        return Dispatcher_->FinishQueue(Queue_);
     }
 
 private:
@@ -687,9 +708,6 @@ private:
     const TFileChangelogConfigPtr Config_;
 
     const TFileChangelogQueuePtr Queue_;
-
-    bool Closed_ = false;
-    bool Truncated_ = false;
 
     std::atomic<int> RecordCount_;
     std::atomic<i64> DataSize_;
