@@ -33,6 +33,7 @@ struct TClientOptions
     static TClientOptions FromUser(const TString& user, const std::optional<TString>& userTag = {});
     static TClientOptions FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity);
     static TClientOptions FromToken(const TString& token);
+    static TClientOptions FromServiceTicket(const TString& ticket);
 
     const TString& GetAuthenticatedUser() const;
     NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const;
@@ -48,6 +49,7 @@ struct TClientOptions
     std::optional<TString> UserTag;
 
     std::optional<TString> Token;
+    std::optional<TString> ServiceTicket;
     std::optional<TString> SessionId;
     std::optional<TString> SslSessionId;
 };

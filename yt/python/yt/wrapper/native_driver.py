@@ -1,4 +1,4 @@
-from .config import get_config, get_option, set_option
+from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, generate_int64, update, get_value
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
@@ -17,9 +17,15 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 
-driver_bindings = None
-logging_configured = False
-address_resolver_configured = False
+backend_to_driver_bindings = {}
+
+
+class DriverBindings(object):
+    def __init__(self, bindings, backend_type):
+        self.bindings = bindings
+        self.backend_type = backend_type
+        self.logging_configured = False
+        self.address_resolver_configured = False
 
 
 class NullStream(object):
@@ -31,25 +37,25 @@ class NullStream(object):
 
 
 def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
-    global driver_bindings
-    if driver_bindings is not None:
+    global backend_to_driver_bindings
+    if backend_type in backend_to_driver_bindings:
         return
 
     if backend_type == "rpc":
         try:
             import yt_driver_rpc_bindings
-            driver_bindings = yt_driver_rpc_bindings
+            backend_to_driver_bindings["rpc"] = DriverBindings(yt_driver_rpc_bindings, "rpc")
         except ImportError:
             if allow_fallback_to_native_driver:
                 try:
                     import yt_driver_bindings
-                    driver_bindings = yt_driver_bindings
+                    backend_to_driver_bindings["native"] = DriverBindings(yt_driver_bindings, "native")
                 except ImportError:
                     pass
     else:
         try:
             import yt_driver_bindings
-            driver_bindings = yt_driver_bindings
+            backend_to_driver_bindings[backend_type] = DriverBindings(yt_driver_bindings, backend_type)
         except ImportError:
             pass
 
@@ -71,15 +77,17 @@ def read_config(path):
 
 
 def configure_logging(logging_config_from_file, client):
-    global logging_configured
-    if logging_configured:
+    backend_type = get_backend_type(client)
+
+    global backend_to_driver_bindings
+    if backend_to_driver_bindings[backend_type].logging_configured:
         return
 
     config = get_config(client)
     if config["driver_logging_config"]:
-        driver_bindings.configure_logging(config["driver_logging_config"])
+        backend_to_driver_bindings[backend_type].bindings.configure_logging(config["driver_logging_config"])
     elif logging_config_from_file:
-        driver_bindings.configure_logging(logging_config_from_file)
+        backend_to_driver_bindings[backend_type].bindings.configure_logging(logging_config_from_file)
     else:
         if logger_config.LOG_LEVEL is None:
             min_level = "warning"
@@ -101,27 +109,29 @@ def configure_logging(logging_config_from_file, client):
                 },
             },
         }
-        driver_bindings.configure_logging(logging_config)
+        backend_to_driver_bindings[backend_type].bindings.configure_logging(logging_config)
 
-    logging_configured = True
+    backend_to_driver_bindings[backend_type].logging_configured = True
 
 
 def configure_address_resolver(address_resolver_config, client):
-    global address_resolver_configured
-    if address_resolver_configured:
+    backend_type = get_backend_type(client)
+    global backend_to_driver_bindings
+    if backend_to_driver_bindings[backend_type].address_resolver_configured:
         return
 
     config = get_config(client)
     if config["driver_address_resolver_config"] is not None:
-        driver_bindings.configure_address_resolver(config["driver_address_resolver_config"])
+        backend_to_driver_bindings[backend_type].bindings.configure_address_resolver(config["driver_address_resolver_config"])
     elif address_resolver_config is not None:
-        driver_bindings.configure_address_resolver(address_resolver_config)
+        backend_to_driver_bindings[backend_type].bindings.configure_address_resolver(address_resolver_config)
 
-    address_resolver_configured = True
+    backend_to_driver_bindings[backend_type].address_resolver_configured = True
 
 
 def get_driver_instance(client):
     driver = get_option("_driver", client=client)
+    backend_type = get_backend_type(client)
     if driver is None:
         logging_config = None
         address_resolver_config = None
@@ -133,7 +143,7 @@ def get_driver_instance(client):
             driver_config, logging_config, address_resolver_config = \
                 read_config(config["driver_config_path"])
         else:
-            if config["backend"] == "rpc":
+            if backend_type == "rpc":
                 if config["proxy"]["url"] is None:
                     raise YtError("For rpc backend driver config or proxy url must be specified")
                 else:
@@ -152,9 +162,9 @@ def get_driver_instance(client):
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], config["backend"]))
 
-        lazy_import_driver_bindings(config["backend"], config["allow_fallback_to_native_driver"])
-        if driver_bindings is None:
-            if config["backend"] == "rpc":
+        lazy_import_driver_bindings(backend_type, config["allow_fallback_to_native_driver"])
+        if backend_type not in backend_to_driver_bindings:
+            if backend_type == "rpc":
                 raise YtError("Driver class not found, install RPC driver bindings. "
                               "Bindings are shipped as additional package and "
                               "can be installed as Debian package \"yandex-yt-python-driver-rpc\" "
@@ -178,13 +188,13 @@ def get_driver_instance(client):
             if specified_api_version is not None:
                 driver_config["api_version"] = int(specified_api_version[1:])
 
-        set_option("_driver", driver_bindings.Driver(driver_config), client=client)
+        set_option("_driver", backend_to_driver_bindings[backend_type].bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
 
     return driver
 
 
-def create_driver_for_cell(driver, cell_id):
+def create_driver_for_cell(driver, cell_id, backend_type):
     config = driver.get_config()
     if config["primary_master"]["cell_id"] == cell_id:
         return driver
@@ -206,7 +216,7 @@ def create_driver_for_cell(driver, cell_id):
 
     del config["secondary_masters"]
 
-    return driver_bindings.Driver(config)
+    return backend_to_driver_bindings[backend_type].bindings.Driver(config)
 
 
 def convert_to_stream(data):
@@ -245,10 +255,11 @@ def make_request(command_name, params,
                  return_content=True,
                  client=None):
     driver = get_driver_instance(client)
+    backend_type = get_backend_type(client)
 
     cell_id = params.get("master_cell_id")
     if cell_id is not None:
-        driver = create_driver_for_cell(driver, cell_id)
+        driver = create_driver_for_cell(driver, cell_id, backend_type)
 
     require(command_name in driver.get_command_descriptors(),
             lambda: YtError("Command {0} is not supported".format(command_name)))
@@ -270,7 +281,7 @@ def make_request(command_name, params,
             if return_content:
                 output_stream = BytesIO()
             else:
-                output_stream = driver_bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
+                output_stream = backend_to_driver_bindings[backend_type].bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
 
     request_id = generate_int64(get_option("_random_generator", client))
 
@@ -280,16 +291,26 @@ def make_request(command_name, params,
     if driver_user_name is not None:
         driver_user_name = str(driver_user_name)
 
+    token = None
+    service_ticket = None
+
+    tvm_auth = get_config(client)["tvm_auth"]
+    if tvm_auth is not None:
+        service_ticket = tvm_auth.issue_service_ticket()
+    else:
+        token = get_token(client=client)
+
     try:
-        request = driver_bindings.Request(
+        request = backend_to_driver_bindings[backend_type].bindings.Request(
             command_name=command_name,
             parameters=params,
             input_stream=input_stream,
             output_stream=output_stream,
             user=driver_user_name,
-            token=get_token(client=client))
+            token=token,
+            service_ticket=service_ticket)
     except TypeError:
-        request = driver_bindings.Request(
+        request = backend_to_driver_bindings[backend_type].bindings.Request(
             command_name=command_name,
             parameters=params,
             input_stream=input_stream,

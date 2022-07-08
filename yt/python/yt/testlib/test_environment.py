@@ -52,7 +52,7 @@ class YtTestEnvironment(object):
                  delta_proxy_config=None,
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
-        yt.native_driver.driver_bindings = None
+        yt.native_driver.backend_to_driver_bindings = {}
 
         self.test_name = test_name
 
@@ -266,7 +266,7 @@ class YtTestEnvironment(object):
 
     def reload_global_configuration(self):
         yt.config._init_state()
-        yt.native_driver.driver_bindings = None
+        yt.native_driver.backend_to_driver_bindings = {}
         yt._cleanup_http_session()
         yt.config.config = self.config
 

@@ -138,6 +138,10 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         request.UserToken = ConvertStringObjectToString(*token);
     }
 
+    if (auto ticket = FindAttr(pyRequest, "service_ticket"); ticket && !ticket->isNone()) {
+        request.ServiceTicket = ConvertStringObjectToString(*ticket);
+    }
+
     if (auto id = FindAttr(pyRequest, "id"); id && !id->isNone()) {
         request.Id = static_cast<ui64>(Py::ConvertToLongLong(*id));
     }

@@ -23,6 +23,11 @@ NRpc::IChannelPtr CreateCookieInjectingChannel(
     const TString& sessionId,
     const TString& sslSessionId);
 
+NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const std::optional<TString>& user,
+    const TString& ticket);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
