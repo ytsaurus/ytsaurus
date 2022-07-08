@@ -12,7 +12,7 @@ from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt_commands import (
     abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get, set, ls,
-    run_test_vanilla, map, map_reduce, events_on_fs)
+    run_test_vanilla, map, map_reduce)
 
 from yt.common import YtError
 
@@ -92,39 +92,40 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
 
         create_test_tables(row_count=10)
 
-        reducer_cmd = " ; ".join(
-            [
-                "cat",
-                events_on_fs().notify_event_cmd("reducer_started"),
-                events_on_fs().wait_event_cmd("continue_reducer"),
-            ]
-        )
-
         op = map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by="x",
             sort_by="x",
             mapper_command='cat; if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; fi',
-            reducer_command=reducer_cmd,
+            reducer_command=with_breakpoint("cat;BREAKPOINT"),
             spec={
                 "probing_ratio": 1,
                 "probing_pool_tree": "cloud_tree",
-                "partition_count": 2,
                 "intermediate_data_replication_factor": 1,
                 "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
-                "resource_limits": {"user_slots": 2},
             },
             track=False,
         )
 
-        # We wait for the first reducer to start (second is pending due to resource_limits).
-        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(seconds=20))
+        wait_breakpoint()
 
         self.ban_nodes_with_intermediate_chunks()
 
-        events_on_fs().notify_event("continue_reducer")
+        job_id = self.get_reducer_job(op)
+        abort_job(job_id)
+
+        release_breakpoint()
         op.track()
+
+    def get_reducer_job(self, op):
+        jobs = op.get_running_jobs()
+
+        for job_id, job in jobs.items():
+            if job["job_type"] == "partition_reduce" and not job["probing"]:
+                return job_id
+
+        raise Exception("Reducer not found in {}".format(list(jobs)))
 
     def ban_nodes_with_intermediate_chunks(self):
         chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
@@ -147,6 +148,9 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
         node_id = replicas[0]
 
         set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
+
         return [node_id]
 
 
