@@ -68,6 +68,7 @@ public:
         : CellDirectory_(std::move(cellDirectory))
         , NodeRole_(nodeRole)
         , ChannelBuilder_(std::move(channelBuilder))
+        , SyncPeriod_(syncPeriod)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
@@ -130,6 +131,7 @@ private:
     const TWeakPtr<TCellDirectory> CellDirectory_;
     const ENodeRole NodeRole_;
     const TCallback<IChannelPtr(const std::vector<TString>&)> ChannelBuilder_;
+    const TDuration SyncPeriod_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NYT::NLogging::TLogger Logger;
 
@@ -221,8 +223,10 @@ private:
             // TODO(aleksandra-zh): think of a better way of annotating req and batchReq.
             TGetClusterMetaOptions options;
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
+            cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(
+                std::min(options.ExpireAfterSuccessfulUpdateTime, SyncPeriod_)));
+            cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(
+                std::min(options.ExpireAfterFailedUpdateTime, SyncPeriod_)));
 
             auto batchReq = proxy.ExecuteBatch();
             batchReq->SetSuppressTransactionCoordinatorSync(true);

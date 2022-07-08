@@ -1133,6 +1133,12 @@ def _build_cluster_connection_config(yt_config,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
             "rpc_timeout": 25000,
+            # Decrease the number of retry attempts to overcome the following issue:
+            # when a master cache node becomes banned it takes this node a significant amount of time
+            # to re-register again (once it becomes unbanned) since the node must wait
+            # for metadata synchronizer iterations to fail before falling back to
+            # direct master communication.
+            "retry_attempts": 3,
             "addresses": master_cache_addresses,
             "cell_id": master_connection_configs[primary_cell_tag]["cell_id"],
         }

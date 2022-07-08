@@ -2,9 +2,11 @@ from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
-from yt_commands import authors, print_debug, wait, ls, get, set, create_rack, start_transaction
+from yt_commands import authors, print_debug, wait, ls, get, set, exists, create_rack, start_transaction
 
 from yt.common import YtError
+
+from yt.wrapper.common import generate_uuid
 
 from flaky import flaky
 
@@ -16,7 +18,7 @@ import pytest
 #################################################################
 
 
-class Base:
+class NodeDiscoveryManagerBase(YTEnvSetup):
     def select_node(self, id):
         return sorted(ls("//sys/cluster_nodes"))[id]
 
@@ -44,10 +46,10 @@ class Base:
                 for node in sorted(ls("//sys/cluster_nodes"))
             ]
 
-            while True:
+            for _ in range(10):
                 time.sleep(0.5)
                 try:
-                    for i in range(10):
+                    for _ in range(10):
                         make_request()
                 except YtError:
                     continue
@@ -63,6 +65,7 @@ class Base:
                         ok = False
                 if ok:
                     return True
+            return False
 
         wait(check, "Cache traffic goes through improper nodes")
 
@@ -86,7 +89,7 @@ class Base:
         self.wait_for_config([1])
 
     @authors("aleksandra-zh")
-    def test_no_available_proveders(self):
+    def test_no_available_providers(self):
         self.set_node_tag_filter("some_long_and_creepy_tag")
 
         self.wait_for_config([])
@@ -139,12 +142,20 @@ class Base:
         self.wait_for_config([0, 1, 2])
 
 
-class TestMasterCache(Base, YTEnvSetup):
+class TestMasterCacheDiscovery(NodeDiscoveryManagerBase):
     NUM_TEST_PARTITIONS = 3
     NUM_MASTERS = 1
     NUM_NODES = 3
 
     USE_MASTER_CACHE = True
+
+    DELTA_MASTER_CONFIG = {
+        "node_tracker": {
+            "master_cache_manager": {
+                "update_period": 1000
+            }
+        }
+    }
 
     def get_discovered_node_list(self):
         return sorted(get("//sys/cluster_nodes/@master_cache_nodes"))
@@ -170,11 +181,12 @@ class TestMasterCache(Base, YTEnvSetup):
         )
         if expected_nodes:
             self.wait_for_config_at_nodes(expected_nodes)
-        self.wait_for_requests(
-            expected_node_ids,
-            {"yt_service": "ObjectService", "method": "Execute"},
-            lambda: ls("//tmp", read_from="cache"),
-        )
+            self.wait_for_requests(
+                expected_node_ids,
+                {"yt_service": "ObjectService", "method": "Execute"},
+                # Randomize requests since caches are sticky.
+                lambda: exists("//tmp/" + generate_uuid(), read_from="cache"),
+            )
 
     def set_peer_count(self, peer_count):
         set("//sys/@config/node_tracker/master_cache_manager/peer_count", peer_count)
@@ -192,7 +204,7 @@ class TestMasterCache(Base, YTEnvSetup):
         )
 
 
-class TestTimestampProvider(Base, YTEnvSetup):
+class TestTimestampProviderDiscovery(NodeDiscoveryManagerBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -203,9 +215,23 @@ class TestTimestampProvider(Base, YTEnvSetup):
         "cell_id": "1-1-1-1",
     }
 
-    DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": TIMESTAMP_PROVIDER_CONFIG}}
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "timestamp_provider": TIMESTAMP_PROVIDER_CONFIG
+        }
+    }
 
-    DELTA_DRIVER_CONFIG = {"timestamp_provider": TIMESTAMP_PROVIDER_CONFIG}
+    DELTA_DRIVER_CONFIG = {
+        "timestamp_provider": TIMESTAMP_PROVIDER_CONFIG
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "node_tracker": {
+            "timestamp_provider_manager": {
+                "update_period": 1000
+            }
+        }
+    }
 
     def get_discovered_node_list(self):
         return sorted(get("//sys/cluster_nodes/@timestamp_provider_nodes"))
