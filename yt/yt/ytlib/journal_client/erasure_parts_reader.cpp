@@ -43,11 +43,13 @@ public:
         TErasurePartsReaderPtr reader,
         const TClientChunkReadOptions& options,
         int firstRowIndex,
-        int readRowCount)
+        int readRowCount,
+        bool enableFastPath)
         : Reader_(std::move(reader))
         , Options_(options)
         , FirstRowIndex_(firstRowIndex)
         , ReadRowCount_(readRowCount)
+        , EnableFastPath_(enableFastPath)
         , Logger(Reader_->Logger)
     { }
 
@@ -96,6 +98,7 @@ private:
     const TClientChunkReadOptions Options_;
     const int FirstRowIndex_;
     const int ReadRowCount_;
+    const bool EnableFastPath_;
 
     const NLogging::TLogger& Logger;
 
@@ -266,6 +269,10 @@ private:
     bool CanRunFastPath()
     {
         VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
+        if (!EnableFastPath_) {
+            return false;
+        }
 
         TPartIndexSet set;
         for (int index : Reader_->PartIndices_) {
@@ -496,9 +503,15 @@ TErasurePartsReader::TErasurePartsReader(
 TFuture<std::vector<std::vector<TSharedRef>>> TErasurePartsReader::ReadRows(
     const TClientChunkReadOptions& options,
     int firstRowIndex,
-    int rowCount)
+    int rowCount,
+    bool enableFastPath)
 {
-    return New<TReadRowsSession>(this, options, firstRowIndex, rowCount)
+    return New<TReadRowsSession>(
+        this,
+        options,
+        firstRowIndex,
+        rowCount,
+        enableFastPath)
         ->Run();
 }
 

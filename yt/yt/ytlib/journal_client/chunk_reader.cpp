@@ -223,7 +223,11 @@ public:
                 GetPartIndexesToRead(Reader_->ChunkId_, Reader_->Codec_),
                 Logger);
 
-            partsReader->ReadRows(Options_, FirstBlockIndex_, BlockCount_)
+            partsReader->ReadRows(
+                Options_,
+                FirstBlockIndex_,
+                BlockCount_,
+                /*enableFastPath*/ RetryIndex_ == 1)
                 .Subscribe(BIND(&TReadBlocksSession::OnRowsRead, MakeStrong(this))
                     .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
         }
