@@ -197,9 +197,9 @@ private:
                 request->GetRequestId(),
                 request->GetMethod(),
                 path,
-                GetBalancerRequestId(request),
-                GetBalancerRealIP(request),
-                GetUserAgent(request));
+                FindBalancerRequestId(request),
+                FindBalancerRealIP(request),
+                FindUserAgent(request));
 
             auto handler = Handlers_->Match(path);
             if (handler) {

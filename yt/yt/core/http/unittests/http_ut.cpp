@@ -1227,23 +1227,23 @@ TEST(THttpHandlerMatchingTest, Simple)
 TEST(TRangeHeadersTest, Test)
 {
     auto headers = New<THeaders>();
-    EXPECT_EQ(GetRange(headers), std::nullopt);
+    EXPECT_EQ(FindBytesRange(headers), std::nullopt);
 
     headers->Set("Range", "bytes=2-1234");
     std::pair<int64_t, int64_t> result{2, 1234};
-    EXPECT_EQ(GetRange(headers), result);
+    EXPECT_EQ(FindBytesRange(headers), result);
 
     headers->Set("Range", "bytes=1234-");
-    EXPECT_ANY_THROW(GetRange(headers));
+    EXPECT_ANY_THROW(FindBytesRange(headers));
 
     headers->Set("Range", "bytes=junk");
-    EXPECT_ANY_THROW(GetRange(headers));
+    EXPECT_ANY_THROW(FindBytesRange(headers));
 
     headers->Set("Range", "bytes=1-2, 3-");
-    EXPECT_ANY_THROW(GetRange(headers));
+    EXPECT_ANY_THROW(FindBytesRange(headers));
 
     headers->Set("Range", "bytes=-2");
-    EXPECT_ANY_THROW(GetRange(headers));
+    EXPECT_ANY_THROW(FindBytesRange(headers));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

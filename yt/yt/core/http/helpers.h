@@ -31,10 +31,12 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 
 void ProtectCsrfToken(const IResponseWriterPtr& rsp);
 
-std::optional<TString> GetHeader(const IRequestPtr& req, const TString& headerName);
-std::optional<TString> GetBalancerRequestId(const IRequestPtr& req);
-std::optional<TString> GetBalancerRealIP(const IRequestPtr& req);
-std::optional<TString> GetUserAgent(const IRequestPtr& req);
+std::optional<TString> FindHeader(const IRequestPtr& req, const TString& headerName);
+std::optional<TString> FindBalancerRequestId(const IRequestPtr& req);
+std::optional<TString> FindBalancerRealIP(const IRequestPtr& req);
+
+std::optional<TString> FindUserAgent(const IRequestPtr& req);
+void SetUserAgent(const THeadersPtr& headers, const TString& value);
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer);
 
@@ -45,8 +47,8 @@ NTracing::TSpanId GetSpanId(const IRequestPtr& req);
 
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req);
 
-std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers);
-void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range);
+std::optional<std::pair<int64_t, int64_t>> FindBytesRange(const THeadersPtr& headers);
+void SetBytesRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range);
 
 ////////////////////////////////////////////////////////////////////////////////
 
