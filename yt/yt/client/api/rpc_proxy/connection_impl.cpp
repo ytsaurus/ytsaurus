@@ -199,7 +199,7 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
     UpdateProxyListExecutor_ = New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
-        Config_->ProxyListUpdatePeriod);
+        TPeriodicExecutorOptions::WithJitter(Config_->ProxyListUpdatePeriod));
 
     Config_->Postprocess();
 
