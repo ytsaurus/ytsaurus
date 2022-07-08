@@ -142,6 +142,16 @@ class TestQueueAgentBase(YTEnvSetup):
 
         cls._apply_dynamic_config_patch(getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()))
 
+    def setup_method(self, method):
+        super(TestQueueAgentBase, self).setup_method(method)
+
+        self._prepare_tables()
+
+    def teardown_method(self, method):
+        self._drop_tables()
+
+        super(TestQueueAgentBase, self).teardown_method(method)
+
     @classmethod
     def _apply_dynamic_config_patch(cls, patch):
         config = get(cls.config_path)
@@ -239,8 +249,6 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     def test_queue_state(self):
         orchid = QueueAgentOrchid()
 
-        self._prepare_tables()
-
         orchid.wait_fresh_poll()
         queues = orchid.get_queues()
         assert len(queues) == 0
@@ -310,8 +318,6 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     @authors("max42")
     def test_consumer_state(self):
         orchid = QueueAgentOrchid()
-
-        self._prepare_tables()
 
         orchid.wait_fresh_poll()
         queues = orchid.get_queues()
@@ -425,8 +431,6 @@ class TestQueueController(TestQueueAgentBase):
 
     @authors("max42")
     def test_queue_status(self):
-        self._prepare_tables()
-
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
@@ -474,8 +478,6 @@ class TestQueueController(TestQueueAgentBase):
 
     @authors("max42")
     def test_consumer_status(self):
-        self._prepare_tables()
-
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
@@ -531,8 +533,6 @@ class TestQueueController(TestQueueAgentBase):
 
     @authors("max42")
     def test_consumer_partition_disposition(self):
-        self._prepare_tables()
-
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q")
@@ -557,8 +557,6 @@ class TestQueueController(TestQueueAgentBase):
 
     @authors("max42")
     def test_inconsistent_partitions_in_consumer_table(self):
-        self._prepare_tables()
-
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
@@ -670,8 +668,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_queue_attribute_leader_redirection(self):
-        self._prepare_tables()
-
         queues = ["//tmp/q{}".format(i) for i in range(3)]
         for queue in queues:
             create("table", queue, attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
@@ -726,8 +722,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_consumer_attribute_leader_redirection(self):
-        self._prepare_tables()
-
         consumers = ["//tmp/c{}".format(i) for i in range(3)]
         target_queues = ["//tmp/q{}".format(i) for i in range(len(consumers))]
         for i in range(len(consumers)):
@@ -808,8 +802,6 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("max42")
     def test_queue_attributes(self):
-        self._prepare_tables()
-
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
 
@@ -844,8 +836,6 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_consumer_attributes(self):
-        self._prepare_tables()
-
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
         create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
@@ -883,8 +873,6 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("max42")
     def test_queue_agent_stage(self):
-        self._prepare_tables()
-
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
 
@@ -931,7 +919,6 @@ class TestMasterIntegration(TestQueueAgentBase):
     @pytest.mark.parametrize("enable_revision_changing", [False, True])
     def test_revision_changes_on_queue_attribute_change(self, enable_revision_changing):
         set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
-        self._prepare_tables()
 
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
@@ -945,9 +932,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         "BIGRT_CONSUMER_TABLE_SCHEMA" not in globals(),
         reason="BIGRT_CONSUMER_TABLE_SCHEMA doesn't exist supported in current version")
     def test_revision_changes_on_consumer_attribute_change(self, enable_revision_changing):
-
         set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
-        self._prepare_tables()
 
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
@@ -1009,15 +994,9 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
 
-    def setup_method(self, method):
-        super(TestCypressSynchronizerBase, self).setup_method(method)
-
-        self._prepare_tables()
-
     def teardown_method(self, method):
         self._drop_queues()
         self._drop_consumers()
-        self._drop_tables()
 
         super(TestCypressSynchronizerBase, self).teardown_method(method)
 
