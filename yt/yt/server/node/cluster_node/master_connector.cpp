@@ -149,7 +149,7 @@ public:
 
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
         auto* protoCpu = heartbeat.mutable_statistics()->mutable_cpu();
-        
+
         if (auto cpuLimit = resourceManager->GetCpuLimit()) {
             protoCpu->set_total_limit(*cpuLimit);
         }
@@ -411,7 +411,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (MasterConnectionContext_) {
-            MasterConnectionContext_->Cancel(TError("Master disconnceted"));
+            MasterConnectionContext_->Cancel(TError("Master disconnected"));
         }
 
         MasterConnectionContext_ = New<TCancelableContext>();
