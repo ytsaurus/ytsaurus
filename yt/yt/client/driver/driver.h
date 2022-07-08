@@ -57,6 +57,9 @@ struct TDriverRequest
     //! User token.
     std::optional<TString> UserToken;
 
+    //! TVM service ticket.
+    std::optional<TString> ServiceTicket;
+
     //! Additional logging tags.
     std::optional<TString> LoggingTags;
 

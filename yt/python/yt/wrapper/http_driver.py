@@ -248,6 +248,9 @@ def make_request(command_name,
         headers["X-YT-Accept-Framing"] = "1"
 
     auth = TokenAuth(get_token(client=client))
+    tvm_auth = get_config(client)["tvm_auth"]
+    if tvm_auth is not None:
+        auth = tvm_auth
 
     if command.input_type in ["binary", "tabular"]:
         content_encoding = get_config(client)["proxy"]["content_encoding"]

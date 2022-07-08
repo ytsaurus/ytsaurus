@@ -136,4 +136,43 @@ IChannelPtr CreateCookieInjectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TServiceTicketInjectingChannel
+    : public TUserInjectingChannel
+{
+public:
+    TServiceTicketInjectingChannel(
+        IChannelPtr underlyingChannel,
+        const std::optional<TString>& user,
+        const TString& ticket)
+        : TUserInjectingChannel(std::move(underlyingChannel), user)
+        , Ticket_(ticket)
+    { }
+
+protected:
+    void DoInject(const IClientRequestPtr& request) override
+    {
+        TUserInjectingChannel::DoInject(request);
+
+        auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        ext->set_service_ticket(Ticket_);
+    }
+
+private:
+    const TString Ticket_;
+};
+
+IChannelPtr CreateServiceTicketInjectingChannel(
+    IChannelPtr underlyingChannel,
+    const std::optional<TString>& user,
+    const TString& ticket)
+{
+    YT_VERIFY(underlyingChannel);
+    return New<TServiceTicketInjectingChannel>(
+        std::move(underlyingChannel),
+        user,
+        ticket);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NRpcProxy

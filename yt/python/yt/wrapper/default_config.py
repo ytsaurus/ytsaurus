@@ -76,7 +76,7 @@ default_config = {
     # If backend equals "native", then all requests will be done through c++ bindings and driver_config will be used.
     # If backend equals "rpc", then all requests will be done through c++ bindings to rpc proxies,
     # driver_config will be used.
-    # If backend equals None, thenits value will be automatically detected.
+    # If backend equals None, then its value will be automatically detected.
     "backend": None,
 
     # Configuration of proxy connection.
@@ -180,11 +180,13 @@ default_config = {
     # $HOME/.yt/token by default
     "token_path": None,
     # This option enables receiving token from oauth.yandex-team.ru
-    # using currect session ssh secret.
+    # using current session ssh secret.
     "allow_receive_token_by_current_ssh_session": True,
     # Tokens for receiving token by current ssh session.
     "oauth_client_id": "23b4f83306e3469abdee07054d307e7c",
     "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
+    # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client).
+    "tvm_auth": None,
 
     # Force using this version of api.
     "api_version": None,

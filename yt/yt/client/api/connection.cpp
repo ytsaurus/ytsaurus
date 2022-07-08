@@ -28,6 +28,13 @@ TClientOptions TClientOptions::FromToken(const TString& token)
     };
 }
 
+TClientOptions TClientOptions::FromServiceTicket(const TString& ticket)
+{
+    return {
+        .ServiceTicket = ticket
+    };
+}
+
 const TString& TClientOptions::GetAuthenticatedUser() const
 {
     static const TString UnknownUser("<unknown>");

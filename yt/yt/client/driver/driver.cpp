@@ -347,7 +347,8 @@ public:
 
         TClientOptions options{
             .User = request.AuthenticatedUser,
-            .Token = request.UserToken
+            .Token = request.UserToken,
+            .ServiceTicket = request.ServiceTicket,
         };
 
         auto client = ClientCache_->Get(identity, options);
