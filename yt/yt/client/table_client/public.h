@@ -153,6 +153,7 @@ YT_DEFINE_ERROR_ENUM(
     ((IncomparableComplexValues)         (324))
     ((KeyCannotBeNan)                    (325))
     ((StringLikeValueLenghtLimitExceeded)(326))
+    ((NameTableUpdateFailed)             (327))
 );
 
 DEFINE_ENUM(EControlAttribute,
