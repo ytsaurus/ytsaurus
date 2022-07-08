@@ -93,7 +93,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     }
 
     auto userIP = request->GetRemoteAddress();
-    auto realIP = GetBalancerRealIP(request);
+    auto realIP = FindBalancerRealIP(request);
     if (realIP) {
         auto parsedRealIP = NNet::TNetworkAddress::TryParse(*realIP);
         if (parsedRealIP.IsOK()) {

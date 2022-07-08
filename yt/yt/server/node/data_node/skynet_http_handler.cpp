@@ -153,7 +153,7 @@ private:
 
         std::optional<i64> byteLimit;
         i64 skipPrefix = 0;
-        auto httpRange = NHttp::GetRange(req->GetHeaders());
+        auto httpRange = NHttp::FindBytesRange(req->GetHeaders());
 
         YT_LOG_DEBUG("Received Skynet read request (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v)",
             chunkId,
@@ -232,7 +232,7 @@ private:
 
         if (httpRange) {
             rsp->SetStatus(EStatusCode::PartialContent);
-            NHttp::SetRange(rsp->GetHeaders(), *httpRange);
+            NHttp::SetBytesRange(rsp->GetHeaders(), *httpRange);
         } else {
             rsp->SetStatus(EStatusCode::OK);
         }

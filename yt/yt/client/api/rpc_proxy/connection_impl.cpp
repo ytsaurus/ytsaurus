@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/service_discovery/service_discovery.h>
 
+#include <yt/yt/build/ya_version.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NBus;
@@ -339,13 +341,15 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
         auto poller = TTcpDispatcher::Get()->GetXferPoller();
         auto client = NHttp::CreateClient(Config_->HttpClient, std::move(poller));
         auto headers = New<THeaders>();
+        SetUserAgent(headers, GetRpcUserAgent());
         if (auto token = DiscoveryToken_.Load()) {
             headers->Add("Authorization", "OAuth " + token);
         }
         headers->Add("X-YT-Correlation-Id", ToString(correlationId));
         headers->Add("X-YT-Header-Format", "<format=text>yson");
         headers->Add(
-            "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+            "X-YT-Parameters",
+            BuildYsonStringFluently(EYsonFormat::Text)
                 .BeginMap()
                     .Item("output_format")
                     .BeginAttributes()

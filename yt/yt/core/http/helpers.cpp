@@ -269,21 +269,18 @@ void ProtectCsrfToken(const IResponseWriterPtr& rsp)
     headers->Set(XDnsPrefetchControlHeaderName, "off");
 }
 
-std::optional<TString> GetHeader(const IRequestPtr& req, const TString& headerName)
+std::optional<TString> FindHeader(const IRequestPtr& req, const TString& headerName)
 {
     auto header = req->GetHeaders()->Find(headerName);
-    if (header) {
-        return *header;
-    }
-    return {};
+    return header ? std::make_optional(*header) : std::nullopt;
 }
 
-std::optional<TString> GetBalancerRequestId(const IRequestPtr& req)
+std::optional<TString> FindBalancerRequestId(const IRequestPtr& req)
 {
-    return GetHeader(req, "X-Req-Id");
+    return FindHeader(req, "X-Req-Id");
 }
 
-std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
+std::optional<TString> FindBalancerRealIP(const IRequestPtr& req)
 {
     const auto& headers = req->GetHeaders();
 
@@ -297,9 +294,14 @@ std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
     return {};
 }
 
-std::optional<TString> GetUserAgent(const IRequestPtr& req)
+std::optional<TString> FindUserAgent(const IRequestPtr& req)
 {
-    return GetHeader(req, "User-Agent");
+    return FindHeader(req, "User-Agent");
+}
+
+void SetUserAgent(const THeadersPtr& headers, const TString& value)
+{
+    headers->Set("User-Agent", value);
 }
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)
@@ -415,7 +417,7 @@ NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
     return traceContext;
 }
 
-std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers)
+std::optional<std::pair<int64_t, int64_t>> FindBytesRange(const THeadersPtr& headers)
 {
     auto range = headers->Find(RangeHeaderName);
     if (!range) {
@@ -434,11 +436,10 @@ std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers)
     return rangeValue;
 }
 
-void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range)
+void SetBytesRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range)
 {
     headers->Set(ContentRangeHeaderName, Format("bytes %v-%v/*", range.first, range.second));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -136,7 +136,7 @@ public:
             .OptionalItem("token_hash", !Token_.Empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
             .Item("proxy_address").Value(Bootstrap_->GetCoordinator()->GetSelf()->GetHost())
             .Item("client_address").Value(ToString(Request_->GetRemoteAddress()))
-            .OptionalItem("user_agent", GetUserAgent(Request_))
+            .OptionalItem("user_agent", FindUserAgent(Request_))
             .Item("http_method").Value(Request_->GetMethod())
             .Item("is_https").Value(Request_->IsHttps())
 
@@ -166,9 +166,9 @@ public:
                 std::nullopt)
             .OptionalItem("error", !ResponseError_.IsOK() ? std::make_optional(ResponseError_) : std::nullopt)
 
-            .OptionalItem("datalens_real_user", GetHeader(Request_, "X-DataLens-Real-User"))
-            .OptionalItem("x_request_id", GetHeader(Request_, "X-Request-Id"))
-            .OptionalItem("yql_operation_id", GetHeader(Request_, "X-YQL-Operation-ID"));
+            .OptionalItem("datalens_real_user", FindHeader(Request_, "X-DataLens-Real-User"))
+            .OptionalItem("x_request_id", FindHeader(Request_, "X-Request-Id"))
+            .OptionalItem("yql_operation_id", FindHeader(Request_, "X-YQL-Operation-ID"));
     }
 
     const TString& GetUser() const
