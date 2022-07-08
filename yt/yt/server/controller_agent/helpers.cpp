@@ -175,10 +175,10 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
             /*columnRenameDescriptors*/ {}));
         dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
     } else {
-        for (int i = 0; i < std::ssize(schemas); ++i) {
+        for (int index = 0; index < std::ssize(schemas); ++index) {
             dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
-                GetIntermediatePath(i),
-                schemas[i],
+                GetIntermediatePath(index),
+                schemas[index],
                 /*columns*/ std::nullopt,
                 /*omittedInaccessibleColumns*/ {},
                 /*columnRenameDescriptors*/ {}));
