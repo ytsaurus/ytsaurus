@@ -28,10 +28,12 @@ def get_process_count(cls, index):
     if controller_agent_count is None:
         controller_agent_count = scheduler_count
 
-    return (master_count * (secondary_cell_count + 1) +
-            scheduler_count + controller_agent_count +
-            node_count + chaos_node_count +
-            master_cache_count + http_proxy_count + rpc_proxy_count)
+    job_proxy_count = node_count if scheduler_count > 0 else 0
+
+    return (2 * master_count * (secondary_cell_count + 1) +
+            scheduler_count + controller_agent_count + master_cache_count +
+            (node_count + job_proxy_count + chaos_node_count + 1) // 2 +
+            (http_proxy_count + rpc_proxy_count + 1) // 2)
 
 
 def get_total_process_count(cls):
@@ -72,5 +74,5 @@ def pytest_collection_modifyitems(items, config):
         config.hook.pytest_deselected(items=deselected_items)
         items[:] = filtered_items
 
-    eprint("counts_by_process_count: {}".format(sorted(counts_by_process_count.items())))
-    eprint("counts_by_category: {}".format(sorted(counts_by_category.items())))
+    # eprint("counts_by_process_count: {}".format(sorted(counts_by_process_count.items())))
+    # eprint("counts_by_category: {}".format(sorted(counts_by_category.items())))
