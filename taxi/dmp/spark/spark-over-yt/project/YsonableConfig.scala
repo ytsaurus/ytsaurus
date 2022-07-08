@@ -66,7 +66,8 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                                "IS_SPARK_CLUSTER" -> "true",
                                "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1",
                                "ARROW_ENABLE_NULL_CHECK_FOR_GET" -> "false",
-                               "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS" -> "true"
+                               "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS" -> "true",
+                               "SOLOMON_PUSH_PORT" -> "27099"
                              ),
                              operation_spec: Map[String, YTreeNode] = Map(
                                "job_cpu_monitor" -> YsonableConfig.toYTree(Map("enable_cpu_reclaim" -> "false"))
