@@ -2262,6 +2262,7 @@ std::optional<EAbortReason> TJob::GetAbortReason()
 
         if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
             !resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) &&
+            !resultError.FindMatching(NTableClient::EErrorCode::NameTableUpdateFailed) &&
             schedulerResultExt.failed_chunk_ids_size() > 0)
         {
             return EAbortReason::FailedChunks;
