@@ -89,6 +89,8 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	}
 
 	// TODO: if this is too slow add cash for sizes
+	metaquery.ResultSkip = 0
+	metaquery.ResultLimit = 0
 	respLen, err := a.ts.MetadataIdsQueryExpr(ctx, metaquery)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
