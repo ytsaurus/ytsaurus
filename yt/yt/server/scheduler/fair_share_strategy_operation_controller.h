@@ -33,6 +33,7 @@ public:
     void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
+    bool ScheduleJobBackoffObserved() const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
@@ -83,6 +84,7 @@ private:
 
     std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
     std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
+    std::atomic<bool> ScheduleJobBackoffObserved_ = {false};
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;

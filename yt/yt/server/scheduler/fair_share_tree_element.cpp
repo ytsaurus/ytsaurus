@@ -1616,6 +1616,7 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     PendingJobCount_ = TotalNeededResources_.GetUserSlots();
     DetailedMinNeededJobResources_ = Controller_->GetDetailedMinNeededJobResources();
     AggregatedMinNeededJobResources_ = Controller_->GetAggregatedMinNeededJobResources();
+    ScheduleJobBackoffCheckEnabled_ = Controller_->ScheduleJobBackoffObserved();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();
