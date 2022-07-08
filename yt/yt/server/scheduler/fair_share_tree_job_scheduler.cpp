@@ -1745,7 +1745,9 @@ std::optional<EDeactivationReason> TScheduleJobsContext::CheckBlocked(const TSch
         return EDeactivationReason::MaxConcurrentScheduleJobCallsPerNodeShardViolated;
     }
 
-    if (element->HasRecentScheduleJobFailure(SchedulingContext_->GetNow())) {
+    if (element->ScheduleJobBackoffCheckEnabled() &&
+        element->HasRecentScheduleJobFailure(SchedulingContext_->GetNow()))
+    {
         return EDeactivationReason::RecentScheduleJobFailed;
     }
 

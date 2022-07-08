@@ -660,6 +660,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededJobResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededJobResources);
+    DEFINE_BYREF_RO_PROPERTY(bool, ScheduleJobBackoffCheckEnabled);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, DiskRequestMedia);
 
