@@ -62,7 +62,6 @@ public:
         std::optional<TPoolTag> poolTag = {}) override;
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PoolMapSpinLock_);
 
     std::atomic<i64> TotalLimit_;
 
@@ -537,8 +536,6 @@ TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
     if (auto it = Pools_.find(poolTag); it != Pools_.end()) {
         return it->second.Get();
     }
-
-    auto guard = Guard(PoolMapSpinLock_);
 
     auto pool = New<TPool>();
     pool->Tag = poolTag;
