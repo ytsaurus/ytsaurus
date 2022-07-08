@@ -79,7 +79,10 @@ struct IUnbufferedFileChangelog
         const std::vector<TSharedRef>& records) = 0;
 
     //! Flushes the changelog.
-    virtual void Flush() = 0;
+    /*!
+     *  If #withIndex is set then index file is also flushed.
+     */
+    virtual void Flush(bool withIndex) = 0;
 
     //! Reads at most #maxRecords records starting from record #firstRecordIndex.
     //! Stops if more than #maxBytes bytes are read.

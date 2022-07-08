@@ -19,6 +19,10 @@ struct IFileChangelog
     */
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) = 0;
+
+    //! Similar to IChangelog::Close flushes all the data (and the index)
+    //! but does not close the files.
+    virtual TFuture<void> Finish() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileChangelog)

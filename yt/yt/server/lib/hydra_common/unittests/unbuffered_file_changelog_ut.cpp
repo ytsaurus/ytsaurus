@@ -85,7 +85,7 @@ protected:
     {
         auto records = MakeRecords(firstRecordIndex, firstRecordIndex + recordCount);
         changelog->Append(firstRecordIndex, records);
-        changelog->Flush();
+        changelog->Flush(/*withIndex*/ false);
     }
 
     // In sizeof(i32) units.
@@ -187,7 +187,7 @@ protected:
         CheckRead(changelog, 0, initialRecordCount);
 
         changelog->Append(correctRecordCount, MakeRecords(correctRecordCount, initialRecordCount));
-        changelog->Flush();
+        changelog->Flush(/*withIndex*/ false);
 
         EXPECT_EQ(changelog->GetRecordCount(), initialRecordCount);
         CheckRead(changelog, 0, initialRecordCount);
@@ -201,6 +201,41 @@ protected:
 
         EXPECT_EQ(changelog->GetRecordCount(), recordCount);
         CheckRead(changelog, 0, recordCount);
+    }
+
+    void TestRecoverFromMissingIndex(i64 recoveryBufferSize)
+    {
+        constexpr int RecordCount = 256;
+        CreateChangelog(RecordCount);
+
+        auto config = New<TFileChangelogConfig>();
+        config->RecoveryBufferSize = recoveryBufferSize;
+
+        auto changelog = OpenChangelog(config);
+
+        EXPECT_EQ(RecordCount, changelog->GetRecordCount());
+        CheckRead(changelog, 0, RecordCount);
+    }
+
+    void TestForceIndexFlush(bool flushIndex)
+    {
+        auto config = New<TFileChangelogConfig>();
+        config->IndexFlushSize = 1_MB;
+
+        {
+            auto changelog = CreateChangelog(1, config);
+            changelog->Flush(flushIndex);
+        }
+
+        {
+            auto index = New<TFileChangelogIndex>(
+                IOEngine_,
+                /*memoryUsageTracker*/ nullptr,
+                TempIndexFile_->Name(),
+                DefaultFileChangelogConfig_);
+            EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
+            EXPECT_EQ(flushIndex ? 1 : 0, index->GetRecordCount());
+        }
     }
 };
 
@@ -291,22 +326,19 @@ TEST_P(TUnbufferedFileChangelogTest, TruncateRead)
     }
 }
 
-TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex)
+TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex1b)
 {
-    constexpr int RecordCount = 256;
+    TestRecoverFromMissingIndex(1);
+}
 
-    CreateChangelog(RecordCount);
+TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex100b)
+{
+    TestRecoverFromMissingIndex(100);
+}
 
-    for (auto recoveryBufferSize : {static_cast<i64>(1), static_cast<i64>(100), 16_MBs}) {
-        NFS::Remove(TempIndexFile_->Name());
-
-        auto config = New<TFileChangelogConfig>();
-        config->RecoveryBufferSize = recoveryBufferSize;
-        auto changelog = OpenChangelog(config);
-
-        EXPECT_EQ(RecordCount, changelog->GetRecordCount());
-        CheckRead(changelog, 0, RecordCount);
-    }
+TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex16Mb)
+{
+    TestRecoverFromMissingIndex(16_MBs);
 }
 
 TEST_P(TUnbufferedFileChangelogTest, TruncateEmpty)
@@ -348,10 +380,19 @@ TEST_P(TUnbufferedFileChangelogTest, TestIndexFlushOnClose)
             /*memoryUsageTracker*/ nullptr,
             TempIndexFile_->Name(),
             DefaultFileChangelogConfig_);
-
         EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
         EXPECT_EQ(RecordCount, index->GetRecordCount());
     }
+}
+
+TEST_P(TUnbufferedFileChangelogTest, DoForceIndexFlush)
+{
+    TestForceIndexFlush(true);
+}
+
+TEST_P(TUnbufferedFileChangelogTest, DontForceIndexFlush)
+{
+    TestForceIndexFlush(false);
 }
 
 INSTANTIATE_TEST_SUITE_P(

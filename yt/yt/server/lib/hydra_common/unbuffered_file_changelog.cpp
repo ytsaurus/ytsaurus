@@ -341,12 +341,13 @@ public:
         }
     }
 
-    void Flush() override
+    void Flush(bool withIndex) override
     {
         Error_.ThrowOnError();
         ValidateOpen();
 
-        YT_LOG_DEBUG("Started flushing changelog");
+        YT_LOG_DEBUG("Started flushing changelog (WithIndex: %v)",
+            withIndex);
 
         try {
             if (Config_->EnableSync) {
@@ -356,10 +357,17 @@ public:
 
             Index_->SetFlushedDataRecordCount(GetRecordCount());
 
-            if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&
-                Index_->CanFlush())
+            bool indexFlushed = false;
+            if (withIndex) {
+                Index_->SyncFlush();
+                indexFlushed = true;
+            } else if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&  Index_->CanFlush())
             {
                 Index_->AsyncFlush();
+                indexFlushed = true;
+            }
+
+            if (indexFlushed) {
                 AppendedDataSizeSinceLastIndexFlush_ = 0;
             }
         } catch (const std::exception& ex) {

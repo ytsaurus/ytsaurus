@@ -278,6 +278,10 @@ void TFileChangelogIndex::SetFlushedDataRecordCount(int count)
 void TFileChangelogIndex::AsyncFlush()
 {
     auto flushRecordCount = FlushedDataRecordCount_.load() - FlushedIndexRecordCount_;
+    if (flushRecordCount == 0) {
+        return;
+    }
+
     auto size = sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * flushRecordCount;
     auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(size, /*intializeStorage*/ false);
 
