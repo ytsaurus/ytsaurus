@@ -10,6 +10,8 @@ from yt_commands import (
 
 import yt.environment.init_operation_archive as init_operation_archive
 
+import pytest
+
 import time
 from functools import partial
 from collections import Counter
@@ -835,6 +837,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         }
     }
 
+    @pytest.mark.timeout(180)
     def test_gpu_check_success(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -864,6 +867,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         res = op.read_stderr(job_id)
         assert res == b"AAA\n"
 
+    @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -903,6 +907,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         phases = [event["phase"] for event in events if "phase" in event]
         assert "running_extra_gpu_check_command" in phases
 
+    @pytest.mark.timeout(180)
     def test_gpu_check_fail(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -940,6 +945,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         wait(lambda: op.get_state() == "failed")
 
+    @pytest.mark.timeout(180)
     def test_gpu_check_missing(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -970,6 +976,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
         assert len(get(alerts_path)) == 0
 
+    @pytest.mark.timeout(180)
     def test_disable_jobs_on_gpu_check_failure(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -1017,6 +1024,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         assert op.get_state() == "running"
 
+    @pytest.mark.timeout(180)
     def test_gpu_check_abort(self):
         self.setup_gpu_layer_and_reset_nodes()
 
@@ -1100,6 +1108,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         wait(lambda: get_job(op2.id, job_id2)["state"] == "running")
 
     @authors("eshcherbin")
+    @pytest.mark.timeout(180)
     def test_gpu_check_args(self):
         self.setup_gpu_layer_and_reset_nodes()
 
