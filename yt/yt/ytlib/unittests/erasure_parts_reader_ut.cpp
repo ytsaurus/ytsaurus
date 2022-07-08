@@ -159,14 +159,14 @@ private:
         {
             case TPlot::Succeed:
                 break;
-            
+
             case TPlot::Fail:
                 THROW_ERROR_EXCEPTION("Request failed!");
-            
+
             case TPlot::Slow:
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
                 break;
-            
+
             default:
                 YT_ABORT();
         }
@@ -195,7 +195,7 @@ struct TTestCase
     THashMap<int, TMockChunkReader::TPlot> ReadersPlot;
 
     TDuration SlowPathDelay = TDuration::Seconds(5);
-    
+
     bool ShouldFail = false;
 };
 
@@ -211,7 +211,7 @@ void ExecTest(TTestCase testCase)
 
     auto* codec = NErasure::GetCodec(NErasure::ECodec::IsaReedSolomon_3_3);
     auto encodedRows = NJournalClient::EncodeErasureJournalRows(codec, rows);
-    
+
     EXPECT_EQ(encodedRows.size(), 6u);
 
     const auto chunkId = NObjectClient::MakeRandomId(NObjectClient::EObjectType::ErasureJournalChunk, 0);
@@ -230,19 +230,25 @@ void ExecTest(TTestCase testCase)
         chunkReadersList,
         testCase.RequestedParts,
         logger);
-    
-    auto rowParts = reader->ReadRows({}, testCase.FirstRowIndex, testCase.RowCount).Get().ValueOrThrow();
+
+    auto rowParts = reader->ReadRows(
+        /*options*/ {},
+        testCase.FirstRowIndex,
+        testCase.RowCount,
+        /*enableFastPath*/ true)
+        .Get()
+        .ValueOrThrow();
     EXPECT_EQ(rowParts.size(), testCase.ExpectedPartRowsCount.size());
     for (int partIndex = 0; partIndex < std::ssize(rowParts); ++partIndex) {
         for (int row = 0; row <  testCase.ExpectedPartRowsCount[partIndex]; ++row) {
             EXPECT_TRUE(TRef::AreBitwiseEqual(encodedRows[partIndex][row + testCase.FirstRowIndex], rowParts[partIndex][row]));
         }
     }
-    
+
     if (testCase.DecodeRowsCount) {
         auto decodedRows = NJournalClient::DecodeErasureJournalRows(codec, rowParts);
         for (int row = 0; row < testCase.DecodeRowsCount; ++row) {
-            EXPECT_TRUE(TRef::AreBitwiseEqual(rows[row + testCase.FirstRowIndex], decodedRows[row]));   
+            EXPECT_TRUE(TRef::AreBitwiseEqual(rows[row + testCase.FirstRowIndex], decodedRows[row]));
         }
     }
 }
@@ -404,5 +410,5 @@ TEST(TErasurePartsReaderTest, SimpleTest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // anonymouse namespace 
-} // namespace NYT::NChunkClient 
+} // namespace
+} // namespace NYT::NChunkClient
