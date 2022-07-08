@@ -1080,10 +1080,10 @@ public:
     void CustomPrepare() override
     {
         int teleportOutputCount = 0;
-        for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
-            if (OutputTables_[i]->Path.GetTeleport()) {
+        for (int index = 0; index < static_cast<int>(OutputTables_.size()); ++index) {
+            if (OutputTables_[index]->Path.GetTeleport()) {
                 ++teleportOutputCount;
-                OutputTeleportTableIndex_ = i;
+                OutputTeleportTableIndex_ = index;
             }
         }
 
