@@ -150,7 +150,8 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     TDelayedExecutor::CancelAndClear(Cookie_);
     Cookie_ = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::OnTimer, MakeWeak(this)),
-        delay);
+        delay,
+        GetSyncInvoker());
 }
 
 void TPeriodicExecutor::PostCallback()
