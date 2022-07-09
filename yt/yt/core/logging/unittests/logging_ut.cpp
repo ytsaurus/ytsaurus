@@ -4,17 +4,21 @@
 
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/log_manager.h>
-#include <yt/yt/core/logging/writer.h>
+#include <yt/yt/core/logging/log_writer.h>
+#include <yt/yt/core/logging/log_writer_factory.h>
+#include <yt/yt/core/logging/file_log_writer.h>
+#include <yt/yt/core/logging/stream_log_writer.h>
 #include <yt/yt/core/logging/random_access_gzip.h>
 #include <yt/yt/core/logging/compression.h>
 #include <yt/yt/core/logging/zstd_compression.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/formatter.h>
 
 #include <yt/yt/core/json/json_parser.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
@@ -23,11 +27,11 @@
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
-#include <util/system/thread.h>
 
 #include <util/stream/zlib.h>
 
 #include <cmath>
+#include <thread>
 
 #ifdef _unix_
 #include <unistd.h>
@@ -37,6 +41,7 @@ namespace NYT::NLogging {
 namespace {
 
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NJson;
 
@@ -55,6 +60,7 @@ TString GenerateLogFileName()
 
 class TLoggingTest
     : public ::testing::Test
+    , public ILogWriterHost
 {
 protected:
     const TLoggingCategory Category = {
@@ -62,28 +68,33 @@ protected:
     };
     const int DateLength = ToString("2014-04-24 23:41:09,804000").length();
 
+    IInvokerPtr GetCompressionInvoker() override
+    {
+        return GetCurrentInvoker();
+    }
+
     IMapNodePtr DeserializeStructured(const TString& source, ELogFormat format)
     {
         switch (format) {
-        case ELogFormat::Json: {
-            auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-            builder->BeginTree();
-            TStringStream stream(source);
-            ParseJson(&stream, builder.get());
-            return builder->EndTree()->AsMap();
-        }
-        case ELogFormat::Yson: {
-            // Each line ends with a semicolon, so it must be treated as a list fragment.
-            auto listFragment = ConvertTo<std::vector<IMapNodePtr>>(TYsonStringBuf(source, EYsonType::ListFragment));
-            YT_VERIFY(listFragment.size() == 1);
-            return listFragment.front();
-        }
-        default:
-            YT_ABORT();
+            case ELogFormat::Json: {
+                auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+                builder->BeginTree();
+                TStringStream stream(source);
+                ParseJson(&stream, builder.get());
+                return builder->EndTree()->AsMap();
+            }
+            case ELogFormat::Yson: {
+                // Each line ends with a semicolon, so it must be treated as a list fragment.
+                auto listFragment = ConvertTo<std::vector<IMapNodePtr>>(TYsonStringBuf(source, EYsonType::ListFragment));
+                YT_VERIFY(listFragment.size() == 1);
+                return listFragment.front();
+            }
+            default:
+                YT_ABORT();
         }
     }
 
-    void WritePlainTextEvent(ILogWriter* writer)
+    void WritePlainTextEvent(const ILogWriterPtr& writer)
     {
         TLogEvent event;
         event.Family = ELogFamily::PlainText;
@@ -91,11 +102,10 @@ protected:
         event.Level = ELogLevel::Debug;
         event.Message = TSharedRef::FromString("message");
         event.ThreadId = 0xba;
-
         WriteEvent(writer, event);
     }
 
-    void WriteEvent(ILogWriter* writer, const TLogEvent& event)
+    void WriteEvent(const ILogWriterPtr& writer, const TLogEvent& event)
     {
         writer->Write(event);
         writer->Flush();
@@ -103,8 +113,7 @@ protected:
 
     std::vector<TString> ReadFile(
         const TString& fileName,
-        bool compressed = false,
-        ECompressionMethod compressionMethod = ECompressionMethod::Gzip)
+        std::optional<ECompressionMethod> compressionMethod = {})
     {
         auto splitLines = [&] (IInputStream *input) {
             TString line;
@@ -116,7 +125,7 @@ protected:
         };
 
         TUnbufferedFileInput rawInput(fileName);
-        if (!compressed) {
+        if (!compressionMethod) {
             return splitLines(&rawInput);
         } else if (compressionMethod == ECompressionMethod::Gzip) {
             TZLibDecompress input(&rawInput);
@@ -134,28 +143,32 @@ protected:
     {
         auto configNode = ConvertToNode(TYsonString(configYson));
         auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
-        TLogManager::Get()->Configure(config);
+        TLogManager::Get()->Configure(config, /*sync*/ true);
     }
 
     void DoTestCompression(ECompressionMethod method, int compressionLevel)
     {
         TTempFile logFile(GenerateLogFileName() + ".gz");
 
-        auto writer = New<TFileLogWriter>(
+        auto writerConfig = New<TFileLogWriterConfig>();
+        writerConfig->FileName = logFile.Name();
+        writerConfig->EnableCompression = true;
+        writerConfig->CompressionMethod = method;
+        writerConfig->CompressionLevel = compressionLevel;
+
+        auto writer = CreateFileLogWriter(
             std::make_unique<TPlainTextLogFormatter>(),
             "test_writer",
-            logFile.Name(),
-            GetCurrentInvoker(),
-            /* enableCompression */ true,
-            method,
-            compressionLevel);
-        WritePlainTextEvent(writer.Get());
+            writerConfig,
+            this);
+
+        WritePlainTextEvent(writer);
 
         writer->Reload();
-        WritePlainTextEvent(writer.Get());
+        WritePlainTextEvent(writer);
 
         {
-            auto lines = ReadFile(logFile.Name(), true, method);
+            auto lines = ReadFile(logFile.Name(), method);
             EXPECT_EQ(5, std::ssize(lines));
             EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
             EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
@@ -218,13 +231,16 @@ TEST_F(TLoggingTest, FileWriter)
 {
     TTempFile logFile(GenerateLogFileName());
 
-    auto writer = New<TFileLogWriter>(
+    auto writerConfig = New<TFileLogWriterConfig>();
+    writerConfig->FileName = logFile.Name();
+
+    auto writer = CreateFileLogWriter(
         std::make_unique<TPlainTextLogFormatter>(),
         "test_writer",
-        logFile.Name(),
-        GetCurrentInvoker(),
-        /* enableCompression */ false);
-    WritePlainTextEvent(writer.Get());
+        writerConfig,
+        this);
+
+    WritePlainTextEvent(writer);
 
     {
         auto lines = ReadFile(logFile.Name());
@@ -234,7 +250,7 @@ TEST_F(TLoggingTest, FileWriter)
     }
 
     writer->Reload();
-    WritePlainTextEvent(writer.Get());
+    WritePlainTextEvent(writer);
 
     {
         auto lines = ReadFile(logFile.Name());
@@ -247,42 +263,42 @@ TEST_F(TLoggingTest, FileWriter)
     }
 }
 
-TEST_F(TLoggingTest, Compression)
+TEST_F(TLoggingTest, GzipCompression)
 {
     // No compression.
-    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 0);
+    DoTestCompression(ECompressionMethod::Gzip, /*compressionLevel*/ 0);
 
     // Default compression.
-    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 6);
+    DoTestCompression(ECompressionMethod::Gzip, /*compressionLevel*/ 6);
 
     // Maximum compression.
-    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 9);
+    DoTestCompression(ECompressionMethod::Gzip, /*compressionLevel*/ 9);
 }
 
-TEST_F(TLoggingTest, CompressionZstd)
+TEST_F(TLoggingTest, ZstdCompression)
 {
     // Default compression.
-    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 0);
+    DoTestCompression(ECompressionMethod::Zstd, /*compressionLevel*/ 0);
 
     // Fast compression (--fast=<...>).
-    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ -2);
+    DoTestCompression(ECompressionMethod::Zstd, /*compressionLevel*/ -2);
 
     // Fast compression.
-    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 1);
+    DoTestCompression(ECompressionMethod::Zstd, /*compressionLevel*/ 1);
 
     // Maximum compression.
-    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 22);
+    DoTestCompression(ECompressionMethod::Zstd, /*compressionLevel*/ 22);
 }
 
 TEST_F(TLoggingTest, StreamWriter)
 {
     TStringStream stringOutput;
-    auto writer = New<TStreamLogWriter>(
-        &stringOutput,
+    auto writer = CreateStreamLogWriter(
         std::make_unique<TPlainTextLogFormatter>(),
-        "test_writer");
+        "test_writer",
+        &stringOutput);
 
-    WritePlainTextEvent(writer.Get());
+    WritePlainTextEvent(writer);
 
     EXPECT_EQ(
        "\tD\tcategory\tmessage\tba\t\t\n",
@@ -354,19 +370,24 @@ TEST_F(TLoggingTest, StructuredLogging)
     event.Family = ELogFamily::Structured;
     event.Category = &Category;
     event.Level = ELogLevel::Debug;
-    event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
+    event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item("message")
         .Value("test_message")
         .Finish();
 
     for (auto format : {ELogFormat::Yson, ELogFormat::Json}) {
         TTempFile logFile(GenerateLogFileName());
-        auto writer = New<TFileLogWriter>(
+
+        auto writerConfig = New<TFileLogWriterConfig>();
+        writerConfig->FileName = logFile.Name();
+
+        auto writer = CreateFileLogWriter(
             std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}),
             "test_writer",
-            logFile.Name(),
-            GetCurrentInvoker());
-        WriteEvent(writer.Get(), event);
+            writerConfig,
+            this);
+
+        WriteEvent(writer, event);
         TLogManager::Get()->Synchronize();
 
         auto log = ReadFile(logFile.Name());
@@ -392,7 +413,7 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     event.Family = ELogFamily::Structured;
     event.Category = &Category;
     event.Level = ELogLevel::Debug;
-    event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
+    event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item("message").Value("test_message")
         .Item("nan_value").Value(std::nan("1"))
         .Item("long_string_value").Value(longString)
@@ -403,16 +424,23 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     jsonFormat->StringLengthLimit = 100;
 
     TTempFile logFile(GenerateLogFileName());
-    auto writer = New<TFileLogWriter>(
-        std::make_unique<TStructuredLogFormatter>(
-            ELogFormat::Json,
-            /*commonFields*/ THashMap<TString, INodePtr>{},
-            /*enableControlMessages*/ true,
-            jsonFormat),
+
+    auto writerConfig = New<TFileLogWriterConfig>();
+    writerConfig->FileName = logFile.Name();
+
+    auto formatter = std::make_unique<TStructuredLogFormatter>(
+        ELogFormat::Json,
+        /*commonFields*/ THashMap<TString, INodePtr>{},
+        /*enableControlMessages*/ true,
+        jsonFormat);
+
+    auto writer = CreateFileLogWriter(
+        std::move(formatter),
         "test_writer",
-        logFile.Name(),
-        GetCurrentInvoker());
-    WriteEvent(writer.Get(), event);
+        writerConfig,
+        this);
+
+    WriteEvent(writer, event);
     TLogManager::Get()->Synchronize();
 
     auto log = ReadFile(logFile.Name());
@@ -777,15 +805,11 @@ TEST_F(TLongMessagesTest, WithoutPerThreadCache)
 {
     TTempFile logFile(GenerateLogFileName());
     ConfigureForLongMessages(logFile.Name());
-    using TThis = typename std::remove_reference<decltype(*this)>::type;
-    TThread thread([] (void* opaque) -> void* {
-        auto this_ = static_cast<TThis*>(opaque);
+    std::thread thread([&] {
         NLogging::NDetail::TMessageStringBuilder::DisablePerThreadCache();
-        this_->LogLongMessages();
-        return nullptr;
-    }, this);
-    thread.Start();
-    thread.Join();
+        LogLongMessages();
+    });
+    thread.join();
     CheckLongMessages(logFile.Name());
 }
 
@@ -795,6 +819,187 @@ TEST_F(TLoggingTest, Anchors)
     NLogging::TLoggingContext context{};
     EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message").Anchor, "Simple message");
     EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message (Param: %v)", 1).Anchor, "Simple message (Param: %v)");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTestWriterConfig)
+
+class TTestWriterConfig
+    : public TYsonSerializable
+{
+public:
+    int Padding;
+
+    TTestWriterConfig()
+    {
+        RegisterParameter("padding", Padding)
+            .GreaterThanOrEqual(0)
+            .Default(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TTestWriter)
+
+class TTestWriter
+    : public ILogWriter
+{
+public:
+    explicit TTestWriter(TTestWriterConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    void Write(const TLogEvent& event) override
+    {
+        Messages_.push_back(TString(Config_->Padding, ' ') + ToString(event.Message));
+    }
+
+    void Flush() override
+    { }
+
+    void Reload() override
+    { }
+
+    void SetRateLimit(std::optional<i64> /*limit*/) override
+    { }
+
+    void SetCategoryRateLimits(const THashMap<TString, i64>& /*categoryRateLimits*/) override
+    { }
+
+    const std::vector<TString>& GetMessages() const
+    {
+        return Messages_;
+    }
+
+private:
+    const TTestWriterConfigPtr Config_;
+
+    std::vector<TString> Messages_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestWriter)
+
+DECLARE_REFCOUNTED_CLASS(TTestWriterFactory)
+
+class TTestWriterFactory
+    : public ILogWriterFactory
+{
+public:
+    void ValidateConfig(const IMapNodePtr& configNode) override
+    {
+        ParseConfig(configNode);
+    }
+
+    ILogWriterPtr CreateWriter(
+        std::unique_ptr<ILogFormatter> /*formater*/,
+        TString /*name*/,
+        const IMapNodePtr& configNode,
+        ILogWriterHost* /*host*/) noexcept override
+    {
+        EXPECT_FALSE(Writer_.operator bool());
+        Writer_ = New<TTestWriter>(ParseConfig(configNode));
+        return Writer_;
+    }
+
+    TTestWriterPtr GetWriter()
+    {
+        EXPECT_TRUE(Writer_.operator bool());
+        return Writer_;
+    }
+
+private:
+    TTestWriterPtr Writer_;
+
+    static TTestWriterConfigPtr ParseConfig(const IMapNodePtr& configNode)
+    {
+        return ConvertTo<TTestWriterConfigPtr>(configNode);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestWriterFactory)
+
+class TCustomWriterTest
+    : public TLoggingTest
+{
+protected:
+    static inline const TString CustomWriterType = "custom";
+    const TTestWriterFactoryPtr WriterFactory_ = New<TTestWriterFactory>();
+
+    void SetUp() override
+    {
+        TLogManager::Get()->RegisterWriterFactory(CustomWriterType, WriterFactory_);
+    }
+
+    void TearDown() override
+    {
+        TLogManager::Get()->UnregisterWriterFactory(CustomWriterType);
+    }
+};
+
+TEST_F(TCustomWriterTest, UnknownWriterType)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        {
+            Configure(R"({
+                "rules" = [];
+                "writers" = {
+                    "custom" = {
+                        "type" = "unknown";
+                    };
+                };
+            })");
+        },
+        "Unknown log writer type");
+}
+
+TEST_F(TCustomWriterTest, WriterConfigValidation)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        {
+            Configure(Format(R"({
+                "rules" = [];
+                "writers" = {
+                    "custom" = {
+                        "type" = "%v";
+                        "padding" = -10;
+                    };
+                };
+            })", CustomWriterType));
+        },
+        "Expected >= 0, found -10");
+}
+
+TEST_F(TCustomWriterTest, Write)
+{
+    Configure(Format(R"({
+        "rules" = [
+            {
+                "min_level" = "info";
+                "writers" = [ "custom" ];
+            }
+        ];
+        "writers" = {
+            "custom" = {
+                "type" = "%v";
+                "padding" = 2;
+            };
+        };
+    })", CustomWriterType));
+
+    YT_LOG_INFO("first");
+    YT_LOG_INFO("second");
+    YT_LOG_INFO("third");
+
+    TLogManager::Get()->Synchronize();
+
+    auto writer = WriterFactory_->GetWriter();
+    const auto& messages = writer->GetMessages();
+    EXPECT_EQ(3, std::ssize(messages));
+    EXPECT_EQ("  first", messages[0]);
+    EXPECT_EQ("  second", messages[1]);
+    EXPECT_EQ("  third", messages[2]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

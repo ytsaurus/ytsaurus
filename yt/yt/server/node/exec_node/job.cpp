@@ -1911,35 +1911,40 @@ TJobProxyConfigPtr TJob::CreateConfig()
         : Config_->MemoryTrackerCachePeriod;
 
     proxyConfig->SlotIndex = Slot_->GetSlotIndex();
+
     if (RootVolume_) {
         proxyConfig->RootPath = RootVolume_->GetPath();
         proxyConfig->Binds = Config_->RootFSBinds;
     }
-    // This replace logic used for testing puproses.
-    for (const auto& [name, writerConfig]: proxyConfig->Logging->Writers) {
-        size_t index = writerConfig->FileName.find(SlotIndexPattern);
+
+    auto tryReplaceSlotIndex = [&] (TString& str) {
+        size_t index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
-            writerConfig->FileName.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
+            str.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
         }
-    }
+    };
+
+    // This replace logic is used for testing puproses.
+    proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+        auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
+        if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+            return writerConfigNode;
+        }
+
+        auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+        tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+        return writerConfig->BuildFullConfig(fileLogWriterConfig);
+    });
+
     if (proxyConfig->StderrPath) {
-        TString slotStderrPath = *proxyConfig->StderrPath;
-        size_t index = slotStderrPath.find(SlotIndexPattern);
-        if (index != TString::npos) {
-            slotStderrPath.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
-        }
-        proxyConfig->StderrPath = slotStderrPath;
+        tryReplaceSlotIndex(*proxyConfig->StderrPath);
     }
 
     for (const auto& slot : GpuSlots_) {
         proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
     }
 
-    if (UserJobSpec_) {
-        proxyConfig->MakeRootFSWritable = UserJobSpec_->make_rootfs_writable();
-    } else {
-        proxyConfig->MakeRootFSWritable = false;
-    }
+    proxyConfig->MakeRootFSWritable = UserJobSpec_ && UserJobSpec_->make_rootfs_writable();
 
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());

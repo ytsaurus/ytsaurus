@@ -2,7 +2,11 @@
 #include "private.h"
 #include "config.h"
 #include "log.h"
-#include "writer.h"
+#include "log_writer.h"
+#include "log_writer_factory.h"
+#include "formatter.h"
+#include "file_log_writer.h"
+#include "stream_log_writer.h"
 
 #include <yt/yt/core/concurrency/profiling_helpers.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -74,6 +78,8 @@ static const TLogger Logger(SystemLoggingCategoryName);
 static constexpr auto DiskProfilingPeriod = TDuration::Minutes(5);
 static constexpr auto AnchorProfilingPeriod = TDuration::Seconds(15);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
+
+static const TStringBuf StderrSystemWriterName("stderr");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,6 +186,11 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(int, FD);
     DEFINE_BYVAL_RO_PROPERTY(int, WD);
+
+    bool IsValid() const
+    {
+        return WD_ >= 0;
+    }
 
     void Run()
     {
@@ -347,6 +358,7 @@ static thread_local TThreadLocalQueue* PerThreadQueue;
 
 class TLogManager::TImpl
     : public ISensorProducer
+    , public ILogWriterHost
 {
 public:
     friend struct TLocalQueueReclaimer;
@@ -356,7 +368,11 @@ public:
             EventCount_,
             NConcurrency::GetThreadTags("Profiling")))
         , LoggingThread_(New<TThread>(this))
-        , SystemWriters_({New<TStderrLogWriter>()})
+        , SystemWriters_({
+            CreateStderrLogWriter(
+                std::make_unique<TPlainTextLogFormatter>(),
+                TString(StderrSystemWriterName))
+        })
         , DiskProfilingExecutor_(New<TPeriodicExecutor>(
             EventQueue_,
             BIND(&TImpl::OnDiskProfiling, MakeWeak(this)),
@@ -386,6 +402,9 @@ public:
             /*threadNamePrefix*/ "LogCompress",
             /*startThreads*/ false))
     {
+        RegisterWriterFactory(TString(TFileLogWriterConfig::Type), GetFileLogWriterFactory());
+        RegisterWriterFactory(TString(TStderrLogWriterConfig::Type), GetStderrLogWriterFactory());
+
         try {
             if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
                 DoUpdateConfig(config, true);
@@ -400,17 +419,7 @@ public:
         }
 
         SystemCategory_ = GetCategory(SystemLoggingCategoryName);
-    }
 
-    ~TImpl()
-    {
-        RegisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
-            LocalQueues_.insert(item);
-        });
-
-        for (auto localQueue : LocalQueues_) {
-            delete localQueue;
-        }
     }
 
     void Configure(INodePtr node)
@@ -442,7 +451,7 @@ public:
         DequeueExecutor_->ScheduleOutOfBand();
 
         if (sync) {
-            future.Get();
+            future.Get().ThrowOnError();
         }
     }
 
@@ -557,6 +566,18 @@ public:
         return rawAnchor;
     }
 
+    void RegisterWriterFactory(const TString& typeName, const ILogWriterFactoryPtr& factory)
+    {
+        auto guard = Guard(SpinLock_);
+        EmplaceOrCrash(TypeNameToWriterFactory_, typeName, factory);
+    }
+
+    void UnregisterWriterFactory(const TString& typeName)
+    {
+        auto guard = Guard(SpinLock_);
+        EraseOrCrash(TypeNameToWriterFactory_, typeName);
+    }
+
     void Enqueue(TLogEvent&& event)
     {
         if (event.Level == ELogLevel::Fatal) {
@@ -661,6 +682,11 @@ public:
         }
     }
 
+    IInvokerPtr GetCompressionInvoker() override
+    {
+        return CompressionThreadPool_->GetInvoker();
+    }
+
 private:
     class TThread
         : public TSchedulerThread
@@ -736,27 +762,24 @@ private:
         }
 
         TLogWriterCacheKey cacheKey{event.Category->Name, event.Level, event.Family};
-        auto it = CachedWriters_.find(cacheKey);
-        if (it != CachedWriters_.end()) {
+        auto it = KeyToCachedWriter_.find(cacheKey);
+        if (it != KeyToCachedWriter_.end()) {
             return it->second;
         }
 
-        THashSet<TString> writerIds;
+        THashSet<TString> writerNames;
         for (const auto& rule : Config_->Rules) {
             if (rule->IsApplicable(event.Category->Name, event.Level, event.Family)) {
-                writerIds.insert(rule->Writers.begin(), rule->Writers.end());
+                writerNames.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
 
         std::vector<ILogWriterPtr> writers;
-        for (const auto& writerId : writerIds) {
-            writers.push_back(GetOrCrash(Writers_, writerId));
+        for (const auto& name : writerNames) {
+            writers.push_back(GetOrCrash(NameToWriter_, name));
         }
 
-        auto pair = CachedWriters_.emplace(cacheKey, writers);
-        YT_VERIFY(pair.second);
-
-        return pair.first->second;
+        return EmplaceOrCrash(KeyToCachedWriter_, cacheKey, writers)->second;
     }
 
     std::unique_ptr<TNotificationWatch> CreateNotificationWatch(ILogWriterPtr writer, const TString& fileName)
@@ -796,9 +819,33 @@ private:
 
         FlushWriters();
 
-        DoUpdateConfig(event.Config, event.FromEnv);
+        try {
+            DoUpdateConfig(event.Config, event.FromEnv);
+            event.Promise.Set();
+        } catch (const std::exception& ex) {
+            event.Promise.Set(ex);
+        }
+    }
 
-        event.Promise.Set();
+    std::unique_ptr<ILogFormatter> CreateFormatter(const TLogWriterConfigPtr& writerConfig)
+    {
+        switch (writerConfig->Format) {
+            case ELogFormat::PlainText:
+                return std::make_unique<TPlainTextLogFormatter>(
+                    writerConfig->AreSystemMessagesEnabled(),
+                    writerConfig->EnableSourceLocation);
+
+            case ELogFormat::Json: [[fallthrough]];
+            case ELogFormat::Yson:
+                return std::make_unique<TStructuredLogFormatter>(
+                    writerConfig->Format,
+                    writerConfig->CommonFields,
+                    writerConfig->AreSystemMessagesEnabled(),
+                    writerConfig->JsonFormat);
+
+            default:
+                YT_ABORT();
+        }
     }
 
     void DoUpdateConfig(const TLogManagerConfigPtr& config, bool fromEnv)
@@ -807,27 +854,60 @@ private:
             return;
         }
 
+        THashMap<TString, ILogWriterFactoryPtr> typeNameToWriterFactory;
         {
-            decltype(Writers_) writers;
-            decltype(CachedWriters_) cachedWriters;
-            decltype(NotificationWatchesIndex_) notificationWatchesIndex;
-            decltype(NotificationWatches_) notificationWatches;
-
             auto guard = Guard(SpinLock_);
-            Writers_.swap(writers);
-            CachedWriters_.swap(cachedWriters);
-            NotificationWatchesIndex_.swap(notificationWatchesIndex);
-            NotificationWatches_.swap(notificationWatches);
-            Config_ = config;
-            HighBacklogWatermark_.store(Config_->HighBacklogWatermark);
-            LowBacklogWatermark_.store(Config_->LowBacklogWatermark);
-            RequestSuppressionEnabled_ = Config_->RequestSuppressionTimeout != TDuration::Zero();
-
-            guard.Release();
-
-            // writers and cachedWriters will die here where we don't
-            // hold the spinlock anymore.
+            for (const auto& [name, writerConfig] : config->Writers) {
+                auto typedWriterConfig = ConvertTo<TLogWriterConfigPtr>(writerConfig);
+                if (typeNameToWriterFactory.contains(typedWriterConfig->Type)) {
+                    continue;
+                }
+                auto it = TypeNameToWriterFactory_.find(typedWriterConfig->Type);
+                if (it == TypeNameToWriterFactory_.end()) {
+                    THROW_ERROR_EXCEPTION("Unknown log writer type %Qv", typedWriterConfig->Type);
+                }
+                const auto& writerFactory = it->second;
+                writerFactory->ValidateConfig(writerConfig);
+                EmplaceOrCrash(typeNameToWriterFactory, typedWriterConfig->Type, writerFactory);
+            }
         }
+
+        NameToWriter_.clear();
+        KeyToCachedWriter_.clear();
+        WDToNotificationWatch_.clear();
+        NotificationWatches_.clear();
+
+        for (const auto& [name, writerConfig] : config->Writers) {
+            auto typedWriterConfig = ConvertTo<TLogWriterConfigPtr>(writerConfig);
+            auto formatter = CreateFormatter(typedWriterConfig);
+            auto writerFactory = GetOrCrash(typeNameToWriterFactory, typedWriterConfig->Type);
+            auto writer = writerFactory->CreateWriter(
+                std::move(formatter),
+                name,
+                writerConfig,
+                this);
+
+            writer->SetRateLimit(typedWriterConfig->RateLimit);
+            writer->SetCategoryRateLimits(config->CategoryRateLimits);
+
+            EmplaceOrCrash(NameToWriter_, name, std::move(writer));
+
+            if (auto fileWriter = DynamicPointerCast<IFileLogWriter>(writer)) {
+                auto watch = CreateNotificationWatch(writer, fileWriter->GetFileName());
+                if (watch->IsValid()) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    EmplaceOrCrash(WDToNotificationWatch_, watch->GetWD(), watch.get());
+                }
+                NotificationWatches_.push_back(std::move(watch));
+            }
+        }
+
+        Config_ = config;
+        ConfiguredFromEnv_.store(fromEnv);
+        HighBacklogWatermark_.store(Config_->HighBacklogWatermark);
+        LowBacklogWatermark_.store(Config_->LowBacklogWatermark);
+        RequestSuppressionEnabled_.store(Config_->RequestSuppressionTimeout != TDuration::Zero());
 
         CompressionThreadPool_->Configure(Config_->CompressionThreadCount);
 
@@ -838,73 +918,11 @@ private:
             SuppressedRequestIdQueue_.DequeueAll();
         }
 
-        for (const auto& [name, writerConfig] : Config_->Writers) {
-            ILogWriterPtr writer;
-            std::unique_ptr<ILogFormatter> formatter;
-            std::unique_ptr<TNotificationWatch> watch;
-
-            switch (writerConfig->Format) {
-                case ELogFormat::PlainText:
-                    formatter = std::make_unique<TPlainTextLogFormatter>(
-                        writerConfig->AreSystemMessagesEnabled(),
-                        writerConfig->EnableSourceLocation);
-                    break;
-                case ELogFormat::Json: [[fallthrough]];
-                case ELogFormat::Yson:
-                    formatter = std::make_unique<TStructuredLogFormatter>(
-                        writerConfig->Format,
-                        writerConfig->CommonFields,
-                        writerConfig->AreSystemMessagesEnabled(),
-                        writerConfig->JsonFormat);
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            switch (writerConfig->Type) {
-                case EWriterType::Stdout:
-                    writer = New<TStdoutLogWriter>(std::move(formatter), name);
-                    break;
-                case EWriterType::Stderr:
-                    writer = New<TStderrLogWriter>(std::move(formatter), name);
-                    break;
-                case EWriterType::File:
-                    writer = New<TFileLogWriter>(
-                        std::move(formatter),
-                        name,
-                        writerConfig->FileName,
-                        CompressionThreadPool_->GetInvoker(),
-                        writerConfig->EnableCompression,
-                        writerConfig->CompressionMethod,
-                        writerConfig->CompressionLevel);
-                    watch = CreateNotificationWatch(writer, writerConfig->FileName);
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            writer->SetRateLimit(writerConfig->RateLimit);
-            writer->SetCategoryRateLimits(Config_->CategoryRateLimits);
-
-            YT_VERIFY(Writers_.emplace(name, std::move(writer)).second);
-
-            if (watch) {
-                if (watch->GetWD() >= 0) {
-                    // Watch can fail to initialize if the writer is disabled
-                    // e.g. due to the lack of space.
-                    YT_VERIFY(NotificationWatchesIndex_.insert(
-                        std::make_pair(watch->GetWD(), watch.get())).second);
-                }
-                NotificationWatches_.emplace_back(std::move(watch));
-            }
-        }
-
         FlushExecutor_->SetPeriod(Config_->FlushPeriod);
         WatchExecutor_->SetPeriod(Config_->WatchPeriod);
         CheckSpaceExecutor_->SetPeriod(Config_->CheckSpacePeriod);
 
         Version_++;
-        ConfiguredFromEnv_.store(fromEnv);
     }
 
     void WriteEvent(const TLogEvent& event)
@@ -923,7 +941,7 @@ private:
 
     void FlushWriters()
     {
-        for (const auto& [name, writer] : Writers_) {
+        for (const auto& [name, writer] : NameToWriter_) {
             writer->Flush();
         }
         FlushedEvents_ = WrittenEvents_.load();
@@ -932,15 +950,17 @@ private:
     void ReloadWriters()
     {
         Version_++;
-        for (const auto& [name, writer] : Writers_) {
+        for (const auto& [name, writer] : NameToWriter_) {
             writer->Reload();
         }
     }
 
     void CheckSpace()
     {
-        for (const auto& [name, writer] : Writers_) {
-            writer->CheckSpace(Config_->MinDiskSpace);
+        for (const auto& [name, writer] : NameToWriter_) {
+            if (auto fileWriter = DynamicPointerCast<IFileLogWriter>(writer)) {
+                fileWriter->CheckSpace(Config_->MinDiskSpace);
+            }
         }
     }
 
@@ -956,8 +976,8 @@ private:
             if (currentWD == previousWD) {
                 continue;
             }
-            auto&& it = NotificationWatchesIndex_.find(currentWD);
-            auto&& jt = NotificationWatchesIndex_.end();
+            auto it = WDToNotificationWatch_.find(currentWD);
+            auto jt = WDToNotificationWatch_.end();
             if (it == jt) {
                 continue;
             }
@@ -966,12 +986,11 @@ private:
             watch->Run();
 
             if (watch->GetWD() != currentWD) {
-                NotificationWatchesIndex_.erase(it);
+                WDToNotificationWatch_.erase(it);
                 if (watch->GetWD() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
-                    YT_VERIFY(NotificationWatchesIndex_.insert(
-                        std::make_pair(watch->GetWD(), watch)).second);
+                    EmplaceOrCrash(WDToNotificationWatch_, watch->GetWD(), watch);
                 }
             }
 
@@ -1033,9 +1052,9 @@ private:
             auto minLogStorageAvailableSpace = std::numeric_limits<i64>::max();
             auto minLogStorageFreeSpace = std::numeric_limits<i64>::max();
 
-            for (const auto& [name, writerConfig] : Config_->Writers) {
-                if (writerConfig->Type == EWriterType::File) {
-                    auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(writerConfig->FileName));
+            for (const auto& [name, writer] : NameToWriter_) {
+                if (auto fileWriter = DynamicPointerCast<IFileLogWriter>(writer)) {
+                    auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(fileWriter->GetFileName()));
                     minLogStorageAvailableSpace = std::min<i64>(minLogStorageAvailableSpace, logStorageDiskSpaceStatistics.AvailableSpace);
                     minLogStorageFreeSpace = std::min<i64>(minLogStorageFreeSpace, logStorageDiskSpaceStatistics.FreeSpace);
                 }
@@ -1129,7 +1148,7 @@ private:
         auto instant = GetCpuInstant();
 
         RegisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
-            YT_VERIFY(LocalQueues_.insert(item).second);
+            InsertOrCrash(LocalQueues_, item);
         });
 
         struct THeapItem
@@ -1193,7 +1212,7 @@ private:
 
         UnregisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
             if (item->IsEmpty()) {
-                YT_VERIFY(LocalQueues_.erase(item));
+                EraseOrCrash(LocalQueues_, item);
                 delete item;
             } else {
                 UnregisteredLocalQueues_.Enqueue(item);
@@ -1325,6 +1344,7 @@ private:
     TLogManagerConfigPtr Config_;
     std::atomic<bool> ConfiguredFromEnv_ = false;
     THashMap<TString, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    THashMap<TString, ILogWriterFactoryPtr> TypeNameToWriterFactory_;
     const TLoggingCategory* SystemCategory_;
     // These are just copies from Config_.
     // The values are being read from arbitrary threads but stale values are fine.
@@ -1362,8 +1382,8 @@ private:
     std::atomic<ui64> SuppressedEvents_ = 0;
     std::atomic<ui64> DroppedEvents_ = 0;
 
-    THashMap<TString, ILogWriterPtr> Writers_;
-    THashMap<TLogWriterCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
+    THashMap<TString, ILogWriterPtr> NameToWriter_;
+    THashMap<TLogWriterCacheKey, std::vector<ILogWriterPtr>> KeyToCachedWriter_;
     const std::vector<ILogWriterPtr> SystemWriters_;
 
     std::atomic<bool> ReopenRequested_ = false;
@@ -1377,11 +1397,11 @@ private:
     const TPeriodicExecutorPtr WatchExecutor_;
     const TPeriodicExecutorPtr CheckSpaceExecutor_;
 
-    TThreadPoolPtr CompressionThreadPool_ = nullptr;
+    const TThreadPoolPtr CompressionThreadPool_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
-    THashMap<int, TNotificationWatch*> NotificationWatchesIndex_;
+    THashMap<int, TNotificationWatch*> WDToNotificationWatch_;
 
     THashMap<TString, TLoggingAnchor*> AnchorMap_;
     std::atomic<TLoggingAnchor*> FirstAnchor_ = nullptr;
@@ -1473,6 +1493,16 @@ void TLogManager::RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation
 TLoggingAnchor* TLogManager::RegisterDynamicAnchor(TString anchorMessage)
 {
     return Impl_->RegisterDynamicAnchor(std::move(anchorMessage));
+}
+
+void TLogManager::RegisterWriterFactory(const TString& typeName, const ILogWriterFactoryPtr& factory)
+{
+    Impl_->RegisterWriterFactory(typeName, factory);
+}
+
+void TLogManager::UnregisterWriterFactory(const TString& typeName)
+{
+    Impl_->UnregisterWriterFactory(typeName);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)

@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/file_log_writer.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -123,12 +124,14 @@ protected:
             silentRule->MinLevel = NLogging::ELogLevel::Debug;
             silentRule->Writers.push_back(TString("dev_null"));
 
-            auto fileWriterConfig = New<NLogging::TWriterConfig>();
-            fileWriterConfig->Type = NLogging::EWriterType::File;
+            auto writerConfig = New<NLogging::TLogWriterConfig>();
+            writerConfig->Type = NLogging::TFileLogWriterConfig::Type;
+
+            auto fileWriterConfig = New<NLogging::TFileLogWriterConfig>();
             fileWriterConfig->FileName = "/dev/null";
 
             config->Logging->Rules.push_back(silentRule);
-            config->Logging->Writers.emplace(TString("dev_null"), fileWriterConfig);
+            config->Logging->Writers.emplace(TString("dev_null"), writerConfig->BuildFullConfig(fileWriterConfig));
         } else if (exportSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }

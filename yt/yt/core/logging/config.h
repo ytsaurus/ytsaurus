@@ -12,18 +12,44 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriterConfig
+class TFileLogWriterConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Writer options.
-    EWriterType Type;
+    static constexpr const TStringBuf Type = "file";
+
     TString FileName;
-    ELogFormat Format;
-    std::optional<size_t> RateLimit;
     bool EnableCompression;
     ECompressionMethod CompressionMethod;
     int CompressionLevel;
+
+    TFileLogWriterConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileLogWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStderrLogWriterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    static constexpr TStringBuf Type = "stderr";
+};
+
+DEFINE_REFCOUNTED_TYPE(TStderrLogWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogWriterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Type;
+
+    ELogFormat Format;
+
+    std::optional<i64> RateLimit;
 
     //! Common formatter options.
     std::optional<bool> EnableSystemMessages;
@@ -38,10 +64,14 @@ public:
     ELogFamily GetFamily() const;
     bool AreSystemMessagesEnabled() const;
 
-    TWriterConfig();
+    //! Constructs a full config by combining parameters from this one and #typedConfig.
+    template <class TTypedConfigPtr>
+    NYTree::IMapNodePtr BuildFullConfig(const TTypedConfigPtr& typedConfig);
+
+    TLogWriterConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TWriterConfig)
+DEFINE_REFCOUNTED_TYPE(TLogWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,9 +115,9 @@ public:
     TDuration ShutdownGraceTimeout;
 
     std::vector<TRuleConfigPtr> Rules;
-    THashMap<TString, TWriterConfigPtr> Writers;
+    THashMap<TString, NYTree::IMapNodePtr> Writers;
     std::vector<TString> SuppressedMessages;
-    THashMap<TString, size_t> CategoryRateLimits;
+    THashMap<TString, i64> CategoryRateLimits;
 
     TDuration RequestSuppressionTimeout;
 
@@ -117,6 +147,10 @@ public:
     static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr TryCreateFromEnv();
+
+    //! Applies #updater to each writer config in #Writers.
+    //! If null is returned then the writer is removed, otherwise it is replaced.
+    void UpdateWriters(const std::function<NYTree::IMapNodePtr(const NYTree::IMapNodePtr&)> updater);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogManagerConfig)
@@ -134,7 +168,7 @@ public:
 
     std::optional<std::vector<TRuleConfigPtr>> Rules;
     std::optional<std::vector<TString>> SuppressedMessages;
-    std::optional<THashMap<TString, size_t>> CategoryRateLimits;
+    std::optional<THashMap<TString, i64>> CategoryRateLimits;
 
     std::optional<TDuration> RequestSuppressionTimeout;
 
@@ -153,3 +187,7 @@ DEFINE_REFCOUNTED_TYPE(TLogManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
+
+#define CONFIG_INL_H_
+#include "config-inl.h"
+#undef CONFIG_INL_H_
