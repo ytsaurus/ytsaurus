@@ -110,7 +110,7 @@ bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(TCpuInst
 
 bool TFairShareStrategyOperationController::ScheduleJobBackoffObserved() const
 {
-    return ScheduleJobBackoffObserved_;
+    return ScheduleJobBackoffObserved_.load();
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason, TControllerEpoch jobEpoch)
