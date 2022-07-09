@@ -64,6 +64,7 @@ class TestGpuJobSetup(YTEnvSetup):
             file_writer={"upload_replication_factor": 1},
         )
 
+    @pytest.mark.timeout(180)
     def test_setup_cat(self):
         self.setup_files()
 
@@ -151,6 +152,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
             file_writer={"upload_replication_factor": 1},
         )
 
+    @pytest.mark.timeout(180)
     def test_setup_cat(self):
         self.setup_files()
 
@@ -242,6 +244,7 @@ class TestGpuLayer(YTEnvSetup):
 
         commit_transaction(tx)
 
+    @pytest.mark.timeout(180)
     def test_setup_cat_gpu_layer(self):
         self.setup_files()
 
@@ -342,6 +345,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
 
         commit_transaction(tx)
 
+    @pytest.mark.timeout(180)
     def test_update_file(self):
         self.setup_files()
 
@@ -442,6 +446,7 @@ class TestCudaLayer(YTEnvSetup):
             file_writer={"upload_replication_factor": 1},
         )
 
+    @pytest.mark.timeout(180)
     def test_setup_cat_gpu_layer(self):
         self.setup_files()
 
@@ -482,6 +487,7 @@ class TestCudaLayer(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == b"SETUP-OUTPUT\n"
 
+    @pytest.mark.timeout(180)
     def test_dynamic_config_for_cuda_toolkit_version(self):
         self.setup_files(cuda_version="1")
         update_nodes_dynamic_config({
@@ -588,6 +594,7 @@ class TestForceCudaLayer(YTEnvSetup):
             file_writer={"upload_replication_factor": 1},
         )
 
+    @pytest.mark.timeout(180)
     def test_setup_cat_force_gpu_layer(self):
         self.setup_files()
         with Restarter(self.Env, NODES_SERVICE):
@@ -674,6 +681,7 @@ class TestSetupUser(YTEnvSetup):
             file_writer={"upload_replication_factor": 1},
         )
 
+    @pytest.mark.timeout(180)
     def test_setup_cat(self):
         self.setup_files()
 
