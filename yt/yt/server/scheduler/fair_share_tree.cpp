@@ -333,7 +333,7 @@ public:
         YT_VERIFY(TreeSnapshotPrecommit_);
 
         {
-            auto guard = Guard(TreeSnapshotLock_);
+            auto guard = WriterGuard(TreeSnapshotLock_);
             TreeSnapshot_ = std::move(TreeSnapshotPrecommit_);
         }
         TreeSnapshotPrecommit_.Reset();
@@ -1369,7 +1369,7 @@ private:
     friend class TOperationsByPoolOrchidService;
 
     TFairShareTreeSnapshotPtr TreeSnapshot_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TreeSnapshotLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TreeSnapshotLock_);
 
     TFairShareTreeSnapshotPtr TreeSnapshotPrecommit_;
 
@@ -1396,11 +1396,11 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // No need to use lock in feasible invokers.
-        auto guard = [this] () -> std::optional<decltype(Guard(TreeSnapshotLock_))> {
+        auto guard = [this] () -> std::optional<decltype(ReaderGuard(TreeSnapshotLock_))> {
             if (VerifyInvokersAffinity(FeasibleInvokers_)) {
                 return std::nullopt;
             }
-            return Guard(TreeSnapshotLock_);
+            return ReaderGuard(TreeSnapshotLock_);
         }();
         return TreeSnapshot_;
     }
