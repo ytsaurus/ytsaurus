@@ -718,6 +718,7 @@ class TestRootFS(YTEnvSetup):
     USE_CUSTOM_ROOTFS = True
 
     @authors("gritukan")
+    @pytest.mark.timeout(180)
     def test_map(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -730,6 +731,7 @@ class TestRootFS(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"x": 1}]
 
     @authors("gritukan")
+    @pytest.mark.timeout(180)
     def test_vanilla(self):
         create("table", "//tmp/stderr")
 
@@ -1176,6 +1178,7 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
         }
     }
 
+    @pytest.mark.timeout(180)
     def test_extra_gpu_check_failure(self):
         self.setup_gpu_layer_and_reset_nodes()
 
