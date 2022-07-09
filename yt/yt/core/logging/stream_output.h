@@ -22,11 +22,7 @@ class TFixedBufferFileOutput
     : public IStreamLogOutput
 {
 public:
-    inline TFixedBufferFileOutput(TFile file, size_t buf = 8192)
-        : Underlying_(buf, file)
-    {
-        Underlying_.SetFinishPropagateMode(true);
-    }
+    TFixedBufferFileOutput(TFile file, size_t bufferSize);
 
 private:
     TBuffered<TUnbufferedFileOutput> Underlying_;
@@ -36,7 +32,6 @@ private:
     void DoFinish() override;
 };
 
-DECLARE_REFCOUNTED_TYPE(TFixedBufferFileOutput)
 DEFINE_REFCOUNTED_TYPE(TFixedBufferFileOutput)
 
 ////////////////////////////////////////////////////////////////////////////////

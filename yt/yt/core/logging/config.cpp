@@ -1,5 +1,7 @@
 #include "config.h"
 #include "private.h"
+#include "file_log_writer.h"
+#include "stream_log_writer.h"
 
 #include <util/string/vector.h>
 #include <util/system/env.h>
@@ -7,6 +9,8 @@
 #include <library/cpp/iterator/functools.h>
 
 namespace NYT::NLogging {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,22 +32,35 @@ std::optional<ELogLevel> GetLogLevelFromEnv()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWriterConfig::TWriterConfig()
+TFileLogWriterConfig::TFileLogWriterConfig()
 {
-    RegisterParameter("type", Type);
-    RegisterParameter("file_name", FileName)
-        .Default();
-    RegisterParameter("format", Format)
-        .Alias("accepted_message_format")
-        .Default(ELogFormat::PlainText);
-    RegisterParameter("rate_limit", RateLimit)
-        .Default();
+    RegisterParameter("file_name", FileName);
     RegisterParameter("enable_compression", EnableCompression)
         .Default(false);
     RegisterParameter("compression_method", CompressionMethod)
         .Default(ECompressionMethod::Gzip);
     RegisterParameter("compression_level", CompressionLevel)
         .Default(6);
+
+    RegisterPostprocessor([&] {
+        if (CompressionMethod == ECompressionMethod::Gzip && (CompressionLevel < 0 || CompressionLevel > 9)) {
+            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"gzip\" compression method");
+        } else if (CompressionMethod == ECompressionMethod::Zstd && CompressionLevel > 22) {
+            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"zstd\" compression method");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLogWriterConfig::TLogWriterConfig()
+{
+    RegisterParameter("type", Type);
+    RegisterParameter("format", Format)
+        .Alias("accepted_message_format")
+        .Default(ELogFormat::PlainText);
+    RegisterParameter("rate_limit", RateLimit)
+        .Default();
     RegisterParameter("common_fields", CommonFields)
         .Default();
     RegisterParameter("enable_system_messages", EnableSystemMessages)
@@ -54,19 +71,7 @@ TWriterConfig::TWriterConfig()
     RegisterParameter("json_format", JsonFormat)
         .Default(nullptr);
 
-    RegisterPostprocessor([&] () {
-        if (Type == EWriterType::File && FileName.empty()) {
-            THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
-        } else if (Type != EWriterType::File && !FileName.empty()) {
-            THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qlv writer", Type);
-        }
-
-        if (CompressionMethod == ECompressionMethod::Gzip && (CompressionLevel < 0 || CompressionLevel > 9)) {
-            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"gzip\" compression method");
-        } else if (CompressionMethod == ECompressionMethod::Zstd && CompressionLevel > 22) {
-            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"zstd\" compression method");
-        }
-
+    RegisterPostprocessor([&] {
         // COMPAT(max42).
         if (Format == ELogFormat::Structured) {
             Format = ELogFormat::Json;
@@ -74,12 +79,12 @@ TWriterConfig::TWriterConfig()
     });
 }
 
-ELogFamily TWriterConfig::GetFamily() const
+ELogFamily TLogWriterConfig::GetFamily() const
 {
     return Format == ELogFormat::PlainText ? ELogFamily::PlainText : ELogFamily::Structured;
 }
 
-bool TWriterConfig::AreSystemMessagesEnabled() const
+bool TLogWriterConfig::AreSystemMessagesEnabled() const
 {
     return EnableSystemMessages.value_or(GetFamily() == ELogFamily::PlainText);
 }
@@ -163,17 +168,29 @@ TLogManagerConfig::TLogManagerConfig()
     RegisterParameter("compression_thread_count", CompressionThreadCount)
         .Default(1);
 
-    RegisterPostprocessor([&] () {
+    RegisterPostprocessor([&] {
+        THashMap<TString, ELogFamily> writerNameToFamily;
+        for (const auto& [writerName, writerConfig] : Writers) {
+            try {
+                auto typedWriterConfig = ConvertTo<TLogWriterConfigPtr>(writerConfig);
+                EmplaceOrCrash(writerNameToFamily, writerName, typedWriterConfig->GetFamily());
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Malformed configuration of writer %Qv",
+                    writerName)
+                    << ex;
+            }
+        }
+
         for (const auto& [ruleIndex, rule] : Enumerate(Rules)) {
-            for (const TString& writer : rule->Writers) {
-                auto it = Writers.find(writer);
-                if (it == Writers.end()) {
-                    THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
+            for (const auto& writerName : rule->Writers) {
+                auto it = writerNameToFamily.find(writerName);
+                if (it == writerNameToFamily.end()) {
+                    THROW_ERROR_EXCEPTION("Unknown writer %Qv", writerName);
                 }
-                if (rule->Family != it->second->GetFamily()) {
-                    THROW_ERROR_EXCEPTION("Writer %Qv is from family %Qlv while rule %v is from family %Qlv",
-                        writer,
-                        it->second->GetFamily(),
+                if (rule->Family != it->second) {
+                    THROW_ERROR_EXCEPTION("Writer %Qv has family %Qlv while rule %v has family %Qlv",
+                        writerName,
+                        it->second,
                         ruleIndex,
                         rule->Family);
                 }
@@ -209,20 +226,22 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
 {
     auto rule = New<TRuleConfig>();
     rule->MinLevel = ELogLevel::Trace;
-    rule->Writers.push_back("FileWriter");
+    rule->Writers.push_back(TString(DefaultFileWriterName));
 
-    auto fileWriterConfig = New<TWriterConfig>();
-    fileWriterConfig->Type = EWriterType::File;
+    auto writerConfig = New<TLogWriterConfig>();
+    writerConfig->Type = TFileLogWriterConfig::Type;
+
+    auto fileWriterConfig = New<TFileLogWriterConfig>();
     fileWriterConfig->FileName = path;
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->Writers.emplace("FileWriter", fileWriterConfig);
-
+    EmplaceOrCrash(config->Writers, DefaultFileWriterName, writerConfig->BuildFullConfig(fileWriterConfig));
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 100000;
-    config->LowBacklogWatermark = 100000;
+    config->HighBacklogWatermark = 100'000;
+    config->LowBacklogWatermark = 100'000;
 
+    config->Postprocess();
     return config;
 }
 
@@ -232,17 +251,19 @@ TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
     rule->MinLevel = logLevel;
     rule->Writers.push_back(TString(DefaultStderrWriterName));
 
-    auto stderrWriterConfig = New<TWriterConfig>();
-    stderrWriterConfig->Type = EWriterType::Stderr;
+    auto writerConfig = New<TLogWriterConfig>();
+    writerConfig->Type = TStderrLogWriterConfig::Type;
+
+    auto stderrWriterConfig = New<TStderrLogWriterConfig>();
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->Writers.emplace(TString(DefaultStderrWriterName), stderrWriterConfig);
-
+    config->Writers.emplace(DefaultStderrWriterName, writerConfig->BuildFullConfig(stderrWriterConfig));
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 100000;
-    config->LowBacklogWatermark = 100000;
+    config->HighBacklogWatermark = 100'000;
+    config->LowBacklogWatermark = 100'000;
 
+    config->Postprocess();
     return config;
 }
 
@@ -259,11 +280,11 @@ TLogManagerConfigPtr TLogManagerConfig::CreateQuiet()
 TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
 {
     auto config = New<TLogManagerConfig>();
-
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 0;
     config->LowBacklogWatermark = 0;
 
+    config->Postprocess();
     return config;
 }
 
@@ -289,12 +310,20 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
         }
 
         auto rule = New<TRuleConfig>();
-        // Due to historic reasons, error logs usually contain warning messages.
+        // Due to historical reasons, error logs usually contain warning messages.
         rule->MinLevel = currentLogLevel == ELogLevel::Error ? ELogLevel::Warning : currentLogLevel;
         rule->Writers.push_back(ToString(currentLogLevel));
 
-        auto fileWriterConfig = New<TWriterConfig>();
-        fileWriterConfig->Type = EWriterType::File;
+        auto fileName = Format(
+            "%v/%v%v.log",
+            directory,
+            componentName,
+            currentLogLevel == ELogLevel::Info ? "" : "." + FormatEnum(currentLogLevel));
+
+        auto writerConfig = New<TLogWriterConfig>();
+        writerConfig->Type = TFileLogWriterConfig::Type;
+
+        auto fileWriterConfig = New<TFileLogWriterConfig>();
         fileWriterConfig->FileName = Format(
             "%v/%v%v.log",
             directory,
@@ -302,7 +331,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
             currentLogLevel == ELogLevel::Info ? "" : "." + FormatEnum(currentLogLevel));
 
         config->Rules.push_back(rule);
-        config->Writers.emplace(ToString(currentLogLevel), fileWriterConfig);
+        config->Writers.emplace(ToString(currentLogLevel), writerConfig->BuildFullConfig(fileWriterConfig));
     }
 
     for (const auto& [category, writerName] : structuredCategoryToWriterName) {
@@ -312,19 +341,22 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
         rule->Family = ELogFamily::Structured;
         rule->IncludeCategories = {category};
 
-        auto fileWriterConfig = New<TWriterConfig>();
-        fileWriterConfig->Type = EWriterType::File;
+        auto writerConfig = New<TLogWriterConfig>();
+        writerConfig->Type = TFileLogWriterConfig::Type;
+        writerConfig->Format = ELogFormat::Yson;
+
+        auto fileWriterConfig = New<TFileLogWriterConfig>();
         fileWriterConfig->FileName = Format(
             "%v/%v.yson.%v.log",
             directory,
             componentName,
             writerName);
-        fileWriterConfig->Format = ELogFormat::Yson;
 
         config->Rules.push_back(rule);
-        config->Writers.emplace(writerName, fileWriterConfig);
+        config->Writers.emplace(writerName, writerConfig->BuildFullConfig(fileWriterConfig));
     }
 
+    config->Postprocess();
     return config;
 }
 
@@ -355,10 +387,8 @@ TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
     auto logExcludeCategoriesStr = GetEnv("YT_LOG_EXCLUDE_CATEGORIES");
     auto logIncludeCategoriesStr = GetEnv("YT_LOG_INCLUDE_CATEGORIES");
 
-    const static TString stderrWriterName = "stderr";
-
     auto rule = New<TRuleConfig>();
-    rule->Writers.push_back(stderrWriterName);
+    rule->Writers.push_back(TString(DefaultStderrWriterName));
     rule->MinLevel = *logLevel;
 
     std::vector<TString> logExcludeCategories;
@@ -382,19 +412,32 @@ TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
         }
     }
 
+    auto writerConfig = New<TLogWriterConfig>();
+    writerConfig->Type = TStderrLogWriterConfig::Type;
+
+    auto stderrWriterConfig = New<TStderrLogWriterConfig>();
+
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(std::move(rule));
-
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = std::numeric_limits<int>::max();
     config->LowBacklogWatermark = 0;
+    EmplaceOrCrash(config->Writers, DefaultStderrWriterName, writerConfig->BuildFullConfig(stderrWriterConfig));
 
-    auto stderrWriter = New<TWriterConfig>();
-    stderrWriter->Type = EWriterType::Stderr;
-
-    config->Writers.emplace(stderrWriterName, std::move(stderrWriter));
-
+    config->Postprocess();
     return config;
+}
+
+void TLogManagerConfig::UpdateWriters(
+    const std::function<IMapNodePtr(const IMapNodePtr&)> updater)
+{
+    THashMap<TString, IMapNodePtr> updatedWriters;
+    for (const auto& [name, configNode] : Writers) {
+        if (auto updatedConfigNode = updater(configNode)) {
+            EmplaceOrCrash(updatedWriters, name, updatedConfigNode);
+        }
+    }
+    Writers = std::move(updatedWriters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

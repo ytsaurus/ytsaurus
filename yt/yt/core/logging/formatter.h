@@ -3,8 +3,6 @@
 #include "config.h"
 #include "pattern.h"
 
-#include <yt/yt/core/misc/ref_counted.h>
-
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +22,7 @@ private:
 struct ILogFormatter
 {
     virtual ~ILogFormatter() = default;
+
     virtual i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const = 0;
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const = 0;

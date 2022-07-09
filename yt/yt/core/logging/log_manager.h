@@ -50,6 +50,9 @@ public:
     TLoggingAnchor* RegisterDynamicAnchor(TString anchorMessage);
     void UpdateAnchor(TLoggingAnchor* position) override;
 
+    void RegisterWriterFactory(const TString& typeName, const ILogWriterFactoryPtr& factory);
+    void UnregisterWriterFactory(const TString& typeName);
+
     int GetVersion() const;
     bool GetAbortOnAlert() const override;
 
