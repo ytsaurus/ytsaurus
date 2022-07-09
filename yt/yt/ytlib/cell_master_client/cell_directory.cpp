@@ -337,10 +337,10 @@ private:
         InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower, options);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
-        if (masterCacheConfig->EnableMasterCacheDiscovery) {
+        if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
             auto channel = CreateNodeAddressesChannel(
-                masterCacheConfig->MasterCacheDiscoveryPeriod,
-                masterCacheConfig->MasterCacheDiscoveryPeriodSplay,
+                Config_->MasterCache->MasterCacheDiscoveryPeriod,
+                Config_->MasterCache->MasterCacheDiscoveryPeriodSplay,
                 owner,
                 ENodeRole::MasterCache,
                 BIND(&TImpl::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));

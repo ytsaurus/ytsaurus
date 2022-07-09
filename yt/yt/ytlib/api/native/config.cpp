@@ -30,17 +30,22 @@ void TMasterConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
 
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryAttempts = 100;
+        config->RetryTimeout = TDuration::Minutes(3);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterCacheConnectionConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("enable_master_cache_discovery", &TThis::EnableMasterCacheDiscovery)
         .Default(true);
     registrar.Parameter("master_cache_discovery_period", &TThis::MasterCacheDiscoveryPeriod)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("master_cache_discovery_period_splay", &TThis::MasterCacheDiscoveryPeriodSplay)
         .Default(TDuration::Seconds(10));
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->RetryAttempts = 100;
-        config->RetryTimeout = TDuration::Minutes(3);
-    });
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableMasterCacheDiscovery && config->Endpoints) {
@@ -292,7 +297,8 @@ void TConnectionConfig::OverrideMasterAddresses(const std::vector<TString>& addr
         patchMasterConnectionConfig(config);
     }
     if (!MasterCache) {
-        MasterCache = NYTree::CloneYsonSerializable(PrimaryMaster);
+        MasterCache = New<TMasterCacheConnectionConfig>();
+        MasterCache->Load(ConvertToNode(PrimaryMaster));
     }
     patchMasterConnectionConfig(MasterCache);
     MasterCache->EnableMasterCacheDiscovery = false;

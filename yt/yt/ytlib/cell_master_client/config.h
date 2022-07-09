@@ -18,7 +18,7 @@ class TCellDirectoryConfig
 public:
     NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
-    NApi::NNative::TMasterConnectionConfigPtr MasterCache;
+    NApi::NNative::TMasterCacheConnectionConfigPtr MasterCache;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
