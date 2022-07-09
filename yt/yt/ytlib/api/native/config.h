@@ -52,16 +52,29 @@ public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
-    bool EnableMasterCacheDiscovery;
-    TDuration MasterCacheDiscoveryPeriod;
-    TDuration MasterCacheDiscoveryPeriodSplay;
-
     REGISTER_YSON_STRUCT(TMasterConnectionConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheConnectionConfig
+    : public TMasterConnectionConfig
+{
+public:
+    bool EnableMasterCacheDiscovery;
+    TDuration MasterCacheDiscoveryPeriod;
+    TDuration MasterCacheDiscoveryPeriodSplay;
+
+    REGISTER_YSON_STRUCT(TMasterCacheConnectionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
