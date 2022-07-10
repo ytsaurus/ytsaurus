@@ -5,7 +5,7 @@ from yt_commands import (
     exists, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
     read_table, write_table, alter_table,
-    map, set_account_disk_space_limit, raises_yt_error)
+    map, set_account_disk_space_limit, raises_yt_error,)
 
 from yt_type_helpers import make_schema
 
@@ -1525,29 +1525,6 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u2")
 
         self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
-
-    @authors("kvk1920")
-    def test_access_control_node_acl(self):
-        create_user("dog")
-        create_user("cat")
-        create_user("rat")
-
-        create(
-            "access_control_node",
-            "//tmp/dogs_house",
-            attributes={
-                "namespace": "houses",
-                "acl": [
-                    make_ace("allow", "dog", "read"),
-                    make_ace("allow", "dog", "write"),
-                    make_ace("allow", "rat", "read"),
-                    make_ace("deny", "cat", "read"),
-                ]
-            })
-        assert check_permission("dog", "read", "//tmp/dogs_house")["action"] == "allow"
-        assert check_permission("dog", "write", "//tmp/dogs_house")["action"] == "allow"
-        assert check_permission("cat", "read", "//tmp/dogs_house")["action"] == "deny"
-        assert check_permission("rat", "read", "//tmp/dogs_house")["action"] == "allow"
 
 
 ##################################################################

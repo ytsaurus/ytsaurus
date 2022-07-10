@@ -73,7 +73,7 @@ protected:
     void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
-    virtual void DoRemoveSelf();
+    virtual void DoRemoveSelf(bool recursive, bool force);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

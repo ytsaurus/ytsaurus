@@ -43,14 +43,14 @@ std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>
     return std::make_unique<TSchedulerPoolFactory>(Bootstrap_);
 }
 
-void TSchedulerPoolProxy::DoRemoveSelf()
+void TSchedulerPoolProxy::DoRemoveSelf(bool recursive, bool force)
 {
     if (GetThisImpl()->IsRoot()) {
         ValidateRemoval();
         RemoveChildren();
         Bootstrap_->GetObjectManager()->RemoveObject(GetThisImpl());
     } else {
-        TNonversionedMapObjectProxyBase::DoRemoveSelf();
+        TNonversionedMapObjectProxyBase::DoRemoveSelf(recursive, force);
     }
 }
 

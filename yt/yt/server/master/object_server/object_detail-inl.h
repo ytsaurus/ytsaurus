@@ -103,6 +103,73 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
     return AllSucceeded(asyncResults);
 }
 
+template <class T>
+/*static*/ void TObjectProxyBase::HandleCheckPermissionRequest(
+    NCellMaster::TBootstrap* bootstrap,
+    const TCtxCheckPermissionPtr& context,
+    T doCheckPermission)
+{
+    auto* const request = &context->Request();
+    auto* const response = &context->Response();
+
+    const auto& userName = request->user();
+    auto permission = CheckedEnumCast<NSecurityServer::EPermission>(request->permission());
+    bool ignoreSafeMode = request->ignore_safe_mode();
+
+    NSecurityServer::TPermissionCheckOptions checkOptions;
+    if (request->has_columns()) {
+        checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
+    }
+    if (request->has_vital()) {
+        checkOptions.Vital = request->vital();
+    }
+
+    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
+        userName,
+        permission,
+        checkOptions.Columns,
+        checkOptions.Vital,
+        ignoreSafeMode);
+
+    const auto& securityManager = bootstrap->GetSecurityManager();
+    if (!ignoreSafeMode && securityManager->IsSafeMode()) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::SafeModeEnabled,
+            "Permission check is not possible: cluster is in safe mode; "
+            "check for announces at https://infra.yandex-team.ru before reporting any issues");
+    }
+
+    auto* user = securityManager->GetUserByNameOrThrow(userName, true /*activeLifeStageOnly*/);
+
+    // NB: this may throw, and it's ok.
+    auto checkResponse = doCheckPermission(user, permission, std::move(checkOptions));
+
+    const auto& objectManager = bootstrap->GetObjectManager();
+
+    auto fillResult = [&] (auto* protoResult, const auto& result) {
+        protoResult->set_action(static_cast<int>(result.Action));
+        if (result.Object) {
+            ToProto(protoResult->mutable_object_id(), result.Object->GetId());
+            const auto& handler = objectManager->GetHandler(result.Object);
+            protoResult->set_object_name(handler->GetName(result.Object));
+        }
+        if (result.Subject) {
+            ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
+            protoResult->set_subject_name(result.Subject->GetName());
+        }
+    };
+
+    fillResult(response, checkResponse);
+    if (checkResponse.Columns) {
+        for (const auto& result : *checkResponse.Columns) {
+            fillResult(response->mutable_columns()->add_items(), result);
+        }
+    }
+
+    context->SetResponseInfo("Action: %v", checkResponse.Action);
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer

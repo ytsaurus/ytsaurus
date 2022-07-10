@@ -175,7 +175,6 @@ DEFINE_ENUM(EObjectType,
     ((MapNode)                       (303))
     ((ListNode)                      (304))
     ((BooleanNode)                   (305))
-    ((AccessControlNode)             (307))
 
     // Dynamic nodes
     ((File)                          (400))
@@ -186,6 +185,10 @@ DEFINE_ENUM(EObjectType,
     ((Document)                      (421))
     ((ReplicatedTable)               (425))
     ((ReplicationLogTable)           (431))
+
+    ((AccessControlObject)           (307))
+    ((AccessControlObjectNamespace)  (432))
+    ((AccessControlObjectNamespaceMap) (433))
 
     // Portals
     ((PortalEntrance)               (11000))

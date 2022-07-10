@@ -38,7 +38,9 @@ protected:
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission);
 
-    virtual TCompactVector<TObject*, 1> ListDescendants(TObject* object) = 0;
+    // TODO(shakurov): probably better expressed as object traits.
+    virtual TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) = 0;
+    virtual TObject* GetParentForPermissionValidation(TObject* object) = 0;
 
     void ValidateCreatePermissions(
         bool replace,

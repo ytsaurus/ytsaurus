@@ -12,7 +12,8 @@ from yt_commands import (
     get_batch_output,
     switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    sync_mount_table, sync_create_cells)
+    sync_mount_table, sync_create_cells,
+    check_permission, get_driver, create_access_control_object_namespace, create_access_control_object)
 
 from yt_helpers import get_current_time
 
@@ -3482,24 +3483,6 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {"x": "y"}, force=True)
 
     @authors("kvk1920")
-    def test_access_control_node(self):
-        # @namespace is required
-        with pytest.raises(YtError):
-            create("access_control_node", "//tmp/acn")
-        create("access_control_node", "//tmp/acn", attributes={
-            "namespace": "kvk1920"
-        })
-        assert exists("//tmp/acn")
-        assert "kvk1920" == get("//tmp/acn/@namespace")
-        # @namespace is read-only
-        with pytest.raises(YtError):
-            set("//tmp/acn/@namespace", "kvk1901")
-
-    @authors("kvk1920")
-    def test_acn_scheme(self):
-        assert exists("//sys/schemas/access_control_node")
-
-    @authors("kvk1920")
     def test_cluster_connection_attribute(self):
         with raises_yt_error("Cannot parse"):
             set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
@@ -3694,14 +3677,6 @@ class TestCypressPortal(TestCypressMulticell):
 
         assert not get("//portals/p/t2/@inherit_acl")
         assert_items_equal(get("//portals/p/t2/@acl"), acl)
-
-    @authors("kvk1920")
-    def test_cross_shard_copy_acn(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
-        create("access_control_node", "//tmp/acn", attributes={"namespace": "kvk1920"})
-        copy("//tmp/acn", "//portals/p/acn")
-        assert "kvk1920" == get("//portals/p/acn/@namespace")
-
 
 ################################################################################
 
@@ -4068,3 +4043,185 @@ class TestBuiltinAttributesRevision(YTEnvSetup):
                     assert get("//tmp/t/@attribute_revision") > old_revision
                 else:
                     assert get("//tmp/t/@attribute_revision") == old_revision
+
+
+##################################################################
+
+
+class TestAccessControlObjects(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    @authors("shakurov")
+    def test_access_control_object_creation(self):
+        # Namespace is required.
+        with pytest.raises(YtError):
+            execute_command("create", {
+                "type": "access_control_object",
+                "attributes": {
+                    "name": "garfield"
+                }
+            })
+
+        with pytest.raises(YtError):
+            create_access_control_object("garfield", "bears")
+
+        create_access_control_object_namespace("cats")
+        assert exists("//sys/access_control_object_namespaces/cats")
+        assert exists("//sys/access_control_object_namespaces/cats/@name")
+
+        create_access_control_object("garfield", "cats")
+        assert exists("//sys/access_control_object_namespaces/cats/garfield")
+        assert get("//sys/access_control_object_namespaces/cats/garfield/@name") == "garfield"
+        assert get("//sys/access_control_object_namespaces/cats/garfield/@namespace") == "cats"
+        assert exists("//sys/access_control_object_namespaces/cats/garfield/principal")
+        assert exists("//sys/access_control_object_namespaces/cats/garfield/principal/@acl")
+        assert exists("//sys/access_control_object_namespaces/cats/garfield/principal/@owner")
+
+        # @namespace is read-only.
+        create_access_control_object_namespace("dogs")
+        with pytest.raises(YtError):
+            set("//sys/access_control_object_namespaces/cats/garfield/@namespace", "dogs")
+
+        create_access_control_object("tom", "cats")
+        assert sorted(ls("//sys/access_control_object_namespaces/cats")) == ["garfield", "tom"]
+
+    @authors("shakurov")
+    def test_access_control_object_removal(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object_namespace("dogs")
+        create_access_control_object("tom", "cats")
+        create_access_control_object("garfield", "cats")
+        create_access_control_object("snoopy", "dogs")
+        create_access_control_object("spike", "dogs")
+
+        with raises_yt_error("Cannot remove non-empty composite node"):
+            remove("//sys/access_control_object_namespaces/cats", recursive=False)
+
+        remove("//sys/access_control_object_namespaces/cats/tom")
+        assert ls("//sys/access_control_object_namespaces/cats") == ["garfield"]
+
+        remove("//sys/access_control_object_namespaces/cats/garfield")
+        assert ls("//sys/access_control_object_namespaces/cats") == []
+
+        remove("//sys/access_control_object_namespaces/cats")
+        assert ls("//sys/access_control_object_namespaces") == ["dogs"]
+
+        remove("//sys/access_control_object_namespaces/dogs", force=True)
+        assert ls("//sys/access_control_object_namespaces") == []
+
+    @authors("shakurov")
+    def test_access_control_object_permissions(self):
+        create_user("dog")
+        create_user("cat")
+        create_user("rat")
+
+        create_access_control_object_namespace(
+            "animal_shelters",
+            attributes={"acl": [
+                make_ace("allow", "dog", "read"),
+                make_ace("allow", "cat", "read"),
+                make_ace("deny", "rat", "read")
+            ]})
+
+        create_access_control_object(
+            "dogs_house",
+            "animal_shelters",
+            attributes={
+                "acl": [
+                    make_ace("allow", "dog", "write"),
+                    make_ace("deny", "cat", "read"),
+                ]
+            })
+
+        get("//sys/access_control_object_namespaces/animal_shelters/@acl")
+        get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/@acl")
+        get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/@effective_acl")
+
+        assert check_permission("dog", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "allow"
+        assert check_permission("dog", "write", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "allow"
+        assert check_permission("cat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "deny"
+
+        assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "deny"
+        set("//sys/access_control_object_namespaces/animal_shelters/@acl/2", make_ace("allow", "rat", "read"))
+        assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "allow"
+
+        assert not get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl")
+        with pytest.raises(YtError):
+            set("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl", True)
+
+        # Principal ACL inherits nothing, so this should still be denied.
+        assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal")["action"] == "deny"
+
+        set("//sys/access_control_object_namespaces/animal_shelters/dogs_house/@acl/end", make_ace("allow", "rat", "read"))
+
+        assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal")["action"] == "deny"
+
+        set("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@acl/end", make_ace("allow", "rat", "read"))
+        assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal")["action"] == "allow"
+        assert get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@acl") == \
+            get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@effective_acl")
+
+    @authors("shakurov")
+    def test_access_control_object_replication(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object("tom", "cats")
+        create_user("tom")
+
+        acl = [make_ace("allow", "tom", "read")]
+
+        set("//sys/access_control_object_namespaces/cats/tom/principal/@acl", acl)
+        assert get("//sys/access_control_object_namespaces/cats/tom/@principal_acl") == acl
+        assert get("//sys/access_control_object_namespaces/cats/tom/@principal_acl", driver=get_driver(1)) == acl
+        assert get("//sys/access_control_object_namespaces/cats/tom/principal/@acl", driver=get_driver(1)) == acl
+
+        assert get("//sys/access_control_object_namespaces/cats/tom/@principal_owner", driver=get_driver(1)) == "root"
+        assert get("//sys/access_control_object_namespaces/cats/tom/principal/@owner", driver=get_driver(1)) == "root"
+
+        set("//sys/access_control_object_namespaces/cats/tom/principal/@owner", "tom")
+        assert get("//sys/access_control_object_namespaces/cats/tom/@principal_owner") == "tom"
+        assert get("//sys/access_control_object_namespaces/cats/tom/@principal_owner", driver=get_driver(1)) == "tom"
+        assert get("//sys/access_control_object_namespaces/cats/tom/principal/@owner", driver=get_driver(1)) == "tom"
+
+        remove("//sys/access_control_object_namespaces/cats/tom/principal/@owner")
+        assert not exists("//sys/access_control_object_namespaces/cats/tom/@principal_owner")
+        assert not exists("//sys/access_control_object_namespaces/cats/tom/@principal_owner", driver=get_driver(1))
+        assert not exists("//sys/access_control_object_namespaces/cats/tom/principal/@owner", driver=get_driver(1))
+
+        remove("//sys/access_control_object_namespaces/cats/tom")
+        assert not exists("//sys/access_control_object_namespaces/cats/tom")
+        assert not exists("//sys/access_control_object_namespaces/cats/tom", driver=get_driver(1))
+
+        remove("//sys/access_control_object_namespaces/cats")
+        assert not exists("//sys/access_control_object_namespaces/cats")
+        assert not exists("//sys/access_control_object_namespaces/cats", driver=get_driver(1))
+
+    @authors("shakurov")
+    def test_access_control_object_remove(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object("tom", "cats")
+        create_access_control_object("garfield", "cats")
+
+        # Should not crash.
+        remove("//sys/access_control_object_namespaces/cats/tom/*")
+
+        remove("//sys/access_control_object_namespaces/cats/*")
+        assert not exists("//sys/access_control_object_namespaces/cats/tom")
+        assert not exists("//sys/access_control_object_namespaces/cats/garfield")
+
+    @authors("shakurov")
+    def test_access_control_object_replace_not_supported(self):
+        create_access_control_object_namespace("cats")
+
+        with raises_yt_error("already exists"):
+            create_access_control_object_namespace("cats")
+
+        with raises_yt_error("already exists"):
+            create_access_control_object_namespace("cats", force=True)
+
+        create_access_control_object("tom", "cats")
+
+        with raises_yt_error("already exists"):
+            create_access_control_object("tom", "cats")
+
+        with raises_yt_error("already exists"):
+            create_access_control_object("tom", "cats")

@@ -62,8 +62,8 @@ def cleanup_operations(list_action, abort_action, remove_action, remove_operatio
 
 def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multiple_action,
                     enable_secondary_cells_cleanup=False, object_ids_to_ignore=None):
-    TYPES = [
-        "accounts",
+    VIRTUAL_MAPS = [
+        "account_tree",
         "users",
         "groups",
         "racks",
@@ -76,22 +76,24 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
         "network_projects",
         "http_proxy_roles",
         "rpc_proxy_roles",
+        "access_control_object_namespaces"
     ]
 
     if enable_secondary_cells_cleanup:
-        TYPES = TYPES + ["tablet_actions"]
+        VIRTUAL_MAPS.append("tablet_cell_bundles")
 
-    list_args = []
-    for type in TYPES:
-        list_args.append(dict(
-            path="//sys/" + ("account_tree" if type == "accounts" else type),
-            attributes=["id", "builtin", "life_stage"],
-        ))
+    list_args = [
+        {
+            "path": "//sys/{}".format(m),
+            "attributes": ["id", "builtin", "life_stage"]
+        }
+        for m in VIRTUAL_MAPS
+    ]
     list_results = list_multiple_action(list_args)
 
     object_ids_to_remove = []
     object_ids_to_check = []
-    for type, objects in zip(TYPES, list_results):
+    for objects in list_results:
         for object in objects:
             if object.attributes["builtin"]:
                 continue

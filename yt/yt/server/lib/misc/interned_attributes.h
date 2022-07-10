@@ -331,6 +331,8 @@
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
+    XX(PrincipalAcl, principal_acl) \
+    XX(PrincipalOwner, principal_owner) \
     XX(Priority, priority) \
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \

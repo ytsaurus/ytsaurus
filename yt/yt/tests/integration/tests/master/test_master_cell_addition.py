@@ -16,7 +16,9 @@ from yt_commands import (
     create_rack, create_data_center,
     assert_true_for_all_cells,
     assert_true_for_secondary_cells,
-    build_snapshot, get_driver)
+    build_snapshot, get_driver,
+    create_user, make_ace,
+    create_access_control_object_namespace, create_access_control_object)
 
 from yt.test_helpers import assert_items_equal
 
@@ -335,6 +337,26 @@ class TestMasterCellAddition(YTEnvSetup):
 
         assert_true_for_all_cells(self.Env, lambda driver: check_everything(driver))
 
+    def check_access_control_objects(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object("tom", "cats")
+        create_access_control_object("garfield", "cats")
+        create_user("tom")
+        acl = [make_ace("allow", "tom", "read")]
+        set("//sys/access_control_object_namespaces/cats/garfield/principal/@acl", acl)
+        remove("//sys/access_control_object_namespaces/cats/tom/principal/@owner")
+
+        yield
+
+        def check(driver=None):
+            assert exists("//sys/access_control_object_namespaces/cats/tom", driver=driver)
+            assert exists("//sys/access_control_object_namespaces/cats/garfield", driver=driver)
+            assert get("//sys/access_control_object_namespaces/cats/garfield/principal/@acl", driver=driver) == acl
+            assert not exists("//sys/access_control_object_namespaces/cats/tom/principal/@owner", driver=driver)
+            return True
+
+        assert_true_for_all_cells(self.Env, check)
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
@@ -346,6 +368,7 @@ class TestMasterCellAddition(YTEnvSetup):
             self.check_transactions,
             self.check_areas,
             self.check_builtin_object_attributes,
+            self.check_access_control_objects,
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

@@ -110,7 +110,7 @@ void TNodeBase::RemoveSelf(
     TRspRemove* /*response*/,
     const TCtxRemovePtr& context)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("Recursive: %v, Force: %v", request->recursive(), request->force());
 
     ValidatePermission(
         EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
@@ -124,12 +124,12 @@ void TNodeBase::RemoveSelf(
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
     }
 
-    DoRemoveSelf();
+    DoRemoveSelf(request->recursive(), request->force());
 
     context->Reply();
 }
 
-void TNodeBase::DoRemoveSelf()
+void TNodeBase::DoRemoveSelf(bool /*recursive*/, bool /*force*/)
 {
     auto parent = GetParent();
     if (!parent) {

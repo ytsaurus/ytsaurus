@@ -1,5 +1,6 @@
 #include "cypress_integration.h"
 #include "cypress_manager.h"
+#include "private.h"
 #include "virtual.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -66,6 +67,71 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::LockMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualLockMap>(bootstrap, std::move(owningNode));
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualAccessControlObjectNamespaceMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualAccessControlObjectNamespaceMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        std::vector<TString> result;
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [id, node] : cypressManager->AccessControlObjectNamespaces()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            if (ssize(result) >= sizeLimit) {
+                break;
+            }
+
+            result.push_back(node->GetName());
+        }
+        return result;
+    }
+
+    i64 GetSize() const override
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        return cypressManager->GetAccessControlObjectNamespaceCount();
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->FindAccessControlObjectNamespaceByName(TString(key));
+
+        if (!IsObjectAlive(node)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(node);
+    }
+};
+
+INodeTypeHandlerPtr CreateAccessControlObjectNamespaceMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::AccessControlObjectNamespaceMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualAccessControlObjectNamespaceMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }
