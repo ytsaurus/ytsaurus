@@ -668,6 +668,11 @@ private:
                 EObjectType::EstimatedCreationTimeMap);
 
             ScheduleCreateNode(
+                "//sys/access_control_object_namespaces",
+                transactionId,
+                EObjectType::AccessControlObjectNamespaceMap);
+
+            ScheduleCreateNode(
                 "//sys/ql_pools",
                 transactionId,
                 EObjectType::MapNode);

@@ -2029,6 +2029,25 @@ def resume_tablet_cells(cell_ids, **kwargs):
     return execute_command("resume_tablet_cells", kwargs)
 
 
+def create_access_control_object_namespace(name, **kwargs):
+    kwargs["type"] = "access_control_object_namespace"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+
+    execute_command("create", kwargs)
+
+
+def create_access_control_object(name, namespace, **kwargs):
+    kwargs["type"] = "access_control_object"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["namespace"] = namespace
+
+    execute_command("create", kwargs)
+
+
 #########################################
 # Helpers:
 

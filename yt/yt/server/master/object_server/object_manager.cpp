@@ -1135,7 +1135,8 @@ void TObjectManager::RemoveObject(TObject* object)
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
         THROW_ERROR_EXCEPTION("Object life stage is %Qlv",
-            object->GetLifeStage());
+            object->GetLifeStage())
+            << TErrorAttribute("object_id", object->GetId());
     }
 
     const auto& handler = GetHandler(object);

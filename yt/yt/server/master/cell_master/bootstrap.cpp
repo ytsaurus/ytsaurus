@@ -956,8 +956,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAreaMapTypeHandler(this));
-
     CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 

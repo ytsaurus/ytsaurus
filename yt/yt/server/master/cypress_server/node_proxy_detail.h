@@ -111,7 +111,7 @@ protected:
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
-    void DoRemoveSelf() override;
+    void DoRemoveSelf(bool recursive, bool force) override;
 
     // Suppress access handling in the cases below.
     void GetAttribute(
@@ -169,7 +169,8 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    TCompactVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
+    TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
+    TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
 
     // TSupportsPermissions members
     void ValidatePermission(

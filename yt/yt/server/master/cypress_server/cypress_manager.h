@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "access_control_object.h"
+#include "access_control_object_namespace.h"
 #include "lock.h"
 #include "node.h"
 #include "node_proxy.h"
@@ -223,6 +225,24 @@ public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Lock, TLock);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(AccessControlObject, TAccessControlObject);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(AccessControlObjectNamespace, TAccessControlObjectNamespace);
+
+    virtual TAccessControlObjectNamespace* CreateAccessControlObjectNamespace(
+        const TString& name,
+        NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
+    virtual TAccessControlObjectNamespace* FindAccessControlObjectNamespaceByName(
+        const TString& name) const = 0;
+    virtual void ZombifyAccessControlObjectNamespace(
+        TAccessControlObjectNamespace* accessControlNodeNamespace) = 0;
+    //! Returns the number of alive access control namespace objects.
+    virtual int GetAccessControlObjectNamespaceCount() const = 0;
+
+    virtual TAccessControlObject* CreateAccessControlObject(
+        const TString& name,
+        const TString& namespace_,
+        NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
+    virtual void ZombifyAccessControlObject(TAccessControlObject* accessControlNode) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TCypressNode*), NodeCreated);
 };

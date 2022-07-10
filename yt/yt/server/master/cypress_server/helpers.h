@@ -126,6 +126,9 @@ TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 //! Returns annotation or std::nullopt if there are no annotations available.
 std::optional<TString> GetEffectiveAnnotation(TCypressNode* node);
 
+void ValidateAccessControlObjectNamespaceName(const TString& name);
+void ValidateAccessControlObjectName(const TString& name);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

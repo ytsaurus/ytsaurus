@@ -354,7 +354,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
+TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
     TObject* object)
 {
     return AccumulateOverMapObjectSubtree(
@@ -365,6 +365,12 @@ TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescen
                 descendants->push_back(currentObject);
             }
         });
+}
+
+template <class TObject>
+TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
+{
+    return object->GetParent();
 }
 
 template <class TObject>

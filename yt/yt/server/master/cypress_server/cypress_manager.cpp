@@ -1,6 +1,7 @@
 #include "cypress_manager.h"
 #include "private.h"
-#include "access_control_node_type_handler.h"
+#include "access_control_object_type_handler.h"
+#include "access_control_object_namespace_type_handler.h"
 #include "access_tracker.h"
 #include "cypress_traverser.h"
 #include "expiration_tracker.h"
@@ -930,7 +931,6 @@ public:
         RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalExitMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateAccessControlNodeTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",
@@ -970,11 +970,50 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));
         objectManager->RegisterHandler(CreateShardTypeHandler(Bootstrap_, &ShardMap_));
+        objectManager->RegisterHandler(CreateAccessControlObjectTypeHandler(Bootstrap_, &AccessControlObjectMap_));
+        objectManager->RegisterHandler(CreateAccessControlObjectNamespaceTypeHandler(Bootstrap_, &AccessControlObjectNamespaceMap_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TCypressManager::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
+                BIND(&TCypressManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+                BIND(&TCypressManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+        }
     }
 
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto accessControlObjectNamespaces = GetValuesSortedByKey(AccessControlObjectNamespaceMap_);
+        for (auto* accessControlObjectNamespace : accessControlObjectNamespaces) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(accessControlObjectNamespace, cellTag);
+        }
+
+        auto accessControlObjects = GetValuesSortedByKey(AccessControlObjectMap_);
+        for (auto* accessControlObject : accessControlObjects) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(accessControlObject, cellTag);
+        }
+    }
+
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto accessControlObjectNamespaces = GetValuesSortedByKey(AccessControlObjectNamespaceMap_);
+        for (auto* accessControlObjectNamespace : accessControlObjectNamespaces) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(accessControlObjectNamespace, cellTag);
+        }
+
+        auto accessControlObjects = GetValuesSortedByKey(AccessControlObjectMap_);
+        for (auto* accessControlObject : accessControlObjects) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(accessControlObject, cellTag);
+        }
+    }
 
     void RegisterHandler(INodeTypeHandlerPtr handler) override
     {
@@ -2045,6 +2084,149 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Lock, TLock);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Shard, TCypressShard);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccessControlObject, TAccessControlObject);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccessControlObjectNamespace, TAccessControlObjectNamespace);
+
+    TAccessControlObjectNamespace* CreateAccessControlObjectNamespace(
+        const TString& name,
+        TObjectId hintId = NullObjectId) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateAccessControlObjectNamespaceName(name);
+
+        if (FindAccessControlObjectNamespaceByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Access control object namespace %Qv already exists",
+                name);
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::AccessControlObjectNamespace, hintId);
+
+        auto objectHolder = TPoolAllocator::New<TAccessControlObjectNamespace>(id);
+        objectHolder->SetName(name);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        objectHolder->Acd().SetOwner(user);
+        auto* object = AccessControlObjectNamespaceMap_.Insert(id, std::move(objectHolder));
+
+        RegisterAccessControlObjectNamespace(object);
+
+        // Make the fake reference.
+        YT_VERIFY(object->RefObject() == 1);
+
+        YT_LOG_DEBUG("Access control object namespace registered (Id: %v, Name: %v)",
+            object->GetId(),
+            object->GetName());
+
+        return object;
+    }
+
+    TAccessControlObjectNamespace* FindAccessControlObjectNamespaceByName(
+        const TString& name) const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        auto it = NameToAccessControlObjectNamespaceMap_.find(name);
+        return it == NameToAccessControlObjectNamespaceMap_.end() ? nullptr : it->second;
+    }
+
+    void ZombifyAccessControlObjectNamespace(TAccessControlObjectNamespace* object) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(!IsObjectAlive(object));
+        YT_VERIFY(object->Members().empty());
+
+        UnregisterAccessControlObjectNamespace(object);
+
+        YT_LOG_DEBUG("Access control object namespace unregistered (Id: %v, Name: %v)",
+            object->GetId(),
+            object->GetName());
+    }
+
+    int GetAccessControlObjectNamespaceCount() const override
+    {
+        return ssize(NameToAccessControlObjectNamespaceMap_);
+    }
+
+    void RegisterAccessControlObjectNamespace(TAccessControlObjectNamespace* object)
+    {
+        YT_VERIFY(NameToAccessControlObjectNamespaceMap_.emplace(object->GetName(), object).second);
+    }
+
+    void UnregisterAccessControlObjectNamespace(TAccessControlObjectNamespace* object)
+    {
+        YT_VERIFY(NameToAccessControlObjectNamespaceMap_.erase(object->GetName()) == 1);
+    }
+
+    TAccessControlObject* CreateAccessControlObject(
+        const TString& name,
+        const TString& namespace_,
+        TObjectId hintId = NullObjectId) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateAccessControlObjectName(name);
+
+        auto* namespaceObject = FindAccessControlObjectNamespaceByName(namespace_);
+        if (!namespaceObject) {
+            THROW_ERROR_EXCEPTION(
+                "Access control object namespace %Qv not found",
+                namespace_);
+        }
+
+        if (namespaceObject->FindMember(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Access control object %Qv/%Qv already exists",
+                namespaceObject->GetName(),
+                name);
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::AccessControlObject, hintId);
+
+        auto objectHolder = TPoolAllocator::New<TAccessControlObject>(id);
+        objectHolder->SetName(name);
+        objectHolder->Namespace() = TAccessControlObjectNamespacePtr(namespaceObject);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        objectHolder->Acd().SetOwner(user);
+        objectHolder->PrincipalAcd().SetOwner(user);
+        auto* object = AccessControlObjectMap_.Insert(id, std::move(objectHolder));
+
+        namespaceObject->RegisterMember(object);
+
+        // Make the fake reference.
+        YT_VERIFY(object->RefObject() == 1);
+
+        YT_LOG_DEBUG("Access control object registered (Id: %v, Namespace: %v, Name: %v)",
+            object->GetId(),
+            namespaceObject->GetName(),
+            object->GetName());
+
+        return object;
+    }
+
+    void ZombifyAccessControlObject(TAccessControlObject* object) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(!IsObjectAlive(object));
+
+        auto& namespaceObject = object->Namespace();
+        namespaceObject->UnregisterMember(object);
+
+        YT_LOG_DEBUG("Access control object unregistered (Id: %v, Namespace: %v, Name: %v)",
+            object->GetId(),
+            namespaceObject->GetName(),
+            object->GetName());
+
+        namespaceObject.Reset();
+    }
 
     DEFINE_SIGNAL_OVERRIDE(void(TCypressNode*), NodeCreated);
 
@@ -2080,6 +2262,11 @@ private:
     NHydra::TEntityMap<TCypressNode, TNodeMapTraits> NodeMap_;
     NHydra::TEntityMap<TLock> LockMap_;
     NHydra::TEntityMap<TCypressShard> ShardMap_;
+    NHydra::TEntityMap<TAccessControlObject> AccessControlObjectMap_;
+    NHydra::TEntityMap<TAccessControlObjectNamespace> AccessControlObjectNamespaceMap_;
+
+    using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
+    TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
     TEnumIndexedVector<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
 
@@ -2104,6 +2291,8 @@ private:
         NodeMap_.SaveKeys(context);
         LockMap_.SaveKeys(context);
         ShardMap_.SaveKeys(context);
+        AccessControlObjectNamespaceMap_.SaveKeys(context);
+        AccessControlObjectMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2111,8 +2300,9 @@ private:
         NodeMap_.SaveValues(context);
         LockMap_.SaveValues(context);
         ShardMap_.SaveValues(context);
+        AccessControlObjectNamespaceMap_.SaveValues(context);
+        AccessControlObjectMap_.SaveValues(context);
     }
-
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
@@ -2121,6 +2311,11 @@ private:
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
         ShardMap_.LoadKeys(context);
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::AccessControlObjectOverhaul) {
+            AccessControlObjectNamespaceMap_.LoadKeys(context);
+            AccessControlObjectMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2130,6 +2325,18 @@ private:
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
         ShardMap_.LoadValues(context);
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::AccessControlObjectOverhaul) {
+            AccessControlObjectNamespaceMap_.LoadValues(context);
+            for (auto [id, object] : AccessControlObjectNamespaceMap_) {
+                RegisterAccessControlObjectNamespace(object);
+            }
+
+            AccessControlObjectMap_.LoadValues(context);
+            for (auto [id, object] : AccessControlObjectMap_) {
+                object->Namespace()->RegisterMember(object);
+            }
+        }
 
         // COMPAT(shakurov)
         NeedInitializeNodeTouchTimes_ = context.GetVersion() <= EMasterReign::InitTouchTimeOnCloning;
@@ -2146,6 +2353,11 @@ private:
         NodeMap_.Clear();
         LockMap_.Clear();
         ShardMap_.Clear();
+
+        AccessControlObjectNamespaceMap_.Clear();
+        NameToAccessControlObjectNamespaceMap_.clear();
+
+        AccessControlObjectMap_.Clear();
 
         RootNode_ = nullptr;
         RootShard_ = nullptr;
@@ -3746,8 +3958,10 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, NodeMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, LockMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Shard, TCypressShard, ShardMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, LockMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Shard, TCypressShard, ShardMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, AccessControlObject, TAccessControlObject, AccessControlObjectMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, AccessControlObjectNamespace, TAccessControlObjectNamespace, AccessControlObjectNamespaceMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

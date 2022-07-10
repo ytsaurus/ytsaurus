@@ -198,6 +198,13 @@ protected:
 
 private:
     void ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context);
+
+public:
+    template <class T>
+    static void HandleCheckPermissionRequest(
+        NCellMaster::TBootstrap* bootstrap,
+        const TCtxCheckPermissionPtr& context,
+        T doCheckPermission);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,9 @@ namespace NYT::NCypressServer {
 INodeTypeHandlerPtr CreateLockMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 
+INodeTypeHandlerPtr CreateAccessControlObjectNamespaceMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

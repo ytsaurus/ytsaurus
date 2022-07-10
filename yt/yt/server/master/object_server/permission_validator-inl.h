@@ -24,12 +24,13 @@ void THierarchicPermissionValidator<TObject>::ValidatePermission(
         Underlying_->ValidatePermission(object, permission);
     }
 
-    if (Any(scope & NYTree::EPermissionCheckScope::Parent) && object->GetParent()) {
-        Underlying_->ValidatePermission(object->GetParent(), permission);
+    if (Any(scope & NYTree::EPermissionCheckScope::Parent) && GetParentForPermissionValidation(object))
+    {
+        Underlying_->ValidatePermission(GetParentForPermissionValidation(object), permission);
     }
 
     if (Any(scope & NYTree::EPermissionCheckScope::Descendants)) {
-        for (auto* descendant : ListDescendants(object)) {
+        for (auto* descendant : ListDescendantsForPermissionValidation(object)) {
             Underlying_->ValidatePermission(descendant, permission);
         }
     }

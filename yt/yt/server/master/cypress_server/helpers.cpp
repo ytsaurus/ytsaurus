@@ -478,6 +478,52 @@ std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
     return ancestor ? ancestor->TryGetAnnotation() : std::nullopt;
 }
 
+void ValidateAccessControlObjectNamespaceName(const TString& name)
+{
+    static const auto maxNameLength = 1024;
+
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Access control object namespace name cannot be an empty string");
+    }
+
+    if (ssize(name) >= maxNameLength) {
+        THROW_ERROR_EXCEPTION("Access control object namespace name is too long")
+            << TErrorAttribute("name_length", name.size())
+            << TErrorAttribute("max_name_length", maxNameLength);
+    }
+
+    auto isAsciiText = [] (char c) {
+        return IsAsciiAlnum(c) || IsAsciiPunct(c);
+    };
+
+    if (!::AllOf(name.begin(), name.end(), isAsciiText)) {
+        THROW_ERROR_EXCEPTION("Only ASCII alphanumeric  and punctuation characters are allowed in access control object namespace names");
+    }
+}
+
+void ValidateAccessControlObjectName(const TString& name)
+{
+    static const auto maxNameLength = 1024;
+
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Access control object name cannot be an empty string");
+    }
+
+    if (ssize(name) >= maxNameLength) {
+        THROW_ERROR_EXCEPTION("Access control object name is too long")
+            << TErrorAttribute("name_length", name.size())
+            << TErrorAttribute("max_name_length", maxNameLength);
+    }
+
+    auto isAsciiText = [] (char c) {
+        return IsAsciiAlnum(c) || IsAsciiPunct(c);
+    };
+
+    if (!::AllOf(name.begin(), name.end(), isAsciiText)) {
+        THROW_ERROR_EXCEPTION("Only ASCII alphanumeric  and punctuation characters are allowed in access control object namespace names");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

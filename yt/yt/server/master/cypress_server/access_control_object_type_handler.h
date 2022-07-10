@@ -9,7 +9,9 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateAccessControlNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NObjectServer::IObjectTypeHandlerPtr CreateAccessControlObjectTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NHydra::TEntityMap<TAccessControlObject>* map);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -92,7 +92,6 @@ TAcdList TNontemplateCypressNodeTypeHandlerBase::ListAcds(TCypressNode* trunkNod
     return {&trunkNode->Acd()};
 }
 
-
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();

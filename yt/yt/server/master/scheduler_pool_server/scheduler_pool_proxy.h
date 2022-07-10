@@ -52,7 +52,7 @@ protected:
     void ValidateChildNameAvailability(const TString& newChildName) override;
     void ValidateAfterAttachChild(const TString& key, const TProxyBasePtr& childProxy) override;
 
-    void DoRemoveSelf() override;
+    void DoRemoveSelf(bool recursive, bool force) override;
 
     std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>> CreateObjectFactory() const override;
 

@@ -26,6 +26,11 @@ using NObjectClient::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TAccessControlObjectId = NObjectServer::TObjectId;
+using TAccessControlObjectNamespaceId = NObjectServer::TObjectId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
@@ -61,7 +66,12 @@ using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
 
-class TAccessControlNode;
+DECLARE_MASTER_OBJECT_TYPE(TAccessControlObject)
+DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TAccessControlObjectNamespace)
+DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TDirectObjectIdHash)
+
 class TLinkNode;
 class TDocumentNode;
 class TPortalEntranceNode;

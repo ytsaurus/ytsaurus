@@ -1058,7 +1058,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     }));
 }
 
-void TNontemplateCypressNodeProxyBase::DoRemoveSelf()
+void TNontemplateCypressNodeProxyBase::DoRemoveSelf(bool recursive, bool force)
 {
     auto* node = GetThisImpl();
 
@@ -1074,7 +1074,7 @@ void TNontemplateCypressNodeProxyBase::DoRemoveSelf()
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(node);
     } else {
-        TNodeBase::DoRemoveSelf();
+        TNodeBase::DoRemoveSelf(recursive, force);
     }
 }
 
@@ -1186,11 +1186,16 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
+TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();
     return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
+}
+
+TCypressNode* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
+{
+    return node->GetParent();
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
