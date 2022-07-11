@@ -182,6 +182,7 @@ private:
         lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
         lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
+        lsmTablet->SetIsOutOfBandRotationRequested(tablet->GetOutOfBandRotationRequested());
 
         lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
         lsmTablet->SetIsOverflowRotationNeeded(storeManager->IsOverflowRotationNeeded());

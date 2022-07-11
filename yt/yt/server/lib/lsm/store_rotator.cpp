@@ -287,6 +287,8 @@ private:
             return EStoreRotationReason::Overflow;
         } else if (IsPeriodicRotationNeeded(tablet)) {
             return EStoreRotationReason::Periodic;
+        } else if (tablet->GetIsOutOfBandRotationRequested()) {
+            return EStoreRotationReason::OutOfBand;
         } else {
             return EStoreRotationReason::None;
         }

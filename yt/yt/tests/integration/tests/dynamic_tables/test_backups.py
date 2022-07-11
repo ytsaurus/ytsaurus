@@ -49,6 +49,9 @@ class TestBackups(DynamicTablesBase):
         insert_rows("//tmp/t", rows)
         assert get("//tmp/t/@backup_state") == "none"
 
+        set("//tmp/t/@mount_config/enable_store_flush", False)
+        remount_table("//tmp/t")
+
         create_table_backup(["//tmp/t", "//tmp/bak"])
         assert get("//tmp/bak/@tablet_backup_state") == "backup_completed"
         assert get("//tmp/bak/@backup_state") == "backup_completed"
@@ -56,6 +59,8 @@ class TestBackups(DynamicTablesBase):
         with raises_yt_error():
             restore_table_backup(["//tmp/bak", "//tmp/res"])
 
+        set("//tmp/t/@mount_config/enable_store_flush", True)
+        remount_table("//tmp/t")
         sync_flush_table("//tmp/t")
 
         with raises_yt_error():

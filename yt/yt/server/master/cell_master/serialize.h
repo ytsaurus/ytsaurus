@@ -137,6 +137,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeResourceUsageOnceAgainᛝ)                             (2035))  // gritukan
     ((FixPrerequisiteTxReplication)                                 (2036))  // gritukan
     ((AccessControlObjectOverhaul)                                  (2037))  // shakurov
+    ((RotationAfterBackup)                                          (2038))  // ifsmirnov
     // 22.3 starts here.
     ((JobProxyVersion)                                              (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

@@ -192,6 +192,7 @@ public:
 
     bool EnableCompactionAndPartitioning;
     bool EnableStoreRotation;
+    bool EnableStoreFlush;
     bool EnableLsmVerboseLogging;
 
     bool MergeRowsOnFlush;

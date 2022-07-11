@@ -723,6 +723,11 @@ private:
             tablet->GetBackupCheckpointTimestamp());
     }
 
+    static bool NeedsImmediateCutoffRotation(const TTablet* tablet)
+    {
+        return NeedsRowIndexCutoff(tablet) || NeedsDynamicStoreListCutoff(tablet);
+    }
+
     static bool NeedsRowIndexCutoff(const TTablet* tablet)
     {
         auto backupMode = tablet->GetBackupMode();
@@ -762,11 +767,22 @@ private:
             YT_VERIFY(tablet->PreparedReplicatorTransactionIds().empty());
         }
 
-        if (NeedsDynamicStoreListCutoff(tablet) || NeedsRowIndexCutoff(tablet)) {
+        std::vector<TDynamicStoreId> capturedDynamicStoreIds;
+        if (tablet->IsPhysicallySorted()) {
+            for (const auto& store : tablet->GetEden()->Stores()) {
+                if (store->IsDynamic() &&
+                    (store->GetStoreState() != EStoreState::ActiveDynamic || store->GetRowCount() > 0))
+                {
+                    capturedDynamicStoreIds.push_back(store->GetId());
+                }
+            }
+        }
+
+        if (const auto& activeStore = tablet->GetActiveStore();
+            activeStore && activeStore->GetRowCount() > 0)
+        {
             // Active store is non-empty, should rotate.
-            if (const auto& activeStore = tablet->GetActiveStore();
-                activeStore && activeStore->GetRowCount() > 0)
-            {
+            if (NeedsImmediateCutoffRotation(tablet)) {
                 if (tablet->GetState() != ETabletState::Mounted) {
                     YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                         "Tablet with nonempty active store is not mounted "
@@ -822,38 +838,34 @@ private:
                         "after backup cutoff (%v)",
                         tablet->GetLoggingTag());
                 }
+            } else {
+                tablet->SetOutOfBandRotationRequested(true);
+            }
+        }
+
+        if (NeedsRowIndexCutoff(tablet)) {
+            auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_row_index_descriptor();
+            cutoffDescriptor->set_cutoff_row_index(tablet->GetTotalRowCount());
+
+            TDynamicStoreId nextDynamicStoreId;
+            if (const auto& activeStore = tablet->GetActiveStore()) {
+                ToProto(cutoffDescriptor->mutable_next_dynamic_store_id(), activeStore->GetId());
+                nextDynamicStoreId = activeStore->GetId();
             }
 
-            if (NeedsRowIndexCutoff(tablet)) {
-                auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_row_index_descriptor();
-                cutoffDescriptor->set_cutoff_row_index(tablet->GetTotalRowCount());
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Backup row index cutoff descriptor generated (%v, RowIndex: %v, NextDynamicStoreId: %v)",
+                tablet->GetLoggingTag(),
+                tablet->GetTotalRowCount(),
+                nextDynamicStoreId);
+        } else {
+            auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_dynamic_store_list_descriptor();
+            ToProto(cutoffDescriptor->mutable_dynamic_store_ids_to_keep(), capturedDynamicStoreIds);
 
-                TDynamicStoreId nextDynamicStoreId;
-                if (const auto& activeStore = tablet->GetActiveStore()) {
-                    ToProto(cutoffDescriptor->mutable_next_dynamic_store_id(), activeStore->GetId());
-                    nextDynamicStoreId = activeStore->GetId();
-                }
-
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Backup row index cutoff descriptor generated (%v, RowIndex: %v, NextDynamicStoreId: %v)",
-                    tablet->GetLoggingTag(),
-                    tablet->GetTotalRowCount(),
-                    nextDynamicStoreId);
-            } else if (NeedsDynamicStoreListCutoff(tablet)) {
-                auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_dynamic_store_list_descriptor();
-                std::vector<TDynamicStoreId> storeIdsToKeep;
-                for (const auto& store : tablet->GetEden()->Stores()) {
-                    if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
-                        storeIdsToKeep.push_back(store->GetId());
-                    }
-                }
-                ToProto(cutoffDescriptor->mutable_dynamic_store_ids_to_keep(), storeIdsToKeep);
-
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Backup dynamic store list cutoff descriptor generated (%v, DynamicStoreIdsToKeep: %v)",
-                    tablet->GetLoggingTag(),
-                    storeIdsToKeep);
-            }
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Backup dynamic store list cutoff descriptor generated (%v, DynamicStoreIdsToKeep: %v)",
+                tablet->GetLoggingTag(),
+                capturedDynamicStoreIds);
         }
 
         if (tablet->GetBackupMode() == EBackupMode::ReplicatedSorted) {

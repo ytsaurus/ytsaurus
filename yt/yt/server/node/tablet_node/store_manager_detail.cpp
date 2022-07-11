@@ -265,6 +265,10 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
         return false;
     }
 
+    if (!Tablet_->GetSettings().MountConfig->EnableStoreFlush) {
+        return false;
+    }
+
     return true;
 }
 
@@ -532,6 +536,8 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
         ResetActiveStore();
         Tablet_->SetActiveStore(nullptr);
     }
+
+    Tablet_->SetOutOfBandRotationRequested(false);
 
     StructuredLogger_->OnStoreRotated(activeStore, Tablet_->GetActiveStore());
 
