@@ -80,7 +80,7 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
     ]
 
     if enable_secondary_cells_cleanup:
-        VIRTUAL_MAPS.append("tablet_cell_bundles")
+        VIRTUAL_MAPS.append("tablet_actions")
 
     list_args = [
         {
