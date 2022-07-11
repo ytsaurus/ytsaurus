@@ -1,3 +1,5 @@
+import collections
+
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
@@ -18,9 +20,8 @@ import os
 
 @authors("shakurov", "avmatrosov")
 class TestAccessLog(YTEnvSetup):
-    NUM_MASTERS = 2
+    NUM_MASTERS = 3
     NUM_SCHEDULERS = 1
-    NUM_NONVOTING_MASTERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 
@@ -44,16 +45,21 @@ class TestAccessLog(YTEnvSetup):
                 return True
         return False
 
-    def _validate_entries_against_log(self, present_entries, missing_entries=[], cell_tag_to_directory=None):
+    def _collect_log_lines(self, cell_tag_to_directory=None):
         if cell_tag_to_directory is None:
             cell_tag_to_directory = self.CELL_TAG_TO_DIRECTORIES
         written_logs = []
         for master_tag, directory in cell_tag_to_directory.items():
-            path = os.path.join(self.path_to_run, "logs/master-{}-1.access.json.log".format(master_tag))
-            barrier_record = "{}-{}".format(master_tag, generate_timestamp())
-            create("table", "{}/{}".format(directory, barrier_record))
-            wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0)
-            written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
+            for idx in range(1, self.NUM_MASTERS):
+                path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(master_tag, idx))
+                barrier_record = "{}-{}".format(master_tag, generate_timestamp())
+                create("table", "{}/{}".format(directory, barrier_record))
+                wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0)
+                written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
+        return written_logs
+
+    def _validate_entries_against_log(self, present_entries, missing_entries=[], cell_tag_to_directory=None):
+        written_logs = self._collect_log_lines(cell_tag_to_directory)
 
         def _check_entry_is_in_log(log, line_json):
             for key, value in log.items():
@@ -489,6 +495,27 @@ class TestAccessLog(YTEnvSetup):
         ]
         self._validate_entries_against_log(log_list)
 
+    @authors("rebenkoy")
+    def test_mutation_id(self):
+        document_path = "//tmp/access_log/document"
+        create("map_node", "//tmp/access_log")
+        create("document", document_path)
+        set(document_path, 0)
+        set(document_path, 1)
+        set(document_path, 2)
+        set(document_path, 3)
+        get(document_path)
+        mutation_id_to_line = collections.defaultdict(list)
+        for line in self._collect_log_lines():
+            if not line["path"].startswith("//tmp/access_log/document"):
+                continue
+            mutation_id_to_line[line.get("mutation_id")].append(line)
+        for mutation_id in mutation_id_to_line:
+            if mutation_id is None:
+                assert len(mutation_id_to_line[mutation_id]) == 1
+                assert mutation_id_to_line[mutation_id][0]["method"] == "Get"
+            else:
+                assert len(mutation_id_to_line[mutation_id]) % (self.NUM_MASTERS - 1) == 0, str(mutation_id_to_line[mutation_id])
 
 ##################################################################
 
