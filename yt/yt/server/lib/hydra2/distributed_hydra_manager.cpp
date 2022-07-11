@@ -1130,7 +1130,7 @@ private:
         if (!CheckForInitialPing({committedSegmentId, committedSequenceNumber}, term)) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot accept mutations before initial ping with OK version is recieved");
+                "Cannot accept mutations before initial ping with OK version is received");
         }
 
         // We can not verify term before CheckForInitialPing because term may change on initial ping.

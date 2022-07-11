@@ -90,7 +90,7 @@ class HeavyProxyProvider(ProxyProvider):
 
         return self._get_light_proxy()
 
-    def on_error_occured(self, error):
+    def on_error_occurred(self, error):
         if isinstance(error, self.ban_errors) and self.state.last_provided_proxy is not None:
             proxy = self.state.last_provided_proxy
             logger.info("Proxy %s banned", proxy)

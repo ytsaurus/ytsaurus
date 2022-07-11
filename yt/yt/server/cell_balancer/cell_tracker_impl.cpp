@@ -127,7 +127,7 @@ void TCellTrackerImpl::ScanCells()
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
-    YT_LOG_DEBUG("Cluster state is recieved");
+    YT_LOG_DEBUG("Cluster state is received");
 
     ClusterStateProvider_ = New<TClusterStateProvider>(rsp.Get());
 

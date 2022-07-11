@@ -89,7 +89,7 @@ class ProxyProvider(object):
         pass
 
     @abstractmethod
-    def on_error_occured(self, error):
+    def on_error_occurred(self, error):
         pass
 
 
@@ -402,7 +402,7 @@ class RequestRetrier(Retrier):
                        format_logging_params(logging_params))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if self.proxy_provider is not None:
-            self.proxy_provider.on_error_occured(error)
+            self.proxy_provider.on_error_occurred(error)
         if self.make_retries:
             if self.retry_action is not None:
                 self.retry_action(error, self.kwargs)

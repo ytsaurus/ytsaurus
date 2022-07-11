@@ -47,7 +47,7 @@ TPollJobShellResponse TClient::DoPollJobShell(
     auto jobShellDescriptor = WaitFor(jobShellDescriptorCache->Get(jobShellDescriptorKey))
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Recieved job shell descriptor (JobShellDescriptor: %v)",
+    YT_LOG_DEBUG("Received job shell descriptor (JobShellDescriptor: %v)",
         jobShellDescriptor);
 
     auto nodeChannel = ChannelFactory_->CreateChannel(jobShellDescriptor.NodeDescriptor);

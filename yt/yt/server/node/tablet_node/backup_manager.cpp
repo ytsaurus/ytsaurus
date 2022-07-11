@@ -55,7 +55,7 @@ persistent by default and transient if marked with (T)):
 - receive backup checkpoint timestamp from master. At this moment some activities
   are restricted, e.g. merge_rows_on_flush is disabled until backup finishes;
 - (T) schedule checkpoint feasibility check: that is, validate that checkpoint
-  timestamp has not yet occured;
+  timestamp has not yet occurred;
 - (T) generate timestamp and schedule confirmation mutation;
 - confirm checkpoint timestamp and start waiting for it to come;
 - when checkpoint timestamp has passed (that is noticed by either more recent

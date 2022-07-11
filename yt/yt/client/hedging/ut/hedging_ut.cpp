@@ -408,7 +408,7 @@ TEST(THedgingClientTest, ResponseFromSecondClientWhenFirstHasReplicationLag)
 
     auto queryResultWithReplicationLagPolicy = NConcurrency::WaitFor(clientWithPenaltyProvider->ListNode(path));
 
-    // Check that query result is from second client, because first client recieved penalty updater because of replication lag.
+    // Check that query result is from second client, because first client received penalty updater because of replication lag.
     EXPECT_TRUE(queryResultWithReplicationLagPolicy.IsOK());
     EXPECT_EQ(queryResultWithReplicationLagPolicy.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
@@ -491,7 +491,7 @@ TEST(THedgingClientTest, ResponseFromFirstClientWhenReplicationLagUpdaterFails)
 
     auto queryResultWithReplicationLagPolicy = NConcurrency::WaitFor(clientWithPenaltyProvider->ListNode(path));
 
-    // Check that query result is from second client, because first client recieved penalty because of replication lag.
+    // Check that query result is from second client, because first client received penalty because of replication lag.
     EXPECT_TRUE(queryResultWithReplicationLagPolicy.IsOK());
     EXPECT_EQ(queryResultWithReplicationLagPolicy.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 

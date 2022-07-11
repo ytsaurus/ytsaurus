@@ -65,7 +65,7 @@ class TestJobTool(object):
                     break
 
                 if time.time() - start_time > total_job_wait_timeout:
-                    assert False, "Timeout occured while waiting any job of operation {0} to run".format(operation_id)
+                    assert False, "Timeout occurred while waiting any job of operation {0} to run".format(operation_id)
 
             job_id = jobs[0]
             node_address = yt.get(get_operation_path(operation_id) + "/controller_orchid/running_jobs/" + job_id + "/address")
@@ -81,7 +81,7 @@ class TestJobTool(object):
                     break
 
                 if time.time() - start_time > total_job_wait_timeout:
-                    assert False, "Timeout occured while waiting for job {0} to run".format(job_id)
+                    assert False, "Timeout occurred while waiting for job {0} to run".format(job_id)
 
         job_path = self._prepare_job_environment(yt_env_job_archive, operation_id, job_id, get_context_mode)
 

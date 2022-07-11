@@ -450,7 +450,7 @@ default_config = {
     "user_job_spec_defaults": {
     },
 
-    # TODO(ignat): rename to attached_operaion_mode = false
+    # TODO(ignat): rename to attached_operation_mode = false
     # If detached False all operations run under special transaction. It causes operation abort if client died.
     "detached": True,
 
@@ -809,7 +809,7 @@ def update_config_from_env(config):
                 var_type = yson.loads
             else:
                 var_type = _get_var_type(_get(config, name))
-            # NB: it is necessary to set boolean vaiable as 0 or 1.
+            # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)
             _set(config, name, _apply_type(var_type, key, value))

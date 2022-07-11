@@ -2111,7 +2111,7 @@ private:
                 chunkSealInfo.set_uncompressed_data_size(miscExt.uncompressed_data_size());
                 replicaInfos.push_back(chunkSealInfo);
 
-                YT_LOG_DEBUG("Body chunk replica info recieved "
+                YT_LOG_DEBUG("Body chunk replica info received "
                     "(BodyChunkId: %v, Address: %v, LogicalRowCount: %v, PhysicalRowCount: %v, LocationUuid: %v)",
                     BodyChunkId_,
                     address,

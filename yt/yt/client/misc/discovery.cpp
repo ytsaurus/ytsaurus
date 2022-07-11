@@ -325,7 +325,7 @@ void TDiscovery::DoRestoreTransaction(int epoch, const TError& error)
             DoLockNode(epoch);
             break;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error occured while restoring lock of the node");
+            YT_LOG_ERROR(ex, "Error occurred while restoring lock of the node");
             TDelayedExecutor::WaitForDuration(Config_->TransactionPingPeriod);
         }
     }

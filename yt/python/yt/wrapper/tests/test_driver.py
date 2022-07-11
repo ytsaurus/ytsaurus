@@ -31,10 +31,10 @@ def test_heavy_proxies():
         provider._discover_heavy_proxies = lambda: ["host1", "host2"]
         assert provider() == "host1"
 
-        provider.on_error_occured(SocketError())
+        provider.on_error_occurred(SocketError())
         assert provider() == "host2"
 
-        provider.on_error_occured(SocketError())
+        provider.on_error_occurred(SocketError())
         assert provider() == "host1"
 
         provider._discover_heavy_proxies = lambda: ["host2", "host3"]

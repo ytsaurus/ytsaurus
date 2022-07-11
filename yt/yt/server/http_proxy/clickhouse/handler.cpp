@@ -766,7 +766,7 @@ private:
                 ->GetChildOrThrow("acl"),
                 EYsonFormat::Text);
 
-            YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperaionAcl: %v)",
+            YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperationAcl: %v)",
                 OperationAlias_,
                 OperationId_,
                 OperationAcl_);
