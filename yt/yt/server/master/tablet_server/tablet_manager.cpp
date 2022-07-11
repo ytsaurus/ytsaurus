@@ -2714,6 +2714,12 @@ public:
 
             storesToDetach.push_back(store);
 
+            if (IsDynamicTabletStoreType(store->GetType()) &&
+                !tablet->BackupCutoffDescriptor()->DynamicStoreIdsToKeep.contains(store->GetId()))
+            {
+                continue;
+            }
+
             if (minTimestamp <= maxClipTimestamp) {
                 auto* wrappedStore = chunkManager->CreateChunkView(
                     store,
@@ -2835,8 +2841,6 @@ public:
             default:
                 YT_ABORT();
         }
-
-        tablet->BackupCutoffDescriptor() = std::nullopt;
 
         return error;
     }
@@ -4364,7 +4368,6 @@ private:
 
         CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
         chunkList = tablet->GetChunkList();
-
 
         auto oldStatistics = GetTabletStatistics(tablet);
         auto* table = tablet->GetTable();

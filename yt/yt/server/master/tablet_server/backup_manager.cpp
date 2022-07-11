@@ -533,6 +533,7 @@ private:
             tablet->CheckedSetBackupState(
                 ETabletBackupState::BackupStarted,
                 ETabletBackupState::BackupCompleted);
+            tablet->BackupCutoffDescriptor() = std::nullopt;
         }
 
         if (table) {

@@ -244,6 +244,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_store_rotation", &TThis::EnableStoreRotation)
         .Default(true);
 
+    registrar.Parameter("enable_store_flush", &TThis::EnableStoreFlush)
+        .Default(true);
+
     registrar.Parameter("merge_rows_on_flush", &TThis::MergeRowsOnFlush)
         .Default(false);
 

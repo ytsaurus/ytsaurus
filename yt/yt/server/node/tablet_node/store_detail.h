@@ -156,6 +156,8 @@ protected:
     EStoreFlushState FlushState_ = EStoreFlushState::None;
     TInstant LastFlushAttemptTimestamp_;
 
+    bool OutOfBandRotationRequested_ = false;
+
     i64 StoreLockCount_ = 0;
     i64 StoreValueCount_ = 0;
 

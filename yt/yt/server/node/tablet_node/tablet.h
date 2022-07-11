@@ -543,6 +543,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, NonActiveStoresUnmergedRowCount);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, OutOfBandRotationRequested);
+
     DEFINE_BYREF_RW_PROPERTY(ITabletHedgingManagerRegistryPtr, HedgingManagerRegistry);
 
 public:
