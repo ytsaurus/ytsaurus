@@ -274,12 +274,11 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
         return OpenChangelogPromise_.ToFuture();
     }
 
-    OpenChangelogPromise_ = NewPromise<void>();
-    auto future = OpenChangelogPromise_.ToFuture();
+    auto promise = OpenChangelogPromise_ = NewPromise<void>();
 
     guard.Release();
 
-    OpenChangelogPromise_.SetFrom(
+    promise.SetFrom(
         Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
                 auto writerGuard = WriterGuard(LifetimeLock_);
@@ -300,7 +299,7 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
                     Location_->GetId());
             }).AsyncVia(Context_->StorageLightInvoker)));
 
-    return future;
+    return promise.ToFuture();
 }
 
 IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
