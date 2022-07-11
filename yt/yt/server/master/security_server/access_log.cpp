@@ -173,6 +173,9 @@ void LogAccess(
         .Item("path").Do([&] (auto fluent) {
             doPath(fluent, path, !targetSuffixIsForDestinationPath);
         })
+        .DoIf(NHydra::HasMutationContext(), [&] (auto fluent) {
+            fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
+        })
         .Do([&] (auto fluent) {
             const TString* originalPath = nullptr;
             if (targetSuffixIsForDestinationPath) {
@@ -229,6 +232,9 @@ void LogAccess(
         .Item("type").Value(TypeFromId(id))
         .Item("id").Value(id)
         .Item("path").Value(path)
+        .DoIf(NHydra::HasMutationContext(), [&] (auto fluent) {
+            fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
+        })
         .DoIf(transaction, [&] (auto fluent) {
             fluent.Item("transaction_info").DoMap([&] (auto fluent) {
                 TraverseTransactionAncestors(transaction, fluent);
