@@ -24,6 +24,16 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("enable_everywhere", &TThis::EnableEverywhere)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletBalancerServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
@@ -37,10 +47,17 @@ void TTabletBalancerServerConfig::Register(TRegistrar registrar)
         .Default("//sys/tablet_balancer");
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
             lockPath = config->RootPath + "/leader_lock";
+        }
+        if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
+            dynamicConfigPath = config->RootPath + "/config";
         }
     });
 }

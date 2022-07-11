@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "private.h"
 #include "tablet_balancer.h"
 
@@ -39,6 +40,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressElection;
 using namespace NYPath;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,25 +78,32 @@ public:
         Sleep(TDuration::Max());
     }
 
-    const NNative::IClientPtr& GetMasterClient() override
+    const NNative::IClientPtr& GetMasterClient() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Client_;
     }
 
-    const ICypressElectionManagerPtr& GetElectionManager() override
+    const ICypressElectionManagerPtr& GetElectionManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ElectionManager_;
     }
 
-    const IInvokerPtr& GetControlInvoker() override
+    const IInvokerPtr& GetControlInvoker() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ControlInvoker_;
+    }
+
+    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DynamicConfigManager_;
     }
 
 private:
@@ -117,6 +126,8 @@ private:
     NNative::IClientPtr Client_;
 
     ICypressElectionManagerPtr ElectionManager_;
+
+    TDynamicConfigManagerPtr DynamicConfigManager_;
 
     void DoRun();
 
@@ -149,6 +160,9 @@ void TBootstrap::DoRun()
         CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
     }
 
+    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
+    DynamicConfigManager_->Start();
+
     TabletBalancer_ = CreateTabletBalancer(
         this,
         Config_->TabletBalancer,
@@ -172,6 +186,11 @@ void TBootstrap::DoRun()
             "/core_dumper",
             CreateVirtualNode(CoreDumper_->CreateOrchidService()));
     }
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
 
     RpcServer_->RegisterService(NAdmin::CreateAdminService(
         ControlInvoker_,

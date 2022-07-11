@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_election/config.h>
 
+#include <yt/yt/server/lib/dynamic_config/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -34,6 +36,25 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletBalancerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+public:
+    // Enable standalone tablet balancer. The balancer will not work at all if set to false.
+    bool Enable;
+
+    // Ignore bundle attribute EnableStandaloneTabletBalancer and balance each bundle.
+    bool EnableEverywhere;
+
+    REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletBalancerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletBalancerServerConfig
     : public TServerConfig
 {
@@ -49,6 +70,9 @@ public:
     NYPath::TYPath RootPath;
 
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
+
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    TString DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TTabletBalancerServerConfig)
 

@@ -201,6 +201,10 @@ private:
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             const auto* bundle = bundleBase->As<TTabletCellBundle>();
 
+            if (bundle->TabletBalancerConfig()->EnableStandaloneTabletBalancer) {
+                continue;
+            }
+
             // If it is necessary and possible to balance cells, do it...
             if (BundlesPendingCellBalancing_.contains(bundle->GetId()) && bundle->GetActiveTabletActionCount() == 0) {
                 forMove.push_back(bundle);

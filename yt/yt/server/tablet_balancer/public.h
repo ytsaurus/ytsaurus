@@ -18,6 +18,7 @@ using NTabletClient::ETabletActionState;
 struct IBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TStandaloneTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerServerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
@@ -26,6 +27,8 @@ DECLARE_REFCOUNTED_CLASS(TBundleState)
 
 DECLARE_REFCOUNTED_STRUCT(TTabletAction)
 DECLARE_REFCOUNTED_STRUCT(IActionManager)
+
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

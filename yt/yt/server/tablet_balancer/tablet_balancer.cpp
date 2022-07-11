@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "bundle_state.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "private.h"
 #include "public.h"
 #include "tablet_balancer.h"
@@ -48,6 +49,10 @@ public:
 
     IYPathServicePtr GetOrchidService() override;
 
+    void OnDynamicConfigChanged(
+        const TTabletBalancerDynamicConfigPtr& oldConfig,
+        const TTabletBalancerDynamicConfigPtr& newConfig) override;
+
 private:
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
@@ -57,14 +62,18 @@ private:
     TThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
 
+    std::atomic<bool> Enable_{false};
+    std::atomic<bool> EnableEverywhere_{false};
+
     i64 IterationIndex_;
 
     void BalancerIteration();
 
-    void BalanceViaReshard(const TBundleStatePtr& bundle);
-    void BalanceViaMove(const TBundleStatePtr& bundle);
+    bool IsBalancingAllowed(const TBundleStatePtr& bundle) const;
 
-    void BalanceBundle(const TBundleState& bundle);
+    void BalanceViaReshard(const TBundleStatePtr& bundle) const;
+    void BalanceViaMove(const TBundleStatePtr& bundle) const;
+
     void UpdateBundleList();
 
     void BuildOrchid(IYsonConsumer* consumer) const;
@@ -92,7 +101,9 @@ TTabletBalancer::TTabletBalancer(
         Bootstrap_->GetMasterClient(),
         Bootstrap_))
     , IterationIndex_(0)
-{ }
+{
+    bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
+}
 
 void TTabletBalancer::Start()
 {
@@ -121,6 +132,11 @@ void TTabletBalancer::BalancerIteration()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
+    if (!Enable_) {
+        YT_LOG_DEBUG("Standalone tablet balancer is not enabled");
+        return;
+    }
+
     YT_LOG_INFO("Balancer iteration (IterationIndex: %v)", IterationIndex_);
 
     YT_LOG_DEBUG("Started fetching bundles");
@@ -140,7 +156,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!bundle->IsBalancingAllowed()) {
+        if (!IsBalancingAllowed(bundle)) {
             YT_LOG_DEBUG("Balancing is not allowed (BundleName: %v)", bundleName);
             continue;
         }
@@ -164,6 +180,14 @@ void TTabletBalancer::BalancerIteration()
     ++IterationIndex_;
 }
 
+bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundle) const
+{
+    return Enable_ &&
+        bundle->GetHealth() == ETabletCellHealth::Good &&
+        (EnableEverywhere_ ||
+         bundle->GetBundle()->Config->EnableStandaloneTabletBalancer);
+}
+
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -178,6 +202,21 @@ void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
         .BeginMap()
             .Item("config").Value(Config_)
         .EndMap();
+}
+
+void TTabletBalancer::OnDynamicConfigChanged(
+    const TTabletBalancerDynamicConfigPtr& oldConfig,
+    const TTabletBalancerDynamicConfigPtr& newConfig)
+{
+    // Order matters. Otherwise, the old Enable can be seen with the new EnableEverywhere
+    // and balance everything, while EnableEverywhere has no effect if Enable is set to false.
+    Enable_.store(newConfig->Enable);
+    EnableEverywhere_.store(newConfig->EnableEverywhere);
+
+    YT_LOG_DEBUG(
+        "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
+        ConvertToYsonString(oldConfig, EYsonFormat::Text),
+        ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 void TTabletBalancer::UpdateBundleList()
@@ -210,7 +249,7 @@ void TTabletBalancer::UpdateBundleList()
     DropMissingKeys(&Bundles_, currentBundles);
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle)
+void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
 {
     if (!bundle->GetBundle()->Config->EnableInMemoryCellBalancer) {
         return;
@@ -238,7 +277,7 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle)
     YT_LOG_DEBUG("Balance tablets via move finished (ActionCount: %v)", actionCount);
 }
 
-void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle)
+void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
 {
     std::vector<TTabletPtr> tablets;
     for (const auto& [id, tablet] : bundle->Tablets()) {
