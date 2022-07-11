@@ -33,8 +33,6 @@ public:
 
     void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes);
 
-    bool IsBalancingAllowed() const;
-
     TFuture<void> UpdateState();
     TFuture<void> FetchStatistics();
 

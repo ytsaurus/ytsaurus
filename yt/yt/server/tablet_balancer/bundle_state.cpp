@@ -42,14 +42,6 @@ void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
 }
 
-bool TBundleState::IsBalancingAllowed() const
-{
-    return Health_ == ETabletCellHealth::Good &&
-        (Bundle_->Config->EnableTabletSizeBalancer ||
-         Bundle_->Config->EnableCellBalancer ||
-         Bundle_->Config->EnableInMemoryCellBalancer);
-}
-
 TFuture<void> TBundleState::UpdateState()
 {
     return BIND(&TBundleState::DoUpdateState, MakeStrong(this))

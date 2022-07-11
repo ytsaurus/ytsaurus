@@ -17,6 +17,10 @@ struct ITabletBalancer
     virtual void Stop() = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TTabletBalancerDynamicConfigPtr& oldConfig,
+        const TTabletBalancerDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletBalancer)

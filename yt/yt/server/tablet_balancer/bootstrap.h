@@ -17,9 +17,10 @@ struct IBootstrap
     virtual ~IBootstrap() = default;
     virtual void Run() = 0;
 
-    virtual const IInvokerPtr& GetControlInvoker() = 0;
-    virtual const NApi::NNative::IClientPtr& GetMasterClient() = 0;
-    virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() = 0;
+    virtual const IInvokerPtr& GetControlInvoker() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetMasterClient() const = 0;
+    virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() const = 0;
+    virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

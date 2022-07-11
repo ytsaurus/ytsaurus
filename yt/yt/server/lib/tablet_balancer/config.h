@@ -18,6 +18,7 @@ public:
     bool EnableInMemoryCellBalancer;
     bool EnableCellBalancer;
     bool EnableTabletSizeBalancer;
+    bool EnableStandaloneTabletBalancer;
 
     bool EnableTabletCellSmoothing;
 

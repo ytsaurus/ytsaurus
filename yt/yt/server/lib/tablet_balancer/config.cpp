@@ -16,6 +16,10 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_tablet_size_balancer", &TThis::EnableTabletSizeBalancer)
         .Default(true);
 
+    registrar.Parameter("enable_standalone_tablet_balancer", &TThis::EnableStandaloneTabletBalancer)
+        .Default(false)
+        .DontSerializeDefault();
+
     // COMPAT(savrus) Only for compatibility purpose.
     registrar.Parameter("compat_enable_tablet_cell_smoothing", &TThis::EnableTabletCellSmoothing)
         .Default(true)
