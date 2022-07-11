@@ -16,7 +16,7 @@ try:
     from collections.abc import Mapping
 except ImportError:
     from collections import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import chain
 from functools import wraps
 
@@ -26,7 +26,6 @@ import ctypes
 import errno
 import functools
 import inspect
-import math
 import os
 import re
 import signal
@@ -781,28 +780,36 @@ class WaitFailed(Exception):
 
 
 def wait(predicate, error_message=None, iter=None, sleep_backoff=None, timeout=None, ignore_exceptions=False):
-    if timeout is None:  # old behaviour
-        # 30 seconds by default
-        if sleep_backoff is None:
-            sleep_backoff = 0.3
+    # 30 seconds by default
+    if sleep_backoff is None:
+        sleep_backoff = 0.3
+
+    if ignore_exceptions:
+        def check_predicate():
+            try:
+                return predicate()
+            # Do not catch BaseException because pytest exceptions are inherited from it
+            # pytest.fail raises exception inherited from BaseException.
+            except Exception:
+                return False
+    else:
+        check_predicate = predicate
+
+    if timeout is None:
         if iter is None:
             iter = 100
-    else:  # new behaviour
-        if sleep_backoff is None:
-            sleep_backoff = 0.3
-        assert iter is None
-        iter = int(math.ceil(timeout / sleep_backoff))
-
-    for _ in range(iter):
-        try:
-            if predicate():
+        index = 0
+        while index < iter:
+            if check_predicate():
                 return
-        except:
-            if ignore_exceptions:
-                time.sleep(sleep_backoff)
-                continue
-            raise
-        time.sleep(sleep_backoff)
+            index += 1
+            time.sleep(sleep_backoff)
+    else:
+        start_time = datetime.now()
+        while datetime.now() - start_time < timedelta(seconds=timeout):
+            if check_predicate():
+                return
+            time.sleep(sleep_backoff)
 
     if inspect.isfunction(error_message):
         error_message = error_message()
