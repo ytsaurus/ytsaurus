@@ -325,7 +325,7 @@ public:
             ItemConverter_(item.get(), writer);
         }
         if (PyErr_Occurred()) {
-            THROW_ERROR_EXCEPTION("Error occured during iteration over %Qv",
+            THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
                 Description_)
                 << Py::BuildErrorFromPythonException(/*clear*/ true);
         }
@@ -361,7 +361,7 @@ public:
             ValueConverter_(value, writer);
 		}
         if (PyErr_Occurred()) {
-            THROW_ERROR_EXCEPTION("Error occured during iteration over %Qv",
+            THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
                 Description_)
                 << Py::BuildErrorFromPythonException(/*clear*/ true);
         }

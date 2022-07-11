@@ -773,7 +773,7 @@ public:
             return batch;
         }
 
-        if (!ChunkReaderFallbackOccured_) {
+        if (!ChunkReaderFallbackOccurred_) {
             UpdateContinuationToken(batch);
         }
 
@@ -797,7 +797,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto currentReader = CurrentReader_.Load();
-        if (ChunkReaderFallbackOccured_ && currentReader) {
+        if (ChunkReaderFallbackOccurred_ && currentReader) {
             return currentReader->GetDecompressionStatistics();
         }
         return {};
@@ -834,7 +834,7 @@ protected:
     TDataStatistics AccumulatedDataStatistics_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataStatisticsLock_);
 
-    bool ChunkReaderFallbackOccured_ = false;
+    bool ChunkReaderFallbackOccurred_ = false;
     bool FlushedToEmptyChunk_ = false;
 
     int RetryCount_ = 0;
@@ -870,7 +870,7 @@ protected:
         // Former case should lead to one more retry (if retry limit is not exceeded yet),
         // while latter case is fatal.
 
-        if (ChunkReaderFallbackOccured_) {
+        if (ChunkReaderFallbackOccurred_) {
             // There is no way we can recover from this.
             return MakeFuture(error);
         }
@@ -974,7 +974,7 @@ protected:
         if (!subresponse.has_chunk_spec()) {
             YT_LOG_DEBUG("Dynamic store located: store is flushed to no chunk");
             CurrentReader_.Store(nullptr);
-            ChunkReaderFallbackOccured_ = true;
+            ChunkReaderFallbackOccurred_ = true;
             FlushedToEmptyChunk_ = true;
             return VoidFuture;
         }
@@ -1032,7 +1032,7 @@ protected:
     TFuture<void> OnChunkReaderCreated(const IReaderPtr& reader)
     {
         CurrentReader_.Store(reader);
-        ChunkReaderFallbackOccured_ = true;
+        ChunkReaderFallbackOccurred_ = true;
         return OpenCurrentReader();
     }
 
@@ -1272,7 +1272,7 @@ private:
 
     void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
     {
-        YT_VERIFY(!ChunkReaderFallbackOccured_);
+        YT_VERIFY(!ChunkReaderFallbackOccurred_);
         TabletRowIndex_ = CurrentReader_.Load()->GetTableRowIndex();
     }
 

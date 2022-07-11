@@ -864,7 +864,7 @@ public:
     }
 };
 
-TEST_P(THttpServerTest, WierdHandlers)
+TEST_P(THttpServerTest, WeirdHandlers)
 {
     auto hanging = New<THangingHandler>();
     auto impatient = New<TImpatientHandler>();

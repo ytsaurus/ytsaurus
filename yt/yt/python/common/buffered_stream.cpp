@@ -44,7 +44,7 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
         // Busy wait.
         auto future = AllowReadPromise_.ToFuture();
         auto result = WaitForSettingFuture(future);
-        if (!result) { // Some error occured.
+        if (!result) { // Some error occurred.
             return 0;
         }
         if (!future.Get().IsOK()) { // Finalization is in progress.

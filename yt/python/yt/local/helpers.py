@@ -28,8 +28,8 @@ class YTCheckingThread(Thread):
         self._start_time = time.time()
 
         while self.is_running:
-            timeout_occured = self.timeout is not None and time.time() - self._start_time > self.timeout
-            if not os.path.exists(self.environment.pids_filename) or timeout_occured:
+            timeout_occurred = self.timeout is not None and time.time() - self._start_time > self.timeout
+            if not os.path.exists(self.environment.pids_filename) or timeout_occurred:
                 thread.interrupt_main()
                 break
             self.environment.check_liveness(callback_func=_sync_mode_finalize_func)

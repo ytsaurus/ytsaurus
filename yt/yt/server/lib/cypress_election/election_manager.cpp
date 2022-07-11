@@ -348,7 +348,7 @@ private:
             TForbidContextSwitchGuard guard;
             LeadingStarted_.Fire();
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Unexpected error occured during leading start");
+            YT_LOG_ALERT(ex, "Unexpected error occurred during leading start");
         }
     }
 

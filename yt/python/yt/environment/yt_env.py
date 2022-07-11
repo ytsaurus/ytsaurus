@@ -8,7 +8,7 @@ from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
     is_port_opened, push_front_env_path)
-from .porto_helpers import PortoSubprocess, porto_avaliable
+from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world
 from .local_cypress import _synchronize_cypress_with_local_dir
@@ -146,7 +146,7 @@ class YTInstance(object):
         if yt_config.scheduler_count == 0 and yt_config.controller_agent_count != 0:
             raise YtError("Can't start controller agent without scheduler")
 
-        if yt_config.use_porto_for_servers and not porto_avaliable():
+        if yt_config.use_porto_for_servers and not porto_available():
             raise YtError("Option use_porto_for_servers is specified but porto is not available")
         self._subprocess_module = PortoSubprocess if yt_config.use_porto_for_servers else subprocess
 

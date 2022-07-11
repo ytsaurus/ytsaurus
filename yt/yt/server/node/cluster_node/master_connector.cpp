@@ -459,7 +459,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // NB: Media initialization for data node occured at registration at primary master.
+        // NB: Media initialization for data node occurred at registration at primary master.
 
         if (Bootstrap_->IsExecNode()) {
             const auto& nativeConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();

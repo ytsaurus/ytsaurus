@@ -44,7 +44,7 @@ static const auto& Logger = DriverLogger;
 
 static THashMap<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
-INodePtr ConvertToNodeWithUtf8Deconding(const Py::Object& obj)
+INodePtr ConvertToNodeWithUtf8Decoding(const Py::Object& obj)
 {
     auto factory = GetEphemeralNodeFactory();
     auto builder = CreateBuilderFromFactory(factory);
@@ -122,7 +122,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 
     TDriverRequest request(holder);
     request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
-    request.Parameters = ConvertToNodeWithUtf8Deconding(GetAttr(pyRequest, "parameters"))->AsMap();
+    request.Parameters = ConvertToNodeWithUtf8Decoding(GetAttr(pyRequest, "parameters"))->AsMap();
     request.ResponseParametersConsumer = holder->GetResponseParametersConsumer();
     request.ResponseParametersFinishedCallback = [holder] () {
         holder->OnResponseParametersFinished();

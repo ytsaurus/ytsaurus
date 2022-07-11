@@ -15,7 +15,7 @@ except ImportError:
 logger = logging.getLogger("YtLocal")
 
 
-def porto_avaliable():
+def porto_available():
     global disable_porto
     if disable_porto:
         return False
@@ -31,7 +31,7 @@ def porto_avaliable():
 
 
 def remove_all_volumes(path):
-    if not porto_avaliable():
+    if not porto_available():
         return
 
     conn = Connection()

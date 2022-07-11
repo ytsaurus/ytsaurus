@@ -377,7 +377,7 @@ class TestTableCommands(object):
                 assert "banned" in str(err)
 
     @authors("ostyakov")
-    def test_error_occured_after_starting_to_write_chunked_requests(self):
+    def test_error_occurred_after_starting_to_write_chunked_requests(self):
         if yt.config["api_version"] != "v3":
             pytest.skip()
 

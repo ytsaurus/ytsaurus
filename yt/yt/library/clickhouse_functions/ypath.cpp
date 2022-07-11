@@ -179,7 +179,7 @@ public:
             if constexpr (isFundumental) {
                 columnTo->insert(toField(value));
             } else {
-                // TODO(dakovalkov): This looks wierd.
+                // TODO(dakovalkov): This looks weird.
                 // NB: Arrays are only not fundumental types which can be passed as TYTOutputType here.
                 columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
             }
