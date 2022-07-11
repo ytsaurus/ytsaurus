@@ -128,8 +128,8 @@ void TBundleState::DoUpdateState()
 
 bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
 {
-    // TODO(alexelex): EnableAutoTabletMove is just an example.
-    return table.Dynamic && table.Config->EnableAutoTabletMove;
+    return table.Dynamic &&
+        (table.Config->EnableAutoTabletMove || table.Config->EnableAutoReshard);
 }
 
 void TBundleState::DoFetchStatistics()
