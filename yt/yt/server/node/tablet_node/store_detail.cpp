@@ -1178,7 +1178,9 @@ TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState()
     }
 
     if (!ChunkState_) {
-        THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::ChunkIsNotPreloaded,
+            "Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
             << TErrorAttribute("table_path", TablePath_)
             << TErrorAttribute("store_id", StoreId_)

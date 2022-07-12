@@ -685,8 +685,8 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                 TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
                     const TReplicaFallbackInfo& replicaFallbackInfo)
                 {
-                    auto unresolveOptions = lookupRowsOptions;    
-                    unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
+                    auto unresolveOptions = lookupRowsOptions;
+                    unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
                     return replicaFallbackInfo.Client->LookupRows(
                         replicaFallbackInfo.Path,
                         subrequest.NameTable,
@@ -850,7 +850,9 @@ TRowset TClient::DoLookupRowsOnce(
 
         auto inSyncReplicas = pickInSyncReplicas();
         if (inSyncReplicas.empty()) {
-            THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoInSyncReplicas,
+                "No in-sync replicas found for table %v",
                 tableInfo->Path);
         }
 
@@ -1775,8 +1777,8 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
     YT_LOG_DEBUG("Chunk specs fetched");
 
     if (chunkSpecFetcher->ChunkSpecs().empty() && tabletCount > 1) {
-        THROW_ERROR_EXCEPTION("Empty table cannot be resharded to more than one tablet")
-            << TErrorAttribute("path", path)
+        THROW_ERROR_EXCEPTION("Empty table %v cannot be resharded to more than one tablet",
+            path)
             << TErrorAttribute("tablet_count", tabletCount);
     }
 
@@ -1795,7 +1797,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
     auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
     i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
 
-    YT_LOG_DEBUG("Builder initialization for resharding with slicing"
+    YT_LOG_DEBUG("Initializing pivot keys builder for resharding with slicing"
         " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v)",
         chunksDataWeight,
         expectedTabletSize,
@@ -1815,7 +1817,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
     chunkIds.clear();
     i64 unlimitedChunksDataWeight = 0;
     i64 maxBlockSize = 0;
-    std::vector<TInputChunkPtr> splittedChunks;
+    std::vector<TInputChunkPtr> splitChunks;
 
     for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
         auto inputChunk = New<TInputChunk>(chunkSpec);
@@ -1824,16 +1826,14 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
 
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         if (!IsBlobChunkId(chunkId)) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk store type. Possible tablet is not unmounted")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("chunk_id", chunkId)
-                << TErrorAttribute("tablet_count", tabletCount);
+            THROW_ERROR_EXCEPTION("Unexpected chunk store type in table %v; possiblly tablet is not unmounted",
+                path)
+                << TErrorAttribute("chunk_id", chunkId);
         }
 
         if ((chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) &&
             chunkDataWeight > minSliceSize) {
-
-            splittedChunks.push_back(inputChunk);
+            splitChunks.push_back(inputChunk);
         } else {
             reshardBuilder.AddChunk(chunkSpec);
             if (!chunkIds.contains(chunkId)) {
@@ -1843,7 +1843,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         }
     }
 
-    if (!splittedChunks.empty()) {
+    if (!splitChunks.empty()) {
         auto config = New<TFetcherConfig>();
         auto sizeFetcher = New<TChunkSliceSizeFetcher>(
             config,
@@ -1853,7 +1853,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
             MakeStrong(this),
             Logger);
 
-        for (const auto& inputChunk : splittedChunks) {
+        for (const auto& inputChunk : splitChunks) {
             sizeFetcher->AddChunk(inputChunk);
         }
 
@@ -1933,8 +1933,8 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
     reshardBuilder.ComputeSlicedChunksPivotKeys();
 
     if (!reshardBuilder.AreAllPivotsFound()) {
-        THROW_ERROR_EXCEPTION("Could not reshard to desired tablet count, consider reducing tablet count or specifying pivot keys manually")
-            << TErrorAttribute("path", path)
+        THROW_ERROR_EXCEPTION("Could not reshard table %v to desired tablet count; consider reducing tablet count or specifying pivot keys manually",
+            path)
             << TErrorAttribute("tablet_count", tabletCount)
             << TErrorAttribute("max_block_size", maxBlockSize);
     }
@@ -1986,9 +1986,10 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
         {"tablet_cell_bundle", "dynamic"});
 
     if (TypeFromId(tableId) != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Invalid object type: expected %v, got %v",
-            EObjectType::Table, TypeFromId(tableId))
-            << TErrorAttribute("path", path);
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, got %Qlv",
+            path,
+            EObjectType::Table,
+            TypeFromId(tableId));
     }
 
     if (!attributes->Get<bool>("dynamic")) {
@@ -2164,10 +2165,10 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
 
             if (TypeFromId(tableId) != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION(
-                    "Invalid object type: expected %v, got %v",
+                    "Invalid type of %v: expected %Qlv, got %Qlv",
+                    path,
                     EObjectType::Table,
-                    TypeFromId(tableId))
-                    << TErrorAttribute("path", path);
+                    TypeFromId(tableId));
             }
 
             if (!attributes->Get<bool>("dynamic")) {
@@ -2214,7 +2215,9 @@ NQueueClient::TQueueRowsetPtr TClient::DoPullQueue(
     const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullQueueOptions& options)
 {
-    THROW_ERROR_EXCEPTION_IF(offset < 0, "Cannot read table %v at a negative offset %v", queuePath, offset);
+    THROW_ERROR_EXCEPTION_IF(offset < 0, "Cannot read table %v at a negative offset %v",
+        queuePath,
+        offset);
 
     auto rowsToRead = NQueueClient::ComputeRowsToRead(rowBatchReadOptions);
 

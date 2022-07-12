@@ -80,6 +80,8 @@ YT_DEFINE_ERROR_ENUM(
     ((SyncReplicaNotInSync)                   (1732))
     ((BackupCheckpointRejected)               (1733))
     ((BackupInProgress)                       (1734))
+    ((ChunkIsNotPreloaded)                    (1735))
+    ((NoInSyncReplicas)                       (1736))
 );
 
 DEFINE_ENUM(EInMemoryMode,
