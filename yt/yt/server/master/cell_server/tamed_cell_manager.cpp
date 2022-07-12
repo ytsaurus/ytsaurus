@@ -1934,7 +1934,7 @@ private:
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end() && availableSlots > 0) {
                 for (auto [cell, peerId] : it->second) {
-                    if (!IsObjectAlive(cell)) {
+                    if (!IsObjectAlive(cell) || cell->GetCellarType() != cellarType) {
                         continue;
                     }
 
