@@ -175,6 +175,16 @@ void TInvokerQueue<TQueueImpl>::Invoke(
     int profilingTag,
     TProfilerTagPtr profilerTag)
 {
+    EnqueueCallback(std::move(callback), profilingTag, profilerTag);
+    CallbackEventCount_->NotifyOne();
+}
+
+template <class TQueueImpl>
+TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
+    TClosure callback,
+    int profilingTag,
+    TProfilerTagPtr profilerTag)
+{
     YT_ASSERT(callback);
     YT_ASSERT(profilingTag >= 0 && profilingTag < std::ssize(Counters_));
 
@@ -209,10 +219,10 @@ void TInvokerQueue<TQueueImpl>::Invoke(
         YT_LOG_TRACE(
             "Queue had been shut down, incoming action ignored (Callback: %v)",
             callback.GetHandle());
-        return;
+        return cpuInstant;
     }
 
-    CallbackEventCount_->NotifyOne();
+    return cpuInstant;
 }
 
 template <class TQueueImpl>

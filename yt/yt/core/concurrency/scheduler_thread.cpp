@@ -63,7 +63,7 @@ TClosure TSchedulerThread::OnExecute()
         auto cookie = CallbackEventCount_->PrepareWait();
 
         // Stop flag must be checked after PrepareWait because thread is notified when stop flag is set.
-        // Otherwise we can miss notification.
+        // Otherwise, we can miss notification.
         bool stopping = IsStopping();
         if (stopping && !GracefulStop_.load()) {
             CallbackEventCount_->CancelWait();

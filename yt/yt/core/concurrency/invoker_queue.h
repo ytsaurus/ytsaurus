@@ -89,9 +89,15 @@ public:
     void SetThreadId(TThreadId threadId);
 
     void Invoke(TClosure callback) override;
+
     void Invoke(
         TClosure callback,
-        int profilingTag,
+        NProfiling::TTagId profilingTag,
+        NYTProf::TProfilerTagPtr profilerTag);
+
+    TCpuInstant EnqueueCallback(
+        TClosure callback,
+        NProfiling::TTagId profilingTag,
         NYTProf::TProfilerTagPtr profilerTag);
 
     TThreadId GetThreadId() const override;
