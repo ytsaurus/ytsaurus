@@ -93,6 +93,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_expiration_timeout_merge_fix", &TThis::EnableExpirationTimeoutMergeFix)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

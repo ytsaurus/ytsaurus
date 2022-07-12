@@ -635,8 +635,13 @@ public:
 
     bool HasInheritableAttributes() const;
 
-    struct TAttributes
+    // TODO(kvk1920): Rename to TAttributes.
+    template <bool Transient>
+    struct TGenericAttributes
     {
+        template <class T>
+        using TPtr = std::conditional_t<Transient, T*, NObjectServer::TStrongObjectPtr<T>>;
+
         TVersionedBuiltinAttribute<NCompression::ECodec> CompressionCodec;
         TVersionedBuiltinAttribute<NErasure::ECodec> ErasureCodec;
         TVersionedBuiltinAttribute<NErasure::ECodec> HunkErasureCodec;
@@ -645,8 +650,8 @@ public:
         TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
         TVersionedBuiltinAttribute<int> ReplicationFactor;
         TVersionedBuiltinAttribute<bool> Vital;
-        TVersionedBuiltinAttribute<NTabletServer::TTabletCellBundlePtr> TabletCellBundle;
-        TVersionedBuiltinAttribute<NChaosServer::TChaosCellBundlePtr> ChaosCellBundle;
+        TVersionedBuiltinAttribute<TPtr<NTabletServer::TTabletCellBundle>> TabletCellBundle;
+        TVersionedBuiltinAttribute<TPtr<NChaosServer::TChaosCellBundle>> ChaosCellBundle;
         TVersionedBuiltinAttribute<NTransactionClient::EAtomicity> Atomicity;
         TVersionedBuiltinAttribute<NTransactionClient::ECommitOrdering> CommitOrdering;
         TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;
@@ -664,8 +669,19 @@ public:
 
         // Are all attributes null?
         bool AreEmpty() const;
+
+        TGenericAttributes<false> ToPersistent() const requires Transient;
     };
 
+public:
+    using TTransientAttributes = TGenericAttributes</*Transient*/ true>;
+    
+    // TODO(kvk1920): Rename to TPersistentAttributes.
+    using TAttributes = TGenericAttributes</*Transient*/ false>;
+
+    virtual void FillTransientInheritableAttributes(TTransientAttributes* attributes) const;
+
+    // COMPAT(kvk1920)
     virtual void FillInheritableAttributes(TAttributes* attributes) const;
 
 #define XX(camelCaseName, snakeCaseName) \
@@ -697,7 +713,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(kvk1920): Rename to GatherInheritableAttributes.
 // Traverse all ancestors and collect inheritable attributes.
+void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes);
+// COMPAT(kvk1920): Replace with GatherTransientInheritableAttributes.
 void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -965,3 +984,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
+
+#define NODE_DETAIL_INL_H_
+#include "node_detail-inl.h"
+#undef NODE_DETAIL_INL_H_

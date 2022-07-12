@@ -17,7 +17,6 @@ from yt.test_helpers import assert_items_equal
 import yt.yson as yson
 
 import pytest
-import time
 
 
 ##################################################################
@@ -1322,10 +1321,33 @@ class TestPortals(YTEnvSetup):
         set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         create("map_node", "//tmp/dir_with_attrs")
         create("portal_entrance", "//tmp/dir_with_attrs/p", attributes={"exit_cell_tag": 11})
+
+        def check_inherited_codec():
+            create("table", "//tmp/dir_with_attrs/p/t")
+            result = get("//tmp/dir_with_attrs/p/t/@compression_codec") == get("//tmp/dir_with_attrs/@compression_codec")
+            remove("//tmp/dir_with_attrs/p/t")
+            return result
+
         set("//tmp/dir_with_attrs/@compression_codec", "lz4")
-        time.sleep(1.5)
-        create("table", "//tmp/dir_with_attrs/p/t")
-        assert "lz4" == get("//tmp/dir_with_attrs/p/t/@compression_codec")
+        wait(check_inherited_codec)
+        set("//tmp/dir_with_attrs/@compression_codec", "zstd_17")
+        wait(check_inherited_codec)
+
+    @authors("kvk1920")
+    def test_smart_pointer_in_inheritable_attributes(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        create("map_node", "//tmp/d")
+        create("portal_entrance", "//tmp/d/p", attributes={"exit_cell_tag": 11})
+        create_tablet_cell_bundle("buggy_bundle")
+        set("//tmp/d/@tablet_cell_bundle", "buggy_bundle")
+
+        def check_inherited_bundle():
+            create("table", "//tmp/d/p/t")
+            result = get("//tmp/d/p/t/@tablet_cell_bundle") == "buggy_bundle"
+            remove("//tmp/d/p/t")
+            return result
+
+        wait(check_inherited_bundle)
 
     @authors("kvk1920")
     def test_effective_acl_synchronization(self):
@@ -1362,20 +1384,20 @@ class TestPortals(YTEnvSetup):
         assert "allow" == check_permission("dog", "write", table)["action"]
         assert "deny" == check_permission("cat", "read", table)["action"]
         assert "allow" == check_permission("rat", "read", table)["action"]
+
         set(portal_entrance + "/@inherit_acl", False)
-        time.sleep(1.1)
-        assert not get(portal_exit + "/@inherit_acl")
+        wait(lambda: not get(f"{portal_exit}/@inherit_acl"))
         assert "deny" == check_permission("dog", "write", table)["action"]
         assert "deny" == check_permission("cat", "read", table)["action"]
         assert "allow" == check_permission("rat", "read", table)["action"]
-        set(portal_entrance + "/@inherit_acl", True)
+
         set(folder + "/@acl", [
             make_ace("deny", "dog", "read"),
             make_ace("allow", "cat", "write"),
         ])
         set(portal_entrance + "/@acl", [make_ace("deny", "rat", "read")])
-        time.sleep(1.1)
-        assert get(portal_exit + "/@inherit_acl")
+        set(portal_entrance + "/@inherit_acl", True)
+        wait(lambda: get(portal_exit + "/@inherit_acl"))
         assert "deny" == check_permission("dog", "read", table)["action"]
         assert "allow" == check_permission("cat", "write", table)["action"]
         assert "deny" == check_permission("rat", "read", table)["action"]
@@ -1398,12 +1420,11 @@ class TestPortals(YTEnvSetup):
         assert "//tmp/d" == get("//tmp/d/p/@annotation_path")
         set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         remove("//tmp/d/@annotation")
-        time.sleep(1)
-        assert yson.YsonEntity() == get("//tmp/d/@annotation")
-        assert yson.YsonEntity() == get("//tmp/d/p/@annotation_path")
+        wait(lambda: yson.YsonEntity() == get("//tmp/d/@annotation"))
+        wait(lambda: yson.YsonEntity() == get("//tmp/d/p/@annotation_path"))
         set("//tmp/d/p&/@annotation", "abc")
-        time.sleep(1)
-        assert "abc" == get("//tmp/d/p/@annotation")
+
+        wait(lambda: "abc" == get("//tmp/d/p/@annotation"))
         assert "//tmp/d/p" == get("//tmp/d/p/@annotation_path")
 
 

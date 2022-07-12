@@ -78,6 +78,9 @@ public:
     std::optional<TDuration> PortalSynchronizationPeriod;
 
     // COMPAT(kvk1920)
+    bool EnablePortalSynchronization;
+
+    // COMPAT(kvk1920)
     bool EnableRevisionChangingForBuiltinAttributes;
 
     bool EnableSymlinkCyclicityCheck;
