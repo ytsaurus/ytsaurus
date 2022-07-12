@@ -996,7 +996,7 @@ public:
 
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
-        
+
         dynamicOrchidService->AddChild("pools", New<TPoolsOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
@@ -2039,7 +2039,7 @@ private:
             current = current->GetParent();
         }
         THROW_ERROR_EXCEPTION(
-            "Operations of type %Qv must have small enough specified resource limits in spec or in some of ancestor pools",
+            "Operations of type %Qlv must have small enough specified resource limits in spec or in some of ancestor pools",
             operation->GetType())
             << TErrorAttribute("operation_id", operation->GetId())
             << TErrorAttribute("required_resource_limits", requiredResourceLimits)
