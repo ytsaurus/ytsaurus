@@ -108,12 +108,6 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
                 break;
             }
 
-            auto queueSize = GetQueueSize();
-            if (minEnqueuedAt == std::numeric_limits<TCpuInstant>::max() && queueSize > 0) {
-                YT_LOG_WARNING("Action is probably stuck (QueueSize: %v)",
-                    queueSize);
-            }
-
             cookie = EventCount_->PrepareWait();
 
             // We have to check stopping between Prepare and Wait.
@@ -131,6 +125,7 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
     }
 #else
     Y_UNUSED(isStopping);
+    Y_UNUSED(PollingPeriod);
     EventCount_->Wait(cookie);
 #endif
 
