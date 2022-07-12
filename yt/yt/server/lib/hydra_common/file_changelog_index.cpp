@@ -208,6 +208,14 @@ int TFileChangelogIndex::GetFlushedDataRecordCount() const
     return FlushedDataRecordCount_.load();
 }
 
+void TFileChangelogIndex::SetFlushedDataRecordCount(int count)
+{
+    YT_VERIFY(count >= FlushedDataRecordCount_.load());
+    YT_VERIFY(count >= FlushedIndexRecordCount_);
+
+    FlushedDataRecordCount_.store(count);
+}
+
 std::pair<i64, i64> TFileChangelogIndex::GetRecordRange(int recordIndex) const
 {
     auto guard = ReaderGuard(ChunkListLock_);
@@ -227,8 +235,12 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
 
     auto recordCount = GetRecordCount();
 
-    YT_VERIFY(firstRecordIndex >= 0 && firstRecordIndex <= recordCount);
+    YT_VERIFY(firstRecordIndex >= 0);
     YT_VERIFY(recordCount == 0 || DataFileLength_ >= 0);
+
+    if (firstRecordIndex > recordCount) {
+        return {-1, -1};
+    }
 
     auto startOffset = GetRecordOffset(firstRecordIndex);
     i64 endOffset = -1;
@@ -265,14 +277,6 @@ void TFileChangelogIndex::AppendRecord(int recordIndex, std::pair<i64, i64> rang
 
     DataFileLength_ = range.second;
     ++RecordCount_;
-}
-
-void TFileChangelogIndex::SetFlushedDataRecordCount(int count)
-{
-    YT_VERIFY(count >= FlushedDataRecordCount_.load());
-    YT_VERIFY(count >= FlushedIndexRecordCount_);
-
-    FlushedDataRecordCount_.store(count);
 }
 
 void TFileChangelogIndex::AsyncFlush()
