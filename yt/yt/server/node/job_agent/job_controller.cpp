@@ -1377,9 +1377,9 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
 
         auto job = FindJob(jobId);
 
-        YT_VERIFY(NExecNode::IsSchedulerJobInterruptible(*job).has_value());
-
         if (job) {
+            YT_VERIFY(NExecNode::IsSchedulerJobInterruptible(*job).has_value());
+
             std::optional<TString> preemptionReason;
             if (jobToInterrupt.has_preemption_reason()) {
                 preemptionReason = jobToInterrupt.preemption_reason();
