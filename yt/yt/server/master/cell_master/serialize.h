@@ -138,6 +138,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixPrerequisiteTxReplication)                                 (2036))  // gritukan
     ((AccessControlObjectOverhaul)                                  (2037))  // shakurov
     ((RotationAfterBackup)                                          (2038))  // ifsmirnov
+    ((FixCellarHeartbeat)                                           (2039))  // savrus
     // 22.3 starts here.
     ((JobProxyVersion)                                              (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

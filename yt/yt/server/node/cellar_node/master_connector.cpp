@@ -121,7 +121,7 @@ public:
             auto cellar = cellarManager->FindCellar(cellarType);
             UpdateCellarFromHeartbeatResponse(cellarType, cellar, cellarInfo);
 
-            if (!singleCellarType) {
+            if (response.cellars().size() == 1) {
                 singleCellarType = cellarType;
             }
         }
