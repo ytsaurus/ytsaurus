@@ -7,6 +7,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/chyt/controller/internal/api"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
@@ -58,6 +59,8 @@ type App struct {
 	coordPath ypath.Path
 
 	locations []*Location
+
+	HTTPAPIServer *api.HTTPServer
 }
 
 func (app App) acquireLock() (lost <-chan struct{}, err error) {
@@ -130,6 +133,18 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 		l.Debug("location ready")
 	}
 
+	var apiConfig = api.HTTPServerConfig{
+		HTTPAPIConfig: api.HTTPAPIConfig{
+			APIConfig: api.APIConfig{
+				Stage:  config.Strawberry.Stage,
+				Family: app.locations[0].c.Family(),
+			},
+			Token:    config.Token,
+			Clusters: config.LocationProxies,
+		},
+	}
+	app.HTTPAPIServer = api.NewHTTPServer(apiConfig, newLogger("api", options.LogToStderr))
+
 	l.Info("app is ready to serve locations", log.Strings("location_proxies", config.LocationProxies))
 
 	return
@@ -137,6 +152,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 // Run starts the infinite loop consisting of lock acquisition and agent operation.
 func (app App) Run() {
+	go app.HTTPAPIServer.Run()
 	for {
 		app.l.Debug("trying to acquire lock")
 		lost, err := app.acquireLock()

@@ -12,13 +12,10 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/sleep"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
-	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
-
-const root = ypath.Path("//tmp/strawberry")
 
 func abortAll(t *testing.T, env *yttest.Env) {
 	// TODO(max42): introduce some unique annotation and abort only such operations. This would allow
