@@ -44,25 +44,36 @@ public:
 
     void Close();
 
+    //! Returns the number of records in the index.
     /*
      *  \note
      *  Thread affinity: any
      */
     int GetRecordCount() const;
 
+    //! Returns the number of records that are known to be flushed to data file.
     /*
      *  \note
      *  Thread affinity: any
      */
     int GetFlushedDataRecordCount() const;
 
+    //! Sets the number of records that are flushed to data file.
+    void SetFlushedDataRecordCount(int count);
+
+    //! Returns the range of data file containing the requested record
+    //! (including header and padding).
     /*
      *  \note
      *  Thread affinity: any
      */
     std::pair<i64, i64> GetRecordRange(int recordIndex) const;
 
-    /*x
+    //! Returns the range of data file containing the requested records
+    /*!
+     *  \param maxBytes
+     *  Limits the length of the range (including record headers and padding).
+     *
      *  \note
      *  Thread affinity: any
      */
@@ -71,11 +82,27 @@ public:
         int maxRecords,
         i64 maxBytes) const;
 
+    //! Appends a new record into the index.
+    /*!
+     *  \param recordIndex
+     *  Passed for validation only. The index expects the records to be appended without gaps.
+     *
+     *  \param range
+     *  Represents the range of data file containting the record (including header and padding).
+     */
     void AppendRecord(int recordIndex, std::pair<i64, i64> range);
-    void SetFlushedDataRecordCount(int count);
 
+    //! Asynchronously flushes the index file writing down newly appended records.
+    //! Returns immediately.
+    //! Can only be called if #CanFlush is true.
     void AsyncFlush();
+
+    //! Synchronously flushes the index file.
+    //! Only returns when all previously appended records are flushed.
+    //! Can be called regardless of whether any asynchronous flush is currently in progress or not.
     void SyncFlush();
+
+    //! Checks if no asynchronous flush is currently in progress.
     bool CanFlush() const;
 
 private:
