@@ -790,7 +790,7 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 
             for (const auto& job : GetJobs()) {
                 auto jobId = job->GetId();
-                if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
+                if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() <= EJobState::Running) {
                     try {
                         YT_LOG_DEBUG("All scheduler jobs are disabled; trying to interrupt (JobId: %v)",
                             jobId);
