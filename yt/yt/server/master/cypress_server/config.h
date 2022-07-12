@@ -82,6 +82,9 @@ public:
 
     bool EnableSymlinkCyclicityCheck;
 
+    // COMPAT(shakurov)
+    bool EnableExpirationTimeoutMergeFix;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
