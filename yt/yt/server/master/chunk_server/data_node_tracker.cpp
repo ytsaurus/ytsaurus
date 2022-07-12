@@ -214,7 +214,7 @@ public:
                 objectManager->ValidateObjectLifeStage(existingLocation);
                 if (auto* existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
                     if (existingNode->GetDefaultAddress() != address) {
-                        THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is a registered node %Qv with the same location uuid %v",
+                        THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is another cluster node %Qv with the same location uuid %v",
                             address,
                             existingNode->GetDefaultAddress(),
                             locationUuid);
