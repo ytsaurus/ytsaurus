@@ -60,10 +60,28 @@ void TPortalExitNode::FillInheritableAttributes(TAttributes *attributes) const
 
     if (EffectiveInheritableAttributes_) {
 #define XX(camelCaseName, snakeCaseName) \
+        if (!attributes->camelCaseName.IsSet() && EffectiveInheritableAttributes_->camelCaseName.IsSet()) { \
+            using TValueType = TCompositeNodeBase::T##camelCaseName; \
+            attributes->camelCaseName.Set( \
+                TVersionedBuiltinAttributeTraits<TValueType>::FromRaw( \
+                    EffectiveInheritableAttributes_->camelCaseName.Unbox())); \
+        }
+
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+    }
+}
+
+void TPortalExitNode::FillTransientInheritableAttributes(TTransientAttributes *attributes) const
+{
+    TCompositeNodeBase::FillTransientInheritableAttributes(attributes);
+
+    if (EffectiveInheritableAttributes_) {
+#define XX(camelCaseName, snakeCaseName) \
         if (!attributes->camelCaseName.IsSet()) { \
-            if (auto inheritedValue = TryGet##camelCaseName()) { \
-                using TValueType = TCompositeNodeBase::T##camelCaseName; \
-                attributes->camelCaseName.Set(TVersionedBuiltinAttributeTraits<TValueType>::FromRaw(std::move(*inheritedValue))); \
+            if (EffectiveInheritableAttributes_->camelCaseName.IsSet()) { \
+                attributes->camelCaseName.Set(EffectiveInheritableAttributes_->camelCaseName.Unbox()); \
             } \
         }
 

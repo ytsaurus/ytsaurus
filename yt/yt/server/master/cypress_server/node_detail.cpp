@@ -523,60 +523,6 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, CompressionCodec);
-    Persist(context, ErasureCodec);
-    if (context.GetVersion() >= EMasterReign::HunkErasureCodec) {
-        Persist(context, HunkErasureCodec);
-    }
-    if (context.GetVersion() >= EMasterReign::EnableStripedErasureAttribute) {
-        Persist(context, EnableStripedErasure);
-    }
-    Persist(context, ReplicationFactor);
-    Persist(context, Vital);
-    Persist(context, Atomicity);
-    Persist(context, CommitOrdering);
-    Persist(context, InMemoryMode);
-    Persist(context, OptimizeFor);
-    Persist(context, ProfilingMode);
-    Persist(context, ProfilingTag);
-    Persist(context, ChunkMergerMode);
-    Persist(context, PrimaryMediumIndex);
-    Persist(context, Media);
-    Persist(context, TabletCellBundle);
-    if (context.GetVersion() >= EMasterReign::AutoCreateReplicationCard) {
-        Persist(context, ChaosCellBundle);
-    }
-}
-
-void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersistenceContext& context)
-{
-    using NYT::Persist;
-#define XX(camelCaseName, snakeCaseName) \
-    Persist(context, camelCaseName);
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
-bool TCompositeNodeBase::TAttributes::AreFull() const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    && camelCaseName.IsSet()
-    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
-bool TCompositeNodeBase::TAttributes::AreEmpty() const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    && !camelCaseName.IsNull()
-    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
 void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNode::Save(context);
@@ -624,6 +570,23 @@ void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes) cons
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
     }
 #undef XX
+}
+
+void TCompositeNodeBase::FillTransientInheritableAttributes(TTransientAttributes* attributes) const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (!attributes->camelCaseName.IsSet()) { \
+        if (auto* inheritedValue = DoTryGet##camelCaseName()) { \
+            if (inheritedValue->IsSet()) { \
+                attributes->camelCaseName.Set(inheritedValue->Unbox()); \
+            } \
+        } \
+    }
+
+    if (HasInheritableAttributes()) {
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+    }
+#undef  XX
 }
 
 void TCompositeNodeBase::SetAttributes(const TAttributes* attributes)
@@ -707,6 +670,13 @@ void TCompositeNodeBase::Remove##camelCaseName() \
 FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes)
+{
+    for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
+        ancestor->As<TCompositeNodeBase>()->FillTransientInheritableAttributes(attributes);
+    }
+}
 
 void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes)
 {

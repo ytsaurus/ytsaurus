@@ -124,6 +124,12 @@ public:
             return;
         }
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->CypressManager;
+        if (!config->EnablePortalSynchronization) {
+            return;
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -145,7 +151,7 @@ public:
                 auto* portalExitInfo = request.add_portal_infos();
                 ToProto(portalExitInfo->mutable_node_id(), MakePortalExitNodeId(node->GetId(), node->GetExitCellTag()));
 
-                // NB: The following things are synchronized:
+                // NB: The following things are synchronizable:
                 // 1) effective inheritable attributes
                 // 2) effective acl
                 // 3) effective annotation
@@ -154,8 +160,8 @@ public:
                 // 6) inherit_acl
                 // 7) direct acl
 
-                auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
+                auto effectiveInheritableAttributes = New<TTransientInheritedAttributeDictionary>(Bootstrap_);
+                GatherTransientInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
                 ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
                 auto effectiveAcl = securityManager->GetEffectiveAcl(node);
@@ -434,6 +440,7 @@ private:
 
                 // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
                 std::swap(exitNode->EffectiveInheritableAttributes().emplace(), inheritableAttributes->Attributes());
+
                 exitNode->Acd().SetEntries(effectiveAcl);
                 exitNode->Acd().SetInherit(portalExitInfo.inherit_acl());
                 exitNode->Acd().SetOwner(owner);

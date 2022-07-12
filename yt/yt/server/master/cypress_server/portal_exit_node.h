@@ -31,6 +31,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
+    void FillTransientInheritableAttributes(TTransientAttributes* attributes) const override;
     void FillInheritableAttributes(TAttributes* attributes) const override;
 };
 
