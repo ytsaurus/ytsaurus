@@ -22,6 +22,8 @@ class TLeaseManager
     : public TNonCopyable
 {
 public:
+    TLeaseManager() = delete;
+
     //! Creates a new lease with a given timeout and a given expiration callback.
     static TLease CreateLease(TDuration timeout, TClosure onExpired);
 
@@ -41,7 +43,6 @@ public:
 
 private:
     class TImpl;
-
 };
 
 //! An invalid lease.

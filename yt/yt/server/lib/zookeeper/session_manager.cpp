@@ -53,10 +53,7 @@ private:
     THashMap<TSessionId, ISessionPtr> Sessions_;
     THashMap<TSessionId, IConnectionPtr> Connections_;
 
-    TLeaseManager LeaseManager_;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SessionsLock_);
-
 
     ISessionPtr FindSession(TSessionId sessionId) const
     {
@@ -131,7 +128,7 @@ private:
 
         auto timeout = req->Timeout;
 
-        auto lease = LeaseManager_.CreateLease(
+        auto lease = TLeaseManager::CreateLease(
             timeout,
             BIND(&TSessionManager::OnSessionLeaseExpited, MakeWeak(this), sessionId));
 
@@ -174,7 +171,7 @@ private:
             sessionId);
 
         // NB: Race between lease creation and session registration is possible.
-        if (!LeaseManager_.RenewLease(session->GetLease())) {
+        if (!TLeaseManager::RenewLease(session->GetLease())) {
             OnSessionLeaseExpited(session->GetId());
         }
     }
@@ -230,7 +227,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (auto session = FindSession(sessionId)) {
-            LeaseManager_.RenewLease(session->GetLease());
+            TLeaseManager::RenewLease(session->GetLease());
 
             return Driver_->ExecuteRequest(session, request);
         } else {
