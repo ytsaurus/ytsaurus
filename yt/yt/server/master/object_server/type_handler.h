@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/server/lib/sequoia_client/transaction.h>
+
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/core/misc/optional.h>
@@ -88,6 +90,9 @@ struct IObjectTypeHandler
 
     //! Raised when GC finally destroys the object.
     virtual void DestroyObject(TObject* object) noexcept = 0;
+
+    //! Raised to destroy sequoia object.
+    virtual void DestroySequoiaObject(TObject* object, const NSequoiaClient::ISequoiaTransactionPtr& transaction) noexcept = 0;
 
     //! Invokes #object's dtor and then immediately recreates the object in-place as ghost.
     virtual void RecreateObjectAsGhost(TObject* object) noexcept = 0;

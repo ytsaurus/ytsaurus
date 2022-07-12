@@ -170,6 +170,12 @@ struct IObjectManager
     virtual std::unique_ptr<NHydra::TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request) = 0;
 
+    //! Handles object destruction of both normal and sequoia objects.
+    /*!
+     *  Thread affinity: Automaton
+     */
+    virtual TFuture<void> DestroyObjects(std::vector<TObjectId> objectIds) = 0;
+
     //! Returns a future that gets set when the GC queues becomes empty.
     virtual TFuture<void> GCCollect() = 0;
 

@@ -447,9 +447,9 @@ void TGarbageCollector::SweepZombies()
 
     // Extract up to MaxWeightPerGCSweep and post a mutation.
     int totalWeight = 0;
-    NProto::TReqDestroyObjects request;
+    std::vector<TObjectId> objectIds;
     for (const auto* object : Zombies_) {
-        ToProto(request.add_object_ids(), object->GetId());
+        objectIds.push_back(object->GetId());
         totalWeight += object->GetGCWeight();
         if (totalWeight >= GetDynamicConfig()->MaxWeightPerGCSweep) {
             break;
@@ -457,14 +457,15 @@ void TGarbageCollector::SweepZombies()
     }
 
     YT_LOG_DEBUG("Starting zombie objects sweep (Count: %v, Weight: %v)",
-        request.object_ids_size(),
+        objectIds.size(),
         totalWeight);
 
-    auto asyncResult = Bootstrap_
-        ->GetObjectManager()
-        ->CreateDestroyObjectsMutation(request)
-        ->CommitAndLog(Logger);
-    Y_UNUSED(WaitFor(asyncResult));
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto result = WaitFor(objectManager->DestroyObjects(std::move(objectIds)));
+    YT_LOG_DEBUG_UNLESS(
+        result.IsOK(),
+        result,
+        "Error destroying objects");
 }
 
 void TGarbageCollector::SweepEphemeralGhosts()

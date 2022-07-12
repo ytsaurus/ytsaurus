@@ -449,7 +449,7 @@ private:
                     auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Key, /*validateWrite*/ true);
 
                     auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ false, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, request.Key, TLockMask{});
+                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, request.Key, TLockMask{});
                 },
                 [&] (auto) { YT_ABORT(); });
         }

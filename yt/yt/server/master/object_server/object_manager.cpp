@@ -36,6 +36,10 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
+#include <yt/yt/server/lib/sequoia_client/transaction.h>
+
 #include <yt/yt/server/lib/election/election_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -48,14 +52,19 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/sequoia_client/tables.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -95,6 +104,8 @@ using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NTransactionSupervisor;
+using namespace NSequoiaClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +223,8 @@ public:
     std::unique_ptr<TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request) override;
 
+    TFuture<void> DestroyObjects(std::vector<TObjectId> objectIds) override;
+
     TFuture<void> GCCollect() override;
 
     TObject* CreateObject(
@@ -325,6 +338,12 @@ private:
     void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
     void HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept;
     void HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* request);
+    void HydraPrepareDestroyObjects(
+        TTransaction* transaction,
+        NProto::TReqDestroyObjects* request,
+        const TTransactionPrepareOptions& options);
+
+    TFuture<void> DestroySequoiaObjects(NProto::TReqDestroyObjects request);
 
     void DoRemoveObject(TObject* object);
     void SendObjectLifeStageConfirmation(TObjectId objectId);
@@ -332,6 +351,8 @@ private:
     void CheckObjectLifeStageVoteCount(TObject* object);
     void ConfirmObjectLifeStageToPrimaryMaster(TObject* object);
     void AdvanceObjectLifeStageAtSecondaryMasters(TObject* object);
+
+    void DoDestroyObjects(NProto::TReqDestroyObjects* request) noexcept;
 
     void OnProfiling();
 
@@ -696,6 +717,14 @@ void TObjectManager::Initialize()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND(&TObjectManager::OnDynamicConfigChanged, MakeWeak(this)));
+
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    transactionManager->RegisterTransactionActionHandlers(
+        MakeTransactionActionHandlerDescriptor(BIND(&TObjectManager::HydraPrepareDestroyObjects, MakeStrong(this))),
+        MakeTransactionActionHandlerDescriptor(
+            MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDestroyObjects, const NTransactionSupervisor::TTransactionCommitOptions&>()),
+        MakeTransactionActionHandlerDescriptor(
+            MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDestroyObjects, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster()) {
@@ -1781,8 +1810,98 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
     HydraExecuteLeader(identity, codicilData, context, GetCurrentMutationContext());
 }
 
-void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
+TFuture<void> TObjectManager::DestroyObjects(std::vector<TObjectId> objectIds)
 {
+    const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+
+    NProto::TReqDestroyObjects sequoiaRequest;
+    NProto::TReqDestroyObjects nonSequoiaRequest;
+    for (auto objectId : objectIds) {
+        const auto& handler = GetHandler(TypeFromId(objectId));
+        auto* object = handler->FindObject(objectId);
+        if (!object) {
+            // Looks ok.
+            continue;
+        }
+        if (sequoiaConfig->Enable && IsSequoiaId(objectId)) {
+            ToProto(sequoiaRequest.add_object_ids(), objectId);
+        } else {
+            ToProto(nonSequoiaRequest.add_object_ids(), objectId);
+        }
+    }
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(2);
+    if (!nonSequoiaRequest.object_ids().empty()) {
+        futures.push_back(CreateDestroyObjectsMutation(nonSequoiaRequest)
+            ->CommitAndLog(Logger)
+            .AsVoid());
+    }
+
+    if (!sequoiaRequest.object_ids().empty()) {
+        futures.push_back(DestroySequoiaObjects(sequoiaRequest));
+    }
+
+    return AllSucceeded(std::move(futures))
+        .AsVoid();
+}
+
+void TObjectManager::HydraPrepareDestroyObjects(
+    TTransaction* /*transaction*/,
+    NProto::TReqDestroyObjects* request,
+    const NTransactionSupervisor::TTransactionPrepareOptions& options)
+{
+    YT_VERIFY(options.Persistent);
+    YT_VERIFY(options.LatePrepare);
+
+    for (auto protoId : request->object_ids()) {
+        auto id = FromProto<TObjectId>(protoId);
+        auto type = TypeFromId(id);
+        const auto& handler = GetHandler(type);
+        auto* object = handler->FindObject(id);
+        if (!object || object->GetObjectRefCounter(/*flushUnrefs*/ true) > 0) {
+            THROW_ERROR_EXCEPTION("Object %v is no more a zombie", object->GetId());
+        }
+    }
+
+    DoDestroyObjects(request);
+}
+
+TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects request)
+{
+    const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+    auto transaction = CreateSequoiaTransaction(client, Logger);
+
+    return transaction->Start(/*startOptions*/ {})
+        .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+            for (auto protoId : request.object_ids()) {
+                auto id = FromProto<TObjectId>(protoId);
+                auto type = TypeFromId(id);
+                const auto& handler = GetHandler(type);
+                auto* object = handler->FindObject(id);
+                if (!object) {
+                    continue;
+                }
+                handler->DestroySequoiaObject(object, transaction);
+            }
+
+            transaction->AddTransactionAction(
+                Bootstrap_->GetCellTag(),
+                NTransactionClient::MakeTransactionActionData(request));
+
+            NApi::TTransactionCommitOptions commitOptions{
+                .CoordinatorCellId = Bootstrap_->GetCellId(),
+                .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+            };
+
+            return transaction->Commit(commitOptions);
+        }));
+}
+
+void TObjectManager::DoDestroyObjects(NProto::TReqDestroyObjects* request) noexcept
+{
+    YT_VERIFY(HasMutationContext());
+
     // NB: Ordered map is a must to make the behavior deterministic.
     std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
     auto getCrossCellRequest = [&] (TObjectId id) -> NProto::TReqUnrefExportedObjects& {
@@ -1828,6 +1947,11 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
     }
 
     GarbageCollector_->CheckEmpty();
+}
+
+void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
+{
+    DoDestroyObjects(request);
 }
 
 void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept

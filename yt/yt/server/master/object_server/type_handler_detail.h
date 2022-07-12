@@ -71,6 +71,11 @@ public:
         DoDestroyObject(object->As<TImpl>());
     }
 
+    void DestroySequoiaObject(TObject* object, const NSequoiaClient::ISequoiaTransactionPtr& transaction) noexcept override
+    {
+        DoDestroySequoiaObject(object->As<TImpl>(), transaction);
+    }
+
     void RecreateObjectAsGhost(TObject* object) noexcept override
     {
         DoRecreateObjectAsGhost(object->As<TImpl>());
@@ -153,6 +158,9 @@ protected:
             acd->Clear();
         }
     }
+
+    virtual void DoDestroySequoiaObject(TImpl* /*object*/, const NSequoiaClient::ISequoiaTransactionPtr& /*transaction*/)
+    { }
 
     virtual void DoRecreateObjectAsGhost(TImpl* object) noexcept = 0;
 

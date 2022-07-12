@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     // 22.3 starts here.
     ((JobProxyVersion)                                              (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
+    ((DestroySequoiaChunks)                                         (2102))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
