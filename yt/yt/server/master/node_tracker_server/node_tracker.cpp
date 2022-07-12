@@ -242,7 +242,15 @@ public:
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /*error*/) {
                 // NB: May be missing if OnLeadingStopped was called prior to mutation failure.
                 PendingRegisterNodeAddreses_.erase(address);
-            }).Via(GetCurrentInvoker()));
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+                    auto groups = GetGroupsForNode(address);
+                    for (auto* group : groups) {
+                        --group->PendingRegisterNodeMutationCount;
+                    }
+                }
+            }).Via(EpochAutomatonInvoker_));
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override
@@ -1042,12 +1050,6 @@ private:
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
-            auto groups = GetGroupsForNode(address);
-            for (auto* group : groups) {
-                --group->PendingRegisterNodeMutationCount;
-            }
-        }
 
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
