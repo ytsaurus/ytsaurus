@@ -6,10 +6,20 @@ from yt.wrapper.common import load_certificate
 import yt.logger as logger
 
 import yt.packages.requests as requests
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, string_types
 
 
 DEFAULT_BASE_ACL_SERVICE_URL = "https://idm.yt.yandex-team.ru"
+
+
+def decode_latin1(obj):
+    if isinstance(obj, dict):
+        return dict([(key, decode_latin1(value)) for key, value in iteritems(obj)])
+    if isinstance(obj, list):
+        return [decode_latin1(value) for value in obj]
+    if isinstance(obj, string_types):
+        return obj.encode("latin1").decode("utf-8")
+    return obj
 
 
 def make_idm_client(address=None, client=None):
@@ -120,11 +130,11 @@ class YtIdmClient(object):
         logger.debug("Got response %s (body: %s)", response.status_code, response.text)
 
         if response.status_code == 400:
-            raise YtError.from_dict(response.json())
+            raise YtError.from_dict(decode_latin1(response.json()))
         else:
             response.raise_for_status()
 
-        return response.json()
+        return decode_latin1(response.json())
 
     @_with_object_id
     def get_acl(self, object_id, include_managed_ace=False):
