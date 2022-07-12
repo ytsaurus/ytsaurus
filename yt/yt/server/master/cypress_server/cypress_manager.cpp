@@ -3227,6 +3227,13 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
+            if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetTouchTime()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Touching a node with an expiration timeout but without a touch time (NodeId: %v)",
+                    trunkNode->GetId());
+                auto* context = GetCurrentHydraContext();
+                trunkNode->SetTouchTime(context->GetTimestamp());
+            }
             ExpirationTracker_->OnNodeTouched(trunkNode);
         }
     }

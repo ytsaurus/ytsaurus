@@ -428,6 +428,22 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
     originatingNode->MergeExpirationTimeout(branchedNode);
     auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+    // COMPAT(shakurov)
+    if (const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->GetConfig()->CypressManager->EnableExpirationTimeoutMergeFix)
+    {
+        // TODO(shakurov): refactor. Reconcile node's MergeExpirationTimeout and
+        // Cypress manager's SetExpirationTimeout. The former forces us to update
+        // the timeout separately from TouchTime_ yet the latter strives to update
+        // the two fields simultaneously in order to guarantee the invariant:
+        //   bool(node->TryGetExpirationTimeout()) == bool(originatingNode->GetTouchTime()).
+        if (newExpirationTimeout && !originatingNode->GetTouchTime()) {
+            auto* context = NHydra::GetCurrentHydraContext();
+            originatingNode->SetTouchTime(context->GetTimestamp());
+        } else if (!newExpirationTimeout && originatingNode->GetTouchTime()) {
+            originatingNode->SetTouchTime(TInstant::Zero());
+        }
+    }
     if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
