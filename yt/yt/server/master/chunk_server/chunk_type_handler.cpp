@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/ytlib/sequoia_client/tables.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 namespace NYT::NChunkServer {
@@ -16,6 +18,7 @@ using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NSequoiaClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +67,17 @@ private:
         chunkManager->DestroyChunk(chunk);
 
         TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
+    }
+
+    void DoDestroySequoiaObject(TChunk* chunk, const ISequoiaTransactionPtr& transaction) noexcept override
+    {
+        if (chunk->IsForeign()) {
+            return;
+        }
+
+        TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
+        chunkMetaExtensionRow.Id = ToString(chunk->GetId());
+        transaction->DeleteRow(chunkMetaExtensionRow);
     }
 
     void DoUnstageObject(TChunk* chunk, bool recursive) override

@@ -69,7 +69,6 @@
 
 namespace NYT::NTransactionServer {
 
-using namespace NApi;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
