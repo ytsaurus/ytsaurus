@@ -392,7 +392,11 @@ def _pretty_format_escape(value):
             return char
         return "\\x{0:02x}".format(ord(char))
     value = value.replace("\n", "\\n").replace("\t", "\\t")
-    return "".join(imap(escape, value))
+    try:
+        value.encode("utf-8")
+        return value
+    except UnicodeDecodeError:
+        return "".join(imap(escape, value))
 
 
 def _pretty_format_attribute(name, value, attribute_length_limit):
