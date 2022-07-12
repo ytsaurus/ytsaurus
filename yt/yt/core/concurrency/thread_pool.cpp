@@ -1,4 +1,5 @@
 #include "thread_pool.h"
+#include "notify_manager.h"
 #include "single_queue_scheduler_thread.h"
 #include "private.h"
 #include "profiling_helpers.h"
@@ -16,6 +17,123 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This routines could be placed in TThreadPool class but it causes a circular ref.
+class TInvokerQueueAdapter
+    : public TMpmcInvokerQueue
+    , public TNotifyManager
+{
+public:
+    TInvokerQueueAdapter(
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        const TTagSet& counterTagSet)
+        : TMpmcInvokerQueue(callbackEventCount, counterTagSet)
+        , TNotifyManager(callbackEventCount)
+    { }
+
+    int GetQueueSize() const override
+    {
+        return TMpmcInvokerQueue::GetSize();
+    }
+
+    TClosure OnExecute(TEnqueuedAction* action, bool fetchNext, std::function<bool()> isStopping)
+    {
+        TMpmcInvokerQueue::EndExecute(action);
+
+        if (!fetchNext) {
+            return {};
+        }
+
+        ++WaitingThreads;
+
+        while (true) {
+            auto cookie = GetEventCount()->PrepareWait();
+
+            auto minEnqueuedAt = ResetMinEnqueuedAt();
+            auto callback = TMpmcInvokerQueue::BeginExecute(action);
+
+            if (callback || isStopping()) {
+                CancelWait();
+
+                if (callback) {
+                    YT_ASSERT(action->EnqueuedAt > 0);
+                    minEnqueuedAt = action->EnqueuedAt;
+                }
+
+                auto cpuInstant = GetCpuInstant();
+                NotifyAfterFetch(cpuInstant, minEnqueuedAt);
+
+                --WaitingThreads;
+
+                return callback;
+            }
+
+            Wait(cookie, isStopping);
+            TMpmcInvokerQueue::EndExecute(action);
+        }
+    }
+
+    void Invoke(TClosure callback) override
+    {
+        auto cpuInstant = TMpmcInvokerQueue::EnqueueCallback(
+            std::move(callback),
+            /*profilingTag*/ 0,
+            /*profilerTag*/ nullptr);
+
+        auto threadCount = ThreadCount_.load();
+        NotifyFromInvoke(cpuInstant, true, threadCount);
+    }
+
+    void Configure(int threadCount)
+    {
+        ThreadCount_.store(threadCount);
+    }
+
+private:
+    std::atomic<int> ThreadCount_ = 0;
+};
+
+class TThreadPoolThread
+    : public TSchedulerThread
+{
+public:
+    TThreadPoolThread(
+        TIntrusivePtr<TInvokerQueueAdapter> queue,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        const TString& threadGroupName,
+        const TString& threadName,
+        int shutdownPriority = 0)
+        : TSchedulerThread(
+            callbackEventCount,
+            threadGroupName,
+            threadName,
+            shutdownPriority)
+        , Queue_(std::move(queue))
+    { }
+
+protected:
+    const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
+    TEnqueuedAction CurrentAction_;
+
+    TClosure OnExecute() override
+    {
+        bool fetchNext = !TSchedulerThread::IsStopping() || TSchedulerThread::GracefulStop_;
+
+        return Queue_->OnExecute(&CurrentAction_, fetchNext, [&] {
+            return TSchedulerThread::IsStopping();
+        });
+    }
+
+    TClosure BeginExecute() override
+    {
+        Y_UNREACHABLE();
+    }
+
+    void EndExecute() override
+    {
+        Y_UNREACHABLE();
+    }
+};
+
 class TThreadPool::TImpl
     : public TThreadPoolBase
 {
@@ -25,7 +143,7 @@ public:
         const TString& threadNamePrefix,
         bool startThreads)
         : TThreadPoolBase(threadNamePrefix)
-        , Queue_(New<TMpmcInvokerQueue>(
+        , Queue_(New<TInvokerQueueAdapter>(
             CallbackEventCount_,
             GetThreadTags(ThreadNamePrefix_)))
         , Invoker_(Queue_)
@@ -49,9 +167,15 @@ public:
 
 private:
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
-    const TMpmcInvokerQueuePtr Queue_;
+    const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
     const IInvokerPtr Invoker_;
 
+
+    void DoConfigure(int threadCount) override
+    {
+        Queue_->Configure(threadCount);
+        TThreadPoolBase::DoConfigure(threadCount);
+    }
 
     void DoShutdown() override
     {
@@ -69,7 +193,7 @@ private:
 
     TSchedulerThreadBasePtr SpawnThread(int index) override
     {
-        return New<TMpmcSingleQueueSchedulerThread>(
+        return New<TThreadPoolThread>(
             Queue_,
             CallbackEventCount_,
             ThreadNamePrefix_,
