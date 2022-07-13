@@ -139,6 +139,21 @@ protected:
         }
     }
 
+    bool CheckLogFileContains(const TString& fileName, const TString& message)
+    {
+        if (!NFs::Exists(fileName)) {
+            return false;
+        }
+
+        auto lines = ReadFile(fileName);
+        for (const auto& line : lines) {
+            if (line.Contains(message)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void Configure(const TString& configYson)
     {
         auto configNode = ConvertToNode(TYsonString(configYson));
@@ -200,11 +215,10 @@ TEST_F(TLoggingTest, ReloadOnSighup)
         };
     })", logFile.Name()));
 
-    Cerr << "Waiting for message 1" << Endl;
-
     WaitForPredicate([&] {
-        YT_LOG_INFO("Message1");
-        return NFs::Exists(logFile.Name());
+        TString message("Message1");
+        YT_LOG_INFO(message);
+        return CheckLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Renaming logfile" << Endl;
@@ -218,8 +232,55 @@ TEST_F(TLoggingTest, ReloadOnSighup)
     Cerr << "Waiting for message 2" << Endl;
 
     WaitForPredicate([&] {
-        YT_LOG_INFO("Message2");
-        return NFs::Exists(logFile.Name());
+        TString message("Message2");
+        YT_LOG_INFO(message);
+        return CheckLogFileContains(logFile.Name(), message);
+    });
+
+    Cerr << "Success" << Endl;
+}
+
+TEST_F(TLoggingTest, ReloadOnRename)
+{
+    TTempFile logFile(GenerateLogFileName());
+    TTempFile rotatedLogFile(logFile.Name() + ".1");
+
+    Cerr << "Configuring logging" << Endl;
+
+    Configure(Format(R"({
+        watch_period = 1000;
+        rules = [
+            {
+                "min_level" = "info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "%v";
+                "type" = "file";
+            };
+        };
+    })", logFile.Name()));
+
+    Cerr << "Waiting for message 1" << Endl;
+
+    WaitForPredicate([&] {
+        TString message("Message1");
+        YT_LOG_INFO(message);
+        return CheckLogFileContains(logFile.Name(), message);
+    });
+
+    Cerr << "Renaming logfile" << Endl;
+
+    NFs::Rename(logFile.Name(), rotatedLogFile.Name());
+
+    Cerr << "Waiting for message 2" << Endl;
+
+    WaitForPredicate([&] {
+        TString message("Message2");
+        YT_LOG_INFO(message);
+        return CheckLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Success" << Endl;

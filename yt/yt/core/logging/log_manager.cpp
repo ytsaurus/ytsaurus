@@ -782,21 +782,23 @@ private:
         return EmplaceOrCrash(KeyToCachedWriter_, cacheKey, writers)->second;
     }
 
-    std::unique_ptr<TNotificationWatch> CreateNotificationWatch(ILogWriterPtr writer, const TString& fileName)
+    std::unique_ptr<TNotificationWatch> CreateNotificationWatch(
+        const TLogManagerConfigPtr& config,
+        const IFileLogWriterPtr& writer)
     {
 #ifdef _linux_
-        if (Config_->WatchPeriod) {
+        if (config->WatchPeriod) {
             if (!NotificationHandle_) {
-                NotificationHandle_.reset(new TNotificationHandle());
+                NotificationHandle_ = std::make_unique<TNotificationHandle>();
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
                     NotificationHandle_.get(),
-                    fileName.c_str(),
+                    writer->GetFileName().c_str(),
                     BIND(&ILogWriter::Reload, writer)));
         }
 #else
-        Y_UNUSED(writer, fileName);
+        Y_UNUSED(config, writer);
 #endif
         return nullptr;
     }
@@ -890,11 +892,11 @@ private:
             writer->SetRateLimit(typedWriterConfig->RateLimit);
             writer->SetCategoryRateLimits(config->CategoryRateLimits);
 
-            EmplaceOrCrash(NameToWriter_, name, std::move(writer));
+            EmplaceOrCrash(NameToWriter_, name, writer);
 
             if (auto fileWriter = DynamicPointerCast<IFileLogWriter>(writer)) {
-                auto watch = CreateNotificationWatch(writer, fileWriter->GetFileName());
-                if (watch->IsValid()) {
+                auto watch = CreateNotificationWatch(config, fileWriter);
+                if (watch && watch->IsValid()) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
                     EmplaceOrCrash(WDToNotificationWatch_, watch->GetWD(), watch.get());
@@ -968,8 +970,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        if (!NotificationHandle_)
+        if (!NotificationHandle_) {
             return;
+        }
 
         int previousWD = -1, currentWD = -1;
         while ((currentWD = NotificationHandle_->Poll()) > 0) {
