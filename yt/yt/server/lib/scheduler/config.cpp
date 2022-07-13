@@ -568,8 +568,6 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("finish_operation_transition_delay", &TThis::FinishOperationTransitionDelay)
         .Default();
-    registrar.Parameter("finish_operation_transition_delay_type", &TThis::FinishOperationTransitionDelayType)
-        .Default(EDelayType::Sync);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

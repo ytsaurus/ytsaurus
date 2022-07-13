@@ -176,7 +176,9 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
             "testing_options": {
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 2000,
-                "finish_operation_transition_delay": 1000,
+                "finish_operation_transition_delay": {
+                    "duration": 1000,
+                },
             },
         },
     }

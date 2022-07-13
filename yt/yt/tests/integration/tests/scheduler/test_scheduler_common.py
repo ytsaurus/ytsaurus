@@ -621,7 +621,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
-        testing_options = {"controller_scheduling_delay": 100}
+        testing_options = {"controller_scheduling_delay": {"duration": 100}}
 
         job_count = 20
         original_data = [{"index": i} for i in range(job_count)]
@@ -685,7 +685,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_concurrent_fail(self):
         create("table", "//tmp/input")
 
-        testing_options = {"controller_scheduling_delay": 250}
+        testing_options = {"controller_scheduling_delay": {"duration": 250}}
 
         job_count = 1000
         original_data = [{"index": i} for i in range(job_count)]
@@ -1394,7 +1394,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in range(5)])
         create("table", "//tmp/out")
 
-        testing_options = {"controller_scheduling_delay": 500}
+        testing_options = {"controller_scheduling_delay": {"duration": 500}}
 
         op = map(
             track=False,
@@ -1422,7 +1422,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
     def test_parallel_snapshots(self):
         create("table", "//tmp/input")
 
-        testing_options = {"controller_scheduling_delay": 100}
+        testing_options = {"controller_scheduling_delay": {"duration": 100}}
 
         job_count = 1
         original_data = [{"index": i} for i in range(job_count)]
@@ -2912,7 +2912,7 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
 
     @authors("ignat")
     def test_schedule_job_delay(self):
-        testing_options = {"schedule_job_delay": 5000}
+        testing_options = {"schedule_job_delay": {"duration": 5000}}
         op = run_test_vanilla("sleep 2", job_count=2, spec={"testing": testing_options})
 
         wait(lambda: op.get_state() == "running")

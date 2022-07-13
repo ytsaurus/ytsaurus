@@ -1457,7 +1457,7 @@ private:
                     TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &jobSchedulerPostUpdateContext);
                 }
 
-                MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate, EDelayType::Sync);
+                MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();

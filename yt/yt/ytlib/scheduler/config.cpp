@@ -1,6 +1,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "job_resources.h"
+
 #include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -182,15 +183,21 @@ void TJobIOConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDelayConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("duration", &TThis::Duration)
+        .Default();
+    registrar.Parameter("type", &TThis::Type)
+        .Default(EDelayType::Sync);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("controller_scheduling_delay", &TThis::ControllerSchedulingDelay)
         .Default();
-    registrar.Parameter("controller_scheduling_delay_type", &TThis::ControllerSchedulingDelayType)
-        .Default(EDelayType::Sync);
     registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
-        .Default();
-    registrar.Parameter("schedule_job_delay_type", &TThis::ScheduleJobDelayType)
         .Default();
     registrar.Parameter("delay_inside_revive", &TThis::DelayInsideRevive)
         .Default();

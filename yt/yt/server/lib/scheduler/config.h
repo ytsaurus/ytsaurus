@@ -210,7 +210,7 @@ class TTreeTestingOptions
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> DelayInsideFairShareUpdate;
+    TDelayConfigPtr DelayInsideFairShareUpdate;
 
     std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
 
@@ -490,8 +490,7 @@ public:
     std::optional<TDuration> HandleOrphanedOperationsDelay;
 
     // Testing option that enables sleeping between intermediate and final states of operation.
-    std::optional<TDuration> FinishOperationTransitionDelay;
-    EDelayType FinishOperationTransitionDelayType;
+    TDelayConfigPtr FinishOperationTransitionDelay;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 

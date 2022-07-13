@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -56,19 +57,24 @@ void ValidateInfinibandClusterName(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MaybeDelay(const std::optional<TDuration>& delay, EDelayType delayType)
+void Delay(TDuration delay, EDelayType delayType)
 {
-    if (delay) {
-        switch (delayType){
-            case EDelayType::Async:
-                TDelayedExecutor::WaitForDuration(*delay);
-                break;
-            case EDelayType::Sync:
-                Sleep(*delay);
-                break;
-            default:
-                YT_ABORT();
-        }
+    switch (delayType) {
+        case EDelayType::Async:
+            TDelayedExecutor::WaitForDuration(delay);
+            break;
+        case EDelayType::Sync:
+            Sleep(delay);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+void MaybeDelay(const TDelayConfigPtr& delayConfig)
+{
+    if (delayConfig) {
+        Delay(delayConfig->Duration, delayConfig->Type);
     }
 }
 

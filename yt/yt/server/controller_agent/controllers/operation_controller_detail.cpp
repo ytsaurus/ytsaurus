@@ -4241,9 +4241,7 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
-    MaybeDelay(
-        Spec_->TestingOperationOptions->ControllerSchedulingDelay,
-        Spec_->TestingOperationOptions->ControllerSchedulingDelayType);
+    MaybeDelay(Spec_->TestingOperationOptions->ControllerSchedulingDelay);
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale schedule job attempt");
