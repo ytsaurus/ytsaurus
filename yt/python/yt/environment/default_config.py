@@ -136,6 +136,8 @@ def get_dynamic_master_config():
         enable_bulk_insert = %true;
         enable_hunks = %true;
         enable_aggressive_tablet_statistics_validation = %true;
+
+        properly_handle_prerequisite_transactions_abort = %true;
     };
 
     sequoia_manager = {};

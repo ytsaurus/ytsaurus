@@ -282,6 +282,8 @@ public:
 
     TDuration TamedCellManagerProfilingPeriod;
 
+    bool ProperlyHandlePrerequisiteTransactionsAbort;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);
