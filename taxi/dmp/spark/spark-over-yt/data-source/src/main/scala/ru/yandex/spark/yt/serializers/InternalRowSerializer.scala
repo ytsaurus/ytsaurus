@@ -120,6 +120,8 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
               case FloatType => writeable.onDouble(row.getFloat(i))
               case DoubleType => writeable.onDouble(row.getDouble(i))
               case UInt64Type => writeable.onInteger(row.getLong(i))
+              case DateType => writeable.onInteger(row.getLong(i))
+              case TimestampType => writeable.onInteger(row.getLong(i) / 1000000)
             }
         }
       }

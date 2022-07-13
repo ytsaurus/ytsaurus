@@ -63,7 +63,7 @@ sealed abstract class AtomicYtLogicalType(name: String,
 sealed trait CompositeYtLogicalType extends YtLogicalType {
   override def columnValueType: ColumnValueType = ColumnValueType.ANY
 
-  override def getName(isColumnType: Boolean): String = columnValueType.getName
+  override def getName(isColumnType: Boolean): String = ColumnValueType.ANY.getName
 }
 
 sealed abstract class CompositeYtLogicalTypeAlias(name: String,
@@ -103,9 +103,9 @@ object YtLogicalType {
 
   case object Utf8 extends AtomicYtLogicalType("utf8", 0x1007, ColumnValueType.STRING, TiType.utf8(), StringType)
 
-  case object Date extends AtomicYtLogicalType("date", 0x1008, ColumnValueType.INT64, TiType.date(), DateType)
-  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.INT64, TiType.datetime(), TimestampType)
-  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.INT64, TiType.timestamp(), LongType)
+  case object Date extends AtomicYtLogicalType("date", 0x1008, ColumnValueType.UINT64, TiType.date(), DateType)
+  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.UINT64, TiType.datetime(), TimestampType)
+  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.UINT64, TiType.timestamp(), LongType)
   case object Interval extends AtomicYtLogicalType("interval", 0x100b, ColumnValueType.INT64, TiType.interval(), LongType)
 
   case object Void extends AtomicYtLogicalType("void", 0x100c, ColumnValueType.NULL, TiType.voidType(), NullType) //?
@@ -130,6 +130,8 @@ object YtLogicalType {
     override def sparkType: DataType = inner.sparkType
 
     override def nullable: Boolean = true
+
+    override def getName(isColumnType: Boolean): String = inner.getName(isColumnType)
 
     override def alias: CompositeYtLogicalTypeAlias = Optional
   }

@@ -18,9 +18,11 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.WriteTypeV3
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
+import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -743,6 +745,23 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     data.toDF().coalesce(1).write.yt(tmpPath)
 
     spark.read.yt(tmpPath).as[Double].collect() should contain theSameElementsAs data
+  }
+
+  it should "write date, datetime, timestamp, interval datatypes" in {
+    val data = Seq(
+      (Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1000), 1, 1),
+      (Date.valueOf(LocalDate.ofEpochDay(9999)), new Timestamp(1611733954000L), 4, 5)
+    )
+    data.toDF("date", "datetime", "timestamp", "interval").write
+      .yt(tmpPath)
+
+    val cols = Seq("date", "datetime", "timestamp", "interval").map(col)
+    val res = spark.read.yt(tmpPath)
+    res.select(cols : _*).collect() should contain theSameElementsAs data.map(Row.fromTuple(_))
+    res.select(cols.map(_.cast(StringType)) : _*).collect() should contain theSameElementsAs Seq(
+      Row("1970-01-02", "1970-01-01 03:00:01", "1", "1"),
+      Row("1997-05-18", "2021-01-27 10:52:34", "4", "5")
+    )
   }
 
   it should "ytTable:/ write and read" in {
