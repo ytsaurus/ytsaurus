@@ -1528,9 +1528,7 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
         element->GetTreeId(),
         TreeSnapshot_->TreeConfig());
 
-    MaybeDelay(
-        element->Spec()->TestingOperationOptions->ScheduleJobDelay,
-        element->Spec()->TestingOperationOptions->ScheduleJobDelayType);
+    MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleJobDelay);
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {

@@ -1,6 +1,8 @@
 #include "operation_controller.h"
 #include "operation.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -176,7 +178,7 @@ public:
     TSimulatorOperationController(
         const TOperation* operation,
         const TOperationDescription* operationDescription,
-        std::optional<TDuration> scheduleJobDelay);
+        TDelayConfigPtr scheduleJobDelay);
 
     // Lock_ must be acquired.
     void OnBucketActivated(TJobBucket* activatedBucket) override;
@@ -217,7 +219,7 @@ private:
     const TOperationDescription* OperationDescription_;
     const TJobBuckets JobBuckets_;
 
-    std::optional<TDuration> ScheduleJobDelay_;
+    TDelayConfigPtr ScheduleJobDelay_;
 
     TLockProtectedMap<TJobId, TJobDescription> IdToDescription_;
     NLogging::TLogger Logger;
@@ -247,9 +249,9 @@ DEFINE_REFCOUNTED_TYPE(TSimulatorOperationController)
 ISimulatorOperationControllerPtr CreateSimulatorOperationController(
     const TOperation* operation,
     const TOperationDescription* operationDescription,
-    std::optional<TDuration> scheduleJobDelay)
+    TDelayConfigPtr scheduleJobDelay)
 {
-    return New<TSimulatorOperationController>(operation, operationDescription, scheduleJobDelay);
+    return New<TSimulatorOperationController>(operation, operationDescription, std::move(scheduleJobDelay));
 }
 
 const static THashMap<EJobType, std::vector<EJobType>> dependencyTable = [] {
@@ -314,7 +316,7 @@ auto TSimulatorOperationController::InitializeJobBuckets(const TOperationDescrip
 TSimulatorOperationController::TSimulatorOperationController(
     const TOperation* /*operation*/,
     const TOperationDescription* operationDescription,
-    std::optional<TDuration> scheduleJobDelay)
+    TDelayConfigPtr scheduleJobDelay)
     : OperationDescription_(operationDescription)
     , JobBuckets_(InitializeJobBuckets(operationDescription))
     , ScheduleJobDelay_(scheduleJobDelay)
@@ -440,9 +442,7 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
     const TString& /* poolPath */,
     const TFairShareStrategyTreeConfigPtr& /* treeConfig */)
 {
-    if (ScheduleJobDelay_) {
-        TDelayedExecutor::WaitForDuration(*ScheduleJobDelay_);
-    }
+    MaybeDelay(ScheduleJobDelay_);
 
     auto guard = Guard(Lock_);
 

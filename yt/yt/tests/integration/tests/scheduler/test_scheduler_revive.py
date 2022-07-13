@@ -43,7 +43,9 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             "testing_options": {
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 10000,
-                "finish_operation_transition_delay": 1000,
+                "finish_operation_transition_delay": {
+                    "duration": 1000,
+                },
             },
             "finished_job_storing_timeout": 15000,
             "controller_agent_tracker": {
@@ -408,7 +410,9 @@ class TestControllerAgentReconnection(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "testing_options": {
-                "finish_operation_transition_delay": 2000,
+                "finish_operation_transition_delay": {
+                    "duration": 2000,
+                },
             },
         }
     }
@@ -719,7 +723,9 @@ class OperationReviveBase(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "testing_options": {
-                "finish_operation_transition_delay": 2000,
+                "finish_operation_transition_delay": {
+                    "duration": 2000,
+                },
             },
         }
     }

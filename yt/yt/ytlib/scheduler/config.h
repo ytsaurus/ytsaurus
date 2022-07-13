@@ -482,6 +482,22 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDelayConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration Duration;
+    EDelayType Type;
+
+    REGISTER_YSON_STRUCT(TDelayConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDelayConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Start)
     (Stage1)
@@ -513,11 +529,9 @@ class TTestingOperationOptions
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> ControllerSchedulingDelay;
-    EDelayType ControllerSchedulingDelayType;
+    NScheduler::TDelayConfigPtr ControllerSchedulingDelay;
 
-    std::optional<TDuration> ScheduleJobDelay;
-    EDelayType ScheduleJobDelayType;
+    NScheduler::TDelayConfigPtr ScheduleJobDelay;
 
     //! The following delays are used inside the operation controller.
 

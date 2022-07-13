@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/event_log/config.h>
@@ -145,7 +147,7 @@ public:
     int ThreadCount;
     int NodeShardCount;
 
-    std::optional<TDuration> ScheduleJobDelay;
+    NScheduler::TDelayConfigPtr ScheduleJobDelay;
 
     bool ShiftOperationsToStart;
 
@@ -192,6 +194,12 @@ public:
         registrar.Postprocessor([] (TThis* config) {
             if (config->EnableFullEventLog && !config->RemoteEventLog) {
                 THROW_ERROR_EXCEPTION("Full event log cannot be written locally. Please specify \"remote_event_log\" parameter");
+            }
+        });
+
+        registrar.Postprocessor([] (TThis* config) {
+            if (config->ScheduleJobDelay) {
+                config->ScheduleJobDelay->Type = NScheduler::EDelayType::Async;
             }
         });
     }

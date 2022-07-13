@@ -670,14 +670,13 @@ class TestRacyPreemption(YTEnvSetup):
 
     def teardown_method(self, method):
         # Reset not to slow down the teardown method.
-        update_scheduler_config("testing_options/finish_operation_transition_delay", 0)
+        update_scheduler_config("testing_options/finish_operation_transition_delay", None)
         super(TestRacyPreemption, self).teardown_method(method)
 
     @authors("eshcherbin")
     def test_race_between_preemption_and_user_abort(self):
         # Delay between jobs abortion and operation unregistration.
-        update_scheduler_config("testing_options/finish_operation_transition_delay", 15000)
-        update_scheduler_config("testing_options/finish_operation_transition_delay_type", "async")
+        update_scheduler_config("testing_options/finish_operation_transition_delay", {"duration": 15000, "type": "async"})
 
         create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
 
@@ -687,8 +686,10 @@ class TestRacyPreemption(YTEnvSetup):
         op = run_sleeping_vanilla(spec={
             "pool": "prod",
             "testing": {
-                "controller_scheduling_delay": 5000,
-                "controller_scheduling_delay_type": "async",
+                "controller_scheduling_delay": {
+                    "duration": 5000,
+                    "type": "async",
+                },
             },
         })
 

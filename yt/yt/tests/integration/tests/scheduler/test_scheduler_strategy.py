@@ -190,7 +190,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         memory_limit = 30 * 1024 * 1024
 
-        testing_options = {"controller_scheduling_delay": 500, "controller_scheduling_delay_type": "async"}
+        testing_options = {"controller_scheduling_delay": {"duration": 500, "type": "async"}}
 
         op = map(
             track=False,
@@ -424,7 +424,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             },
             spec={
                 "testing": {
-                    "schedule_job_delay": 1000,
+                    "schedule_job_delay": {
+                        "duration": 1000,
+                    },
                 },
             },
         )
@@ -490,7 +492,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
             {
                 "allowed_resource_usage_staleness": 0,
             })
-        slow_spec = {"testing": {"controller_scheduling_delay": 1000, "controller_scheduling_delay_type": "async"}}
+        slow_spec = {"testing": {"controller_scheduling_delay": {"duration": 1000, "type": "async"}}}
 
         create_pool("pool")
         create_pool(
@@ -1846,7 +1848,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
     def test_pools_reconfiguration(self):
         create_test_tables(attributes={"replication_factor": 1})
 
-        testing_options = {"controller_scheduling_delay": 1000}
+        testing_options = {"controller_scheduling_delay": {"duration": 1000}}
 
         create_pool("test_pool_1")
         create_pool("test_pool_2")
@@ -3461,7 +3463,7 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu") == 0.0)
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_status") == "below_fair_share")
 
-        update_pool_tree_config_option("default", "testing_options/delay_inside_fair_share_update", 5000)
+        update_pool_tree_config_option("default", "testing_options/delay_inside_fair_share_update", {"duration": 5000, "type": "sync"})
         time.sleep(1.0)
         update_pool_tree_config_option("default", "fair_share_starvation_timeout", 0)
         time.sleep(5.0)
