@@ -571,6 +571,7 @@ class YTEnvSetup(object):
                 attributes={
                     "dynamic": True,
                     "schema": [
+                        {"name": "id_hash", "type": "uint64", "sort_order": "ascending"},
                         {"name": "id", "type": "string", "sort_order": "ascending"},
                         {"name": "misc_ext", "type": "string"},
                         {"name": "hunk_chunk_refs_ext", "type": "string"},

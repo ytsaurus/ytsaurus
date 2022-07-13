@@ -75,8 +75,10 @@ private:
             return;
         }
 
-        TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
-        chunkMetaExtensionRow.Id = ToString(chunk->GetId());
+        TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow{
+            .IdHash = chunk->GetId().Parts32[0],
+            .Id = ToString(chunk->GetId()),
+        };
         transaction->DeleteRow(chunkMetaExtensionRow);
     }
 
