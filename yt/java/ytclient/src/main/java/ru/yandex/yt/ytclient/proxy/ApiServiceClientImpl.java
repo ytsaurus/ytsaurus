@@ -47,6 +47,7 @@ import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.request.AbortJob;
 import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
@@ -64,6 +65,7 @@ import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
+import ru.yandex.yt.ytclient.proxy.request.GetJob;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
@@ -107,6 +109,7 @@ import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
+
 
 /**
  * Клиент для высокоуровневой работы с ApiService
@@ -739,6 +742,22 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getMeta())
+        );
+    }
+
+    @Override
+    public CompletableFuture<YTreeNode> getJob(GetJob req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_JOB.createRequestBuilder(rpcOptions)),
+                response -> parseByteString(response.body().getInfo())
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> abortJob(AbortJob req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.ABORT_JOB.createRequestBuilder(rpcOptions)),
+                response -> null
         );
     }
 
