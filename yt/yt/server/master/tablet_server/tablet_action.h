@@ -30,7 +30,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletActionState, State);
 
     //! Participating tablets.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletBase*>, Tablets);
 
     //! Tablet cells to mount tablet into (if present).
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletCell*>, TabletCells);

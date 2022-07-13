@@ -1,7 +1,9 @@
 #include "tablet_type_handler.h"
+
 #include "tablet.h"
 #include "tablet_proxy.h"
 #include "tablet_manager.h"
+#include "tablet_type_handler_base.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -17,13 +19,11 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTablet>
+    : public TTabletTypeHandlerBase<TTablet>
 {
 public:
-    TTabletTypeHandler(
-        TBootstrap* bootstrap,
-        TEntityMap<TTablet>* map)
-        : TObjectTypeHandlerWithMapBase(bootstrap, map)
+    explicit TTabletTypeHandler(TBootstrap* bootstrap)
+        : TTabletTypeHandlerBase<TTablet>(bootstrap)
         , Bootstrap_(bootstrap)
     { }
 
@@ -39,21 +39,13 @@ private:
     {
         return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);
     }
-
-    void DoDestroyObject(TTablet* tablet) noexcept override
-    {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->DestroyTablet(tablet);
-
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
-    }
 };
 
-IObjectTypeHandlerPtr CreateTabletTypeHandler(
-    TBootstrap* bootstrap,
-    TEntityMap<TTablet>* map)
+////////////////////////////////////////////////////////////////////////////////
+
+IObjectTypeHandlerPtr CreateTabletTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TTabletTypeHandler>(bootstrap, map);
+    return New<TTabletTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

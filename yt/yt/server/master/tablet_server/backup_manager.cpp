@@ -117,7 +117,8 @@ public:
                 << TErrorAttribute("table_id", table->GetId());
         }
 
-        for (auto* tablet : table->GetTrunkNode()->Tablets()) {
+        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+            auto* tablet = tabletBase->As<TTablet>();
             if (tablet->GetBackupState() != ETabletBackupState::None) {
                 THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
                     "is in invalid backup state: expected %Qlv, got %Qlv",
@@ -178,7 +179,8 @@ public:
         table->SetBackupMode(backupMode);
         table->MutableReplicaBackupDescriptors() = replicaBackupDescriptors;
 
-        for (auto* tablet : table->GetTrunkNode()->Tablets()) {
+        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+            auto* tablet = tabletBase->As<TTablet>();
             if (auto* cell = tablet->GetCell()) {
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::None,
@@ -234,7 +236,9 @@ public:
         TTableNode* table,
         TTransaction* transaction) override
     {
-        for (auto* tablet : table->GetTrunkNode()->Tablets()) {
+        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+            auto* tablet = tabletBase->As<TTablet>();
+
             tablet->BackupCutoffDescriptor() = std::nullopt;
             tablet->BackedUpReplicaInfos().clear();
 
@@ -455,14 +459,17 @@ private:
         for (const auto& protoTabletId : request->tablet_ids()) {
             auto tabletId = FromProto<TTabletId>(protoTabletId);
 
-            auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!IsObjectAlive(tablet)) {
+            auto* tabletBase = tabletManager->FindTablet(tabletId);
+            if (!IsObjectAlive(tabletBase)) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Cannot finish backup since tablet is missing (TabletId: %v, TransactionId: %v)",
                     tabletId,
                     transactionId);
                 continue;
             }
+
+            YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
+            auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -552,14 +559,17 @@ private:
         for (const auto& protoTabletId : request->tablet_ids()) {
             auto tabletId = FromProto<TTabletId>(protoTabletId);
 
-            auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!IsObjectAlive(tablet)) {
+            auto* tabletBase = tabletManager->FindTablet(tabletId);
+            if (!IsObjectAlive(tabletBase)) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Cannot finish restore since tablet is missing (TabletId: %v, TransactionId: %v)",
                     tabletId,
                     transactionId);
                 return;
             }
+
+            YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
+            auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -631,10 +641,13 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
-        auto* tablet = tabletManager->FindTablet(tabletId);
-        if (!IsObjectAlive(tablet)) {
+        auto* tabletBase = tabletManager->FindTablet(tabletId);
+        if (!IsObjectAlive(tabletBase)) {
             return;
         }
+
+        YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
+        auto* tablet = tabletBase->As<TTablet>();
 
         if (tablet->GetMountRevision() != response->mount_revision()) {
             return;
@@ -822,10 +835,12 @@ private:
 
         THashSet<TTableNode*> clearedTables;
 
-        for (auto [id, tablet] : tabletManager->Tablets()) {
-            if (!IsObjectAlive(tablet)) {
+        for (auto [id, tabletBase] : tabletManager->Tablets()) {
+            if (!IsObjectAlive(tabletBase) || tabletBase->GetType() != EObjectType::Tablet) {
                 continue;
             }
+
+            auto* tablet = tabletBase->As<TTablet>();
             if (auto* table = tablet->GetTable()) {
                 if (clearedTables.insert(table).second) {
                     table->MutableTabletCountByBackupState() = {};

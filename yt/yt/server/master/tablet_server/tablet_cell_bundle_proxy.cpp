@@ -126,7 +126,7 @@ private:
                             .Item("state").Value(action->GetState())
                             .DoIf(!action->IsFinished(), [action] (TFluentMap fluent) {
                                 fluent.Item("tablet_ids").DoListFor(
-                                    action->Tablets(), [] (TFluentList fluent, TTablet* tablet) {
+                                    action->Tablets(), [] (TFluentList fluent, TTabletBase* tablet) {
                                         fluent.Item().Value(tablet->GetId());
                                     });
                             })

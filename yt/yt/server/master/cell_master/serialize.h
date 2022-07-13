@@ -140,9 +140,10 @@ DEFINE_ENUM(EMasterReign,
     ((RotationAfterBackup)                                          (2038))  // ifsmirnov
     ((FixCellarHeartbeat)                                           (2039))  // savrus
     // 22.3 starts here.
-    ((JobProxyVersion)                                              (2100))  // galtsev
+    ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
     ((DestroySequoiaChunks)                                         (2102))  // aleksandra-zh
+    ((TabletBase)                                                   (2103))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

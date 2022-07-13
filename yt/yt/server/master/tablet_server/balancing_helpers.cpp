@@ -130,9 +130,9 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
     };
 }
 
-i64 GetTabletBalancingSize(TTablet* tablet, const TTabletManagerPtr& tabletManager)
+i64 GetTabletBalancingSize(TTablet* tablet)
 {
-    auto statistics = tabletManager->GetTabletStatistics(tablet);
+    auto statistics = tablet->GetTabletStatistics();
     return tablet->GetInMemoryMode() == EInMemoryMode::None
         ? statistics.UncompressedDataSize
         : statistics.MemorySize;
@@ -157,13 +157,12 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     TTablet* tablet,
     const TTabletSizeConfig& bounds,
     std::vector<int>* mergeBudgetByTabletIndex,
-    TTabletBalancerContext* context,
-    const TTabletManagerPtr& tabletManager)
+    TTabletBalancerContext* context)
 {
     auto* table = tablet->GetTable();
 
     i64 desiredSize = bounds.DesiredTabletSize;
-    i64 size = GetTabletBalancingSize(tablet, tabletManager);
+    i64 size = GetTabletBalancingSize(tablet);
 
     if (size >= bounds.MinTabletSize && size <= bounds.MaxTabletSize) {
         return {};
@@ -211,7 +210,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
     while (!sizeGood() &&
         startIndex > 0 &&
-        context->IsTabletUntouched(table->Tablets()[startIndex - 1]) &&
+        context->IsTabletUntouched(table->Tablets()[startIndex - 1]->As<TTablet>()) &&
         table->Tablets()[startIndex - 1]->GetState() == tablet->GetState())
     {
         mergeBudget += takeMergeBudget(startIndex - 1);
@@ -220,11 +219,11 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         }
         --mergeBudget;
         --startIndex;
-        size += GetTabletBalancingSize(table->Tablets()[startIndex], tabletManager);
+        size += GetTabletBalancingSize(table->Tablets()[startIndex]->As<TTablet>());
     }
     while (!sizeGood() &&
         endIndex < std::ssize(table->Tablets()) - 1 &&
-        context->IsTabletUntouched(table->Tablets()[endIndex + 1]) &&
+        context->IsTabletUntouched(table->Tablets()[endIndex + 1]->As<TTablet>()) &&
         table->Tablets()[endIndex + 1]->GetState() == tablet->GetState())
     {
         mergeBudget += takeMergeBudget(endIndex + 1);
@@ -233,7 +232,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         }
         --mergeBudget;
         ++endIndex;
-        size += GetTabletBalancingSize(table->Tablets()[endIndex], tabletManager);
+        size += GetTabletBalancingSize(table->Tablets()[endIndex]->As<TTablet>());
     }
 
     int newTabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
@@ -263,7 +262,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
     std::vector<TTablet*> tablets;
     for (int index = startIndex; index <= endIndex; ++index) {
-        auto* tablet = table->Tablets()[index];
+        auto* tablet = table->Tablets()[index]->As<TTablet>();
         tablets.push_back(tablet);
         context->TouchedTablets.insert(tablet);
     }
@@ -273,8 +272,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     TRange<TTablet*> tabletRange,
-    TTabletBalancerContext* context,
-    const TTabletManagerPtr& tabletManager)
+    TTabletBalancerContext* context)
 {
     YT_VERIFY(!tabletRange.Empty());
 
@@ -303,7 +301,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
             static_cast<int>(table->Tablets().size()) - *config.MinTabletCount);
         std::vector<int> tabletsPendingMerge;
         for (auto* tablet : tablets) {
-            if (GetTabletBalancingSize(tablet, tabletManager) < config.MinTabletSize) {
+            if (GetTabletBalancingSize(tablet) < config.MinTabletSize) {
                 tabletsPendingMerge.push_back(tablet->GetIndex());
             }
         }
@@ -323,8 +321,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
             tablet,
             config,
             config.MinTabletCount ? &mergeBudgetByTabletIndex : nullptr,
-            context,
-            tabletManager);
+            context);
         if (descriptor) {
             descriptors.push_back(*descriptor);
         }
@@ -335,8 +332,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
 std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundle* bundle,
     const std::optional<THashSet<const NTableServer::TTableNode*>>& movableTables,
-    bool ignoreTableWiseConfig,
-    const TTabletManagerPtr& tabletManager)
+    bool ignoreTableWiseConfig)
 {
     const auto& config = bundle->TabletBalancerConfig();
 
@@ -405,7 +401,15 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
         auto cellSize = memoryUsage[index].Memory;
         auto* cell = memoryUsage[index].TabletCell;
 
-        std::vector<TTablet*> tablets(cell->Tablets().begin(), cell->Tablets().end());
+        std::vector<TTablet*> tablets;
+        tablets.reserve(cell->Tablets().size());
+        for (auto* tablet : cell->Tablets()) {
+            if (tablet->GetType() != EObjectType::Tablet) {
+                continue;
+            }
+            tablets.push_back(tablet->As<TTablet>());
+        }
+
         std::sort(tablets.begin(), tablets.end(), [] (TTablet* lhs, TTablet* rhs) {
             return lhs->GetId() < rhs->GetId();
         });
@@ -433,7 +437,7 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
                 break;
             }
 
-            auto statistics = tabletManager->GetTabletStatistics(tablet);
+            auto statistics = tablet->GetTabletStatistics();
             auto tabletSize = statistics.MemorySize;
 
             if (tabletSize == 0) {

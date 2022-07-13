@@ -5,11 +5,9 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/master/tablet_server/tablet_owner_proxy_base.h>
+
 #include <yt/yt/server/master/transaction_server/public.h>
-
-#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
-
-#include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -22,13 +20,13 @@ namespace NYT::NTableServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public NCypressServer::TCypressNodeProxyBase<NChunkServer::TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>
+    : public NTabletServer::TTabletOwnerProxyBase
 {
 public:
-    using TCypressNodeProxyBase::TCypressNodeProxyBase;
+    using TTabletOwnerProxyBase::TTabletOwnerProxyBase;
 
 protected:
-    using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>;
+    using TBase = TTabletOwnerProxyBase;
 
     void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
@@ -50,6 +48,13 @@ protected:
     void ValidateBeginUpload() override;
     void ValidateStorageParametersUpdate() override;
     void ValidateLockPossible() override;
+
+    TTableNode* GetThisImpl();
+    const TTableNode* GetThisImpl() const;
+
+    TTableNode* LockThisImpl(
+        const NCypressServer::TLockRequest& request = NCypressClient::ELockMode::Exclusive,
+        bool recursive = false);
 
     NYTree::IAttributeDictionary* GetCustomAttributes() override;
 

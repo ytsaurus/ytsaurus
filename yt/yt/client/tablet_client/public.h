@@ -116,6 +116,7 @@ constexpr int TypicalTableReplicaCount = 6;
 using TTableReplicaId = NObjectClient::TObjectId;
 using TTabletActionId = NObjectClient::TObjectId;
 using TDynamicStoreId = NObjectClient::TObjectId;
+using TTabletOwnerId = NObjectClient::TObjectId;
 using TAreaId = NObjectClient::TObjectId;
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,

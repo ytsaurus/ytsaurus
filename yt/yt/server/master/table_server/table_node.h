@@ -3,8 +3,6 @@
 #include "public.h"
 #include "schemaful_node.h"
 
-#include <yt/yt/server/lib/tablet_balancer/public.h>
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
@@ -13,7 +11,10 @@
 
 #include <yt/yt/server/master/tablet_server/public.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_owner_base.h>
 #include <yt/yt/server/master/tablet_server/tablet_resources.h>
+
+#include <yt/yt/server/lib/tablet_balancer/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -42,7 +43,7 @@ struct TDynamicTableLock
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNode
-    : public NChunkServer::TChunkOwnerBase
+    : public NTabletServer::TTabletOwnerBase
     , public ISchemafulNode
 {
 private:
@@ -57,31 +58,17 @@ private:
     {
         NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
         NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
-        NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
         NTabletClient::TTableReplicaId UpstreamReplicaId;
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
-        TTabletStateIndexedVector TabletCountByState;
-        TTabletStateIndexedVector TabletCountByExpectedState;
-        TTabletList Tablets;
-        i64 TabletMasterMemoryUsage = 0;
-        int TabletErrorCount = 0;
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
         std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
         std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
         bool Dynamic = false;
-        TString MountPath;
-        NTabletServer::TTabletResources ExternalTabletResourceUsage;
-        NTabletClient::ETabletState ActualTabletState = NTabletClient::ETabletState::Unmounted;
-        NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
-        NTransactionClient::TTransactionId LastMountTransactionId;
-        NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
-        NTransactionClient::TTransactionId CurrentMountTransactionId;
-        NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig;
+        NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig = New<NTabletBalancer::TTableTabletBalancerConfig>();
         THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
         int UnconfirmedDynamicTableLockCount = 0;
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
-        NTabletServer::TTabletStatisticsAggregate TabletStatistics;
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
@@ -98,10 +85,10 @@ private:
         bool IsVitalConsumer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
 
-
         TDynamicTableAttributes();
+
         void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
+        void Load(NCellMaster::TLoadContext& context, NTabletServer::TTabletOwnerBase* tabletOwner);
 
         void CopyFrom(const TDynamicTableAttributes* other);
         void BeginCopy(NCypressServer::TBeginCopyContext* context) const;
@@ -112,7 +99,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
-    DEFINE_BYREF_RW_PROPERTY(NTabletServer::TTabletCellBundlePtr, TabletCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(TTableCollocation*, ReplicationCollocation);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
@@ -121,26 +107,13 @@ public:
     DECLARE_EXTRA_PROPERTY_HOLDER(TDynamicTableAttributes, DynamicTableAttributes);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Atomicity);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CommitOrdering);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, InMemoryMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UpstreamReplicaId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
-    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
-    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByExpectedState);
-    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletMasterMemoryUsage);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletBalancerConfig);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedStoreCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedHunkCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountPath);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExternalTabletResourceUsage);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ActualTabletState);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CurrentMountTransactionId);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, DynamicTableLocks);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDynamicStoreRead);
@@ -159,8 +132,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);
-    // DEFINE_BYREF_RO_EXTRA_PROPERTY(DynamicTableAttributes,
-    DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
@@ -170,7 +141,7 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(std::optional<int>, DesiredTabletCount);
 
 public:
-    using TChunkOwnerBase::TChunkOwnerBase;
+    using TTabletOwnerBase::TTabletOwnerBase;
     explicit TTableNode(NCypressServer::TVersionedNodeId id);
 
     TTableNode* GetTrunkNode();
@@ -178,13 +149,7 @@ public:
 
     void EndUpload(const TEndUploadContext& context) override;
 
-    NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
-    NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
-
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
-
-    NTabletServer::TTabletResources GetTabletResourceUsage() const override;
-    void RecomputeTabletMasterMemoryUsage();
 
     bool IsSorted() const override;
 
@@ -193,11 +158,6 @@ public:
 
     void SaveTableSchema(NCellMaster::TSaveContext& context) const;
     void LoadTableSchema(NCellMaster::TLoadContext& context);
-
-    using TTabletListIterator = TTabletList::const_iterator;
-    std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
-        const NTableClient::TLegacyOwningKey& minKey,
-        const NTableClient::TLegacyOwningKey& maxKey);
 
     bool IsDynamic() const;
     bool IsQueue() const;
@@ -213,10 +173,6 @@ public:
 
     NChaosClient::TReplicationCardId GetReplicationCardId() const;
 
-    NTabletClient::ETabletState GetTabletState() const;
-
-    NTabletClient::ETabletState ComputeActualTabletState() const;
-
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
@@ -225,15 +181,6 @@ public:
     void SetSchema(TMasterTableSchema* schema) override;
     NSecurityServer::TAccount* GetAccount() const override;
 
-    void UpdateExpectedTabletState(NTabletClient::ETabletState state);
-
-    void LockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
-    void UnlockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
-
-    void ValidateNoCurrentMountTransaction(TStringBuf message) const;
-    void ValidateTabletStateFixed(TStringBuf message) const;
-    void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
-    void ValidateAllTabletsUnmounted(TStringBuf message) const;
     void ValidateNotBackup(TStringBuf message) const;
 
     void AddDynamicTableLock(
@@ -242,6 +189,18 @@ public:
         int pendingTabletCount);
     void ConfirmDynamicTableLock(NTransactionClient::TTransactionId transactionId);
     void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
+
+    void ValidateMount() const override;
+    void ValidateUnmount() const override;
+    void ValidateRemount() const override;
+    void ValidateFreeze() const override;
+    void ValidateUnfreeze() const override;
+    void ValidateReshard(
+        const NCellMaster::TBootstrap* bootstrap,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys) const override;
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
@@ -254,8 +213,6 @@ private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
-
-    void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

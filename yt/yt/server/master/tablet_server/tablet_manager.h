@@ -43,34 +43,32 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    TTabletStatistics GetTabletStatistics(const TTablet* tablet);
-
-    void PrepareMountTable(
-        NTableServer::TTableNode* table,
+    void PrepareMount(
+        TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze);
-    void PrepareUnmountTable(
-        NTableServer::TTableNode* table,
+    void PrepareUnmount(
+        TTabletOwnerBase* owner,
         bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void PrepareRemountTable(
-        NTableServer::TTableNode* table,
+    void PrepareRemount(
+        TTabletOwnerBase* owner,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void PrepareFreezeTable(
-        NTableServer::TTableNode* table,
+    void PrepareFreeze(
+        TTabletOwnerBase* owner,
         int firstTabletIndex,
         int lastTabletIndex);
-    void PrepareUnfreezeTable(
-        NTableServer::TTableNode* table,
+    void PrepareUnfreeze(
+        TTabletOwnerBase* owner,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void PrepareReshardTable(
-        NTableServer::TTableNode* table,
+    void PrepareReshard(
+        TTabletOwnerBase* owner,
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
@@ -80,16 +78,16 @@ public:
     void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
     void ValidateMakeTableStatic(NTableServer::TTableNode* table);
 
-    void ValidateCloneTable(
-        NTableServer::TTableNode* sourceTable,
+    void ValidateCloneTabletOwner(
+        TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account);
-    void ValidateBeginCopyTable(
-        NTableServer::TTableNode* sourceTable,
+    void ValidateBeginCopyTabletOwner(
+        TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode);
 
-    void MountTable(
-        NTableServer::TTableNode* table,
+    void Mount(
+        TTabletOwnerBase* table,
         const TString& path,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -97,32 +95,33 @@ public:
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
         NTransactionClient::TTimestamp mountTimestamp);
-    void UnmountTable(
-        NTableServer::TTableNode* table,
+    void Unmount(
+        TTabletOwnerBase* table,
         bool force,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void RemountTable(
-        NTableServer::TTableNode* table,
+    void Remount(
+        TTabletOwnerBase* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void FreezeTable(
-        NTableServer::TTableNode* table,
+    void Freeze(
+        TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex);
-    void UnfreezeTable(
-        NTableServer::TTableNode* table,
+    void Unfreeze(
+        TTabletOwnerBase* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
-    void ReshardTable(
-        NTableServer::TTableNode* table,
+    void Reshard(
+        TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys);
-    void CloneTable(
-        NTableServer::TTableNode* sourceTable,
-        NTableServer::TTableNode* clonedTable,
+
+    void CloneTabletOwner(
+        TTabletOwnerBase* sourceNode,
+        TTabletOwnerBase* clonedNode,
         NCypressServer::ENodeCloneMode mode);
 
     void MakeTableDynamic(NTableServer::TTableNode* table);
@@ -165,22 +164,31 @@ public:
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
     TTabletCellBundle* GetDefaultTabletCellBundle();
-    void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
+    void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle);
 
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
     void ZombifyTabletCell(TTabletCell* cell);
 
-    NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTablet* tablet) const;
+    void DestroyTablet(TTabletBase* tablet);
+
+    void DestroyTabletOwner(TTabletOwnerBase* table);
+
+    NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const;
 
     void UpdateExtraMountConfigKeys(std::vector<TString> keys);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(TTabletId id);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
+    TTabletBase* GetTabletOrThrow(TTabletId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
     void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
+
+    void ParseTabletRangeOrThrow(
+        const TTabletOwnerBase* table,
+        int* first,
+        int* last) const;
 
     // Backup stuff. Used internally by TBackupManager.
     void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
@@ -214,10 +222,6 @@ private:
     friend class TTabletBalancer;
     class TImpl;
 
-    void DestroyTable(NTableServer::TTableNode* table);
-
-    void DestroyTablet(TTablet* tablet);
-
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, NObjectClient::TObjectId hintId);
     void DestroyTabletCell(TTabletCell* cell);
 
@@ -242,7 +246,7 @@ private:
     TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTablet*>& tablets,
+        const std::vector<TTabletBase*>& tablets,
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
@@ -253,7 +257,6 @@ private:
     void DestroyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletManager)

@@ -137,6 +137,11 @@ bool IsLogTableType(EObjectType type)
         type == EObjectType::ReplicationLogTable;
 }
 
+bool IsTabletOwnerType(EObjectType type)
+{
+    return IsTableType(type);
+}
+
 bool IsCellType(EObjectType type)
 {
     return

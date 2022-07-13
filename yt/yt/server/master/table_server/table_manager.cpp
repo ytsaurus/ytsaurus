@@ -983,7 +983,7 @@ private:
             request->node_count(),
             nodeIds);
 
-        for  (const auto& [cellTag, request] : cellTagToRequest) {
+        for (const auto& [cellTag, request] : cellTagToRequest) {
             multicellManager->PostToMaster(request, cellTag);
         }
     }

@@ -1686,13 +1686,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t")
         _verify(3, 0, 0)
 
-    @authors("iskhakovt")
+    @authors("iskhakovt", "gritukan")
     def test_tablet_table_path_attribute(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
+        assert get("#{}/@table_path".format(tablet_id)) == "//tmp/t"
+        assert get("#{}/@owner_path".format(tablet_id)) == "//tmp/t"
 
     @authors("ifsmirnov", "alexelexa")
     def test_tablet_error_attributes(self):

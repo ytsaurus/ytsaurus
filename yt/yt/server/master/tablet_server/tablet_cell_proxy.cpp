@@ -131,7 +131,7 @@ private:
             case EInternedAttributeKey::TabletIds:
                 if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
-                        .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
+                        .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTabletBase* tablet) {
                             fluent
                                 .Item().Value(tablet->GetId());
                         });

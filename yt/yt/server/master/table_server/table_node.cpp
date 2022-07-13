@@ -1,19 +1,25 @@
 #include "table_node.h"
+
 #include "private.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
 #include "table_collocation.h"
 #include "table_manager.h"
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
-#include <yt/yt/server/lib/tablet_balancer/config.h>
-
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
+#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 
@@ -30,6 +36,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletServer;
 using namespace NChaosClient;
 using namespace NObjectClient;
 using namespace NTabletServer;
@@ -65,28 +72,15 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, CommitOrdering);
     Save(context, UpstreamReplicaId);
     Save(context, LastCommitTimestamp);
-    Save(context, TabletCountByState);
-    Save(context, Tablets);
-    Save(context, InMemoryMode);
-    Save(context, TabletErrorCount);
     Save(context, ForcedCompactionRevision);
     Save(context, ForcedStoreCompactionRevision);
     Save(context, ForcedHunkCompactionRevision);
     Save(context, Dynamic);
-    Save(context, MountPath);
-    Save(context, ExternalTabletResourceUsage);
-    Save(context, ExpectedTabletState);
-    Save(context, LastMountTransactionId);
-    Save(context, TabletCountByExpectedState);
-    Save(context, ActualTabletState);
-    Save(context, PrimaryLastMountTransactionId);
-    Save(context, CurrentMountTransactionId);
     Save(context, *TabletBalancerConfig);
     Save(context, DynamicTableLocks);
     Save(context, UnconfirmedDynamicTableLockCount);
     Save(context, EnableDynamicStoreRead);
     Save(context, MountedWithEnabledDynamicStoreRead);
-    Save(context, TabletStatistics);
     Save(context, ProfilingMode);
     Save(context, ProfilingTag);
     Save(context, EnableDetailedProfiling);
@@ -104,35 +98,52 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, *MountConfigStorage);
 }
 
-void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
+void TTableNode::TDynamicTableAttributes::Load(
+    NCellMaster::TLoadContext& context,
+    TTabletOwnerBase* tabletOwner)
 {
     using NYT::Load;
     Load(context, Atomicity);
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
-    Load(context, TabletCountByState);
-    Load(context, Tablets);
-    Load(context, InMemoryMode);
-    Load(context, TabletErrorCount);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::TabletBase) {
+        Load(context, tabletOwner->MutableTabletCountByState());
+        Load(context, tabletOwner->MutableTablets());
+        tabletOwner->SetInMemoryMode(Load<EInMemoryMode>(context));
+        tabletOwner->SetTabletErrorCount(Load<int>(context));
+    }
+
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
     Load(context, Dynamic);
-    Load(context, MountPath);
-    Load(context, ExternalTabletResourceUsage);
-    Load(context, ExpectedTabletState);
-    Load(context, LastMountTransactionId);
-    Load(context, TabletCountByExpectedState);
-    Load(context, ActualTabletState);
-    Load(context, PrimaryLastMountTransactionId);
-    Load(context, CurrentMountTransactionId);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::TabletBase) {
+        tabletOwner->SetMountPath(Load<TString>(context));
+        tabletOwner->SetExternalTabletResourceUsage(Load<NTabletServer::TTabletResources>(context));
+        tabletOwner->SetExpectedTabletState(Load<ETabletState>(context));
+        tabletOwner->SetLastMountTransactionId(Load<TTransactionId>(context));
+        Load(context, tabletOwner->MutableTabletCountByExpectedState());
+        tabletOwner->SetActualTabletState(Load<ETabletState>(context));
+        tabletOwner->SetPrimaryLastMountTransactionId(Load<TTransactionId>(context));
+        tabletOwner->SetCurrentMountTransactionId(Load<TTransactionId>(context));
+    }
+
     Load(context, *TabletBalancerConfig);
     Load(context, DynamicTableLocks);
     Load(context, UnconfirmedDynamicTableLockCount);
     Load(context, EnableDynamicStoreRead);
     Load(context, MountedWithEnabledDynamicStoreRead);
-    Load(context, TabletStatistics);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::TabletBase) {
+        tabletOwner->LoadTabletStatisticsCompat(context);
+    }
+
     Load(context, ProfilingMode);
     Load(context, ProfilingTag);
     Load(context, EnableDetailedProfiling);
@@ -187,7 +198,6 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     XX(Dynamic) \
     XX(Atomicity) \
     XX(CommitOrdering) \
-    XX(InMemoryMode) \
     XX(UpstreamReplicaId) \
     XX(LastCommitTimestamp) \
     XX(EnableDynamicStoreRead) \
@@ -236,7 +246,7 @@ void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TTableNode(TVersionedNodeId id)
-    : TChunkOwnerBase(id)
+    : TTabletOwnerBase(id)
 {
     if (IsTrunk()) {
         SetOptimizeFor(EOptimizeFor::Lookup);
@@ -246,12 +256,12 @@ TTableNode::TTableNode(TVersionedNodeId id)
 
 TTableNode* TTableNode::GetTrunkNode()
 {
-    return TChunkOwnerBase::GetTrunkNode()->As<TTableNode>();
+    return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
 const TTableNode* TTableNode::GetTrunkNode() const
 {
-    return TChunkOwnerBase::GetTrunkNode()->As<TTableNode>();
+    return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
 void TTableNode::EndUpload(const TEndUploadContext& context)
@@ -279,57 +289,17 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);
     }
-    TChunkOwnerBase::EndUpload(context);
-}
 
-TClusterResources TTableNode::GetDeltaResourceUsage() const
-{
-    return TChunkOwnerBase::GetDeltaResourceUsage();
-}
-
-TClusterResources TTableNode::GetTotalResourceUsage() const
-{
-    return TChunkOwnerBase::GetTotalResourceUsage();
-}
-
-TTabletResources TTableNode::GetTabletResourceUsage() const
-{
-    int tabletCount = 0;
-    i64 tabletStaticMemory = 0;
-
-    if (IsTrunk()) {
-        tabletCount = Tablets().size();
-        for (const auto* tablet : Tablets()) {
-            if (tablet->GetState() != ETabletState::Unmounted) {
-                tabletStaticMemory += tablet->GetTabletStaticMemorySize();
-            }
-        }
-    }
-
-    auto resourceUsage = TTabletResources()
-        .SetTabletCount(tabletCount)
-        .SetTabletStaticMemory(tabletStaticMemory);
-
-    return resourceUsage + GetExternalTabletResourceUsage();
+    TTabletOwnerBase::EndUpload(context);
 }
 
 TDetailedMasterMemory TTableNode::GetDetailedMasterMemoryUsage() const
 {
-    auto result = TChunkOwnerBase::GetDetailedMasterMemoryUsage();
-    result[EMasterMemoryType::Tablets] += GetTabletMasterMemoryUsage();
+    auto result = TTabletOwnerBase::GetDetailedMasterMemoryUsage();
     if (const auto* storage = FindMountConfigStorage()) {
         result[EMasterMemoryType::Attributes] += storage->GetMasterMemoryUsage();
     }
     return result;
-}
-
-void TTableNode::RecomputeTabletMasterMemoryUsage()
-{
-    i64 masterMemoryUsage = 0;
-    for (const auto* tablet : Tablets()) {
-        masterMemoryUsage += tablet->GetTabletMasterMemoryUsage();
-    }
-    SetTabletMasterMemoryUsage(masterMemoryUsage);
 }
 
 bool TTableNode::IsSorted() const
@@ -367,38 +337,9 @@ TReplicationCardId TTableNode::GetReplicationCardId() const
     return ReplicationCardIdFromUpstreamReplicaIdOrNull(GetUpstreamReplicaId());
 }
 
-ETabletState TTableNode::GetTabletState() const
-{
-    if (GetLastMountTransactionId()) {
-        return ETabletState::Transient;
-    }
-
-    if (!IsDynamic()) {
-        return ETabletState::None;
-    }
-
-    return GetActualTabletState();
-}
-
-ETabletState TTableNode::ComputeActualTabletState() const
-{
-    auto* trunkNode = GetTrunkNode();
-    if (trunkNode->Tablets().empty()) {
-        return ETabletState::None;
-    }
-    for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-        if (trunkNode->TabletCountByState().IsDomainValue(state)) {
-            if (std::ssize(trunkNode->Tablets()) == trunkNode->TabletCountByState()[state]) {
-                return state;
-            }
-        }
-    }
-    return ETabletState::Mixed;
-}
-
 void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TChunkOwnerBase::Save(context);
+    TTabletOwnerBase::Save(context);
 
     using NYT::Save;
     SaveTableSchema(context);
@@ -407,14 +348,13 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, HunkErasureCodec_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
-    Save(context, TabletCellBundle_);
     Save(context, ReplicationCollocation_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
-    TChunkOwnerBase::Load(context);
+    TTabletOwnerBase::Load(context);
 
     using NYT::Load;
     LoadTableSchema(context);
@@ -426,9 +366,21 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
-    Load(context, TabletCellBundle_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::TabletBase) {
+        Load(context, TabletCellBundle_);
+    }
+
     Load(context, ReplicationCollocation_);
-    TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
+
+    // COMPAT(gritukan): Use TUniquePtrSerializer.
+    if (Load<bool>(context)) {
+        DynamicTableAttributes_ = std::make_unique<TDynamicTableAttributes>();
+        DynamicTableAttributes_->Load(context, this);
+    } else {
+        DynamicTableAttributes_.reset();
+    }
 }
 
 void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
@@ -443,32 +395,6 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Schema_);
-}
-
-std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
-    const TLegacyOwningKey& minKey,
-    const TLegacyOwningKey& maxKey)
-{
-    auto* trunkNode = GetTrunkNode();
-
-    auto beginIt = std::upper_bound(
-        trunkNode->Tablets().cbegin(),
-        trunkNode->Tablets().cend(),
-        minKey,
-        [] (const TLegacyOwningKey& key, const TTablet* tablet) {
-            return key < tablet->GetPivotKey();
-        });
-
-    if (beginIt != trunkNode->Tablets().cbegin()) {
-        --beginIt;
-    }
-
-    auto endIt = beginIt;
-    while (endIt != trunkNode->Tablets().cend() && maxKey >= (*endIt)->GetPivotKey()) {
-        ++endIt;
-    }
-
-    return std::make_pair(beginIt, endIt);
 }
 
 bool TTableNode::IsDynamic() const
@@ -536,7 +462,7 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp(
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetState() != ETabletState::Unmounted
-            ? static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp())
+            ? static_cast<TTimestamp>(tablet->As<TTablet>()->NodeStatistics().unflushed_timestamp())
             : latestTimestamp;
         result = std::min(result, timestamp);
     }
@@ -552,7 +478,7 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
 
     auto result = MinTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
-        auto timestamp = tablet->GetRetainedTimestamp();
+        auto timestamp = tablet->As<TTablet>()->GetRetainedTimestamp();
         result = std::max(result, timestamp);
     }
     return result;
@@ -566,84 +492,6 @@ TMasterTableSchema* TTableNode::GetSchema() const
 void TTableNode::SetSchema(TMasterTableSchema* schema)
 {
     Schema_ = schema;
-}
-
-void TTableNode::UpdateExpectedTabletState(ETabletState state)
-{
-    auto current = GetExpectedTabletState();
-
-    YT_ASSERT(current == ETabletState::Frozen ||
-        current == ETabletState::Mounted ||
-        current == ETabletState::Unmounted);
-    YT_ASSERT(state == ETabletState::Frozen ||
-        state == ETabletState::Mounted);
-
-    if (state == ETabletState::Mounted ||
-        (state == ETabletState::Frozen && current != ETabletState::Mounted))
-    {
-        SetExpectedTabletState(state);
-    }
-}
-
-void TTableNode::ValidateNoCurrentMountTransaction(TStringBuf message) const
-{
-    const auto* trunkTable = GetTrunkNode();
-    auto transactionId = trunkTable->GetCurrentMountTransactionId();
-    if (transactionId) {
-        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since node is locked by mount-unmount operation", message)
-            << TErrorAttribute("current_mount_transaction_id", transactionId);
-    }
-}
-
-void TTableNode::LockCurrentMountTransaction(TTransactionId transactionId)
-{
-    YT_ASSERT(!static_cast<bool>(GetCurrentMountTransactionId()));
-    SetCurrentMountTransactionId(transactionId);
-}
-
-void TTableNode::UnlockCurrentMountTransaction(TTransactionId transactionId)
-{
-    if (GetCurrentMountTransactionId() == transactionId) {
-        SetCurrentMountTransactionId(TTransactionId());
-    }
-}
-
-void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
-{
-    ValidateNoCurrentMountTransaction(message);
-
-    const auto* trunkTable = GetTrunkNode();
-    auto transactionId = trunkTable->GetLastMountTransactionId();
-    if (transactionId) {
-        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since some tablets are in transient state", message)
-            << TErrorAttribute("last_mount_transaction_id", transactionId)
-            << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
-    }
-}
-
-void TTableNode::ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const
-{
-    ValidateTabletStateFixed(message);
-
-    const auto* trunkTable = GetTrunkNode();
-    auto state = trunkTable->GetExpectedTabletState();
-    if (!(state == ETabletState::Unmounted || (allowFrozen && state == ETabletState::Frozen))) {
-        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since not all tablets are %v",
-            message,
-            allowFrozen ? "frozen or unmounted" : "unmounted")
-            << TErrorAttribute("actual_tablet_state", trunkTable->GetActualTabletState())
-            << TErrorAttribute("expected_tablet_state", trunkTable->GetExpectedTabletState());
-    }
-}
-
-void TTableNode::ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const
-{
-    ValidateExpectedTabletState(message, true);
-}
-
-void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
-{
-    ValidateExpectedTabletState(message, false);
 }
 
 void TTableNode::ValidateNotBackup(TStringBuf message) const
@@ -736,6 +584,160 @@ void TTableNode::RemoveDynamicTableLock(TTransactionId transactionId)
     }
 }
 
+void TTableNode::ValidateMount() const
+{
+    TTabletOwnerBase::ValidateMount();
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot mount a static table");
+    }
+
+    ValidateNotBackup("Cannot mount backup table");
+}
+
+void TTableNode::ValidateUnmount() const
+{
+    TTabletOwnerBase::ValidateUnmount();
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot unmount a static table");
+    }
+}
+
+void TTableNode::ValidateRemount() const
+{
+    TTabletOwnerBase::ValidateRemount();
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot remount a static table");
+    }
+}
+
+void TTableNode::ValidateFreeze() const
+{
+    TTabletOwnerBase::ValidateFreeze();
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot freeze a static table");
+    }
+}
+
+void TTableNode::ValidateUnfreeze() const
+{
+    TTabletOwnerBase::ValidateUnfreeze();
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot unfreeze a static table");
+    }
+}
+
+void TTableNode::ValidateReshard(
+    const TBootstrap* bootstrap,
+    int firstTabletIndex,
+    int lastTabletIndex,
+    int newTabletCount,
+    const std::vector<TLegacyOwningKey>& pivotKeys) const
+{
+    TTabletOwnerBase::ValidateReshard(
+        bootstrap,
+        firstTabletIndex,
+        lastTabletIndex,
+        newTabletCount,
+        pivotKeys);
+
+    // First, check parameters with little knowledge of the table.
+    // Primary master must ensure that the table could be created.
+
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Cannot reshard a static table");
+    }
+
+    if (newTabletCount <= 0) {
+        THROW_ERROR_EXCEPTION("Tablet count must be positive");
+    }
+
+    if (newTabletCount > MaxTabletCount) {
+        THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
+            MaxTabletCount);
+    }
+
+    if (DynamicTableLocks().size() > 0) {
+        THROW_ERROR_EXCEPTION("Dynamic table is locked by some bulk insert");
+    }
+
+    ValidateNotBackup("Cannot reshard backup table");
+
+    if (IsSorted()) {
+        // NB: We allow reshard without pivot keys.
+        // Pivot keys will be calculated when ReshardTable is called so we don't need to check them.
+        if (!pivotKeys.empty()) {
+            if (std::ssize(pivotKeys) != newTabletCount) {
+                THROW_ERROR_EXCEPTION("Wrong pivot key count: %v instead of %v",
+                    pivotKeys.size(),
+                    newTabletCount);
+            }
+
+            // Validate first pivot key (on primary master before the table is created).
+            if (firstTabletIndex == 0 && pivotKeys[0] != EmptyKey()) {
+                THROW_ERROR_EXCEPTION("First pivot key must be empty");
+            }
+
+            for (int index = 0; index < std::ssize(pivotKeys) - 1; ++index) {
+                if (pivotKeys[index] >= pivotKeys[index + 1]) {
+                    THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
+                }
+            }
+
+            // Validate pivot keys against table schema.
+            for (const auto& pivotKey : pivotKeys) {
+                ValidatePivotKey(pivotKey, *GetSchema()->AsTableSchema());
+            }
+        }
+
+        if (!IsPhysicallySorted() && pivotKeys.empty()) {
+            THROW_ERROR_EXCEPTION("Pivot keys must be provided to reshard a replicated table");
+        }
+    } else {
+        if (!pivotKeys.empty()) {
+            THROW_ERROR_EXCEPTION("Table is ordered; must provide tablet count");
+        }
+    }
+
+    if (IsExternal()) {
+        return;
+    }
+
+    if (IsPhysicallyLog() && !IsLogicallyEmpty()) {
+        THROW_ERROR_EXCEPTION("Cannot reshard non-empty table of type %Qlv",
+            GetType());
+    }
+
+    const auto& tabletManager = bootstrap->GetTabletManager();
+    tabletManager->ParseTabletRangeOrThrow(this, &firstTabletIndex, &lastTabletIndex); // may throw
+
+    if (IsSorted()) {
+        // NB: We allow reshard without pivot keys.
+        // Pivot keys will be calculated when ReshardTable is called so we don't need to check them.
+        if (!pivotKeys.empty()) {
+            const auto& tablets = Tablets();
+            if (pivotKeys[0] != tablets[firstTabletIndex]->As<TTablet>()->GetPivotKey()) {
+                THROW_ERROR_EXCEPTION(
+                    "First pivot key must match that of the first tablet "
+                    "in the resharded range");
+            }
+
+            if (lastTabletIndex != std::ssize(tablets) - 1) {
+                YT_VERIFY(lastTabletIndex + 1 >= 0 && lastTabletIndex + 1 < std::ssize(tablets));
+                if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKey()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Last pivot key must be strictly less than that of the tablet "
+                        "which follows the resharded range");
+                }
+            }
+        }
+    }
+}
+
 void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 {
     TChunkOwnerBase::CheckInvariants(bootstrap);
@@ -778,4 +780,3 @@ DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, Dy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
-

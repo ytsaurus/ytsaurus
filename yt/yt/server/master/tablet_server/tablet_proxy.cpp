@@ -1,8 +1,10 @@
 #include "tablet_proxy.h"
+
 #include "private.h"
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "tablet_manager.h"
+#include "tablet_proxy_base.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -27,71 +29,31 @@
 
 namespace NYT::NTabletServer {
 
+using namespace NCellMaster;
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectServer;
 using namespace NTransactionClient;
 using namespace NObjectClient;
-using namespace NOrchid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletProxy
-    : public TNonversionedObjectProxyBase<TTablet>
-    , public virtual TStaticServiceDispatcher
+    : public TTabletProxyBase
 {
 public:
-    TTabletProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTablet* tablet)
-        : TBase(bootstrap, metadata, tablet)
-    {
-        RegisterService(
-            "orchid",
-            BIND(&TTabletProxy::CreateOrchidService, Unretained(this)));
-    }
+    using TTabletProxyBase::TTabletProxyBase;
 
 private:
-    using TBase = TNonversionedObjectProxyBase<TTablet>;
-
-    IYPathServicePtr CreateOrchidService()
-    {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        auto* tablet = GetThisImpl<TTablet>();
-
-        auto* node = tabletManager->FindTabletLeaderNode(tablet);
-        if (!node) {
-            THROW_ERROR_EXCEPTION("Tablet has no leader node");
-        }
-
-        auto cellId = tablet->GetCell()->GetId();
-
-        auto nodeAddresses = node->GetAddressesOrThrow(NNodeTrackerClient::EAddressType::InternalRpc);
-
-        // TODO(max42): make customizable.
-        constexpr TDuration timeout = TDuration::Seconds(60);
-
-        return CreateOrchidYPathService(TOrchidOptions{
-            .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(nodeAddresses),
-            .RemoteRoot = Format("//tablet_cells/%v/tablets/%v", cellId, tablet->GetId()),
-            .Timeout = timeout,
-        });
-    }
+    using TBase = TTabletProxyBase;
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* tablet = GetThisImpl();
+        const auto* tablet = GetThisImpl<TTablet>();
         const auto* table = tablet->GetTable();
 
-        descriptors->push_back(EInternedAttributeKey::State);
-        descriptors->push_back(EInternedAttributeKey::ExpectedState);
-        descriptors->push_back(EInternedAttributeKey::Statistics);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePath)
-            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TrimmedRowCount)
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushedRowCount)
@@ -100,26 +62,12 @@ private:
         descriptors->push_back(EInternedAttributeKey::LastWriteTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PerformanceCounters)
             .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountRevision)
-            .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoresUpdatePrepared)
-            .SetPresent(tablet->GetStoresUpdatePreparedTransaction() != nullptr));
-        descriptors->push_back(EInternedAttributeKey::Index);
-        descriptors->push_back(EInternedAttributeKey::TableId);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));
-        descriptors->push_back(EInternedAttributeKey::ChunkListId);
-        descriptors->push_back(EInternedAttributeKey::HunkChunkListId);
-        descriptors->push_back(EInternedAttributeKey::InMemoryMode);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellId)
-            .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionId)
-            .SetPresent(tablet->GetAction()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::ErrorCount);
         descriptors->push_back(EInternedAttributeKey::ReplicationErrorCount);
         descriptors->push_back(EInternedAttributeKey::BackupState);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
@@ -128,43 +76,11 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        const auto* tablet = GetThisImpl();
+        const auto* tablet = GetThisImpl<TTablet>();
         const auto* chunkList = tablet->GetChunkList();
-        const auto* hunkChunkList = tablet->GetHunkChunkList();
         const auto* table = tablet->GetTable();
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-
         switch (key) {
-            case EInternedAttributeKey::State:
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetState());
-                return true;
-
-            case EInternedAttributeKey::ExpectedState:
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetExpectedState());
-                return true;
-
-            case EInternedAttributeKey::Statistics:
-                BuildYsonFluently(consumer)
-                    .Value(New<TSerializableTabletStatistics>(
-                        tabletManager->GetTabletStatistics(tablet),
-                        chunkManager));
-                return true;
-
-            case EInternedAttributeKey::TablePath:
-                if (!IsObjectAlive(table) || table->IsForeign()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(
-                        tablet->GetTable()->GetTrunkNode(),
-                        nullptr));
-                return true;
-
             case EInternedAttributeKey::TrimmedRowCount:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetTrimmedRowCount());
@@ -193,69 +109,12 @@ private:
                     .Value(tablet->PerformanceCounters());
                 return true;
 
-            case EInternedAttributeKey::MountRevision:
-                if (!tablet->GetCell()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetMountRevision());
-                return true;
-
-            case EInternedAttributeKey::StoresUpdatePreparedTransactionId:
-                if (!tablet->GetStoresUpdatePreparedTransaction()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetStoresUpdatePreparedTransaction()->GetId());
-                return true;
-
-            case EInternedAttributeKey::Index:
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetIndex());
-                return true;
-
-            case EInternedAttributeKey::TableId:
-                BuildYsonFluently(consumer)
-                    .Value(table->GetId());
-                return true;
-
             case EInternedAttributeKey::PivotKey:
                 if (!table->IsPhysicallySorted()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetPivotKey());
-                return true;
-
-            case EInternedAttributeKey::ChunkListId:
-                BuildYsonFluently(consumer)
-                    .Value(chunkList->GetId());
-                return true;
-
-            case EInternedAttributeKey::HunkChunkListId:
-                BuildYsonFluently(consumer)
-                    .Value(hunkChunkList->GetId());
-                return true;
-
-            case EInternedAttributeKey::InMemoryMode:
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetInMemoryMode());
-                return true;
-
-            case EInternedAttributeKey::CellId:
-                if (!tablet->GetCell()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetCell()->GetId());
-                return true;
-
-            case EInternedAttributeKey::ActionId:
-                if (!tablet->GetAction()) {
-                    break;
-                }
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetAction()->GetId());
                 return true;
 
             case EInternedAttributeKey::RetainedTimestamp:
@@ -271,11 +130,6 @@ private:
             case EInternedAttributeKey::UnconfirmedDynamicTableLocks:
                 BuildYsonFluently(consumer)
                     .Value(tablet->UnconfirmedDynamicTableLocks());
-                return true;
-
-            case EInternedAttributeKey::TabletErrorCount:
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetTabletErrorCount());
                 return true;
 
             case EInternedAttributeKey::ReplicationErrorCount:
@@ -303,32 +157,12 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-
-    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
-    {
-        const auto* tablet = GetThisImpl();
-
-        switch (key) {
-            case EInternedAttributeKey::TablePath: {
-                auto* table = tablet->GetTable();
-                if (!IsObjectAlive(table)) {
-                    break;
-                }
-                return FetchFromShepherd(FromObjectId(table->GetId()) + "/@path");
-            }
-
-            default:
-                break;
-        }
-
-        return TBase::GetBuiltinAttributeAsync(key);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateTabletProxy(
-    NCellMaster::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTablet* tablet)
 {

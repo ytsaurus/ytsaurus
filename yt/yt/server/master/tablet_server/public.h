@@ -51,6 +51,7 @@ using NTabletClient::ETableReplicaMode;
 using NTabletClient::TypicalPeerCount;
 using NTabletClient::TTableReplicaId;
 using NTabletClient::TTabletActionId;
+using NTabletClient::TTabletOwnerId;
 using NTabletClient::TTableReplicaId;
 
 using NTabletClient::TTabletCellOptions;
@@ -93,6 +94,8 @@ class TTableReplica;
 DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTabletBase, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTabletOwnerBase, TTabletOwnerId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableReplica, TTableReplicaId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletAction, TTabletActionId, NObjectClient::TDirectObjectIdHash)
 

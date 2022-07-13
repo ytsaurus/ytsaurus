@@ -239,17 +239,17 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             if (node->IsNative()) {
                 if (optionalTabletCount) {
-                    tabletManager->PrepareReshardTable(node, 0, 0, *optionalTabletCount, {}, true);
+                    tabletManager->PrepareReshard(node, 0, 0, *optionalTabletCount, {}, true);
                 } else if (optionalPivotKeys) {
-                    tabletManager->PrepareReshardTable(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys, true);
+                    tabletManager->PrepareReshard(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys, true);
                 }
             }
 
             if (!node->IsExternal()) {
                 if (optionalTabletCount) {
-                    tabletManager->ReshardTable(node, 0, 0, *optionalTabletCount, {});
+                    tabletManager->Reshard(node, 0, 0, *optionalTabletCount, {});
                 } else if (optionalPivotKeys) {
-                    tabletManager->ReshardTable(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys);
+                    tabletManager->Reshard(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys);
                 }
             }
 
@@ -274,6 +274,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 {
+    TBase::DoDestroy(table);
+
     const auto& tableManager = this->Bootstrap_->GetTableManager();
 
     if (table->IsQueueObject()) {
@@ -284,19 +286,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         tableManager->UnregisterConsumer(table);
     }
 
-    if (table->IsTrunk()) {
-        const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-
-        tabletManager->DestroyTable(table);
-
-        if (!table->IsExternal() && TypeFromId(table->GetId()) == EObjectType::ReplicatedTable) {
-            tabletManager->GetReplicatedTableDestroyedSignal()->Fire(table->GetId());
-        }
-    }
-
     tableManager->ResetTableSchema(table);
-
-    TBase::DoDestroy(table);
 }
 
 template <class TImpl>
@@ -361,24 +351,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-    tabletManager->ValidateCloneTable(
-        sourceNode,
-        mode,
-        account);
-
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
-
-    // NB: Dynamic table should have a bundle during creation for accounting to work properly.
-    auto* trunkSourceNode = sourceNode->GetTrunkNode();
-    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->TabletCellBundle().Get());
-
-    if (sourceNode->IsDynamic()) {
-        tabletManager->CloneTable(
-            sourceNode,
-            clonedTrunkNode,
-            mode);
-    }
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
     tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
@@ -386,6 +359,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
+    auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
         clonedTrunkNode->InitializeCustomDynamicTableAttributes();
         clonedTrunkNode->GetCustomDynamicTableAttributes()->CopyFrom(
@@ -404,17 +378,14 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 {
     TBase::DoBeginCopy(node, context);
 
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-    tabletManager->ValidateBeginCopyTable(node, context->GetMode());
-
     // TODO(babenko): support copying dynamic tables
     if (node->IsDynamic()) {
         THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
     }
 
     using NYT::Save;
+
     auto* trunkNode = node->GetTrunkNode();
-    Save(*context, trunkNode->TabletCellBundle());
 
     Save(*context, node->GetSchema());
 
@@ -436,16 +407,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 {
     TBase::DoEndCopy(node, context, factory);
 
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
     // TODO(babenko): support copying dynamic tables
 
     using NYT::Load;
-
-    if (auto* bundle = Load<TTabletCellBundle*>(*context)) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->ValidateObjectLifeStage(bundle);
-        tabletManager->SetTabletCellBundle(node, bundle);
-    }
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
     auto* schema = Load<TMasterTableSchema*>(*context);
@@ -472,10 +436,8 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
     static const THashSet<TString> SupportedInheritableAttributes{
         "atomicity",
         "commit_ordering",
-        "in_memory_mode",
         "optimize_for",
         "hunk_erasure_codec",
-        "tablet_cell_bundle",
         "profiling_mode",
         "profiling_tag"
     };

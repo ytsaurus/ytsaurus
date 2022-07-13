@@ -35,7 +35,7 @@ class TTabletCell
     : public NCellServer::TCellBase
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletBase*>, Tablets);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, Actions);
 
     using TGossipStatistics = NCellMaster::TGossipValue<TTabletCellStatistics>;

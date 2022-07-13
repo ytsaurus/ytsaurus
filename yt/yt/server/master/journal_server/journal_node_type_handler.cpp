@@ -117,9 +117,9 @@ protected:
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
 
         if (!originatingNode->IsExternal()) {
-            for (auto chunkListType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* chunkList = originatingNode->GetChunkList(chunkListType)) {
-                    branchedNode->SetChunkList(chunkListType, chunkList);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* chunkList = originatingNode->GetChunkList(contentType)) {
+                    branchedNode->SetChunkList(contentType, chunkList);
                     chunkList->AddOwningNode(branchedNode);
                 }
             }

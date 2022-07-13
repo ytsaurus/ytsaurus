@@ -2,7 +2,7 @@
 
 #include "table_node.h"
 
-#include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
+#include <yt/yt/server/master/tablet_server/tablet_owner_type_handler_base.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -12,10 +12,10 @@ namespace NYT::NTableServer {
 
 template <class TImpl>
 class TTableNodeTypeHandlerBase
-    : public NChunkServer::TChunkOwnerTypeHandler<TImpl>
+    : public NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>
 {
 private:
-    using TBase = NChunkServer::TChunkOwnerTypeHandler<TImpl>;
+    using TBase = NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>;
 
 public:
     using TBase::TBase;

@@ -117,7 +117,7 @@ public:
             return;
         }
 
-        auto size = GetTabletBalancingSize(tablet, Bootstrap_->GetTabletManager());
+        auto size = GetTabletBalancingSize(tablet);
         auto bounds = GetTabletSizeConfig(tablet->GetTable());
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
             auto bundleId = tablet->GetTable()->TabletCellBundle()->GetId();
@@ -268,7 +268,8 @@ private:
         for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (!action->IsFinished()) {
                 for (const auto* tablet : action->Tablets()) {
-                    TablesWithActiveActions_.insert(tablet->GetTable());
+                    YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+                    TablesWithActiveActions_.insert(tablet->As<TTablet>()->GetTable());
                     break;
                 }
             }
@@ -394,9 +395,9 @@ private:
 
         auto descriptors = NTabletServer::ReassignInMemoryTablets(
             bundle,
-            std::nullopt, // movableTables,
-            false, // ignoreTableWiseConfig
-            Bootstrap_->GetTabletManager());
+            /*movableTablets*/ std::nullopt,
+            /*ignoreTableWiseConfig*/ false
+        );
 
         if (!descriptors.empty()) {
             for (auto descriptor : descriptors) {
@@ -605,7 +606,11 @@ private:
                 haveEmptyCells = true;
             }
             for (auto* tablet : cell->Tablets()) {
-                const auto* table = tablet->GetTable();
+                if (tablet->GetType() != EObjectType::Tablet) {
+                    continue;
+                }
+
+                const auto* table = tablet->As<TTablet>()->GetTable();
 
                 // TODO(ifsmirnov): add '!sync && ' here.
                 if (!table->TabletBalancerConfig()->EnableAutoTabletMove) {
@@ -617,7 +622,7 @@ private:
                 }
 
                 if (table->GetInMemoryMode() == EInMemoryMode::None) {
-                    tabletsByTable[table].push_back(tablet);
+                    tabletsByTable[table].push_back(tablet->As<TTablet>());
                 }
             }
         }
@@ -661,7 +666,12 @@ private:
         std::vector<TTablet*> tablets;
         for (auto tabletId : it->second) {
             QueuedTabletIds_.erase(tabletId);
-            auto* tablet = tabletManager->FindTablet(tabletId);
+            auto* tabletBase = tabletManager->FindTablet(tabletId);
+            if (!IsObjectAlive(tabletBase)) {
+                continue;
+            }
+            YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
+            auto* tablet = tabletBase->As<TTablet>();
             if (IsTabletReshardable(tablet)) {
                 tablets.push_back(tablet);
             }
@@ -694,8 +704,7 @@ private:
 
             auto descriptors = MergeSplitTabletsOfTable(
                 tabletRange,
-                &Context_,
-                tabletManager);
+                &Context_);
             for (auto descriptor : descriptors) {
                 CreateReshardAction(descriptor.Tablets, descriptor.TabletCount, descriptor.DataSize);
             }

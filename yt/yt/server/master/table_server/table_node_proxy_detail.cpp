@@ -94,10 +94,6 @@ using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
     if (context->Permission == EPermission::Read) {
@@ -166,8 +162,6 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    TBase::ListSystemAttributes(descriptors);
-
     const auto* table = GetThisImpl();
     const auto* trunkTable = table->GetTrunkNode();
     bool isDynamic = table->IsDynamic();
@@ -175,6 +169,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isExternal = table->IsExternal();
     bool isQueue = table->IsQueue();
     bool isConsumer = table->IsConsumer();
+
+    TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ isDynamic);
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
@@ -193,31 +189,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
         .SetPresent(isSorted));
     descriptors->push_back(EInternedAttributeKey::Dynamic);
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletState)
-        .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActualTabletState)
-        .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpectedTabletState)
-        .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CurrentMountTransactionId)
-        .SetPresent(isDynamic && trunkTable->GetCurrentMountTransactionId()));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastMountTransactionId)
-        .SetPresent(isDynamic && trunkTable->GetLastMountTransactionId()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastCommitTimestamp)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCountByState)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCountByExpectedState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -231,17 +206,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnflushedTimestamp)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletStatistics)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorCount)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
-        .SetWritable(true)
-        .SetPresent(trunkTable->TabletCellBundle().IsAlive())
-        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
         .SetReplicated(true)
         .SetWritable(true));
@@ -249,9 +213,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetPresent(!isSorted)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
-        .SetReplicated(true)
-        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
         .SetReplicated(true)
         .SetWritable(true));
@@ -424,29 +385,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-
-    auto validateTabletStatistics = [&] {
-        TTabletStatistics oldFashionedStatistics;
-        for (const auto* tablet : trunkTable->Tablets()) {
-            oldFashionedStatistics += tabletManager->GetTabletStatistics(tablet);
-        }
-
-        auto ultraModernStatistics = trunkTable->GetTabletStatistics();
-
-        if (oldFashionedStatistics == ultraModernStatistics) {
-            return;
-        }
-
-        YT_LOG_ALERT("Tablet statistics mismatch (TableId: %v, OldStatistics: %v, NewStatistics: %v)",
-            trunkTable->GetId(),
-            ToString(oldFashionedStatistics, chunkManager),
-            ToString(ultraModernStatistics, chunkManager));
-    };
-
-    if (isDynamic && !isExternal && config->TabletManager->EnableAggressiveTabletStatisticsValidation) {
-        validateTabletStatistics();
-    }
 
     switch (key) {
         case EInternedAttributeKey::DataWeight: {
@@ -521,70 +459,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->IsDynamic());
             return true;
 
-        case EInternedAttributeKey::TabletCount:
-            if (!isDynamic || isExternal) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->Tablets().size());
-            return true;
-
-        case EInternedAttributeKey::TabletCountByState:
-            if (!isDynamic || isExternal) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->TabletCountByState());
-            return true;
-
-        case EInternedAttributeKey::TabletCountByExpectedState:
-            if (!isDynamic || isExternal) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->TabletCountByExpectedState());
-            return true;
-
-        case EInternedAttributeKey::TabletState:
-            if (!isDynamic) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetTabletState());
-            return true;
-
-        case EInternedAttributeKey::ActualTabletState:
-            if (!isDynamic) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetActualTabletState());
-            return true;
-
-        case EInternedAttributeKey::ExpectedTabletState:
-            if (!isDynamic) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetExpectedTabletState());
-            return true;
-
-        case EInternedAttributeKey::CurrentMountTransactionId:
-            if (!isDynamic || !trunkTable->GetCurrentMountTransactionId()) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetCurrentMountTransactionId());
-            return true;
-
-        case EInternedAttributeKey::LastMountTransactionId:
-            if (!isDynamic || !trunkTable->GetLastMountTransactionId()) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetLastMountTransactionId());
-            return true;
-
         case EInternedAttributeKey::LastCommitTimestamp:
             if (!isDynamic || !isSorted || isExternal) {
                 break;
@@ -598,7 +472,8 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tabletBase) {
+                    auto* tablet = tabletBase->As<TTablet>();
                     auto* cell = tablet->GetCell();
                     auto* node = tabletManager->FindTabletLeaderNode(tablet);
                     fluent
@@ -618,7 +493,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .Item("state").Value(tablet->GetState())
                             .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
                             .Item("statistics").Value(New<TSerializableTabletStatistics>(
-                                tabletManager->GetTabletStatistics(tablet),
+                                tablet->GetTabletStatistics(),
                                 chunkManager))
                             .Item("tablet_id").Value(tablet->GetId())
                             .DoIf(cell, [&] (TFluentMap fluent) {
@@ -638,9 +513,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tablet) {
                     fluent
-                        .Item().Value(tablet->GetPivotKey());
+                        .Item().Value(tablet->As<TTablet>()->GetPivotKey());
                 });
             return true;
 
@@ -660,39 +535,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetCurrentUnflushedTimestamp(timestampProvider->GetLatestTimestamp()));
             return true;
 
-        case EInternedAttributeKey::TabletStatistics: {
-            if (!isDynamic || isExternal) {
-                break;
-            }
-
-            if (config->TabletManager->EnableRelaxedTabletStatisticsValidation) {
-                validateTabletStatistics();
-            }
-
-            BuildYsonFluently(consumer)
-                .Value(New<TSerializableTabletStatistics>(
-                    trunkTable->GetTabletStatistics(),
-                    chunkManager));
-            return true;
-        }
-
-        case EInternedAttributeKey::TabletErrorCount:
-            if (!isDynamic || isExternal) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetTabletErrorCount());
-            return true;
-
-        case EInternedAttributeKey::TabletCellBundle:
-            if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
-                BuildYsonFluently(consumer)
-                    .Value(trunkTable->TabletCellBundle()->GetName());
-                return true;
-            } else {
-                return false;
-            }
-
         case EInternedAttributeKey::Atomicity:
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetAtomicity());
@@ -711,11 +553,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         case EInternedAttributeKey::HunkErasureCodec:
             BuildYsonFluently(consumer)
                 .Value(table->GetHunkErasureCodec());
-            return true;
-
-        case EInternedAttributeKey::InMemoryMode:
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetInMemoryMode());
             return true;
 
         case EInternedAttributeKey::UpstreamReplicaId:
@@ -1071,7 +908,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             break;
     }
 
-    return TBase::GetBuiltinAttribute(key, consumer);
+    return TBase::DoGetBuiltinAttribute(key, consumer, /*showTabletAttributes*/ isDynamic);
 }
 
 TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
@@ -1279,19 +1116,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
     auto revision = hydraManager->GetAutomatonVersion().ToRevision();
 
     switch (key) {
-        case EInternedAttributeKey::TabletCellBundle: {
-            ValidateNoTransaction();
-
-            auto name = ConvertTo<TString>(value);
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
-
-            auto* lockedTable = LockThisImpl();
-            tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
-
-            return true;
-        }
-
         case EInternedAttributeKey::Atomicity: {
             ValidateNoTransaction();
 
@@ -1336,7 +1160,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
-            auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
 
             return true;
@@ -1353,20 +1177,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             const auto& uninternedKey = key.Unintern();
-            auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetHunkErasureCodec(codecId);
-
-            return true;
-        }
-
-        case EInternedAttributeKey::InMemoryMode: {
-            ValidateNoTransaction();
-
-            auto* lockedTable = LockThisImpl();
-            lockedTable->ValidateAllTabletsUnmounted("Cannot change table memory mode");
-
-            auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
-            lockedTable->SetInMemoryMode(inMemoryMode);
 
             return true;
         }
@@ -1716,6 +1528,23 @@ void TTableNodeProxy::ValidateLockPossible()
     table->ValidateTabletStateFixed("Cannot lock table");
 }
 
+TTableNode* TTableNodeProxy::GetThisImpl()
+{
+    return TBase::GetThisImpl<TTableNode>();
+}
+
+const TTableNode* TTableNodeProxy::GetThisImpl() const
+{
+    return TBase::GetThisImpl<TTableNode>();
+}
+
+TTableNode* TTableNodeProxy::LockThisImpl(
+    const TLockRequest& request,
+    bool recursive)
+{
+    return TBase::LockThisImpl<TTableNode>(request, recursive);
+}
+
 IAttributeDictionary* TTableNodeProxy::GetCustomAttributes()
 {
     if (!WrappedAttributes_) {
@@ -1767,7 +1596,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
 
     THashSet<TTabletCell*> cells;
-    for (const auto* tablet : trunkTable->Tablets()) {
+    for (const auto* tabletBase : trunkTable->Tablets()) {
+        auto* tablet = tabletBase->As<TTablet>();
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
@@ -2137,7 +1967,7 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
-    const auto* table = GetThisImpl<TReplicatedTableNode>();
+    const auto* table = TBase::GetThisImpl<TReplicatedTableNode>();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
     auto isExternal = table->IsExternal();
 
@@ -2182,7 +2012,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
 
 bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
-    auto* table = GetThisImpl<TReplicatedTableNode>();
+    auto* table = TBase::GetThisImpl<TReplicatedTableNode>();
 
     switch (key) {
         case EInternedAttributeKey::ReplicatedTableOptions: {
