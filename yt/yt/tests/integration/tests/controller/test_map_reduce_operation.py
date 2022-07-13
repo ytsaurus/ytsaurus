@@ -774,6 +774,8 @@ print "x={0}\ty={1}".format(x, y)
         node_id = replicas[0]
 
         set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
+
         return [node_id]
 
     @authors("psushin")
@@ -784,20 +786,12 @@ print "x={0}\ty={1}".format(x, y)
 
         write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}] * 5)
 
-        reducer_cmd = " ; ".join(
-            [
-                "cat",
-                events_on_fs().notify_event_cmd("reducer_started"),
-                events_on_fs().wait_event_cmd("continue_reducer"),
-            ]
-        )
-
         op = map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by="x",
             sort_by="x",
-            reducer_command=reducer_cmd,
+            reducer_command=with_breakpoint("cat;BREAKPOINT"),
             spec={
                 "sort_locality_timeout": 0,
                 "sort_assignment_timeout": 0,
@@ -809,18 +803,23 @@ print "x={0}\ty={1}".format(x, y)
             track=False,
         )
 
-        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        first_reduce_job = wait_breakpoint()[0]
 
         self._ban_nodes_with_intermediate_chunks()
 
         jobs = op.get_running_jobs().keys()
-        assert len(jobs) == 1
-        abort_job(list(jobs)[0])
+        if len(jobs) > 0:
+            assert len(jobs) == 1
+            running_job = list(jobs)[0]
+            if running_job == first_reduce_job:
+                abort_job(running_job)
         # We abort reducer and restarted job will fail
         # due to unavailable intermediate chunk.
         # This will lead to a lost map job.
+        # It can happen that running job was on banned node,
+        # so we must check that we are aborting the right job.
 
-        events_on_fs().notify_event("continue_reducer")
+        release_breakpoint()
         op.track()
 
         assert get(op.get_path() + "/@progress/partition_jobs/lost") == 1
