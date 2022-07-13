@@ -639,6 +639,22 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             AbortAllCellTransactions(cell);
+        } else if (GetDynamicConfig()->ProperlyHandlePrerequisiteTransactionsAbort) {
+            YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+            if (cell->IsIndependent()) {
+                for (auto peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                    if (!cell->IsAlienPeer(peerId)) {
+                        if (auto* transaction = cell->GetPrerequisiteTransaction(peerId)) {
+                            TransactionToCellMap_.erase(transaction);
+                            cell->SetPrerequisiteTransaction(peerId, nullptr);
+                        }
+                    }
+                }
+            } else if (auto* transaction = cell->GetPrerequisiteTransaction()) {
+                TransactionToCellMap_.erase(transaction);
+                cell->SetPrerequisiteTransaction(nullptr);
+            }
         }
 
         if (auto cellNodeProxy = FindCellNode(cellId)) {
@@ -2506,8 +2522,19 @@ private:
             return;
         }
 
-        // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
-        TransactionToCellMap_.erase(transaction);
+        if (GetDynamicConfig()->ProperlyHandlePrerequisiteTransactionsAbort) {
+            auto it = TransactionToCellMap_.find(transaction);
+            if (it == TransactionToCellMap_.end()) {
+                return;
+            }
+
+            auto [cell, peerId] = it->second;
+            TransactionToCellMap_.erase(it);
+            cell->SetPrerequisiteTransaction(peerId, nullptr);
+        } else {
+            // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
+            TransactionToCellMap_.erase(transaction);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cellId,
