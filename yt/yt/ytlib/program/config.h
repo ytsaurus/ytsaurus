@@ -51,6 +51,10 @@ public:
     i64 BackgroundReleaseRate;
     int MaxPerCpuCacheSize;
 
+    i64 AggressiveReleaseThreshold;
+    i64 AggressiveReleaseSize;
+    TDuration AggressiveReleasePeriod;
+
     REGISTER_YSON_STRUCT(TTCMallocConfig);
 
     static void Register(TRegistrar registrar);

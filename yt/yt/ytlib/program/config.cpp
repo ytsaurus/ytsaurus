@@ -20,6 +20,13 @@ void TTCMallocConfig::Register(TRegistrar registrar)
         .Default(32_MB);
     registrar.Parameter("max_per_cpu_cache_size", &TThis::MaxPerCpuCacheSize)
         .Default(3_MB);
+
+    registrar.Parameter("aggressive_release_threshold", &TThis::AggressiveReleaseThreshold)
+        .Default(20_GB);
+    registrar.Parameter("aggressive_release_size", &TThis::AggressiveReleaseSize)
+        .Default(128_MB);
+    registrar.Parameter("aggressive_release_period", &TThis::AggressiveReleasePeriod)
+        .Default(TDuration::MilliSeconds(100));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

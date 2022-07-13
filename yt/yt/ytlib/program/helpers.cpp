@@ -39,6 +39,10 @@
 #include <library/cpp/yt/threading/spin_wait_hook.h>
 
 #include <util/string/split.h>
+#include <util/system/thread.h>
+
+#include <mutex>
+#include <thread>
 
 namespace NYT {
 
@@ -47,12 +51,37 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::once_flag InitAggressiveReleaseThread;
+
 void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
 {
     tcmalloc::MallocExtension::SetBackgroundReleaseRate(
         tcmalloc::MallocExtension::BytesPerSecond{static_cast<size_t>(config->BackgroundReleaseRate)});
 
     tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(config->MaxPerCpuCacheSize);
+
+    LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Store(config);
+
+    if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
+        std::call_once(InitAggressiveReleaseThread, [] {
+            std::thread([] {
+                ::TThread::SetCurrentThreadName("TCAllocYT");
+
+                while (true) {
+                    auto config = LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Load();
+
+                    auto freeBytes = tcmalloc::MallocExtension::GetNumericProperty("tcmalloc.page_heap_free");
+                    YT_VERIFY(freeBytes);
+
+                    if (static_cast<i64>(*freeBytes) > config->AggressiveReleaseThreshold) {
+                        tcmalloc::MallocExtension::ReleaseMemoryToSystem(config->AggressiveReleaseSize);
+                    }
+
+                    Sleep(config->AggressiveReleasePeriod);
+                }
+            }).detach();
+        });
+    }
 }
 
 template <class TConfig>
