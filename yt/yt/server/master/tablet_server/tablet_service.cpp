@@ -65,34 +65,34 @@ public:
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareMountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitMountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortMountTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareMount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitMount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortMount, MakeStrong(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnmountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnmountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnmountTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnmount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnmount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnmount, MakeStrong(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareFreezeTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitFreezeTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortFreezeTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareFreeze, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitFreeze, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortFreeze, MakeStrong(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnfreezeTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnfreezeTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnfreezeTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnfreeze, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnfreeze, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnfreeze, MakeStrong(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareRemountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitRemountTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortRemountTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareRemount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitRemount, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortRemount, MakeStrong(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReshardTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReshardTable, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReshardTable, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReshard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReshard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReshard, MakeStrong(this))));
     }
 
 private:
@@ -106,19 +106,19 @@ private:
         }
     }
 
-    static TTableNode* AsTableNodeSafe(TCypressNode* node)
+    static TTabletOwnerBase* AsTabletOwnerSafe(TCypressNode* node)
     {
         if (!node) {
             return nullptr;
         }
-        if (!IsTableType(node->GetType())) {
-            THROW_ERROR_EXCEPTION("%v is not a table", node->GetId());
+        if (!IsTabletOwnerType(node->GetType())) {
+            THROW_ERROR_EXCEPTION("%v is not a tablet owner", node->GetId());
         }
-        return node->As<TTableNode>();
+        return node->As<TTabletOwnerBase>();
     }
 
 
-    void ValidateUsePermissionOnCellBundle(TTableNode* table)
+    void ValidateUsePermissionOnCellBundle(TTabletOwnerBase* table)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& cellBundle = table->TabletCellBundle();
@@ -126,7 +126,7 @@ private:
     }
 
 
-    void HydraPrepareMountTable(
+    void HydraPrepareMount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqMount* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -158,14 +158,14 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        table->ValidateNoCurrentMountTransaction("Cannot mount table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot mount %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
-                THROW_ERROR_EXCEPTION("Table path mismatch")
+                THROW_ERROR_EXCEPTION("%v path mismatch", table->GetCapitalizedObjectName())
                     << TErrorAttribute("requested_path", path)
                     << TErrorAttribute("resolved_path", currentPath);
             }
@@ -176,7 +176,7 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareMountTable(
+        tabletManager->PrepareMount(
             table,
             firstTabletIndex,
             lastTabletIndex,
@@ -201,7 +201,7 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "PrepareMount");
     }
 
-    void HydraCommitMountTable(
+    void HydraCommitMount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqMount* request,
         const TTransactionCommitOptions& /*options*/)
@@ -228,7 +228,7 @@ private:
             mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -239,7 +239,7 @@ private:
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->MountTable(
+        tabletManager->Mount(
             table,
             path,
             firstTabletIndex,
@@ -252,7 +252,7 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "CommitMount");
     }
 
-    void HydraAbortMountTable(
+    void HydraAbortMount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqMount* request,
         const TTransactionAbortOptions& /*options*/)
@@ -278,7 +278,7 @@ private:
             mountTimestamp);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -289,7 +289,7 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortMount");
     }
 
-    void HydraPrepareUnmountTable(
+    void HydraPrepareUnmount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnmount* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -314,7 +314,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
@@ -323,14 +323,14 @@ private:
             securityManager->ValidatePermission(cellBundle.Get(), EPermission::Administer);
         }
 
-        table->ValidateNoCurrentMountTransaction("Cannot unmount table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot unmount %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareUnmountTable(
+        tabletManager->PrepareUnmount(
             table,
             force,
             firstTabletIndex,
@@ -341,7 +341,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnmount");
     }
 
-    void HydraCommitUnmountTable(
+    void HydraCommitUnmount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnmount* request,
         const TTransactionCommitOptions& /*options*/)
@@ -361,7 +361,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -372,7 +372,7 @@ private:
         table->SetLastMountTransactionId(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->UnmountTable(
+        tabletManager->Unmount(
             table,
             force,
             firstTabletIndex,
@@ -381,7 +381,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnmount");
     }
 
-    void HydraAbortUnmountTable(
+    void HydraAbortUnmount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnmount* request,
         const TTransactionAbortOptions& /*options*/)
@@ -401,7 +401,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -412,7 +412,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
 
-    void HydraPrepareFreezeTable(
+    void HydraPrepareFreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqFreeze* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -435,18 +435,18 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
-        table->ValidateNoCurrentMountTransaction("Cannot freeze table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot freeze %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareFreezeTable(
+        tabletManager->PrepareFreeze(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -456,7 +456,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareFreeze");
     }
 
-    void HydraCommitFreezeTable(
+    void HydraCommitFreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqFreeze* request,
         const TTransactionCommitOptions& /*options*/)
@@ -474,7 +474,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -485,7 +485,7 @@ private:
         table->SetLastMountTransactionId(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->FreezeTable(
+        tabletManager->Freeze(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -493,7 +493,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitFreeze");
     }
 
-    void HydraAbortFreezeTable(
+    void HydraAbortFreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqFreeze* request,
         const TTransactionAbortOptions& /*options*/)
@@ -511,7 +511,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -522,7 +522,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
 
-    void HydraPrepareUnfreezeTable(
+    void HydraPrepareUnfreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnfreeze* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -545,18 +545,18 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
-        table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot unfreeze %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareUnfreezeTable(
+        tabletManager->PrepareUnfreeze(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -566,7 +566,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnfreeze");
     }
 
-    void HydraCommitUnfreezeTable(
+    void HydraCommitUnfreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnfreeze* request,
         const TTransactionCommitOptions& /*options*/)
@@ -584,7 +584,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -596,7 +596,7 @@ private:
         table->UpdateExpectedTabletState(ETabletState::Mounted);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->UnfreezeTable(
+        tabletManager->Unfreeze(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -604,7 +604,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnfreeze");
     }
 
-    void HydraAbortUnfreezeTable(
+    void HydraAbortUnfreeze(
         TTransaction* transaction,
         NTabletClient::NProto::TReqUnfreeze* request,
         const TTransactionAbortOptions& /*options*/)
@@ -622,7 +622,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -633,7 +633,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
 
-    void HydraPrepareRemountTable(
+    void HydraPrepareRemount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqRemount* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -656,18 +656,18 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
-        table->ValidateNoCurrentMountTransaction("Cannot remount table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot remount %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareRemountTable(
+        tabletManager->PrepareRemount(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -677,7 +677,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareRemount");
     }
 
-    void HydraCommitRemountTable(
+    void HydraCommitRemount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqRemount* request,
         const TTransactionCommitOptions& /*options*/)
@@ -695,7 +695,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -704,7 +704,7 @@ private:
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->RemountTable(
+        tabletManager->Remount(
             table,
             firstTabletIndex,
             lastTabletIndex);
@@ -712,7 +712,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitRemount");
     }
 
-    void HydraAbortRemountTable(
+    void HydraAbortRemount(
         TTransaction* transaction,
         NTabletClient::NProto::TReqRemount* request,
         const TTransactionAbortOptions& /*options*/)
@@ -730,7 +730,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -741,7 +741,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
 
-    void HydraPrepareReshardTable(
+    void HydraPrepareReshard(
         TTransaction* transaction,
         NTabletClient::NProto::TReqReshard* request,
         const TTransactionPrepareOptions& /*options*/)
@@ -768,18 +768,18 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
-        table->ValidateNoCurrentMountTransaction("Cannot reshard table");
+        table->ValidateNoCurrentMountTransaction(Format("Cannot reshard %v", table->GetLowercaseObjectName()));
 
         if (table->IsNative()) {
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->PrepareReshardTable(
+        tabletManager->PrepareReshard(
             table,
             firstTabletIndex,
             lastTabletIndex,
@@ -791,7 +791,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareReshard");
     }
 
-    void HydraCommitReshardTable(
+    void HydraCommitReshard(
         TTransaction* transaction,
         NTabletClient::NProto::TReqReshard* request,
         const TTransactionCommitOptions& /*options*/)
@@ -813,7 +813,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;
@@ -824,7 +824,7 @@ private:
         table->SetLastMountTransactionId(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->ReshardTable(
+        tabletManager->Reshard(
             table,
             firstTabletIndex,
             lastTabletIndex,
@@ -834,7 +834,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
 
-    void HydraAbortReshardTable(
+    void HydraAbortReshard(
         TTransaction* transaction,
         NTabletClient::NProto::TReqReshard* request,
         const TTransactionAbortOptions& /*options*/)
@@ -856,7 +856,7 @@ private:
             lastTabletIndex);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTableNodeSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
 
         if (!IsObjectAlive(table)) {
             return;

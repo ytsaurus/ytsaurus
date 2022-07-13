@@ -122,7 +122,7 @@ TString ToString(const TTabletAction& action)
         action.GetCorrelationId(),
         action.GetExpirationTime(),
         action.GetExpirationTimeout(),
-        action.Tablets()[0]->GetTable()->GetId(),
+        action.Tablets()[0]->GetOwner()->GetId(),
         action.GetTabletCellBundle()->GetName());
 }
 

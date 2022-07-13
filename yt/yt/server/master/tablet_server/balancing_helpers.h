@@ -44,20 +44,18 @@ struct TTabletMoveDescriptor
 
 TTabletSizeConfig GetTabletSizeConfig(const NTableServer::TTableNode* table);
 
-i64 GetTabletBalancingSize(TTablet* tablet, const TTabletManagerPtr& tabletManager);
+i64 GetTabletBalancingSize(TTablet* tablet);
 
 bool IsTabletReshardable(const TTablet* tablet, bool ignoreConfig);
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     TRange<TTablet*> tabletRange,
-    TTabletBalancerContext* context,
-    const TTabletManagerPtr& tabletManager);
+    TTabletBalancerContext* context);
 
 std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundle* bundle,
     const std::optional<THashSet<const NTableServer::TTableNode*>>& movableTables,
-    bool ignoreTableWiseConfig,
-    const TTabletManagerPtr& tabletManager);
+    bool ignoreTableWiseConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

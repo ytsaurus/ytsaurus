@@ -130,7 +130,8 @@ private:
 
             case EInternedAttributeKey::Tablets:
                 BuildYsonFluently(consumer)
-                    .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTablet* tablet) {
+                    .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTabletBase* tabletBase) {
+                        auto* tablet = tabletBase->As<TTablet>();
                         const auto* chunkList = tablet->GetChunkList();
                         const auto* replicaInfo = tablet->GetReplicaInfo(replica);
                         fluent

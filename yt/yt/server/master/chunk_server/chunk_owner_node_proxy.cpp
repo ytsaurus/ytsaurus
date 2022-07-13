@@ -1431,16 +1431,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 switch (oldMainChunkList->GetKind()) {
                     case EChunkListKind::Static:
                     case EChunkListKind::SortedDynamicRoot: {
-                        auto processChunkList = [&] (EChunkListContentType chunkListType, EChunkListKind appendChunkListKind) {
-                            auto* oldChunkList = lockedNode->GetChunkList(chunkListType);
+                        auto processChunkList = [&] (EChunkListContentType contentType, EChunkListKind appendChunkListKind) {
+                            auto* oldChunkList = lockedNode->GetChunkList(contentType);
                             if (!oldChunkList) {
-                                YT_VERIFY(chunkListType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
+                                YT_VERIFY(contentType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
                                 return;
                             }
 
                             auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
                             newChunkList->AddOwningNode(lockedNode);
-                            lockedNode->SetChunkList(chunkListType, newChunkList);
+                            lockedNode->SetChunkList(contentType, newChunkList);
 
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                                 for (int index = 0; index < std::ssize(oldMainChunkList->Children()); ++index) {

@@ -308,6 +308,8 @@
     XX(Options, options) \
     XX(Overlayed, overlayed) \
     XX(Owner, owner) \
+    XX(OwnerId, owner_id) \
+    XX(OwnerPath, owner_path) \
     XX(OwningNodes, owning_nodes) \
     XX(OwnsReplicationCard, owns_replication_card) \
     XX(Partitions, partitions) \

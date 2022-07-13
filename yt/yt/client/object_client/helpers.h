@@ -33,6 +33,9 @@ bool IsTableType(EObjectType type);
 //! Checks if the given type is log table, i.e. table which contains replication log.
 bool IsLogTableType(EObjectType type);
 
+//! Checks if the given type is tablet owner.
+bool IsTabletOwnerType(EObjectType type);
+
 //! Checks if the given type is cell.
 bool IsCellType(EObjectType type);
 

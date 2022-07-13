@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "tablet_base.h"
+
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -35,158 +37,6 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTabletServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletCellStatisticsBase
-{
-    i64 UnmergedRowCount = 0;
-    i64 UncompressedDataSize = 0;
-    i64 CompressedDataSize = 0;
-    i64 HunkUncompressedDataSize = 0;
-    i64 HunkCompressedDataSize = 0;
-    i64 MemorySize = 0;
-    i64 DynamicMemoryPoolSize = 0;
-    NChunkClient::TMediumMap<i64> DiskSpacePerMedium = NChunkClient::TMediumMap<i64>();
-    int ChunkCount = 0;
-    int PartitionCount = 0;
-    int StoreCount = 0;
-    int PreloadPendingStoreCount = 0;
-    int PreloadCompletedStoreCount = 0;
-    int PreloadFailedStoreCount = 0;
-    int TabletCount = 0;
-    TEnumIndexedVector<NTabletClient::EInMemoryMode, int> TabletCountPerMemoryMode;
-
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
-struct TTabletCellStatistics
-    : public TTabletCellStatisticsBase
-{
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
-struct TTabletStatisticsBase
-{
-    int OverlappingStoreCount = 0;
-
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
-struct TTabletStatistics
-    : public TTabletCellStatisticsBase
-    , public TTabletStatisticsBase
-{
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
-class TTabletStatisticsAggregate
-    : public TNonCopyable
-{
-public:
-    TTabletStatistics Get() const;
-
-    void Account(const TTabletStatistics& tabletStatistics);
-    void Discount(const TTabletStatistics& tabletStatistics);
-    void AccountDelta(const TTabletStatistics& tabletStatistics);
-
-    void Reset();
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-private:
-    TSumAggregate<TTabletStatistics> CellStatistics_;
-    TMaxAggregate<int> OverlappingStoreCount_{0};
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-TTabletCellStatisticsBase  operator +  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-
-TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-TTabletCellStatisticsBase  operator -  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-
-bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-
-TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-TTabletCellStatistics  operator +  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-
-TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
-
-TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
-TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
-
-TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
-TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
-
-bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
-bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
-
-void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
-void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
-
-TString ToString(const TTabletStatistics& statistics, const NChunkServer::IChunkManagerPtr& chunkManager);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(akozhikhov)
-class TSerializableTabletCellStatisticsBase
-    : public virtual NYTree::TYsonSerializable
-    , public TTabletCellStatisticsBase
-{
-public:
-    TSerializableTabletCellStatisticsBase();
-
-    TSerializableTabletCellStatisticsBase(
-        const TTabletCellStatisticsBase& statistics,
-        const NChunkServer::IChunkManagerPtr& chunkManager);
-
-private:
-    i64 DiskSpace_ = 0;
-    THashMap<TString, i64> DiskSpacePerMediumMap_;
-
-    void InitParameters();
-};
-
-class TSerializableTabletStatisticsBase
-    : public virtual NYTree::TYsonSerializable
-    , public TTabletStatisticsBase
-{
-public:
-    TSerializableTabletStatisticsBase();
-
-    explicit TSerializableTabletStatisticsBase(const TTabletStatisticsBase& statistics);
-
-private:
-    void InitParameters();
-};
-
-class TSerializableTabletCellStatistics
-    : public TSerializableTabletCellStatisticsBase
-{
-public:
-    TSerializableTabletCellStatistics();
-
-    TSerializableTabletCellStatistics(
-        const TTabletCellStatistics& statistics,
-        const NChunkServer::IChunkManagerPtr& chunkManager);
-};
-
-class TSerializableTabletStatistics
-    : public TSerializableTabletCellStatisticsBase
-    , public TSerializableTabletStatisticsBase
-{
-public:
-    TSerializableTabletStatistics();
-
-    TSerializableTabletStatistics(
-        const TTabletStatistics& statistics,
-        const NChunkServer::IChunkManagerPtr& chunkManager);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,24 +120,15 @@ void FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public NObjectServer::TObject
+    : public TTabletBase
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
-    DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TLegacyOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
-    //! Only makes sense for mounted tablets.
-    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EInMemoryMode, InMemoryMode);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
-    //! Only makes sense for unmounted tablets.
-    DEFINE_BYVAL_RW_PROPERTY(bool, WasForcefullyUnmounted);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, ReplicationErrorCount);
 
@@ -302,10 +143,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TStoreId>, EdenStoreIds);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkServer::TDynamicStore*>, DynamicStores);
 
-    DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
-    DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
-    DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TBackupCutoffDescriptor>, BackupCutoffDescriptor);
 
     using TIdIndexedReplicaMap = THashMap<TTableReplicaId, TTableReplicaInfo>;
@@ -314,18 +152,21 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 
 public:
-    using TObject::TObject;
-    explicit TTablet(TTabletId id);
+    using TTabletBase::TTabletBase;
+
+    explicit TTablet(TTabletId tablet);
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    void CopyFrom(const TTablet& other);
+    NTableServer::TTableNode* GetTable() const;
 
-    void ValidateMountRevision(NHydra::TRevision mountRevision);
+    void SetOwner(TTabletOwnerBase* owner) override;
+
+    void CopyFrom(const TTabletBase& other) override;
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplica* replica);
     TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
@@ -333,35 +174,20 @@ public:
         NTransactionClient::TTimestamp latestTimestamp,
         const TTableReplicaInfo& replicaInfo) const;
 
-    bool IsActive() const;
+    TTabletStatistics GetTabletStatistics() const override;
 
-    NChunkServer::TChunkList* GetChunkList();
-    const NChunkServer::TChunkList* GetChunkList() const;
-
-    NChunkServer::TChunkList* GetHunkChunkList();
-    const NChunkServer::TChunkList* GetHunkChunkList() const;
-
-    NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type);
-    const NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type) const;
-
-    i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
-    i64 GetTabletStaticMemorySize() const;
-    i64 GetTabletMasterMemoryUsage() const;
+    i64 GetTabletMasterMemoryUsage() const override;
 
     i64 GetHunkUncompressedDataSize() const;
     i64 GetHunkCompressedDataSize() const;
 
-    int GetTabletErrorCount() const;
-    void SetTabletErrorCount(int tabletErrorCount);
-
     void CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next);
 
+    void ValidateUnmount() override;
+    void ValidateReshardRemove() const override;
+
 private:
-    ETabletState State_ = ETabletState::Unmounted;
-    ETabletState ExpectedState_ = ETabletState::Unmounted;
     ETabletBackupState BackupState_ = ETabletBackupState::None;
-    NTableServer::TTableNode* Table_ = nullptr;
-    int TabletErrorCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

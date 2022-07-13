@@ -539,7 +539,7 @@ void TNode::Load(TLoadContext& context)
     Load(context, ExecNodeStatistics_);
 
     // COMPAT(galtsev)
-    if (context.GetVersion() >= EMasterReign::JobProxyVersion) {
+    if (context.GetVersion() >= EMasterReign::JobProxyBuildVersion) {
         Load(context, JobProxyVersion_);
     }
 
