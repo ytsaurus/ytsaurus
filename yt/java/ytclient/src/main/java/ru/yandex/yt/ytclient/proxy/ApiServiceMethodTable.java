@@ -9,6 +9,7 @@ import ru.yandex.yt.TReqDiscoverProxies;
 import ru.yandex.yt.TRspDiscoverProxies;
 import ru.yandex.yt.rpc.TReqDiscover;
 import ru.yandex.yt.rpc.TRspDiscover;
+import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
@@ -25,6 +26,7 @@ import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
+import ru.yandex.yt.rpcproxy.TReqGetJob;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
@@ -53,6 +55,7 @@ import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
+import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
@@ -69,6 +72,7 @@ import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
+import ru.yandex.yt.rpcproxy.TRspGetJob;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
 import ru.yandex.yt.rpcproxy.TRspGetTablePivotKeys;
@@ -219,6 +223,12 @@ public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqUpdateOperationParameters.Builder, TRspUpdateOperationParameters>
             UPDATE_OPERATION_PARAMETERS = apiServiceMethod("UpdateOperationParameters",
             TReqUpdateOperationParameters::newBuilder, TRspUpdateOperationParameters.parser());
+
+    public static final RpcMethodDescriptor<TReqGetJob.Builder, TRspGetJob> GET_JOB =
+            apiServiceMethod("GetJob", TReqGetJob::newBuilder, TRspGetJob.parser());
+
+    public static final RpcMethodDescriptor<TReqAbortJob.Builder, TRspAbortJob> ABORT_JOB =
+            apiServiceMethod("AbortJob", TReqAbortJob::newBuilder, TRspAbortJob.parser());
 
     public static final RpcMethodDescriptor<TReqCheckPermission.Builder, TRspCheckPermission> CHECK_PERMISSION =
             apiServiceMethod("CheckPermission", TReqCheckPermission::newBuilder, TRspCheckPermission.parser());
