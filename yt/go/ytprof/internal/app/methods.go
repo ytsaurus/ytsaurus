@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -107,7 +108,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 		}
 	}
 
-	a.l.Error("list request succeded", log.Int("profiles found", len(res)))
+	a.l.Debug("list request succeded", log.Int("profiles found", len(res)))
 
 	return &api.ListResponse{Metadata: res, Size: int32(len(respLen))}, nil
 }
@@ -125,11 +126,44 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 		return nil, err
 	}
 
-	a.l.Error("get request succeded", log.String("ProfileID", in.ProfileId))
+	a.l.Debug("get request succeded", log.String("ProfileID", in.ProfileId))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",
 		Data:        resp.Data,
+	}, nil
+}
+
+func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	profileGUIDs := make([]ytprof.ProfID, len(in.ProfileIds))
+
+	for i, profileString := range in.ProfileIds {
+		profileGUID, err := guid.ParseString(profileString)
+		if err != nil {
+			a.l.Error("parsing guid failed", log.Error(err), log.String("guid", profileString))
+			return nil, err
+		}
+		profileGUIDs[i] = ytprof.ProfIDFromGUID(profileGUID)
+	}
+
+	profile, err := a.ts.FindAndMergeProfiles(ctx, profileGUIDs)
+	if err != nil {
+		a.l.Error("find and merge failed", log.Error(err))
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	err = profile.Write(&buf)
+	if err != nil {
+		a.l.Error("writing to buffer failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Debug("merge request succeded", log.Int("total", len(profileGUIDs)))
+
+	return &httpbody.HttpBody{
+		ContentType: "application/pprof",
+		Data:        buf.Bytes(),
 	}, nil
 }
 

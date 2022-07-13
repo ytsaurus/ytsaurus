@@ -36,6 +36,10 @@ message GetRequest {
     string profile_id = 1;
 }
 
+message MergeRequest {
+    repeated string profile_ids = 1;
+}
+
 message ListRequest {
     Metaquery metaquery = 1;
 }
@@ -69,6 +73,12 @@ service YTProfService {
     rpc Get(GetRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
             get: "/ytprof/api/get"
+        };
+    }
+
+    rpc Merge(MergeRequest) returns (google.api.HttpBody) {
+        option (google.api.http) = {
+            get: "/ytprof/api/merge"
         };
     }
     

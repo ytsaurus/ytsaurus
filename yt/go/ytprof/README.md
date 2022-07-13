@@ -36,6 +36,9 @@ Here in `metadata_pattern`, usage of [regexp](https://pkg.go.dev/regexp#MatchStr
 Example: `curl <url>/ytprof/api/suggest_tags`
 * `/ytprof/api/suggest_values`: get all possible values of a tag (type GET)
 Example: `curl <url>/ytprof/api/suggest_values?tag=ArcRevision`
+* `/ytprof/api/merge`: find and merge profiles by ProfileIDs in the format of guids (type GET)
+Example: `curl <url>/ytprof/api/merge?profile_ids=92699db6-200114a4-dd451d4e-9e12204&profile_ids=44a94bf4-a6420e9b-67d0f83f-2a295c48`
+
 See `requsts` and `responces` [here](https://a.yandex-team.ru/arcadia/yt/go/ytprof/api/api.proto).
 
 ### Run Service
