@@ -1113,6 +1113,7 @@ public:
             .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
                 const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
                 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
+                chunkMetaExtensionRow.IdHash = chunkId.Parts32[0];
                 chunkMetaExtensionRow.Id = ToString(chunkId);
                 chunkMetaExtensionRow.MiscExt = SerializeProtoToString(miscExt);
                 if (auto hunkChunkMiscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(chunkMeta.extensions())) {
@@ -1183,6 +1184,7 @@ public:
                 auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
 
                 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow{
+                    .IdHash = chunkId.Parts32[0],
                     .Id = ToString(chunkId),
                     .MiscExt = "tilted",
                 };

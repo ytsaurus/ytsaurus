@@ -328,6 +328,7 @@ TFuture<void> FetchChunkMetasFromSequoia(
     for (auto* chunkSpec : chunkSpecs) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
         TRow key{
+            .IdHash = chunkId.Parts32[0],
             .Id = ToString(chunkId),
         };
         keys.push_back(key);

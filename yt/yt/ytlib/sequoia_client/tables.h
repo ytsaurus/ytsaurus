@@ -45,6 +45,7 @@ public:
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
+        const int IdHash;
         const int Id;
         const int MiscExt;
         const int HunkChunkRefsExt;
@@ -59,6 +60,7 @@ public:
         using TTable = TChunkMetaExtensionsTableDescriptor;
 
         // Key.
+        ui32 IdHash;
         TString Id;
 
         // Values.

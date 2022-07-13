@@ -70,6 +70,7 @@ TUnversionedRow TChunkMetaExtensionsTableDescriptor::ToKey(
     const TRowBufferPtr& rowBuffer)
 {
     TUnversionedRowBuilder builder;
+    builder.AddValue(MakeUnversionedUint64Value(chunkMetaExtensions.IdHash, Index_.IdHash));
     builder.AddValue(MakeUnversionedStringValue(chunkMetaExtensions.Id, Index_.Id));
 
     return rowBuffer->CaptureRow(builder.GetRow());
@@ -80,6 +81,7 @@ TUnversionedRow TChunkMetaExtensionsTableDescriptor::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer)
 {
     TUnversionedRowBuilder builder;
+    builder.AddValue(MakeUnversionedUint64Value(chunkMetaExtensions.IdHash, Index_.IdHash));
     builder.AddValue(MakeUnversionedStringValue(chunkMetaExtensions.Id, Index_.Id));
     builder.AddValue(MakeUnversionedStringValue(chunkMetaExtensions.MiscExt, Index_.MiscExt));
     builder.AddValue(MakeUnversionedStringValue(chunkMetaExtensions.HunkChunkRefsExt, Index_.HunkChunkRefsExt));
@@ -96,7 +98,9 @@ TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow TChunkMetaExtension
 {
     TChunkMetaExtensionsRow chunkMetaExtensions;
     for (auto value : row) {
-        if (value.Id == nameTable->FindId("id")) {
+        if (value.Id == nameTable->FindId("id_hash")) {
+            chunkMetaExtensions.IdHash = value.Data.Uint64;
+        } else if (value.Id == nameTable->FindId("id")) {
             chunkMetaExtensions.Id = value.AsString();
         } else if (value.Id == nameTable->FindId("misc_ext")) {
             chunkMetaExtensions.MiscExt = value.AsString();
@@ -172,6 +176,7 @@ void TChunkMetaExtensionsTableDescriptor::SetMetaExtensions(
 TTableSchemaPtr TChunkMetaExtensionsTableDescriptor::InitSchema()
 {
     std::vector<TColumnSchema> columns({
+        TColumnSchema("id_hash", EValueType::Uint64, ESortOrder::Ascending),
         TColumnSchema("id", EValueType::String, ESortOrder::Ascending),
         TColumnSchema("misc_ext", EValueType::String),
         TColumnSchema("hunk_chunk_refs_ext", EValueType::String),
@@ -184,7 +189,8 @@ TTableSchemaPtr TChunkMetaExtensionsTableDescriptor::InitSchema()
 }
 
 TChunkMetaExtensionsTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : Id(nameTable->GetId("id"))
+    : IdHash(nameTable->GetId("id_hash"))
+    , Id(nameTable->GetId("id"))
     , MiscExt(nameTable->GetId("misc_ext"))
     , HunkChunkRefsExt(nameTable->GetId("hunk_chunk_refs_ext"))
     , HunkChunkMiscExt(nameTable->GetId("hunk_chunk_misc_ext"))
