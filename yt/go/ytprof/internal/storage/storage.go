@@ -466,7 +466,13 @@ func (m *TableStorage) FindAndMergeQueryExpr(ctx context.Context, metaquery Meta
 		log.Int("size", len(resp)),
 		log.String("time", timeElapsed(&timeCur).String()))
 
-	profiles, err := m.FindProfiles(ctx, resp)
+	return m.FindAndMergeProfiles(ctx, resp)
+}
+
+func (m *TableStorage) FindAndMergeProfiles(ctx context.Context, profIDs []ytprof.ProfID) (*profile.Profile, error) {
+	timeCur := time.Now()
+
+	profiles, err := m.FindProfiles(ctx, profIDs)
 	if err != nil {
 		m.l.Error("getting data by IDs failed", log.Error(err))
 		return nil, err
