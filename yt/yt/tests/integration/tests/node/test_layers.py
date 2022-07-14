@@ -33,20 +33,25 @@ class TestLayers(YTEnvSetup):
 
     def setup_files(self):
         create("file", "//tmp/layer1")
-        file_name = "layers/static-bin.tar.gz"
-        write_file("//tmp/layer1", open(file_name, "rb").read())
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+        create("file", "//tmp/layer1.gz")
+        write_file("//tmp/layer1.gz", open("layers/static-bin.tar.gz", "rb").read())
+
+        create("file", "//tmp/layer1.xz")
+        write_file("//tmp/layer1.xz", open("layers/static-bin.tar.xz", "rb").read())
+
+        create("file", "//tmp/layer1.zstd")
+        write_file("//tmp/layer1.zstd", open("layers/static-bin.tar.zstd", "rb").read())
 
         create("file", "//tmp/layer2")
-        file_name = "layers/test.tar.gz"
-        write_file("//tmp/layer2", open(file_name, "rb").read())
+        write_file("//tmp/layer2", open("layers/test.tar.gz", "rb").read())
 
         create("file", "//tmp/corrupted_layer")
-        file_name = "layers/corrupted.tar.gz"
-        write_file("//tmp/corrupted_layer", open(file_name, "rb").read())
+        write_file("//tmp/corrupted_layer", open("layers/corrupted.tar.gz", "rb").read())
 
         create("file", "//tmp/static_cat")
-        file_name = "layers/static_cat"
-        write_file("//tmp/static_cat", open(file_name, "rb").read())
+        write_file("//tmp/static_cat", open("layers/static_cat", "rb").read())
 
         set("//tmp/static_cat/@executable", True)
 
@@ -99,7 +104,8 @@ class TestLayers(YTEnvSetup):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
     @authors("psushin")
-    def test_one_layer(self):
+    @pytest.mark.parametrize("layer_compression", ["", ".gz", ".xz"])
+    def test_one_layer(self, layer_compression):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -114,7 +120,7 @@ class TestLayers(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1" + layer_compression],
                 },
             },
         )
