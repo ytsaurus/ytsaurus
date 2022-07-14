@@ -682,7 +682,7 @@ public:
     virtual void FillTransientInheritableAttributes(TTransientAttributes* attributes) const;
 
     // COMPAT(kvk1920)
-    virtual void FillInheritableAttributes(TAttributes* attributes) const;
+    virtual void FillInheritableAttributes(TAttributes* attributes, bool legacyBehaviour) const;
 
 #define XX(camelCaseName, snakeCaseName) \
 public: \
@@ -717,7 +717,7 @@ private:
 // Traverse all ancestors and collect inheritable attributes.
 void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes);
 // COMPAT(kvk1920): Replace with GatherTransientInheritableAttributes.
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes);
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes, bool legacyBehaviour);
 
 ////////////////////////////////////////////////////////////////////////////////
 

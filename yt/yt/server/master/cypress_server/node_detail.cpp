@@ -556,7 +556,7 @@ const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() cons
     return Attributes_.get();
 }
 
-void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes) const
+void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes, bool /*legacyBehaviour*/) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (!attributes->camelCaseName.IsSet()) { \
@@ -678,10 +678,10 @@ void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase
     }
 }
 
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes)
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes, bool legacyBehaviour)
 {
     for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes);
+        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, legacyBehaviour);
     }
 }
 

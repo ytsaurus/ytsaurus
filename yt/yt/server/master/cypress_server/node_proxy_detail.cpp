@@ -1537,7 +1537,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* account = intendedParentNode->GetAccount();
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-    GatherInheritableAttributes(intendedParentNode, &inheritedAttributes->Attributes());
+    GatherInheritableAttributes(
+        intendedParentNode,
+        &inheritedAttributes->Attributes(),
+        !GetDynamicCypressManagerConfig()->EnablePortalExitEffectiveInheritedAttributes);
 
     std::optional<TYPath> optionalTargetPath;
     if (explicitAttributes) {

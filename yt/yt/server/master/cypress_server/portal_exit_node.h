@@ -32,7 +32,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
     void FillTransientInheritableAttributes(TTransientAttributes* attributes) const override;
-    void FillInheritableAttributes(TAttributes* attributes) const override;
+    void FillInheritableAttributes(TAttributes* attributes, bool legacyBehaviour) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
