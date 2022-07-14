@@ -11,6 +11,8 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NLogging;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TThrottlerRequest)
@@ -683,6 +685,377 @@ IThroughputThrottlerPtr CreateStealingThrottler(
     return New<TStealingThrottler>(
         std::move(stealer),
         std::move(underlying));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrefetchingThrottler
+    : public IThroughputThrottler
+{
+public:
+    TPrefetchingThrottler(
+        const TPrefetchingThrottlerConfigPtr& config,
+        const IThroughputThrottlerPtr& underlying,
+        TLogger logger)
+        : Config_(config)
+        , Underlying_(underlying)
+        , Logger(std::move(logger))
+    { }
+
+    TFuture<void> Throttle(i64 amount) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(amount >= 0);
+
+        if (DoTryAcquire(amount)) {
+            return VoidFuture;
+        }
+
+        auto promise = NewPromise<void>();
+
+        {
+            auto guard = Guard(Lock_);
+            Balance_ -= amount;
+            IncomingRequests_.emplace_back(TIncomingRequest{amount, promise});
+        }
+
+        RequestUnderlyingIfNeeded();
+
+        return promise.ToFuture();
+    }
+
+    bool TryAcquire(i64 amount) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(amount >= 0);
+
+        if (DoTryAcquire(amount)) {
+            return true;
+        }
+
+        StockUp(amount);
+
+        return false;
+    }
+
+    i64 TryAcquireAvailable(i64 amount) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(amount >= 0);
+
+        {
+            auto guard = Guard(Lock_);
+
+            ++IncomingRequestCountPastWindow_;
+
+            if (IncomingRequests_.empty() && Available_ > 0) {
+                auto acquire = std::min(Available_, amount);
+                Available_ -= acquire;
+
+                return acquire;
+            }
+        }
+
+        StockUp(amount);
+
+        return 0;
+    }
+
+    void Acquire(i64 amount) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(amount >= 0);
+
+        i64 forecastedAvailable;
+
+        {
+            auto guard = Guard(Lock_);
+            ++IncomingRequestCountPastWindow_;
+            // Note that #Available_ can go negative.
+            Available_ -= amount;
+            forecastedAvailable = Available_ + Balance_;
+        }
+
+        if (forecastedAvailable < 0) {
+            StockUp(-forecastedAvailable);
+        }
+    }
+
+    bool IsOverdraft() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(Lock_);
+
+        return Available_ <= 0;
+    }
+
+    i64 GetQueueTotalAmount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Underlying_->GetQueueTotalAmount();
+    }
+
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Underlying_->GetEstimatedOverdraftDuration();
+    }
+
+private:
+    struct TIncomingRequest
+    {
+        //! The amount in the incoming request.
+        i64 Amount;
+
+        //! The promise created for the incoming request.
+        //! It will be fullfiled when the Underlying_ will yield enough
+        //! to satisfy the Amount fields of all the requests upto this one in the IncomingRequests_ queue.
+        TPromise<void> Promise;
+    };
+
+    struct TUnderlyingRequest
+    {
+        //! The amount in the underlying request.
+        i64 Amount;
+
+        //! When the request to the Underlying_ was made.
+        TInstant Timestamp;
+
+        //! How many incoming requests was received since the previous underlying request.
+        //! Used to estimate the incoming RPS for the logging purposes.
+        i64 IncomingRequestCount;
+    };
+
+    const TPrefetchingThrottlerConfigPtr Config_;
+
+    //! The underlying throttler for which the RPS is limited.
+    const IThroughputThrottlerPtr Underlying_;
+
+    const TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+
+    //! The amount already received from the Underlying_ and not yet consumed.
+    //! That is the amount that can be handed to incoming requests immediately and without requests to the Underlying_.
+    i64 Available_ = 0;
+
+    //! Total inflight underlying amount in the UnderlyingRequests_ minus total incoming amount in the IncomingRequests_.
+    //! Negative value for the sum (Available_ + Balance_) means that a new request to the Underlying_ is required.
+    i64 Balance_ = 0;
+
+    //! The minimum amount to be requested from the Underlying_ next time.
+    i64 PrefetchAmount_ = 1;
+
+    //! The sum of the IncomingRequestCount fields for requests in the UnderlyingRequests_ window.
+    //! Used to estimate the incoming RPS.
+    i64 IncomingRequestCountInWindow_ = 0;
+
+    //! The count of incoming requests since the last outgoing request.
+    //! It will be moved into IncomingRequestCount field when a new request to the Underlying_ will be made.
+    i64 IncomingRequestCountPastWindow_ = 0;
+
+    //! The sum of the IncomingRequestCount fields for requests in the UnderlyingRequests_ window.
+    //! Used to estimate the incoming RPS.
+    i64 UnderlyingAmountInWindow_ = 0;
+
+    //! The time point at which the UnderlyingRequests_ was dropped to avoid unbounded grouth of the prefetch value.
+    TInstant RpsStatisticsStart_ = TInstant::Now();
+
+    //! The FIFO of the incoming requests containing requested amounts and given promises.
+    std::deque<TIncomingRequest> IncomingRequests_;
+
+    //! The window of the requests to the Underlying_ used to estimate underlying RPS along with incoming RPS.
+    std::deque<TUnderlyingRequest> UnderlyingRequests_;
+
+    //! If there are no pending incoming requests, tries to acquire #amount from the local #Available_.
+    bool DoTryAcquire(i64 amount)
+    {
+        auto guard = Guard(Lock_);
+
+        ++IncomingRequestCountPastWindow_;
+
+        if (IncomingRequests_.empty() && amount <= Available_) {
+            Available_ -= amount;
+            return true;
+        }
+        return false;
+    }
+
+    //! Requests #amount from the underlying throttler for future requests.
+    //! Triggered when a #TryAcquire or #TryAcquireAvailable incoming request can not be fully satisfied from #Available_.
+    //! And when the sum of #Available_ and #Balance_ becomes negative after #Acquire.
+    void StockUp(i64 amount)
+    {
+        amount = std::clamp(amount, Config_->MinPrefetchAmount, Config_->MaxPrefetchAmount);
+
+        Throttle(amount)
+            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), amount));
+
+        auto guard = Guard(Lock_);
+        // Do not count this recursive request as an incoming one.
+        --IncomingRequestCountPastWindow_;
+    }
+
+    //! Checks that the sum of #Available_ and #Balance_ is enough to satisfy pending incoming requests.
+    //! If it is not, makes a request to the #Underlying_ with an appropriate amount.
+    void RequestUnderlyingIfNeeded()
+    {
+        i64 underlyingAmount = 0;
+        double incomingRps = 0.0;
+        double underlyingRps = 0.0;
+        auto now = TInstant::Now();
+
+        {
+            auto guard = Guard(Lock_);
+
+            auto forecastedAvailable = Available_ + Balance_;
+            if (forecastedAvailable >= 0) {
+                return;
+            }
+
+            UpdatePrefetch(now);
+            underlyingAmount = std::max(PrefetchAmount_, -forecastedAvailable);
+            Balance_ += underlyingAmount;
+
+            incomingRps = IncomingRps();
+            underlyingRps = UnderlyingRps();
+
+            RegisterUnderlyingRequest(now, underlyingAmount);
+
+            YT_VERIFY(Available_ + Balance_ >= 0);
+        }
+
+        YT_LOG_DEBUG("Request to the underlying throttler (Balance: %v, UnderlyingAmount: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
+            Balance_,
+            underlyingAmount,
+            PrefetchAmount_,
+            incomingRps,
+            underlyingRps);
+
+        Underlying_->Throttle(underlyingAmount)
+            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), underlyingAmount));
+    }
+
+    //! Drops outdated requests to the #Underlying_ from the window used for RPS estimation.
+    void UpdateRpsWindow(TInstant now)
+    {
+        while (!UnderlyingRequests_.empty() && UnderlyingRequests_.front().Timestamp + Config_->Window < now) {
+            IncomingRequestCountInWindow_ -= UnderlyingRequests_.front().IncomingRequestCount;
+            UnderlyingAmountInWindow_ -= UnderlyingRequests_.front().Amount;
+            UnderlyingRequests_.pop_front();
+        }
+    }
+
+    //! Registers the new request to the underlying throttler in the RPS window.
+    void RegisterUnderlyingRequest(TInstant now, i64 underlyingAmount)
+    {
+        IncomingRequestCountInWindow_ += IncomingRequestCountPastWindow_;
+        UnderlyingAmountInWindow_ += underlyingAmount;
+        UnderlyingRequests_.push_back({underlyingAmount, now, IncomingRequestCountPastWindow_});
+        IncomingRequestCountPastWindow_ = 0;
+    }
+
+    //! Recalculates #PrefetchAmount_ to be requested from the #Underlying_ based on the current RPS estimation.
+    void UpdatePrefetch(TInstant now)
+    {
+        UpdateRpsWindow(now);
+
+        auto underlyingRps = UnderlyingRps();
+        if (UnderlyingRequests_.size() > 0 && UnderlyingAmountInWindow_ > 0) {
+            PrefetchAmount_ = UnderlyingAmountInWindow_ * underlyingRps / Config_->TargetRps / UnderlyingRequests_.size();
+        }
+        PrefetchAmount_ = std::clamp(PrefetchAmount_, Config_->MinPrefetchAmount, Config_->MaxPrefetchAmount);
+
+        YT_LOG_DEBUG("Recalculate the amount to prefetch from the underlying throttler (RequestsInWindow: %v, Window: %v, UnderlyingRps: %v, TargetRps: %v, PrefetchAmount: %v)",
+            UnderlyingRequests_.size(),
+            Config_->Window,
+            underlyingRps,
+            Config_->TargetRps,
+            PrefetchAmount_);
+    }
+
+    //! Handles a response from the underlying throttler.
+    void OnThrottlingResponse(i64 available, const TError& error)
+    {
+        if (error.IsOK()) {
+            SatisfyIncomingRequests(available);
+        } else {
+            YT_LOG_ERROR(error, "Error requesting underlying throttler");
+            DropAllIncomingRequests(error);
+        }
+    }
+
+    //! Distributes the #available amount from a positive response from the #Underlying_ among
+    //! the incoming requests waiting in the queue.
+    void SatisfyIncomingRequests(i64 available)
+    {
+        std::vector<TPromise<void>> fullfilled;
+
+        {
+            auto guard = Guard(Lock_);
+
+            // Note that #Available_ can be negative.
+            // Moreover even the sum #Available_ + #Balance_ can be negative temporarily
+            // if a concurrent request decreased the #Balance already but has not requested the #Underlying_ yet.
+            Balance_ -= available;
+            available += Available_;
+            Available_ = 0;
+
+            while (!IncomingRequests_.empty() && available >= IncomingRequests_.front().Amount) {
+                available -= IncomingRequests_.front().Amount;
+                Balance_ += IncomingRequests_.front().Amount;
+                fullfilled.emplace_back(std::move(IncomingRequests_.front().Promise));
+                IncomingRequests_.pop_front();
+            }
+
+            Available_ = available;
+        }
+
+        for (auto& promise : fullfilled) {
+            // The recursive call to #Throttle from #StockUp creates
+            // a recursive call to #SatisfyIncomingRequests when the corresponding #promise is set.
+            // So that #promise should be set without holding the #Lock_.
+            promise.TrySet();
+        }
+    }
+
+    //! Drops all incoming requests propagating an #error received from the underlying throttler.
+    void DropAllIncomingRequests(const TError& error)
+    {
+        auto guard = Guard(Lock_);
+
+        while (!IncomingRequests_.empty()) {
+            Balance_ += IncomingRequests_.front().Amount;
+            IncomingRequests_.front().Promise.Set(error);
+            IncomingRequests_.pop_front();
+        }
+    }
+
+    //! Estimate RPS of incoming requests.
+    double IncomingRps() const
+    {
+        return (IncomingRequestCountInWindow_ + IncomingRequestCountPastWindow_) / Config_->Window.SecondsFloat();
+    }
+
+    //! Estimate RPS of requests to the underlying throttler.
+    double UnderlyingRps() const
+    {
+        return UnderlyingRequests_.size() / Config_->Window.SecondsFloat();
+    }
+};
+
+IThroughputThrottlerPtr CreatePrefetchingThrottler(
+    const TPrefetchingThrottlerConfigPtr& config,
+    const IThroughputThrottlerPtr& underlying,
+    const TLogger& logger)
+{
+    return New<TPrefetchingThrottler>(
+        config,
+        underlying,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

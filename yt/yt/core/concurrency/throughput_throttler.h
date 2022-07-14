@@ -130,6 +130,15 @@ IThroughputThrottlerPtr CreateStealingThrottler(
     IThroughputThrottlerPtr stealer,
     IThroughputThrottlerPtr underlying);
 
+//! This throttler limits RPS for the underlying throttler.
+//! If this throttler's invocation RPS is higher than the specified limit,
+//! throttling amounts are batched in a "prefetching" manner so that
+//! a single request to the underlying throttler serves multiple incoming throttling requests.
+IThroughputThrottlerPtr CreatePrefetchingThrottler(
+    const TPrefetchingThrottlerConfigPtr& config,
+    const IThroughputThrottlerPtr& underlying,
+    const NLogging::TLogger& logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
