@@ -3708,11 +3708,24 @@ private:
             .EndMap();
     }
 
+    IYPathServicePtr GetNodesOrchidService()
+    {
+        auto nodesService = New<TCompositeMapService>();
+
+        nodesService->AddChild("ongoing_heartbeat_count", IYPathService::FromProducer(BIND(
+            [scheduler{this}] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer).Value(scheduler->NodeManager_->GetOngoingHeartbeatsCount());
+            })));
+        
+        return nodesService;
+    }
+
     IYPathServicePtr GetDynamicOrchidService()
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
+        dynamicOrchidService->AddChild("node_shards", GetNodesOrchidService());
         return dynamicOrchidService;
     }
 

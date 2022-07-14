@@ -99,6 +99,11 @@ public:
     //! is complete.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
+    //! Has value iff the node jobs must be aborted but node also has an ongoing
+    //! heartbeat so jobs abortion has to be postponed until the heartbeat processing
+    //! is complete.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<EAbortReason>, PendingJobsAbortionReason);
+
     //! Jobs at this node that are waiting for confirmation.
     DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, UnconfirmedJobIds);
 

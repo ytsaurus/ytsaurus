@@ -568,6 +568,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("finish_operation_transition_delay", &TThis::FinishOperationTransitionDelay)
         .Default();
+    registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
