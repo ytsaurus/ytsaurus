@@ -8,8 +8,6 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-var defaultRuntimeRoot ypath.Path = "//sys/clickhouse/kolkhoz"
-
 type runtimePaths struct {
 	StderrTable ypath.Path
 	CoreTable   ypath.Path

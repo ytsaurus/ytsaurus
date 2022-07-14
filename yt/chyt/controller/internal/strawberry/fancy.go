@@ -3,6 +3,7 @@ package strawberry
 import (
 	"bytes"
 	"text/template"
+	"time"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -58,30 +59,37 @@ func cypAnnotation(a *Agent, oplet *Oplet) string {
 		PersistentState   PersistentState
 		InfoState         InfoState
 		StrawberrySpeclet Speclet
+		Now               time.Time
 	}{
 		a.proxy,
 		oplet.alias,
 		oplet.persistentState,
 		oplet.infoState,
 		oplet.strawberrySpeclet,
+		time.Now(),
 	}
 
 	t := template.Must(template.New("cypAnnotation").Parse(`
 ## Strawberry operation {{.Alias}}
-Active: {{.StrawberrySpeclet.Active}}
-Current operation id: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.Proxy}}/operations/{{.PersistentState.YTOpID}})
-Current operation state: {{.InfoState.YTOpState}}
-Current incarnation: {{.PersistentState.IncarnationIndex}}
-Curent operation speclet revision:
-Cypress speclet revision: {{.PersistentState.SpecletRevision}}
-Speclet change requires restart: {{.PersistentState.SpecletChangeRequiresRestart}}
-Pool: {{.StrawberrySpeclet.Pool}}
-Restart on speclet change: {{.StrawberrySpeclet.RestartOnSpecletChange}}
-{{if .InfoState.Error}}Error: {{.InfoState.Error}}{{end}}
+**Active**: {{.StrawberrySpeclet.ActiveOrDefault}}
+**Pool**: {{.StrawberrySpeclet.Pool}}
+
+**Current operation state**: {{.InfoState.YTOpState}}
+**Current operation id**: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.Proxy}}/operations/{{.PersistentState.YTOpID}})
+**Current incarnation**: {{.PersistentState.IncarnationIndex}}
+**Curent operation speclet revision**: {{.PersistentState.OperationSpecletRevision}}
+
+**Cypress speclet revision**: {{.PersistentState.SpecletRevision}}
+**Speclet change requires restart**: {{.PersistentState.SpecletChangeRequiresRestart}}
+**Restart on speclet change**: {{.StrawberrySpeclet.RestartOnSpecletChangeOrDefault}}
+
+**Last updated time**: {{.Now}}
+
+{{if .InfoState.Error}}**Error**: {{.InfoState.Error}}{{end}}
 `))
 
 	b := new(bytes.Buffer)
-	if err := t.Execute(b, data); err != nil {
+	if err := t.Execute(b, &data); err != nil {
 		panic(err)
 	}
 

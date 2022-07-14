@@ -53,12 +53,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet strawberry.Oplet) (
 		return
 	}
 
-	if speclet.RuntimeDataPath == nil {
-		speclet.RuntimeDataPath = &defaultRuntimeRoot
-	}
-
 	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPath.Child(alias), alias, oplet.NextIncarnationIndex())
+	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPathOrDefault().Child(alias), alias, oplet.NextIncarnationIndex())
 	if err != nil {
 		return
 	}
@@ -67,7 +63,9 @@ func (c *Controller) Prepare(ctx context.Context, oplet strawberry.Oplet) (
 	var args []string
 	args = append(args, "./clickhouse-trampoline", "./ytserver-clickhouse")
 	args = append(args, "--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242")
-	args = append(args, "--prepare-geodata")
+	if speclet.EnableGeoDataOrDefault() {
+		args = append(args, "--prepare-geodata")
+	}
 	args = append(args, "--log-tailer-bin", "./ytserver-log-tailer")
 	command := strings.Join(args, " ")
 

@@ -27,12 +27,14 @@ type Speclet struct {
 }
 
 const (
-	DefaultCHYTVersion       = "stable-latest"
-	DefaultLogTailerVersion  = "stable-latest"
-	DefaultTrampolineVersion = "stable-latest"
+	DefaultCHYTVersion       = "ytserver-clickhouse"
+	DefaultLogTailerVersion  = "ytserver-log-tailer"
+	DefaultTrampolineVersion = "clickhouse-trampoline"
 
 	DefaultEnableGeoData = true
 	DefaultGeoDataPath   = ypath.Path("//sys/clickhouse/geodata/geodata.gz")
+
+	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
 )
 
 func (speclet *Speclet) CHYTVersionOrDefault() string {
@@ -68,4 +70,11 @@ func (speclet *Speclet) GeoDataPathOrDefault() ypath.Path {
 		return *speclet.GeoDataPath
 	}
 	return DefaultGeoDataPath
+}
+
+func (speclet *Speclet) RuntimeDataPathOrDefault() ypath.Path {
+	if speclet.RuntimeDataPath != nil {
+		return *speclet.RuntimeDataPath
+	}
+	return DefaultRuntimeDataPath
 }

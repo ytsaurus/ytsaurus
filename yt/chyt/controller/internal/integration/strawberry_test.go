@@ -415,10 +415,14 @@ func TestACLUpdate(t *testing.T) {
 		{
 			Action:      yt.ActionAllow,
 			Subjects:    []string{"everyone"},
-			Permissions: []yt.Permission{yt.PermissionRead},
+			Permissions: []yt.Permission{yt.PermissionUse},
 		},
 	}
 	setACL(t, env, "test8", customACL)
+
+	// PermissionUse for strawberry op transforms to PermissionRead for YT op.
+	// See toOperationACL.
+	customACL[0].Permissions[0] = yt.PermissionRead
 
 	// Default ACL is always appended to provided one.
 	customACL = append(customACL, defaultACL...)
