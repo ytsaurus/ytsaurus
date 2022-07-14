@@ -133,6 +133,7 @@ class SubmissionClient(proxy: String,
     val response = MasterClient.activeDrivers(cluster.get().masterHostAndPort)
     if (response.isFailure) {
       log.warn(s"Failed to get list of active drivers")
+      log.warn(response.failed.get.toString)
     }
     response.getOrElse(Nil)
   }
