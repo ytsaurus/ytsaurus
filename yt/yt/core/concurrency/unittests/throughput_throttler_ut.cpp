@@ -5,11 +5,20 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <random>
 #include <thread>
 #include <vector>
 
 namespace NYT::NConcurrency {
 namespace {
+
+using namespace NLogging;
+
+using namespace testing;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TLogger Logger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,6 +240,308 @@ TEST(TReconfigurableThroughputThrottlerTest, TestZeroLimit)
 
     EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 1000u);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TMockThrottler)
+
+class TMockThrottler
+    : public IThroughputThrottler
+{
+public:
+    MOCK_METHOD(TFuture<void>, Throttle, (i64 /*amount*/), (override));
+
+    bool TryAcquire(i64 /*amount*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    i64 TryAcquireAvailable(i64 /*amount*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void Acquire(i64 /*amount*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool IsOverdraft() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    i64 GetQueueTotalAmount() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMockThrottler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrefetchingThrottlerExponentialGrowthTest
+    : public ::testing::Test
+{
+public:
+    void SetUp() override
+    {
+        Config_ = New<TPrefetchingThrottlerConfig>();
+        Config_->TargetRps = 1.0;
+        Config_->MinPrefetchAmount = 1;
+        Config_->MaxPrefetchAmount = 1 << 30;
+        Config_->Window = TDuration::MilliSeconds(100);
+
+        Throttler_ = CreatePrefetchingThrottler(Config_, Underlying_, Logger);
+    }
+
+protected:
+    TPrefetchingThrottlerConfigPtr Config_;
+    TMockThrottlerPtr Underlying_ = New<TMockThrottler>();
+    IThroughputThrottlerPtr Throttler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TPrefetchingThrottlerExponentialGrowthTest, OneRequest)
+{
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .Times(1)
+        .WillRepeatedly(Return(VoidFuture));
+
+    EXPECT_TRUE(Throttler_->Throttle(1).Get().IsOK());
+}
+
+TEST_F(TPrefetchingThrottlerExponentialGrowthTest, ManyRequests)
+{
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .Times(4)
+        .WillRepeatedly(Return(VoidFuture));
+
+    for (int i = 0; i < 1'000; ++i) {
+        EXPECT_TRUE(Throttler_->Throttle(1).Get().IsOK());
+    }
+}
+
+TEST_F(TPrefetchingThrottlerExponentialGrowthTest, SpikeAmount)
+{
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .Times(4)
+        .WillRepeatedly(Return(VoidFuture));
+
+    for (int i = 0; i < 3; ++i) {
+        EXPECT_TRUE(Throttler_->Throttle(1).Get().IsOK());
+    }
+
+    EXPECT_TRUE(Throttler_->Throttle(10'000'000).Get().IsOK());
+
+    for (int i = 3; i < 1'000; ++i) {
+        EXPECT_TRUE(Throttler_->Throttle(1).Get().IsOK());
+    }
+}
+
+TEST_F(TPrefetchingThrottlerExponentialGrowthTest, DoNotOverloadUnderlyingWhenTheQuotaIsExceeded)
+{
+    std::vector<TPromise<void>> requests;
+    std::vector<TFuture<void>> replies;
+    TPromise<void> lastRequest;
+
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .Times(AtMost(9))
+        .WillRepeatedly(DoAll(
+            [&] () { lastRequest = requests.emplace_back(NewPromise<void>()); },
+            ReturnPointee(&lastRequest)
+        ));
+
+    for (int i = 0; i < 100; ++i) {
+        replies.emplace_back(Throttler_->Throttle(1));
+    }
+
+    for (auto& request : requests) {
+        request.Set();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStressParameters
+{
+    TDuration TestDuration;
+    TDuration IterationDuration = TDuration::MilliSeconds(100);
+    int RequestsPerIteration = 10'000;
+    int IterationsPerStep = 0;
+    double StepMultiplier = 1.0;
+    double MaxUnderlyingAmountMultiplier = 2.0;
+    double AllowedRpsOverflowMultiplier;
+    double TryAcquireAllProbability = -1.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrefetchingStressTest
+    : public ::testing::TestWithParam<TStressParameters>
+{
+public:
+    void SetUp() override
+    {
+        Config_ = New<TPrefetchingThrottlerConfig>();
+        Config_->TargetRps = 10.0;
+        Config_->MinPrefetchAmount = 1;
+        Config_->MaxPrefetchAmount = 1 << 30;
+        Config_->Window = TDuration::Seconds(1);
+
+        Throttler_ = CreatePrefetchingThrottler(Config_, Underlying_, Logger);
+    }
+
+protected:
+    TPrefetchingThrottlerConfigPtr Config_;
+    TMockThrottlerPtr Underlying_ = New<TMockThrottler>();
+    IThroughputThrottlerPtr Throttler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TPrefetchingStressTest, Stress)
+{
+    auto parameters = GetParam();
+
+    std::mt19937 engine(314159265);
+    std::uniform_int_distribution<int> underlyingResponses(0, 2);
+    std::uniform_int_distribution<int> incomingAmount(1, 1 << 15);
+    std::uniform_real_distribution<double> incomingSpikeLbAmount(15.0, 20.0);
+    std::uniform_real_distribution<double> probabilisticOutcome(0.0, 1.0);
+
+    double tryAcquireProbability = 0.000'1;
+    double acquireProbability = 0.000'1;
+
+    i64 lastUnderlyingAmount = 0;
+    i64 iterationUnderlyingAmount = 0;
+    int underlyingRequestCount = 0;
+
+    std::deque<TPromise<void>> requests;
+    std::vector<TFuture<void>> replies;
+    TPromise<void> lastRequest;
+    int processedUnderlyingRequests = 0;
+
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .WillRepeatedly(DoAll(
+            SaveArg<0>(&lastUnderlyingAmount),
+            [&] () {
+                lastRequest = requests.emplace_back(NewPromise<void>());
+                ++underlyingRequestCount;
+                iterationUnderlyingAmount += lastUnderlyingAmount;
+            },
+            ReturnPointee(&lastRequest)
+        ));
+
+    auto processUnderlyingRequest = [&] {
+        if (!requests.empty()) {
+            requests.front().Set();
+            requests.pop_front();
+            ++processedUnderlyingRequests;
+        }
+    };
+
+    int iteration = 0;
+    auto requestsPerIteration = parameters.RequestsPerIteration;
+
+    auto start = TInstant::Now();
+    TInstant iterationStart;
+
+    while ((iterationStart = TInstant::Now()) < start + parameters.TestDuration) {
+        iterationUnderlyingAmount = 0;
+        underlyingRequestCount = 0;
+        i64 iterationIncomingAmount = 0;
+
+        auto spikeProbability = 1.0 / requestsPerIteration;
+
+        for (int i = 0; i < requestsPerIteration; ++i) {
+            if (probabilisticOutcome(engine) < parameters.TryAcquireAllProbability) {
+                Throttler_->TryAcquireAvailable(std::numeric_limits<i64>::max());
+            }
+
+            i64 amount = 0;
+            if (probabilisticOutcome(engine) < spikeProbability) {
+                amount = std::pow(2.0, incomingSpikeLbAmount(engine));
+            } else {
+                amount = incomingAmount(engine);
+            }
+            iterationIncomingAmount += amount;
+            auto outcome = probabilisticOutcome(engine);
+            if (outcome < acquireProbability) {
+                Throttler_->Acquire(amount);
+            } else if (outcome < acquireProbability + tryAcquireProbability) {
+                Throttler_->TryAcquire(amount);
+            } else {
+                replies.emplace_back(Throttler_->Throttle(amount));
+            }
+
+            auto requestFinish = TInstant::Now();
+            auto realDuration = requestFinish - iterationStart;
+            if (realDuration < i * parameters.IterationDuration / requestsPerIteration) {
+                Sleep(i * parameters.IterationDuration / requestsPerIteration - realDuration);
+            }
+        }
+
+        auto iterationFinish = TInstant::Now();
+        auto realDuration = iterationFinish - iterationStart;
+        if (realDuration < parameters.IterationDuration) {
+            Sleep(parameters.IterationDuration - realDuration);
+        }
+
+        int underlyingResponseCount = underlyingResponses(engine);
+        for (int i = underlyingResponseCount; i > 0; --i) {
+            processUnderlyingRequest();
+        }
+
+        ++iteration;
+        if (parameters.IterationsPerStep > 0 && iteration % parameters.IterationsPerStep == 0) {
+            EXPECT_LE(iterationUnderlyingAmount / iterationIncomingAmount, parameters.MaxUnderlyingAmountMultiplier);
+
+            requestsPerIteration *= parameters.StepMultiplier;
+        }
+    }
+
+    while (!requests.empty()) {
+        processUnderlyingRequest();
+    }
+
+    auto finish = TInstant::Now();
+    auto totalDuration = finish - start;
+    auto averageUnderlyingRps = processedUnderlyingRequests / totalDuration.SecondsFloat();
+
+    EXPECT_LE(averageUnderlyingRps / Config_->TargetRps, parameters.AllowedRpsOverflowMultiplier);
+
+    for (auto& reply : replies) {
+        EXPECT_TRUE(reply.Get().IsOK());
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(Stress,
+    TPrefetchingStressTest,
+    testing::Values(
+        TStressParameters {
+            .TestDuration = TDuration::Seconds(50),
+            .IterationsPerStep = 100,
+            .StepMultiplier = 0.1,
+            .AllowedRpsOverflowMultiplier = 3.0,
+        },
+        TStressParameters {
+            .TestDuration = TDuration::Seconds(10),
+            .AllowedRpsOverflowMultiplier = 5.0,
+            .TryAcquireAllProbability = 0.000'1,
+        },
+        TStressParameters{
+            .TestDuration = TDuration::Seconds(1),
+            .AllowedRpsOverflowMultiplier = 20.0,
+            .TryAcquireAllProbability = 0.000'1,
+        }));
 
 ////////////////////////////////////////////////////////////////////////////////
 

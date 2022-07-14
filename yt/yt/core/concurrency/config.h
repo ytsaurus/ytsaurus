@@ -45,4 +45,28 @@ DEFINE_REFCOUNTED_TYPE(TRelativeThroughputThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPrefetchingThrottlerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TPrefetchingThrottlerConfig();
+
+    //! RPS limit for requests to the underlying throttler.
+    double TargetRps;
+
+    //! Minimum amount to be prefetched from the underlying throttler.
+    i64 MinPrefetchAmount;
+
+    //! Maximum amount to be prefetched from the underlying throttler.
+    //! Guards from a uncontrolled growth of the requested amount.
+    i64 MaxPrefetchAmount;
+
+    //! Time window for the RPS estimation.
+    TDuration Window;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrefetchingThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NConcurrency
