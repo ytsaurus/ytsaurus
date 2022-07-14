@@ -1556,6 +1556,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
     for (int sessionIndex = 0; sessionIndex < std::ssize(*sessions); ++sessionIndex) {
         auto& session = (*sessions)[sessionIndex];
         // TODO(akozhikhov): Proper block fetcher: make scenario of empty batch here impossible.
+        YT_VERIFY(session.GetReadyEvent().IsSet());
         if (!session.PrepareBatch()) {
             YT_VERIFY(session.GetReadyEvent().IsSet());
             YT_VERIFY(session.PrepareBatch());
