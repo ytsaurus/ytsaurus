@@ -97,6 +97,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_portal_exit_effective_inherited_attributes", &TThis::EnablePortalExitEffectiveInheritedAttributes)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

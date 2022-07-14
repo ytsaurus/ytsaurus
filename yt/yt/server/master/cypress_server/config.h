@@ -79,6 +79,7 @@ public:
 
     // COMPAT(kvk1920)
     bool EnablePortalSynchronization;
+    bool EnablePortalExitEffectiveInheritedAttributes;
 
     // COMPAT(kvk1920)
     bool EnableRevisionChangingForBuiltinAttributes;

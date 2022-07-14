@@ -54,11 +54,11 @@ void TPortalExitNode::Load(TLoadContext& context)
     }
 }
 
-void TPortalExitNode::FillInheritableAttributes(TAttributes *attributes) const
+void TPortalExitNode::FillInheritableAttributes(TAttributes *attributes, bool legacyBehaviour) const
 {
-    TCompositeNodeBase::FillInheritableAttributes(attributes);
+    TCompositeNodeBase::FillInheritableAttributes(attributes, legacyBehaviour);
 
-    if (EffectiveInheritableAttributes_) {
+    if (!legacyBehaviour && EffectiveInheritableAttributes_) {
 #define XX(camelCaseName, snakeCaseName) \
         if (!attributes->camelCaseName.IsSet() && EffectiveInheritableAttributes_->camelCaseName.IsSet()) { \
             using TValueType = TCompositeNodeBase::T##camelCaseName; \
@@ -68,7 +68,6 @@ void TPortalExitNode::FillInheritableAttributes(TAttributes *attributes) const
         }
 
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-
 #undef XX
     }
 }
