@@ -75,13 +75,15 @@ public:
         , Logger(logger)
     { }
 
-    void Build()
+    std::vector<TError> Build()
     {
         FetchObjectMaps();
         ListObjectChanges();
         DeleteObjects();
         FetchAttributes();
         WriteRows();
+
+        return Alerts_;
     }
 
 private:
@@ -168,13 +170,17 @@ private:
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
 
+    std::vector<TError> Alerts_;
+
     void ListObjectChanges()
     {
         switch (Policy_) {
             case ECypressSynchronizerPolicy::Polling:
                 ListObjectChangesPolling();
+                break;
             case ECypressSynchronizerPolicy::Watching:
                 ListObjectChangesWatching();
+                break;
         }
     }
 
@@ -201,15 +207,12 @@ private:
 
         // Collect all objects for which the current Cypress revision is larger than the stored revision.
 
+        std::vector<TError> clusterRevisionFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                // TODO(achulkov2): Export alert.
-                YT_LOG_ERROR(
-                    GetCumulativeError(batchRsp),
-                    "Error fetching object revisions from cluster %v",
-                    cluster);
+                clusterRevisionFetchingAlerts.push_back(GetCumulativeError(batchRsp) << TErrorAttribute("cluster", cluster));
                 continue;
             }
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
@@ -246,6 +249,12 @@ private:
                 }
             }
         }
+
+        Alerts_.push_back(
+            TError(
+                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                "Error fetching object revisions from clusters")
+                << clusterRevisionFetchingAlerts);
     }
 
     struct TCypressWatchlist
@@ -290,16 +299,13 @@ private:
         auto combinedResults = WaitFor(AllSet(asyncResults))
             .ValueOrThrow();
 
+        std::vector<TError> clusterRevisionFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& rspOrError = combinedResults[index];
             const auto& cluster = Clusters_[index];
 
             if (!rspOrError.IsOK()) {
-                // TODO(achulkov2): Export alert.
-                YT_LOG_ERROR(
-                    rspOrError,
-                    "Error retrieving queue agent object revisions from cluster (Cluster: %v)",
-                    cluster);
+                clusterRevisionFetchingAlerts.push_back(rspOrError << TErrorAttribute("cluster", cluster));
                 continue;
             }
 
@@ -307,6 +313,12 @@ private:
 
             InferChangesFromClusterWatchlist(cluster, std::move(cypressWatchlist));
         }
+
+        Alerts_.push_back(
+            TError(
+                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                "Error retrieving queue agent object revisions from clusters")
+                << clusterRevisionFetchingAlerts);
     }
 
     void InferChangesFromClusterWatchlist(const TString& cluster, TCypressWatchlist cypressWatchlist)
@@ -415,15 +427,12 @@ private:
 
         // Create rows for the modified objects with new attribute values and an increased row revision.
 
+        std::vector<TError> clusterAttributeFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                // TODO(achulkov2): Export alert.
-                YT_LOG_ERROR(
-                    GetCumulativeError(batchRsp),
-                    "Error fetching object attributes from cluster %v",
-                    cluster);
+                clusterAttributeFetchingAlerts.push_back(GetCumulativeError(batchRsp) << TErrorAttribute("cluster", cluster));
                 continue;
             }
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
@@ -455,6 +464,12 @@ private:
                 }
             }
         }
+
+        Alerts_.push_back(
+            TError(
+                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
+                "Error fetching attributes from clusters")
+                << clusterAttributeFetchingAlerts);
     }
 
     //! Write rows to dynamic state.
@@ -574,7 +589,7 @@ public:
 
         YT_LOG_DEBUG("Polling round started (PollIndex: %v)", PollIndex_);
         try {
-            TCypressSynchronizerPollSession(
+            auto alerts = TCypressSynchronizerPollSession(
                 DynamicConfig_->Policy,
                 DynamicConfig_->Clusters,
                 DynamicState_,
@@ -582,9 +597,14 @@ public:
                 Logger.WithTag("PollIndex: %v", PollIndex_))
                 .Build();
             PollError_ = TError();
+            Alerts_.swap(alerts);
         } catch (const std::exception& ex) {
             PollError_ = TError(ex);
-            YT_LOG_ERROR(ex, "Error performing polling round");
+            auto alert = TError(
+                NAlerts::EErrorCode::CypressSynchronizerPassFailed,
+                "Error performing polling round")
+                << TError(ex);
+            Alerts_ = {alert};
         }
 
         YT_LOG_DEBUG("Polling round finished (PollIndex: %v)", PollIndex_);
@@ -606,6 +626,15 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
+    void PopulateAlerts(std::vector<TError>* alerts) const override
+    {
+        WaitFor(
+            BIND(&TCypressSynchronizer::DoPopulateAlerts, MakeStrong(this), alerts)
+                .AsyncVia(ControlInvoker_)
+                .Run())
+            .ThrowOnError();
+    }
+
 private:
     const TCypressSynchronizerConfigPtr Config_;
     TCypressSynchronizerDynamicConfigPtr DynamicConfig_;
@@ -624,6 +653,8 @@ private:
     //! Index of the current poll iteration.
     i64 PollIndex_ = -1;
 
+    std::vector<TError> Alerts_;
+
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -634,6 +665,13 @@ private:
             .Item("poll_index").Value(PollIndex_)
             .Item("poll_error").Value(PollError_)
         .EndMap();
+    }
+
+    void DoPopulateAlerts(std::vector<TError>* alerts) const
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
     }
 };
 

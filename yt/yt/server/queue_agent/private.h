@@ -8,11 +8,33 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
 inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
 inline const NProfiling::TProfiler QueueAgentProfiler("/queue_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NAlerts {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_ERROR_ENUM(
+    ((CypressSynchronizerUnableToFetchObjectRevisions)            (3000))
+    ((CypressSynchronizerUnableToFetchAttributes)                 (3001))
+    ((CypressSynchronizerPassFailed)                              (3002))
+
+    ((QueueAgentPassFailed)                                       (3030))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NAlerts
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TAlertManager)
+DECLARE_REFCOUNTED_CLASS(TAlertManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)

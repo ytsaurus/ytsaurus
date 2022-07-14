@@ -30,7 +30,7 @@ BIGRT_CONSUMER_TABLE_SCHEMA = [
 ]
 
 
-class QueueAgentOrchid:
+class OrchidBase:
     def __init__(self, agent_id=None):
         if agent_id is None:
             agent_ids = ls("//sys/queue_agents/instances", verbose=False)
@@ -39,6 +39,11 @@ class QueueAgentOrchid:
 
         self.agent_id = agent_id
 
+    def queue_agent_orchid_path(self):
+        return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
+
+
+class QueueAgentOrchid(OrchidBase):
     @staticmethod
     def leader_orchid():
         agent_ids = ls("//sys/queue_agents/instances", verbose=False)
@@ -46,9 +51,6 @@ class QueueAgentOrchid:
             if get("//sys/queue_agents/instances/{}/orchid/queue_agent/active".format(agent_id)):
                 return QueueAgentOrchid(agent_id)
         assert False, "No leading queue agent found"
-
-    def queue_agent_orchid_path(self):
-        return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
 
     def get_active(self):
         return get(self.queue_agent_orchid_path() + "/queue_agent/active")
@@ -107,6 +109,14 @@ class QueueAgentOrchid:
     def get_consumer_partitions(self, consumer_ref):
         return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
                    escape_ypath_literal(consumer_ref) + "/partitions")
+
+
+class AlertManagerOrchid(OrchidBase):
+    def __init__(self, agent_id=None):
+        super(AlertManagerOrchid, self).__init__(agent_id)
+
+    def get_alerts(self):
+        return get("{}/alerts".format(self.queue_agent_orchid_path()))
 
 
 class TestQueueAgentBase(YTEnvSetup):
@@ -363,6 +373,19 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         # Queue error is propagated as consumer error.
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
+
+    @authors("achulkov2")
+    def test_alerts(self):
+        orchid = QueueAgentOrchid()
+        alert_orchid = AlertManagerOrchid()
+
+        self._drop_tables()
+
+        orchid.wait_fresh_poll()
+
+        wait(lambda: "queue_agent_pass_failed" in alert_orchid.get_alerts())
+        assert_yt_error(YtError.from_dict(alert_orchid.get_alerts()["queue_agent_pass_failed"]),
+                        "Error polling queue state")
 
 
 class TestOrchidSelfRedirect(TestQueueAgentBase):
@@ -947,15 +970,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         self._set_and_assert_revision_change("//tmp/c", "target_queue", "haha:muahaha", enable_revision_changing=True)
 
 
-class CypressSynchronizerOrchid:
-    def __init__(self, agent_id=None):
-        if agent_id is None:
-            agent_ids = ls("//sys/queue_agents/instances", verbose=False)
-            assert len(agent_ids) == 1
-            agent_id = agent_ids[0]
-
-        self.agent_id = agent_id
-
+class CypressSynchronizerOrchid(OrchidBase):
     @staticmethod
     def leader_orchid():
         agent_ids = ls("//sys/queue_agents/instances", verbose=False)
@@ -963,9 +978,6 @@ class CypressSynchronizerOrchid:
             if get("//sys/queue_agents/instances/{}/orchid/cypress_synchronizer/active".format(agent_id)):
                 return CypressSynchronizerOrchid(agent_id)
         assert False, "No leading cypress synchronizer found"
-
-    def queue_agent_orchid_path(self):
-        return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
 
     def get_poll_index(self):
         return get(self.queue_agent_orchid_path() + "/cypress_synchronizer/poll_index")
@@ -1013,11 +1025,10 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
             self.LAST_REVISIONS[path] = 0
 
     def _create_and_register_queue(self, path, **queue_attributes):
-        self._create_queue_object(path, **queue_attributes)
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(0)}])
+        self._create_queue_object(path, **queue_attributes)
         assert self.LAST_REVISIONS[path] == 0
-        self.LAST_REVISIONS[path] = 1
 
     def _drop_queues(self):
         for queue in self.QUEUE_REGISTRY:
@@ -1039,11 +1050,10 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
             self.LAST_REVISIONS[path] = 0
 
     def _create_and_register_consumer(self, path):
-        self._create_consumer_object(path)
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(0)}])
+        self._create_consumer_object(path)
         assert self.LAST_REVISIONS[path] == 0
-        self.LAST_REVISIONS[path] = 1
 
     def _drop_consumers(self):
         for consumer in self.CONSUMER_REGISTRY:
@@ -1102,6 +1112,55 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     def _assert_increased_revision(self, row):
         assert self.LAST_REVISIONS[row["path"]] < row["row_revision"]
         self.LAST_REVISIONS[row["path"]] = row["row_revision"]
+
+
+class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            # For the watching version.
+            "clusters": ["primary"],
+        },
+    }
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("policy", ["polling", "watching"])
+    def test_alerts(self, policy):
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "policy": policy
+            }
+        })
+
+        orchid = CypressSynchronizerOrchid()
+        alert_orchid = AlertManagerOrchid()
+
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        c1 = self._get_consumer_name("a")
+
+        self._create_and_register_queue(q1)
+        self._create_and_register_consumer(c1)
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        sync_unmount_table("//sys/queue_agents/queues")
+
+        wait(lambda: "cypress_synchronizer_pass_failed" in alert_orchid.get_alerts())
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
 
 
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):

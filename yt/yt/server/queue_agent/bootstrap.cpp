@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "private.h"
+#include "alert_manager.h"
 #include "queue_agent.h"
 #include "cypress_synchronizer.h"
 #include "dynamic_config_manager.h"
@@ -152,6 +153,8 @@ void TBootstrap::DoRun()
 
     DynamicState_ = New<TDynamicState>(Config_->Root, NativeClient_);
 
+    AlertManager_ = New<TAlertManager>(ControlInvoker_);
+
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
         ClientDirectory_,
@@ -191,6 +194,10 @@ void TBootstrap::DoRun()
     }
     SetNodeByYPath(
         orchidRoot,
+        "/alerts",
+        CreateVirtualNode(AlertManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/queue_agent",
         QueueAgent_->GetOrchidNode());
     SetNodeByYPath(
@@ -217,9 +224,14 @@ void TBootstrap::DoRun()
 
     UpdateCypressNode();
 
+    AlertManager_->SubscribePopulateAlerts(BIND(&TQueueAgent::PopulateAlerts, QueueAgent_));
+    AlertManager_->SubscribePopulateAlerts(BIND(&ICypressSynchronizer::PopulateAlerts, CypressSynchronizer_));
+
+    ElectionManager_->SubscribeLeadingStarted(BIND(&TAlertManager::Start, AlertManager_));
     ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
     ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
 
+    ElectionManager_->SubscribeLeadingEnded(BIND(&TAlertManager::Stop, AlertManager_));
     ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
     ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
 
@@ -291,6 +303,13 @@ void TBootstrap::OnDynamicConfigChanged(
     YT_VERIFY(CypressSynchronizer_);
 
     std::vector<TFuture<void>> asyncUpdateComponents{
+        BIND(
+            &TAlertManager::OnDynamicConfigChanged,
+            AlertManager_,
+            oldConfig->AlertManager,
+            newConfig->AlertManager)
+            .AsyncVia(ControlInvoker_)
+            .Run(),
         BIND(
             &TQueueAgent::OnDynamicConfigChanged,
             QueueAgent_,
