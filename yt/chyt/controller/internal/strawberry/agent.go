@@ -6,7 +6,6 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-	"strings"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -156,14 +155,13 @@ func (a Agent) opletNode(oplet *Oplet) ypath.Path {
 	return a.config.Root.Child(oplet.alias)
 }
 
-func (a *Agent) restartOp(oplet *Oplet) {
+func (a *Agent) restartOp(oplet *Oplet) error {
 	oplet.l.Info("restarting operation", log.Int("next_incarnation_index", oplet.NextIncarnationIndex()))
 	spec, description, annotations, err := oplet.c.Prepare(a.ctx, *oplet)
 
 	if err != nil {
-		oplet.l.Info("error restarting operation", log.Error(err))
 		oplet.setError(err)
-		return
+		return err
 	}
 
 	// Extend our own annotations and description by controller's annotation and description.
@@ -183,7 +181,7 @@ func (a *Agent) restartOp(oplet *Oplet) {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
 	}
 	if oplet.acl != nil {
-		spec["acl"] = oplet.acl
+		spec["acl"] = toOperationACL(oplet.acl)
 	}
 
 	opID, err := a.ytc.StartOperation(a.ctx, yt.OperationVanilla, spec, nil)
@@ -205,14 +203,14 @@ func (a *Agent) restartOp(oplet *Oplet) {
 		abortErr := a.ytc.AbortOperation(a.ctx, yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
 		if abortErr != nil {
 			oplet.setError(abortErr)
-			return
+			return abortErr
 		}
 		opID, err = a.ytc.StartOperation(a.ctx, yt.OperationVanilla, spec, nil)
 	}
 
 	if err != nil {
 		oplet.setError(err)
-		return
+		return err
 	} else {
 		oplet.clearError()
 	}
@@ -227,6 +225,8 @@ func (a *Agent) restartOp(oplet *Oplet) {
 
 	oplet.pendingRestart = false
 	oplet.pendingUpdateOpParameters = false
+
+	return nil
 }
 
 func (a *Agent) updateOpParameters(oplet *Oplet) {
@@ -236,7 +236,7 @@ func (a *Agent) updateOpParameters(oplet *Oplet) {
 		a.ctx,
 		oplet.persistentState.YTOpID,
 		map[string]interface{}{
-			"acl":  oplet.acl,
+			"acl":  toOperationACL(oplet.acl),
 			"pool": oplet.strawberrySpeclet.Pool,
 		},
 		nil)
@@ -401,7 +401,11 @@ func (a *Agent) pass() {
 	// Restart operations which were scheduled for restart.
 	for alias, oplet := range a.aliasToOp {
 		if !broken[alias] && oplet.pendingRestart && oplet.strawberrySpeclet.ActiveOrDefault() {
-			a.restartOp(oplet)
+			err := a.restartOp(oplet)
+			if err != nil {
+				a.l.Error("error restarting op", log.String("alias", alias), log.Error(err))
+				broken[alias] = true
+			}
 		}
 	}
 
@@ -479,18 +483,6 @@ func (a *Agent) pass() {
 	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
 }
 
-func tokenize(path ypath.Path) []string {
-	parts := strings.Split(string(path), "/")
-	var j int
-	for i := 0; i < len(parts); i++ {
-		if len(parts[i]) > 0 {
-			parts[j] = parts[i]
-			j++
-		}
-	}
-	return parts[:j]
-}
-
 func (a *Agent) background(period time.Duration) {
 	a.l.Info("starting background activity", log.Duration("period", period))
 	ticker := time.NewTicker(period)
@@ -526,15 +518,6 @@ loop:
 	}
 	a.l.Info("background activity stopped")
 	a.backgroundStopCh <- struct{}{}
-}
-
-func requiresRestart(state yt.OperationState) bool {
-	return state == yt.StateAborted ||
-		state == yt.StateAborting ||
-		state == yt.StateCompleted ||
-		state == yt.StateCompleting ||
-		state == yt.StateFailed ||
-		state == yt.StateFailing
 }
 
 func (a *Agent) registerNewOplet(alias string) *Oplet {
@@ -576,6 +559,8 @@ func (a *Agent) updateFromCypress(oplet *Oplet) error {
 	oplet.l.Info("updating strawberry operations state from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
 		log.UInt64("speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
+
+	initialUpdate := oplet.flushedStateRevision == 0
 
 	// Collect full attributes of the node.
 
@@ -647,7 +632,7 @@ func (a *Agent) updateFromCypress(oplet *Oplet) error {
 	oplet.l.Debug("state collected and validated")
 
 	// Handle persistent state change.
-	if oplet.flushedStateRevision != 0 && !reflect.DeepEqual(node.PersistentState, oplet.flushedPersistentState) {
+	if !initialUpdate && !reflect.DeepEqual(node.PersistentState, oplet.flushedPersistentState) {
 		oplet.l.Info("cypress persistent state change detected; loading it",
 			log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)),
 			log.UInt64("cypress_state_revision", uint64(node.Revision)))
@@ -664,7 +649,10 @@ func (a *Agent) updateFromCypress(oplet *Oplet) error {
 
 	// Handle speclet change.
 	if oplet.persistentState.SpecletRevision != node.Speclet.Revision {
-		if NeedRestartOnSpecletChange(&oplet.strawberrySpeclet, &strawberrySpeclet) ||
+		// If it's an initial update, we do not have a valid old speclet.
+		// In that case we need to restart the operation, though it can lead to an unnecessary restart.
+		// TODO(dakovalkov): The better solution here is to store speclet hash in persistent state and compare it with new speclet hash.
+		if initialUpdate || NeedRestartOnSpecletChange(&oplet.strawberrySpeclet, &strawberrySpeclet) ||
 			oplet.c.NeedRestartOnSpecletChange(oplet.specletYson, node.Speclet.Value) {
 			if !oplet.persistentState.SpecletChangeRequiresRestart {
 				oplet.persistentState.SpecletChangeRequiresRestart = true
@@ -717,9 +705,14 @@ func (a *Agent) updateACLFromNode(oplet *Oplet) error {
 	}
 
 	if !reflect.DeepEqual(oplet.acl, newACL) {
-		oplet.acl = newACL
-		oplet.setPendingUpdateOpParameters("ACL change")
+		oplet.l.Info("strawberry operation acl changed", log.Any("old_acl", oplet.acl), log.Any("new_acl", newACL))
+
+		if !reflect.DeepEqual(toOperationACL(oplet.acl), toOperationACL(newACL)) {
+			oplet.setPendingUpdateOpParameters("ACL change")
+		}
 	}
+
+	oplet.acl = newACL
 
 	oplet.l.Info("acl updated from access node")
 

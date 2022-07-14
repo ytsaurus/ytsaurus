@@ -37,6 +37,8 @@ type Config struct {
 
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
+
+	HTTPAPIEndpoint string `yson:"http_api_endpoint"`
 }
 
 // Location defines an operating cluster.
@@ -138,10 +140,12 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 			APIConfig: api.APIConfig{
 				Stage:  config.Strawberry.Stage,
 				Family: app.locations[0].c.Family(),
+				Root:   config.Strawberry.Root,
 			},
 			Token:    config.Token,
 			Clusters: config.LocationProxies,
 		},
+		Endpoint: config.HTTPAPIEndpoint,
 	}
 	app.HTTPAPIServer = api.NewHTTPServer(apiConfig, newLogger("api", options.LogToStderr))
 
