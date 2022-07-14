@@ -1,9 +1,9 @@
 #pragma once
 
 #include "private.h"
-#include "bootstrap.h"
-
 #include "dynamic_state.h"
+
+#include <yt/yt/server/lib/cypress_election/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -37,6 +37,8 @@ public:
     void OnDynamicConfigChanged(
         const TQueueAgentDynamicConfigPtr& oldConfig,
         const TQueueAgentDynamicConfigPtr& newConfig);
+
+    void PopulateAlerts(std::vector<TError>* alerts) const;
 
 private:
     const TQueueAgentConfigPtr Config_;
@@ -102,6 +104,8 @@ private:
     NYTree::INodePtr QueueObjectServiceNode_;
     NYTree::INodePtr ConsumerObjectServiceNode_;
 
+    std::vector<TError> Alerts_;
+
     NYTree::IYPathServicePtr RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key);
 
     void BuildQueueYson(const TCrossClusterReference& queueRef, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
@@ -112,6 +116,8 @@ private:
 
     //! Stops periodic polling, resets all controllers and erases queue and consumer mappings.
     void DoStop();
+
+    void DoPopulateAlerts(std::vector<TError>* alerts) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgent)

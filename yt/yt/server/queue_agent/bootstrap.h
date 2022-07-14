@@ -59,6 +59,8 @@ private:
 
     NCypressElection::ICypressElectionManagerPtr ElectionManager_;
 
+    TAlertManagerPtr AlertManager_;
+
     TDynamicStatePtr DynamicState_;
 
     TQueueAgentPtr QueueAgent_;

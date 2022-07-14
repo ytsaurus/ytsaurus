@@ -23,6 +23,8 @@ struct ICypressSynchronizer
     virtual void OnDynamicConfigChanged(
         const TCypressSynchronizerDynamicConfigPtr& oldConfig,
         const TCypressSynchronizerDynamicConfigPtr& newConfig) = 0;
+
+    virtual void PopulateAlerts(std::vector<TError>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressSynchronizer)

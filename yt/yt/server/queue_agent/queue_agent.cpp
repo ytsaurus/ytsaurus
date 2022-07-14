@@ -41,6 +41,8 @@ static const auto& Logger = QueueAgentLogger;
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 void BuildErrorYson(TError error, TFluentMap fluent)
 {
     fluent
@@ -121,6 +123,8 @@ private:
         Producer_.Run(objectRef, object, ysonConsumer);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -210,6 +214,22 @@ void TQueueAgent::DoStop()
     YT_LOG_INFO("Queue agent stopped");
 }
 
+void TQueueAgent::PopulateAlerts(std::vector<TError>* alerts) const
+{
+    WaitFor(
+        BIND(&TQueueAgent::DoPopulateAlerts, MakeStrong(this), alerts)
+        .AsyncVia(ControlInvoker_)
+        .Run())
+        .ThrowOnError();
+}
+
+void TQueueAgent::DoPopulateAlerts(std::vector<TError>* alerts) const
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
+}
+
 IMapNodePtr TQueueAgent::GetOrchidNode() const
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -291,7 +311,11 @@ void TQueueAgent::Poll()
 
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
         PollError_ = error;
-        YT_LOG_ERROR(error, "Error polling queue state");
+        auto alert = TError(
+            NAlerts::EErrorCode::QueueAgentPassFailed,
+            "Error polling queue state")
+            << error;
+        Alerts_ = {alert};
         return;
     }
     const auto& queueRows = asyncQueueRows.Get().Value();

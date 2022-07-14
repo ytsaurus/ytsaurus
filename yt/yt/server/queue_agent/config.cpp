@@ -12,6 +12,14 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAlertManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("alert_collection_period", &TThis::AlertCollectionPeriod)
+        .Default(TDuration::MilliSeconds(500));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressSynchronizerConfig::Register(TRegistrar /*registrar*/)
 { }
 
@@ -99,6 +107,8 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
 
 void TQueueAgentServerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("alert_manager", &TThis::AlertManager)
+        .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
     registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
