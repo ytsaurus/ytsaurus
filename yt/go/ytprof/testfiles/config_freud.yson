@@ -11,12 +11,17 @@
             "resolvers" = [
                 {
                     "port" = 10012;
-                    "podset" = "sas-yt-freud-tablet-nodes";
+                    "podset" = "sas-yt-freud-dat-nodes";
                     "cluster" = "sas"
                 };
                 {
                     "port" = 10012;
-                    "podset" = "sas-yt-freud-nodes";
+                    "podset" = "sas-yt-freud-exe-nodes";
+                    "cluster" = "sas"
+                };
+                {
+                    "port" = 10012;
+                    "podset" = "sas-yt-freud-exe-tab-nodes";
                     "cluster" = "sas"
                 }
             ]
