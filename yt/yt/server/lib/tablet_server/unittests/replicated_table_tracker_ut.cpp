@@ -551,6 +551,9 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// FIXME(akozhikhov): These tests should not rely on timings to work appropriately under sanitizers.
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+
 TEST_F(TReplicatedTableTrackerTest, Simple)
 {
     auto client = Host_->GetMockClient(Cluster1);
@@ -1128,6 +1131,8 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaModeSwitchCounter)
 
     EXPECT_EQ(TTesting::ReadCounter(counter), 1);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
