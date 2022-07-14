@@ -21,7 +21,7 @@ object MasterClient {
   def activeDrivers(master: HostAndPort): Try[Seq[String]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
-      .get(Uri.parse(s"http://$master/v1/submissions/master").toOption.get)
+      .get(Uri.parse(s"http://$master/v1/submissions/status").toOption.get)
       .send()
       .body
       .fold[Try[Seq[String]]](
@@ -33,14 +33,14 @@ object MasterClient {
   def parseDriverIdInfo(driver: Json): Either[Error, String] = {
     val driverCursor = driver.hcursor
     for {
-      id <- driverCursor.downField("id").as[String]
+      id <- driverCursor.downField("driverId").as[String]
     } yield id
   }
 
   def parseDriversList(body: String): Either[Error, Seq[String]] = {
     for {
       cursor <- parse(body).map(_.hcursor)
-      rawDrivers <- cursor.downField("drivers").as[Array[Json]]
+      rawDrivers <- cursor.downField("statuses").as[Array[Json]]
       drivers <- flatten(rawDrivers.map(parseDriverIdInfo))
     } yield drivers
   }
