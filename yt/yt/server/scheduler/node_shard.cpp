@@ -538,50 +538,58 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     TLeaseManager::RenewLease(node->GetHeartbeatLease());
     TLeaseManager::RenewLease(node->GetRegistrationLease());
 
-    if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
-        auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
-            node->GetMasterState(),
-            node->GetSchedulerState());
-        if (!node->GetRegistrationError().IsOK()) {
-            error = error << node->GetRegistrationError();
-        }
-        context->Reply(error);
-        return;
-    }
-
-    // We should process only one heartbeat at a time from the same node.
-    if (node->GetHasOngoingHeartbeat()) {
-        context->Reply(TError("Node already has an ongoing heartbeat"));
-        return;
-    }
-
     bool isThrottlingActive = false;
-    if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
-        isThrottlingActive = true;
-        YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-            node->GetDefaultAddress(),
-            Config_->HardConcurrentHeartbeatLimit,
-            ConcurrentHeartbeatCount_);
-        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
-    } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
-        node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
-        isThrottlingActive = true;
-        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-            node->GetDefaultAddress(),
-            Config_->SoftConcurrentHeartbeatLimit,
-            ConcurrentHeartbeatCount_);
-        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+        // We need to prevent context switched between checking node state and BeginNodeHeartbeatProcessing.
+        TForbidContextSwitchGuard guard;
+        if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
+            auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
+                node->GetMasterState(),
+                node->GetSchedulerState());
+            if (!node->GetRegistrationError().IsOK()) {
+                error = error << node->GetRegistrationError();
+            }
+            context->Reply(error);
+            return;
+        }
+
+        // We should process only one heartbeat at a time from the same node.
+        if (node->GetHasOngoingHeartbeat()) {
+            context->Reply(TError("Node already has an ongoing heartbeat"));
+            return;
+        }
+
+        if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
+            isThrottlingActive = true;
+            YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
+                node->GetDefaultAddress(),
+                Config_->HardConcurrentHeartbeatLimit,
+                ConcurrentHeartbeatCount_);
+            HardConcurrentHeartbeatLimitReachedCounter_.Increment();
+        } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
+            node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
+        {
+            isThrottlingActive = true;
+            YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
+                node->GetDefaultAddress(),
+                Config_->SoftConcurrentHeartbeatLimit,
+                ConcurrentHeartbeatCount_);
+            SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+        }
+
+        response->set_operation_archive_version(ManagerHost_->GetOperationArchiveVersion());
+
+        BeginNodeHeartbeatProcessing(node);
     }
-
-    response->set_operation_archive_version(ManagerHost_->GetOperationArchiveVersion());
-
-    BeginNodeHeartbeatProcessing(node);
     auto finallyGuard = Finally([&, cancelableContext = CancelableContext_] {
         if (!cancelableContext->IsCanceled()) {
             EndNodeHeartbeatProcessing(node);
         }
     });
+
+    if (resourceLimits.user_slots()) {
+        MaybeDelay(Config_->TestingOptions->NodeHeartbeatProcessingDelay);
+    }
 
     std::vector<TJobPtr> runningJobs;
     bool hasWaitingJobs = false;
@@ -921,8 +929,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             // NOTE: Tags will be validated when node become online, no need in additional check here.
             execNode->Tags() = std::move(tags);
             SubtractNodeResources(execNode);
-            AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
+            // State change must happen before aborting jobs.
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
+            AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
             ++nodeChangesCount;
             continue;
         } else if (oldState != newState) {
@@ -940,11 +949,13 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 YT_LOG_WARNING(error);
                 errors.push_back(error);
 
-                if (oldState == NNodeTrackerClient::ENodeState::Online && execNode->GetSchedulerState() == ENodeState::Online) {
+                // State change must happen before aborting jobs.
+                auto previousSchedulerState = execNode->GetSchedulerState();
+                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ ENodeState::Offline, error);
+                if (oldState == NNodeTrackerClient::ENodeState::Online && previousSchedulerState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
                     AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
                 }
-                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ ENodeState::Offline, error);
             } else {
                 if (oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) {
                     AddNodeResources(execNode);
@@ -1515,6 +1526,11 @@ std::vector<TString> TNodeShard::GetNodeAddressesWithUnsupportedInterruption() c
     return result;
 }
 
+int TNodeShard::GetOnGoingHeartbeatsCount() const noexcept
+{
+    return ConcurrentHeartbeatCount_;
+}
+
 void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
 {
     YT_VERIFY(!node->GetSchedulingSegmentFrozen());
@@ -1683,6 +1699,17 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 }
 
 void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason)
+{
+    if (node->GetHasOngoingHeartbeat()) {
+        YT_LOG_INFO("Jobs abortion postponed until heartbeat is finished (Address: %v)",
+            node->GetDefaultAddress());
+        node->SetPendingJobsAbortionReason(reason);
+    } else {
+        DoAbortAllJobsAtNode(node, reason);
+    }
+}
+
+void TNodeShard::DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason)
 {
     std::vector<TJobId> jobIds;
     for (const auto& job : node->Jobs()) {
@@ -2257,6 +2284,7 @@ void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
     YT_VERIFY(!node->GetHasOngoingHeartbeat());
     node->SetHasOngoingHeartbeat(true);
+    node->SetLastSeenTime(TInstant::Now());
 
     ConcurrentHeartbeatCount_ += 1;
 }
@@ -2264,10 +2292,18 @@ void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
 void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 {
     YT_VERIFY(node->GetHasOngoingHeartbeat());
+
+    TForbidContextSwitchGuard guard;
+
     node->SetHasOngoingHeartbeat(false);
 
     ConcurrentHeartbeatCount_ -= 1;
     node->SetLastSeenTime(TInstant::Now());
+
+    if (node->GetPendingJobsAbortionReason()) {
+        DoAbortAllJobsAtNode(node, *node->GetPendingJobsAbortionReason());
+        node->SetPendingJobsAbortionReason({});
+    }
 
     if (node->GetHasPendingUnregistration()) {
         DoUnregisterNode(node);

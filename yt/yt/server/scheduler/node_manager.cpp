@@ -535,6 +535,25 @@ const std::vector<IInvokerPtr>& TNodeManager::GetNodeShardInvokers() const
     return CancelableNodeShardInvokers_;
 }
 
+int TNodeManager::GetOngoingHeartbeatsCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto futures = ExecuteInNodeShards([] (const TNodeShardPtr& nodeShard) {
+        return nodeShard->GetOnGoingHeartbeatsCount();
+    });
+
+    auto future = AllSucceeded(std::move(futures));
+
+    auto heartbeatCounts = WaitFor(std::move(future)).ValueOrThrow();
+    int result = 0;
+    for (auto count : heartbeatCounts) {
+        result += count;
+    }
+
+    return result;
+}
+
 const TNodeShardPtr& TNodeManager::GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const
 {
     return NodeShards_[GetNodeShardId(nodeId)];
@@ -544,6 +563,22 @@ const TNodeShardPtr& TNodeManager::GetNodeShardByJobId(TJobId jobId) const
 {
     auto nodeId = NodeIdFromJobId(jobId);
     return GetNodeShard(nodeId);
+}
+
+template <typename TCallback>
+auto TNodeManager::ExecuteInNodeShards(TCallback callback) const -> std::vector<typename TFutureTraits<decltype(callback(std::declval<const TNodeShardPtr&>()))>::TWrapped>
+{
+    using TCallbackReturnType = decltype(callback(std::declval<const TNodeShardPtr&>()));
+    std::vector<typename TFutureTraits<TCallbackReturnType>::TWrapped> result;
+    result.reserve(GetNodeShardCount());
+
+    for (const auto& nodeShard : NodeShards_) {
+        result.push_back(BIND(callback, nodeShard)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run());
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

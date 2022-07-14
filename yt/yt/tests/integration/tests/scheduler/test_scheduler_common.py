@@ -14,12 +14,13 @@ from yt_commands import (
     map_reduce, merge, sort, get_job,
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
-    raises_yt_error, update_scheduler_config,
-    assert_statistics, sorted_dicts)
+    raises_yt_error, update_scheduler_config, update_controller_agent_config,
+    assert_statistics, sorted_dicts,
+    set_banned_flag)
 
 from yt_type_helpers import make_schema
 
-from yt_scheduler_helpers import scheduler_orchid_default_pool_tree_config_path
+from yt_scheduler_helpers import scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
@@ -2895,6 +2896,7 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
 
         assert records[0]["objects_alive"] == 0
 
+
 ##################################################################
 
 
@@ -2920,5 +2922,90 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
         time.sleep(2)
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
+
+        op.track()
+
+
+##################################################################
+
+
+class TestDelayInNodeHeartbeat(YTEnvSetup):
+    # YT-17272
+    # Scenario:
+    # 1) Operation started.
+    # 2) Node comes to scheduler with heartbeat and scheduler starts to process it.
+    # 3) Node is banned.
+    # 4) Scheduler aborts all jobs at node.
+    # 5) New jobs are scheduled on the node, and scheduler replies to node.
+    # 6) Node does not come to scheduler with heartbeats anymore since it is not connected to master.
+    # 7) Scheduler does not abort job at node, since it is offline on scheduler and registration lease is long.
+    # 8) Job hangs.
+
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {"heartbeat_period": 10},
+        },
+    }
+
+    @authors("pogorelov")
+    def test_node_heartbeat_delay(self):
+        def get_ongoing_heartbeats_count():
+            ongoing_heartbeat_count_orchid_path = scheduler_orchid_path() + "/scheduler/node_shards/ongoing_heartbeat_count"
+            return get(ongoing_heartbeat_count_orchid_path)
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 2
+
+        first_node, second_node = nodes
+
+        update_controller_agent_config("safe_online_node_count", 10000)
+
+        # We want to control the moment we start schedule jobs on node.
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(first_node), True)
+        wait(
+            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) == 0
+        )
+
+        set_banned_flag(True, nodes=[second_node], wait_for_scheduler=True)
+
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+
+        op = run_test_vanilla("sleep 5", job_count=1)
+
+        # Scheduler starts making a delay in heartbeat processing here.
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(first_node), False)
+        wait(
+            lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) > 0
+        )
+
+        # We want to ban node during delay in heartbeat.
+        wait(lambda: get_ongoing_heartbeats_count() > 0)
+        assert get_ongoing_heartbeats_count() == 1
+
+        # Increase period to controller agent do not know that node is not online anymore.
+        update_controller_agent_config("exec_nodes_update_period", 5000)
+
+        print_debug("Ban node", first_node)
+        set_banned_flag(True, nodes=[first_node], wait_for_scheduler=True)
+
+        # We want to unban nodes only when heartbeat processing of the banned node is finished.
+        wait(lambda: get_ongoing_heartbeats_count() == 0)
+
+        update_controller_agent_config("exec_nodes_update_period", 100)
+
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 0,
+            "type": "sync",
+        })
+
+        set_banned_flag(False, nodes=[second_node], wait_for_scheduler=True)
 
         op.track()

@@ -473,6 +473,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestingOptions
@@ -491,6 +492,9 @@ public:
 
     // Testing option that enables sleeping between intermediate and final states of operation.
     TDelayConfigPtr FinishOperationTransitionDelay;
+
+    // Testing option that enables sleeping after node state checking.
+    TDelayConfigPtr NodeHeartbeatProcessingDelay;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 

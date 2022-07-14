@@ -2325,7 +2325,7 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 ##################################################################
 
 
-def set_banned_flag(value, nodes=None, driver=None):
+def set_banned_flag(value, nodes=None, driver=None, wait_for_scheduler=False):
     if value:
         flag = True
         expected_state = "offline"
@@ -2345,6 +2345,14 @@ def set_banned_flag(value, nodes=None, driver=None):
         )
 
     wait(check)
+
+    if wait_for_scheduler:
+        def check():
+            return all(
+                get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(address)) == expected_state for address in nodes
+            )
+
+        wait(check)
 
 
 ##################################################################

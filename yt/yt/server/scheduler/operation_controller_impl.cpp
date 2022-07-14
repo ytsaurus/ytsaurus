@@ -738,8 +738,9 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
         ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
     }
 
-    YT_LOG_TRACE("Job schedule request enqueued (JobId: %v)",
-        jobId);
+    YT_LOG_TRACE("Job schedule request enqueued (JobId: %v, NodeAddress: %v)",
+        jobId,
+        context->GetNodeDescriptor().Address);
 
     return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
 }

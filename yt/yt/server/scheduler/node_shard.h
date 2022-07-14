@@ -177,6 +177,8 @@ public:
 
     std::vector<TString> GetNodeAddressesWithUnsupportedInterruption() const;
 
+    int GetOnGoingHeartbeatsCount() const noexcept;
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -314,6 +316,8 @@ private:
     void SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
+    void DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
+
     void AbortUnconfirmedJobs(
         TOperationId operationId,
         TShardEpoch shardEpoch,

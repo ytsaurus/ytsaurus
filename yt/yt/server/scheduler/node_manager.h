@@ -108,6 +108,8 @@ public:
     const std::vector<TNodeShardPtr>& GetNodeShards() const;
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const;
 
+    int GetOngoingHeartbeatsCount() const;
+
 private:
     TSchedulerConfigPtr Config_;
     // TODO(eshcherbin): Remove bootstrap in favor of new host methods.
@@ -122,6 +124,9 @@ private:
 
     const TNodeShardPtr& GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const;
     const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const;
+
+    template <typename TCallback>
+    auto ExecuteInNodeShards(TCallback callback) const -> std::vector<typename TFutureTraits<decltype(callback(std::declval<const TNodeShardPtr&>()))>::TWrapped>;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeManager)
