@@ -333,7 +333,7 @@ public:
             // Exit anyway.
         }
 
-        YT_LOG_ERROR("Volume manager disabled; terminating");
+        YT_LOG_ERROR(error, "Volume manager disabled; terminating");
 
         TProgram::Abort(1);
     }
@@ -609,7 +609,6 @@ private:
             NFS::MakeDirRecursive(LayersPath_, 0755);
             NFS::MakeDirRecursive(VolumesMetaPath_, 0755);
             NFS::MakeDirRecursive(LayersMetaPath_, 0755);
-            NFS::MakeDirRecursive(LayersMetaPath_, 0755);
             // This is requires to use directory as place.
             NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_volumes"), 0755);
             NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_storage"), 0755);
@@ -741,7 +740,8 @@ private:
 
                 YT_LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v, Path: %v)",
                     id, tag, layerDirectory);
-                NFs::MakeDirectoryRecursive(layerDirectory);
+
+                RunTool<TCreateDirectoryAsRootTool>(layerDirectory);
 
                 WaitFor(VolumeExecutor_->CreateVolume(layerDirectory, properties))
                     .ValueOrThrow();

@@ -3,11 +3,12 @@ package main
 import (
 	"archive/tar"
 	"bufio"
-	"compress/gzip"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 	"time"
 
@@ -50,6 +51,74 @@ func (bf *bufferedFile) Flush() error {
 	return bf.buf.Flush()
 }
 
+func readAtMost(r io.Reader, buf []byte) (int, error) {
+	n := 0
+
+	for n != len(buf) {
+		d, err := r.Read(buf[n:])
+		n += d
+
+		if err == io.EOF {
+			return n, nil
+		} else if err != nil {
+			return n, err
+		}
+	}
+
+	return n, nil
+}
+
+func readInput() (io.Reader, error) {
+	fileHead := make([]byte, 257+5)
+	n, err := readAtMost(os.Stdin, fileHead)
+	if err != nil {
+		return nil, err
+	}
+	fileHead = fileHead[:n]
+
+	checkSignature := func(offset int, magic []byte) bool {
+		if offset+len(magic) > len(fileHead) {
+			return false
+		}
+
+		return bytes.Equal(fileHead[offset:offset+len(magic)], magic)
+	}
+
+	in := io.MultiReader(bytes.NewBuffer(fileHead), bufio.NewReaderSize(os.Stdin, 1<<18))
+	pipeInput := func(name string, args ...string) (io.Reader, error) {
+		pr, pw := io.Pipe()
+
+		cmd := exec.Command(name, args...)
+		cmd.Stdin = in
+		cmd.Stdout = pw
+		cmd.Stderr = os.Stderr
+
+		go func() {
+			if err := cmd.Run(); err != nil {
+				_ = pw.CloseWithError(err)
+			} else {
+				_ = pw.Close()
+			}
+		}()
+
+		return pr, nil
+	}
+
+	if checkSignature(0, []byte("\xFD7zXZ\x00")) {
+		return pipeInput("/usr/bin/xz", "-d")
+	} else if checkSignature(0, []byte("\x1F\x8B\x08")) {
+		return pipeInput("/bin/gzip", "-d")
+	} else if checkSignature(0, []byte("\x28\xB5\x2F\xFD")) {
+		return pipeInput("/usr/bin/zstd", "-d")
+	} else if checkSignature(0, []byte("hsqs")) {
+		return nil, fmt.Errorf("squashfs format is not supported")
+	} else if checkSignature(257, []byte("ustar")) {
+		return in, nil
+	} else {
+		return nil, fmt.Errorf("can't detect archive signature")
+	}
+}
+
 func doConvert(outputPath string) error {
 	f, err := os.Create(outputPath)
 	if err != nil {
@@ -66,7 +135,7 @@ func doConvert(outputPath string) error {
 		return err
 	}
 
-	gz, err := gzip.NewReader(bufio.NewReaderSize(os.Stdin, 1<<18))
+	in, err := readInput()
 	if err != nil {
 		return err
 	}
@@ -83,17 +152,7 @@ func doConvert(outputPath string) error {
 		}
 	}
 
-	pr, pw := io.Pipe()
-	go func() {
-		_, err := io.Copy(pw, gz)
-		if err != nil {
-			_ = pw.CloseWithError(err)
-		} else {
-			_ = pw.Close()
-		}
-	}()
-
-	tr := tar.NewReader(bufio.NewReaderSize(pr, 1<<18))
+	tr := tar.NewReader(bufio.NewReaderSize(in, 1<<18))
 	if err := tar2squash.Convert(w, tr, opts); err != nil {
 		return err
 	}
