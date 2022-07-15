@@ -198,12 +198,12 @@ void RunAndTrackFiber(NYT::TClosure closure);
 class GTEST_TEST_CLASS_NAME_(test_case_name, test_name) : public parent_class {\
  public:\
   GTEST_TEST_CLASS_NAME_(test_case_name, test_name)() {}\
+  GTEST_TEST_CLASS_NAME_(test_case_name, test_name)(const GTEST_TEST_CLASS_NAME_(test_case_name, test_name)&) = delete;\
+  GTEST_TEST_CLASS_NAME_(test_case_name, test_name)& operator= (const GTEST_TEST_CLASS_NAME_(test_case_name, test_name)&) = delete;\
  private:\
   virtual void TestBody();\
   void TestInnerBody();\
   static ::testing::TestInfo* const test_info_ GTEST_ATTRIBUTE_UNUSED_;\
-  GTEST_DISALLOW_COPY_AND_ASSIGN_(\
-    GTEST_TEST_CLASS_NAME_(test_case_name, test_name));\
 };\
 \
 ::testing::TestInfo* const GTEST_TEST_CLASS_NAME_(test_case_name, test_name)\
