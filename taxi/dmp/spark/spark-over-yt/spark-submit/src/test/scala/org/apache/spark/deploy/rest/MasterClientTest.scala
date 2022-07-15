@@ -7,16 +7,13 @@ class MasterClientTest extends FlatSpec with Matchers {
   behavior of "MasterClient"
 
   it should "parse json with drivers list" in {
-    val drivers = List(
-      DriverInfo(0, "1"),
-      DriverInfo(0, "2"),
-      DriverInfo(0, "4"),
-    )
-    val json = """{"drivers": [""" +
-      drivers.map(x => s"""{"id": "${x.id}", "startTime": ${x.startTime}}""").mkString(", ") +
+    val json = """{"statuses": [""" +
+      s"""{"driverId": "1", "startTime": 0}, """ +
+      s"""{"driverId": "2", "startTime": 0}, """ +
+      s"""{"driverId": "4", "startTime": 0}""" +
       "]}"
     val res = parseDriversList(json)
-    res.right.get should contain theSameElementsAs drivers.map(x => x.id)
+    res shouldBe Right(Seq("1", "2", "4"))
   }
 
   it should "parse json with workers list" in {
