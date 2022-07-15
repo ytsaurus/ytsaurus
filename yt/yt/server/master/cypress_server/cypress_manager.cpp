@@ -3227,7 +3227,10 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
-            if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetTouchTime()) {
+            if (trunkNode->TryGetExpirationTimeout() &&
+                !trunkNode->GetTouchTime() &&
+                trunkNode->IsNative()) // COMPAT(shakurov): remove this part.
+            {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Touching a node with an expiration timeout but without a touch time (NodeId: %v)",
                     trunkNode->GetId());
