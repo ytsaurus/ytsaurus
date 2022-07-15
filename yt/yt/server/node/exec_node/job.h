@@ -46,7 +46,7 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<bool> IsSchedulerJobInterruptible(const NJobAgent::IJob& job);
+void InterruptSchedulerJobs(std::vector<NJobAgent::IJobPtr> jobs, TError error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

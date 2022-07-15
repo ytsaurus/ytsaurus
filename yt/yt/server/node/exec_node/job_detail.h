@@ -173,13 +173,13 @@ public:
 
     void ReportProfile() override;
 
-    void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason) override;
+    void GuardedInterrupt(TDuration timeout, const std::optional<TString>& preemptionReason);
 
-    void Fail() override;
+    void GuardedFail();
 
     bool GetStored() const override;
 
-    void SetStored(bool value) override;
+    void SetStored(bool value);
 
     void OnJobProxyCompleted() noexcept;
 
@@ -190,6 +190,12 @@ public:
     void OnJobInterruptionTimeout();
 
     const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& GetControllerAgentConnector() const noexcept;
+
+    const NLogging::TLogger& GetLogger() const noexcept;
+
+    void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason);
+
+    void Fail();
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

@@ -162,8 +162,10 @@ private:
                 jobId);
         }
 
+        auto& schedulerJob = static_cast<TJob&>(*job);
+
         // COMPAT(pogorelov)
-        bool interruptible = static_cast<TJob&>(*job).IsInterruptible().value_or(true);
+        bool interruptible = schedulerJob.IsInterruptible().value_or(true);
         if (!interruptible) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
                 "because it does not support interruption or \"interruption_signal\" is not set",
@@ -171,7 +173,7 @@ private:
                 job->GetType());
         }
 
-        job->Interrupt(timeout, /*preemptionReason*/ {});
+        schedulerJob.Interrupt(timeout, /*preemptionReason*/ {});
 
         context->Reply();
     }
