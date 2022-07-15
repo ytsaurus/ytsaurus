@@ -57,9 +57,11 @@ void TNotifyManager::NotifyAfterFetch(TCpuInstant cpuInstant, TCpuInstant newMin
     auto minEnqueuedAt = MinEnqueuedAt_.load();
 
     // Expecting max value sentinel in minEnqueuedAt or minEnqueuedAt from NotifyFromInvoke.
-    if (newMinEnqueuedAt < minEnqueuedAt) {
-        if (MinEnqueuedAt_.compare_exchange_strong(minEnqueuedAt, newMinEnqueuedAt)) {
+    while (newMinEnqueuedAt < minEnqueuedAt) {
+        YT_VERIFY(newMinEnqueuedAt != std::numeric_limits<TCpuInstant>::max());
+        if (MinEnqueuedAt_.compare_exchange_weak(minEnqueuedAt, newMinEnqueuedAt)) {
             minEnqueuedAt = newMinEnqueuedAt;
+            break;
         }
     }
 
