@@ -24,6 +24,8 @@ using IJobPtr = NJobAgent::IJobPtr;
 using namespace NObjectClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,10 +34,83 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
 {
     ProcessHeartbeatCommonResponsePart(response);
 
+    for (const auto& jobToInterrupt : response->jobs_to_interrupt()) {
+        auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
+        auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
+
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+        if (auto job = JobController_->FindJob(jobId)) {
+            auto& schedulerJob = static_cast<TJob&>(*job);
+
+            YT_VERIFY(schedulerJob.IsInterruptible().has_value());
+
+            std::optional<TString> preemptionReason;
+            if (jobToInterrupt.has_preemption_reason()) {
+                preemptionReason = jobToInterrupt.preemption_reason();
+            }
+            schedulerJob.Interrupt(timeout, preemptionReason);
+        } else {
+            YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    // COMPAT(pogorelov)
+    for (const auto& protoJobId : response->old_jobs_to_interrupt()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+        if (auto job = JobController_->FindJob(jobId)) {
+            auto& schedulerJob = static_cast<TJob&>(*job);
+
+            schedulerJob.Interrupt(/*timeout*/ {}, /*preemptionReason*/ {});
+        } else {
+            YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    for (const auto& protoJobId : response->jobs_to_fail()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+        if (auto job = JobController_->FindJob(jobId)) {
+            auto& schedulerJob = static_cast<TJob&>(*job);
+
+            schedulerJob.Fail();
+        } else {
+            YT_LOG_WARNING("Requested to fail a non-existent job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    for (const auto& protoJobId: response->jobs_to_store()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+        if (auto job = JobController_->FindJob(jobId)) {
+            auto& schedulerJob = static_cast<TJob&>(*job);
+
+            YT_LOG_DEBUG("Storing job (JobId: %v)",
+                jobId);
+            schedulerJob.SetStored(true);
+        } else {
+            YT_LOG_WARNING("Requested to store a non-existent job (JobId: %v)",
+                jobId);
+        }
+    }
+
     std::vector<TJobId> jobIdsToConfirm;
     jobIdsToConfirm.reserve(response->jobs_to_confirm_size());
     for (auto& jobInfo : *response->mutable_jobs_to_confirm()) {
         auto jobId = FromProto<TJobId>(jobInfo.job_id());
+
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
         auto agentInfoOrError = TryParseControllerAgentDescriptor(*jobInfo.mutable_controller_agent_descriptor());
         if (!agentInfoOrError.IsOK()) {
             YT_LOG_WARNING(

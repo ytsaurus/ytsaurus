@@ -185,11 +185,6 @@ public:
         }
     }
 
-    void Fail() override
-    {
-        THROW_ERROR_EXCEPTION("Failing is not supported");
-    }
-
     TJobId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -408,11 +403,6 @@ public:
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
-    void Interrupt(TDuration /*duration*/, const std::optional<TString>& /*preemptionReason*/) override
-    {
-        THROW_ERROR_EXCEPTION("Interrupting is not supported");
-    }
-
     void OnJobProxySpawned() override
     {
         YT_ABORT();
@@ -471,11 +461,6 @@ public:
     bool GetStored() const override
     {
         return false;
-    }
-
-    void SetStored(bool /* value */) override
-    {
-        YT_ABORT();
     }
 
 protected:

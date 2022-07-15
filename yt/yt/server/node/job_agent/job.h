@@ -47,7 +47,6 @@ struct IJob
     virtual void Start() = 0;
 
     virtual void Abort(const TError& error) = 0;
-    virtual void Fail() = 0;
 
     virtual TJobId GetId() const = 0;
     virtual TOperationId GetOperationId() const = 0;
@@ -129,15 +128,12 @@ struct IJob
         const NYson::TYsonString& parameters) = 0;
 
     virtual bool GetStored() const = 0;
-    virtual void SetStored(bool value) = 0;
 
     virtual void HandleJobReport(TNodeJobReport&& statistics) = 0;
     virtual void ReportSpec() = 0;
     virtual void ReportStderr() = 0;
     virtual void ReportFailContext() = 0;
     virtual void ReportProfile() = 0;
-
-    virtual void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

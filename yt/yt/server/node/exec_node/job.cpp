@@ -105,6 +105,8 @@ using namespace NTracing;
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
+using NObjectClient::TypeFromId;
+using NCypressClient::EObjectType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1022,7 +1024,7 @@ void TJob::ReportProfile()
     }
 }
 
-void TJob::Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
+void TJob::GuardedInterrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1079,7 +1081,7 @@ void TJob::Interrupt(TDuration timeout, const std::optional<TString>& preemption
     }
 }
 
-void TJob::Fail()
+void TJob::GuardedFail()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1144,6 +1146,37 @@ const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetCont
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return ControllerAgentConnector_;
+}
+
+const NLogging::TLogger& TJob::GetLogger() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    
+    return Logger;
+}
+
+void TJob::Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
+{
+    YT_LOG_INFO("Interrupting job (PreemptionReason: %v, Timeout: %v)",
+        preemptionReason,
+        timeout);
+
+    try {
+        GuardedInterrupt(timeout, preemptionReason);
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to interrupt job");
+    }
+}
+
+void TJob::Fail()
+{
+    YT_LOG_INFO("Failing job");
+
+    try {
+        GuardedFail();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to fail job");
+    }
 }
 
 // Helpers.
@@ -2864,14 +2897,21 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<bool> IsSchedulerJobInterruptible(const NJobAgent::IJob& job)
+void InterruptSchedulerJobs(std::vector<NJobAgent::IJobPtr> jobs, TError error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YT_VERIFY(NObjectClient::TypeFromId(job.GetId()) == NCypressClient::EObjectType::SchedulerJob);
-    auto& schedulerJob = static_cast<const TJob&>(job);
-
-    return schedulerJob.IsInterruptible();
+    for (const auto& job : jobs) {
+        auto jobId = job->GetId();
+        if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() <= EJobState::Running) {
+            auto& schedulerJob = static_cast<TJob&>(*job);
+            const auto& Logger = schedulerJob.GetLogger();
+            try {
+                YT_LOG_DEBUG(error, "Trying to interrupt job");
+                schedulerJob.Interrupt(/*timeout*/ {}, /*preemptionReason*/ {});
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to interrupt job");
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
