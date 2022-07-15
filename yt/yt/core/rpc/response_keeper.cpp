@@ -155,16 +155,16 @@ public:
 
     void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
     {
-        auto guard = WriterGuard(Lock_);
-
         YT_ASSERT(id);
-
-        if (!Started_) {
-            return;
-        }
 
         if (responseOrError.IsOK()) {
             EndRequest(id, std::move(responseOrError.Value()), remember);
+            return;
+        }
+
+        auto guard = WriterGuard(Lock_);
+
+        if (!Started_) {
             return;
         }
 
