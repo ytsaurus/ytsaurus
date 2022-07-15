@@ -18,6 +18,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStringColumnWriterBufferTag { };
+
 static const int MaxBufferSize = 32_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +44,7 @@ protected:
 
     void Reset()
     {
-        DirectBuffer_ = std::make_unique<TChunkedOutputStream>();
+        DirectBuffer_ = std::make_unique<TChunkedOutputStream>(TStringColumnWriterBufferTag(), 256_KB, 1_MB);
 
         MaxValueLength_ = 0;
         Values_.clear();
