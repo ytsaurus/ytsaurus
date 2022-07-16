@@ -8,7 +8,6 @@
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_config_mixin.h>
-#include <yt/yt/ytlib/program/program_tool_mixin.h>
 #include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
@@ -35,14 +34,12 @@ class TClusterNodeProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramToolMixin
     , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
 {
 public:
     TClusterNodeProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
-        , TProgramToolMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
     {
         Opts_
@@ -79,10 +76,6 @@ protected:
             return;
         }
         if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleToolOptions()) {
             return;
         }
 
