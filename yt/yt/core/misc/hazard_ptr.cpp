@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+#include <library/cpp/yt/threading/at_fork.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
@@ -178,17 +178,10 @@ THazardPointerManager::THazardPointerManager()
         THazardPointerManager::Get()->DestroyThread(ptr);
     });
 
-    NThreading::TForkAwareSpinLock::AtFork(
-        this,
-        [] (void* cookie) {
-            static_cast<THazardPointerManager*>(cookie)->BeforeFork();
-        },
-        [] (void* cookie) {
-            static_cast<THazardPointerManager*>(cookie)->AfterForkParent();
-        },
-        [] (void* cookie) {
-            static_cast<THazardPointerManager*>(cookie)->AfterForkChild();
-        });
+    NThreading::RegisterAtForkHandlers(
+        [=] { BeforeFork(); },
+        [=] { AfterForkParent(); },
+        [=] { AfterForkChild(); });
 }
 
 void THazardPointerManager::ShutdownThunk()
