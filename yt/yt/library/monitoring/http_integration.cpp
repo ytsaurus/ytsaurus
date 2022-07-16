@@ -31,8 +31,10 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#ifdef _linux_
 #include <yt/yt/library/ytprof/http/handler.h>
 #include <yt/yt/library/ytprof/build_info.h>
+#endif
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -87,9 +89,11 @@ void Initialize(
             "/sensors",
             CreateVirtualNode(exporter->GetSensorService()));
 
+#ifdef _linux_
         auto buildInfo = NYTProf::TBuildInfo::GetDefault();
         buildInfo.BinaryVersion = GetVersion();
         NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
+#endif
 
         monitoringServer->AddHandler(
             "/orchid/",

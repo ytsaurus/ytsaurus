@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/monitoring/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/core/bus/public.h>
 #include <yt/yt/core/rpc/public.h>

@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 

@@ -11,8 +11,8 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
-#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/program/build_attributes.h>
 

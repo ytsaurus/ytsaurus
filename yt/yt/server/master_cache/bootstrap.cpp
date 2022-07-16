@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
