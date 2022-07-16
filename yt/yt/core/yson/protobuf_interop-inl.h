@@ -11,10 +11,7 @@ namespace NYT::NYson {
 template <class T>
 const TProtobufMessageType* ReflectProtobufMessageType()
 {
-    static const TProtobufMessageType* type;
-    if (Y_UNLIKELY(!type)) {
-        type = ReflectProtobufMessageType(T::default_instance().GetDescriptor());
-    }
+    static const auto* type = ReflectProtobufMessageType(T::default_instance().GetDescriptor());
     return type;
 }
 
