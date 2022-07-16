@@ -36,7 +36,7 @@
 
 #include <yt/yt/ytlib/memory_trackers/public.h>
 
-#include <yt/yt/ytlib/monitoring/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 

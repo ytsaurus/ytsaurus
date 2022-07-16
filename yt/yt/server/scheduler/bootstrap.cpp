@@ -23,8 +23,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
-#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 

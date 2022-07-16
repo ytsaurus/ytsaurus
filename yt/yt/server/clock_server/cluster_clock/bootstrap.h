@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/election/public.h>
 
-#include <yt/yt/ytlib/monitoring/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 

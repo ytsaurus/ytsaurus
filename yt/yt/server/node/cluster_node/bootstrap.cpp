@@ -116,8 +116,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
-#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>

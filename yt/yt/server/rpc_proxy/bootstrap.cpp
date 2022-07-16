@@ -22,8 +22,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
-#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 

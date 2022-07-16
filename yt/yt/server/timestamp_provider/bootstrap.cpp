@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 

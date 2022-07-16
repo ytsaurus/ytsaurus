@@ -10,8 +10,8 @@
 
 #include <yt/yt/server/scheduler/public.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
-#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>

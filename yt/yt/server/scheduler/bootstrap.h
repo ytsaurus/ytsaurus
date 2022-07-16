@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/monitoring/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 

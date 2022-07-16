@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/program/build_attributes.h>
 
-#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>

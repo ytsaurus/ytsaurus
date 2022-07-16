@@ -13,7 +13,7 @@
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/monitoring/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/client/driver/public.h>
 
