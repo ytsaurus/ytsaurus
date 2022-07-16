@@ -3,7 +3,6 @@
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_config_mixin.h>
-#include <yt/yt/ytlib/program/program_tool_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/process/pipe.h>
