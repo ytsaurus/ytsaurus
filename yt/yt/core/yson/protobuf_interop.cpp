@@ -145,18 +145,20 @@ TString DeriveYsonName(const TString& protobufName, const google::protobuf::File
 class TProtobufTypeRegistry
 {
 public:
+    // This method is called while reflecting types.
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
-        Initialize();
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         return GetYsonNameFromDescriptor(
             descriptor,
             descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
     }
 
+    // This method is called while reflecting types.
     std::vector<TStringBuf> GetYsonNameAliases(const FieldDescriptor* descriptor)
     {
-        Initialize();
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         std::vector<TStringBuf> aliases;
         auto extensions = descriptor->options().GetRepeatedExtension(NYT::NYson::NProto::field_name_alias);
@@ -166,9 +168,10 @@ public:
         return aliases;
     }
 
+    // This method is called while reflecting types.
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
-        Initialize();
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         return GetYsonNameFromDescriptor(
             descriptor,
@@ -177,7 +180,7 @@ public:
 
     const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor)
     {
-        auto guard = Guard(TypeMapsLock_);
+        auto guard = Guard(Lock_);
         Initialize();
 
         return ReflectMessageTypeInternal(descriptor);
@@ -185,7 +188,7 @@ public:
 
     const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor)
     {
-        auto guard = Guard(TypeMapsLock_);
+        auto guard = Guard(Lock_);
         Initialize();
 
         return ReflectEnumTypeInternal(descriptor);
@@ -198,17 +201,15 @@ public:
 
     using TRegisterAction = std::function<void()>;
 
+    //! This method is called during static initialization and is not expected to be called during runtime.
+    //! That is why there is no synchronization within.
+    /*!
+     * Be cautious trying to acquire fork-aware spin lock during static initialization:
+     * fork-awareness is provided by the static fork-lock, acquiring may cause dependency within static initialization.
+     */
     void AddAction(TRegisterAction action)
     {
         Actions_.emplace_back(std::move(action));
-    }
-
-    void Initialize() const
-    {
-        for (const auto& action : Actions_) {
-            action();
-        }
-        Actions_.clear();
     }
 
     //! This method is called during static initialization and is not expected to be called during runtime.
@@ -228,10 +229,12 @@ public:
         YT_VERIFY(MessageFieldConverterMap_.emplace(std::make_pair(descriptor, fieldNumber), converter).second);
     }
 
+    // This method is called while reflecting types.
     std::optional<TProtobufMessageConverter> GetMessageTypeConverter(
         const Descriptor* descriptor) const
     {
-        Initialize();
+        // No need to call Initialize: it has been already called within Reflect*Type higher up the stack.
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         auto it = MessageTypeConverterMap_.find(descriptor);
         if (it == MessageTypeConverterMap_.end()) {
@@ -241,11 +244,13 @@ public:
         }
     }
 
+    // This method is called while reflecting types.
     std::optional<TProtobufMessageBytesFieldConverter> GetMessageBytesFieldConverter(
         const Descriptor* descriptor,
         int fieldIndex) const
     {
-        Initialize();
+        // No need to call Initialize: it has been already called within Reflect*Type higher up the stack.
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         auto fieldNumber = descriptor->field(fieldIndex)->number();
         auto it = MessageFieldConverterMap_.find(std::make_pair(descriptor, fieldNumber));
@@ -257,13 +262,23 @@ public:
     }
 
     // These are called while reflecting the types recursively;
-    // the caller must be holding TypeMapsLock_.
+    // the caller must be holding Lock_.
     const TProtobufMessageType* ReflectMessageTypeInternal(const Descriptor* descriptor);
     const TProtobufEnumType* ReflectEnumTypeInternal(const EnumDescriptor* descriptor);
 
 private:
     Y_DECLARE_SINGLETON_FRIEND();
     TProtobufTypeRegistry() = default;
+
+    void Initialize() const
+    {
+        if (!Actions_.empty()) {
+            for (const auto& action : Actions_) {
+                action();
+            }
+            Actions_.clear();
+        }
+    }
 
     template <class TDescriptor>
     TStringBuf GetYsonNameFromDescriptor(const TDescriptor* descriptor, const TString& annotatedName)
@@ -274,19 +289,17 @@ private:
 
     TStringBuf InternString(const TString& str)
     {
-        auto guard = Guard(InternedStringsLock_);
         return *InternedStrings_.emplace(str).first;
     }
 
 private:
-    NThreading::TForkAwareSpinLock TypeMapsLock_;
+    NThreading::TForkAwareSpinLock Lock_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
 
     THashMap<const Descriptor*, TProtobufMessageConverter> MessageTypeConverterMap_;
     THashMap<std::pair<const Descriptor*, int>, TProtobufMessageBytesFieldConverter> MessageFieldConverterMap_;
 
-    NThreading::TForkAwareSpinLock InternedStringsLock_;
     THashSet<TString> InternedStrings_;
     mutable std::vector<TRegisterAction> Actions_;
 };
@@ -643,7 +656,7 @@ private:
 
 const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageTypeInternal(const Descriptor* descriptor)
 {
-    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
 
     auto it = MessageTypeMap_.find(descriptor);
     if (it != MessageTypeMap_.end()) {
@@ -652,14 +665,14 @@ const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageTypeInternal(co
 
     auto typeHolder = std::make_unique<TProtobufMessageType>(this, descriptor);
     auto* type = typeHolder.get();
-    it = MessageTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
+    MessageTypeMap_.emplace(descriptor, std::move(typeHolder));
     type->Build();
     return type;
 }
 
 const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumTypeInternal(const EnumDescriptor* descriptor)
 {
-    VERIFY_SPINLOCK_AFFINITY(TypeMapsLock_);
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
 
     auto it = EnumTypeMap_.find(descriptor);
     if (it != EnumTypeMap_.end()) {
@@ -668,7 +681,7 @@ const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumTypeInternal(const En
 
     auto typeHolder = std::make_unique<TProtobufEnumType>(this, descriptor);
     auto* type = typeHolder.get();
-    it = EnumTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
+    EnumTypeMap_.emplace(descriptor, std::move(typeHolder));
     type->Build();
     return type;
 }
