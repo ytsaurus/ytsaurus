@@ -106,16 +106,6 @@ object WorkerLogLauncher extends VanillaLauncher {
   }
 
   def start(workerLogConfig: WorkerLogConfig, client: CompoundClient): Thread = {
-    if (workerLogConfig.enableJson) {
-      val path = Files.move(
-        Path.of(getSparkHomeDir, "conf", "log4j.workerLogJson.properties"),
-        Path.of(getSparkHomeDir, "conf", "log4j.properties"),
-        StandardCopyOption.REPLACE_EXISTING
-      )
-      if (path == null) {
-        throw new RuntimeException("Couldn't replace log4j properties")
-      }
-    }
     val thread = new Thread(new LogServiceRunnable(workerLogConfig)(client), "WorkerLogRunnable")
     thread.start()
     thread

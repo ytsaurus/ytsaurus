@@ -24,7 +24,7 @@ private[spark] case class SolomonSink(props: Properties, registry: MetricRegistr
 
   override def start(): Unit = reporter match {
     case Failure(ex) =>
-      log.warn("No Solomon metrics available", ex)
+      log.info("No Solomon metrics available", ex)
     case Success(r) =>
       log.info(s"Starting solomon reporter with ${r.reporterConfig.pollPeriodMillis} millis period")
       r.start(r.reporterConfig.pollPeriodMillis, TimeUnit.MILLISECONDS)
