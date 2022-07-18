@@ -30,6 +30,7 @@ func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	err := a.api.Create(r.Context(), alias)
 	if err != nil {
 		a.replyWithError(w, err)
+		return
 	}
 
 	a.replyOK(w, struct{}{})
@@ -52,6 +53,7 @@ func (a HTTPAPI) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	err := a.api.Delete(r.Context(), alias)
 	if err != nil {
 		a.replyWithError(w, err)
+		return
 	}
 
 	a.replyOK(w, struct{}{})
@@ -76,6 +78,7 @@ func (a HTTPAPI) HandleSet(w http.ResponseWriter, r *http.Request) {
 	err := a.api.SetOption(r.Context(), alias, key, value)
 	if err != nil {
 		a.replyWithError(w, err)
+		return
 	}
 
 	a.replyOK(w, struct{}{})
@@ -99,6 +102,7 @@ func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
 	err := a.api.RemoveOption(r.Context(), alias, key)
 	if err != nil {
 		a.replyWithError(w, err)
+		return
 	}
 
 	a.replyOK(w, struct{}{})
@@ -122,6 +126,7 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 
 	for _, cluster := range c.Clusters {
 		ytc, err := ythttp.NewClient(&yt.Config{
+			Token:  c.Token,
 			Proxy:  cluster,
 			Logger: l.Structured(),
 		})
