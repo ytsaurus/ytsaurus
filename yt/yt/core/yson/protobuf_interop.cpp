@@ -28,10 +28,12 @@
 
 #include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
 
-#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
-
 #include <library/cpp/yt/coding/varint.h>
 #include <library/cpp/yt/coding/zig_zag.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+
+#include <yt/yt/library/syncmap/map.h>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/dynamic_message.h>
@@ -46,6 +48,8 @@ namespace NYT::NYson {
 using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NThreading;
+using namespace NConcurrency;
 using namespace google::protobuf;
 using namespace google::protobuf::io;
 using namespace google::protobuf::internal;
@@ -180,17 +184,23 @@ public:
 
     const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor)
     {
+        if (auto* result = MessageTypeSyncMap_.Find(descriptor)) {
+            return *result;
+        }
+
         auto guard = Guard(Lock_);
         Initialize();
-
         return ReflectMessageTypeInternal(descriptor);
     }
 
     const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor)
     {
+        if (auto* result = EnumTypeSyncMap_.Find(descriptor)) {
+            return *result;
+        }
+
         auto guard = Guard(Lock_);
         Initialize();
-
         return ReflectEnumTypeInternal(descriptor);
     }
 
@@ -204,12 +214,12 @@ public:
     //! This method is called during static initialization and is not expected to be called during runtime.
     //! That is why there is no synchronization within.
     /*!
-     * Be cautious trying to acquire fork-aware spin lock during static initialization:
-     * fork-awareness is provided by the static fork-lock, acquiring may cause dependency within static initialization.
+     *  Be cautious trying to acquire fork-aware spin lock during static initialization:
+     *  fork-awareness is provided by the static fork-lock, acquiring may cause dependency within static initialization.
      */
-    void AddAction(TRegisterAction action)
+    void AddRegisterAction(TRegisterAction action)
     {
-        Actions_.emplace_back(std::move(action));
+        RegisterActions_.push_back(std::move(action));
     }
 
     //! This method is called during static initialization and is not expected to be called during runtime.
@@ -217,7 +227,7 @@ public:
         const Descriptor* descriptor,
         const TProtobufMessageConverter& converter)
     {
-        YT_VERIFY(MessageTypeConverterMap_.emplace(descriptor, converter).second);
+        EmplaceOrCrash(MessageTypeConverterMap_, descriptor, converter);
     }
 
     //! This method is called during static initialization and is not expected to be called during runtime.
@@ -226,11 +236,11 @@ public:
         int fieldNumber,
         const TProtobufMessageBytesFieldConverter& converter)
     {
-        YT_VERIFY(MessageFieldConverterMap_.emplace(std::make_pair(descriptor, fieldNumber), converter).second);
+        EmplaceOrCrash(MessageFieldConverterMap_, std::make_pair(descriptor, fieldNumber), converter);
     }
 
-    // This method is called while reflecting types.
-    std::optional<TProtobufMessageConverter> GetMessageTypeConverter(
+    //! This method is called while reflecting types.
+    std::optional<TProtobufMessageConverter> FindMessageTypeConverter(
         const Descriptor* descriptor) const
     {
         // No need to call Initialize: it has been already called within Reflect*Type higher up the stack.
@@ -244,8 +254,8 @@ public:
         }
     }
 
-    // This method is called while reflecting types.
-    std::optional<TProtobufMessageBytesFieldConverter> GetMessageBytesFieldConverter(
+    //! This method is called while reflecting types.
+    std::optional<TProtobufMessageBytesFieldConverter> FindMessageBytesFieldConverter(
         const Descriptor* descriptor,
         int fieldIndex) const
     {
@@ -272,11 +282,11 @@ private:
 
     void Initialize() const
     {
-        if (!Actions_.empty()) {
-            for (const auto& action : Actions_) {
+        if (!RegisterActions_.empty()) {
+            for (const auto& action : RegisterActions_) {
                 action();
             }
-            Actions_.clear();
+            RegisterActions_.clear();
         }
     }
 
@@ -289,19 +299,33 @@ private:
 
     TStringBuf InternString(const TString& str)
     {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
         return *InternedStrings_.emplace(str).first;
     }
 
 private:
-    NThreading::TForkAwareSpinLock Lock_;
+    template <class TKey, class TValue>
+    using TForkAwareSyncMap = TSyncMap<
+        TKey,
+        TValue,
+        THash<TKey>,
+        TEqualTo<TKey>,
+        TForkAwareSpinLock
+    >;
+
+    YT_DECLARE_SPIN_LOCK(TForkAwareSpinLock, Lock_);
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
-    THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+    TForkAwareSyncMap<const Descriptor*, const TProtobufMessageType*> MessageTypeSyncMap_;
+    THashMap<const EnumDescriptor*,std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+    TForkAwareSyncMap<const EnumDescriptor*, const TProtobufEnumType*> EnumTypeSyncMap_;
 
     THashMap<const Descriptor*, TProtobufMessageConverter> MessageTypeConverterMap_;
     THashMap<std::pair<const Descriptor*, int>, TProtobufMessageBytesFieldConverter> MessageFieldConverterMap_;
 
     THashSet<TString> InternedStrings_;
-    mutable std::vector<TRegisterAction> Actions_;
+
+    mutable std::vector<TRegisterAction> RegisterActions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,7 +344,7 @@ public:
         , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
         , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
         , Required_(descriptor->options().GetExtension(NYT::NYson::NProto::required))
-        , Converter_(registry->GetMessageBytesFieldConverter(descriptor->containing_type(), descriptor->index()))
+        , Converter_(registry->FindMessageBytesFieldConverter(descriptor->containing_type(), descriptor->index()))
     {
         if (YsonMap_ && !descriptor->is_map()) {
             THROW_ERROR_EXCEPTION("Field %v is not a map and cannot be annotated with \"yson_map\" option",
@@ -442,7 +466,7 @@ public:
         : Registry_(registry)
         , Underlying_(descriptor)
         , AttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
-        , Converter_(registry->GetMessageTypeConverter(descriptor))
+        , Converter_(registry->FindMessageTypeConverter(descriptor))
     { }
 
     void Build()
@@ -658,15 +682,19 @@ const TProtobufMessageType* TProtobufTypeRegistry::ReflectMessageTypeInternal(co
 {
     VERIFY_SPINLOCK_AFFINITY(Lock_);
 
+    TProtobufMessageType* type;
     auto it = MessageTypeMap_.find(descriptor);
-    if (it != MessageTypeMap_.end()) {
-        return it->second.get();
+    if (it == MessageTypeMap_.end()) {
+        auto typeHolder = std::make_unique<TProtobufMessageType>(this, descriptor);
+        type = typeHolder.get();
+        it = MessageTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
+        type->Build();
+    } else {
+        type = it->second.get();
     }
 
-    auto typeHolder = std::make_unique<TProtobufMessageType>(this, descriptor);
-    auto* type = typeHolder.get();
-    MessageTypeMap_.emplace(descriptor, std::move(typeHolder));
-    type->Build();
+    YT_VERIFY(*MessageTypeSyncMap_.FindOrInsert(descriptor, [&] { return type; }).first == type);
+
     return type;
 }
 
@@ -674,15 +702,19 @@ const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumTypeInternal(const En
 {
     VERIFY_SPINLOCK_AFFINITY(Lock_);
 
+    TProtobufEnumType* type;
     auto it = EnumTypeMap_.find(descriptor);
-    if (it != EnumTypeMap_.end()) {
-        return it->second.get();
+    if (it == EnumTypeMap_.end()) {
+        auto typeHolder = std::make_unique<TProtobufEnumType>(this, descriptor);
+        type = typeHolder.get();
+        it = EnumTypeMap_.emplace(descriptor, std::move(typeHolder)).first;
+        type->Build();
+    } else {
+        type = it->second.get();
     }
 
-    auto typeHolder = std::make_unique<TProtobufEnumType>(this, descriptor);
-    auto* type = typeHolder.get();
-    EnumTypeMap_.emplace(descriptor, std::move(typeHolder));
-    type->Build();
+    YT_VERIFY(*EnumTypeSyncMap_.FindOrInsert(descriptor, [&] { return type; }).first == type);
+
     return type;
 }
 
@@ -2637,7 +2669,7 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
 void AddProtobufConverterRegisterAction(std::function<void()> action)
 {
-    TProtobufTypeRegistry::Get()->AddAction(std::move(action));
+    TProtobufTypeRegistry::Get()->AddRegisterAction(std::move(action));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
