@@ -144,6 +144,12 @@ class SparkSubmissionClient(object):
     def get_active_drivers(self):
         return self._jclient.getActiveDrivers()
 
+    def get_completed_drivers(self):
+        return self._jclient.getCompletedDrivers()
+
+    def get_all_drivers(self):
+        return self._jclient.getAllDrivers()
+
     def get_status(self, submission_id):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
 
