@@ -277,8 +277,6 @@ private:
         JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
         JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
 
-        JobProxyConfigTemplate_->JobThrottler = GetConfig()->JobThrottler;
-
         JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(GetConfig()->ClusterConnection);
         JobProxyConfigTemplate_->ClusterConnection->OverrideMasterAddresses({localAddress});
 

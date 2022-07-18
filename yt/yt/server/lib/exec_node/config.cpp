@@ -576,6 +576,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
+
+    registrar.Parameter("job_throttler", &TThis::JobThrottler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

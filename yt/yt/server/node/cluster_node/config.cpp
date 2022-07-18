@@ -268,8 +268,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
-    registrar.Parameter("job_throttler", &TThis::JobThrottler)
-        .DefaultNew();
 
     registrar.Parameter("resource_limits_update_period", &TThis::ResourceLimitsUpdatePeriod)
         .Default(TDuration::Seconds(1));

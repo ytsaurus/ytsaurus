@@ -20,19 +20,22 @@ NConcurrency::IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const NRpc::IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    NJobTrackerClient::TJobId jobId);
+    NJobTrackerClient::TJobId jobId,
+    const NLogging::TLogger& logger);
 
 NConcurrency::IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const NRpc::IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    NJobTrackerClient::TJobId jobId);
+    NJobTrackerClient::TJobId jobId,
+    const NLogging::TLogger& logger);
 
 NConcurrency::IThroughputThrottlerPtr CreateOutJobRpsThrottler(
     const TJobThrottlerConfigPtr& config,
     const NRpc::IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    NJobTrackerClient::TJobId jobId);
+    NJobTrackerClient::TJobId jobId,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

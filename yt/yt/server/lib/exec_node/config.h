@@ -535,6 +535,9 @@ public:
 
     TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
 
+    //! Job throttler config, eg. its RPC timeout and backoff.
+    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
+
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
