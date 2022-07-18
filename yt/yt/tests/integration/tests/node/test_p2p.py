@@ -42,6 +42,11 @@ class TestP2P(YTEnvSetup):
             return count is not None and count > 0
         wait(check)
 
+        create("table", "//tmp/sync_node_directory", force=True)
+        set("//tmp/sync_node_directory/@replication_factor", len(ls("//sys/cluster_nodes")))
+        write_table("//tmp/sync_node_directory", [{"a": 1}])
+        read_table("//tmp/sync_node_directory")
+
     def teardown_method(self):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), [])
