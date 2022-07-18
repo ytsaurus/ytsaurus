@@ -2042,6 +2042,12 @@ TJobProxyConfigPtr TJob::CreateConfig()
         }
     }
 
+    proxyConfig->JobThrottler = DynamicConfig_->JobThrottler;
+    if (!SchedulerJobSpecExt_->enable_prefetching_job_throttler()) {
+        proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
+        proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
+    }
+
     return proxyConfig;
 }
 

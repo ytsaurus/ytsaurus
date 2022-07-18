@@ -90,7 +90,7 @@ private:
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /* error */) {
             TDelayedExecutor::Submit(
                 BIND(&TSupervisorService::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobInvoker()),
-                Bootstrap_->GetConfig()->JobThrottler->MaxBackoffTime * 2);
+                Bootstrap_->GetDynamicConfig()->ExecNode->JobThrottler->MaxBackoffTime * 2);
         }));
         return id;
     }

@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -33,6 +35,9 @@ public:
     double BackoffMultiplier;
 
     TDuration RpcTimeout;
+
+    NConcurrency::TPrefetchingThrottlerConfigPtr BandwidthPrefetch;
+    NConcurrency::TPrefetchingThrottlerConfigPtr RpsPrefetch;
 
     REGISTER_YSON_STRUCT(TJobThrottlerConfig);
 

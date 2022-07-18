@@ -1050,12 +1050,16 @@ private:
 IThroughputThrottlerPtr CreatePrefetchingThrottler(
     const TPrefetchingThrottlerConfigPtr& config,
     const IThroughputThrottlerPtr& underlying,
-    const TLogger& logger)
+    const TLogger& Logger)
 {
-    return New<TPrefetchingThrottler>(
-        config,
-        underlying,
-        logger);
+    if (config->Enable) {
+        return New<TPrefetchingThrottler>(
+            config,
+            underlying,
+            Logger);
+    } else {
+        return underlying;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

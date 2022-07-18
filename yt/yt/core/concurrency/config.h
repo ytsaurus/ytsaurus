@@ -63,6 +63,12 @@ public:
 
     //! Time window for the RPS estimation.
     TDuration Window;
+
+    //! Enable the prefetching throttler.
+    //! If disabled #CreatePrefetchingThrottler() will not create #TPrefetchingThrottler
+    //! and will return the underlying throttler instead.
+    //! #TPrefetchingThrottler itself does not check this field.
+    bool Enable;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPrefetchingThrottlerConfig)

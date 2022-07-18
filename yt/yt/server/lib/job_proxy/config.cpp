@@ -17,6 +17,12 @@ void TJobThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(60));
+
+    registrar.Parameter("bandwidth_prefetch", &TThis::BandwidthPrefetch)
+        .DefaultNew();
+
+    registrar.Parameter("rps_prefetch", &TThis::RpsPrefetch)
+        .DefaultNew();
 }
 
 void TCoreWatcherConfig::Register(TRegistrar registrar)

@@ -172,42 +172,57 @@ IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    TJobId jobId)
+    TJobId jobId,
+    const NLogging::TLogger& logger)
 {
-    return New<TJobBandwidthThrottler>(
+    auto underlying = New<TJobBandwidthThrottler>(
         config,
         channel,
         EJobThrottlerType::InBandwidth,
         descriptor,
         jobId);
+    return CreatePrefetchingThrottler(
+        config->BandwidthPrefetch,
+        underlying,
+        logger);
 }
 
 IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    TJobId jobId)
+    TJobId jobId,
+    const NLogging::TLogger& logger)
 {
-    return New<TJobBandwidthThrottler>(
+    auto underlying = New<TJobBandwidthThrottler>(
         config,
         channel,
         EJobThrottlerType::OutBandwidth,
         descriptor,
         jobId);
+    return CreatePrefetchingThrottler(
+        config->BandwidthPrefetch,
+        underlying,
+        logger);
 }
 
 IThroughputThrottlerPtr CreateOutJobRpsThrottler(
     const TJobThrottlerConfigPtr& config,
     const IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
-    TJobId jobId)
+    TJobId jobId,
+    const NLogging::TLogger& logger)
 {
-    return New<TJobBandwidthThrottler>(
+    auto underlying = New<TJobBandwidthThrottler>(
         config,
         channel,
         EJobThrottlerType::OutRps,
         descriptor,
         jobId);
+    return CreatePrefetchingThrottler(
+        config->RpsPrefetch,
+        underlying,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,6 +31,8 @@ TRelativeThroughputThrottlerConfig::TRelativeThroughputThrottlerConfig(
 
 TPrefetchingThrottlerConfig::TPrefetchingThrottlerConfig()
 {
+    RegisterParameter("enable", Enable)
+        .Default(true);
     RegisterParameter("target_rps", TargetRps)
         .Default(1.0)
         .GreaterThan(1e-3);

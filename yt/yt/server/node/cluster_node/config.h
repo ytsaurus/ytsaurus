@@ -317,9 +317,6 @@ public:
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;
 
-    //! Timeout for RPC query in JobBandwidthThrottler.
-    NJobProxy::TJobThrottlerConfigPtr JobThrottler;
-
     TDuration ResourceLimitsUpdatePeriod;
     std::optional<TDuration> InstanceLimitsUpdatePeriod;
 

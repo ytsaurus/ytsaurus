@@ -4367,6 +4367,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     schedulerJobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
 
+    schedulerJobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
+
     if (OutputTransaction) {
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }

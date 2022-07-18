@@ -937,6 +937,10 @@ public:
 
     NYTree::IMapNodePtr JobTestingOptions;
 
+    //! Enable prefetching throttler.
+    //! This option is not expected to be set by users manually.
+    bool EnablePrefetchingJobThrottler;
+
     //! Use SquashFS for layer storage.
     std::optional<bool> EnableSquashFS;
 

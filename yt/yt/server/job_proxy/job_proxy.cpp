@@ -639,19 +639,22 @@ TJobResult TJobProxy::RunJob()
                 Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
-                JobId_);
+                JobId_,
+                Logger);
 
             OutBandwidthThrottler_ = CreateOutJobBandwidthThrottler(
                 Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-                JobId_);
+                JobId_,
+                Logger);
 
             OutRpsThrottler_ = CreateOutJobRpsThrottler(
                 Config_->JobThrottler,
                 supervisorChannel,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-                JobId_);
+                JobId_,
+                Logger);
         } else {
             YT_LOG_INFO("Job throttling disabled");
 
