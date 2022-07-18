@@ -580,13 +580,16 @@ public:
         , Enumerations_(GetEphemeralNodeFactory()->CreateMap())
     { }
 
-    TProtobufTypeConfigPtr GetOrCreateTypeConfig(const Descriptor* descriptor)
+    TProtobufTypeConfigPtr GetOrCreateTypeConfig(
+        const Descriptor* descriptor,
+        EProtobufSerializationMode serializationMode = EProtobufSerializationMode::Yt)
     {
-        if (auto it = DescriptorToTypeConfig_.find(descriptor); it != DescriptorToTypeConfig_.end()) {
+        auto key = TDescriptorKey{descriptor, serializationMode};
+        if (auto it = DescriptorToTypeConfig_.find(key); it != DescriptorToTypeConfig_.end()) {
             return it->second;
         }
-        auto typeConfig = CreateTypeConfig(descriptor, GetDefaultFieldOptions(descriptor));
-        DescriptorToTypeConfig_.emplace(descriptor, typeConfig);
+        auto typeConfig = CreateTypeConfig(descriptor, serializationMode, GetDefaultFieldOptions(descriptor));
+        DescriptorToTypeConfig_.emplace(key, typeConfig);
         return typeConfig;
     }
 
@@ -598,7 +601,9 @@ public:
 private:
     const bool EnumsAsStrings_;
     const IMapNodePtr Enumerations_;
-    THashMap<const Descriptor*, TProtobufTypeConfigPtr> DescriptorToTypeConfig_;
+
+    using TDescriptorKey = std::pair<const Descriptor*, EProtobufSerializationMode>;
+    THashMap<TDescriptorKey, TProtobufTypeConfigPtr> DescriptorToTypeConfig_;
     TCycleChecker CycleChecker_;
 
 private:
@@ -616,6 +621,7 @@ private:
             case EProtobufMapMode::OptionalDict:
                 return CreateTypeConfig(
                     descriptor,
+                    fieldOptions.SerializationMode,
                     TProtobufFieldOptions{.SerializationMode = EProtobufSerializationMode::Yt});
         }
         Y_FAIL();
@@ -631,7 +637,7 @@ private:
                     if (fieldDescriptor->is_map()) {
                         return CreateMapConfig(fieldDescriptor, fieldOptions);
                     } else {
-                        return GetOrCreateTypeConfig(fieldDescriptor->message_type());
+                        return GetOrCreateTypeConfig(fieldDescriptor->message_type(), fieldOptions.SerializationMode);
                     }
                 case EProtobufSerializationMode::Embedded: {
                     auto config = GetOrCreateTypeConfig(fieldDescriptor->message_type());
@@ -639,8 +645,7 @@ private:
                     return config;
                 }
                 case EProtobufSerializationMode::Protobuf:
-                    break;
-                    // EProtobufSerializationMode::Protobuf handled later
+                    return GetOrCreateTypeConfig(fieldDescriptor->message_type(), fieldOptions.SerializationMode);
             }
         }
 
@@ -736,10 +741,23 @@ private:
     // NB: This function does not caches the created config!
     TProtobufTypeConfigPtr CreateTypeConfig(
         const Descriptor* descriptor,
+        EProtobufSerializationMode serializationMode,
         const TProtobufFieldOptions& defaultFieldOptions)
     {
         auto typeConfig = New<TProtobufTypeConfig>();
-        typeConfig->ProtoType = EProtobufType::StructuredMessage;
+
+        typeConfig->ProtoType = [&] {
+            switch (serializationMode) {
+                case EProtobufSerializationMode::Yt:
+                    return EProtobufType::StructuredMessage;
+                case EProtobufSerializationMode::Protobuf:
+                    return EProtobufType::Message;
+                case EProtobufSerializationMode::Embedded:
+                    YT_ABORT();
+            }
+            YT_ABORT();
+        }();
+
         auto& fields = typeConfig->Fields;
 
         auto defaultOneofOptions = GetDefaultOneofOptions(descriptor);
@@ -1150,11 +1168,21 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
 
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Struct:
-            if (typeConfig->ProtoType != EProtobufType::StructuredMessage) {
+            if (typeConfig->ProtoType != EProtobufType::StructuredMessage &&
+                (!TType::AllowStructurednessMismatch || typeConfig->ProtoType != EProtobufType::Message))
+            {
+                auto expectedTypesStr = TType::AllowStructurednessMismatch
+                    ? "\"structured_message\" or \"message\""
+                    : "\"structured_message\"";
                 ThrowSchemaMismatch(
-                    Format("expected \"structured_message\" protobuf type, got %Qlv", typeConfig->ProtoType),
+                    Format("expected %v protobuf type, got %Qlv",
+                        expectedTypesStr,
+                        typeConfig->ProtoType),
                     descriptor,
                     typeConfig);
+            }
+            if (TType::AllowStructurednessMismatch && type->ProtoType == EProtobufType::Message) {
+                type->ProtoType = EProtobufType::StructuredMessage;
             }
             VisitStruct(type, typeConfig, descriptor);
             return type;
@@ -1172,6 +1200,12 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
             VisitDict(type, typeConfig, descriptor);
             return type;
         case ELogicalMetatype::Simple:
+            if (TType::AllowStructurednessMismatch &&
+                type->ProtoType == EProtobufType::StructuredMessage &&
+                logicalType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String)
+            {
+                type->ProtoType = EProtobufType::Message;
+            }
             ValidateSimpleType(type->ProtoType, logicalType->AsSimpleTypeRef().GetElement());
             return type;
         default:
@@ -1184,7 +1218,7 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
 }
 
 template <typename TType>
-void TProtobufTypeBuilder<TType>:: VisitStruct(
+void TProtobufTypeBuilder<TType>::VisitStruct(
     const TTypePtr& type,
     const TProtobufTypeConfigPtr& typeConfig,
     TComplexTypeFieldDescriptor descriptor)
