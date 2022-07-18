@@ -341,19 +341,26 @@ func (a *Agent) abortDangling() {
 			continue
 		}
 
-		alias, ok := op.BriefSpec["alias"]
+		opAlias, ok := op.BriefSpec["alias"]
 		if !ok {
 			l.Debug("operation misses alias (how is that possible?), aborting it",
 				log.String("operation_id", op.ID.String()))
 			needAbort = true
 		} else {
-			oplet, ok := a.aliasToOp[alias.(string)[1:]]
+			alias := opAlias.(string)[1:]
+			oplet, ok := a.aliasToOp[alias]
 			if !ok {
-				l.Debug("operation alias unknown, aborting it", log.String("operation_id", op.ID.String()))
+				l.Debug("operation alias unknown, aborting it",
+					log.String("alias", alias), log.String("operation_id", op.ID.String()))
 				needAbort = true
 			} else if !oplet.pendingUpdateFromCypress && !oplet.strawberrySpeclet.ActiveOrDefault() {
 				oplet.l.Debug("strawberry operation is in inactive state, aborting its yt operation",
-					log.String("operation_id", op.ID.String()))
+					log.String("alias", alias), log.String("operation_id", op.ID.String()))
+				needAbort = true
+			} else if !oplet.pendingUpdateFromCypress && oplet.persistentState.YTOpID != op.ID {
+				oplet.l.Debug("yt operation has unexpected id, aborting it",
+					log.String("alias", alias), log.String("operation_id", op.ID.String()),
+					log.String("expected_id", oplet.persistentState.YTOpID.String()))
 				needAbort = true
 			}
 		}
