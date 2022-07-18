@@ -922,7 +922,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_columnar_statistics_early_finish", &TThis::EnableColumnarStatisticsEarlyFinish)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
         .Default(false);
 
