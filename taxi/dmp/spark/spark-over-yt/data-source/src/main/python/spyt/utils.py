@@ -224,7 +224,8 @@ def base_spark_conf(client, discovery):
         "spark.hadoop.yt.user": yt_user,
         "spark.master.rest.enabled": "true",
         "spark.eventLog.dir": "ytEventLog:/{}".format(discovery.event_log_table()),
-        "spark.yt.cluster.version": spark_cluster_version
+        "spark.yt.cluster.version": spark_cluster_version,
+        "spark.base.discovery.path": discovery.base_discovery_path
     }
     if is_supported_cluster_minor_version(spark_cluster_version, "1.9"):
         conf["spark.master.driverIdRegistration.enabled"] = "true"

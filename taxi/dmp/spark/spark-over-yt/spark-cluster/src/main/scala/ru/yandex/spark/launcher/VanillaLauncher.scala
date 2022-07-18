@@ -1,7 +1,9 @@
 package ru.yandex.spark.launcher
 
-import java.io.{File, FileWriter}
+import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig.getSparkHomeDir
 
+import java.io.{File, FileWriter}
+import java.nio.file.{Files, Path, StandardCopyOption}
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
@@ -55,6 +57,20 @@ trait VanillaLauncher {
       if (code != 0) {
         throw new IllegalStateException("Failed to unzip profiler")
       }
+    }
+  }
+
+  def prepareLog4jConfig(logJson: Boolean): Unit = {
+    val log4jProperties = if (logJson) "log4j.clusterLogJson.properties" else "log4j.clusterLog.properties"
+
+    val path = Files.move(
+      Path.of(getSparkHomeDir, "conf", log4jProperties),
+      Path.of(getSparkHomeDir, "conf", "log4j.properties"),
+      StandardCopyOption.REPLACE_EXISTING
+    )
+
+    if (path == null) {
+      throw new RuntimeException("Couldn't replace log4j properties")
     }
   }
 }

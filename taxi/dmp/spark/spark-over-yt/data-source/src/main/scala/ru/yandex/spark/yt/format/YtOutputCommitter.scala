@@ -147,10 +147,10 @@ class YtOutputCommitter(jobId: String,
   override def onTaskCommit(taskCommit: FileCommitProtocol.TaskCommitMessage): Unit = {
     val transactionGuid = taskCommit.obj.asInstanceOf[String]
     val yt = YtClientProvider.cachedClient("committer").yt
-    log.info(s"Commit write transaction: $transactionGuid")
-    log.info(s"Send commit transaction request: $transactionGuid")
+    log.debug(s"Commit write transaction: $transactionGuid")
+    log.debug(s"Send commit transaction request: $transactionGuid")
     YtWrapper.commitTransaction(transactionGuid)(yt)
-    log.info(s"Success commit transaction: $transactionGuid")
+    log.debug(s"Success commit transaction: $transactionGuid")
   }
 }
 
@@ -187,7 +187,7 @@ object YtOutputCommitter {
     val transaction = YtWrapper.createTransaction(parent, transactionTimeout)
     try {
       pingFutures += transaction.getId.toString -> transaction
-      log.info(s"Create write transaction: ${transaction.getId}")
+      log.debug(s"Create write transaction: ${transaction.getId}")
       conf.setYtConf(confEntry, transaction.getId.toString)
       transaction.getId.toString
     } catch {
@@ -208,7 +208,7 @@ object YtOutputCommitter {
   }
 
   def abortTransaction(transaction: String): Unit = {
-    log.info(s"Abort write transaction: $transaction")
+    log.debug(s"Abort write transaction: $transaction")
     pingFutures.remove(transaction).foreach { transaction =>
       transaction.abort().join()
     }
@@ -216,11 +216,11 @@ object YtOutputCommitter {
 
   def commitTransaction(conf: Configuration, confEntry: StringConfigEntry): Unit = {
     withTransaction(conf.ytConf(confEntry)) { transactionGuid =>
-      log.info(s"Commit write transaction: $transactionGuid")
+      log.debug(s"Commit write transaction: $transactionGuid")
       pingFutures.remove(transactionGuid).foreach { transaction =>
-        log.info(s"Send commit transaction request: $transactionGuid")
+        log.debug(s"Send commit transaction request: $transactionGuid")
         transaction.commit().join()
-        log.info(s"Success commit transaction: $transactionGuid")
+        log.debug(s"Successfully committed transaction: $transactionGuid")
       }
     }
   }

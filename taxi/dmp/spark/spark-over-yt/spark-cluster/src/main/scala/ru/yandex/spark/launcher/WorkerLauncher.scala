@@ -22,6 +22,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
   import workerArgs._
 
   prepareProfiler()
+  prepareLog4jConfig(workerLogConfig.exists(_.enableJson))
 
   def startWorkerLogService(client: CompoundClient): Option[Service] = {
     workerLogConfig.map(x => LocalService("WorkerLogService", WorkerLogLauncher.start(x, client)))
