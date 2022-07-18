@@ -200,7 +200,16 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
         jobStateStream = MakeHolder<TBufferStream>(0);
     }
 
-    int ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
+    int ret = 1;
+    try {
+        ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
+    } catch (const TSystemError& ex) {
+        if (ex.Status() == EPIPE) {
+            // 32 == EPIPE, write number here so it's easier to grep this exit code in source files
+            exit(32);
+        }
+        throw;
+    }
     if (options.JobOnExitFunction_) {
         (*options.JobOnExitFunction_)();
     }
