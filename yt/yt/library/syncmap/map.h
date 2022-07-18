@@ -15,12 +15,18 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TSyncMap is thread-safe insert-only hash map that is optimized for read-mostly workloads.
-//!
-//! When map is not modified, Find() is wait-free.
-//!
-//! After modification, next O(n) calls to Find() acquire global spinlock.
-template <class TKey, class TValue, class THash = THash<TKey>, class TEqual = TEqualTo<TKey>>
+//! A thread-safe insert-only hash map that is optimized for read-mostly workloads.
+/*!
+ *  When map is not modified, Find() is wait-free.
+ *  After modification, next O(n) calls to Find() acquire the lock.
+ */
+template <
+    class TKey,
+    class TValue,
+    class THash = THash<TKey>,
+    class TEqual = TEqualTo<TKey>,
+    class TLock = NThreading::TSpinLock
+>
 class TSyncMap
     : public TNonCopyable
 {

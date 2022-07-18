@@ -9,20 +9,20 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash, class TEqual>
-TSyncMap<TKey, TValue, THash, TEqual>::TSyncMap()
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+TSyncMap<TKey, TValue, THash, TEqual, TLock>::TSyncMap()
     : Snapshot_(new TSnapshot{})
 { }
 
-template <class TKey, class TValue, class THash, class TEqual>
-TSyncMap<TKey, TValue, THash, TEqual>::~TSyncMap()
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+TSyncMap<TKey, TValue, THash, TEqual, TLock>::~TSyncMap()
 {
     delete Snapshot_.load();
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
 template <class TFindKey>
-TValue* TSyncMap<TKey, TValue, THash, TEqual>::Find(const TFindKey& key)
+TValue* TSyncMap<TKey, TValue, THash, TEqual, TLock>::Find(const TFindKey& key)
 {
     {
         auto snapshot = AcquireSnapshot();
@@ -58,9 +58,9 @@ TValue* TSyncMap<TKey, TValue, THash, TEqual>::Find(const TFindKey& key)
     return nullptr;
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
 template <class TCtor, class TFindKey>
-std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual>::FindOrInsert(const TFindKey& key, const TCtor& ctor)
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOrInsert(const TFindKey& key, const TCtor& ctor)
 {
     {
         auto snapshot = AcquireSnapshot();
@@ -95,16 +95,16 @@ std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual>::FindOrInsert(con
     return {&(newIt->second->Value), true};
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
-auto TSyncMap<TKey, TValue, THash, TEqual>::AcquireSnapshot() -> THazardPtr<TSnapshot>
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+auto TSyncMap<TKey, TValue, THash, TEqual, TLock>::AcquireSnapshot() -> THazardPtr<TSnapshot>
 {
     return THazardPtr<TSnapshot>::Acquire([&] {
         return Snapshot_.load();
     });
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
-void TSyncMap<TKey, TValue, THash, TEqual>::UpdateSnapshot(TIntrusivePtr<TMap> map, bool dirty)
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+void TSyncMap<TKey, TValue, THash, TEqual, TLock>::UpdateSnapshot(TIntrusivePtr<TMap> map, bool dirty)
 {
     auto newSnapshot = new TSnapshot{std::move(map), dirty};
     auto oldSnapshot = Snapshot_.exchange(newSnapshot);
@@ -113,8 +113,8 @@ void TSyncMap<TKey, TValue, THash, TEqual>::UpdateSnapshot(TIntrusivePtr<TMap> m
     });
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
-void TSyncMap<TKey, TValue, THash, TEqual>::OnMiss()
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+void TSyncMap<TKey, TValue, THash, TEqual, TLock>::OnMiss()
 {
     if (!DirtyMap_) {
         return;
@@ -129,9 +129,9 @@ void TSyncMap<TKey, TValue, THash, TEqual>::OnMiss()
     UpdateSnapshot(std::move(DirtyMap_), false);
 }
 
-template <class TKey, class TValue, class THash, class TEqual>
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
 template <class TFn>
-void TSyncMap<TKey, TValue, THash, TEqual>::IterateReadOnly(const TFn& fn)
+void TSyncMap<TKey, TValue, THash, TEqual, TLock>::IterateReadOnly(const TFn& fn)
 {
     auto snapshot = AcquireSnapshot();
 
