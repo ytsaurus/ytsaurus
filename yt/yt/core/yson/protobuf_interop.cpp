@@ -149,7 +149,7 @@ TString DeriveYsonName(const TString& protobufName, const google::protobuf::File
 class TProtobufTypeRegistry
 {
 public:
-    // This method is called while reflecting types.
+    //! This method is called while reflecting types.
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
@@ -159,7 +159,7 @@ public:
             descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
     }
 
-    // This method is called while reflecting types.
+    //! This method is called while reflecting types.
     std::vector<TStringBuf> GetYsonNameAliases(const FieldDescriptor* descriptor)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
@@ -172,7 +172,7 @@ public:
         return aliases;
     }
 
-    // This method is called while reflecting types.
+    //! This method is called while reflecting types.
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
