@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.submit
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import io.netty.channel.DefaultEventLoopGroup
 import org.apache.commons.io.FileUtils
-import org.apache.spark.deploy.rest.{ApplicationState, DriverState, MasterClient, RestSubmissionClientWrapper}
+import org.apache.spark.deploy.rest.{ApplicationState, DriverInfo, DriverState, MasterClient, RestSubmissionClientWrapper}
 import org.apache.spark.launcher.InProcessLauncher
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
@@ -130,9 +130,29 @@ class SubmissionClient(proxy: String,
   }
 
   def getActiveDrivers: Seq[String] = {
-    val response = MasterClient.activeDrivers(cluster.get().masterHostAndPort)
+    getActiveDriverInfos.map(_.driverId)
+  }
+
+  def getActiveDriverInfos: Seq[DriverInfo] = {
+    getAllDriverInfos.filter(d => !DriverState.valueOf(d.status).isFinal)
+  }
+
+  def getCompletedDrivers: Seq[String] = {
+    getCompletedDriverInfos.map(_.driverId)
+  }
+
+  def getCompletedDriverInfos: Seq[DriverInfo] = {
+    getAllDriverInfos.filter(d => DriverState.valueOf(d.status).isFinal)
+  }
+
+  def getAllDrivers: Seq[String] = {
+    getAllDriverInfos.map(_.driverId)
+  }
+
+  def getAllDriverInfos: Seq[DriverInfo] = {
+    val response = MasterClient.allDrivers(cluster.get().masterHostAndPort)
     if (response.isFailure) {
-      log.warn(s"Failed to get list of active drivers")
+      log.warn(s"Failed to get list of drivers")
       log.warn(response.failed.get.toString)
     }
     response.getOrElse(Nil)

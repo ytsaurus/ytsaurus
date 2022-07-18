@@ -10,7 +10,7 @@ import sttp.model.Uri
 
 import scala.util.{Failure, Try}
 
-case class DriverInfo(startTime: Long, id: String)
+case class DriverInfo(driverId: String, status: String, startedAt: Long)
 case class WorkerInfo(id: String, host: String, port: Int, cores: Int, memory: Int, webUiAddress: String, alive: Boolean,
                       resources: Map[String, ResourceInfo]) {
   def isDriverOp: Boolean = resources.contains("driverop")
@@ -18,26 +18,28 @@ case class WorkerInfo(id: String, host: String, port: Int, cores: Int, memory: I
 case class ResourceInfo(name: String, addresses: Seq[String])
 
 object MasterClient {
-  def activeDrivers(master: HostAndPort): Try[Seq[String]] = {
+  def allDrivers(master: HostAndPort): Try[Seq[DriverInfo]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
       .get(Uri.parse(s"http://$master/v1/submissions/status").toOption.get)
       .send()
       .body
-      .fold[Try[Seq[String]]](
+      .fold[Try[Seq[DriverInfo]]](
         error => Failure(HttpError(error)),
         body => parseDriversList(body).toTry
       )
   }
 
-  def parseDriverIdInfo(driver: Json): Either[Error, String] = {
+  def parseDriverIdInfo(driver: Json): Either[Error, DriverInfo] = {
     val driverCursor = driver.hcursor
     for {
-      id <- driverCursor.downField("driverId").as[String]
-    } yield id
+      driverId <- driverCursor.downField("driverId").as[String]
+      status <- driverCursor.downField("status").as[String]
+      startedAt <- driverCursor.downField("startedAt").as[Long]
+    } yield DriverInfo(driverId, status, startedAt)
   }
 
-  def parseDriversList(body: String): Either[Error, Seq[String]] = {
+  def parseDriversList(body: String): Either[Error, Seq[DriverInfo]] = {
     for {
       cursor <- parse(body).map(_.hcursor)
       rawDrivers <- cursor.downField("statuses").as[Array[Json]]
