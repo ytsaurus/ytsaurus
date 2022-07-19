@@ -29,6 +29,7 @@ services:
       - UID=${UID:-1000}
       - SBT_COMMAND=${SBT_COMMAND:-test}
       - YT_TOKEN
+      - PROJECT_ROOT=${PROJECT_ROOT:-/app}
 
 volumes:
   # fallback-тома для кеша и сбора junit-отчетов
