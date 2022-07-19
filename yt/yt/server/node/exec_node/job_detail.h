@@ -61,6 +61,8 @@ public:
 
     void Start() override;
 
+    bool IsStarted() const noexcept override;
+
     void Abort(const TError& error) override;
 
     void OnJobProxySpawned() override;
@@ -317,6 +319,8 @@ private:
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
     bool JobProxyCompleted_ = false;
+
+    bool Started_ = false;
 
     // IO statistics.
     i64 BytesRead_ = 0;

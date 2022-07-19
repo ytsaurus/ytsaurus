@@ -202,8 +202,10 @@ void TJob::Start()
 
     TCurrentTraceContextGuard guard(TraceContext_);
 
+    YT_VERIFY(!std::exchange(Started_, true));
+
     if (JobPhase_ != EJobPhase::Created) {
-        YT_LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
+        YT_LOG_FATAL("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
             JobState_,
             JobPhase_);
         return;
@@ -290,6 +292,13 @@ void TJob::Start()
                 BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
                     .Via(Invoker_));
     });
+}
+
+bool TJob::IsStarted() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return Started_;
 }
 
 void TJob::Abort(const TError& error)
@@ -1659,6 +1668,7 @@ void TJob::OnJobAbortionTimeout()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobState_ == EJobState::Aborting) {
+        // No need to fire ResourcesUpdated signal here since slot manager is disabled until node restart.
         auto error = TError("Failed to abort job %v within timeout", Id_)
             << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
         Bootstrap_->GetSlotManager()->Disable(error);

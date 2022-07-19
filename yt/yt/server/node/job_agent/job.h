@@ -45,6 +45,7 @@ struct IJob
     DECLARE_INTERFACE_SIGNAL(void(), JobFinished);
 
     virtual void Start() = 0;
+    virtual bool IsStarted() const noexcept = 0;
 
     virtual void Abort(const TError& error) = 0;
 

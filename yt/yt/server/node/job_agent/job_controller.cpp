@@ -219,6 +219,9 @@ private:
 
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
+    TNodeResources ResourceUsage_ = ZeroNodeResources();
+    TNodeResources WaitingJobResources_ = ZeroNodeResources();
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     void OnDynamicConfigChanged(
@@ -255,7 +258,7 @@ private:
 
     void RegisterAndStartJob(
         TJobId jobId,
-        const IJobPtr& jobPtr,
+        const IJobPtr& job,
         TDuration waitingJobTimeout);
 
     //! Stops a job.
@@ -601,13 +604,11 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto result = ZeroNodeResources();
-    for (const auto& job : GetJobs()) {
-        if (includeWaiting || job->GetState() != EJobState::Waiting) {
-            result += job->GetResourceUsage();
-        }
+    auto result = ResourceUsage_;
+    if (includeWaiting) {
+        result += WaitingJobResources_;
     }
-
+    
     if (Bootstrap_->IsExecNode()) {
         const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
         result.set_user_slots(slotManager->GetUsedSlotCount());
@@ -883,10 +884,6 @@ void TJobController::TImpl::StartWaitingJobs()
             YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
         }
 
-        job->SubscribeResourcesUpdated(
-            BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
-                .Via(Bootstrap_->GetJobInvoker()));
-
         job->SubscribePortsReleased(
             BIND(&TImpl::OnPortsReleased, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
@@ -898,6 +895,15 @@ void TJobController::TImpl::StartWaitingJobs()
         job->SubscribeJobFinished(
             BIND(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
+        
+        const auto& jobResourceLimits = job->GetResourceUsage();
+        WaitingJobResources_ -= jobResourceLimits;
+        ResourceUsage_ += jobResourceLimits;
+
+        YT_LOG_DEBUG("Job started, move resources from waiting to usage (Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
+            FormatResources(jobResourceLimits),
+            FormatResources(ResourceUsage_),
+            FormatResources(WaitingJobResources_));
 
         job->Start();
 
@@ -981,18 +987,28 @@ IJobPtr TJobController::TImpl::CreateMasterJob(
     return job;
 }
 
-void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPtr& jobPtr, const TDuration waitingJobTimeout)
+void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPtr& job, const TDuration waitingJobTimeout)
 {
     {
         auto guard = WriterGuard(JobMapLock_);
-        YT_VERIFY(JobMap_.emplace(jobId, jobPtr).second);
+        EmplaceOrCrash(JobMap_, jobId, job);
     }
 
+    const auto& jobResourceLimits = job->GetResourceUsage();
+    WaitingJobResources_ += jobResourceLimits;
+    YT_LOG_DEBUG("Job created, waiting job resources increased (JobId: %v, Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
+        jobId,
+        FormatResources(jobResourceLimits),
+        FormatResources(ResourceUsage_),
+        FormatResources(WaitingJobResources_));
+    job->SubscribeResourcesUpdated(
+        BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job)));
+    
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
     TDelayedExecutor::MakeDelayed(waitingJobTimeout)
-        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(jobPtr), waitingJobTimeout)
+        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout)
         .Via(Bootstrap_->GetJobInvoker()));
 }
 
@@ -1093,33 +1109,52 @@ void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& weakCurrent
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto currentJob = weakCurrentJob.Lock();
+    YT_VERIFY(currentJob);
+    auto jobStarted = currentJob->IsStarted();
+
+    if (jobStarted) {
+        ResourceUsage_ += resourceDelta;
+    } else {
+        WaitingJobResources_ += resourceDelta;
+    }
+
+    YT_LOG_DEBUG("Jobs resource usage updated (JobId: %v, JobStarted: %v, Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
+        currentJob->GetId(),
+        jobStarted,
+        FormatResources(resourceDelta),
+        FormatResources(ResourceUsage_),
+        FormatResources(WaitingJobResources_));
+
+    if (!jobStarted) {
+        return;
+    }
+
     if (!CheckMemoryOverdraft(resourceDelta)) {
-        auto currentJob = weakCurrentJob.Lock();
-        if (currentJob) {
-            if (currentJob->ResourceUsageOverdrafted()) {
+        if (currentJob->ResourceUsageOverdrafted()) {
+            // TODO(pogorelov): Maybe do not abort job at RunningExtraGpuCheckCommand phase?
+            currentJob->Abort(TError(
+                NExecNode::EErrorCode::ResourceOverdraft,
+                "Failed to increase resource usage")
+                << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
+        } else {
+            bool foundJobToAbort = false;
+            for (const auto& job : GetJobs()) {
+                if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
+                    job->Abort(TError(
+                        NExecNode::EErrorCode::ResourceOverdraft,
+                        "Failed to increase resource usage on node by some other job with guarantee")
+                        << TErrorAttribute("resource_delta", FormatResources(resourceDelta))
+                        << TErrorAttribute("other_job_id", currentJob->GetId()));
+                    foundJobToAbort = true;
+                    break;
+                }
+            }
+            if (!foundJobToAbort) {
                 currentJob->Abort(TError(
-                    NExecNode::EErrorCode::ResourceOverdraft,
-                    "Failed to increase resource usage")
+                    NExecNode::EErrorCode::NodeResourceOvercommit,
+                    "Fail to increase resource usage since resource usage on node overcommitted")
                     << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
-            } else {
-                bool foundJobToAbort = false;
-                for (const auto& job : GetJobs()) {
-                    if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
-                        job->Abort(TError(
-                            NExecNode::EErrorCode::ResourceOverdraft,
-                            "Failed to increase resource usage on node by some other job with guarantee")
-                            << TErrorAttribute("resource_delta", FormatResources(resourceDelta))
-                            << TErrorAttribute("other_job_id", currentJob->GetId()));
-                        foundJobToAbort = true;
-                        break;
-                    }
-                }
-                if (!foundJobToAbort) {
-                    currentJob->Abort(TError(
-                        NExecNode::EErrorCode::NodeResourceOvercommit,
-                        "Fail to increase resource usage since resource usage on node overcommitted")
-                        << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
-                }
             }
         }
         return;
