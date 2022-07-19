@@ -233,35 +233,40 @@ private:
             return;
         }
 
-        TClientChunkReadOptions chunkReadOptions{
-            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
-            .ReadSessionId = TReadSessionId::Create(),
-        };
-        auto logParser = CreateReplicationLogParser(
-            tabletSnapshot->TableSchema,
-            tabletSnapshot->Settings.MountConfig,
-            EWorkloadCategory::SystemTabletReplication,
-            Logger);
-        auto startRowIndex = logParser->ComputeStartRowIndex(
-            tabletSnapshot,
-            trimTimestamp,
-            chunkReadOptions);
+        try {
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
+                .ReadSessionId = TReadSessionId::Create(),
+            };
+            auto logParser = CreateReplicationLogParser(
+                tabletSnapshot->TableSchema,
+                tabletSnapshot->Settings.MountConfig,
+                EWorkloadCategory::SystemTabletReplication,
+                Logger);
+            auto startRowIndex = logParser->ComputeStartRowIndex(
+                tabletSnapshot,
+                trimTimestamp,
+                chunkReadOptions);
 
-        YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %llx, TrimRowCount: %v)",
-            tabletId,
-            trimTimestamp,
-            startRowIndex);
+            YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %llx, TrimRowCount: %v)",
+                tabletId,
+                trimTimestamp,
+                startRowIndex);
 
-        if (!startRowIndex) {
-            return;
+            if (!startRowIndex) {
+                return;
+            }
+
+            tabletInvoker->Invoke(BIND(
+                &TStoreTrimmer::CommitTrimRowsMutation,
+                MakeWeak(this),
+                slot,
+                tabletId,
+                *startRowIndex));
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error computing replication log trim row count (TabletId: %v)",
+                tabletId);
         }
-
-        tabletInvoker->Invoke(BIND(
-            &TStoreTrimmer::CommitTrimRowsMutation,
-            MakeWeak(this),
-            slot,
-            tabletId,
-            *startRowIndex));
     }
 
     void CommitTrimRowsMutation(
