@@ -491,7 +491,7 @@ public:
 
             if (writeState->RowsPrepared) {
                 PrepareLockedRows(transaction, /*persistent*/ true);
-                PrepareLocklessRows(transaction, /*peristent*/ true, /*snapshotLoading*/ false);
+                PrepareLocklessRows(transaction, /*persistent*/ true, /*snapshotLoading*/ true);
             }
         }
 
