@@ -366,7 +366,7 @@ TPathStatistics GetPathStatistics(const TString& path)
 {
 #ifdef _unix_
     TPathStatistics statistics;
-    
+
     struct stat fileStat;
     int result = ::stat(path.data(), &fileStat);
 
@@ -407,10 +407,10 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool dedu
             }
         }
     };
-    
+
     std::queue<TString> directories;
     directories.push(path);
-                
+
     TPathStatistics rootDirStatistics;
     wrapNoEntryError([&] {
         rootDirStatistics = GetPathStatistics(path);
@@ -815,6 +815,9 @@ void ExpectIOErrors(std::function<void()> func)
             case ENOSPC:
             case EROFS:
             case EWOULDBLOCK: // aka EAGAIN
+#ifdef _linux_
+            case EUCLEAN:
+#endif
                 THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "I/O error")
                     << TErrorAttribute("status", status)
                     << TError(ex);
