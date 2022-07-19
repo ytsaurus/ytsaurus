@@ -5,7 +5,7 @@ import org.apache.spark.sql.e2e.check.CheckRowsUtils
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import ru.yandex.spark.e2e.check.GroupedIterator._
+import org.apache.spark.sql.v2.GroupedIterator._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 

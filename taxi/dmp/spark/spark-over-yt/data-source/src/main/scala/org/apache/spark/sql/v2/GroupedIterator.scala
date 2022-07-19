@@ -1,4 +1,4 @@
-package ru.yandex.spark.e2e.check
+package org.apache.spark.sql.v2
 
 class GroupedIterator[T](iter: Iterator[T])
                         (key: T => Any) extends Iterator[Iterator[T]] {

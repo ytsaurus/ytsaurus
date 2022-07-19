@@ -10,7 +10,8 @@ case class E2ETestCase(name: String,
                        conf: Map[String, String] = Map(
                          "spark.pyspark.python" -> "/opt/python3.7/bin/python3.7",
 //                         "spark.eventLog.enabled" -> "true",
-                         "spark.yt.read.keyColumnsFilterPushdown.enabled" -> "true"
+                         "spark.yt.read.keyColumnsFilterPushdown.enabled" -> "true",
+                         "spark.yt.read.keyPartitioning.enabled" -> "true"
                        )) {
   val userDirPath: String = s"${SubmitTest.userDirPath}/scala/$name"
   val basePath: String = s"${SubmitTest.basePath}/$name"

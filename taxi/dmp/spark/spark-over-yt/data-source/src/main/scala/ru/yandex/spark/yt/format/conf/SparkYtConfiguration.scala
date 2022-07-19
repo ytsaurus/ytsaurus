@@ -28,6 +28,15 @@ object SparkYtConfiguration {
 
     case object ParsingTypeV3 extends BooleanConfigEntry(s"$prefix.parsingTypeV3.enabled", Some(false))
 
+    object KeyPartitioning {
+      private val prefix: String = s"${Read.prefix}.keyPartitioningSortedTables"
+
+      case object Enabled extends BooleanConfigEntry(s"$prefix.keyPartitioning.enabled", Some(false))
+
+      case object UnionLimit extends IntConfigEntry(s"$prefix.keyPartitioning.unionLimit", Some(1))
+    }
+
+
     object KeyColumnsFilterPushdown {
       private val prefix: String = s"${Read.prefix}.keyColumnsFilterPushdown"
 
