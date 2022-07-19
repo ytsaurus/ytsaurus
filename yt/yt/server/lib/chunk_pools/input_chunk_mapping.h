@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include "chunk_pool.h"

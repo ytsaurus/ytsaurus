@@ -1,6 +1,9 @@
+#pragma once
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 namespace NYT::NChunkPools {
 
