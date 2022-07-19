@@ -27,6 +27,8 @@ services:
       - HOME=${HOME:-/home/sbtuser}
       # note: UID должен быть экспортирован или установлен в контексте запуска
       - UID=${UID:-1000}
+      - SBT_COMMAND=${SBT_COMMAND:-test}
+      - YT_TOKEN
 
 volumes:
   # fallback-тома для кеша и сбора junit-отчетов
