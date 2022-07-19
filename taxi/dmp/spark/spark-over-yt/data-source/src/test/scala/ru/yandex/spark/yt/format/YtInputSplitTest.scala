@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.{col, days}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.mockito.scalatest.MockitoSugar
@@ -11,7 +11,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.expressionToSegmentSet
 import ru.yandex.spark.yt.common.utils._
-import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathStaticImpl}
+import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathWithRowNumsImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.test._
@@ -267,6 +267,22 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     }
   }
 
+  it should "support null filters" in {
+    val data = Seq((null, 1), (null, 7), ("0", 1), ("1", 5), ("2", 1))
+    data.toDF("a", "b").write.sortedBy("a", "b").yt(tmpPath)
+
+    val res = spark.read.yt(tmpPath)
+    val test = Seq(
+      (res("a").isNotNull, data.filter { case (s, _) => s != null } ),
+      (res("a").isNull || res("a") > "1", data.filter { case (s, _) => s == null || s > "1" } ),
+      (res("a") < "1", data.filter { case (s, _) => s != null && s < "1" } ),
+    )
+    test.foreach {
+      case (input, output) =>
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
+    }
+  }
+
   private val segmentMInfTo5 = Segment(MInfinity(), RealValue(5L))
   private val segment2To20 = Segment(RealValue(2L), RealValue(20L))
   private val segment10To30 = Segment(RealValue(10L), RealValue(30L))
@@ -307,7 +323,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
       5, 10, false, keyColumns, 0, YtPartitionedFile.emptyInternalRow)
     val baseYPath =  ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
-    getYPathStaticImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    getYPathWithRowNumsImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max">#]}};
@@ -315,7 +331,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
         |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
 
-    getYPathStaticImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    getYPathWithRowNumsImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];

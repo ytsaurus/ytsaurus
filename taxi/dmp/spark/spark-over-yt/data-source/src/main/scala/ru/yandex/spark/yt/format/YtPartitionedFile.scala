@@ -3,6 +3,9 @@ package ru.yandex.spark.yt.format
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.execution.datasources.PartitionedFile
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.common.utils.TuplePoint
+import ru.yandex.spark.yt.serializers.PivotKeysConverter
 
 class YtPartitionedFile(val path: String,
                         val beginKey: Array[Byte],
@@ -23,6 +26,15 @@ class YtPartitionedFile(val path: String,
   def copy(newEndRow: Long): YtPartitionedFile = {
     new YtPartitionedFile(path, beginKey, endKey, beginRow, newEndRow,
       byteLength, isDynamic, keyColumns, modificationTs, partitionValues)
+  }
+
+  def copy(newBeginKey: Array[Byte], newEndKey: Array[Byte], newKeyColumns: Seq[String]): YtPartitionedFile = {
+    new YtPartitionedFile(path, newBeginKey, newEndKey, 0, 1,
+      byteLength, isDynamic, newKeyColumns, modificationTs, partitionValues)
+  }
+
+  def isReadByKeys: Boolean = {
+    keyColumns != Nil
   }
 }
 

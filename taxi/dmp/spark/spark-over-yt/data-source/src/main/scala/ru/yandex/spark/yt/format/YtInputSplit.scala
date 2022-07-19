@@ -5,7 +5,7 @@ import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.log4j.Level
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.cypress.{RangeLimit, YPath}
-import ru.yandex.inside.yt.kosher.impl.ytree.{YTreeDoubleNodeImpl, YTreeEntityNodeImpl, YTreeIntegerNodeImpl, YTreeStringNodeImpl}
+import ru.yandex.inside.yt.kosher.impl.ytree.{YTreeBooleanNodeImpl, YTreeDoubleNodeImpl, YTreeEntityNodeImpl, YTreeIntegerNodeImpl, YTreeStringNodeImpl}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.common.utils.TupleSegment.TupleSegment
@@ -47,9 +47,11 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
     val tableKeys = SchemaConverter.keys(schema)
     if (pushing && filterPushdownConfig.enabled && tableKeys.nonEmpty) {
       val res = if (file.isDynamic) {
-        getYPathDynamic(union && filterPushdownConfig.unionEnabled)
+        getYPathWithKeys(union && filterPushdownConfig.unionEnabled)
+      } else if (file.isReadByKeys) {
+        getYPathWithKeys(union && filterPushdownConfig.unionEnabled)
       } else {
-        getYPathStatic(union && filterPushdownConfig.unionEnabled)
+        getYPathWithRowNums(union && filterPushdownConfig.unionEnabled)
       }
 
       if (tableKeys.length > 1 || tableKeys.contains(None)) {
@@ -64,26 +66,28 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
     } else {
       if (file.isDynamic) {
         basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
+      } else if (file.isReadByKeys) {
+        basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
       } else {
         basePath.withRange(file.beginRow, file.endRow)
       }
     }
   }
 
-  private def getYPathStatic(single: Boolean): YPath = {
-    getYPathStaticImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
+  private def getYPathWithRowNums(single: Boolean): YPath = {
+    getYPathWithRowNumsImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
   }
 
-  private def getYPathDynamic(single: Boolean): YPath = {
-    getYPathDynamicImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
+  private def getYPathWithKeys(single: Boolean): YPath = {
+    getYPathWithKeysImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
   }
 }
 
 object YtInputSplit {
-  private[format] def getYPathStaticImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
-                                         filterPushdownConfig: FilterPushdownConfig,
-                                         basePath: YPath, file: YtPartitionedFile)
-                                        (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
+  private[format] def getYPathWithRowNumsImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
+                                              filterPushdownConfig: FilterPushdownConfig,
+                                              basePath: YPath, file: YtPartitionedFile)
+                                             (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
     val rawYPathFilterSegments = getKeyFilterSegments(
       preparePushedFilters(single, pushedFilters), keys.toList.flatten, filterPushdownConfig.ytPathCountLimit)(ytLog)
       .map(_.toMap)
@@ -125,10 +129,10 @@ object YtInputSplit {
     path.withRange(getRangeLimit(TuplePoint(Seq(PInfinity()))), getRangeLimit(TuplePoint(Seq(MInfinity()))))
   }
 
-  private[format] def getYPathDynamicImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
-                                          filterPushdownConfig: FilterPushdownConfig,
-                                          basePath: YPath, file: YtPartitionedFile)
-                                         (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
+  private[format] def getYPathWithKeysImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
+                                           filterPushdownConfig: FilterPushdownConfig,
+                                           basePath: YPath, file: YtPartitionedFile)
+                                          (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
     val logInfo = Map(
       "union" -> single.toString,
       "segments" -> pushedFilters.toString,
@@ -191,8 +195,8 @@ object YtInputSplit {
   }
 
   private[format] def getKeyFilterSegments(filterSegments: SegmentSet,
-                           keys: List[String],
-                           pathCountLimit: Int)
+                                           keys: List[String],
+                                           pathCountLimit: Int)
                                           (implicit ytLog: YtLogger = YtLogger.noop): List[List[(String, Segment)]] = {
     recursiveGetFilterSegmentsImpl(filterSegments, keys, pathCountLimit)(ytLog)
   }
@@ -227,7 +231,7 @@ object YtInputSplit {
 
   private def getRangeLimit(keys: Seq[YTreeNode], rowIndex: Long): RangeLimit = {
     import scala.collection.JavaConverters._
-    new RangeLimit(keys.toList.asJava, rowIndex, -1)
+    RangeLimit.builder().setKey(keys.toList.asJava).setRowIndex(rowIndex).build()
   }
 
   private def getSpecifiedEntity(value: String): YTreeNode = {
@@ -238,18 +242,23 @@ object YtInputSplit {
 
   private lazy val maximumKey: YTreeNode = getSpecifiedEntity("max")
 
-  private def prepareKey(point: Point): YTreeNode = point match {
+  def prepareKey(point: Point): YTreeNode = point match {
     case MInfinity() => minimumKey
     case PInfinity() => maximumKey
+    case rValue: RealValue[_] if rValue.value == null =>
+      new YTreeEntityNodeImpl(null)
     case rValue: RealValue[_] if rValue.value.isInstanceOf[Double] =>
       new YTreeDoubleNodeImpl(rValue.value.asInstanceOf[Double], null)
     case rValue: RealValue[_] if rValue.value.isInstanceOf[Long] =>
       new YTreeIntegerNodeImpl(true, rValue.value.asInstanceOf[Long], null)
-    case rValue: RealValue[String] => new YTreeStringNodeImpl(rValue.value, null)
+    case rValue: RealValue[_] if rValue.value.isInstanceOf[Boolean] =>
+      new YTreeBooleanNodeImpl(rValue.value.asInstanceOf[Boolean], null)
+    case rValue: RealValue[_] if rValue.value.isInstanceOf[String] =>
+      new YTreeStringNodeImpl(rValue.value.asInstanceOf[String], null)
   }
 
   private def getKeys(array: Map[String, Segment], keys: Seq[Option[String]],
-                     segmentToPoint: Segment => Point, default: Point): Seq[Point] = {
+                      segmentToPoint: Segment => Point, default: Point): Seq[Point] = {
     keys.map {
       case None => default
       case Some(key) => array.get(key).map(segmentToPoint).getOrElse(default)

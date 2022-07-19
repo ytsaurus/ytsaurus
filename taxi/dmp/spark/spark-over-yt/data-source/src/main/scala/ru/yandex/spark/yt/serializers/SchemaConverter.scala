@@ -64,6 +64,10 @@ object SchemaConverter {
     })
   }
 
+  def prefixKeys(schema: StructType): Seq[String] = {
+    keys(schema).takeWhile(_.isDefined).map(_.get)
+  }
+
   def keys(schema: StructType): Seq[Option[String]] = {
     val keyMap = schema
       .fields

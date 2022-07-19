@@ -1,7 +1,9 @@
 package ru.yandex.spark.yt.common.utils
 
 import org.apache.spark.sql.sources._
-import ru.yandex.inside.yt.kosher.ytree.{YTreeDoubleNode, YTreeIntegerNode, YTreeNode, YTreeStringNode}
+import org.apache.spark.sql.types.{BooleanType, ByteType, DataType, DoubleType, FloatType, IntegerType, LongType, ShortType, StringType}
+import org.apache.spark.unsafe.types.UTF8String
+import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeDoubleNode, YTreeEntityNode, YTreeIntegerNode, YTreeNode, YTreeStringNode}
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.logger.YtLogger
 
@@ -18,8 +20,10 @@ object ExpressionTransformer {
     res
   }
 
-  private def parseOrderedLiteral(exp: Any): Option[RealValue[_]] = {
+  def parseOrderedLiteral(exp: Any): Option[Point] = {
     exp match {
+      case null => Some(RealValue(null))
+      case x: Boolean => Some(RealValue(x))
       case x: Long => Some(RealValue(x))
       case x: Int => Some(RealValue(x.longValue()))
       case x: Short => Some(RealValue(x.longValue()))
@@ -27,29 +31,17 @@ object ExpressionTransformer {
       case x: Double => Some(RealValue(x))
       case x: Float => Some(RealValue(x.doubleValue()))
       case x: String => Some(RealValue(x))
+      case x: UTF8String => Some(RealValue(x.toString))
       case _ => None
     }
   }
 
-  private def sortedRealValues(seq: Seq[RealValue[_]], head: RealValue[_]): Option[Seq[RealValue[_]]] = {
-    head match {
-      case x: RealValue[_] if x.value.isInstanceOf[Double] => Some(seq.map(_.asInstanceOf[RealValue[Double]]).sorted)
-      case x: RealValue[_] if x.value.isInstanceOf[Long] => Some(seq.map(_.asInstanceOf[RealValue[Long]]).sorted)
-      case _: RealValue[String] => Some(seq.map(_.asInstanceOf[RealValue[String]]).sorted)
-      case _ => None
-    }
-  }
-
-  private def parseOrderedLiteralList(exp: List[Any]): Option[Seq[RealValue[_]]] = {
+  private def parseOrderedLiteralList(exp: List[Any]): Option[Seq[Point]] = {
     import cats.implicits._
-    for {
-      valuesList <- exp.map(parseOrderedLiteral).traverse(identity)
-      valuesHead <- valuesList.headOption
-      sortedValues <- sortedRealValues(valuesList, valuesHead)
-    } yield sortedValues
+    exp.map(parseOrderedLiteral).traverse(identity).map(_.sorted)
   }
 
-  private def processComparison(left: String, right: Any)(f: RealValue[_] => Segment): SegmentSet = {
+  private def processComparison(left: String, right: Any)(f: Point => Segment): SegmentSet = {
     parseOrderedLiteral(right)
       .map(p => SegmentSet(left, f(p)))
       .getOrElse(SegmentSet())
@@ -84,21 +76,48 @@ object ExpressionTransformer {
       case In(varName, right) =>
         val valuesList = parseOrderedLiteralList(right.toList)
         valuesList.map { vL => SegmentSet(Map(varName -> vL.map(Segment(_)))) }.getOrElse(SegmentSet())
+      case IsNull(varName) =>
+        expressionToSegmentSet(EqualTo(varName, null))
       case _ => SegmentSet()
     }
   }
 
   def isSupportedNodeType(node: YTreeNode): Boolean = node match {
+    case _: YTreeBooleanNode => true
     case _: YTreeDoubleNode => true
     case _: YTreeStringNode => true
     case _: YTreeIntegerNode => true
+    case _: YTreeEntityNode => true
     case _ => false
   }
 
-  def nodeToPoint(node: YTreeNode): RealValue[_] = node match {
+  def isSupportedDataType(dataType: DataType): Boolean = dataType match {
+    case _: BooleanType => true
+    case _: ByteType => true
+    case _: ShortType => true
+    case _: IntegerType => true
+    case _: LongType => true
+    case _: FloatType => true
+    case _: DoubleType => true
+    case _: StringType => true
+    case _ => false
+  }
+
+  def nodeToPoint(node: YTreeNode): Point = node match {
+    case b: YTreeBooleanNode => RealValue(b.getValue)
     case s: YTreeStringNode => RealValue(s.getValue)
     case d: YTreeDoubleNode => RealValue(d.getValue)
     case l: YTreeIntegerNode => RealValue(l.getLong)
+    case e: YTreeEntityNode =>
+      val t = e.getAttribute("type")
+      if (t.isPresent) {
+        t.get().stringValue() match {
+          case "max" => PInfinity()
+          case "min" => MInfinity()
+        }
+      } else {
+        RealValue(null)
+      }
   }
 }
 
