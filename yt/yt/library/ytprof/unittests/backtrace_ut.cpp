@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/ytprof/backtrace.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT::NYTProf {
 namespace {
 
