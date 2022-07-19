@@ -159,11 +159,20 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        YT_VERIFY(!std::exchange(Started_, true));
+
         JobState_ = EJobState::Running;
         JobPhase_ = EJobPhase::Running;
         JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run();
+    }
+
+    bool IsStarted() const noexcept override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+        
+        return Started_;
     }
 
     void Abort(const TError& error) override
@@ -486,6 +495,8 @@ protected:
     TFuture<void> JobFuture_;
 
     TJobResult Result_;
+
+    bool Started_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
