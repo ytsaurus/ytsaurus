@@ -33,6 +33,7 @@ def start(args):
     parser.add_argument("--master-config", action=ParseStructuredArgument)
     parser.add_argument("--proxy-config", action=ParseStructuredArgument)
     parser.add_argument("--proxy-port", type=int)
+    parser.add_argument("--yt-work-dir")
     parser.add_argument("--scheduler-config", action=ParseStructuredArgument)
     parser.add_argument("--controller-agent-config", action=ParseStructuredArgument)
     parser.add_argument("--job-controller-resource-limits", action=ParseStructuredArgument)
@@ -55,7 +56,6 @@ def start(args):
     recipe_info = {
         "yt_id": yt_stuff.yt_id,
         "yt_work_dir": yt_stuff.yt_work_dir,
-        "yt_local_exec": yt_stuff.yt_local_exec,
     }
 
     with open(RECIPE_INFO_FILE, "w") as fout:
@@ -84,8 +84,11 @@ def stop(args):
     with open(RECIPE_INFO_FILE) as fin:
         recipe_info = json.load(fin)
 
+    yt_stuff = YtStuff()
+    yt_local_exec = yt_stuff.yt_local_exec
+
     yatest.common.execute(
-        recipe_info["yt_local_exec"] + [
+        yt_local_exec + [
             "stop",
             os.path.join(
                 recipe_info["yt_work_dir"],
