@@ -509,7 +509,6 @@ def _get_token_by_ssh_session(client):
     try:
         import library.python.oauth as lpo
     except ImportError:
-        logger.warning("Module library.python.oauth not found, cannot receive token by ssh session")
         return
 
     try:
