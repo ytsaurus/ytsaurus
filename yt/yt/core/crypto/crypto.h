@@ -1,12 +1,13 @@
 #pragma once
 
 #include <yt/yt_proto/yt/core/crypto/proto/crypto.pb.h>
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/serialize.h>
 
-#include <array>
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/strbuf.h>
+
+#include <array>
 
 namespace NYT::NCrypto {
 

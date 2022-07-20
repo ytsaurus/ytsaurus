@@ -10,10 +10,11 @@
 
 #include <yt/yt/core/yson/public.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/copyable_atomic.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

@@ -1,5 +1,7 @@
 #include "functions.h"
 
+#include <library/cpp/yt/misc/variant.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////

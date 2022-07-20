@@ -10,9 +10,9 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
-#include <yt/yt/core/misc/enum.h>
-#include <yt/yt/core/misc/public.h>
+#include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NCellServer {
 

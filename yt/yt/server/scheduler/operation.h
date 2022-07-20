@@ -17,7 +17,6 @@
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/dense_map.h>
 
@@ -26,6 +25,8 @@
 #include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NScheduler {
 

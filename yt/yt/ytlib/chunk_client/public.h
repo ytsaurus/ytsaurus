@@ -10,8 +10,9 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/optional.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NChunkClient {
 

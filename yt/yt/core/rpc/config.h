@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 #include <vector>
 

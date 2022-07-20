@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include "compact_vector.h"
 #include "mpl.h"
-#include "variant.h"
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <variant>
 
 namespace NYT {
 

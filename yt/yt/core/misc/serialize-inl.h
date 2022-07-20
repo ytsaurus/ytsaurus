@@ -4,9 +4,10 @@
 #include "serialize.h"
 #endif
 
-#include "compact_flat_map.h"
-#include "compact_vector.h"
 #include "collection_helpers.h"
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 #include <optional>
 #include <variant>

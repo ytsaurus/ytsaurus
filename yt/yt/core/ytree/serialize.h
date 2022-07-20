@@ -4,12 +4,13 @@
 
 #include <yt/yt/core/yson/producer.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/mpl.h>
 #include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/yson/writer.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NYTree {
 

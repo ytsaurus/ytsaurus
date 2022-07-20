@@ -5,9 +5,10 @@
 #include "unversioned_row.h"
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/writer.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTableClient {
 

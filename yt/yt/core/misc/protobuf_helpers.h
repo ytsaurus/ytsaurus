@@ -5,7 +5,6 @@
 #include "optional.h"
 #include "object_pool.h"
 #include "range.h"
-#include "ref.h"
 #include "serialize.h"
 
 #include <yt/yt/core/compression/public.h>
@@ -14,6 +13,8 @@
 
 #include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
 #include <yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>

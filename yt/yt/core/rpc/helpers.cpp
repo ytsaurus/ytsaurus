@@ -12,11 +12,11 @@
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/yt/core/misc/hash.h>
-
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/service_discovery/service_discovery.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>

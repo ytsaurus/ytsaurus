@@ -4,6 +4,8 @@
 #include "message_queue.h"
 #endif
 
+#include <library/cpp/yt/misc/variant.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

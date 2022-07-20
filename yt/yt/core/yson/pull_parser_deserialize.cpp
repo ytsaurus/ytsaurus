@@ -1,7 +1,8 @@
 #include "pull_parser_deserialize.h"
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/string.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NYson {
 

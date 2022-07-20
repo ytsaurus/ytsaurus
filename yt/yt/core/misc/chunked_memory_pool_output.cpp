@@ -1,7 +1,8 @@
 #include "chunked_memory_pool_output.h"
 
 #include "chunked_memory_pool.h"
-#include "ref.h"
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT {
 

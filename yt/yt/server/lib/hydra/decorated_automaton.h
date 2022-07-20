@@ -22,7 +22,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -33,6 +32,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <atomic>
 

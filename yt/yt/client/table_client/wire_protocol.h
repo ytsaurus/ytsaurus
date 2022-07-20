@@ -12,13 +12,15 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/range.h>
-#include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableClient {
 

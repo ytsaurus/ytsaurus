@@ -21,9 +21,9 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
-
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTabletNode {
 

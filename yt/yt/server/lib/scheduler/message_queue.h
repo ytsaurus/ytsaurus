@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
-#include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -88,7 +87,7 @@ private:
         TItem Item;
         NTracing::TTraceContextPtr TraceContext = nullptr;
     };
-    
+
     struct TItemsRequest
     {
         std::vector<TItem> Items;

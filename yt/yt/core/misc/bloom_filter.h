@@ -4,7 +4,8 @@
 #include "farm_hash.h"
 #include "property.h"
 #include "protobuf_helpers.h"
-#include "ref.h"
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/noncopyable.h>
 

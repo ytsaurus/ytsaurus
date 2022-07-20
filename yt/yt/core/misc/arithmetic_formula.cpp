@@ -2,12 +2,13 @@
 #include "phoenix.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
+
+#include <library/cpp/yt/misc/variant.h>
 
 #include <util/generic/hash.h>
 

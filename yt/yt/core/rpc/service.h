@@ -12,13 +12,13 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/compression/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NRpc {
 

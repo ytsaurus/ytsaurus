@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/hash.h>
-
 #include <yt/yt/core/yson/public.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NRpc {
 

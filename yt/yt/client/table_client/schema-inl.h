@@ -4,8 +4,9 @@
 #include "schema.h"
 #endif
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NTableClient {
 

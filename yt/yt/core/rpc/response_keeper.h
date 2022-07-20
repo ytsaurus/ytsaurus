@@ -6,9 +6,9 @@
 
 #include <yt/yt/core/logging/public.h>
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NRpc {
 

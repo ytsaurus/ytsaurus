@@ -9,9 +9,10 @@
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/enum.h>
 
 #include <yt/yt/core/ypath/public.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NTabletServer {
 

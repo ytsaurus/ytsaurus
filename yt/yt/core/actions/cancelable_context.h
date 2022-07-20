@@ -4,7 +4,7 @@
 #include "future.h"
 #include "signal.h"
 
-#include <yt/yt/core/misc/weak_ptr.h>
+#include <library/cpp/yt/memory/weak_ptr.h>
 
 namespace NYT {
 

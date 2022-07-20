@@ -14,7 +14,8 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/compact_vector.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <util/random/shuffle.h>
 

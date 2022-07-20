@@ -26,10 +26,11 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NDataNode {
 

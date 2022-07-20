@@ -9,8 +9,9 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/weak_ptr.h>
 #include <yt/yt/core/misc/public.h>
+
+#include <library/cpp/yt/memory/weak_ptr.h>
 
 namespace NYT::NControllerAgent {
 

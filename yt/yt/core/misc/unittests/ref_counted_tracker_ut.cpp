@@ -5,7 +5,6 @@
 #define YT_ENABLE_REF_COUNTED_TRACKING
 
 #include <yt/yt/core/misc/blob.h>
-#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/ref_counted.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
@@ -14,6 +13,8 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 namespace NYT {
 namespace {

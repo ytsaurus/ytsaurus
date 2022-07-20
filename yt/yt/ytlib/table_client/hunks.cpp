@@ -28,11 +28,12 @@
 
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/checksum.h>
-#include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NTableClient {
 

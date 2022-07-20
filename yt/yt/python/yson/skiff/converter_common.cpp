@@ -3,11 +3,11 @@
 #include <yt/yt/python/common/helpers.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/enum.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
-
 
 namespace NYT::NPython {
 

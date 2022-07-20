@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "yt/yt/core/misc/ref.h"
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -15,6 +14,8 @@
 #include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NShell {
 

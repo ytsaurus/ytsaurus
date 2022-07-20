@@ -6,7 +6,8 @@
 #include <yt/yt/ytlib/table_client/block_writer.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableChunkFormat {
 

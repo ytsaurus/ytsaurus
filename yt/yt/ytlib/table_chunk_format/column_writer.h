@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableChunkFormat {
 

@@ -10,10 +10,10 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
-
 #include <library/cpp/yt/threading/event_count.h>
 #include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <atomic>
 #include <type_traits>

@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NHydra {
 

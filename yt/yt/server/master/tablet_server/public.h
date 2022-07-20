@@ -10,8 +10,9 @@
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

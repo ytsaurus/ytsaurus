@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/hash.h>
+#include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NAuth {
 

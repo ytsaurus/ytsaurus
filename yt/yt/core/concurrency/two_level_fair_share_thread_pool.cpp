@@ -9,11 +9,12 @@
 
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/weak_ptr.h>
 
 #include <yt/yt/core/profiling/tscp.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/weak_ptr.h>
 
 #include <util/generic/xrange.h>
 

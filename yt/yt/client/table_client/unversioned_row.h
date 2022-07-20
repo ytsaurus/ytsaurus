@@ -9,7 +9,6 @@
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -19,6 +18,8 @@
 #include <yt/yt/core/concurrency/fls.h>
 
 #include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTableClient {
 

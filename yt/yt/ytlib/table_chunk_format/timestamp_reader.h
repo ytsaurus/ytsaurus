@@ -1,15 +1,15 @@
 #pragma once
 
 #include "column_reader.h"
-
 #include "column_reader_detail.h"
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableChunkFormat {
 

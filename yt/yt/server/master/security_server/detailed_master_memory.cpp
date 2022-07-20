@@ -1,6 +1,5 @@
 #include "detailed_master_memory.h"
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/serialize.h>
@@ -8,6 +7,8 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NSecurityServer {
 

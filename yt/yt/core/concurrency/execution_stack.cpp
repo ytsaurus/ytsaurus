@@ -1,7 +1,6 @@
 #include "execution_stack.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
 #if defined(_unix_)
@@ -15,6 +14,8 @@
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/object_pool.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/system/sanitizers.h>
 

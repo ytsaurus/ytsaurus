@@ -1,13 +1,13 @@
 #pragma once
 
-#include "enum.h"
-#include "ref_counted.h"
-#include "intrusive_ptr.h"
-#include "weak_ptr.h"
-#include "new.h"
-#include "hash.h"
-
 #include <library/cpp/yt/misc/port.h>
+#include <library/cpp/yt/misc/hash.h>
+#include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/weak_ptr.h>
+#include <library/cpp/yt/memory/new.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 #include <util/datetime/base.h>
 

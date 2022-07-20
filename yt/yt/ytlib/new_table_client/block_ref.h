@@ -1,7 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/algorithm_helpers.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NNewTableClient {
 

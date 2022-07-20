@@ -15,8 +15,6 @@
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/yt/core/misc/variant.h>
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -27,6 +25,10 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
+
+#include <library/cpp/yt/misc/cast.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <library/cpp/yt/coding/varint.h>
 #include <library/cpp/yt/coding/zig_zag.h>

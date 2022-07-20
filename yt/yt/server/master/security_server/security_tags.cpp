@@ -2,8 +2,9 @@
 
 #include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 #include <util/generic/algorithm.h>
 

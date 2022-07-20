@@ -18,7 +18,7 @@
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 
-#include <yt/yt/core/misc/cast.h>
+#include <library/cpp/yt/misc/cast.h>
 
 #include <type_traits>
 #include <limits>

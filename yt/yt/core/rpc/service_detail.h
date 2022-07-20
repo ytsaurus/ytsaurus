@@ -19,7 +19,6 @@
 
 #include <yt/yt/core/misc/object_pool.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -35,6 +34,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/syncmap/map.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
 

@@ -4,8 +4,9 @@
 #include "error.h"
 #include "mpl.h"
 #include "property.h"
-#include "ref.h"
 #include "serialize_dump.h"
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/yt/assert/assert.h>
 

@@ -5,7 +5,6 @@
 #include "ypath_proxy.h"
 
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -22,6 +21,8 @@
 #include <yt/yt/core/yson/tokenizer.h>
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
+#include <library/cpp/yt/misc/variant.h>
 
 #include <cmath>
 

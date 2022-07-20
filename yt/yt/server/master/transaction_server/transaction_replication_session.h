@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/compact_flat_map.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 namespace NYT::NTransactionServer {
 

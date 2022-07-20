@@ -4,7 +4,6 @@
 #include "dispatcher_impl.h"
 
 #include <unistd.h>
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/string.h>
@@ -18,6 +17,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/system/error.h>
 #include <util/system/guard.h>

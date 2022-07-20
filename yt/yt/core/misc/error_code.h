@@ -1,8 +1,8 @@
 #pragma once
 
 #include <yt/yt/core/misc/defines.h>
-#include <yt/yt/core/misc/enum.h>
 
+#include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/port.h>
 
 #include <util/generic/hash_set.h>

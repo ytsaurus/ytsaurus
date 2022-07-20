@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/range.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <vector>
 

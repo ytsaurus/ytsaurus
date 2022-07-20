@@ -17,6 +17,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 #include <unordered_set>
 
 namespace NYT::NQueryClient {

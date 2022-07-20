@@ -5,9 +5,10 @@
 #include <library/cpp/yt/misc/hash.h>
 
 #include <yt/yt/core/misc/string.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/client/election/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NObjectClient {
 

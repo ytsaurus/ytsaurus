@@ -5,7 +5,7 @@
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

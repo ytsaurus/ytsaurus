@@ -5,7 +5,7 @@
 #endif
 #undef SIGNAL_INL_H_
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT {
 

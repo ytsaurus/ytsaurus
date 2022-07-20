@@ -1,7 +1,10 @@
 #pragma once
 
-#include "ref.h"
-#include "compact_vector.h"
+#include "public.h"
+
+#include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <util/system/align.h>
 

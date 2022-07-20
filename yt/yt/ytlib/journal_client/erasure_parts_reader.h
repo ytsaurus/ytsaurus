@@ -10,13 +10,13 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/erasure/impl/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NJournalClient {
 

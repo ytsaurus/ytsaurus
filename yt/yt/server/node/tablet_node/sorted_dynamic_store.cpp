@@ -31,12 +31,13 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/skip_list.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/linear_probe.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTabletNode {
 

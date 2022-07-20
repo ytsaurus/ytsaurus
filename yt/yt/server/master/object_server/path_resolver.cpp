@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NCellMaster;

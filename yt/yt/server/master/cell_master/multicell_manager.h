@@ -10,11 +10,11 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/rpc/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <variant>
 

@@ -5,7 +5,8 @@
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
-#include <yt/yt/core/misc/enum.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NCellarAgent {
 

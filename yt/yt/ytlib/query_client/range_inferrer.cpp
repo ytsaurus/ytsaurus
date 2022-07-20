@@ -10,7 +10,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/ref_counted.h>
-#include <yt/yt/core/misc/compact_vector.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <cstdlib>
 

@@ -9,12 +9,13 @@
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NSecurityServer {
 

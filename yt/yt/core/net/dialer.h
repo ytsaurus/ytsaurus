@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/net/address.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/network/init.h>
 

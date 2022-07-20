@@ -6,8 +6,9 @@
 
 #include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <initializer_list>
 

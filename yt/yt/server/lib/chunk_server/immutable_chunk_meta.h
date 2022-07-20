@@ -4,10 +4,12 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref.h>
+
+#include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NChunkServer {
 

@@ -3,7 +3,6 @@
 #include "client.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/hedging_manager.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -11,6 +10,8 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <atomic>
 

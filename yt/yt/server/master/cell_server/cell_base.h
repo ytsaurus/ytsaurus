@@ -26,9 +26,10 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NCellServer {
 

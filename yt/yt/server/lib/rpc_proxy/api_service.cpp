@@ -70,7 +70,6 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -82,6 +81,8 @@
 #include <yt/yt/core/rpc/stream.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NRpcProxy {
 

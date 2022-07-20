@@ -1,10 +1,11 @@
 #pragma once
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/dense_map.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NChunkClient {
 

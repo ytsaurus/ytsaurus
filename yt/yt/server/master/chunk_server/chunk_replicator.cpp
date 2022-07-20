@@ -49,7 +49,6 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/profiling/profiler.h>
@@ -59,8 +58,11 @@
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include <array>
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <array>
 
 namespace NYT::NChunkServer {
 

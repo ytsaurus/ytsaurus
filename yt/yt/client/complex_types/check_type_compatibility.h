@@ -1,6 +1,6 @@
 #include <yt/yt/client/table_client/public.h>
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NComplexTypes {
 

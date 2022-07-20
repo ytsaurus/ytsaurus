@@ -14,11 +14,12 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/yt/small_containers/compact_set.h>
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <util/generic/algorithm.h>
 
