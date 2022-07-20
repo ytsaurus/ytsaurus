@@ -40,7 +40,7 @@ class TReconfigurableThroughputThrottler
 public:
     TReconfigurableThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
-        const NLogging::TLogger& logger,
+        const TLogger& logger,
         const NProfiling::TProfiler& profiler)
         : Logger(logger)
         , ValueCounter_(profiler.Counter("/value"))
@@ -194,7 +194,7 @@ public:
     }
 
 private:
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     NProfiling::TCounter ValueCounter_;
     NProfiling::TGauge QueueSizeCounter_;
@@ -414,7 +414,7 @@ private:
 
 IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
-    const NLogging::TLogger& logger,
+    const TLogger& logger,
     const NProfiling::TProfiler& profiler)
 {
     return New<TReconfigurableThroughputThrottler>(
@@ -426,7 +426,7 @@ IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
 IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const TString& name,
-    NLogging::TLogger logger,
+    TLogger logger,
     NProfiling::TProfiler profiler)
 {
     return CreateReconfigurableThroughputThrottler(
