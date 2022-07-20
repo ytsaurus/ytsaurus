@@ -1481,12 +1481,14 @@ public:
             }
 
             auto usageLogStartTime = std::max(previousLogTime, connectionTime);
+            auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
+            auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
             for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
-                double timeRatio = (finishTime - startTime).SecondsFloat() / (currentTime - usageLogStartTime).SecondsFloat();
+                double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
                 auto usageQuantity = (finishTime - startTime).MilliSeconds();
                 buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
                     .Item("tags").BeginMap()
-                        .Item("allocated_resources").Value(statistics.AccumulatedResourceUsage() * timeRatio)
+                        .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
                         .Item("cluster").Value(ClusterName_)
                         .Item("gpu_type").Value(GuessGpuType(key.TreeId))
                         .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
