@@ -1,7 +1,8 @@
 #pragma once
 
 #include "blob.h"
-#include "ref.h"
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/stream/output.h>
 

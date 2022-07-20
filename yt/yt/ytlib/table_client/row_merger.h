@@ -5,11 +5,11 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
-
 #include <yt/yt/ytlib/query_client/public.h>
 
 #include <yt/yt/client/api/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTableClient {
 

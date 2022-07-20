@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include "hydra_context.h"
 
 #include <yt/yt/client/hydra/version.h>
@@ -9,11 +8,12 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/core/misc/random.h>
-#include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
 
 #include <yt/yt/core/tracing/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NHydra {
 

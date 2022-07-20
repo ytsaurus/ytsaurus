@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NChunkClient {
 

@@ -9,7 +9,7 @@
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 #include <library/cpp/yt/string/string_builder.h>
 

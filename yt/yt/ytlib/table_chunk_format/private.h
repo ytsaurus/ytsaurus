@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/common.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

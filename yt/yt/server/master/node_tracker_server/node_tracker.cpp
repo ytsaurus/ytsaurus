@@ -76,7 +76,6 @@
 
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -87,6 +86,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NNodeTrackerServer {
 

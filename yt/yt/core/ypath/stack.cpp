@@ -1,11 +1,12 @@
 #include "stack.h"
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ypath/token.h>
 
 #include <library/cpp/yt/misc/variant.h>
+#include <library/cpp/yt/misc/cast.h>
+
 #include <library/cpp/yt/string/string.h>
 
 namespace NYT::NYPath {

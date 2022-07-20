@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/misc/compact_flat_map.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

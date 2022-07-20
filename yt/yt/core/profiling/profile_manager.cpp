@@ -9,7 +9,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/singleton.h>
@@ -22,6 +21,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 

@@ -26,8 +26,9 @@
 
 #include <yt/yt/core/logging/public.h>
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NApi::NNative {
 

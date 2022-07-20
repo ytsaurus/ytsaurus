@@ -4,8 +4,6 @@
 
 #include <yt/yt/client/table_client/row_base.h>
 
-#include <yt/yt/core/misc/variant.h>
-
 namespace NYT::NQueryClient {
 
 using NTableClient::EValueType;

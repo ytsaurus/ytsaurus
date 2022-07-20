@@ -1,11 +1,12 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <library/cpp/yt/threading/event_count.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 #include <util/system/thread.h>
 

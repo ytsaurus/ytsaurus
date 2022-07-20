@@ -4,7 +4,7 @@
 
 #include "functions_common.h"
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 #define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + #name))
 

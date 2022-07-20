@@ -6,7 +6,8 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/yt/core/misc/linear_probe.h>
-#include <yt/yt/core/misc/ref.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableClient {
 

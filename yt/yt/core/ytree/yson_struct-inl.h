@@ -14,7 +14,6 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/hash_helpers.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -27,6 +26,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/actions/bind.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/datetime/base.h>
 

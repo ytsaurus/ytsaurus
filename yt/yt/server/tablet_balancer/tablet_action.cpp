@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 
-#include <yt/yt/core/misc/variant.h>
+#include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NTabletBalancer {
 

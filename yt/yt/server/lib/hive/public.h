@@ -6,11 +6,13 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/yt/core/misc/enum.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/actions/callback.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NHiveServer {
 

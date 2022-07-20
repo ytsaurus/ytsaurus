@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/compact_flat_map.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 #include <util/generic/cast.h>
 

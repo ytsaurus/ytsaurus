@@ -7,7 +7,8 @@
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/ref.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NChunkClient {
 

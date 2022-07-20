@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/compact_vector.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NYson {
 

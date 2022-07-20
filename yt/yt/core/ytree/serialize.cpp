@@ -3,7 +3,8 @@
 #include <yt/yt/core/ytree/tree_visitor.h>
 
 #include <yt/yt/core/misc/blob.h>
-#include <yt/yt/core/misc/cast.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 

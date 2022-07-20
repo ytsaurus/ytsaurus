@@ -12,7 +12,6 @@
 
 #include <yt/yt/core/bus/bus.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/shutdown.h>
 
@@ -20,6 +19,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>

@@ -6,13 +6,15 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/enum.h>
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/net/public.h>
+
+#include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/datetime/base.h>
 #include <util/stream/zerocopy.h>

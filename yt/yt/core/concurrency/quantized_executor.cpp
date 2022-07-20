@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/variant.h>
-
 namespace NYT::NConcurrency {
 
 using namespace NLogging;

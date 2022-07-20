@@ -16,9 +16,10 @@
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/profiling/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NChunkClient {
 

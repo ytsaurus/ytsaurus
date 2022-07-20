@@ -5,7 +5,7 @@
 #include "routine_registry.h"
 #include "type_builder.h"
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 #include <memory>
 

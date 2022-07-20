@@ -14,7 +14,7 @@
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/core/misc/cast.h>
+#include <library/cpp/yt/misc/cast.h>
 
 #include <limits>
 

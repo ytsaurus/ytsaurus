@@ -1,7 +1,6 @@
 #include "tls.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -12,6 +11,8 @@
 #include <yt/yt/core/net/listener.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/openssl/io/stream.h>
 

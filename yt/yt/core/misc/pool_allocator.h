@@ -1,8 +1,10 @@
 #pragma once
 
-#include "ref.h"
+#include "public.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/size_literals.h>
 

@@ -22,10 +22,11 @@
 #include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/compact_flat_map.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 namespace NYT::NChunkServer {
 

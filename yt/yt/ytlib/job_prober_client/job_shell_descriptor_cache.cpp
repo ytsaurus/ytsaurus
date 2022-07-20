@@ -6,7 +6,8 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
-#include <yt/yt/core/misc/hash.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NJobProberClient {
 

@@ -22,8 +22,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/ref.h>
-#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -32,6 +30,9 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/ref.h>
+#include <library/cpp/yt/memory/new.h>
 
 #include <atomic>
 

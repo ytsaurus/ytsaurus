@@ -48,7 +48,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/rpc/helpers.h>
@@ -64,6 +63,8 @@
 #include <yt/yt/core/yson/async_consumer.h>
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/string/ascii.h>
 

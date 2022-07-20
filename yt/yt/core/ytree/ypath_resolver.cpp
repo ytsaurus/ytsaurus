@@ -7,7 +7,6 @@
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NYTree {
 

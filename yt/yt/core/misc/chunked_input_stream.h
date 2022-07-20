@@ -1,7 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "ref.h"
+#include "public.h"
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/stream/input.h>
 

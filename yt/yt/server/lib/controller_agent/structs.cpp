@@ -10,7 +10,8 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/variant.h>
+
+#include <library/cpp/yt/misc/variant.h>
 
 #include <util/generic/cast.h>
 
@@ -221,7 +222,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
 
         return GetAbortReason(eventSummary.Error, Logger);
     }();
-    
+
     TAbortedJobSummary summary{eventSummary.Id, abortReason};
 
     summary.FinishTime = eventSummary.FinishTime;

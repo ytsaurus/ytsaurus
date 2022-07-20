@@ -10,9 +10,9 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
-
 #include <yt/yt/core/logging/logger_owner.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NChunkPools {
 

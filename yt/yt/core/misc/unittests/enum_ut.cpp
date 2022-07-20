@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/enum.h>
-
 #include <yt/yt/core/misc/serialize.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT {
 namespace {

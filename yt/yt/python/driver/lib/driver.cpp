@@ -15,7 +15,6 @@
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/shutdown.h>
-#include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>

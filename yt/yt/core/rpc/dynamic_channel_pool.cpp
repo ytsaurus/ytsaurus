@@ -9,11 +9,13 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/core/misc/variant.h>
-#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/utilex/random.h>
+
+#include <library/cpp/yt/misc/variant.h>
+
+#include <library/cpp/yt/small_containers/compact_set.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

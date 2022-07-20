@@ -56,7 +56,6 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
@@ -64,6 +63,10 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/core/ypath/token.h>
+
+#include <library/cpp/yt/small_containers/compact_set.h>
+
+#include <library/cpp/yt/misc/variant.h>
 
 #include <util/generic/algorithm.h>
 

@@ -7,12 +7,13 @@
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/cast.h>
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/stream.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NRpc::NBus {
 

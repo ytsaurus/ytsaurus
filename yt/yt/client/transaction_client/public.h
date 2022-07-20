@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 

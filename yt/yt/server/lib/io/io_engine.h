@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/guid.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -12,6 +11,8 @@
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <util/system/file.h>
 

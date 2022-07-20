@@ -6,9 +6,9 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/actions/signal.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NControllerAgent {
 
@@ -48,7 +48,7 @@ public:
     void AddChunkTreesToUnstageList(
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
-    
+
     TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota);

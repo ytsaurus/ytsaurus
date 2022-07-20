@@ -1,12 +1,13 @@
 #include "artifact.h"
 
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NDataNode {
 

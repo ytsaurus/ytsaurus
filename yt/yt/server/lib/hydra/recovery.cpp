@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/yt/core/misc/variant.h>
+#include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NHydra {
 

@@ -2,11 +2,15 @@
 
 #include <contrib/libs/farmhash/farmhash.h>
 
+#include <util/system/types.h>
+
+#include <util/generic/strbuf.h>
+
 namespace NYT {
 
-using TFingerprint = ui64;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+using TFingerprint = ui64;
 
 static inline TFingerprint FarmHash(ui64 value)
 {

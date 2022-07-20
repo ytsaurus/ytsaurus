@@ -5,12 +5,13 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/common.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/source_location.h>
 
 #include <yt/yt/core/actions/callback.h>
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker_util.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NConcurrency {
 

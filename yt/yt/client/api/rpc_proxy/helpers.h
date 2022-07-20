@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 #include <yt/yt/library/re2/re2.h>
 

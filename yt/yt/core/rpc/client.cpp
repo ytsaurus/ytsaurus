@@ -7,7 +7,6 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/misc/block_tracker.h>
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/checksum.h>
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
@@ -15,6 +14,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/build/ya_version.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NRpc {
 

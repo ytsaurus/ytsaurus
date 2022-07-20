@@ -7,8 +7,9 @@
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/ref_counted.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/generic/hash.h>
 

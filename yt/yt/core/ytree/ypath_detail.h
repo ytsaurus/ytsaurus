@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/cast.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -19,6 +17,8 @@
 
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 #include <library/cpp/yt/assert/assert.h>
 

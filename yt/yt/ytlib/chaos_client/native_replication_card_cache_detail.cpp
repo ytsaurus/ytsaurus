@@ -18,7 +18,6 @@
 
 #include <yt/yt/client/table_client/public.h>
 
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/balancing_channel.h>
@@ -26,6 +25,8 @@
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NChaosClient {
 

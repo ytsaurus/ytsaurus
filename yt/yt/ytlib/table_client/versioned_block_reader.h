@@ -9,8 +9,10 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/bitmap.h>
-#include <yt/yt/core/misc/ref.h>
-#include <yt/yt/core/misc/compact_vector.h>
+
+#include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NTableClient {
 

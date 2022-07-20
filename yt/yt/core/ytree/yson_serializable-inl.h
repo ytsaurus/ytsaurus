@@ -13,7 +13,6 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ypath/token.h>
@@ -22,6 +21,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/actions/bind.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/datetime/base.h>
 

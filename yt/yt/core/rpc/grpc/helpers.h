@@ -2,12 +2,13 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/compact_vector.h>
-#include <yt/yt/core/misc/ref.h>
-
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <yt/yt/core/crypto/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>

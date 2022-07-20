@@ -13,8 +13,9 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/optional.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NChunkClient {
 

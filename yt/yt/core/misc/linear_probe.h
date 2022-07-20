@@ -1,8 +1,9 @@
 #pragma once
 
-#include "compact_vector.h"
 #include "farm_hash.h"
 #include "public.h"
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <util/system/types.h>
 

@@ -7,7 +7,7 @@
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/parser.h>
 
-#include <yt/yt/core/misc/variant.h>
+#include <library/cpp/yt/misc/variant.h>
 
 #include <util/stream/mem.h>
 

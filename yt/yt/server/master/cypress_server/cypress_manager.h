@@ -28,10 +28,11 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ytree/tree_builder.h>
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NCypressServer {
 

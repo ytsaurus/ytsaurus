@@ -4,11 +4,12 @@
 #include "config.h"
 #include "indexed_hash_map.h"
 
-#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
+
+#include <library/cpp/yt/small_containers/compact_set.h>
 
 namespace NYT::NRpc {
 

@@ -16,7 +16,6 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/spsc_queue.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
@@ -24,7 +23,6 @@
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/raw_formatter.h>
 #include <yt/yt/core/misc/shutdown.h>
-#include <yt/yt/core/misc/variant.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/shutdown.h>
@@ -39,6 +37,9 @@
 
 #include <yt/yt/library/profiling/producer.h>
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/misc/hash.h>
+#include <library/cpp/yt/misc/variant.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 

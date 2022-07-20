@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/compact_vector.h>
-
 #include <yt/yt/core/ytree/attributes.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <util/generic/algorithm.h>
 

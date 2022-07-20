@@ -4,8 +4,6 @@
 #include "node.h"
 #endif
 
-#include <yt/yt/core/misc/variant.h>
-
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////

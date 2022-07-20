@@ -5,8 +5,9 @@
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/error.h>
+
+#include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NSecurityServer {
 

@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/blob.h>
-#include <yt/yt/core/misc/ref.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/erasure/codec.h>
 

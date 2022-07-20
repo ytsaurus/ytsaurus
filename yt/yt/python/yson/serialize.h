@@ -1,12 +1,14 @@
 #pragma once
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/ref.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <Objects.hxx> // pycxx
 

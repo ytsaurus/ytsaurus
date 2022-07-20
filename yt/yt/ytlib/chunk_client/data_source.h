@@ -9,9 +9,10 @@
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/enum.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NChunkClient {
 

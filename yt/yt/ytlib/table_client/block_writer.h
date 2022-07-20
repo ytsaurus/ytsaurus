@@ -4,7 +4,7 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableClient {
 

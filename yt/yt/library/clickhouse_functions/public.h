@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -14,7 +14,7 @@ DEFINE_ENUM(EExtendedYsonFormat,
     (Pretty)
     // Unescaped* analogs. They are simmilar to regular, but they do not escape string literals.
     // These are used to display unicode strings in a human readable format.
-    // It only escapes control charactesrs (e.g. '\\', '\"', '\r' and '\n'). 
+    // It only escapes control charactesrs (e.g. '\\', '\"', '\r' and '\n').
     (UnescapedText)
     (UnescapedPretty)
 );

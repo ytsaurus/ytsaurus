@@ -1,7 +1,7 @@
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
-#include <yt/yt/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 #include <yt/yt/core/ytree/convert.h>
 
 using namespace NYT;

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "range.h"
-#include "compact_vector.h"
+
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 template <class T, size_t N>
 struct hash<NYT::TCompactVector<T, N>>

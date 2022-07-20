@@ -3,12 +3,13 @@
 #include <yt/yt/python/common/cache.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/pull_parser.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <Objects.hxx> // pycxx
 
@@ -25,10 +26,10 @@ public:
         NYson::TYsonPullParser* parser,
         bool alwaysCreateAttributes,
         const std::optional<TString>& encoding);
-    
+
     // Parse object and move cursor.
     PyObjectPtr ParseObject(bool hasAttributes = false);
-    
+
     // Parse map, cursor must point to the first key.
     PyObjectPtr ParseMap(NYson::EYsonItemType endType, bool hasAttributes = false);
 

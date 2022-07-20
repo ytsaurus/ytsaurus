@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/misc/hash.h>
+#include <library/cpp/yt/misc/hash.h>
 
 #include <variant>
 

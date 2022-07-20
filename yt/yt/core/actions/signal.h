@@ -2,7 +2,7 @@
 
 #include "callback.h"
 
-#include <yt/yt/core/misc/compact_vector.h>
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
