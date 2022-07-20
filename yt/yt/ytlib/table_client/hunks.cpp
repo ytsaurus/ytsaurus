@@ -215,7 +215,6 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
             ref.ErasureCodec);
     }
     builder->AppendFormat("HunkCount: %v, TotalHunkLength: %v}",
-        ref.ChunkId,
         ref.HunkCount,
         ref.TotalHunkLength);
 }
