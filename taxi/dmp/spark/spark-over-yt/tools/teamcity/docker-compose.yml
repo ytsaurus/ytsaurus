@@ -19,7 +19,7 @@ services:
       # в контексте, в котором HOME не определен
       - ${HOME:-root}/.docker/config.json:${HOME:-/home/sbtuser}/.docker/config.json:ro
       - /run/docker.sock:/run/docker.sock
-    entrypoint: /bin/sh tools/teamcity/entrypoint.sh
+    entrypoint: /bin/sh ${PROJECT_ROOT:-/app/spark-over-yt}/tools/teamcity/entrypoint.sh
     environment:
       # матчим пользователя с хостом
       - USER=${USER:-sbtuser}
