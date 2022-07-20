@@ -357,6 +357,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool GetUseLookupCache(const TTabletSnapshotPtr& tabletSnapshot, std::optional<bool> useLookupCache)
+{
+    // TODO(lukyan): Make row cache compatible with hunks.
+    return
+        !tabletSnapshot->PhysicalSchema->HasHunkColumns() &&
+        tabletSnapshot->RowCache &&
+        useLookupCache.value_or(tabletSnapshot->Settings.MountConfig->EnableLookupCacheByDefault);
+}
+
 NTableClient::TColumnFilter DecodeColumnFilter(
     std::unique_ptr<NTableClient::NProto::TColumnFilter> protoColumnFilter,
     int columnCount)
@@ -1100,10 +1109,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(LookupSession_->TimestampRange_.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , UseLookupCache_(
-        TabletSnapshot_->RowCache &&
-        LookupSession_->UseLookupCache_.value_or(
-            TabletSnapshot_->Settings.MountConfig->EnableLookupCacheByDefault))
+    , UseLookupCache_(GetUseLookupCache(TabletSnapshot_, LookupSession_->UseLookupCache_))
     , ColumnFilter_(ProduceAllVersions_ ? TColumnFilter::MakeUniversal() : std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , RetainedTimestamp_(TabletSnapshot_->RetainedTimestamp)
