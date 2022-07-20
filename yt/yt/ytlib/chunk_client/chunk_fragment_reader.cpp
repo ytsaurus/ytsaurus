@@ -743,8 +743,8 @@ private:
 
     void EraseBadChunksIfAny()
     {
-        if (ExpiredChunkIds_.empty() ||
-            NonexistentChunkIds_.empty() ||
+        if (ExpiredChunkIds_.empty() &&
+            NonexistentChunkIds_.empty() &&
             LostChunkIds_.empty())
         {
             return;
