@@ -113,17 +113,17 @@ public:
     void ProcessRequest()
     {
         if (!TryPrepare()) {
-            YT_LOG_INFO("Failed to prepare context");
+            YT_LOG_INFO(ResponseError_, "Failed to prepare context");
             return;
         }
 
         if (!TryForwardRequest()) {
-            YT_LOG_INFO("Failed to forward request");
+            YT_LOG_INFO(ResponseError_, "Failed to forward request");
             return;
         }
 
         if (!TryForwardProxiedResponse()) {
-            YT_LOG_INFO("Failed to forward proxied response");
+            YT_LOG_INFO(ResponseError_, "Failed to forward proxied response");
             return;
         }
     }
@@ -237,6 +237,7 @@ private:
         ResponseError_ = error;
 
         FillYTErrorHeaders(Response_, error);
+        Response_->SetStatus(statusCode);
 
         // TODO(dakovalkov): Do not throw error here.
         WaitFor(Response_->WriteBody(TSharedRef::FromString(ToString(error))))
@@ -705,7 +706,7 @@ private:
 
             if (operationIdOrAlias.empty()) {
                 ReplyWithError(
-                    EStatusCode::NotFound,
+                    EStatusCode::BadRequest,
                     TError("Clique id or alias should be specified using the `database` CGI parameter"));
                 return false;
             }
