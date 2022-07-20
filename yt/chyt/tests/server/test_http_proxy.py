@@ -427,6 +427,6 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "authenticated_user": "root",
                 "http_method": "post",
                 "clique_alias": "*invalid_database",
-                "http_code": 500,
+                "http_code": 400,
                 "error_code": 1,
             })
