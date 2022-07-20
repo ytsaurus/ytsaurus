@@ -2793,6 +2793,8 @@ class TestResourceMetering(YTEnvSetup):
 
     @authors("ignat")
     def test_separate_schema_for_allocation(self):
+        # NB(eshcherbin): Increase metering period to ensure accumulated usage value is averaged over the period.
+        update_scheduler_config("resource_metering_period", 2000)
         update_scheduler_config("resource_metering/enable_separate_schema_for_allocation", True)
         set("//sys/pool_trees/default/@config/accumulated_resource_usage_update_period", 100)
 
@@ -2806,7 +2808,7 @@ class TestResourceMetering(YTEnvSetup):
             wait_for_orchid=False,
         )
 
-        op = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "my_pool"})
+        op = run_test_vanilla("sleep 2000", job_count=1, spec={"pool": "my_pool"})
         wait(lambda: op.get_job_count("running") == 1)
 
         root_key = (42, "default", "<Root>")

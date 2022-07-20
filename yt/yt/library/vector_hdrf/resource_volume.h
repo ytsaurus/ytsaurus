@@ -45,9 +45,11 @@ bool operator == (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator += (TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator *= (TResourceVolume& lhs, double rhs);
+TResourceVolume& operator /= (TResourceVolume& lhs, double rhs);
 TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
+TResourceVolume operator / (const TResourceVolume& lhs, double rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
