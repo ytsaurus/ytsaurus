@@ -235,7 +235,7 @@ class YtStuff(object):
             self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
         if not os.path.isdir(self.yt_work_dir):
-            os.mkdir(self.yt_work_dir)
+            os.makedirs(self.yt_work_dir)
 
         self.yt_local_dir = os.path.join(self.yt_work_dir, self.yt_id)
 
