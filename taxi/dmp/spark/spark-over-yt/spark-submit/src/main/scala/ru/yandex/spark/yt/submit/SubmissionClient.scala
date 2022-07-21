@@ -93,7 +93,7 @@ class SubmissionClient(proxy: String,
   }
 
   def getStringApplicationStatus(driverId: String): String = {
-    getStatus(driverId).name()
+    getApplicationStatus(driverId).name()
   }
 
   private def tryToGetApplicationStatus(id: String): Try[ApplicationState] = {
