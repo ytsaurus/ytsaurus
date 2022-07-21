@@ -680,7 +680,7 @@ private:
     i64 RowCount_  = 0;
     i64 DataWeight_ = 0;
 
-    typedef TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator TIterator;
+    using TIterator = TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator;
     TIterator Iterator_;
 
     void UpdateLimits()

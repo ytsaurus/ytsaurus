@@ -382,7 +382,7 @@ private:
 
     TClientChunkReadOptions ChunkReadOptions_;
 
-    typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
+    using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
 
     void LogSplits(const std::vector<TDataSource>& splits)
     {

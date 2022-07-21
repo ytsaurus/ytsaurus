@@ -105,9 +105,9 @@ public:
     int GetSize() const;
 
     // STL interop.
-    typedef TKey key_type;
-    typedef TValue* mapped_type;
-    typedef std::pair<const TKey, TValue*> value_type;
+    using key_type = TKey;
+    using mapped_type = TValue*;
+    using value_type = std::pair<const TKey, TValue*>;
 
     TIterator begin() const;
     TIterator end() const;
@@ -153,7 +153,7 @@ public:
     void LoadValues(TContext& context);
 
 private:
-    typedef typename TReadOnlyEntityMap<TValue>::TMapType TMapType;
+    using TMapType = typename TReadOnlyEntityMap<TValue>::TMapType;
 
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
 

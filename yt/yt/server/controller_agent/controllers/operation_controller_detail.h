@@ -888,7 +888,7 @@ protected:
 
     i64 GetDataSliceCount() const;
 
-    typedef std::function<bool(const TInputTablePtr& table)> TInputTableFilter;
+    using TInputTableFilter = std::function<bool(const TInputTablePtr& table)>;
 
     NTableClient::TSortColumns CheckInputTablesSorted(
         const NTableClient::TSortColumns& sortColumns,
@@ -1020,7 +1020,7 @@ protected:
     i64 CompletedRowCount_ = 0;
 
 private:
-    typedef TOperationControllerBase TThis;
+    using TThis = TOperationControllerBase;
 
     const NYTAlloc::TMemoryTag MemoryTag_;
 

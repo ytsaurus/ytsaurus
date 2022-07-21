@@ -25,8 +25,8 @@ bool DelegateInvocation(
     TServerResponse* serverResponse,
     TIntrusivePtr<TContext> context)
 {
-    typedef typename TServerRequest::TMessage  TRequestMessage;
-    typedef typename TServerResponse::TMessage TResponseMessage;
+    using TRequestMessage = typename TServerRequest::TMessage;
+    using TResponseMessage = typename TServerResponse::TMessage;
 
     using TClientRequest = TTypedYPathRequest<TRequestMessage, TResponseMessage>;
 

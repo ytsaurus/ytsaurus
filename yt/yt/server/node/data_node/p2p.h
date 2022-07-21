@@ -97,7 +97,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCompactVector<TNodeId, 8> TPeerList;
+using TPeerList = TCompactVector<TNodeId, 8>;
 
 struct TP2PSuggestion
 {

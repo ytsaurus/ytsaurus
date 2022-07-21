@@ -122,7 +122,7 @@ struct TRawVersionedObjectPtrSerializer
     template <class T, class C>
     static void Load(C& context, T& object)
     {
-        typedef typename std::remove_pointer<T>::type TObject;
+        using TObject = typename std::remove_pointer<T>::type;
         auto key = NYT::Load<TEntitySerializationKey>(context);
         if (key) {
             object = context.template GetRawEntity<TObject>(key);

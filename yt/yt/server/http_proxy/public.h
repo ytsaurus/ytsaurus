@@ -37,7 +37,7 @@ DECLARE_REFCOUNTED_CLASS(TSharedRefOutputStream)
 
 DECLARE_REFCOUNTED_CLASS(TContext)
 
-typedef TString TContentEncoding;
+using TContentEncoding = TString;
 
 ////////////////////////////////////////////////////////////////////////////////
 

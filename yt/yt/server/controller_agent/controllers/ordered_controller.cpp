@@ -291,7 +291,7 @@ protected:
         }
     };
 
-    typedef TIntrusivePtr<TOrderedTask> TOrderedTaskPtr;
+    using TOrderedTaskPtr = TIntrusivePtr<TOrderedTask>;
 
     TOrderedTaskPtr OrderedTask_;
 
