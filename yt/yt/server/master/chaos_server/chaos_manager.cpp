@@ -82,7 +82,7 @@ public:
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TChaosManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChaosManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateChaosCellBundleTypeHandler(Bootstrap_));
@@ -92,14 +92,14 @@ public:
         cypressManager->RegisterHandler(CreateChaosReplicatedTableTypeHandler(Bootstrap_));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        cellManager->SubscribeCellCreated(BIND(&TChaosManager::OnCellCreated, MakeWeak(this)));
-        cellManager->SubscribeCellDecommissionStarted(BIND(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
+        cellManager->SubscribeCellCreated(BIND_NO_PROPAGATE(&TChaosManager::OnCellCreated, MakeWeak(this)));
+        cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraPrepareCreateReplicationCard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraCommitCreateReplicationCard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraAbortCreateReplicationCard, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, MakeStrong(this))));
     }
 
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
@@ -279,7 +279,7 @@ private:
                     }
 
                     const auto& options = cell->GetChaosOptions();
-                    for (int peerId = 0; peerId < std::ssize(options->Peers); ++peerId) { 
+                    for (int peerId = 0; peerId < std::ssize(options->Peers); ++peerId) {
                         const auto& alienCluster = options->Peers[peerId]->AlienCluster;
                         if (alienCluster && alienCluster == AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex)) {
                             cell->UpdateAlienPeer(peerId, {});

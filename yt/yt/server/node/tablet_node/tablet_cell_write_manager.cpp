@@ -72,11 +72,11 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Host_->GetTransactionManager();
-        transactionManager->SubscribeTransactionPrepared(BIND(&TTabletCellWriteManager::OnTransactionPrepared, MakeWeak(this)));
-        transactionManager->SubscribeTransactionCommitted(BIND(&TTabletCellWriteManager::OnTransactionCommitted, MakeWeak(this)));
-        transactionManager->SubscribeTransactionSerialized(BIND(&TTabletCellWriteManager::OnTransactionSerialized, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TTabletCellWriteManager::OnTransactionAborted, MakeWeak(this)));
-        transactionManager->SubscribeTransactionTransientReset(BIND(&TTabletCellWriteManager::OnTransactionTransientReset, MakeWeak(this)));
+        transactionManager->SubscribeTransactionPrepared(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionPrepared, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionCommitted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionSerialized(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionSerialized, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionTransientReset(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionTransientReset, MakeWeak(this)));
     }
 
     void Write(

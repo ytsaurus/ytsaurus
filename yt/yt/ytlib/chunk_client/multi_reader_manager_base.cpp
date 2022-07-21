@@ -155,7 +155,7 @@ void TMultiReaderManagerBase::OpenNextReaders()
         ActiveReaderCount_.load());
 
     ReaderInvoker_->Invoke(
-        BIND(&TMultiReaderManagerBase::DoCreateReader, MakeWeak(this), PrefetchIndex_));
+        BIND_NEW(&TMultiReaderManagerBase::DoCreateReader, MakeWeak(this), PrefetchIndex_));
 
     ++PrefetchIndex_;
 }
@@ -176,7 +176,7 @@ void TMultiReaderManagerBase::DoCreateReader(int index)
     try {
         // NB: MakeStrong here delays MultiReaderMemoryManager finalization until child reader is fully created.
         ReaderFactories_[index]->CreateReader()
-            .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderCreated, MakeStrong(this), index)
+            .Subscribe(BIND_NEW(&TMultiReaderManagerBase::OnReaderCreated, MakeStrong(this), index)
                 .Via(ReaderInvoker_));
     } catch (const std::exception& ex) {
         OnReaderCreated(index, ex);
@@ -220,7 +220,7 @@ void TMultiReaderManagerBase::OnReaderCreated(
 
     const auto& reader = readerOrError.Value();
     reader->GetReadyEvent()
-        .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderReady, MakeWeak(this), reader, index)
+        .Subscribe(BIND_NEW(&TMultiReaderManagerBase::OnReaderReady, MakeWeak(this), reader, index)
             .Via(ReaderInvoker_));
 }
 

@@ -34,20 +34,20 @@ public:
     void Initialize() override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeOnline(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeBanChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeTagsChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeOnline(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeBanChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeTagsChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        cellManager->SubscribeAreaCreated(BIND(&TBundleNodeTracker::OnAreaCreated, MakeWeak(this)));
-        cellManager->SubscribeAreaDestroyed(BIND(&TBundleNodeTracker::OnAreaRemoved, MakeWeak(this)));
-        cellManager->SubscribeAreaNodeTagFilterChanged(BIND(&TBundleNodeTracker::OnAreaChanged, MakeWeak(this)));
-        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TBundleNodeTracker::OnAfterSnapshotLoaded, MakeWeak(this)));
+        cellManager->SubscribeAreaCreated(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnAreaCreated, MakeWeak(this)));
+        cellManager->SubscribeAreaDestroyed(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnAreaRemoved, MakeWeak(this)));
+        cellManager->SubscribeAreaNodeTagFilterChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnAreaChanged, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnAfterSnapshotLoaded, MakeWeak(this)));
     }
 
     void OnAfterSnapshotLoaded()

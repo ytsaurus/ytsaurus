@@ -951,7 +951,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
     MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
 
     Changelog_->Append(std::move(recordsData))
-        .Subscribe(BIND(
+        .Subscribe(BIND_NEW(
             &TLeaderCommitter::OnMutationsLogged,
             MakeWeak(this),
             firstSequenceNumber,

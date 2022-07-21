@@ -127,11 +127,11 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
-            BIND(&TTransactionSupervisor::SaveKeys, Unretained(this)));
+            BIND_NEW(&TTransactionSupervisor::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
-            BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
+            BIND_NEW(&TTransactionSupervisor::SaveValues, Unretained(this)));
     }
 
     std::vector<IServicePtr> GetRpcServices() override
@@ -1307,7 +1307,7 @@ private:
             prepareTimestamp,
             prepareTimestampClusterTag);
 
-        if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Early && 
+        if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Early &&
             !RunCoordinatorPrepare(commit))
         {
             return;

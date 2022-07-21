@@ -205,7 +205,7 @@ private:
         }
 
         for (const auto& [bus, session] : results) {
-            bus->SubscribeTerminated(BIND(
+            bus->SubscribeTerminated(BIND_NO_PROPAGATE(
                 &TBusChannel::OnBusTerminated,
                 MakeWeak(this),
                 MakeWeak(session),
@@ -859,7 +859,7 @@ private:
                 ? NBus::TSendOptions::AllParts
                 : 2; // RPC header + request body
             busOptions.MemoryZone = options.MemoryZone;
-            Bus_->Send(requestMessage, busOptions).Subscribe(BIND(
+            Bus_->Send(requestMessage, busOptions).Subscribe(BIND_NEW(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 options.AcknowledgementTimeout.has_value(),
@@ -1011,7 +1011,7 @@ private:
             auto readPosition = header.read_position();
 
             auto [responseHandler, traceContextGuard] = FindResponseHandlerAndTraceContextGuard(requestId);
-            
+
             if (!responseHandler) {
                 YT_LOG_DEBUG("Received streaming feedback for an unknown request; ignored (RequestId: %v)",
                     requestId);

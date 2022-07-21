@@ -118,7 +118,7 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TransactionMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTransactionMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -131,7 +131,7 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TopmostTransactionMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTopmostTransactionMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);

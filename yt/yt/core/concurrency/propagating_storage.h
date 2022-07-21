@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/actions/signal.h>
+
 #include <any>
 
 namespace NYT::NConcurrency {
@@ -64,9 +66,14 @@ public:
     template <class T>
     std::optional<T> Remove();
 
+    DECLARE_SIGNAL(void(), OnAfterInstall);
+    DECLARE_SIGNAL(void(), OnBeforeUninstall);
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
+
+    friend TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
 
     explicit TPropagatingStorage(TIntrusivePtr<TImpl> impl);
 

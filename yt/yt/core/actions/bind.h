@@ -221,9 +221,14 @@ auto Bind(
     #define BIND_IMPL(propagate, ...) ::NYT::Bind<propagate>(__VA_ARGS__)
 #endif
 
-#define BIND(...)                            BIND_IMPL(true, __VA_ARGS__)
+#define BIND(...) BIND_IMPL(true, __VA_ARGS__)
 
-// TODO(gepardo): Rename to BIND_DONT_PROPAGATE
+// TODO(gepardo): Remove this testing during PR 2529737
+#define BIND_NEW(...) BIND_IMPL(true, __VA_ARGS__)
+
+#define BIND_NO_PROPAGATE(...) BIND_IMPL(false, __VA_ARGS__)
+
+// TODO(gepardo): Remove this compat during PR 2529737
 #define BIND_DONT_CAPTURE_TRACE_CONTEXT(...) BIND_IMPL(false, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////

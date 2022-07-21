@@ -83,7 +83,7 @@ NYTree::IYPathServicePtr TDynamicConfigManagerBase<TConfig>::GetOrchidService() 
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto producer = BIND(&TDynamicConfigManagerBase<TConfig>::DoBuildOrchid, MakeStrong(this));
+    auto producer = BIND_NO_PROPAGATE(&TDynamicConfigManagerBase<TConfig>::DoBuildOrchid, MakeStrong(this));
     return NYTree::IYPathService::FromProducer(producer);
 }
 

@@ -100,7 +100,7 @@ INodeTypeHandlerPtr CreatePortalEntranceMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::PortalEntranceMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualPortalEntranceNodeMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -129,7 +129,7 @@ INodeTypeHandlerPtr CreatePortalExitMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::PortalExitMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualPortalExitNodeMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);

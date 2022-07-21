@@ -1638,7 +1638,7 @@ private:
             }
 
             auto tree = CreateFairShareTree(treeConfig, Config, Host, FeasibleInvokers, treeId);
-            tree->SubscribeOperationRunning(BIND(
+            tree->SubscribeOperationRunning(BIND_NO_PROPAGATE(
                 &TFairShareStrategy::OnOperationRunningInTree,
                 Unretained(this),
                 Unretained(tree.Get())));

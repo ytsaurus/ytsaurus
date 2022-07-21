@@ -163,7 +163,7 @@ private:
                 YT_VERIFY(!CommandRunning_);
                 CommandRunning_ = true;
                 entry.Command().Subscribe(
-                    BIND(&TBlobWritePipeline::OnCommandFinished, MakeStrong(this), entry.Promise)
+                    BIND_NEW(&TBlobWritePipeline::OnCommandFinished, MakeStrong(this), entry.Promise)
                         .Via(SessionInvoker_));
                 break;
             }

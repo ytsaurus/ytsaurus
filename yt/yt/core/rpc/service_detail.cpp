@@ -1107,7 +1107,7 @@ private:
         if (!RequestAttachmentsStream_) {
             auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             RequestAttachmentsStream_ =  New<TAttachmentsInputStream>(
-                BIND(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
+                BIND_NEW(&TServiceContext::OnRequestAttachmentsStreamRead, MakeWeak(this)),
                 TDispatcher::Get()->GetCompressionPoolInvoker(),
                 parameters.ReadTimeout);
         }

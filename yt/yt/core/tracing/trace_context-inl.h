@@ -195,10 +195,9 @@ inline TTraceContextFinishGuard::~TTraceContextFinishGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern thread_local TTraceContext* CurrentTraceContext;
-
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
+    extern thread_local TTraceContext* CurrentTraceContext;
     return CurrentTraceContext;
 }
 

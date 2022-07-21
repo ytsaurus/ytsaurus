@@ -39,7 +39,7 @@ class TCoreDumper
 public:
     explicit TCoreDumper(TCoreDumperConfigPtr config)
         : Config_(std::move(config))
-        , OrchidService_(IYPathService::FromProducer(BIND(&TCoreDumper::BuildYson, MakeWeak(this))))
+        , OrchidService_(IYPathService::FromProducer(BIND_NO_PROPAGATE(&TCoreDumper::BuildYson, MakeWeak(this))))
     {
 #ifdef _linux_
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {

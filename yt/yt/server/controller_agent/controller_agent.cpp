@@ -271,7 +271,7 @@ public:
         , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
-            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
+            BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
@@ -294,7 +294,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        auto staticOrchidProducer = BIND_NO_PROPAGATE(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
@@ -1523,7 +1523,7 @@ private:
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
-        
+
         YT_LOG_FATAL_IF(!error.IsOK(), error, "Failed to report job event inbox status");
 
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
@@ -1747,16 +1747,16 @@ private:
                             handleJobSummary,
                             std::move(jobEvent.EventSummary));
                         });
-                
+
                 return jobEventsPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
-        
+
         YT_LOG_FATAL_IF(!jobEventsPerOperationIdOrError.IsOK(), jobEventsPerOperationIdOrError, "Failed to parse scheduler message");
 
         auto jobEventsPerOperationId = std::move(jobEventsPerOperationIdOrError.Value());
-        
+
         for (auto& [operationId, events] : jobEventsPerOperationId) {
             auto operation = this->FindOperation(operationId);
             if (!operation) {

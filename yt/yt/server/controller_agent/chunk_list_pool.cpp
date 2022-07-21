@@ -127,7 +127,7 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     data.RequestInProgress = true;
 
     batchReq->Invoke().Subscribe(
-        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
+        BIND_NEW(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
             .Via(ControllerInvokerPool_->GetInvoker(EOperationControllerQueue::Default)));
 }
 

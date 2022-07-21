@@ -91,7 +91,7 @@ IYPathServicePtr IYPathService::FromMethod(
     R (std::remove_cv_t<T>::*method) () const,
     const TWeakPtr<T>& weak)
 {
-    auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
+    auto boundProducer = NYson::TYsonProducer(BIND_NO_PROPAGATE([=] (NYson::IYsonConsumer* consumer) {
         auto strong = weak.Lock();
         if (strong) {
             Serialize((strong.Get()->*method)(), consumer);
@@ -112,7 +112,7 @@ IYPathServicePtr IYPathService::FromMethod(
     void (std::remove_cv_t<T>::*producer) (NYson::IYsonConsumer*) const,
     const TWeakPtr<T>& weak)
 {
-    auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
+    auto boundProducer = NYson::TYsonProducer(BIND_NO_PROPAGATE([=] (NYson::IYsonConsumer* consumer) {
         auto strong = weak.Lock();
         if (strong) {
             (strong.Get()->*producer)(consumer);

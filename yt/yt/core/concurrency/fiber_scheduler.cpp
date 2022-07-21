@@ -415,6 +415,9 @@ void FiberMain()
     while (fiberThread = GetFiberThread()) {
         YT_VERIFY(!ResumerFiber());
 
+        // We wrap fiberThread->OnExecute() into a propagating storage guard to ensure
+        // that the propagating storage created there won't spill into the fiber callbacks.
+        YT_VERIFY(GetCurrentPropagatingStorage().IsNull());
         TCallback<void()> callback;
         {
             TNullPropagatingStorageGuard guard;

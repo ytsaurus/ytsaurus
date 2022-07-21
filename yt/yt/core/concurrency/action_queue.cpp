@@ -40,7 +40,7 @@ public:
             threadName))
         , ShutdownCookie_(RegisterShutdownCallback(
             Format("ActionQueue(%v)", threadName),
-            BIND(&TImpl::Shutdown, MakeWeak(this), /*graceful*/ false),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::Shutdown, MakeWeak(this), /*graceful*/ false),
             /*priority*/ 100))
     { }
 
@@ -57,7 +57,7 @@ public:
 
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
+        FinalizerInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT([graceful, thread = Thread_, queue = Queue_] {
             thread->Stop(graceful);
             queue->DrainConsumer();
         }));
@@ -169,7 +169,7 @@ private:
     void TrySchedule()
     {
         if (!Lock_.test_and_set(std::memory_order_acquire)) {
-            UnderlyingInvoker_->Invoke(BIND(
+            UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
                 &TSerializedInvoker::RunCallback,
                 MakeStrong(this),
                 Passed(TInvocationGuard(this))));
@@ -239,7 +239,7 @@ public:
             Heap_.push_back({std::move(callback), priority, Counter_--});
             std::push_heap(Heap_.begin(), Heap_.end());
         }
-        UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
+        UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
     }
 
 private:
@@ -405,7 +405,7 @@ private:
         // Protect by setting CurrentSchedulingInvoker_ and checking it on entering ScheduleMore.
         CurrentSchedulingInvoker_ = this;
 
-        UnderlyingInvoker_->Invoke(BIND(
+        UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TBoundedConcurrencyInvoker::DoRunCallback,
             MakeStrong(this),
             std::move(callback),
@@ -571,7 +571,7 @@ private:
                 break;
             }
 
-            UnderlyingInvoker_->Invoke(BIND(
+            UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
                &TSuspendableInvoker::RunCallback,
                MakeStrong(this),
                Passed(std::move(callback)),
@@ -603,7 +603,7 @@ public:
 
     void Invoke(TClosure callback) override
     {
-        UnderlyingInvoker_->Invoke(BIND(
+        UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TMemoryTaggingInvoker::RunCallback,
             MakeStrong(this),
             Passed(std::move(callback))));
@@ -638,7 +638,7 @@ public:
 
     void Invoke(TClosure callback) override
     {
-        UnderlyingInvoker_->Invoke(BIND(
+        UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TCodicilGuardedInvoker::RunCallback,
             MakeStrong(this),
             Passed(std::move(callback))));

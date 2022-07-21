@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/misc/cast.h>

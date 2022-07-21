@@ -53,7 +53,7 @@ INodeTypeHandlerPtr CreateShardMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::CypressShardMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualShardMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);

@@ -106,13 +106,13 @@ private:
 
     static TRetryChecker GetCommitRetryChecker()
     {
-        static const auto Result = BIND(&IsRetriableError);
+        static const auto Result = BIND_NO_PROPAGATE(&IsRetriableError);
         return Result;
     }
 
     static TRetryChecker GetAbortRetryChecker()
     {
-        static const auto Result = BIND([] (const TError& error) {
+        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState);
@@ -122,13 +122,13 @@ private:
 
     static TRetryChecker GetPingRetryChecker()
     {
-        static const auto Result = BIND(&IsRetriableError);
+        static const auto Result = BIND_NO_PROPAGATE(&IsRetriableError);
         return Result;
     }
 
     static TRetryChecker GetCheckDownedParticipantsRetryChecker()
     {
-        static const auto Result = BIND(&IsRetriableError);
+        static const auto Result = BIND_NO_PROPAGATE(&IsRetriableError);
         return Result;
     }
 

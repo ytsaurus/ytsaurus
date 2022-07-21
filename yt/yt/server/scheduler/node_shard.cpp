@@ -172,7 +172,7 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
     , CachedResourceStatisticsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>>(
-        BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
+        BIND_NEW(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NodeShardLogger.WithTag("NodeShardId: %v", Id_))
@@ -1094,7 +1094,7 @@ void TNodeShard::AbandonJob(TJobId jobId)
     }
 
     YT_LOG_DEBUG("Abandoning job (JobId: %v)", jobId);
-    
+
     DoAbandonJob(job);
 }
 
@@ -2098,7 +2098,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 YT_LOG_DEBUG("Unknown job is waiting, abort scheduled");
                 AddJobToAbort(response, {jobId});
                 break;
-            
+
             case EAllocationState::Finishing:
                 YT_LOG_DEBUG("Unknown job is finishing, abort scheduled");
                 break;
@@ -2174,7 +2174,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
                     OnJobRunning(job, jobStatus);
                     break;
-                
+
                 case EAllocationState::Waiting:
                     YT_LOG_DEBUG_IF(stateChanged, "Job is now waiting");
                     break;
@@ -2188,7 +2188,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     CpuInstantToInstant(job->GetInterruptDeadline()));
                 AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
             } else if (job->GetFailRequested()) {
-                if (allocationState == EAllocationState::Running) { 
+                if (allocationState == EAllocationState::Running) {
                     YT_LOG_DEBUG("Job fail requested");
                     ToProto(response->add_jobs_to_fail(), jobId);
                 }
@@ -2368,7 +2368,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
                 agent->GetIncarnationId());
             continue;
         }
-        
+
         if (!controller->OnJobStarted(job)) {
             continue;
         }
@@ -2556,7 +2556,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 void TNodeShard::SetAllocationState(const TJobPtr& job, const EAllocationState state)
 {
     YT_VERIFY(state != EAllocationState::Scheduled);
-    
+
     UpdateProfilingCounter(job, -1);
     job->SetAllocationState(state);
     UpdateProfilingCounter(job, 1);

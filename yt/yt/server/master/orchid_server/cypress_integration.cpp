@@ -129,7 +129,7 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return CreateService(bootstrap->GetNodeChannelFactory(), std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);

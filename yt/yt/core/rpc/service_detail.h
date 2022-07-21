@@ -412,8 +412,8 @@ protected:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
-        BIND(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
+        BIND_DONT_CAPTURE_TRACE_CONTEXT(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
+        BIND_DONT_CAPTURE_TRACE_CONTEXT(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 

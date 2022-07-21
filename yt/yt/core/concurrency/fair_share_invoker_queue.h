@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/invoker.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/ytprof/api/api.h>

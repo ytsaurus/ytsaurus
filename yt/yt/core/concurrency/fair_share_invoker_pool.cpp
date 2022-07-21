@@ -158,7 +158,7 @@ public:
         }
 
         Queue_->Enqueue(std::move(callback), index);
-        UnderlyingInvoker_->Invoke(BIND(
+        UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
             &TFairShareInvokerPool::Run,
             MakeStrong(this)));
     }

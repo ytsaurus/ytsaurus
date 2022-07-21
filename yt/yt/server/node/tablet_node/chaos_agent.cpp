@@ -65,7 +65,7 @@ public:
         FiberFuture_ = BIND(
             &TChaosAgent::FiberMain,
             MakeWeak(this),
-            BIND(&TChaosAgent::FiberIteration, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TChaosAgent::FiberIteration, MakeWeak(this)),
             MountConfig_->ReplicationTickPeriod)
             .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
             .Run();
@@ -73,7 +73,7 @@ public:
         ProgressReporterFiberFuture_ = BIND(
             &TChaosAgent::FiberMain,
             MakeWeak(this),
-            BIND(&TChaosAgent::ReportUpdatedReplicationProgress,
+            BIND_NO_PROPAGATE(&TChaosAgent::ReportUpdatedReplicationProgress,
             MakeWeak(this)),
             MountConfig_->ReplicationProgressUpdateTickPeriod)
             .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
@@ -245,7 +245,7 @@ private:
 
             if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
                 auto newProgress = ExtractReplicationProgress(
-                    selfReplica->ReplicationProgress, 
+                    selfReplica->ReplicationProgress,
                     Tablet_->GetPivotKey().Get(),
                     Tablet_->GetNextPivotKey().Get());
                 AdvanceTabletReplicationProgress(std::move(newProgress));

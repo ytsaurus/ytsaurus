@@ -146,7 +146,7 @@ INodeTypeHandlerPtr CreateEstimatedCreationTimeMapTypeHandler(TBootstrap* bootst
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::EstimatedCreationTimeMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TEstimatedCreationTimeMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);

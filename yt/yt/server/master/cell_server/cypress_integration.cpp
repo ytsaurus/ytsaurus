@@ -79,7 +79,7 @@ INodeTypeHandlerPtr CreateAreaMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::AreaMap,
-        BIND([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
             return New<TVirtualAreaMap>(bootstrap);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -215,7 +215,7 @@ INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         cellBundleMapType,
-        BIND([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
             return New<TVirtualCellBundleMap>(bootstrap, cellarType);
         }),
         EVirtualNodeOptions::RedirectSelf);

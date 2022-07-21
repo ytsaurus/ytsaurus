@@ -219,7 +219,6 @@ class TBaseSwitchHandler
 protected:
     void OnSwitch()
     {
-        TraceContext_ = NTracing::SwitchTraceContext(TraceContext_);
         MemoryTag_ = SwapMemoryTag(MemoryTag_);
         FsdHolder_ = NDetail::SetCurrentFsdHolder(FsdHolder_);
         FiberId_ = SwapFiberId(FiberId_);
@@ -228,7 +227,6 @@ protected:
 
     ~TBaseSwitchHandler()
     {
-        YT_VERIFY(TraceContext_.Get() == nullptr);
         YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
         YT_VERIFY(FsdHolder_ == nullptr);
         YT_VERIFY(FiberId_ == InvalidFiberId);
@@ -237,8 +235,6 @@ protected:
 
 private:
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
-    // TODO(gepardo): Remove this once trace context is moved into PropagatingStorage_.
-    NTracing::TTraceContextPtr TraceContext_ = nullptr;
     NDetail::TFsdHolder* FsdHolder_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
     TPropagatingStorage PropagatingStorage_;
@@ -406,6 +402,8 @@ void RunInFiberContext(TClosure callback)
         YT_VERIFY(GetCurrentFiberId() == fiberId);
         SetCurrentFiberId(InvalidFiberId);
     });
+
+    TNullPropagatingStorageGuard propagatingStorageGuard;
 
     callback.Run();
 }

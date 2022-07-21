@@ -394,7 +394,7 @@ private:
         EPeerKind kind,
         const NNative::TConnectionOptions& options)
     {
-        auto isRetriableError = BIND([options] (const TError& error) {
+        auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
             const auto* effectiveError = &error;
             if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
                 !error.InnerErrors().empty())

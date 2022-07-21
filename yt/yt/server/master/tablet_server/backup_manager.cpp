@@ -75,9 +75,9 @@ public:
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionAborted(
-            BIND(&TBackupManager::OnTransactionAborted, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::OnTransactionAborted, MakeWeak(this)));
         transactionManager->SubscribeTransactionCommitted(
-            BIND(&TBackupManager::OnTransactionCommitted, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::OnTransactionCommitted, MakeWeak(this)));
     }
 
     void StartBackup(

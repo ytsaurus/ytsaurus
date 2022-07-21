@@ -518,19 +518,19 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
         "ChunkMerger",
         BIND(&TChunkMerger::Save, Unretained(this)));
 
-    RegisterMethod(BIND(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
-    RegisterMethod(BIND(&TChunkMerger::HydraCreateChunks, Unretained(this)));
-    RegisterMethod(BIND(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
-    RegisterMethod(BIND(&TChunkMerger::HydraFinalizeChunkMergeSessions, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraCreateChunks, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraFinalizeChunkMergeSessions, Unretained(this)));
 }
 
 void TChunkMerger::Initialize()
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    transactionManager->SubscribeTransactionAborted(BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this)));
+    transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TChunkMerger::OnTransactionAborted, MakeWeak(this)));
 
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TChunkMerger::ScheduleMerge(TObjectId nodeId)

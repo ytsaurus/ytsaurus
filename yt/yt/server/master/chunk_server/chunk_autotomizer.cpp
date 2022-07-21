@@ -391,8 +391,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionAborted(BIND(&TChunkAutotomizer::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionCommitted(BIND(&TChunkAutotomizer::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TChunkAutotomizer::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TChunkAutotomizer::OnTransactionFinished, MakeWeak(this)));
     }
 
     void OnProfiling(TSensorBuffer* buffer) const override

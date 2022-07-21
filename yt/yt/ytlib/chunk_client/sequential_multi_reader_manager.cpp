@@ -62,7 +62,7 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
     }
 
     UncancelableCompletionError_.Subscribe(
-        BIND(&TSequentialMultiReaderManager::PropagateError, MakeWeak(this))
+        BIND_NEW(&TSequentialMultiReaderManager::PropagateError, MakeWeak(this))
             .Via(ReaderInvoker_));
 }
 

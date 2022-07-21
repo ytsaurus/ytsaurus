@@ -73,7 +73,7 @@ INodeTypeHandlerPtr CreatePoolTreeMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::SchedulerPoolTreeMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualPoolTreeMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);

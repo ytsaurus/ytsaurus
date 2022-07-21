@@ -203,14 +203,14 @@ public:
     void Initialize()
     {
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestConfig, Unretained(this)),
-            BIND(&TImpl::HandleConfig, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::RequestConfig, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleConfig, Unretained(this)),
             ESchedulerAlertType::UpdateConfig);
 
         MasterConnector_->SetCustomWatcher(
             EWatcherType::PoolTrees,
-            BIND(&TImpl::RequestPoolTrees, Unretained(this)),
-            BIND(&TImpl::HandlePoolTrees, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::RequestPoolTrees, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandlePoolTrees, Unretained(this)),
             Config_->WatchersUpdatePeriod,
             ESchedulerAlertType::UpdatePools,
             TWatcherLockOptions{
@@ -221,36 +221,36 @@ public:
 
         MasterConnector_->SetCustomWatcher(
             EWatcherType::NodeAttributes,
-            BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
-            BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::RequestNodesAttributes, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleNodesAttributes, Unretained(this)),
             Config_->NodesAttributesUpdatePeriod);
 
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestOperationsEffectiveAcl, Unretained(this)),
-            BIND(&TImpl::HandleOperationsEffectiveAcl, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestOperationsEffectiveAcl, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleOperationsEffectiveAcl, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestOperationArchiveVersion, Unretained(this)),
-            BIND(&TImpl::HandleOperationArchiveVersion, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestOperationArchiveVersion, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleOperationArchiveVersion, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestClusterName, Unretained(this)),
-            BIND(&TImpl::HandleClusterName, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestClusterName, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleClusterName, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestUserToDefaultPoolMap, Unretained(this)),
-            BIND(&TImpl::HandleUserToDefaultPoolMap, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestUserToDefaultPoolMap, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleUserToDefaultPoolMap, Unretained(this)));
 
-        MasterConnector_->SubscribeMasterConnecting(BIND(
+        MasterConnector_->SubscribeMasterConnecting(BIND_NO_PROPAGATE(
             &TImpl::OnMasterConnecting,
             Unretained(this)));
-        MasterConnector_->SubscribeMasterHandshake(BIND(
+        MasterConnector_->SubscribeMasterHandshake(BIND_NO_PROPAGATE(
             &TImpl::OnMasterHandshake,
             Unretained(this)));
-        MasterConnector_->SubscribeMasterConnected(BIND(
+        MasterConnector_->SubscribeMasterConnected(BIND_NO_PROPAGATE(
             &TImpl::OnMasterConnected,
             Unretained(this)));
-        MasterConnector_->SubscribeMasterDisconnected(BIND(
+        MasterConnector_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
             &TImpl::OnMasterDisconnected,
             Unretained(this)));
 
@@ -352,7 +352,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        auto staticOrchidProducer = BIND_NEW(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::StaticOrchid))
             ->Cached(
@@ -362,7 +362,7 @@ public:
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
-        auto lightStaticOrchidProducer = BIND(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
+        auto lightStaticOrchidProducer = BIND_NEW(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
         auto lightStaticOrchidService = IYPathService::FromProducer(lightStaticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::StaticOrchid));
 
@@ -2906,7 +2906,7 @@ private:
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
         auto operationAttributesOrchidService =
-            IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+            IYPathService::FromProducer(BIND_NEW(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
@@ -4222,7 +4222,7 @@ private:
                 })))
             , OperationProgressService_(
                 IYPathService::FromProducer(
-                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                    BIND_NEW([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
                                 .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, strategy, operationId))
@@ -4231,7 +4231,7 @@ private:
                     ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
             , OperationBriefProgressService_(
                 IYPathService::FromProducer(
-                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                    BIND_NEW([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
                                 .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, strategy, operationId))

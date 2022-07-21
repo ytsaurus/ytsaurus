@@ -5,10 +5,7 @@
 #endif
 #undef BIND_INL_H_
 
-
 #include <yt/yt/core/concurrency/propagating_storage.h>
-
-#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT {
 
@@ -432,7 +429,6 @@ class TPropagateMixin;
 
 template <>
 class TPropagateMixin<true>
-    : public NYT::NTracing::TTraceContextHandler
 {
 public:
     TPropagateMixin()
@@ -453,11 +449,6 @@ class TPropagateMixin<false>
 {
 public:
     struct TDummyGuard { };
-
-    TDummyGuard GetTraceContextGuard()
-    {
-        return TDummyGuard();
-    }
 
     TDummyGuard GetPropagatingStorageGuard()
     {
@@ -498,10 +489,7 @@ public:
     {
         auto* state = static_cast<TBindState*>(base);
 
-        // TODO(gepardo): Put trace context into PropagatingStorage and leave only one guard here.
-        auto traceGuard = state->GetTraceContextGuard();
         auto propagatingStorageGuard = state->GetPropagatingStorageGuard();
-        Y_UNUSED(traceGuard);
         Y_UNUSED(propagatingStorageGuard);
 
         return state->Functor(

@@ -6,8 +6,7 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPropagatingStorage::TImpl
-    : public TRefCounted
+class TPropagatingStorageImplBase
 {
 public:
     using TStorage = TCompactFlatMap<std::type_index, std::any, 16>;
@@ -45,17 +44,34 @@ public:
         return result;
     }
 
-    TIntrusivePtr<TImpl> Clone() const
-    {
-        return New<TImpl>(Data_);
-    }
-
-    explicit TImpl(TStorage data = {})
-        : Data_(std::move(data))
-    { }
+    DEFINE_SIGNAL_SIMPLE(void(), OnBeforeUninstall);
+    DEFINE_SIGNAL_SIMPLE(void(), OnAfterInstall);
 
 private:
     TStorage Data_;
+
+    friend TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
+};
+
+
+class TPropagatingStorage::TImpl
+    : public TRefCounted
+    , public TPropagatingStorageImplBase
+{
+public:
+    TImpl() = default;
+
+    TIntrusivePtr<TImpl> Clone() const
+    {
+        return New<TImpl>(static_cast<const TPropagatingStorageImplBase&>(*this));
+    }
+
+private:
+    DECLARE_NEW_FRIEND()
+
+    explicit TImpl(const TPropagatingStorageImplBase& base)
+        : TPropagatingStorageImplBase(base)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,6 +122,30 @@ std::optional<std::any> TPropagatingStorage::RemoveRaw(const std::type_info& typ
     return Impl_->RemoveRaw(typeInfo);
 }
 
+void TPropagatingStorage::SubscribeOnAfterInstall(const TCallback<void()>& callback)
+{
+    EnsureUnique();
+    Impl_->SubscribeOnAfterInstall(callback);
+}
+
+void TPropagatingStorage::UnsubscribeOnAfterInstall(const TCallback<void()>& callback)
+{
+    EnsureUnique();
+    Impl_->UnsubscribeOnAfterInstall(callback);
+}
+
+void TPropagatingStorage::SubscribeOnBeforeUninstall(const TCallback<void()>& callback)
+{
+    EnsureUnique();
+    Impl_->SubscribeOnBeforeUninstall(callback);
+}
+
+void TPropagatingStorage::UnsubscribeOnBeforeUninstall(const TCallback<void()>& callback)
+{
+    EnsureUnique();
+    Impl_->UnsubscribeOnBeforeUninstall(callback);
+}
+
 TPropagatingStorage TPropagatingStorage::Create()
 {
     return TPropagatingStorage(New<TImpl>());
@@ -148,7 +188,14 @@ TPropagatingStorage& GetCurrentPropagatingStorage()
 
 TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage)
 {
-    return std::exchange(CurrentPropagatingStorage, std::move(storage));
+    if (!CurrentPropagatingStorage.IsNull()) {
+        CurrentPropagatingStorage.Impl_->OnBeforeUninstall_.Fire();
+    }
+    auto result = std::exchange(CurrentPropagatingStorage, std::move(storage));
+    if (!CurrentPropagatingStorage.IsNull()) {
+        CurrentPropagatingStorage.Impl_->OnAfterInstall_.Fire();
+    }
+    return result;
 }
 
 TPropagatingStorageGuard::TPropagatingStorageGuard(TPropagatingStorage storage)

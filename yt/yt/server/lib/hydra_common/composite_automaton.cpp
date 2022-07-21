@@ -49,18 +49,18 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     YT_VERIFY(HydraManager_);
     YT_VERIFY(Automaton_);
 
-    HydraManager_->SubscribeStartLeading(BIND(&TThis::OnStartLeading, MakeWeak(this)));
-    HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnLeaderActive, MakeWeak(this)));
-    HydraManager_->SubscribeStopLeading(BIND(&TThis::OnStopLeading, MakeWeak(this)));
+    HydraManager_->SubscribeStartLeading(BIND_NO_PROPAGATE(&TThis::OnStartLeading, MakeWeak(this)));
+    HydraManager_->SubscribeStartLeading(BIND_NO_PROPAGATE(&TThis::OnRecoveryStarted, MakeWeak(this)));
+    HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnRecoveryComplete, MakeWeak(this)));
+    HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
+    HydraManager_->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TThis::OnLeaderActive, MakeWeak(this)));
+    HydraManager_->SubscribeStopLeading(BIND_NO_PROPAGATE(&TThis::OnStopLeading, MakeWeak(this)));
 
-    HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnStartFollowing, MakeWeak(this)));
-    HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TThis::OnFollowerRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeStopFollowing(BIND(&TThis::OnStopFollowing, MakeWeak(this)));
+    HydraManager_->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TThis::OnStartFollowing, MakeWeak(this)));
+    HydraManager_->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TThis::OnRecoveryStarted, MakeWeak(this)));
+    HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnRecoveryComplete, MakeWeak(this)));
+    HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnFollowerRecoveryComplete, MakeWeak(this)));
+    HydraManager_->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TThis::OnStopFollowing, MakeWeak(this)));
 
     Automaton_->RegisterPart(this);
 }
@@ -284,11 +284,11 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
     } else {
         HydraManager_ = part->HydraManager_;
 
-        HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+        HydraManager_->SubscribeStartLeading(BIND_NO_PROPAGATE(&TThis::OnRecoveryStarted, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnRecoveryComplete, MakeWeak(this)));
 
-        HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+        HydraManager_->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TThis::OnRecoveryStarted, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND_NO_PROPAGATE(&TThis::OnRecoveryComplete, MakeWeak(this)));
     }
 }
 
