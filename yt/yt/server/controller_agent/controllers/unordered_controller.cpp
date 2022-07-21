@@ -221,7 +221,7 @@ public:
     INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
     INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableUnorderedTask, 0x9a9bcee3, TUnorderedTaskBase);
 
-    typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
+    using TUnorderedTaskPtr = TIntrusivePtr<TUnorderedTaskBase>;
 
     TUnorderedControllerBase(
         TUnorderedOperationSpecBasePtr spec,

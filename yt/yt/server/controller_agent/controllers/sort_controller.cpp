@@ -216,19 +216,19 @@ protected:
 
     // Forward declarations.
     class TPartitionTask;
-    typedef TIntrusivePtr<TPartitionTask> TPartitionTaskPtr;
+    using TPartitionTaskPtr = TIntrusivePtr<TPartitionTask>;
 
     class TSortTask;
-    typedef TIntrusivePtr<TSortTask> TSortTaskPtr;
+    using TSortTaskPtr = TIntrusivePtr<TSortTask>;
 
     class TSimpleSortTask;
-    typedef TIntrusivePtr<TSimpleSortTask> TSimpleSortTaskPtr;
+    using TSimpleSortTaskPtr = TIntrusivePtr<TSimpleSortTask>;
 
     class TSortedMergeTask;
-    typedef TIntrusivePtr<TSortedMergeTask> TSortedMergeTaskPtr;
+    using TSortedMergeTaskPtr = TIntrusivePtr<TSortedMergeTask>;
 
     class TUnorderedMergeTask;
-    typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
+    using TUnorderedMergeTaskPtr = TIntrusivePtr<TUnorderedMergeTask>;
 
     // Partitions.
 
@@ -446,7 +446,7 @@ protected:
         TNodeId AssignedNodeId = InvalidNodeId;
     };
 
-    typedef TIntrusivePtr<TPartition> TPartitionPtr;
+    using TPartitionPtr = TIntrusivePtr<TPartition>;
 
     //! Equivalent to |Partitions.size() == 1| but enables checking
     //! for simple sort when #Partitions is still being constructed.
@@ -2120,7 +2120,7 @@ protected:
             i64 AssignedDataWeight = 0;
         };
 
-        typedef TIntrusivePtr<TAssignedNode> TAssignedNodePtr;
+        using TAssignedNodePtr = TIntrusivePtr<TAssignedNode>;
 
         auto compareNodes = [&] (const TAssignedNodePtr& lhs, const TAssignedNodePtr& rhs) {
             return lhs->AssignedDataWeight / lhs->Weight > rhs->AssignedDataWeight / rhs->Weight;

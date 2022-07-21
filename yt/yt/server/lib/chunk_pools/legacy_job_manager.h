@@ -143,7 +143,7 @@ private:
     };
 
     //! бассейн с печеньками^W^W^W
-    typedef std::multiset<IChunkPoolOutput::TCookie, TStripeListComparator> TCookiePool;
+    using TCookiePool = std::multiset<IChunkPoolOutput::TCookie, TStripeListComparator>;
 
     //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
     std::unique_ptr<TCookiePool> CookiePool_;

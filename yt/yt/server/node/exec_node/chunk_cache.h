@@ -28,8 +28,8 @@ struct TArtifactDownloadOptions
 
     std::vector<TString> WorkloadDescriptorAnnotations;
 
-    typedef TCallback<void(NConcurrency::IAsyncZeroCopyInputStreamPtr, TString)>
-        TArtifactConverter;
+    using TArtifactConverter =
+        TCallback<void(NConcurrency::IAsyncZeroCopyInputStreamPtr, TString)>;
 
     TArtifactConverter Converter;
 

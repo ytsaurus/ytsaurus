@@ -330,7 +330,7 @@ protected:
     INHERIT_DYNAMIC_PHOENIX_TYPE(TSortedTaskBase, TSortedTask, 0xbbe534a7);
     INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableSortedTask, 0x1233fa99, TSortedTaskBase);
 
-    typedef TIntrusivePtr<TSortedTaskBase> TSortedTaskPtr;
+    using TSortedTaskPtr = TIntrusivePtr<TSortedTaskBase>;
 
     TSortedTaskPtr SortedTask_;
 

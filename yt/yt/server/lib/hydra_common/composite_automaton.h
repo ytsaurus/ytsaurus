@@ -135,7 +135,7 @@ protected:
     virtual void CheckInvariants();
 
 private:
-    typedef TCompositeAutomatonPart TThis;
+    using TThis = TCompositeAutomatonPart;
     friend class TCompositeAutomaton;
 
     void RegisterMethod(
@@ -206,7 +206,7 @@ protected:
         ICheckpointableInputStream* input);
 
 private:
-    typedef TCompositeAutomaton TThis;
+    using TThis = TCompositeAutomaton;
     friend class TCompositeAutomatonPart;
 
     const IInvokerPtr AsyncSnapshotInvoker_;
