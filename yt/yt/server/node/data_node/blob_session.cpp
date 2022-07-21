@@ -639,11 +639,10 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     i64 requestSize = 0;
 
     std::vector<TBlock> blocks;
+    blocks.reserve(blockCount);
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
-        auto block = GetBlock(blockIndex);
-
-        blocks.push_back(std::move(block));
-        requestSize += block.Size();
+        blocks.push_back(GetBlock(blockIndex));
+        requestSize += blocks.back().Size();
     }
     SetRpcAttachedBlocks(req, blocks);
 
