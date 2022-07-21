@@ -1,6 +1,5 @@
 #include "queue_controller.h"
 
-#include "consumer_table.h"
 #include "snapshot.h"
 #include "snapshot_representation.h"
 #include "config.h"
@@ -10,6 +9,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -30,6 +31,7 @@ using namespace NHiveClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NQueueClient;
 using namespace NYson;
 using namespace NTracing;
 using namespace NLogging;
@@ -200,9 +202,9 @@ private:
         // Collect partition infos from the consumer table.
         {
             auto client = ClientDirectory_->GetClientOrThrow(consumerRef.Cluster);
-            auto consumerTable = CreateConsumerTable(client, consumerRef.Path, *ConsumerSnapshot_->Row.Schema);
+            auto consumerClient = CreateConsumerClient(consumerRef.Path, *ConsumerSnapshot_->Row.Schema);
 
-            auto consumerPartitionInfos = WaitFor(consumerTable->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
+            auto consumerPartitionInfos = WaitFor(consumerClient->CollectPartitions(client, partitionCount, /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
 
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {

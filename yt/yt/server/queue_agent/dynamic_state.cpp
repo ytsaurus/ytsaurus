@@ -10,6 +10,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

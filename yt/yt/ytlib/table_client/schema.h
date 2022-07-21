@@ -28,17 +28,6 @@ TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,
     bool discardKeyColumns);
 
-// Validates that values from table with inputSchema also match outputSchema.
-//
-// Result pair contains following elements:
-//   1. Level of compatibility of the given schemas.
-//   2. If schemas are fully compatible error is empty otherwise it contains description
-//      of incompatibility.
-std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibility(
-    const TTableSchema& inputSchema,
-    const TTableSchema& outputSchema,
-    bool ignoreSortOrder);
-
 //! Compared to #ValidateTableSchema, additionally validates
 //! aggregated and computed columns (this involves calling some heavy QL-related
 //! stuff which is missing in yt/client).

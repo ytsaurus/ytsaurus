@@ -2,11 +2,16 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/yt/client/queue_client/consumer_client.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NQueueClient;
+using namespace NConcurrency;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -114,16 +119,30 @@ void ITransaction::LockRows(
     ELockType lockType)
 {
     const auto& tableMountCache = GetClient()->GetTableMountCache();
-    auto tableInfo = NConcurrency::WaitFor(tableMountCache->GetTableInfo(path))
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
 
     auto lockMask = GetLockMask(
-        *tableInfo->Schemas[NTabletClient::ETableSchemaKind::Write],
+        *tableInfo->Schemas[ETableSchemaKind::Write],
         GetAtomicity() == NTransactionClient::EAtomicity::Full,
         locks,
         lockType);
 
     LockRows(path, nameTable, keys, lockMask);
+}
+
+void ITransaction::AdvanceConsumer(
+    const NYPath::TYPath& path,
+    int partitionIndex,
+    std::optional<i64> oldOffset,
+    i64 newOffset)
+{
+    auto tableInfo = WaitFor(GetClient()->GetTableMountCache()->GetTableInfo(path))
+        .ValueOrThrow();
+    auto schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    auto consumerClient = CreateConsumerClient(path, *schema);
+    consumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
