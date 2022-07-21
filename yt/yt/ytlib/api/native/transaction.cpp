@@ -105,8 +105,8 @@ public:
             MakeWeak(Transaction_),
             Logger))
     {
-        SubscribeCommitted(BIND([counters = Counters_] { counters.CommittedTransactionCounter.Increment(); }));
-        SubscribeAborted(BIND([counters = Counters_] (const TError&) { counters.AbortedTransactionCounter.Increment(); }));
+        SubscribeCommitted(BIND_NO_PROPAGATE([counters = Counters_] { counters.CommittedTransactionCounter.Increment(); }));
+        SubscribeAborted(BIND_NO_PROPAGATE([counters = Counters_] (const TError&) { counters.AbortedTransactionCounter.Increment(); }));
     }
 
 

@@ -268,10 +268,10 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SubscribeNodeCreated(BIND(&TImpl::OnNodeCreated, MakeStrong(this)));
+        cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TImpl::OnNodeCreated, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:

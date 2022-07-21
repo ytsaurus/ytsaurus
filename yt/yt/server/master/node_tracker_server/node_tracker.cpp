@@ -167,17 +167,17 @@ public:
 
     void SubscribeToAggregatedNodeStateChanged(TNode* node)
     {
-        node->SubscribeAggregatedStateChanged(BIND(&TNodeTracker::OnAggregatedNodeStateChanged, Unretained(this)));
+        node->SubscribeAggregatedStateChanged(BIND_NO_PROPAGATE(&TNodeTracker::OnAggregatedNodeStateChanged, Unretained(this)));
     }
 
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateNodeTypeHandler(Bootstrap_, &NodeMap_));
@@ -188,11 +188,11 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
-                BIND(&TNodeTracker::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TNodeTracker::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(

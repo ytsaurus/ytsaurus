@@ -1159,7 +1159,7 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
         return TSortedDynamicStore::TRowBlockedHandler();
     }
 
-    return BIND(
+    return BIND_NO_PROPAGATE(
         &TSortedStoreManager::OnRowBlocked,
         MakeWeak(this),
         Unretained(store.Get()),

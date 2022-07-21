@@ -743,7 +743,7 @@ private:
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
                     lightChannel,
-                    BIND([] (const TError& error) {
+                    BIND_NEW([] (const TError& error) {
                         return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
                     }));
                 auto node = New<TNode>(

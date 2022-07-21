@@ -338,7 +338,7 @@ public:
         , AcknowledgementTimeout_(acknowledgementTimeout)
         , OnFailure_(std::move(onFailure))
         , IsError_(std::move(isError))
-        , OnTerminated_(BIND(&TFailureDetectingChannel::OnTerminated, MakeWeak(this)))
+        , OnTerminated_(BIND_NEW(&TFailureDetectingChannel::OnTerminated, MakeWeak(this)))
     {
         UnderlyingChannel_->SubscribeTerminated(OnTerminated_);
     }

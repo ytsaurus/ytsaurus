@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <yt/yt/core/misc/guid.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;

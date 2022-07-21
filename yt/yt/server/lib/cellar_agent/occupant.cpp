@@ -441,7 +441,7 @@ public:
                         .AsyncVia(Bootstrap_->GetControlInvoker()));
             }
 
-            auto onRecoveryComplete = BIND(&TCellarOccupant::OnRecoveryComplete, MakeWeak(this));
+            auto onRecoveryComplete = BIND_NO_PROPAGATE(&TCellarOccupant::OnRecoveryComplete, MakeWeak(this));
             hydraManager->SubscribeControlFollowerRecoveryComplete(onRecoveryComplete);
             hydraManager->SubscribeControlLeaderRecoveryComplete(onRecoveryComplete);
 

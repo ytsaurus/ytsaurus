@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/ref_counted.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/library/syncmap/map.h>

@@ -98,7 +98,7 @@ void TSlotManager::Initialize()
             JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
             Config_->EnableTmpfs,
             SlotCount_,
-            BIND(&IJobEnvironment::GetUserId, JobEnvironment_)));
+            BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
         ++locationIndex;
     }
 

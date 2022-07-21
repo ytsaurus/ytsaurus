@@ -39,7 +39,7 @@ public:
         , Logger(logger)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
+            BIND_NEW(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
             TPeriodicExecutorOptions{
                 .Period = Config_->SyncPeriod,
                 .Splay = Config_->SyncPeriodSplay

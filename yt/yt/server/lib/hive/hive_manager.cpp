@@ -145,11 +145,11 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "HiveManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND_NEW(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "HiveManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND_NEW(&TImpl::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
     }

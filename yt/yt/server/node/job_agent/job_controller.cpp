@@ -1678,7 +1678,7 @@ IYPathServicePtr TJobController::TImpl::GetOrchidService()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return IYPathService::FromProducer(BIND(&TImpl::BuildOrchid, MakeStrong(this)))
+    return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TImpl::BuildOrchid, MakeStrong(this)))
         ->Via(Bootstrap_->GetJobInvoker());
 }
 

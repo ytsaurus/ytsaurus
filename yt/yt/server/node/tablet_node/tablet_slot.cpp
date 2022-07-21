@@ -338,11 +338,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        hydraManager->SubscribeStartLeading(BIND(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStartFollowing(BIND(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartLeading(BIND_NO_PROPAGATE(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
 
-        hydraManager->SubscribeStopLeading(BIND(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStopFollowing(BIND(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
 
         InitGuardedInvokers(hydraManager);
 

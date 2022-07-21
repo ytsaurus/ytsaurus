@@ -65,7 +65,7 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::LockMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualLockMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);

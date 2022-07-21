@@ -424,38 +424,38 @@ public:
         objectManager->RegisterHandler(CreateMediumTypeHandler(Bootstrap_));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND(&TChunkManager::OnNodeDisposed, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRackChanged(BIND(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TChunkManager::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDisposed, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDataCenterChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
 
-        nodeTracker->SubscribeDataCenterCreated(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterRenamed(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterCreated(BIND_NO_PROPAGATE(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterRenamed(BIND_NO_PROPAGATE(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterDestroyed(BIND_NO_PROPAGATE(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        dataNodeTracker->SubscribeFullHeartbeat(BIND(&TChunkManager::OnFullDataNodeHeartbeat, MakeWeak(this)));
-        dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TChunkManager::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeFullHeartbeat(BIND_NO_PROPAGATE(&TChunkManager::OnFullDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeIncrementalHeartbeat(BIND_NO_PROPAGATE(&TChunkManager::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
-        alertManager->RegisterAlertSource(BIND(&TChunkManager::GetAlerts, MakeStrong(this)));
+        alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TChunkManager::GetAlerts, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TChunkManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareCreateChunk, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareCreateChunk, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareConfirmChunk, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmChunk, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(

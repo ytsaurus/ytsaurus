@@ -49,7 +49,7 @@ TEncodingWriter::TEncodingWriter(
     , CompressionInvoker_(CreateFixedPriorityInvoker(
         NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority()))
-    , WritePendingBlockCallback_(BIND(
+    , WritePendingBlockCallback_(BIND_NEW(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))
     , CompressionRatio_(Config_->DefaultCompressionRatio)

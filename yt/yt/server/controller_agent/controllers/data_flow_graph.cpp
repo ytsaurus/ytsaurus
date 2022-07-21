@@ -164,19 +164,19 @@ private:
     {
         auto service = New<TCompositeMapService>()
             // COMPAT(gritukan): Drop it in favour of job_data_statistics.
-            ->AddChild("statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
                         .Value(this_->JobDataStatistics_ + this_->TeleportDataStatistics_);
                 }
             })))
-            ->AddChild("job_data_statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("job_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
                         .Value(this_->JobDataStatistics_);
                 }
             })))
-            ->AddChild("teleport_data_statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("teleport_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
                         .Value(this_->TeleportDataStatistics_);

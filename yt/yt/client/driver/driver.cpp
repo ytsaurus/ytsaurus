@@ -445,7 +445,7 @@ private:
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Execute = BIND([] (ICommandContextPtr context) {
+        entry.Execute = BIND_NO_PROPAGATE([] (ICommandContextPtr context) {
             TCommand command;
             command.Execute(context);
         });

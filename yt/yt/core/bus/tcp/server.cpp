@@ -255,7 +255,7 @@ protected:
                 YT_VERIFY(Connections_.insert(connection).second);
             }
 
-            connection->SubscribeTerminated(BIND(
+            connection->SubscribeTerminated(BIND_NO_PROPAGATE(
                 &TTcpBusServerBase::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));

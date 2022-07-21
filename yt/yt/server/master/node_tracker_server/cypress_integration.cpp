@@ -281,7 +281,7 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(statistics.TotalSpace.Used);
                 return true;
-            
+
             case EInternedAttributeKey::IOStatistics:
                 BuildYsonFluently(consumer)
                     .DoMap(BIND(&TVirtualNodeMapBase::BuildIOStatisticsYson, Unretained(this), statistics.TotalIO));
@@ -314,7 +314,7 @@ private:
                                 .Item(medium->GetName()).Value(it->second.Used);
                         });
                 return true;
-            
+
             case EInternedAttributeKey::IOStatisticsPerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(
@@ -438,7 +438,7 @@ INodeTypeHandlerPtr CreateClusterNodeMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ClusterNodeMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualClusterNodeMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -509,7 +509,7 @@ INodeTypeHandlerPtr CreateFlavoredNodeMapTypeHandler(TBootstrap* bootstrap, EObj
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualFlavoredNodeMap>(bootstrap, owningNode, objectType);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -572,7 +572,7 @@ INodeTypeHandlerPtr CreateHostMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::HostMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualHostMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -628,7 +628,7 @@ INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::RackMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualRackMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -684,7 +684,7 @@ INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::DataCenterMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualDataCenterMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);

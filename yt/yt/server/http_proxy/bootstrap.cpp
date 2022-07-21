@@ -345,7 +345,7 @@ const TApiPtr& TBootstrap::GetApi() const
 
 IHttpHandlerPtr TBootstrap::AllowCors(IHttpHandlerPtr nextHandler) const
 {
-    return New<TCallbackHandler>(BIND([config=Config_, nextHandler] (
+    return New<TCallbackHandler>(BIND_NO_PROPAGATE([config=Config_, nextHandler] (
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp)
     {

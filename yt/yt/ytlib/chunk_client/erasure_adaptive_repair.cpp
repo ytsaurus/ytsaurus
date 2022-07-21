@@ -32,7 +32,7 @@ TRepairingReadersObserver::TRepairingReadersObserver(
     YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
 
     for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
-        auto callback = BIND([partIndex, weakThis = MakeWeak(this)] (i64 bytesReceived, TDuration timePassed) {
+        auto callback = BIND_NO_PROPAGATE([partIndex, weakThis = MakeWeak(this)] (i64 bytesReceived, TDuration timePassed) {
             auto this_ = weakThis.Lock();
             if (!this_) {
                 return TError();

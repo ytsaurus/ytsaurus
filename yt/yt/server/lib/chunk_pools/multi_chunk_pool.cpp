@@ -500,9 +500,9 @@ protected:
             CheckCompleted();
         }));
         pool->GetJobCounter()->SubscribePendingUpdated(
-            BIND(&TMultiChunkPoolOutput::OnUnderlyingPoolPendingJobCountChanged, Unretained(this), poolIndex));
+            BIND_NO_PROPAGATE(&TMultiChunkPoolOutput::OnUnderlyingPoolPendingJobCountChanged, Unretained(this), poolIndex));
         pool->GetJobCounter()->SubscribeBlockedUpdated(
-            BIND(&TMultiChunkPoolOutput::OnUnderlyingPoolBlockedJobCountChanged, Unretained(this), poolIndex));
+            BIND_NO_PROPAGATE(&TMultiChunkPoolOutput::OnUnderlyingPoolBlockedJobCountChanged, Unretained(this), poolIndex));
     }
 
     void OnUnderlyingPoolPendingJobCountChanged(int poolIndex)

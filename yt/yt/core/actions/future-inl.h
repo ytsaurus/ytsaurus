@@ -803,11 +803,11 @@ TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 
     auto promise = NewPromise<R>();
 
-    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) {
+    this_.Subscribe(BIND_NO_PROPAGATE([=, callback = std::move(callback)] (const TErrorOr<T>& value) {
         ApplyHelperHandler(promise, callback, value);
     }));
 
-    promise.OnCanceled(BIND([cancelable = this_.AsCancelable()] (const TError& error) {
+    promise.OnCanceled(BIND_NO_PROPAGATE([cancelable = this_.AsCancelable()] (const TError& error) {
         cancelable.Cancel(error);
     }));
 
@@ -837,11 +837,11 @@ TFuture<R> ApplyUniqueHelper(TFutureBase<T> this_, TCallback<S> callback)
 
     auto promise = NewPromise<R>();
 
-    this_.SubscribeUnique(BIND([=, callback = std::move(callback)] (TErrorOr<T>&& value) {
+    this_.SubscribeUnique(BIND_NO_PROPAGATE([=, callback = std::move(callback)] (TErrorOr<T>&& value) {
         ApplyHelperHandler(promise, callback, std::move(value));
     }));
 
-    promise.OnCanceled(BIND([cancelable = this_.AsCancelable()] (const TError& error) {
+    promise.OnCanceled(BIND_NO_PROPAGATE([cancelable = this_.AsCancelable()] (const TError& error) {
         cancelable.Cancel(error);
     }));
 
@@ -873,12 +873,12 @@ TFuture<T> ApplyTimeoutHelper(TFutureBase<T> this_, D timeoutOrDeadline, IInvoke
         timeoutOrDeadline,
         std::move(invoker));
 
-    this_.Subscribe(BIND([=] (const TErrorOr<T>& value) {
+    this_.Subscribe(BIND_NO_PROPAGATE([=] (const TErrorOr<T>& value) {
         NConcurrency::TDelayedExecutor::Cancel(cookie);
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([=, cancelable = this_.AsCancelable()] (const TError& error) {
+    promise.OnCanceled(BIND_NO_PROPAGATE([=, cancelable = this_.AsCancelable()] (const TError& error) {
         NConcurrency::TDelayedExecutor::Cancel(cookie);
         cancelable.Cancel(error);
     }));
@@ -1105,11 +1105,11 @@ TFuture<T> TFutureBase<T>::ToUncancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
+    this->Subscribe(BIND_NO_PROPAGATE([=] (const TErrorOr<T>& value) {
         promise.Set(value);
     }));
 
-    static const auto NoopHandler = BIND([] (const TError&) { });
+    static const auto NoopHandler = BIND_NO_PROPAGATE([] (const TError&) { });
     promise.OnCanceled(NoopHandler);
 
     return promise;
@@ -1124,11 +1124,11 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
+    this->Subscribe(BIND_NO_PROPAGATE([=] (const TErrorOr<T>& value) {
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) {
+    promise.OnCanceled(BIND_NO_PROPAGATE([=, cancelable = AsCancelable()] (const TError& error) {
         cancelable.Cancel(error);
         promise.TrySet(NDetail::MakeCanceledError(error));
     }));
@@ -1224,11 +1224,11 @@ TFuture<U> TFutureBase<T>::As() const
 
     auto promise = NewPromise<U>();
 
-    Subscribe(BIND([=] (const TErrorOr<T>& value) {
+    Subscribe(BIND_NO_PROPAGATE([=] (const TErrorOr<T>& value) {
         promise.Set(TErrorOr<U>(value));
     }));
 
-    promise.OnCanceled(BIND([cancelable = AsCancelable()] (const TError& error) {
+    promise.OnCanceled(BIND_NO_PROPAGATE([cancelable = AsCancelable()] (const TError& error) {
         cancelable.Cancel(error);
     }));
 
@@ -1369,11 +1369,11 @@ void TPromiseBase<T>::SetFrom(const TFuture<U>& another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value)   {
+    another.Subscribe(BIND_NO_PROPAGATE([this_] (const TErrorOr<U>& value)   {
         this_.Set(value);
     }));
 
-    OnCanceled(BIND([anotherCancelable = another.AsCancelable()] (const TError& error) {
+    OnCanceled(BIND_NO_PROPAGATE([anotherCancelable = another.AsCancelable()] (const TError& error) {
         anotherCancelable.Cancel(error);
     }));
 }
@@ -1400,11 +1400,11 @@ inline void TPromiseBase<T>::TrySetFrom(TFuture<U> another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) {
+    another.Subscribe(BIND_NO_PROPAGATE([this_] (const TErrorOr<U>& value) {
         this_.TrySet(value);
     }));
 
-    OnCanceled(BIND([anotherCancelable = another.AsCancelable()] (const TError& error) {
+    OnCanceled(BIND_NO_PROPAGATE([anotherCancelable = another.AsCancelable()] (const TError& error) {
         anotherCancelable.Cancel(error);
     }));
 }
@@ -1589,7 +1589,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         TArgs... args)
     {
         auto promise = NewPromise<TUnderlying>();
-        invoker->Invoke(BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...));
+        invoker->Invoke(BIND_NEW(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...));
         return promise;
     }
 
@@ -1602,8 +1602,8 @@ struct TAsyncViaHelper<R(TArgs...)>
         auto promise = NewPromise<TUnderlying>();
         GuardedInvoke(
             invoker,
-            BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...),
-            BIND([promise, cancellationError = std::move(cancellationError)] {
+            BIND_NEW(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...),
+            BIND_NEW([promise, cancellationError = std::move(cancellationError)] {
                 promise.Set(std::move(cancellationError));
             }));
         return promise;
@@ -1613,7 +1613,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         TSourceCallback this_,
         IInvokerPtr invoker)
     {
-        return BIND(&Outer, std::move(this_), std::move(invoker));
+        return BIND_NO_PROPAGATE(&Outer, std::move(this_), std::move(invoker));
     }
 
     static TTargetCallback DoGuarded(
@@ -1621,7 +1621,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         IInvokerPtr invoker,
         TError cancellationError)
     {
-        return BIND(&OuterGuarded, std::move(this_), std::move(invoker), std::move(cancellationError));
+        return BIND_NO_PROPAGATE(&OuterGuarded, std::move(this_), std::move(invoker), std::move(cancellationError));
     }
 };
 
@@ -1878,14 +1878,14 @@ public:
                 cookie = NullFutureCallbackCookie;
                 OnFutureSet(future.Get());
             } else {
-                cookie = future.Subscribe(BIND(&TAnyFutureCombiner::OnFutureSet, MakeStrong(this)));
+                cookie = future.Subscribe(BIND_NO_PROPAGATE(&TAnyFutureCombiner::OnFutureSet, MakeStrong(this)));
             }
             subscriptionCookies.push_back(cookie);
         }
         this->RegisterSubscriptionCookies(std::move(subscriptionCookies));
 
         if (Options_.PropagateCancelationToInput) {
-            Promise_.OnCanceled(BIND(&TAnyFutureCombiner::OnCanceled, MakeWeak(this)));
+            Promise_.OnCanceled(BIND_NO_PROPAGATE(&TAnyFutureCombiner::OnCanceled, MakeWeak(this)));
         }
 
         return Promise_;
@@ -1967,12 +1967,12 @@ public:
             if (future.IsSet()) {
                 OnFutureSet(index, future.Get());
             } else {
-                future.Subscribe(BIND(&TAllFutureCombiner::OnFutureSet, MakeStrong(this), index));
+                future.Subscribe(BIND_NO_PROPAGATE(&TAllFutureCombiner::OnFutureSet, MakeStrong(this), index));
             }
         }
 
         if (Options_.PropagateCancelationToInput) {
-            Promise_.OnCanceled(BIND(&TAllFutureCombiner::OnCanceled, MakeWeak(this)));
+            Promise_.OnCanceled(BIND_NO_PROPAGATE(&TAllFutureCombiner::OnCanceled, MakeWeak(this)));
         }
 
         return Promise_;

@@ -71,7 +71,7 @@ public:
         , SyncPeriod_(syncPeriod)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
+            BIND_NEW(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
             TPeriodicExecutorOptions{
                 .Period = syncPeriod,
                 .Splay = syncPeriodSplay

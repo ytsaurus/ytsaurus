@@ -300,20 +300,20 @@ public:
     {
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
-        Host_->SubscribeReplicatedTableCreated(BIND(&TNewReplicatedTableTracker::OnReplicatedTableCreated, MakeWeak(this)));
-        Host_->SubscribeReplicatedTableDestroyed(BIND(&TNewReplicatedTableTracker::OnReplicatedTableDestroyed, MakeWeak(this)));
-        Host_->SubscribeReplicatedTableOptionsUpdated(BIND(&TNewReplicatedTableTracker::OnReplicatedTableOptionsUpdated, MakeWeak(this)));
+        Host_->SubscribeReplicatedTableCreated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicatedTableCreated, MakeWeak(this)));
+        Host_->SubscribeReplicatedTableDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicatedTableDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicatedTableOptionsUpdated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicatedTableOptionsUpdated, MakeWeak(this)));
 
-        Host_->SubscribeReplicationCollocationUpdated(BIND(&TNewReplicatedTableTracker::OnReplicationCollocationUpdated, MakeWeak(this)));
-        Host_->SubscribeReplicationCollocationDestroyed(BIND(&TNewReplicatedTableTracker::OnReplicationCollocationDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicationCollocationUpdated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicationCollocationUpdated, MakeWeak(this)));
+        Host_->SubscribeReplicationCollocationDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicationCollocationDestroyed, MakeWeak(this)));
 
-        Host_->SubscribeReplicaCreated(BIND(&TNewReplicatedTableTracker::OnReplicaCreated, MakeWeak(this)));
-        Host_->SubscribeReplicaDestroyed(BIND(&TNewReplicatedTableTracker::OnReplicaDestroyed, MakeWeak(this)));
-        Host_->SubscribeReplicaModeUpdated(BIND(&TNewReplicatedTableTracker::OnReplicaModeUpdated, MakeWeak(this)));
-        Host_->SubscribeReplicaEnablementUpdated(BIND(&TNewReplicatedTableTracker::OnReplicaEnablementUpdated, MakeWeak(this)));
-        Host_->SubscribeReplicaTrackingPolicyUpdated(BIND(&TNewReplicatedTableTracker::OnReplicaTrackingPolicyUpdated, MakeWeak(this)));
+        Host_->SubscribeReplicaCreated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaCreated, MakeWeak(this)));
+        Host_->SubscribeReplicaDestroyed(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaDestroyed, MakeWeak(this)));
+        Host_->SubscribeReplicaModeUpdated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaModeUpdated, MakeWeak(this)));
+        Host_->SubscribeReplicaEnablementUpdated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaEnablementUpdated, MakeWeak(this)));
+        Host_->SubscribeReplicaTrackingPolicyUpdated(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnReplicaTrackingPolicyUpdated, MakeWeak(this)));
 
-        Host_->SubscribeConfigChanged(BIND(&TNewReplicatedTableTracker::OnConfigChanged, MakeWeak(this)));
+        Host_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TNewReplicatedTableTracker::OnConfigChanged, MakeWeak(this)));
     }
 
     void EnableTracking() override

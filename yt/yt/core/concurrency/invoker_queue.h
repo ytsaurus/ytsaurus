@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/actions/invoker.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt/core/misc/mpsc_queue.h>
 
 #include <library/cpp/yt/threading/event_count.h>

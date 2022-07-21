@@ -140,7 +140,7 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::AccountMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualAccountMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -202,7 +202,7 @@ INodeTypeHandlerPtr CreateAccountResourceUsageLeaseMapTypeHandler(TBootstrap* bo
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::AccountResourceUsageLeaseMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualAccountResourceUsageLeaseMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -254,7 +254,7 @@ INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::UserMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualUserMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -306,7 +306,7 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::GroupMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualGroupMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -358,7 +358,7 @@ INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::NetworkProjectMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualNetworkProjectMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -434,7 +434,7 @@ INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, EObject
     return CreateVirtualTypeHandler(
         bootstrap,
         type,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualProxyRoleMap>(bootstrap, owningNode, type);
         }),
         EVirtualNodeOptions::RedirectSelf);

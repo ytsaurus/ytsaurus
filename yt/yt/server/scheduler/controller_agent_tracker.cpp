@@ -224,16 +224,16 @@ public:
     void Initialize()
     {
         auto* masterConnector = Bootstrap_->GetScheduler()->GetMasterConnector();
-        masterConnector->SubscribeMasterConnected(BIND(
+        masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
             &TImpl::OnMasterConnected,
             Unretained(this)));
-        masterConnector->SubscribeMasterDisconnected(BIND(
+        masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
             &TImpl::OnMasterDisconnected,
             Unretained(this)));
 
         masterConnector->AddCommonWatcher(
-            BIND(&TImpl::RequestControllerAgentInstances, Unretained(this)),
-            BIND(&TImpl::HandleControllerAgentInstances, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestControllerAgentInstances, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleControllerAgentInstances, Unretained(this)));
     }
 
     std::vector<TControllerAgentPtr> GetAgents() const

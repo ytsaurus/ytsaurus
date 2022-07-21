@@ -89,6 +89,28 @@ void TCallbackList<TResult(TArgs...)>::FireAndClear(const TArgs&... args)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TResult, class... TArgs>
+void TSimpleCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
+{
+    Callbacks_.push_back(callback);
+}
+
+template <class TResult, class... TArgs>
+void TSimpleCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
+{
+    Callbacks_.erase(std::find(Callbacks_.begin(), Callbacks_.end(), callback));
+}
+
+template <class TResult, class... TArgs>
+void TSimpleCallbackList<TResult(TArgs...)>::Fire(const TArgs&... args) const
+{
+    for (const auto& callback : Callbacks_) {
+        callback.Run(std::forward<TArgs>(args)...);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
     auto guard = WriterGuard(SpinLock_);

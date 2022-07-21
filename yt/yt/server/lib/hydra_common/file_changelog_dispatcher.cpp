@@ -55,7 +55,7 @@ public:
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
         , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
-        , ProcessQueueCallback_(BIND(&TFileChangelogQueue::Process, MakeWeak(this)))
+        , ProcessQueueCallback_(BIND_NO_PROPAGATE(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
         , ChangelogReadIOTimer_(Profiler.Timer("/changelog_read_io_time"))
         , ChangelogFlushIOTimer_(Profiler.Timer("/changelog_flush_io_time"))

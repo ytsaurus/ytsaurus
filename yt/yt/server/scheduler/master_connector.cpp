@@ -691,9 +691,9 @@ private:
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND_NEW(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
-            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            BIND_NEW(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
 

@@ -103,7 +103,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     auto asyncMeta = cookie.GetValue();
 
     if (cookie.IsActive()) {
-        auto callback = BIND(
+        auto callback = BIND_NEW(
             &TBlobChunkBase::DoReadMeta,
             MakeStrong(this),
             session,

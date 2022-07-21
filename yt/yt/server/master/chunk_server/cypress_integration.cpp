@@ -82,7 +82,7 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkLocationMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkLocationMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -296,7 +296,7 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         type,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkMap>(bootstrap, owningNode, type);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -341,7 +341,7 @@ INodeTypeHandlerPtr CreateChunkViewMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkViewMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkViewMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -386,7 +386,7 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkListMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -442,7 +442,7 @@ INodeTypeHandlerPtr CreateMediumMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::MediumMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualMediumMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);

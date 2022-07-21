@@ -102,11 +102,11 @@ public:
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TDataNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TDataNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TDataNodeTracker::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeZombified(BIND(&TDataNodeTracker::OnNodeZombified, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TDataNodeTracker::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeZombified(BIND_NO_PROPAGATE(&TDataNodeTracker::OnNodeZombified, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateChunkLocationTypeHandler(Bootstrap_, this));
@@ -114,9 +114,9 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TDataNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TDataNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TDataNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TDataNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
 

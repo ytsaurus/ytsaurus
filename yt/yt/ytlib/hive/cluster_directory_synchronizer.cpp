@@ -36,7 +36,7 @@ public:
         , ClusterDirectory_(std::move(clusterDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
+            BIND_NEW(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
 

@@ -524,7 +524,7 @@ THttpOutput::THttpOutput(
     : Connection_(connection)
     , MessageType_(messageType)
     , Config_(config)
-    , OnWriteFinish_(BIND(&THttpOutput::OnWriteFinish, MakeWeak(this)))
+    , OnWriteFinish_(BIND_NO_PROPAGATE(&THttpOutput::OnWriteFinish, MakeWeak(this)))
     , StartByteCount_(connection->GetWriteByteCount())
     , StartStatistics_(connection->GetWriteStatistics())
     , LastProgressLogTime_(TInstant::Now())

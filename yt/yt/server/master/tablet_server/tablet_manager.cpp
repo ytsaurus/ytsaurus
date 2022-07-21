@@ -262,16 +262,16 @@ public:
         objectManager->RegisterHandler(CreateTabletActionTypeHandler(Bootstrap_, &TabletActionMap_));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TImpl::OnTransactionAborted, MakeWeak(this)));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
-        cellManager->SubscribeCellBundleDestroyed(BIND(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
-        cellManager->SubscribeCellDecommissionStarted(BIND(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
+        cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
+        cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
 
         TabletService_->Initialize();
     }

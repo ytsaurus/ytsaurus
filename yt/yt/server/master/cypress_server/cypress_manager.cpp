@@ -909,7 +909,7 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
-            BIND(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
+            BIND_NO_PROPAGATE(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             std::nullopt,
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
@@ -951,22 +951,22 @@ public:
             "CypressManager.Values",
             BIND(&TCypressManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraTouchNodes, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraCreateForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraLockForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraTouchNodes, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCreateForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
     }
 
     void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(
             &TCypressManager::OnTransactionCommitted,
             MakeStrong(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(
             &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
 
@@ -977,14 +977,14 @@ public:
         objectManager->RegisterHandler(CreateAccessControlObjectNamespaceTypeHandler(Bootstrap_, &AccessControlObjectNamespaceMap_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TCypressManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TCypressManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TCypressManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TCypressManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TCypressManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TCypressManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
 

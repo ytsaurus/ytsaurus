@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/library/numeric/serialize/fixed_point_number.h>

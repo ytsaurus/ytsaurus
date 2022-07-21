@@ -23,7 +23,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     RegisterSaver(
         priority,
         name,
-        BIND([=] (TSaveContext& context) {
+        BIND_NO_PROPAGATE([=] (TSaveContext& context) {
             saver.Run(dynamic_cast<TContext&>(context));
         }));
 }
@@ -37,9 +37,9 @@ void TCompositeAutomatonPart::RegisterSaver(
     RegisterSaver(
         priority,
         name,
-        BIND([=] () -> TCallback<void(TSaveContext&)> {
+        BIND_NO_PROPAGATE([=] () -> TCallback<void(TSaveContext&)> {
             auto continuation = callback.Run();
-            return BIND([=] (TSaveContext& context) {
+            return BIND_NO_PROPAGATE([=] (TSaveContext& context) {
                 return continuation.Run(dynamic_cast<TContext&>(context));
             });
         }));
@@ -98,7 +98,7 @@ void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
     const std::vector<TString>& aliases)
 {
-    auto mutationHandler = BIND([=] (TMutationContext* context) {
+    auto mutationHandler = BIND_NO_PROPAGATE([=] (TMutationContext* context) {
         auto request = ObjectPool<THandlerRequest>().Allocate();
         auto response = ObjectPool<THandlerResponse>().Allocate();
 

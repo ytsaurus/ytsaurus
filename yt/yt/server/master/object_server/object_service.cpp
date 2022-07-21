@@ -197,13 +197,13 @@ public:
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->SubscribeUserCharged(BIND(&TObjectService::OnUserCharged, MakeStrong(this)));
+        securityManager->SubscribeUserCharged(BIND_NO_PROPAGATE(&TObjectService::OnUserCharged, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext();
-        LocalReadExecutor_->Initialize(BIND([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
+        LocalReadExecutor_->Initialize(BIND_NO_PROPAGATE([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
 
         EnableLocalReadExecutor_ = Config_->EnableLocalReadExecutor;
 
@@ -1409,7 +1409,7 @@ private:
             return true;
         } else {
             result.Subscribe(
-                BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+                BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
             return false;
         }
     }

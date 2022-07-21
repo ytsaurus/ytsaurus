@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/bind.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////

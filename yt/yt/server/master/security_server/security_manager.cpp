@@ -492,13 +492,13 @@ public:
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TSecurityManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TSecurityManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(
             &TSecurityManager::OnTransactionFinished,
             MakeStrong(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(
             &TSecurityManager::OnTransactionFinished,
             MakeStrong(this)));
 
@@ -513,9 +513,9 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TSecurityManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
 

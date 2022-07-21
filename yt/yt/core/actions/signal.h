@@ -69,6 +69,45 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
+ *  Similar to TCallbackList, but single-threaded and copyable.
+ *
+ *  Cannot be used from multiple threads.
+ */
+template <class TSignature>
+class TSimpleCallbackList
+{ };
+
+template <class TResult, class... TArgs>
+class TSimpleCallbackList<TResult(TArgs...)>
+{
+public:
+    typedef NYT::TCallback<TResult(TArgs...)> TCallback;
+
+    //! Adds a new handler to the list.
+    /*!
+     * \param callback A handler to be added.
+     */
+    void Subscribe(const TCallback& callback);
+
+    //! Removes a handler from the list.
+    /*!
+     * \param callback A handler to be removed.
+     */
+    void Unsubscribe(const TCallback& callback);
+
+    //! Runs all handlers in the list.
+    //! The return values (if any) are ignored.
+    void Fire(const TArgs&... args) const;
+
+private:
+    using TCallbackVector = TCompactVector<TCallback, 4>;
+
+    TCallbackVector Callbacks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*!
  *  Similar to TCallbackList but can only be fired once.
  *  When fired, captures the arguments and in subsequent calls
  *  to Subscribe instantly invokes the subscribers.
@@ -134,6 +173,20 @@ private:
 #define DEFINE_SIGNAL(TSignature, name) \
 protected: \
     ::NYT::TCallbackList<TSignature> name##_; \
+public: \
+    void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) \
+    { \
+        name##_.Subscribe(callback); \
+    } \
+    \
+    void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) \
+    { \
+        name##_.Unsubscribe(callback); \
+    }
+
+#define DEFINE_SIGNAL_SIMPLE(TSignature, name) \
+protected: \
+    ::NYT::TSimpleCallbackList<TSignature> name##_; \
 public: \
     void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \

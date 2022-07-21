@@ -512,26 +512,22 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCurrentTraceContextReclaimer
-{
-    ~TCurrentTraceContextReclaimer()
-    {
-        if (CurrentTraceContext) {
-            auto traceContext = CurrentTraceContext;
-            CurrentTraceContext = nullptr;
-            std::atomic_signal_fence(std::memory_order_seq_cst);
-            traceContext->Unref();
-        }
-    }
-};
-
 thread_local TTraceContext* CurrentTraceContext;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
-static thread_local TCurrentTraceContextReclaimer CurrentTraceContextReclaimer;
 
-TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext, NProfiling::TCpuInstant now)
+TTraceContext* DoGetCurrentTraceContext()
 {
-    auto oldContext = TTraceContextPtr(CurrentTraceContext, false);
+    auto& propagatingStorage = GetCurrentPropagatingStorage();
+    if (propagatingStorage.IsNull()) {
+        return nullptr;
+    }
+    auto context = propagatingStorage.TryGet<TTraceContextPtr>();
+    return context ? context->Get() : nullptr;
+}
+
+static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newContext)
+{
+    auto now = GetCpuInstant();
 
     // Invalid if no oldContext
     auto delta = now - TraceContextTimingCheckpoint;
@@ -554,21 +550,39 @@ TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext, NProfiling::TCp
         oldContext->IncrementElapsedCpuTime(delta);
     }
 
-    CurrentTraceContext = newContext.Release();
+    CurrentTraceContext = newContext;
     std::atomic_signal_fence(std::memory_order_seq_cst);
-    TraceContextTimingCheckpoint = now;
 
-    return oldContext;
+    TraceContextTimingCheckpoint = now;
+}
+
+static TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
+{
+    auto& propagatingStorage = GetCurrentPropagatingStorage();
+    auto result = propagatingStorage.Exchange<TTraceContextPtr>(std::move(traceContext));
+    if (!result) {
+        propagatingStorage.SubscribeOnBeforeUninstall(BIND_DONT_CAPTURE_TRACE_CONTEXT([] {
+            DoSwitchTraceContext(DoGetCurrentTraceContext(), nullptr);
+        }));
+        propagatingStorage.SubscribeOnAfterInstall(BIND_DONT_CAPTURE_TRACE_CONTEXT([] {
+            DoSwitchTraceContext(nullptr, DoGetCurrentTraceContext());
+        }));
+        return nullptr;
+    }
+    return std::move(*result);
 }
 
 TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
 {
-    return SwitchTraceContext(newContext, GetCpuInstant());
+    auto newContextPtr = newContext.Get();
+    auto oldContext = DoExchangeTraceContext(std::move(newContext));
+    DoSwitchTraceContext(oldContext.Get(), newContextPtr);
+    return oldContext;
 }
 
 void FlushCurrentTraceContextTime()
 {
-    auto* context = static_cast<TTraceContext*>(CurrentTraceContext);
+    auto* context = GetCurrentTraceContext();
     if (!context) {
         return;
     }
@@ -603,7 +617,7 @@ namespace NYT::NYTProf {
 
 void* AcquireFiberTagStorage()
 {
-    auto traceContext = NTracing::CurrentTraceContext;
+    auto traceContext = NTracing::GetCurrentTraceContext();
     if (traceContext) {
         Ref(traceContext);
     }

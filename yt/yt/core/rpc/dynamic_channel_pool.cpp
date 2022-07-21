@@ -880,7 +880,7 @@ private:
         return CreateFailureDetectingChannel(
             ChannelFactory_->CreateChannel(address),
             Config_->AcknowledgementTimeout,
-            BIND(&TImpl::OnChannelFailed, MakeWeak(this), address));
+            BIND_NEW(&TImpl::OnChannelFailed, MakeWeak(this), address));
     }
 };
 

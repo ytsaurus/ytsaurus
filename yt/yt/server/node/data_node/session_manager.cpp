@@ -61,10 +61,10 @@ void TSessionManager::Initialize()
     }
 
     Bootstrap_->SubscribeMasterDisconnected(
-        BIND(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
+        BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
 
     Bootstrap_->GetChunkStore()->SubscribeChunkRemovalScheduled(
-        BIND(&TSessionManager::OnChunkRemovalScheduled, MakeWeak(this)));
+        BIND_NO_PROPAGATE(&TSessionManager::OnChunkRemovalScheduled, MakeWeak(this)));
 }
 
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)

@@ -66,7 +66,7 @@ INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TabletMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
@@ -117,7 +117,7 @@ INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TabletActionMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletActionMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
