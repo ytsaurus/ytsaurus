@@ -61,14 +61,12 @@ TChunkFileReader::TChunkFileReader(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
     TString fileName,
-    EDirectIOPolicy useDirectIO,
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)
     : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
     , FileName_(std::move(fileName))
     , ValidateBlockChecksums_(validateBlocksChecksums)
-    , UseDirectIO_(useDirectIO)
     , BlocksExtCache_(std::move(blocksExtCache))
 { }
 
@@ -156,43 +154,71 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
     const TClientChunkReadOptions& options,
     bool useDirectIO)
 {
+    auto directIOFlag = GetDirectIOFlag(useDirectIO);
+
     // Fast path.
-    if (ChunkFragmentReadsPrepared_.load()) {
+    if (ChunkFragmentReadsPrepared_[directIOFlag].load()) {
         return {};
     }
 
     // Slow path.
-    auto guard = Guard(ChunkFragmentReadsLock_);
-    if (!ChunkFragmentReadsPreparedFuture_) {
-        ChunkFragmentReadsPreparedFuture_ = OpenDataFile(ShouldUseDirectIO(UseDirectIO_, useDirectIO))
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*handle*/) {
-                if (BlocksExtCache_) {
-                    BlocksExt_ = BlocksExtCache_->Find();
-                }
+    TFuture<void> chunkFragmentFuture;
 
-                if (BlocksExt_) {
-                    ChunkFragmentReadsPrepared_.store(true);
-                    return VoidFuture;
+    auto guard = Guard(ChunkFragmentReadsLock_);
+    if (!ChunkFragmentReadsPreparedFuture_[directIOFlag]) {
+        auto chunkFragmentPromise = NewPromise<void>();
+        ChunkFragmentReadsPreparedFuture_[directIOFlag] = chunkFragmentPromise;
+        guard.Release();
+
+        chunkFragmentFuture = OpenDataFile(directIOFlag)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*handle*/) {
+                {
+                    auto guard = Guard(ChunkFragmentReadsLock_);
+
+                    if (BlocksExt_) {
+                        ChunkFragmentReadsPrepared_[directIOFlag].store(true);
+                        return VoidFuture;
+                    }
+
+                    if (BlocksExtCache_) {
+                        BlocksExt_ = BlocksExtCache_->Find();
+                    }
+
+                    if (BlocksExt_) {
+                        ChunkFragmentReadsPrepared_[directIOFlag].store(true);
+                        return VoidFuture;
+                    }
                 }
 
                 return DoReadMeta(options, std::nullopt)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+                        auto guard = Guard(ChunkFragmentReadsLock_);
                         BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                         if (BlocksExtCache_) {
                             BlocksExtCache_->Put(meta, BlocksExt_);
                         }
-                        ChunkFragmentReadsPrepared_.store(true);
+                        ChunkFragmentReadsPrepared_[directIOFlag].store(true);
                     }));
             }))
             .ToUncancelable();
+
+        chunkFragmentPromise.SetFrom(chunkFragmentFuture);
+    } else {
+        chunkFragmentFuture = ChunkFragmentReadsPreparedFuture_[directIOFlag];
     }
-    return ChunkFragmentReadsPreparedFuture_;
+    return chunkFragmentFuture;
 }
 
 IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& fragmentDescriptor)
+    const TChunkFragmentDescriptor& fragmentDescriptor,
+    bool useDirectIO)
 {
-    YT_ASSERT(ChunkFragmentReadsPrepared_.load());
+    auto directIOFlag = GetDirectIOFlag(useDirectIO);
+    if (!ChunkFragmentReadsPrepared_[directIOFlag].load()) {
+        directIOFlag = directIOFlag == EDirectIOFlag::On ? EDirectIOFlag::Off : EDirectIOFlag::On;
+    }
+
+    YT_ASSERT(ChunkFragmentReadsPrepared_[directIOFlag].load());
 
     auto makeErrorAttributes = [&] {
         return std::vector{
@@ -232,7 +258,7 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     }
 
     return IIOEngine::TReadRequest{
-        .Handle = DataFileHandle_,
+        .Handle = DataFileHandle_[directIOFlag],
         .Offset = blockInfo.Offset + fragmentDescriptor.BlockOffset,
         .Size = fragmentDescriptor.Length
     };
@@ -308,7 +334,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     }
 
     if (!dataFile) {
-        auto asyncDataFile = OpenDataFile(ShouldUseDirectIO(UseDirectIO_, /*userRequestedDirectIO*/ false));
+        auto asyncDataFile = OpenDataFile(GetDirectIOFlag(/*useDirectIO*/ false));
         auto optionalDataFileOrError = asyncDataFile.TryGet();
         if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
             return asyncDataFile
@@ -438,33 +464,46 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     return New<TRefCountedChunkMeta>(std::move(meta));
 }
 
-TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(bool useDirectIO)
+TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
 {
     auto guard = Guard(DataFileHandleLock_);
-    if (!DataFileHandleFuture_) {
-        YT_LOG_DEBUG("Started opening chunk data file (FileName: %v)",
-            FileName_);
+    if (!DataFileHandleFuture_[useDirectIO]) {
+        YT_LOG_DEBUG("Started opening chunk data file (FileName: %v, DirectIO: %v)",
+            FileName_, useDirectIO);
 
         EOpenMode mode = OpenExisting | RdOnly | CloseOnExec;
-        if (useDirectIO) {
+        if (useDirectIO == EDirectIOFlag::On) {
             TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
-        DataFileHandleFuture_ = IOEngine_->Open({FileName_, mode})
+        DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()
-            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this)));
+            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO));
     }
-    return DataFileHandleFuture_;
+    return DataFileHandleFuture_[useDirectIO];
 }
 
-TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(const TIOEngineHandlePtr& file)
+TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file)
 {
-    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v)",
+    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v, DirectIO: %v)",
         FileName_,
-        static_cast<FHANDLE>(*file));
+        static_cast<FHANDLE>(*file),
+        useDirectIO);
 
-    DataFileHandle_ = file;
+    DataFileHandle_[useDirectIO] = file;
 
     return file;
+}
+
+EDirectIOFlag TChunkFileReader::GetDirectIOFlag(bool useDirectIO)
+{
+    auto policy = IOEngine_->UseDirectIOForReads();
+    if (policy == EDirectIOPolicy::Never) {
+        return EDirectIOFlag::Off;
+    } else if (policy == EDirectIOPolicy::Always) {
+        return EDirectIOFlag::On;
+    } else {
+        return useDirectIO ? EDirectIOFlag::On : EDirectIOFlag::Off;
+    }
 }
 
 void TChunkFileReader::DumpBrokenMeta(TRef block) const

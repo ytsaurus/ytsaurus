@@ -44,7 +44,8 @@ public:
         bool useDirectIO) override;
 
     NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
+        bool useDirectIO) override;
 
     i64 GetFlushedRowCount() const;
     void UpdateFlushedRowCount(i64 rowCount);

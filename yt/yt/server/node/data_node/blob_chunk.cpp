@@ -775,6 +775,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     YT_VERIFY(ReadLockCounter_.load() > 0);
 
     if (PreparedReader_) {
+        PreparedReader_->PrepareToReadChunkFragments(options, useDirectIO);
         return {};
     }
 
@@ -827,7 +828,8 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
 }
 
 IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& fragmentDescriptor)
+    const TChunkFragmentDescriptor& fragmentDescriptor,
+    bool useDirectIO)
 {
     YT_VERIFY(ReadLockCounter_.load() > 0);
     YT_VERIFY(PreparedReader_);
@@ -837,7 +839,7 @@ IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
             GetId());
     }
 
-    return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor);
+    return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor, useDirectIO);
 }
 
 void TBlobChunkBase::SyncRemove(bool force)

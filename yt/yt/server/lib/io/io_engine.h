@@ -178,6 +178,7 @@ struct IIOEngine
 
     virtual i64 GetTotalReadBytes() const = 0;
     virtual i64 GetTotalWrittenBytes() const = 0;
+    virtual EDirectIOPolicy UseDirectIOForReads() const = 0;
 
     // Extension methods.
     template <class TTag = TDefaultReadTag>

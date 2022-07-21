@@ -151,6 +151,11 @@ public:
         return total;
     }
 
+    EDirectIOPolicy UseDirectIOForReads() const override
+    {
+        return GetEngine()->UseDirectIOForReads();
+    }
+
 private:
     struct TEngineState final
     {

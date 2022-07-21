@@ -99,8 +99,6 @@ void TStoreLocationConfigBase::Register(TRegistrar registrar)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
-    registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
-        .Default(NIO::EDirectIOPolicy::Never);
     registrar.Parameter("throttle_counter_interval", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)

@@ -69,7 +69,8 @@ public:
         const NChunkClient::TClientChunkReadOptions& options,
         bool useDirectIO) override;
     NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
+        bool useDirectIO) override;
 
     void AcquireReadLock() override;
     void ReleaseReadLock() override;

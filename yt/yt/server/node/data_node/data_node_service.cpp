@@ -1174,7 +1174,8 @@ private:
                                     .Length = fragment.length(),
                                     .BlockIndex = fragment.block_index(),
                                     .BlockOffset = fragment.block_offset()
-                                });
+                                },
+                                useDirectIO);
                             locationRequests[locationIndex].push_back(std::move(readRequest));
                             locationFragmentIndices[locationIndex].push_back(fragmentIndex);
                             ++fragmentIndex;
@@ -1961,7 +1962,7 @@ private:
         std::vector<TFuture<TRefCountedColumnarStatisticsSubresponsePtr>> futures;
 
         auto nameTable = FromProto<TNameTablePtr>(request->name_table());
-        
+
         std::vector<int> subresponseIndices;
         subresponseIndices.reserve(request->subrequests_size());
         response->mutable_subresponses()->Reserve(request->subrequests_size());

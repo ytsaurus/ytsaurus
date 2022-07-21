@@ -320,8 +320,7 @@ public:
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never));
+                    filename));
                 repairReaders->push_back(reader);
             }
 
@@ -332,8 +331,7 @@ public:
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never));
+                    filename));
                 allReaders->push_back(reader);
             }
         }
@@ -357,15 +355,13 @@ public:
                 auto reader = New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never);
+                    filename);
                 allReaders->push_back(New<TFailingChunkFileReaderAdapter>(reader, /*period*/ 1,failMetaRequests));
             } else {
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never));
+                    filename));
                 allReaders->push_back(reader);
             }
         }
@@ -387,8 +383,7 @@ public:
             auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                 ioEngine,
                 NullChunkId,
-                filename,
-                EDirectIOPolicy::Never));
+                filename));
             readers.push_back(reader);
         }
         return readers;
@@ -510,14 +505,12 @@ public:
                 readers.push_back(CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never)));
+                    filename)));
             } else {
                 readers.push_back(New<TFailingChunkFileReaderAdapter>(New<TChunkFileReader>(
                     ioEngine,
                     NullChunkId,
-                    filename,
-                    EDirectIOPolicy::Never),
+                    filename),
                     failingTimes[i]));
             }
         }
@@ -1176,7 +1169,7 @@ void TErasuseMixtureTest::ExecAdaptiveRepairTest(
         CreateErasureConfig(),
         erasedIndices,
         allReaders,
-        writerFactory, 
+        writerFactory,
         {});
     EXPECT_TRUE(repairFuture.Get().IsOK());
 

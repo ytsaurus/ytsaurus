@@ -383,6 +383,11 @@ public:
         Underlying_->Reconfigure(config);
     }
 
+    EDirectIOPolicy UseDirectIOForReads() const override
+    {
+        return Underlying_->UseDirectIOForReads();
+    }
+
 private:
     const IIOEnginePtr Underlying_;
     const NLogging::TLogger Logger;

@@ -139,6 +139,8 @@ public:
     std::optional<TDuration> SickWriteTimeWindow;
     std::optional<TDuration> SicknessExpirationTimeout;
 
+    EDirectIOPolicy UseDirectIOForReads;
+
     TIOEngineConfigBase()
     {
         RegisterParameter("aux_thread_count", AuxThreadCount)
@@ -180,6 +182,9 @@ public:
         RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
+
+        RegisterParameter("use_direct_io_for_reads", UseDirectIOForReads)
+            .Default(EDirectIOPolicy::Never);
     }
 };
 
@@ -509,6 +514,11 @@ public:
     i64 GetTotalWrittenBytes() const override
     {
         return Sensors_->TotalWrittenBytesCounter.load(std::memory_order_relaxed);
+    }
+
+    EDirectIOPolicy UseDirectIOForReads() const override
+    {
+        return Config_.Load()->UseDirectIOForReads;
     }
 
 protected:
