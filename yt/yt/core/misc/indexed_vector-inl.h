@@ -122,7 +122,7 @@ struct TIndexedVectorSerializer
 template <class T, class C>
 struct TSerializerTraits<TIndexedVector<T>, C, void>
 {
-    typedef TIndexedVectorSerializer<> TSerializer;
+    using TSerializer = TIndexedVectorSerializer<>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

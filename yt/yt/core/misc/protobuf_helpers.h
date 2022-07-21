@@ -256,7 +256,7 @@ struct TSerializerTraits<
     C,
     typename std::enable_if_t<std::is_convertible_v<T&, ::google::protobuf::Message&>>>
 {
-    typedef TBinaryProtoSerializer TSerializer;
+    using TSerializer = TBinaryProtoSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

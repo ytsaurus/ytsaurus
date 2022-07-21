@@ -37,7 +37,7 @@ struct THRInstant
 };
 
 // Represents a duration in nano-seconds.
-typedef ui64 THRDuration;
+using THRDuration = ui64;
 
 #ifdef _linux_
 static_assert(

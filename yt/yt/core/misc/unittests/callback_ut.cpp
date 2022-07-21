@@ -13,7 +13,7 @@ namespace {
 // White-box testpoint.
 struct TFakeInvoker
 {
-    typedef void(TSignature)(NDetail::TBindStateBase*);
+    using TSignature = void(NDetail::TBindStateBase*);
     static void Run(NDetail::TBindStateBase*)
     { }
 };
@@ -38,7 +38,7 @@ struct TBindState<true, void(), void(), void(TFakeInvoker)>
     : public NDetail::TBindStateBase
 {
 public:
-    typedef TFakeInvoker TInvokerType;
+    using TInvokerType = TFakeInvoker;
     TBindState()
         : TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
@@ -52,7 +52,7 @@ template <>
 struct TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public NDetail::TBindStateBase
 {
-    typedef TFakeInvoker TInvokerType;
+    using TInvokerType = TFakeInvoker;
     TBindState()
         : TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
@@ -74,10 +74,8 @@ TCallback<TSignature> MakeCallback(
 
 // TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
-typedef TBindState<true, void(), void(), void(TFakeInvoker)>
-    TFakeBindState1;
-typedef TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
-    TFakeBindState2;
+using TFakeBindState1 = TBindState<true, void(), void(), void(TFakeInvoker)>;
+using TFakeBindState2 = TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>;
 
 class TCallbackTest
     : public ::testing::Test

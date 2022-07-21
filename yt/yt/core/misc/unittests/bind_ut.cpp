@@ -76,7 +76,7 @@ void Unref(TObjectWithRC* obj)
     obj->Unref();
 }
 
-typedef TIntrusivePtr<TObjectWithRC> TObjectWithRCPtr;
+using TObjectWithRCPtr = TIntrusivePtr<TObjectWithRC>;
 
 // A simple mock object which mocks Ref()/Unref() and prohibits
 // public destruction.
@@ -93,10 +93,10 @@ class TObjectWithFullRC
     , public TRefCounted
 { };
 
-typedef TIntrusivePtr<TObjectWithFullRC> TObjectWithExtrinsicRCPtr;
-typedef TIntrusivePtr<const TObjectWithFullRC> TObjectWithExtrinsicRCConstPtr;
-typedef TWeakPtr<TObjectWithFullRC> TObjectWithExtrinsicRCWkPtr;
-typedef TWeakPtr<const TObjectWithFullRC> TObjectWithExtrinsicRCConstWkPtr;
+using TObjectWithExtrinsicRCPtr = TIntrusivePtr<TObjectWithFullRC>;
+using TObjectWithExtrinsicRCConstPtr = TIntrusivePtr<const TObjectWithFullRC>;
+using TObjectWithExtrinsicRCWkPtr = TWeakPtr<TObjectWithFullRC>;
+using TObjectWithExtrinsicRCConstWkPtr = TWeakPtr<const TObjectWithFullRC>;
 
 // Below there is a serie of either reference-counted or not classes
 // with simple inheritance and both virtual and non-virtual methods.

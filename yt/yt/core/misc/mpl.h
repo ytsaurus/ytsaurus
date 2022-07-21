@@ -23,13 +23,13 @@ struct TCallTraitsHelper
 template <class T>
 struct TCallTraitsHelper<T, true>
 {
-    typedef T TType;
+    using TType = T;
 };
 
 template <class T>
 struct TCallTraitsHelper<T, false>
 {
-    typedef const T& TType;
+    using TType = const T&;
 };
 
 template <template <class...> class TTemplate, class... TArgs>
@@ -70,8 +70,8 @@ struct TIsPod
                                                                                          \
         template <typename U, U> struct Check;                                           \
                                                                                          \
-        typedef char ArrayOfOne[1];                                                      \
-        typedef char ArrayOfTwo[2];                                                      \
+        using ArrayOfOne = char[1];                                                      \
+        using ArrayOfTwo = char[2];                                                      \
                                                                                          \
         template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *); \
         template <typename U> static ArrayOfTwo & func(...);                             \

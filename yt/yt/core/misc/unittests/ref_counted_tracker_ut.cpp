@@ -115,7 +115,7 @@ class TRefCountedTrackerTest
     : public ::testing::Test
 { };
 
-typedef ::testing::Types<TSimpleRefCountedObject, TProtoRefCountedObject> TypeList;
+using TypeList = ::testing::Types<TSimpleRefCountedObject, TProtoRefCountedObject>;
 TYPED_TEST_SUITE(TRefCountedTrackerTest, TypeList);
 
 ////////////////////////////////////////////////////////////////////////////////

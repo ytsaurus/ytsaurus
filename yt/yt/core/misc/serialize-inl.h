@@ -850,7 +850,7 @@ template <class T, class C>
 class TNoopSorter
 {
 public:
-    typedef typename T::const_iterator TIterator;
+    using TIterator = typename T::const_iterator;
 
     explicit TNoopSorter(const T& any)
         : Any_(any)
@@ -877,8 +877,8 @@ struct TValueSorterComparer
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
     {
-        typedef typename std::remove_const<typename std::remove_reference<decltype(*lhs)>::type>::type T;
-        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        using T = typename std::remove_const<typename std::remove_reference<decltype(*lhs)>::type>::type;
+        using TComparer = typename TSerializerTraits<T, C>::TComparer;
         return TComparer::Compare(*lhs, *rhs);
     }
 };
@@ -889,8 +889,8 @@ struct TKeySorterComparer
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
     {
-        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type T;
-        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        using T = typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type;
+        using TComparer = typename TSerializerTraits<T, C>::TComparer;
         return TComparer::Compare(lhs->first, rhs->first);
     }
 };
@@ -901,10 +901,10 @@ struct TKeyValueSorterComparer
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
     {
-        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type TKey;
-        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->second)>::type>::type TValue;
-        typedef typename TSerializerTraits<TKey, C>::TComparer TKeyComparer;
-        typedef typename TSerializerTraits<TValue, C>::TComparer TValueComparer;
+        using TKey = typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type;
+        using TValue = typename std::remove_const<typename std::remove_reference<decltype(lhs->second)>::type>::type;
+        using TKeyComparer = typename TSerializerTraits<TKey, C>::TComparer;
+        using TValueComparer = typename TSerializerTraits<TValue, C>::TComparer;
         if (TKeyComparer::Compare(lhs->first, rhs->first)) {
             return true;
         }
@@ -996,91 +996,91 @@ struct TSorterSelector
 template <class T, class C>
 struct TSorterSelector<T, C, TUnsortedTag>
 {
-    typedef TNoopSorter<T, C> TSorter;
+    using TSorter = TNoopSorter<T, C>;
 };
 
 template <class T, class C>
 struct TSorterSelector<std::vector<T>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::vector<T>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<std::vector<T>, TValueSorterComparer<C>>;
 };
 
 template <class T, class C, unsigned size>
 struct TSorterSelector<TCompactVector<T, size>, C, TSortedTag>
 {
-    typedef TCollectionSorter<TCompactVector<T, size>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<TCompactVector<T, size>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::set<T...>, C, TSortedTag>
 {
-    typedef TNoopSorter<std::set<T...>, C> TSorter;
+    using TSorter = TNoopSorter<std::set<T...>, C>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::map<T...>, C, TSortedTag>
 {
-    typedef TNoopSorter<std::map<T...>, C> TSorter;
+    using TSorter = TNoopSorter<std::map<T...>, C>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::unordered_set<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::unordered_set<T...>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<std::unordered_set<T...>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<THashSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::unordered_multiset<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::unordered_multiset<T...>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<std::unordered_multiset<T...>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<THashMultiSet<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<THashMultiSet<T...>, TValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<THashMultiSet<T...>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::unordered_map<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::unordered_map<T...>, TKeySorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<std::unordered_map<T...>, TKeySorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<THashMap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<THashMap<T...>, TKeySorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<THashMap<T...>, TKeySorterComparer<C>>;
 };
 
 template <class C, class K, class V, unsigned N, class... Ts>
 struct TSorterSelector<SmallDenseMap<K, V, N, Ts...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<SmallDenseMap<K, V, N, Ts...>, TKeySorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<SmallDenseMap<K, V, N, Ts...>, TKeySorterComparer<C>>;
 };
 
 template <class K, class V, unsigned N, class C>
 struct TSorterSelector<TCompactFlatMap<K, V, N>, C, TSortedTag>
 {
-    typedef TCollectionSorter<TCompactFlatMap<K, V, N>, TKeySorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<TCompactFlatMap<K, V, N>, TKeySorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::unordered_map<T...>, TKeyValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<std::unordered_map<T...>, TKeyValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
 struct TSorterSelector<THashMultiMap<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<THashMultiMap<T...>, TKeyValueSorterComparer<C>> TSorter;
+    using TSorter = TCollectionSorter<THashMultiMap<T...>, TKeyValueSorterComparer<C>>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1352,7 +1352,7 @@ struct TSetSerializer
     template <class TSetType, class C>
     static void Load(C& context, TSetType& set)
     {
-        typedef typename TSetType::key_type TKey;
+        using TKey = typename TSetType::key_type;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1389,7 +1389,7 @@ struct TMultiSetSerializer
     template <class TSetType, class C>
     static void Load(C& context, TSetType& set)
     {
-        typedef typename TSetType::key_type TKey;
+        using TKey = typename TSetType::key_type;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1430,7 +1430,7 @@ struct TOptionalSetSerializer
     template <class TSetType, class C>
     static void Load(C& context, std::unique_ptr<TSetType>& set)
     {
-        typedef typename TSetType::key_type TKey;
+        using TKey = typename TSetType::key_type;
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 
@@ -1591,8 +1591,8 @@ struct TValueBoundComparer
 template <class T, class C, class>
 struct TSerializerTraits
 {
-    typedef TValueBoundSerializer TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TValueBoundSerializer;
+    using TComparer = TValueBoundComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1684,13 +1684,13 @@ struct TNullableIntrusivePtrSerializer
 template <class C>
 struct TSerializerTraits<TSharedRef, C, void>
 {
-    typedef TSharedRefSerializer TSerializer;
+    using TSerializer = TSharedRefSerializer;
 };
 
 template <class C>
 struct TSerializerTraits<TSharedRefArray, C, void>
 {
-    typedef TSharedRefArraySerializer TSerializer;
+    using TSerializer = TSharedRefArraySerializer;
 };
 
 template <class T, class C>
@@ -1700,8 +1700,8 @@ struct TSerializerTraits<
     typename std::enable_if<NMpl::TIsPod<T>::value && !std::is_pointer<T>::value>::type
 >
 {
-    typedef TPodSerializer TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TPodSerializer;
+    using TComparer = TValueBoundComparer;
 };
 
 template <class T, class C>
@@ -1711,186 +1711,186 @@ struct TSerializerTraits<
     typename TEnumTraits<T>::TType
 >
 {
-    typedef TEnumSerializer TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TEnumSerializer;
+    using TComparer = TValueBoundComparer;
 };
 
 template <class C>
 struct TSerializerTraits<TString, C, void>
 {
-    typedef TStringSerializer TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TStringSerializer;
+    using TComparer = TValueBoundComparer;
 };
 
 // For save only.
 template <class C>
 struct TSerializerTraits<TStringBuf, C, void>
 {
-    typedef TStringSerializer TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TStringSerializer;
+    using TComparer = TValueBoundComparer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::optional<T>, C, void>
 {
-    typedef TOptionalSerializer<> TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TOptionalSerializer<>;
+    using TComparer = TValueBoundComparer;
 };
 
 template <class... Ts, class C>
 struct TSerializerTraits<std::variant<Ts...>, C, void>
 {
-    typedef TVariantSerializer TSerializer;
+    using TSerializer = TVariantSerializer;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::atomic<T>, C, void>
 {
-    typedef TAtomicSerializer<> TSerializer;
+    using TSerializer = TAtomicSerializer<>;
 };
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::vector<T, A>, C, void>
 {
-    typedef TVectorSerializer<> TSerializer;
+    using TSerializer = TVectorSerializer<>;
 };
 
 template <class T, unsigned size, class C>
 struct TSerializerTraits<TCompactVector<T, size>, C, void>
 {
-    typedef TVectorSerializer<> TSerializer;
+    using TSerializer = TVectorSerializer<>;
 };
 
 template <class T, std::size_t size, class C>
 struct TSerializerTraits<std::array<T, size>, C, void>
 {
-    typedef TArraySerializer<> TSerializer;
+    using TSerializer = TArraySerializer<>;
 };
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::list<T, A>, C, void>
 {
-    typedef TListSerializer<> TSerializer;
+    using TSerializer = TListSerializer<>;
 };
 
 template <class T, class C>
 struct TSerializerTraits<std::deque<T>, C, void>
 {
-    typedef TListSerializer<> TSerializer;
+    using TSerializer = TListSerializer<>;
 };
 
 template <class T, class Q, class A, class C>
 struct TSerializerTraits<std::set<T, Q, A>, C, void>
 {
-    typedef TSetSerializer<> TSerializer;
+    using TSerializer = TSetSerializer<>;
 };
 template <class T, class H, class P, class A, class C>
 struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
 {
-    typedef TSetSerializer<> TSerializer;
+    using TSerializer = TSetSerializer<>;
 };
 
 template <class T, class H, class E, class A, class C>
 struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
 {
-    typedef TSetSerializer<> TSerializer;
+    using TSerializer = TSetSerializer<>;
 };
 
 template <class T, class C>
 struct TSerializerTraits<THashMultiSet<T>, C, void>
 {
-    typedef TMultiSetSerializer<> TSerializer;
+    using TSerializer = TMultiSetSerializer<>;
 };
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::vector<T, A>>, C, void>
 {
-    typedef TOptionalVectorSerializer<> TSerializer;
+    using TSerializer = TOptionalVectorSerializer<>;
 };
 
 template <class T, unsigned size, class C>
 struct TSerializerTraits<std::unique_ptr<TCompactVector<T, size>>, C, void>
 {
-    typedef TOptionalVectorSerializer<> TSerializer;
+    using TSerializer = TOptionalVectorSerializer<>;
 };
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::list<T, A>>, C, void>
 {
-    typedef TOptionalListSerializer<> TSerializer;
+    using TSerializer = TOptionalListSerializer<>;
 };
 
 template <class T, class Q, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::set<T, Q, A>>, C, void>
 {
-    typedef TOptionalSetSerializer<> TSerializer;
+    using TSerializer = TOptionalSetSerializer<>;
 };
 
 template <class T, class H, class P, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, void>
 {
-    typedef TOptionalSetSerializer<> TSerializer;
+    using TSerializer = TOptionalSetSerializer<>;
 };
 
 template <class T, class H, class E, class A, class C>
 struct TSerializerTraits<std::unique_ptr<THashSet<T, H, E, A>>, C, void>
 {
-    typedef TOptionalSetSerializer<> TSerializer;
+    using TSerializer = TOptionalSetSerializer<>;
 };
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<std::map<K, V, Q, A>, C, void>
 {
-    typedef TMapSerializer<> TSerializer;
+    using TSerializer = TMapSerializer<>;
 };
 
 template <class K, class V, class H, class P, class A, class C>
 struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 {
-    typedef TMapSerializer<> TSerializer;
+    using TSerializer = TMapSerializer<>;
 };
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
 {
-    typedef TMapSerializer<> TSerializer;
+    using TSerializer = TMapSerializer<>;
 };
 
 template <class K, class V, unsigned I, class E, class B, class C>
 struct TSerializerTraits<SmallDenseMap<K, V, I, E, B>, C, void>
 {
-    typedef TMapSerializer<> TSerializer;
+    using TSerializer = TMapSerializer<>;
 };
 
 template <class K, class V, unsigned N, class C>
 struct TSerializerTraits<TCompactFlatMap<K, V, N>, C, void>
 {
-    typedef TMapSerializer<> TSerializer;
+    using TSerializer = TMapSerializer<>;
 };
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<std::multimap<K, V, Q, A>, C, void>
 {
-    typedef TMultiMapSerializer<> TSerializer;
+    using TSerializer = TMultiMapSerializer<>;
 };
 
 template <class K, class V, class C>
 struct TSerializerTraits<THashMultiMap<K, V>, C, void>
 {
-    typedef TMultiMapSerializer<> TSerializer;
+    using TSerializer = TMultiMapSerializer<>;
 };
 
 template <class E, class T, class C, E Min, E Max>
 struct TSerializerTraits<TEnumIndexedVector<E, T, Min, Max>, C, void>
 {
-typedef TEnumIndexedVectorSerializer<> TSerializer;
+    using TSerializer = TEnumIndexedVectorSerializer<>;
 };
 
 template <class F, class S, class C>
 struct TSerializerTraits<std::pair<F, S>, C, typename std::enable_if<!NMpl::TIsPod<std::pair<F, S>>::value>::type>
 {
-    typedef TTupleSerializer<std::pair<F, S>> TSerializer;
-    typedef TValueBoundComparer TComparer;
+    using TSerializer = TTupleSerializer<std::pair<F, S>>;
+    using TComparer = TValueBoundComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

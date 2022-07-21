@@ -27,7 +27,7 @@ class TLazyIntrusivePtr
     : public TPointerCommon<TLazyIntrusivePtr<T, TLock>, T>
 {
 public:
-    typedef TCallback<TIntrusivePtr<T>()> TFactory;
+    using TFactory = TCallback<TIntrusivePtr<T>()>;
 
     explicit TLazyIntrusivePtr(TFactory factory = DefaultRefCountedFactory<T>())
         : Factory_(std::move(factory))
