@@ -101,6 +101,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>

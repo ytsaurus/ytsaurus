@@ -19,6 +19,7 @@
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/client/queue_client/queue_rowset.h>
+#include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -856,6 +857,134 @@ TEST_F(TQueueApiTest, TestQueueApi)
     expected = ToString(YsonToSchemalessRow(
         "<id=0> 0; <id=1> 2; <id=2> 123; <id=3> 124; <id=4> 125;"));
     EXPECT_EQ(expected, actual);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConsumerApiTest
+    : public TDynamicTablesTestBase
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TConsumerApiTest, TestBigRTConsumer)
+{
+    CreateTable(
+        "//tmp/big_rt_consumer_test", // tablePath
+        "[" // schema
+        "{name=ShardId;type=uint64;sort_order=ascending};"
+        "{name=Offset;type=uint64}]");
+
+    auto consumerSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("ShardId", EValueType::Uint64, ESortOrder::Ascending),
+        TColumnSchema("Offset", EValueType::Uint64),
+    }, /*strict*/ true, /*uniqueKeys*/ true);
+    auto consumerClient = NQueueClient::CreateConsumerClient("//tmp/big_rt_consumer_test", *consumerSchema);
+
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 13, {}, 27);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 1u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 13);
+    EXPECT_EQ(partitions[0].NextRowIndex, 27);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 13, 27, 29);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 1u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 13);
+    EXPECT_EQ(partitions[0].NextRowIndex, 29);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        transaction->AdvanceConsumer(Table_, 13, 27, 30),
+        NQueueClient::EErrorCode::ConsumerOffsetConflict);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        transaction->AdvanceConsumer(Table_, 14, 27, 30),
+        NQueueClient::EErrorCode::ConsumerOffsetConflict);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 14, {}, 29);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 2u);
+    EXPECT_EQ(partitions[1].PartitionIndex, 14);
+    EXPECT_EQ(partitions[1].NextRowIndex, 29);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 9, 0, 0);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 3u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 9);
+    EXPECT_EQ(partitions[0].NextRowIndex, 0);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 8, {}, 0);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 4u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 8);
+    EXPECT_EQ(partitions[0].NextRowIndex, 0);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 13, {}, 0);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 4u);
+    EXPECT_EQ(partitions[2].PartitionIndex, 13);
+    EXPECT_EQ(partitions[2].NextRowIndex, 0);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    transaction->AdvanceConsumer(Table_, 5, 0, 5);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 5u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 5);
+    EXPECT_EQ(partitions[0].NextRowIndex, 5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

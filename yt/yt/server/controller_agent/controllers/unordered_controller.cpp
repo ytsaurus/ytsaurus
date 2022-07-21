@@ -16,8 +16,6 @@
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/yt/client/api/transaction.h>
-
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
@@ -30,6 +28,10 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/query_client/query.h>
+
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 

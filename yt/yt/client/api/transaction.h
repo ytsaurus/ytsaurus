@@ -157,6 +157,18 @@ struct ITransaction
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+
+    // Consumers.
+
+    //! Advance the consumer's offset for the given partition, setting it to a new value.
+    //!
+    //! If oldOffset is specified, the current offset is read inside this transaction and compared with oldOffset.
+    //! If they are equal, the new offset is written, otherwise an exception is thrown.
+    void AdvanceConsumer(
+        const NYPath::TYPath& path,
+        int partitionIndex,
+        std::optional<i64> oldOffset,
+        i64 newOffset);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)

@@ -1,12 +1,22 @@
 #pragma once
 
 #include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/error_code.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_ERROR_ENUM(
+    ((ConsumerOffsetConflict)            (3100))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TQueueRowset)
+
+DECLARE_REFCOUNTED_STRUCT(IConsumerClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

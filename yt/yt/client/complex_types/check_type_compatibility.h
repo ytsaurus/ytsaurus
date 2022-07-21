@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <library/cpp/yt/misc/enum.h>

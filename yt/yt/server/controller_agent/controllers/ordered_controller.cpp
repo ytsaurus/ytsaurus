@@ -15,9 +15,6 @@
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 
-#include <yt/yt/client/api/config.h>
-#include <yt/yt/client/api/transaction.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -42,7 +39,11 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
