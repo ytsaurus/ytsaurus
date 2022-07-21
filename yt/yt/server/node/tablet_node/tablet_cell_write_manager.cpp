@@ -359,11 +359,6 @@ public:
             YT_VERIFY(transactions.empty());
         }
 
-        for (const auto& [tabletId, tablet] : Host_->Tablets()) {
-            tablet->RecomputeReplicaStatuses();
-            tablet->RecomputeCommittedReplicationRowIndices();
-        }
-
         for (auto* transaction : transactions) {
             for (auto* tablet : GetAffectedTablets(transaction)) {
                 transaction->LockedTablets().push_back(tablet);

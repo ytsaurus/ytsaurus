@@ -706,7 +706,7 @@ public:
 
     void RecomputeReplicaStatuses();
 
-    void RecomputeCommittedReplicationRowIndices();
+    void RecomputeCommittedReplicationRowIndices(bool useBugForAsyncReplicas);
 
     void CheckedSetBackupStage(EBackupStage previous, EBackupStage next);
 

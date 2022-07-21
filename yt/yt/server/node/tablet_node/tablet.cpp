@@ -2155,10 +2155,19 @@ void TTablet::RecomputeReplicaStatuses()
     }
 }
 
-void TTablet::RecomputeCommittedReplicationRowIndices()
+void TTablet::RecomputeCommittedReplicationRowIndices(bool useBugForAsyncReplicas)
 {
     for (auto& [replica, replicaInfo] : Replicas()) {
-        auto committedReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex() - GetDelayedLocklessRowCount();
+        auto committedReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
+
+        // COMPAT(ifsmirnov)
+        if (useBugForAsyncReplicas) {
+            committedReplicationRowIndex -= GetDelayedLocklessRowCount();
+        } else {
+            if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
+                committedReplicationRowIndex -= GetDelayedLocklessRowCount();
+            }
+        }
         replicaInfo.SetCommittedReplicationRowIndex(committedReplicationRowIndex);
     }
 }

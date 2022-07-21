@@ -426,6 +426,8 @@ public:
         TransactionIdToPersistentWriteState_.clear();
 
         WriteLogsMemoryTrackerGuard_.SetSize(0);
+
+        ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = false;
     }
 
     void Save(TSaveContext& context) const override
@@ -440,6 +442,10 @@ public:
         using NYT::Load;
 
         TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TUnsortedTag>::Load(context, TransactionIdToPersistentWriteState_);
+
+        if (context.GetVersion() < ETabletReign::FixCommittedReplicationRowIndex) {
+            ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = true;
+        }
     }
 
     TCallback<void(TSaveContext&)> AsyncSave() override
@@ -496,7 +502,8 @@ public:
         }
 
         Tablet_->RecomputeReplicaStatuses();
-        Tablet_->RecomputeCommittedReplicationRowIndices();
+        Tablet_->RecomputeCommittedReplicationRowIndices(
+            ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_);
     }
 
 private:
@@ -511,6 +518,9 @@ private:
     // NB: Write logs are generally much smaller than dynamic stores,
     // so we don't worry about per-pool management here.
     TMemoryUsageTrackerGuard WriteLogsMemoryTrackerGuard_;
+
+    // COMPAT(ifsmirnov)
+    bool ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = false;
 
     struct TTransactionPersistentWriteState
         : public TRefCounted
