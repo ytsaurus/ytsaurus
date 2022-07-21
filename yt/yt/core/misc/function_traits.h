@@ -14,8 +14,8 @@ struct TFunctionTraits
 template <typename T, typename Result, typename Arg>
 struct TFunctionTraits<Result(T::*)(Arg) const>
 {
-    typedef Result TResult;
-    typedef Arg TArg;
+    using TResult = Result;
+    using TArg = Arg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -113,7 +113,7 @@ class TStatisticsConsumer
     : public NYson::TForwardingYsonConsumer
 {
 public:
-    typedef TCallback<void(const NYTree::INodePtr& sample)> TSampleHandler;
+    using TSampleHandler = TCallback<void(const NYTree::INodePtr& sample)>;
     explicit TStatisticsConsumer(TSampleHandler consumer);
 
 private:

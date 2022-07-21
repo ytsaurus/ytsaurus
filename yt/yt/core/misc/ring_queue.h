@@ -17,12 +17,12 @@ template <class T, class TAllocator = std::allocator<T>>
 class TRingQueue
 {
 public:
-    typedef T value_type;
-    typedef T& reference;
-    typedef const T& const_reference;
-    typedef T* pointer;
-    typedef const T* const_pointer;
-    typedef size_t size_type;
+    using value_type = T;
+    using reference = T&;
+    using const_reference = const T&;
+    using pointer = T*;
+    using const_pointer = const T*;
+    using size_type = size_t;
 
     static_assert(std::is_nothrow_move_constructible<T>::value, "T must be nothrow move constructable.");
 

@@ -8,10 +8,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef NPhoenix::TSaveContext TSaveContext;
-typedef NPhoenix::TLoadContext TLoadContext;
-typedef NPhoenix::IPersistent IPersistent;
-typedef NPhoenix::TPersistenceContext TPersistenceContext;
+using TSaveContext = NPhoenix::TSaveContext;
+using TLoadContext = NPhoenix::TLoadContext;
+using IPersistent = NPhoenix::IPersistent;
+using TPersistenceContext = NPhoenix::TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 

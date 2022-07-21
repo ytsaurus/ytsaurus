@@ -210,16 +210,16 @@ TString ToString(const TError& error);
 template <class T>
 struct TErrorTraits
 {
-    typedef TErrorOr<T> TWrapped;
-    typedef T TUnwrapped;
+    using TWrapped = TErrorOr<T>;
+    using TUnwrapped = T;
 };
 
 template <class T>
 struct TErrorTraits<TErrorOr<T>>
 {
-    typedef T TUnderlying;
-    typedef TErrorOr<T> TWrapped;
-    typedef T TUnwrapped;
+    using TUnderlying = T;
+    using TWrapped = TErrorOr<T>;
+    using TUnwrapped = T;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

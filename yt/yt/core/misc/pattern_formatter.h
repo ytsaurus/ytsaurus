@@ -14,7 +14,7 @@ public:
     TString Format(const TString& pattern);
 
 private:
-    typedef THashMap<TString, TString> TPropertyMap;
+    using TPropertyMap = THashMap<TString, TString>;
     TPropertyMap PropertyMap;
 
 };
