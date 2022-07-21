@@ -275,15 +275,17 @@ public:
         const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
         auto replicasList = chunkReplicaCache->FindReplicas({owner->GetChunkId()});
         YT_VERIFY(replicasList.size() == 1);
-        auto replicas = std::move(replicasList[0]);
+        auto replicasOrError = std::move(replicasList[0]);
 
-        if (replicas) {
-            TChunkReplicaList result;
-            result.reserve(replicas.Replicas.size());
-            for (const auto& replica : replicas.Replicas) {
-                result.push_back(replica);
+        if (replicasOrError.IsOK()) {
+            if (auto replicas = std::move(replicasOrError.Value())) {
+                TChunkReplicaList result;
+                result.reserve(replicas.Replicas.size());
+                for (auto replica : replicas.Replicas) {
+                    result.push_back(replica);
+                }
+                return result;
             }
-            return result;
         }
 
         // Erasure chunks do not have local readers.

@@ -284,7 +284,8 @@ protected:
             .Via(SessionInvoker_));
     }
 
-    virtual void OnNonexistentChunk(TChunkId chunkId) = 0;
+    // Returns whether probing session may be stopped.
+    virtual bool OnNonexistentChunk(TChunkId chunkId) = 0;
     virtual void OnLostChunk(TChunkId chunkId) = 0;
     virtual void OnPeerProbingFailed(
         const TPeerInfoPtr& peerInfo,
@@ -330,10 +331,13 @@ private:
             auto chunkId = ChunkIds_[chunkIndex];
             auto& allyReplicasInfosOrError = allyReplicasInfosOrErrors[chunkIndex];
             if (!allyReplicasInfosOrError.IsOK()) {
-                if (allyReplicasInfosOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
-                    OnNonexistentChunk(chunkId);
-                }
                 ReplicaInfos_.emplace_back();
+                if (allyReplicasInfosOrError.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
+                    if (OnNonexistentChunk(chunkId)) {
+                        return;
+                    }
+                    continue;
+                }
             } else {
                 ReplicaInfos_.push_back(std::move(allyReplicasInfosOrError.Value()));
             }
@@ -380,18 +384,20 @@ private:
         YT_VERIFY(probingInfos.size() == probingRspOrErrors.size());
 
         THashMap<TChunkId, TChunkProbingResult> chunkIdToProbingResult;
-        for (auto chunkId : ChunkIds_) {
-            EmplaceOrCrash(chunkIdToProbingResult, chunkId, TChunkProbingResult());
-        }
 
         int successfulProbingRequestCount = 0;
         int failedProbingRequestCount = 0;
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
+            for (auto chunkIndex : probingInfo.ChunkIndexes) {
+                chunkIdToProbingResult.try_emplace(ChunkIds_[chunkIndex]);
+            }
+
             const auto& peerInfoOrError = probingInfo.PeerInfoOrError;
             if (!peerInfoOrError.IsOK()) {
                 continue;
             }
+
             const auto& peerInfo = peerInfoOrError.Value();
 
             const auto& probingRspOrError = probingRspOrErrors[nodeIndex];
@@ -556,11 +562,6 @@ private:
             auto chunkId = ChunkIds_[chunkIndex];
 
             const auto& allyReplicas = allyReplicasInfos[chunkIndex];
-            if (!allyReplicas) {
-                // NB: This branch is possible within periodic updates.
-                continue;
-            }
-
             for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
                 auto chunkIdWithIndex = TChunkIdWithIndex(chunkId, chunkReplica.GetReplicaIndex());
@@ -701,9 +702,10 @@ private:
         return chunkInfo->LastAccessTime + Config_->ChunkInfoCacheExpirationTimeout < now;
     }
 
-    void OnNonexistentChunk(TChunkId chunkId) override
+    bool OnNonexistentChunk(TChunkId chunkId) override
     {
         NonexistentChunkIds_.push_back(chunkId);
+        return false;
     }
 
     void OnLostChunk(TChunkId chunkId) override
@@ -832,12 +834,13 @@ private:
         Promise_.TrySet(std::move(error));
     }
 
-    void OnNonexistentChunk(TChunkId chunkId) override
+    bool OnNonexistentChunk(TChunkId chunkId) override
     {
         OnFatalError(TError(
             NChunkClient::EErrorCode::NoSuchChunk,
             "No such chunk %v",
             chunkId));
+        return true;
     }
 
     void OnLostChunk(TChunkId /*chunkId*/) override
