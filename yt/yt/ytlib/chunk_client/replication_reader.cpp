@@ -297,9 +297,9 @@ private:
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
-    //! If AllowFetchingSeedsFromMaster is |true| these seeds (if present) are used
+    //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
-    //! If AllowFetchingSeedsFromMaster is |false| these seeds must be given and cannot be discarded.
+    //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
     TChunkReplicaList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
@@ -1192,24 +1192,28 @@ private:
         });
     }
 
-    void OnGotSeeds(const TErrorOr<TAllyReplicasInfo>& result)
+    void OnGotSeeds(const TErrorOr<TAllyReplicasInfo>& resultOrError)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
             return;
         }
 
-        if (!result.IsOK()) {
-            DiscardSeeds();
-            RegisterError(TError(
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Error requesting seeds from master")
-                << result);
+        if (!resultOrError.IsOK()) {
+            if (resultOrError.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
+                RegisterError(resultOrError);
+            } else {
+                DiscardSeeds();
+                RegisterError(TError(
+                    NChunkClient::EErrorCode::MasterCommunicationFailed,
+                    "Error requesting seeds from master")
+                    << resultOrError);
+            }
             OnSessionFailed(/*fatal*/ true);
             return;
         }
 
-        SeedReplicas_ = result.Value();
+        SeedReplicas_ = resultOrError.Value();
         if (IsErasureChunkPartId(ChunkId_)) {
             auto replicaIndex = ReplicaIndexFromErasurePartId(ChunkId_);
             EraseIf(

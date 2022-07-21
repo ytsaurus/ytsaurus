@@ -38,10 +38,10 @@ public:
         ExpirationExecutor_->Start();
     }
 
-    std::vector<TAllyReplicasInfo> FindReplicas(
+    std::vector<TErrorOr<TAllyReplicasInfo>> FindReplicas(
         const std::vector<TChunkId>& chunkIds) override
     {
-        std::vector<TAllyReplicasInfo> replicas(chunkIds.size());
+        std::vector<TErrorOr<TAllyReplicasInfo>> replicas(chunkIds.size());
 
         auto now = TInstant::Now();
 
@@ -56,8 +56,8 @@ public:
                 if (auto optionalExistingReplicas = entry.Promise.TryGet()) {
                     if (optionalExistingReplicas->IsOK()) {
                         entry.LastAccessTime = now;
-                        replicas[index] = optionalExistingReplicas->Value();
                     }
+                    replicas[index] = *optionalExistingReplicas;
                 }
             }
         }
@@ -327,6 +327,13 @@ private:
 
             for (int index = 0; index < std::ssize(chunkIds); ++index) {
                 const auto& subresponse = rsp->subresponses(index);
+                if (subresponse.missing()) {
+                    promises[index].TrySet(TError(
+                        NChunkClient::EErrorCode::NoSuchChunk,
+                        "No such chunk %v",
+                        chunkIds[index]));
+                    continue;
+                }
                 auto replicas = TAllyReplicasInfo::FromChunkReplicas(
                     FromProto<TChunkReplicaList>(subresponse.replicas()),
                     rsp->revision());
