@@ -641,6 +641,24 @@ private:
             auto clusterTag = tablet->BackupMetadata().GetClockClusterTag();
             auto currentTimestamp = timestampByClusterTag(clusterTag);
 
+            if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
+                YT_LOG_DEBUG("Backup rejected since dynamic store count limit is exceeded"
+                    "(%v, DynamicStoreCount: %v, Limit: %v)",
+                    tablet->GetLoggingTag(),
+                    tablet->GetDynamicStoreCount(),
+                    DynamicStoreCountLimit);
+
+                auto rejectedInfo = req.add_rejected_tablets();
+                ToProto(rejectedInfo->mutable_tablet_id(), tablet->GetId());
+                auto error = TError("Dynamic store count limit is exceeded")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("cell_id", Slot_->GetCellId())
+                    << TErrorAttribute("dynamic_store_count", tablet->GetDynamicStoreCount())
+                    << TErrorAttribute("dynamic_store_count_limit", DynamicStoreCountLimit);
+                ToProto(rejectedInfo->mutable_error(), error.Sanitize());
+                continue;
+            }
+
             if (tablet->GetBackupCheckpointTimestamp() > currentTimestamp) {
                 YT_LOG_DEBUG("Transiently confirmed backup checkpoint feasibility "
                     "(TabletId: %v, CheckpointTimestamp: %llx, ClockClusterTag: %v)",

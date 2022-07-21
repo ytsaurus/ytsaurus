@@ -6807,7 +6807,8 @@ private:
                 children.begin() + firstDynamicStoreIndex,
                 children.end());
 
-            if (allDynamicStores.size() > NTabletNode::DynamicStoreCountLimit) {
+            // +2 is due to that the accounting is not very precise at the node part.
+            if (allDynamicStores.size() > NTabletNode::DynamicStoreCountLimit + 2) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Too many dynamic stores in ordered tablet chunk list "
                     "(TableId: %v, TabletId: %v, ChunkListId: %v, DynamicStoreCount: %v, "
                     "Limit: %v)",
@@ -6815,7 +6816,7 @@ private:
                     tablet->GetId(),
                     tabletChunkList->GetId(),
                     allDynamicStores.size(),
-                    NTabletNode::DynamicStoreCountLimit);
+                    NTabletNode::DynamicStoreCountLimit + 2);
             }
 
             chunkManager->DetachFromChunkList(
