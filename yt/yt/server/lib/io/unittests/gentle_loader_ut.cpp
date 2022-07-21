@@ -234,6 +234,11 @@ public:
         TotalWriteCounter_ += size;
     }
 
+    EDirectIOPolicy UseDirectIOForReads() const override
+    {
+        return EDirectIOPolicy::Never;
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const TThreadPoolPtr ThreadPool_;

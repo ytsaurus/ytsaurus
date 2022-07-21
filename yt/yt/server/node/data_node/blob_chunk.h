@@ -48,7 +48,8 @@ public:
         bool useDirectIO) override;
 
     NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
+        bool useDirectIO) override;
 
     void SyncRemove(bool force) override;
 

@@ -103,7 +103,8 @@ TFuture<void> TChunkBase::PrepareToReadChunkFragments(
 }
 
 NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
-    const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/)
+    const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/,
+    bool /*useDirectIO*/)
 {
     THROW_ERROR_EXCEPTION("Chunk %v does not support reading fragments",
         Id_);

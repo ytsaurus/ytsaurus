@@ -303,7 +303,8 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
 }
 
 IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& fragmentDescriptor)
+    const TChunkFragmentDescriptor& fragmentDescriptor,
+    bool /*useDirectIO*/)
 {
     YT_VERIFY(ReadLockCounter_.load() > 0);
     YT_VERIFY(Changelog_);

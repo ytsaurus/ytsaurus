@@ -263,13 +263,6 @@ const TString& TChunkLocation::GetDiskFamily() const
     return Config_->DiskFamily;
 }
 
-NIO::EDirectIOPolicy TChunkLocation::UseDirectIOForReads() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Config_->UseDirectIOForReads;
-}
-
 TString TChunkLocation::GetMediumName() const
 {
     VERIFY_THREAD_AFFINITY_ANY();

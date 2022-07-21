@@ -141,9 +141,6 @@ public:
     //! Returns the IO Engine with stats observer.
     const NIO::IIOEngineWorkloadModelPtr& GetIOEngineModel() const;
 
-    //! Returns direct IO policy for read requests.
-    NIO::EDirectIOPolicy UseDirectIOForReads() const;
-
     //! Return the maximum number of bytes in the gap between two adjacent read locations
     //! in order to join them together during read coalescing.
     i64 GetCoalescedReadMaxGapSize() const;

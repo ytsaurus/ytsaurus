@@ -109,9 +109,6 @@ public:
     //! IO Engine config.
     NYTree::INodePtr IOConfig;
 
-    //! Direct IO policy for read requests.
-    NIO::EDirectIOPolicy UseDirectIOForReads;
-
     TDuration ThrottleDuration;
 
     //! Maximum number of bytes in the gap between two adjacent read locations

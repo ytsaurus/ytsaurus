@@ -47,6 +47,13 @@ struct IBlocksExtCache
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDirectIOFlag,
+    (On)
+    (Off)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkFileReader
     : public virtual TRefCounted
 {
@@ -60,7 +67,6 @@ public:
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
         TString fileName,
-        EDirectIOPolicy useDirectIO,
         bool validateBlocksChecksums = true,
         IBlocksExtCache* blocksExtCache = nullptr);
 
@@ -92,7 +98,8 @@ public:
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
     IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const TChunkFragmentDescriptor& fragmentDescriptor);
+        const TChunkFragmentDescriptor& fragmentDescriptor,
+        bool useDirectIO);
 
     NChunkClient::TChunkId GetChunkId() const;
 
@@ -101,16 +108,15 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
-    const EDirectIOPolicy UseDirectIO_;
     IBlocksExtCache* const BlocksExtCache_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
-    TFuture<TIOEngineHandlePtr> DataFileHandleFuture_;
-    TIOEngineHandlePtr DataFileHandle_;
+    TEnumIndexedVector<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;
+    TEnumIndexedVector<EDirectIOFlag, TIOEngineHandlePtr> DataFileHandle_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
-    TFuture<void> ChunkFragmentReadsPreparedFuture_;
-    std::atomic<bool> ChunkFragmentReadsPrepared_ = false;
+    TEnumIndexedVector<EDirectIOFlag, TFuture<void>> ChunkFragmentReadsPreparedFuture_;
+    TEnumIndexedVector<EDirectIOFlag, std::atomic<bool>> ChunkFragmentReadsPrepared_;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
     NIO::TBlocksExtPtr BlocksExt_;
 
@@ -134,8 +140,9 @@ private:
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedRef& data);
 
-    TFuture<TIOEngineHandlePtr> OpenDataFile(bool useDirectIO);
-    TIOEngineHandlePtr OnDataFileOpened(const TIOEngineHandlePtr& file);
+    TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
+    TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);
+    EDirectIOFlag GetDirectIOFlag(bool useDirectIO);
 
     void DumpBrokenBlock(
         int blockIndex,
