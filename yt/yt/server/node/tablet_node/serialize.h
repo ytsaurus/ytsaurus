@@ -43,6 +43,7 @@ DEFINE_ENUM(ETabletReign,
     ((FixSuspendTabletCells)              (100506)) // gritukan
     ((AnotherFixSuspendTabletCells)       (100507)) // gritukan
     ((ReplicationTxLocksTablet)           (100508)) // gritukan
+    ((FixCommittedReplicationRowIndex)    (100509)) // ifsmirnov
     // 22.3 starts here.
     ((TabletWriteManager)                 (100600)) // gritukan
 );
