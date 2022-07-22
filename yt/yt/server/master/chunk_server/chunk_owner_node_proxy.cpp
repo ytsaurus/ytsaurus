@@ -590,6 +590,7 @@ private:
     {
         if (ChunkSpecsToFetchMetaFromSequoia_.empty()) {
             ReplySuccess();
+            return;
         }
 
         auto fetchFuture = ::NYT::NChunkServer::FetchChunkMetasFromSequoia(
