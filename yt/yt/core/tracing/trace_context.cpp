@@ -512,8 +512,12 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 thread_local TTraceContext* CurrentTraceContext;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
+
+} // namespace NDetail
 
 TTraceContext* DoGetCurrentTraceContext()
 {
@@ -530,7 +534,7 @@ static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newCo
     auto now = GetCpuInstant();
 
     // Invalid if no oldContext
-    auto delta = now - TraceContextTimingCheckpoint;
+    auto delta = now - NDetail::TraceContextTimingCheckpoint;
 
     if (oldContext && newContext) {
         YT_LOG_TRACE("Switching context (OldContext: %v, NewContext: %v, CpuTimeDelta: %v)",
@@ -550,10 +554,10 @@ static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newCo
         oldContext->IncrementElapsedCpuTime(delta);
     }
 
-    CurrentTraceContext = newContext;
+    NDetail::CurrentTraceContext = newContext;
     std::atomic_signal_fence(std::memory_order_seq_cst);
 
-    TraceContextTimingCheckpoint = now;
+    NDetail::TraceContextTimingCheckpoint = now;
 }
 
 static TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
@@ -588,12 +592,12 @@ void FlushCurrentTraceContextTime()
     }
 
     auto now = GetCpuInstant();
-    auto delta = now - TraceContextTimingCheckpoint;
+    auto delta = now - NDetail::TraceContextTimingCheckpoint;
     YT_LOG_TRACE("Flushing context time (Context: %v, CpuTimeDelta: %v)",
         context,
         NProfiling::CpuDurationToDuration(delta));
     context->IncrementElapsedCpuTime(delta);
-    TraceContextTimingCheckpoint = now;
+    NDetail::TraceContextTimingCheckpoint = now;
 }
 
 void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
@@ -643,7 +647,7 @@ void ReleaseFiberTagStorage(void* storage)
 
 TCpuInstant GetTraceContextTimingCheckpoint()
 {
-    return NTracing::TraceContextTimingCheckpoint;
+    return NTracing::NDetail::TraceContextTimingCheckpoint;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

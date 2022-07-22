@@ -195,10 +195,15 @@ inline TTraceContextFinishGuard::~TTraceContextFinishGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+extern thread_local TTraceContext* CurrentTraceContext;
+
+} // namespace NDetail
+
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
-    extern thread_local TTraceContext* CurrentTraceContext;
-    return CurrentTraceContext;
+    return NDetail::CurrentTraceContext;
 }
 
 Y_FORCE_INLINE TTraceContextPtr CreateTraceContextFromCurrent(TString spanName)
