@@ -136,9 +136,8 @@ def read_check_result_without_details(yt_client, path):
             return CheckResult.UNKNOWN
 
 
-def submit_and_join(submission_client, launcher):
-    # type: (submit.SparkSubmissionClient, submit.SparkLauncher) -> submit.SubmissionStatus
-    app_id = submission_client.submit(launcher)
+def wait_final_status(submission_client, app_id):
+    # type: (submit.SparkSubmissionClient, str) -> submit.SubmissionStatus
     status = submission_client.get_status(app_id)
     while not submit.SubmissionStatus.is_final(status):
         status = submission_client.get_status(app_id)
@@ -146,8 +145,8 @@ def submit_and_join(submission_client, launcher):
     return status
 
 
-def run_job(submission_client, test_case):
-    # type: (submit.SparkSubmissionClient, E2ETestCase) -> None
+def prepare_job_launcher(submission_client, test_case):
+    # type: (submit.SparkSubmissionClient, E2ETestCase) -> submit.SparkLauncher
     launcher = submission_client.new_launcher()
     launcher.set_app_name(test_case.name)
     launcher.set_app_resource(test_case.job_path())
@@ -157,9 +156,20 @@ def run_job(submission_client, test_case):
     )
     for key, value in test_case.conf.items():
         launcher.set_conf(key, value)
+    return launcher
 
-    status = submit_and_join(submission_client, launcher)
-    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + " failed, " + status
+
+def submit_job(submission_client, launcher):
+    # type: (submit.SparkSubmissionClient, submit.SparkLauncher) -> str
+    return submission_client.submit(launcher, submit.RetryConfig(False, 0))
+
+
+def run_job(submission_client, test_case):
+    # type: (submit.SparkSubmissionClient, E2ETestCase) -> None
+    launcher = prepare_job_launcher(submission_client, test_case)
+    app_id = submit_job(submission_client, launcher)
+    status = wait_final_status(submission_client, app_id)
+    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + " failed, " + str(status)
 
 
 def run_check(submission_client, yt_client, test_case):
@@ -182,8 +192,9 @@ def run_check(submission_client, yt_client, test_case):
     )
     launcher.set_conf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "true")
 
-    status = submit_and_join(submission_client, launcher)
-    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + "_check failed, " + status
+    app_id = submit_job(submission_client, launcher)
+    status = wait_final_status(submission_client, app_id)
+    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + "_check failed, " + str(status)
 
     return read_check_result_without_details(yt_client, test_case.check_result_path())
 
@@ -219,3 +230,47 @@ def test_fct_extreme_user_order_act(submission_client, yt_client):
         .with_conf("spark.sql.mapKeyDedupPolicy", "LAST_WIN")
     with TimeoutExecution(200):
         run_test(submission_client, yt_client, test_case)
+
+
+def test_getting_active_drivers(submission_client):
+    test_case = make_e2e_test_case("link_eda_user_appsession_request_id_no_output", ["appsession_id"],
+                                   custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input")
+    with TimeoutExecution(120):
+        assert submission_client.get_active_drivers() == []
+
+        job1_id = submit_job(submission_client, prepare_job_launcher(submission_client, test_case))
+        assert submission_client.get_active_drivers() == [job1_id]
+
+        job2_id = submit_job(submission_client, prepare_job_launcher(submission_client, test_case))
+        assert sorted(submission_client.get_active_drivers()) == sorted([job1_id, job2_id])
+
+        while len(submission_client.get_active_drivers()) > 0:
+            time.sleep(5)
+
+        status1 = submission_client.get_status(job1_id)
+        status2 = submission_client.get_status(job2_id)
+        assert submit.SubmissionStatus.is_success(status1), "Job " + test_case.name + " failed, " + str(status1)
+        assert submit.SubmissionStatus.is_success(status2), "Job " + test_case.name + " failed, " + str(status2)
+
+
+def test_killing_driver(submission_client):
+    test_case = make_e2e_test_case("link_eda_user_appsession_request_id_no_output", ["appsession_id"],
+                                   custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input")
+    with TimeoutExecution(40):
+        job_id = submit_job(submission_client, prepare_job_launcher(submission_client, test_case))
+
+        assert submission_client.kill(job_id), "Job is not killed"
+        time.sleep(2)
+
+        status = submission_client.get_status(job_id)
+        assert status == submit.SubmissionStatus.KILLED, "Job " + test_case.name + " failed, " + str(status)
+
+
+def test_processing_failed_job(submission_client):
+    test_case = make_e2e_test_case("link_eda_user_appsession_request_id_fail", ["appsession_id"],
+                                   custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input")
+    with TimeoutExecution(40):
+        job_id = submit_job(submission_client, prepare_job_launcher(submission_client, test_case))
+        status = wait_final_status(submission_client, job_id)
+        assert status == submit.SubmissionStatus.FAILED, "Job " + test_case.name + " not failed, " + str(status)
+

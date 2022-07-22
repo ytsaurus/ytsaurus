@@ -20,6 +20,8 @@ object E2ETestPlugin extends AutoPlugin {
     lazy val e2eDirTTL = Duration.ofMinutes(60).toMillis
     lazy val e2eTestUDirPath = s"$sparkYtE2ETestPath/${UUID.randomUUID()}"
 
+    lazy val e2eConfigShow = taskKey[Unit]("Show e2e configuration")
+    lazy val e2ePreparation = taskKey[Unit]("Prepare e2e environment for running tests")
     lazy val e2eTest = taskKey[Unit]("Run all e2e tests")
     lazy val e2eScalaTest = taskKey[Unit]("Run scala e2e tests")
     lazy val e2ePythonTest = taskKey[Unit]("Run python e2e tests")
@@ -36,9 +38,20 @@ object E2ETestPlugin extends AutoPlugin {
 
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    e2eScalaTest := Def.sequential(publishYt, e2eScalaTestImpl).value,
-    e2ePythonTest := Def.sequential(publishYt, e2ePythonTestImpl).value,
-    e2eTest := Def.sequential(publishYt, sparkAddCustomFiles, e2eScalaTestImpl, e2ePythonTestImpl).value,
+    e2eConfigShow := {
+      val log = streams.value.log
+      log.info(s"===== E2E CONFIGURATION =====")
+      log.info(s"Input home: $sparkYtE2ETestPath")
+      log.info(s"Temp user location: $e2eTestUDirPath")
+      log.info(s"Proxy: $onlyYtProxy")
+      log.info(s"Client version: ${e2eClientVersion.value}")
+      log.info(s"Python client version: ${e2ePythonClientVersion.value}")
+      log.info(s"=====")
+    },
+    e2ePreparation := Def.sequential(e2eConfigShow, publishYt, sparkAddCustomFiles).value,
+    e2eScalaTest := Def.sequential(e2ePreparation, e2eScalaTestImpl).value,
+    e2ePythonTest := Def.sequential(e2ePreparation, e2ePythonTestImpl).value,
+    e2eTest := Def.sequential(e2ePreparation, e2eScalaTestImpl, e2ePythonTestImpl).value,
     e2eScalaTestImpl := (Test / test).value,
     e2eClientVersion := {
       Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)

@@ -201,6 +201,10 @@ def get_spark_master(discovery, rest, yt_client=None):
     return "spark://{0}".format(master)
 
 
+def scala_buffer_to_list(buffer):
+    return [buffer.apply(i) for i in range(buffer.length())]
+
+
 def default_user():
     return os.getenv("YT_USER") or getpass.getuser()
 
