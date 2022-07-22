@@ -88,9 +88,11 @@ class TChunkPlacement
 {
 public:
     TChunkPlacement(
-        TChunkManagerConfigPtr config,
-        const TConsistentChunkPlacement* consistentPlacement,
-        NCellMaster::TBootstrap* bootstrap);
+        NCellMaster::TBootstrap* bootstrap,
+        TConsistentChunkPlacementPtr consistentPlacement);
+
+    void Clear();
+    void Initialize();
 
     void OnDynamicConfigChanged();
 
@@ -164,9 +166,9 @@ public:
 private:
     class TTargetCollector;
 
-    const TChunkManagerConfigPtr Config_;
-    const TConsistentChunkPlacement* const ConsistentPlacement_;
     NCellMaster::TBootstrap* const Bootstrap_;
+    const TChunkManagerConfigPtr Config_;
+    const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
     TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator_;
     TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;

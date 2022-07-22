@@ -360,6 +360,9 @@ public:
         , ConsistentChunkPlacement_(New<TConsistentChunkPlacement>(
             Bootstrap_,
             DefaultConsistentReplicaPlacementReplicasPerChunk))
+        , ChunkPlacement_(New<TChunkPlacement>(
+            Bootstrap_,
+            ConsistentChunkPlacement_))
         , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
@@ -2544,15 +2547,15 @@ private:
 
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
-    TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     IChunkSealerPtr ChunkSealer_;
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
-    // Unlike chunk replicator, placement and sealer, this is maintained on all
+    // Unlike chunk replicator and sealer, this is maintained on all
     // peers and is not cleared on epoch change.
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
+    const TChunkPlacementPtr ChunkPlacement_;
 
     TJobRegistryPtr JobRegistry_;
 
@@ -2743,9 +2746,7 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeUnregistered(node);
-        }
+        ChunkPlacement_->OnNodeUnregistered(node);
 
         YT_VERIFY(!node->ReportedDataNodeHeartbeat());
         OnMaybeNodeWriteTargetValidityChanged(
@@ -2805,10 +2806,7 @@ private:
         DestroyedReplicaCount_ -= ssize(node->DestroyedReplicas());
         node->ClearReplicas();
 
-
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeDisposed(node);
-        }
+        ChunkPlacement_->OnNodeDisposed(node);
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeDisposed(node);
@@ -2821,9 +2819,7 @@ private:
             ScheduleNodeRefresh(node);
         }
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeUpdated(node);
-        }
+        ChunkPlacement_->OnNodeUpdated(node);
     }
 
     void OnNodeRackChanged(TNode* node, TRack* /*oldRack*/)
@@ -2838,9 +2834,7 @@ private:
 
     void OnDataCenterChanged(TDataCenter* dataCenter)
     {
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnDataCenterChanged(dataCenter);
-        }
+        ChunkPlacement_->OnDataCenterChanged(dataCenter);
     }
 
     void OnMaybeNodeWriteTargetValidityChanged(TNode* node, EWriteTargetValidityChange change)
@@ -2999,10 +2993,8 @@ private:
         response->set_revision(GetCurrentMutationContext()->GetVersion().ToRevision());
         SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeRegistered(node);
-            ChunkPlacement_->OnNodeUpdated(node);
-        }
+        ChunkPlacement_->OnNodeRegistered(node);
+        ChunkPlacement_->OnNodeUpdated(node);
 
         // Calculating the exact CRP token count for a node is hard because it
         // requires analyzing total space distribution for all nodes. This is
@@ -3160,9 +3152,7 @@ private:
 
         counters.RemovedUnapprovedReplicas.Increment(removedUnapprovedReplicaCount);
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeUpdated(node);
-        }
+        ChunkPlacement_->OnNodeUpdated(node);
     }
 
     void OnRedistributeConsistentReplicaPlacementTokens()
@@ -4138,6 +4128,8 @@ private:
             }
         }
 
+        ChunkPlacement_->Initialize();
+
         if (NeedRecomputeApprovedReplicaCount_) {
             YT_LOG_INFO("Recomputing approved replica count for chunks");
 
@@ -4345,6 +4337,7 @@ private:
         ChunkRequisitionRegistry_.Clear();
 
         ConsistentChunkPlacement_->Clear();
+        ChunkPlacement_->Clear();
 
         ChunkListsAwaitingRequisitionTraverse_.clear();
 
@@ -4393,6 +4386,7 @@ private:
 
         InitBuiltins();
         ConsistentChunkPlacement_->Clear();
+        ChunkPlacement_->Clear();
     }
 
 
@@ -4674,7 +4668,6 @@ private:
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
         JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
-        ChunkPlacement_ = New<TChunkPlacement>(Config_, ConsistentChunkPlacement_.Get(), Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
         ChunkSealer_ = CreateChunkSealer(Bootstrap_);
 
@@ -4741,8 +4734,6 @@ private:
             JobRegistry_->Stop();
             JobRegistry_.Reset();
         }
-
-        ChunkPlacement_.Reset();
 
         if (ChunkSealer_) {
             ChunkSealer_->Stop();
@@ -5310,7 +5301,7 @@ private:
     std::vector<TError> GetAlerts() const
     {
         std::vector<TError> alerts;
-        if (ChunkPlacement_) {
+        {
             auto chunkPlacementAlerts = ChunkPlacement_->GetAlerts();
             alerts.insert(alerts.end(), chunkPlacementAlerts.begin(), chunkPlacementAlerts.end());
         }
@@ -5350,9 +5341,7 @@ private:
             }
         }
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnDynamicConfigChanged();
-        }
+        ChunkPlacement_->OnDynamicConfigChanged();
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }

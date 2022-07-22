@@ -191,17 +191,25 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPlacement::TChunkPlacement(
-    TChunkManagerConfigPtr config,
-    const TConsistentChunkPlacement* consistentPlacement,
-    TBootstrap* bootstrap)
-    : Config_(config)
-    , ConsistentPlacement_(consistentPlacement)
-    , Bootstrap_(bootstrap)
-{
-    YT_VERIFY(Config_);
-    YT_VERIFY(Bootstrap_);
+    TBootstrap* bootstrap,
+    TConsistentChunkPlacementPtr consistentPlacement)
+    : Bootstrap_(bootstrap)
+    , Config_(bootstrap->GetConfig()->ChunkManager)
+    , ConsistentPlacement_(std::move(consistentPlacement))
+{ }
 
-    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+void TChunkPlacement::Clear()
+{
+    const auto& nodes = Bootstrap_->GetNodeTracker()->Nodes();
+    for (auto [nodeId, node] : nodes) {
+        UnregisterNode(node);
+    }
+}
+
+void TChunkPlacement::Initialize()
+{
+    const auto& nodes = Bootstrap_->GetNodeTracker()->Nodes();
+    for (auto [nodeId, node] : nodes) {
         OnNodeUpdated(node);
     }
 
@@ -233,8 +241,6 @@ void TChunkPlacement::RegisterNode(TNode* node)
 
 void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
-    node->ClearSessionHints();
-
     UnregisterNode(node);
     RegisterNode(node);
 }
@@ -246,6 +252,8 @@ void TChunkPlacement::OnNodeUnregistered(TNode* node)
 
 void TChunkPlacement::UnregisterNode(TNode* node)
 {
+    node->ClearSessionHints();
+
     RemoveFromLoadFactorMaps(node);
     RemoveFromFillFactorMaps(node);
 }
