@@ -384,7 +384,7 @@ private:
         const auto& tableMountCache = Client_->GetTableMountCache();
         return tableMountCache->GetTableInfo(session->Path)
             .Apply(BIND(&TSequoiaTransaction::OnGotTableMountInfo, MakeWeak(this), session)
-                .Via(SerializedInvoker_));
+                .AsyncVia(SerializedInvoker_));
     }
 
     TFuture<void> ResolveRequests()
