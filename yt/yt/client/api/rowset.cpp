@@ -115,6 +115,10 @@ template
 IVersionedRowsetPtr CreateRowset<TVersionedRow>(
     NTableClient::TTableSchemaPtr schema,
     TSharedRange<TVersionedRow> rows);
+template
+ITypeErasedRowsetPtr CreateRowset<TTypeErasedRow>(
+    NTableClient::TTableSchemaPtr schema,
+    TSharedRange<TTypeErasedRow> rows);
 
 template <class TRow>
 IRowsetPtr<TRow> CreateRowset(

@@ -1502,11 +1502,38 @@ private:
         TTimestamp* maxTimestamp,
         bool* readAllRows)
     {
+        int timestampColumnIndex = 0;
+        TColumnFilter columnFilter;
+        TLegacyOwningKey lower;
+        TLegacyOwningKey upper;
+
+        if (tabletSnapshot->TableSchema->IsSorted()) {
+            lower = MakeRowBound(*currentRowIndex);
+            upper = MakeRowBound(std::numeric_limits<i64>::max());
+        } else {
+            if (!logParser->GetTimestampColumnId()) {
+                THROW_ERROR_EXCEPTION("Invalid table schema: %Qlv column is absent",
+                    TimestampColumnName);
+            }
+
+            timestampColumnIndex = *logParser->GetTimestampColumnId() + 1;
+
+            // Without a filter first two columns are (tablet index, row index). Add tablet index column to row.
+            TColumnFilter::TIndexes columnFilterIndexes{0};
+            for (int id = 0; id < tabletSnapshot->TableSchema->GetColumnCount(); ++id) {
+                columnFilterIndexes.push_back(id + 2);
+            }
+            columnFilter = TColumnFilter(std::move(columnFilterIndexes));
+
+            lower = MakeRowBound(*currentRowIndex, progress.Segments[0].LowerKey[0].Data.Int64);
+            upper = MakeRowBound(std::numeric_limits<i64>::max(), progress.Segments[0].LowerKey[0].Data.Int64);
+        }
+
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
-            TColumnFilter(),
-            MakeRowBound(*currentRowIndex),
-            MakeRowBound(std::numeric_limits<i64>::max()),
+            columnFilter,
+            lower,
+            upper,
             /* timestampRange */ {},
             chunkReadOptions,
             /* tabletThrottlerKind */ std::nullopt,
@@ -1543,29 +1570,32 @@ private:
 
             for (const auto& replicationLogRow : readerRows) {
                 TTypeErasedRow replicationRow;
-                NApi::ERowModificationType modificationType;
-                i64 rowIndex;
                 TTimestamp timestamp;
+                i64 rowDataWeight;
 
-                logParser->ParseLogRow(
-                    tabletSnapshot,
-                    replicationLogRow,
-                    rowBuffer,
-                    &replicationRow,
-                    &modificationType,
-                    &rowIndex,
-                    &timestamp,
-                    /*isVersioned*/ true);
+                if (tabletSnapshot->TableSchema->IsSorted()) {
+                    replicationRow = ReadVersionedReplicationRow(
+                        tabletSnapshot,
+                        logParser,
+                        rowBuffer,
+                        replicationLogRow,
+                        &timestamp);
 
-                auto row = TVersionedRow(replicationRow);
+                    auto row = TVersionedRow(replicationRow);
+                    rowDataWeight = GetDataWeight(row);
 
-                // Check that row fits into replication progress key range and has greater timestamp than progress.
-                if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
-                    !progressTimestamp || timestamp <= *progressTimestamp)
-                {
-                    ++*currentRowIndex;
-                    ++discardedByProgress;
-                    continue;
+                    // Check that row fits into replication progress key range and has greater timestamp than progress.
+                    if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
+                        !progressTimestamp || timestamp <= *progressTimestamp)
+                    {
+                        ++*currentRowIndex;
+                        ++discardedByProgress;
+                        continue;
+                    }
+                } else {
+                    replicationRow = replicationLogRow.ToTypeErasedRow();
+                    timestamp = replicationLogRow[timestampColumnIndex].Data.Uint64;
+                    rowDataWeight = GetDataWeight(TUnversionedRow(replicationRow));
                 }
 
                 if (timestamp != prevTimestamp) {
@@ -1608,10 +1638,15 @@ private:
                     ++timestampCount;
                 }
 
-                writer->WriteVersionedRow(row);
+                if (tabletSnapshot->TableSchema->IsSorted()) {
+                    writer->WriteVersionedRow(TVersionedRow(replicationRow));
+                } else {
+                    writer->WriteSchemafulRow(TUnversionedRow(replicationRow));
+                }
+
                 *maxTimestamp = std::max(*maxTimestamp, timestamp);
                 *batchRowCount += 1;
-                *batchDataWeight += GetDataWeight(row);
+                *batchDataWeight += rowDataWeight;
                 prevTimestamp = timestamp;
                 ++*currentRowIndex;
             }
@@ -1629,6 +1664,30 @@ private:
             *batchDataWeight,
             discardedByProgress,
             timestampCount);
+    }
+
+    TTypeErasedRow ReadVersionedReplicationRow(
+        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+        const IReplicationLogParserPtr& logParser,
+        const TRowBufferPtr& rowBuffer,
+        TUnversionedRow replicationLogRow,
+        TTimestamp* timestamp)
+    {
+        TTypeErasedRow replicationRow;
+        NApi::ERowModificationType modificationType;
+        i64 rowIndex;
+
+        logParser->ParseLogRow(
+            tabletSnapshot,
+            replicationLogRow,
+            rowBuffer,
+            &replicationRow,
+            &modificationType,
+            &rowIndex,
+            timestamp,
+            /*isVersioned*/ true);
+
+        return replicationRow;
     }
 
     void OnDynamicConfigChanged(

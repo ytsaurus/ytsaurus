@@ -266,6 +266,11 @@ TTabletInfoPtr GetOrderedTabletForRow(
     }
 
     if (tabletIndex < 0) {
+        if (tableInfo->ReplicationCardId) {
+            THROW_ERROR_EXCEPTION("Invalid input row for chaos ordered table: %Qlv column is not provided",
+                TabletIndexColumnName);
+        }
+
         return randomTabletInfo;
     }
 

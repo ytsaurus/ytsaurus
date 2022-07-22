@@ -95,6 +95,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -943,6 +945,18 @@ public:
         auto tableSettings = GetTableSettings(table);
         ValidateTableMountConfig(table, tableSettings.MountConfig);
 
+        if (table->GetReplicationCardId() && !table->IsSorted()) {
+            if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
+                THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
+                    ECommitOrdering::Strong);
+            }
+
+            if (!table->GetSchema()->AsTableSchema()->FindColumn(TimestampColumnName)) {
+                THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
+                    TimestampColumnName);
+            }
+        }
+
         if (auto backupState = table->GetAggregatedTabletBackupState();
             backupState != ETabletBackupState::None)
         {
@@ -1093,12 +1107,21 @@ public:
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         if (IsTableType(table->GetType())) {
-            PrepareRemountTable(table->As<TTableNode>());
+            PrepareRemountTable(table->As<TTableNode>(), firstTabletIndex, lastTabletIndex);
         }
     }
 
-    void PrepareRemountTable(TTableNode* table)
+    void PrepareRemountTable(
+        TTableNode* table,
+        int /*firstTabletIndex*/,
+        int lastTabletIndex)
     {
+        if (!table->IsSorted() && table->GetReplicationCardId() && lastTabletIndex != std::ssize(table->Tablets()) - 1) {
+            THROW_ERROR_EXCEPTION("Invalid last tablet index: expected %v, got %v",
+                std::ssize(table->Tablets()) - 1,
+                lastTabletIndex);
+        }
+
         auto tableSettings = GetTableSettings(table);
         ValidateTableMountConfig(table, tableSettings.MountConfig);
     }
@@ -3855,6 +3878,11 @@ private:
                 ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
                     ? MaxKey()
                     : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey());
+            } else if (!table->IsSorted()) {
+                auto lower = MakeUnversionedOwningRow(tablet->GetIndex());
+                auto upper = MakeUnversionedOwningRow(tablet->GetIndex() + 1);
+                ToProto(req.mutable_pivot_key(), lower);
+                ToProto(req.mutable_next_pivot_key(), upper);
             }
             if (!table->IsPhysicallySorted()) {
                 req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
@@ -3874,10 +3902,17 @@ private:
 
             if (table->GetReplicationCardId()) {
                 if (tablet->ReplicationProgress().Segments.empty()) {
-                    tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
-                    tablet->ReplicationProgress().UpperKey = tablet->GetIndex() + 1 == std::ssize(allTablets)
-                        ? MaxKey()
-                        : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey();
+                    if (table->IsSorted()) {
+                        tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
+                        tablet->ReplicationProgress().UpperKey = tablet->GetIndex() + 1 == std::ssize(allTablets)
+                            ? MaxKey()
+                            : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey();
+                    } else {
+                        auto lower = MakeUnversionedOwningRow(tablet->GetIndex());
+                        auto upper = MakeUnversionedOwningRow(tablet->GetIndex() + 1);
+                        tablet->ReplicationProgress().Segments.push_back({std::move(lower), MinTimestamp});
+                        tablet->ReplicationProgress().UpperKey = std::move(upper);
+                    }
                 }
 
                 ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
@@ -4522,7 +4557,7 @@ private:
         }
 
         // Copy replication progress.
-        if (table->IsPhysicallySorted()) {
+        if (table->IsSorted()) {
             std::vector<TReplicationProgress> progresses;
             std::vector<TLegacyKey> pivotKeys;
             bool nonEmpty = false;
@@ -4557,6 +4592,12 @@ private:
                 for (int index = 0; index < std::ssize(newTablets); ++index) {
                     auto* tablet = newTablets[index];
                     tablet->ReplicationProgress() = std::move(newProgresses[index]);
+                }
+            }
+        } else {
+            for (int index = 0; index < std::ssize(newTablets) && index < (lastTabletIndex - firstTabletIndex + 1); ++index) {
+                if (!tablets[firstTabletIndex + index]->As<TTablet>()->ReplicationProgress().Segments.empty()) {
+                    newTablets[index]->ReplicationProgress() = std::move(tablets[firstTabletIndex + index]->As<TTablet>()->ReplicationProgress());
                 }
             }
         }

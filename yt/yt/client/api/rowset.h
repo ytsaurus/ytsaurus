@@ -29,6 +29,7 @@ struct IRowset
 
 DEFINE_REFCOUNTED_TYPE(IUnversionedRowset)
 DEFINE_REFCOUNTED_TYPE(IVersionedRowset)
+DEFINE_REFCOUNTED_TYPE(ITypeErasedRowset)
 
 ////////////////////////////////////////////////////////////////////////////////
 

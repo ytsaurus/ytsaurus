@@ -630,6 +630,7 @@ message TRspPullRows
     required NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 3;
     repeated TReplicationRowIndex end_replication_row_indexes = 4;
     required TRowsetDescriptor rowset_descriptor = 5;
+    optional bool versioned = 6 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

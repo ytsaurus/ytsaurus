@@ -3451,6 +3451,7 @@ private:
                 auto* response = &context->Response();
                 response->set_row_count(result.RowCount);
                 response->set_data_weight(result.DataWeight);
+                response->set_versioned(result.Versioned);
                 ToProto(response->mutable_replication_progress(), result.ReplicationProgress);
 
                 for (auto [tabletId, rowIndex] : result.EndReplicationRowIndexes) {
@@ -3459,7 +3460,11 @@ private:
                     protoReplicationRowIndex->set_row_index(rowIndex);
                 }
 
-                response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
+                response->Attachments() = NApi::NRpcProxy::SerializeRowset(
+                    result.Rowset->GetSchema(),
+                    result.Rowset->GetRows(),
+                    response->mutable_rowset_descriptor(),
+                    result.Versioned);
 
                 context->SetResponseInfo("RowCount: %v",
                     result.RowCount);

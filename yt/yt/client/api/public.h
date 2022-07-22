@@ -91,9 +91,11 @@ using IRowsetPtr = TIntrusivePtr<IRowset<TRow>>;
 
 using IUnversionedRowset = IRowset<NTableClient::TUnversionedRow>;
 using IVersionedRowset = IRowset<NTableClient::TVersionedRow>;
+using ITypeErasedRowset = IRowset<NTableClient::TTypeErasedRow>;
 
 DECLARE_REFCOUNTED_TYPE(IUnversionedRowset)
 DECLARE_REFCOUNTED_TYPE(IVersionedRowset)
+DECLARE_REFCOUNTED_TYPE(ITypeErasedRowset)
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 DECLARE_REFCOUNTED_STRUCT(TSkynetSharePartsLocations);
 

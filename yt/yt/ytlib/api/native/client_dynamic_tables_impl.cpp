@@ -17,6 +17,7 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -2282,14 +2283,18 @@ public:
     TTabletPullRowsSession(
         IClientPtr client,
         TTableSchemaPtr schema,
+        int timestampColumnIndex,
         TTabletInfoPtr tabletInfo,
+        bool versioned,
         const TPullRowsOptions& options,
         TTabletRequest request,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
     : Client_(std::move(client))
     , Schema_(std::move(schema))
+    , TimestampColumnIndex_(timestampColumnIndex)
     , TabletInfo_(std::move(tabletInfo))
+    , Versioned_(versioned)
     , Options_(options)
     , Request_(std::move(request))
     , Invoker_(std::move(invoker))
@@ -2329,7 +2334,7 @@ public:
         return RowCount_;
     }
 
-    std::vector<TVersionedRow> GetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
+    std::vector<TTypeErasedRow> GetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
     {
         return DoGetRows(maxTimestamp, outputRowBuffer);
     }
@@ -2337,7 +2342,9 @@ public:
 private:
     const IClientPtr Client_;
     const TTableSchemaPtr Schema_;
+    const int TimestampColumnIndex_;
     const TTabletInfoPtr TabletInfo_;
+    const bool Versioned_;
     const TPullRowsOptions& Options_;
     const TTabletRequest Request_;
     const IInvokerPtr Invoker_;
@@ -2409,7 +2416,7 @@ private:
             ReplicationProgress_);
     }
 
-    std::vector<TVersionedRow> DoGetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
+    std::vector<TTypeErasedRow> DoGetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
     {
         if (!Result_) {
             return {};
@@ -2420,16 +2427,44 @@ private:
         auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
         auto resultSchemaData = IWireProtocolReader::GetSchemaData(*Schema_, TColumnFilter());
 
-        std::vector<TVersionedRow> rows;
+        if (Versioned_) {
+            return ReadVersionedRows(maxTimestamp, std::move(reader), resultSchemaData);
+        } else {
+            return ReadUnversionedRows(maxTimestamp, std::move(reader), resultSchemaData);
+        }
+    }
+
+    std::vector<TTypeErasedRow> ReadVersionedRows(
+        TTimestamp maxTimestamp,
+        std::unique_ptr<IWireProtocolReader> reader,
+        const TSchemaData& schemaData)
+    {
+        std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
-            auto row = reader->ReadVersionedRow(resultSchemaData, true);
+            auto row = reader->ReadVersionedRow(schemaData, true);
             if (ExtractTimestampFromPulledRow(row) > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;
             }
-            rows.push_back(row);
+            rows.push_back(row.ToTypeErasedRow());
         }
+        return rows;
+    }
 
+    std::vector<TTypeErasedRow> ReadUnversionedRows(
+        TTimestamp maxTimestamp,
+        std::unique_ptr<IWireProtocolReader> reader,
+        const TSchemaData& schemaData)
+    {
+        std::vector<TTypeErasedRow> rows;
+        while (!reader->IsFinished()) {
+            auto row = reader->ReadSchemafulRow(schemaData, true);
+            if (FromUnversionedValue<ui64>(row[TimestampColumnIndex_]) > maxTimestamp) {
+                ReplicationRowIndex_.reset();
+                break;
+            }
+            rows.push_back(row.ToTypeErasedRow());
+        }
         return rows;
     }
 };
@@ -2443,8 +2478,7 @@ TPullRowsResult TClient::DoPullRows(
         .ValueOrThrow();
 
     tableInfo->ValidateDynamic();
-    tableInfo->ValidateSorted();
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
 
     auto& segments = options.ReplicationProgress.Segments;
     if (segments.empty()) {
@@ -2454,20 +2488,12 @@ TPullRowsResult TClient::DoPullRows(
         THROW_ERROR_EXCEPTION("Invalid replication progress: more than one segment while ordering by timestamp requested");
     }
 
-    YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %llx, UpperTimestamp: %llx, Progress: %v StartRowIndexes: %v)",
+    YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %llx, UpperTimestamp: %llx, Progress: %v, StartRowIndexes: %v, Sorted: %v)",
         options.OrderRowsByTimestamp,
         options.UpperTimestamp,
         options.ReplicationProgress,
-        options.StartReplicationRowIndexes);
-
-    int startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
-    std::vector<TUnversionedRow> pivotKeys{segments[0].LowerKey.Get()};
-
-    for (int index = startIndex + 1; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
-        pivotKeys.push_back(tableInfo->Tablets[index]->PivotKey.Get());
-    }
-    auto progresses = ScatterReplicationProgress(options.ReplicationProgress, pivotKeys, options.ReplicationProgress.UpperKey.Get());
-    YT_VERIFY(progresses.size() == pivotKeys.size());
+        options.StartReplicationRowIndexes,
+        tableInfo->IsSorted());
 
     auto getStartReplicationRowIndex = [&] (int tabletIndex) -> std::optional<i64> {
         const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
@@ -2477,12 +2503,46 @@ TPullRowsResult TClient::DoPullRows(
         return {};
     };
 
+    int timestampColumnIndex = 0;
     std::vector<TTabletPullRowsSession::TTabletRequest> requests;
-    for (int index = startIndex; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
+    if (tableInfo->IsSorted()) {
+        int startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
+        std::vector<TUnversionedRow> pivotKeys{segments[0].LowerKey.Get()};
+
+        for (int index = startIndex + 1; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
+            pivotKeys.push_back(tableInfo->Tablets[index]->PivotKey.Get());
+        }
+        auto progresses = ScatterReplicationProgress(options.ReplicationProgress, pivotKeys, options.ReplicationProgress.UpperKey.Get());
+        YT_VERIFY(progresses.size() == pivotKeys.size());
+
+        for (int index = startIndex; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
+            requests.push_back({
+                .TabletIndex = index,
+                .StartReplicationRowIndex = getStartReplicationRowIndex(index),
+                .Progress = std::move(progresses[index - startIndex])
+            });
+        }
+    } else {
+        const auto& segments = options.ReplicationProgress.Segments;
+        const auto& upper = options.ReplicationProgress.UpperKey;
+        if (segments.size() != 1 ||
+            segments[0].LowerKey.GetCount() != 1 ||
+            segments[0].LowerKey[0].Type != EValueType::Int64 || 
+            upper.GetCount() != 1 ||
+            upper[0].Type != EValueType::Int64)
+        {
+            THROW_ERROR_EXCEPTION("Invalid replication progress for ordered table")
+                << TErrorAttribute("replication_progress", options.ReplicationProgress);
+        }
+
+        const auto& timestampColumn = schema->GetColumnOrThrow(TimestampColumnName);
+        timestampColumnIndex = schema->GetColumnIndex(timestampColumn);
+
+        int index = FromUnversionedValue<i64>(segments[0].LowerKey[0]);
         requests.push_back({
             .TabletIndex = index,
             .StartReplicationRowIndex = getStartReplicationRowIndex(index),
-            .Progress = std::move(progresses[index - startIndex])
+            .Progress = options.ReplicationProgress
         });
     }
 
@@ -2493,7 +2553,9 @@ TPullRowsResult TClient::DoPullRows(
         sessions.emplace_back(New<TTabletPullRowsSession>(
             this,
             schema,
+            timestampColumnIndex,
             tableInfo->Tablets[request.TabletIndex],
+            tableInfo->IsSorted(),
             options,
             request,
             Connection_->GetInvoker(),
@@ -2517,7 +2579,7 @@ TPullRowsResult TClient::DoPullRows(
     }
 
     TPullRowsResult combinedResult;
-    std::vector<TVersionedRow> resultRows;
+    std::vector<TTypeErasedRow> resultRows;
     auto outputRowBuffer = New<TRowBuffer>(TPullRowsOutputBufferTag());
 
     for (const auto& session : sessions) {
@@ -2540,9 +2602,9 @@ TPullRowsResult TClient::DoPullRows(
         combinedResult.RowCount += session->GetRowCount();
     }
 
-    if (options.OrderRowsByTimestamp) {
+    if (tableInfo->IsSorted() && options.OrderRowsByTimestamp) {
         std::sort(resultRows.begin(), resultRows.end(), [&] (const auto& lhs, const auto& rhs) {
-            return ExtractTimestampFromPulledRow(lhs) < ExtractTimestampFromPulledRow(rhs);
+            return ExtractTimestampFromPulledRow(TVersionedRow(lhs)) < ExtractTimestampFromPulledRow(TVersionedRow(rhs));
         });
     }
 
@@ -2551,6 +2613,7 @@ TPullRowsResult TClient::DoPullRows(
     combinedResult.Rowset = CreateRowset(
         schema,
         MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)));
+    combinedResult.Versioned = tableInfo->IsSorted();
 
     YT_LOG_DEBUG("Pulled rows (ReplicationProgress: %v, EndRowIndexes: %v)",
         combinedResult.ReplicationProgress,

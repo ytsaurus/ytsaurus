@@ -32,10 +32,10 @@ TTimestamp GetLogRowTimestamp(TUnversionedRow logRow)
     return logRow[2].Data.Uint64;
 }
 
-TLegacyOwningKey MakeRowBound(i64 rowIndex)
+TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex)
 {
     return MakeUnversionedOwningRow(
-        -1, // tablet id, fake
+        tabletIndex,
         rowIndex);
 }
 

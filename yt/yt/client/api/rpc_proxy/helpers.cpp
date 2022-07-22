@@ -1684,6 +1684,49 @@ template NApi::IVersionedRowsetPtr DeserializeRowset(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TSharedRef> SerializeRowset(
+    const NTableClient::TTableSchema& schema,
+    TRange<TTypeErasedRow> rows,
+    NProto::TRowsetDescriptor* descriptor,
+    bool versioned)
+{
+    if (versioned) {
+        return SerializeRowset(
+            schema,
+            ReinterpretCastRange<TVersionedRow>(rows),
+            descriptor);
+    } else {
+        return SerializeRowset(
+            schema,
+            ReinterpretCastRange<TUnversionedRow>(rows),
+            descriptor);
+    }
+}
+
+TIntrusivePtr<NApi::IRowset<TTypeErasedRow>> DeserializeRowset(
+    const NProto::TRowsetDescriptor& descriptor,
+    const TSharedRef& data,
+    bool versioned)
+{
+    if (versioned) {
+        auto rowset = DeserializeRowset<TVersionedRow>(descriptor, data);
+        // TODO(savrus): Get refcounted schema from rowset.
+        auto schema = DeserializeRowsetSchema(descriptor);
+        return CreateRowset(
+            std::move(schema),
+            ReinterpretCastRange<TTypeErasedRow>(rowset->GetSharedRange()));
+    } else {
+        auto rowset = DeserializeRowset<TUnversionedRow>(descriptor, data);
+        // TODO(savrus): Get refcounted schema from rowset.
+        auto schema = DeserializeRowsetSchema(descriptor);
+        return CreateRowset(
+            std::move(schema),
+            ReinterpretCastRange<TTypeErasedRow>(rowset->GetSharedRange()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes)
 {
     auto valueToRank = [&] (const TString& value) -> size_t {
