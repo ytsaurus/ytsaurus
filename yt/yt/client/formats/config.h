@@ -263,7 +263,11 @@ class TProtobufTypeConfig
 {
 public:
     EProtobufType ProtoType;
-    std::vector<TProtobufColumnConfigPtr> Fields;
+
+    // There may be an error if we failed to build type config for some field.
+    // This error may be stored quietly until we actually need the fields.
+    TErrorOr<std::vector<TProtobufColumnConfigPtr>> Fields;
+
     std::optional<TString> EnumerationName;
 
     TProtobufTypeConfig();
