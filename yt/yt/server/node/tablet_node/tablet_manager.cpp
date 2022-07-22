@@ -2193,7 +2193,9 @@ private:
         const auto& chaosData = tablet->ChaosData();
 
         // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet) &&
+            chaosData->PreparedWritePulledRowsTransactionId)
+        {
             if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Unexpected write pull rows transaction finalized, ignored "
@@ -2280,7 +2282,7 @@ private:
 
         // COMPAT(gritukan)
         if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            auto& chaosData = tablet->ChaosData();
+            const auto& chaosData = tablet->ChaosData();
             if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
                 THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
                     << TErrorAttribute("transaction_id", transaction->GetId())
@@ -2305,9 +2307,12 @@ private:
             return;
         }
 
+        const auto& chaosData = tablet->ChaosData();
+
         // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            const auto& chaosData = tablet->ChaosData();
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet) &&
+            chaosData->PreparedAdvanceReplicationProgressTransactionId)
+        {
             if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Unexpected replication progress advance transaction serialized, ignored "
