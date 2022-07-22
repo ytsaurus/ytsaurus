@@ -982,10 +982,17 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
             });
     });
 
-    auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
-    writer->Write(pullResult.Rowset->GetRows());
-    WaitFor(writer->Close())
-        .ThrowOnError();
+    if (pullResult.Versioned) {
+        auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
+        writer->Write(ReinterpretCastRange<TVersionedRow>(pullResult.Rowset->GetRows()));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    } else {
+        auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
+        writer->Write(ReinterpretCastRange<TUnversionedRow>(pullResult.Rowset->GetRows()));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
 }
 
 bool TPullRowsCommand::HasResponseParameters() const

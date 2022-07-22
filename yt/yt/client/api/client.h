@@ -675,7 +675,8 @@ struct TPullRowsResult
     i64 RowCount = 0;
     i64 DataWeight = 0;
     NChaosClient::TReplicationProgress ReplicationProgress;
-    IVersionedRowsetPtr Rowset;
+    ITypeErasedRowsetPtr Rowset;
+    bool Versioned = true;
 };
 
 struct TGetNodeOptions

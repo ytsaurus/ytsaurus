@@ -145,7 +145,9 @@ public:
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
         , TableSchema_(tablet->GetTableSchema())
-        , NameTable_(TNameTable::FromSchema(*TableSchema_))
+        , NameTable_(TableSchema_->IsSorted()
+            ? TNameTable::FromSchema(*TableSchema_)
+            : TNameTable::FromSchema(*TableSchema_->ToVersionedWrite()))
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicaId_(tablet->GetUpstreamReplicaId())
         , Logger(TabletNodeLogger
@@ -309,6 +311,14 @@ private:
                     .ValueOrThrow();
             }
 
+            if (result.Versioned != TableSchema_->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Could not pull from queue since it has unexpected replication log format")
+                    << TErrorAttribute("queue_cluster", clusterName)
+                    << TErrorAttribute("queue_path", replicaPath)
+                    << TErrorAttribute("versioned_result", result.Versioned)
+                    << HardErrorAttribute;
+            }
+
             auto rowCount = result.RowCount;
             auto dataWeight = result.DataWeight;
             const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
@@ -322,21 +332,45 @@ private:
                 endReplicationRowIndexes);
 
             // TODO(savrus) Remove this sanity check when pull rows is mature enough.
-            for (auto row : resultRows) {
-                YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
-                auto rowTimestamp = row.GetWriteTimestampCount() > 0
-                    ? row.BeginWriteTimestamps()[0]
-                    : row.BeginDeleteTimestamps()[0];
-                auto progressTimestamp = FindReplicationProgressTimestampForKey(
-                    *replicationProgress,
-                    row.BeginKeys(),
-                    row.EndKeys());
-                if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
-                        rowTimestamp,
-                        progressTimestamp,
-                        row,
-                        static_cast<TReplicationProgress>(*replicationProgress));
+            if (result.Versioned) {
+                auto versionedRows = ReinterpretCastRange<TVersionedRow>(resultRows);
+                for (auto row : versionedRows) {
+                    YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
+                    auto rowTimestamp = row.GetWriteTimestampCount() > 0
+                        ? row.BeginWriteTimestamps()[0]
+                        : row.BeginDeleteTimestamps()[0];
+                    auto progressTimestamp = FindReplicationProgressTimestampForKey(
+                        *replicationProgress,
+                        row.BeginKeys(),
+                        row.EndKeys());
+                    if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
+                        YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
+                            rowTimestamp,
+                            progressTimestamp,
+                            row,
+                            static_cast<TReplicationProgress>(*replicationProgress));
+                    }
+                }
+            } else {
+                auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
+                auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
+
+                const auto* timestampColumn = TableSchema_->FindColumn(TimestampColumnName);
+                if (!timestampColumn) {
+                    THROW_ERROR_EXCEPTION("Invalid table schema: %Qv column is absent",
+                        TimestampColumnName)
+                        << HardErrorAttribute;
+                }
+                int timestampColumnIndex = TableSchema_->GetColumnIndex(*timestampColumn) + 1;
+
+                for (auto row : unversionedRows) {
+                    if (auto rowTimestamp = row[timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
+                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
+                            rowTimestamp,
+                            progressTimestamp,
+                            row,
+                            static_cast<TReplicationProgress>(*replicationProgress));
+                    }
                 }
             }
 
@@ -360,10 +394,16 @@ private:
                 modifyOptions.UpstreamReplicaId = tabletSnapshot->UpstreamReplicaId;
                 modifyOptions.TopmostTransaction = false;
 
-                localTransaction->WriteRows(
+                std::vector<TRowModification> rowModifications;
+                rowModifications.reserve(resultRows.size());
+                for (auto row : resultRows) {
+                    rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
+                }
+
+                localTransaction->ModifyRows(
                     tabletSnapshot->TablePath,
                     NameTable_,
-                    resultRows,
+                    MakeSharedRange(rowModifications),
                     modifyOptions);
 
                 {

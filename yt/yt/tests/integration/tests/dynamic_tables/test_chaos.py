@@ -16,7 +16,7 @@ from yt_commands import (
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
-    get_in_sync_replicas, generate_timestamp, MaxTimestamp)
+    get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -122,11 +122,16 @@ class ChaosTestBase(DynamicTablesBase):
             if mount_tables:
                 sync_mount_table(path, driver=driver)
 
-    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
+    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
-            create_table = self._create_queue_table if replica["content_type"] == "queue" else self._create_sorted_table
+            create_table = self._create_queue_table
+            if ordered:
+                create_table = self._create_ordered_table
+            elif replica["content_type"] == "data":
+                create_table = self._create_sorted_table
+
             create_table(path, driver=driver, upstream_replica_id=replica_id)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
@@ -138,11 +143,11 @@ class ChaosTestBase(DynamicTablesBase):
             check_write = replica["mode"] == "sync" and replica["enabled"]
             self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
 
-    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True):
+    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False):
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         if create_replica_tables:
-            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables)
+            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables, ordered)
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
@@ -195,12 +200,31 @@ class ChaosTestBase(DynamicTablesBase):
 
         wait(_check_sync)
 
-    def _create_sorted_table(self, path, **attributes):
+    def _update_mount_config(self, attributes):
         if "mount_config" not in attributes:
             attributes["mount_config"] = {}
         if "replication_progress_update_tick_period" not in attributes["mount_config"]:
             attributes["mount_config"]["replication_progress_update_tick_period"] = 100
+
+    def _create_sorted_table(self, path, **attributes):
+        self._update_mount_config(attributes)
         super(ChaosTestBase, self)._create_sorted_table(path, **attributes)
+
+    def _create_ordered_table(self, path, **attributes):
+        self._update_mount_config(attributes)
+        if "schema" not in attributes:
+            attributes.update(
+                {
+                    "schema": [
+                        {"name": "$timestamp", "type": "uint64"},
+                        {"name": "key", "type": "int64"},
+                        {"name": "value", "type": "string"},
+                    ]
+                }
+            )
+        if "commit_ordering" not in attributes:
+            attributes.update({"commit_ordering": "strong"})
+        super(ChaosTestBase, self)._create_ordered_table(path, **attributes)
 
     def _create_queue_table(self, path, **attributes):
         attributes.update({"dynamic": True})
@@ -1855,6 +1879,105 @@ class TestChaos(ChaosTestBase):
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "", driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id), driver=remote_driver1) == "good")
         assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
+
+    @authors("savrus")
+    @pytest.mark.parametrize("tablet_count", [1, 2])
+    def test_ordered_chaos_table_pull(self, tablet_count):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False, ordered=True)
+
+        reshard_table("//tmp/t", tablet_count)
+
+        for replica in replicas:
+            sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+        self._sync_replication_era(card_id, replicas)
+
+        def _pull_rows(replica_index, tablet_index, timestamp):
+            rows = pull_rows(
+                replicas[replica_index]["replica_path"],
+                replication_progress={
+                    "segments": [{"lower_key": [tablet_index], "timestamp": timestamp}],
+                    "upper_key": [tablet_index + 1]
+                },
+                upstream_replica_id=replica_ids[replica_index],
+                driver=get_driver(cluster=replicas[replica_index]["cluster_name"]))
+            return [{"key": row["key"], "value": row["value"]} for row in rows]
+
+        values = [{"$tablet_index": j, "key": i, "value": str(i + j)} for i in range(2) for j in range(tablet_count)]
+        data_values = [[{"key": i, "value": str(i + j)} for i in range(2)] for j in range(tablet_count)]
+        insert_rows("//tmp/t", values)
+
+        for j in range(tablet_count):
+            wait(lambda: select_rows("key, value from [//tmp/t] where [$tablet_index] = {0}".format(j)) == data_values[j])
+            assert _pull_rows(0, j, 0) == data_values[j]
+
+    @authors("savrus")
+    @pytest.mark.parametrize("tablet_count", [1, 2])
+    def test_ordered_chaos_table(self, tablet_count):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False, ordered=True)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        for replica in replicas:
+            path = replica["replica_path"]
+            driver = get_driver(cluster=replica["cluster_name"])
+            reshard_table(path, tablet_count, driver=driver)
+            sync_mount_table(path, driver=driver)
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"$tablet_index": j, "key": i, "value": str(i + j)} for i in range(2) for j in range(tablet_count)]
+        data_values = [[{"key": i, "value": str(i + j)} for i in range(2)] for j in range(tablet_count)]
+        insert_rows("//tmp/t", values)
+
+        for j in range(tablet_count):
+            wait(lambda: select_rows("key, value from [//tmp/t] where [$tablet_index] = {0}".format(j)) == data_values[j])
+            wait(lambda: select_rows("key, value from [//tmp/r] where [$tablet_index] = {0}".format(j), driver=remote_driver0) == data_values[j])
+
+    @authors("savrus")
+    def test_invalid_ordered_chaos_table(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False, mount_tables=False, ordered=True)
+
+        self._create_ordered_table(
+            "//tmp/t",
+            upstream_replica_id=replica_ids[0],
+            schema=[
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+        self._prepare_replica_tables(replicas, replica_ids, mount_tables=False)
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t")
+
+        alter_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+            {"name": "$timestamp", "type": "uint64"},
+        ])
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error("Invalid input row for chaos ordered table: \"$tablet_index\" column is not provided"):
+            insert_rows("//tmp/t", [{"key": 0, "value": str(0)}])
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@commit_ordering", "weak")
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t")
+
 
 ##################################################################
 

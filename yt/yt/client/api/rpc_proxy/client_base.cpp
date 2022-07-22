@@ -971,6 +971,7 @@ TFuture<TPullRowsResult> TClientBase::PullRows(
         TPullRowsResult result;
         result.RowCount = rsp->row_count();
         result.DataWeight = rsp->data_weight();
+        result.Versioned = rsp->versioned();
         FromProto(&result.ReplicationProgress, rsp->replication_progress());
 
         for (auto protoReplicationRowIndex : rsp->end_replication_row_indexes()) {
@@ -982,10 +983,12 @@ TFuture<TPullRowsResult> TClientBase::PullRows(
             }
             InsertOrCrash(result.EndReplicationRowIndexes, std::make_pair(tabletId, rowIndex));
         }
-        
-        result.Rowset = DeserializeRowset<TVersionedRow>(
+       
+        result.Rowset = DeserializeRowset(
             rsp->rowset_descriptor(),
-            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()),
+            rsp->versioned());
+
         return result;
     }));
 }

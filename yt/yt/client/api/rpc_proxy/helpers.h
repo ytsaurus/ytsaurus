@@ -226,6 +226,17 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);
 
+std::vector<TSharedRef> SerializeRowset(
+    const NTableClient::TTableSchema& schema,
+    TRange<NTableClient::TTypeErasedRow> rows,
+    NProto::TRowsetDescriptor* descriptor,
+    bool versioned);
+
+TIntrusivePtr<NApi::IRowset<NTableClient::TTypeErasedRow>> DeserializeRowset(
+    const NProto::TRowsetDescriptor& descriptor,
+    const TSharedRef& data,
+    bool versioned);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Invokes std::stable_sort reordering addesses by the index of the first regex they match;
