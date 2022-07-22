@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.e2e
 
+import org.apache.spark.deploy.rest.DriverState
 import org.scalatest.{FlatSpec, Matchers}
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.e2e.check.{CheckApp, CheckResult}
@@ -35,6 +36,61 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
     E2ETestCase("DmCommutationCheckNewbieCheck", 35 seconds, Seq("check_id", "check_name", "check_root_id", "msk_updated_dttm"))
   )
 
+  // takes no lock
+  private val jobNoOutput = E2ETestCase("link_eda_user_appsession_request_id_no_output", 80 seconds, Seq("appsession_id"),
+    customInputPath = Some(s"${SubmitTest.basePath}/link_eda_user_appsession_request_id/input"))
+
+  private val jobWithFail = E2ETestCase("link_eda_user_appsession_request_id_fail", 40 seconds, Seq("appsession_id"),
+    customInputPath = Some(s"${SubmitTest.basePath}/link_eda_user_appsession_request_id/input"))
+
+  it should "get active drivers" in {
+    val testCase = jobNoOutput
+    measure({
+      submitClient.getActiveDrivers should contain theSameElementsAs Seq()
+
+      val job1Id = submitJob(testCase)
+      log.info(s"Started job ${testCase.name} (id: $job1Id)")
+      submitClient.getActiveDrivers should contain theSameElementsAs Seq(job1Id)
+
+      val job2Id = submitJob(testCase)
+      log.info(s"Started job ${testCase.name} (id: $job2Id)")
+      submitClient.getActiveDrivers should contain theSameElementsAs Seq(job1Id, job2Id)
+
+      while (submitClient.getActiveDrivers.nonEmpty) {
+        Thread.sleep((5 seconds).toMillis)
+      }
+      log.info(s"Jobs finished")
+
+      val status1 = submitClient.getStatus(job1Id)
+      val status2 = submitClient.getStatus(job2Id)
+      if (!status1.isSuccess || !status2.isSuccess) {
+        throw new IllegalStateException(s"Tasks failed (1: $status1, 2: $status2)")
+      }
+    }, testCase.executionTime * executionTimeSpread * 2)
+  }
+
+  it should "kill driver" in {
+    val testCase = jobNoOutput
+    val jobId = submitJob(testCase)
+    log.info(s"Started job ${testCase.name} (id: $jobId)")
+
+    submitClient.kill(jobId) shouldBe true
+    log.info(s"Job kill requested")
+    Thread.sleep((2 seconds).toMillis)
+
+    val status = submitClient.getStatus(jobId)
+    status shouldBe DriverState.KILLED
+  }
+
+  it should "process failed job" in {
+    val testCase = jobWithFail
+    val jobId = submitJob(testCase)
+    log.info(s"Started job ${testCase.name} (id: $jobId)")
+
+    val status = waitFinalStatus(jobId)
+    status shouldBe DriverState.FAILED
+  }
+
   jobs.foreach { testCase =>
     testCase.name should "work correctly" in {
       YtWrapper.removeIfExists(testCase.outputPath)
@@ -55,13 +111,6 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
       executionTime should be > lowerBound
     }
   }
-
-  private def measure(block: => Unit, limit: Duration): Duration = {
-    val t0 = System.nanoTime()
-    Await.ready(Future{ block }, limit)
-    val t1 = System.nanoTime()
-    Duration.fromNanos(t1 - t0)
-  }
 }
 
 object SubmitTest {
@@ -72,7 +121,7 @@ object SubmitTest {
   private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",
     System.getProperty("clientVersion"), DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
-  def runJob(testCase: E2ETestCase): Unit = {
+  def submitJob(testCase: E2ETestCase): String = {
     val launcher = testCase.conf
       .foldLeft(submitClient.newLauncher()) { case (launcher, (key, value)) =>
         launcher.setConf(key, value)
@@ -84,14 +133,21 @@ object SubmitTest {
         testCase.outputPath
       )
 
-    val id = submitClient.submit(launcher).get
+    submitClient.submit(launcher).get
+  }
 
+  def waitFinalStatus(id: String): DriverState = {
     var status = submitClient.getStatus(id)
     while (!status.isFinal) {
       status = submitClient.getStatus(id)
       Thread.sleep((5 seconds).toMillis)
     }
+    status
+  }
 
+  def runJob(testCase: E2ETestCase): Unit = {
+    val id = submitJob(testCase)
+    val status = waitFinalStatus(id)
     if (!status.isSuccess) {
       throw new IllegalStateException(s"Job ${testCase.name} failed, $status")
     }
@@ -118,16 +174,18 @@ object SubmitTest {
 
     val id = submitClient.submit(launcher).get
 
-    var status = submitClient.getStatus(id)
-    while (!status.isFinal) {
-      status = submitClient.getStatus(id)
-      Thread.sleep((5 seconds).toMillis)
-    }
-
+    val status = waitFinalStatus(id)
     if (!status.isSuccess) {
       throw new IllegalStateException(s"Job ${testCase.name}_check failed, $status")
     }
 
     CheckResult.readWithoutDetails(testCase.checkResultPath)
+  }
+
+  private def measure(block: => Unit, limit: Duration): Duration = {
+    val t0 = System.nanoTime()
+    Await.ready(Future{ block }, limit)
+    val t1 = System.nanoTime()
+    Duration.fromNanos(t1 - t0)
   }
 }

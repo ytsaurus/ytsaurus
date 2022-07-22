@@ -11,6 +11,7 @@ from pyspark.find_spark_home import _find_spark_home
 from py4j.protocol import Py4JJavaError
 from enum import Enum
 from datetime import timedelta
+from .utils import scala_buffer_to_list
 
 
 def launch_gateway(memory="512m",
@@ -142,13 +143,13 @@ class SparkSubmissionClient(object):
         return self._jclient.kill(submission_id)
 
     def get_active_drivers(self):
-        return self._jclient.getActiveDrivers()
+        return scala_buffer_to_list(self._jclient.getActiveDrivers())
 
     def get_completed_drivers(self):
-        return self._jclient.getCompletedDrivers()
+        return scala_buffer_to_list(self._jclient.getCompletedDrivers())
 
     def get_all_drivers(self):
-        return self._jclient.getAllDrivers()
+        return scala_buffer_to_list(self._jclient.getAllDrivers())
 
     def get_status(self, submission_id):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
