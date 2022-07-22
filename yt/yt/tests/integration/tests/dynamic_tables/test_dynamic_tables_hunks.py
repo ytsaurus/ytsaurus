@@ -1064,7 +1064,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             set("//tmp/f/@hunk_erasure_codec", "isa_lrc_12_2_2")
 
-    @authors("babenko")
+    @authors("babenko", "gritukan")
     def test_hunk_erasure_codec_for_table(self):
         create("table", "//tmp/t")
 
@@ -1080,6 +1080,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         commit_transaction(tx)
         assert get("//tmp/t/@hunk_erasure_codec") == "reed_solomon_3_3"
+
+        set("//tmp/t/@hunk_erasure_codec", "none")
+        assert get("//tmp/t/@hunk_erasure_codec") == "none"
 
     @authors("babenko")
     def test_hunk_erasure_codec_inheritance(self):

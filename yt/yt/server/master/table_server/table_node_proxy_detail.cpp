@@ -1170,10 +1170,12 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             auto codecId = ConvertTo<NErasure::ECodec>(value);
-            auto* codec = NErasure::GetCodec(codecId);
-            if (!codec->IsBytewise()) {
-                THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure hunks",
-                    codecId);
+            if (codecId != NErasure::ECodec::None) {
+                auto* codec = NErasure::GetCodec(codecId);
+                if (!codec->IsBytewise()) {
+                    THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure hunks",
+                        codecId);
+                }
             }
 
             const auto& uninternedKey = key.Unintern();
