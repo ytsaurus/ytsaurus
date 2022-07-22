@@ -317,7 +317,7 @@ private:
         }
 
         if (rspOrError.IsOK()) {
-            YT_LOG_WARNING("Chunks located (CellTag: %v, ChunkCount: %v)",
+            YT_LOG_DEBUG("Chunks located (CellTag: %v, ChunkCount: %v)",
                 cellTag,
                 std::ssize(promises));
 
