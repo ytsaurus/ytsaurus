@@ -4479,5 +4479,310 @@ TEST_F(TProtobufFormatRuntimeErrors, ParseStruct)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProtobufFormatStructuredMessageCompat
+  : public ::testing::Test
+{
+public:
+    static TTableSchemaPtr GetSchemaWithStruct()
+    {
+        auto structType = StructLogicalType({
+            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        });
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", OptionalLogicalType(structType)},
+        });
+    }
+
+    static TTableSchemaPtr GetSchemaWithString()
+    {
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        });
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithStructuredMessage()
+    {
+        return MakeProtobufFormatConfig({TMessageWithStructSerializationYt::descriptor()});
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithMessage()
+    {
+        return MakeProtobufFormatConfig({TMessageWithStructSerializationProtobuf::descriptor()});
+    }
+};
+
+TEST_F(TProtobufFormatStructuredMessageCompat, Parse)
+{
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_YT in message");
+        TMessageWithStructSerializationYt message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        auto collector = ParseRows(message, GetConfigWithStructuredMessage(), GetSchemaWithStruct());
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego]"))));
+    }
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_PROTOBUF in message");
+        TMessageWithStructSerializationProtobuf message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithMessage(), GetSchemaWithStruct()),
+            "at a.<optional-element>: expected \"structured_message\" protobuf type, got \"message\"");
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_YT in message");
+        TMessageWithStructSerializationYt message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithStructuredMessage(), GetSchemaWithString()),
+            "protobuf type cannot match any simple type");
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_PROTOBUF in message");
+        TMessageWithStructSerializationProtobuf message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        auto collector = ParseRows(message, GetConfigWithMessage(), GetSchemaWithString());
+        TString aBytes;
+        ASSERT_TRUE(message.a().SerializeToString(&aBytes));
+        EXPECT_EQ(
+            GetString(collector.GetRowValue(0, "a")),
+            aBytes);
+    }
+}
+
+TEST_F(TProtobufFormatStructuredMessageCompat, Write)
+{
+    auto nameTable = TNameTable::FromSchema(*GetSchemaWithString());
+
+    TString aBytes;
+    {
+        TMessageWithStructSerializationProtobuf message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        ASSERT_TRUE(message.a().SerializeToString(&aBytes));
+    }
+
+    auto expectOkMessage = [&] (const auto& message) {
+        EXPECT_TRUE(message.has_a());
+        EXPECT_EQ(message.a().f1(), 1);
+        EXPECT_EQ(message.a().f2(), "Sandiego");
+    };
+
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_YT in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1;Sandiego]"}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationYt>(
+            row,
+            GetConfigWithStructuredMessage(),
+            GetSchemaWithStruct(),
+            nameTable));
+    }
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_PROTOBUF in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1;Sandiego]"}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationProtobuf>(
+            row,
+            GetConfigWithMessage(),
+            GetSchemaWithStruct(),
+            nameTable));
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_YT in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::String, aBytes}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationYt>(
+            row,
+            GetConfigWithStructuredMessage(),
+            GetSchemaWithString(),
+            nameTable));
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_PROTOBUF in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::String, aBytes}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationProtobuf>(
+            row,
+            GetConfigWithMessage(),
+            GetSchemaWithString(),
+            nameTable));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufFormatStructuredMessageRepeatedCompat
+  : public ::testing::Test
+{
+public:
+    static TTableSchemaPtr GetSchemaWithStruct()
+    {
+        auto structType = StructLogicalType({
+            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"f3", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        });
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", OptionalLogicalType(structType)},
+        });
+    }
+
+    static TTableSchemaPtr GetSchemaWithString()
+    {
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        });
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithStructuredMessage()
+    {
+        return MakeProtobufFormatConfig({TMessageWithStructSerializationYtRepeated::descriptor()});
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithMessage()
+    {
+        return MakeProtobufFormatConfig({TMessageWithStructSerializationProtobufRepeated::descriptor()});
+    }
+
+    template <class T>
+    static T CreateMessage() {
+        T message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        message.mutable_a()->add_f3(7);
+        return message;
+    }
+};
+
+TEST_F(TProtobufFormatStructuredMessageRepeatedCompat, Parse)
+{
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_YT in message");
+        auto message = CreateMessage<TMessageWithStructSerializationYtRepeated>();
+        auto collector = ParseRows(message, GetConfigWithStructuredMessage(), GetSchemaWithStruct());
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego;[7]]"))));
+    }
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_PROTOBUF in message");
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(
+                CreateMessage<TMessageWithStructSerializationProtobufRepeated>(),
+                GetConfigWithMessage(),
+                GetSchemaWithStruct()),
+            "at a.<optional-element>: expected \"structured_message\" protobuf type, got \"message\"");
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_YT in message");
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(
+                CreateMessage<TMessageWithStructSerializationYtRepeated>(),
+                GetConfigWithStructuredMessage(),
+                GetSchemaWithString()),
+            "protobuf type cannot match any simple type");
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_PROTOBUF in message");
+        auto message = CreateMessage<TMessageWithStructSerializationProtobufRepeated>();
+        auto collector = ParseRows(message, GetConfigWithMessage(), GetSchemaWithString());
+        TString aBytes;
+        ASSERT_TRUE(message.a().SerializeToString(&aBytes));
+        EXPECT_EQ(
+            GetString(collector.GetRowValue(0, "a")),
+            aBytes);
+    }
+}
+
+TEST_F(TProtobufFormatStructuredMessageRepeatedCompat, Write)
+{
+    auto nameTable = TNameTable::FromSchema(*GetSchemaWithString());
+
+    TString aBytes;
+    {
+        TMessageWithStructSerializationProtobufRepeated message;
+        message.mutable_a()->set_f1(1);
+        message.mutable_a()->set_f2("Sandiego");
+        message.mutable_a()->add_f3(7);
+        ASSERT_TRUE(message.a().SerializeToString(&aBytes));
+    }
+
+    auto expectOkMessage = [&] (const auto& message) {
+        EXPECT_TRUE(message.has_a());
+        EXPECT_EQ(message.a().f1(), 1);
+        EXPECT_EQ(message.a().f2(), "Sandiego");
+        EXPECT_EQ(message.a().f3_size(), 1);
+        EXPECT_EQ(message.a().f3(0), 7);
+    };
+
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_YT in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1;Sandiego;[7]]"}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationYtRepeated>(
+            row,
+            GetConfigWithStructuredMessage(),
+            GetSchemaWithStruct(),
+            nameTable));
+    }
+    {
+        SCOPED_TRACE("Struct in schema, SERIALIZATION_PROTOBUF in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1;Sandiego;[7]]"}
+        });
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            WriteRow<TMessageWithStructSerializationProtobufRepeated>(
+                row,
+                GetConfigWithMessage(),
+                GetSchemaWithStruct(),
+                nameTable),
+            "Repeated field");
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_YT in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::String, aBytes}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationYtRepeated>(
+            row,
+            GetConfigWithStructuredMessage(),
+            GetSchemaWithString(),
+            nameTable));
+    }
+    {
+        SCOPED_TRACE("String in schema, SERIALIZATION_PROTOBUF in message");
+        auto row = MakeRow(nameTable, {
+            {"a", EValueType::String, aBytes}
+        });
+
+        expectOkMessage(WriteRow<TMessageWithStructSerializationProtobufRepeated>(
+            row,
+            GetConfigWithMessage(),
+            GetSchemaWithString(),
+            nameTable));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT
