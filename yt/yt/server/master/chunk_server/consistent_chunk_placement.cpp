@@ -439,7 +439,7 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
             mediumIndex});
     if (placementGroupIt == PlacementGroups_.end()) {
         YT_LOG_ALERT("Consistent chunk placement was requested for unknown group, ignored "
-            "(ChunkId: %v, ConsistentReplicaPlacementHash: %v, MediumIndex: %v)",
+            "(ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v)",
             chunk->GetId(),
             chunk->GetConsistentReplicaPlacementHash(),
             mediumIndex);
