@@ -182,10 +182,10 @@ private:
         // Note that after table construction table schema may have changed.
         // We must be prepared for that.
 
-        ValidateSchemaOrThrow(selectRowsResult.Rowset->GetSchema());
+        ValidateSchemaOrThrow(*selectRowsResult.Rowset->GetSchema());
 
         std::vector<ui64> shardIndices;
-        for (const auto& row : selectRowsResult.Rowset->GetRows()) {
+        for (auto row : selectRowsResult.Rowset->GetRows()) {
             YT_VERIFY(row.GetCount() == 2);
 
             auto shardIdColumnId = selectRowsResult.Rowset->GetNameTable()->GetIdOrThrow("ShardId");

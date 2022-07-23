@@ -3076,7 +3076,7 @@ private:
         const TIntrusivePtr<IRowset<TRow>>& rowset)
     {
         return NApi::NRpcProxy::SerializeRowset(
-            rowset->GetSchema(),
+            *rowset->GetSchema(),
             rowset->GetRows(),
             response->mutable_rowset_descriptor());
     };
@@ -3461,7 +3461,7 @@ private:
                 }
 
                 response->Attachments() = NApi::NRpcProxy::SerializeRowset(
-                    result.Rowset->GetSchema(),
+                    *result.Rowset->GetSchema(),
                     result.Rowset->GetRows(),
                     response->mutable_rowset_descriptor(),
                     result.Versioned);
@@ -3639,7 +3639,6 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions;
-
         rowBatchReadOptions.MaxRowCount = request->row_batch_read_options().max_row_count();
         rowBatchReadOptions.MaxDataWeight = request->row_batch_read_options().max_data_weight();
         if (request->row_batch_read_options().has_data_weight_per_row_hint()) {

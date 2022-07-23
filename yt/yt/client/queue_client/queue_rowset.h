@@ -31,12 +31,12 @@ i64 GetStartOffset(const NApi::IUnversionedRowsetPtr& rowset);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueRowset
-    : public NApi::IUnversionedRowset 
+    : public NApi::IUnversionedRowset
 {
 public:
     TQueueRowset(NApi::IUnversionedRowsetPtr rowset, i64 startOffset);
 
-    const NTableClient::TTableSchema& GetSchema() const override;
+    const NTableClient::TTableSchemaPtr& GetSchema() const override;
     const NTableClient::TNameTablePtr& GetNameTable() const override;
 
     TRange<NTableClient::TUnversionedRow> GetRows() const override;

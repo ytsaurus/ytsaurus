@@ -182,7 +182,7 @@ private:
             }
         }
 
-        const TTableSchema& GetSchema() const override
+        const TTableSchemaPtr& GetSchema() const override
         {
             return Batch_.Rowset->GetSchema();
         }
@@ -266,9 +266,9 @@ private:
             .ValueOrThrow();
         const auto& rowset = result.Rowset;
         const auto& schema = rowset->GetSchema();
-        auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
-        auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
-        auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
+        auto tabletIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+        auto rowIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+        auto stateColumnId = schema->GetColumnIndexOrThrow(TStateTable::StateColumnName);
 
         std::vector<TStateTableRow> rows;
 
@@ -423,7 +423,7 @@ private:
             return;
         }
 
-        auto rowIndexColumnId = schema.GetColumnIndexOrThrow(RowIndexColumnName);
+        auto rowIndexColumnId = schema->GetColumnIndexOrThrow(RowIndexColumnName);
 
         std::vector<TBatch> batches;
         i64 currentRowIndex = tablet.FetchRowIndex;
@@ -640,7 +640,7 @@ private:
                     YT_VERIFY(rows.Size() == 1);
                     auto row = rows[0];
 
-                    auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+                    auto rowIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
 
                     YT_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                     auto rowIndex = row[rowIndexColumnId].Data.Int64;
@@ -935,9 +935,9 @@ TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsSt
                 .ValueOrThrow();
             const auto& rowset = result.Rowset;
             const auto& schema = rowset->GetSchema();
-            auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
-            auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
-            auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
+            auto tabletIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+            auto rowIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+            auto stateColumnId = schema->GetColumnIndexOrThrow(TStateTable::StateColumnName);
 
             THashMap<int, TPersistentQueueTabletState> tabletMap;
 
@@ -1003,8 +1003,8 @@ TFuture<void> UpdatePersistentQueueTabletsState(
                 .ValueOrThrow();
             const auto& rowset = result.Rowset;
             const auto& schema = rowset->GetSchema();
-            auto rowsetTabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
-            auto rowsetRowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+            auto rowsetTabletIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+            auto rowsetRowIndexColumnId = schema->GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
 
             auto nameTable = New<TNameTable>();
             auto nameTableTabletIndexColumnId = nameTable->RegisterName(TStateTable::TabletIndexColumnName);

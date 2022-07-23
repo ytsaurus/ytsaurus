@@ -64,7 +64,7 @@ TQueueRowset::TQueueRowset(IUnversionedRowsetPtr rowset, i64 startOffset)
     , StartOffset_(startOffset)
 { }
 
-const NTableClient::TTableSchema& TQueueRowset::GetSchema() const
+const NTableClient::TTableSchemaPtr& TQueueRowset::GetSchema() const
 {
     return Rowset_->GetSchema();
 }

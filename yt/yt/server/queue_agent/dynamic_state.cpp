@@ -128,12 +128,15 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(TRange<TUnversionedRow> rows, TNameTablePtr nameTable, const TTableSchema& schema)
+std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
+    TRange<TUnversionedRow> rows,
+    const TNameTablePtr& nameTable,
+    const TTableSchemaPtr& schema)
 {
     std::vector<TQueueTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(schema, *TQueueTableDescriptor::Schema, /*ignoreSortOrder*/ true);
+    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TQueueTableDescriptor::Schema, /*ignoreSortOrder*/ true);
         compatibility != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION("Row range schema is incompatible with queue table row schema")
             << error;
@@ -303,13 +306,16 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversionedRow> rows, TNameTablePtr nameTable, const TTableSchema& schema)
+std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
+    TRange<TUnversionedRow> rows,
+    const TNameTablePtr& nameTable,
+    const TTableSchemaPtr& schema)
 {
     // TODO(max42): eliminate copy-paste?
     std::vector<TConsumerTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(schema, *TConsumerTableDescriptor::Schema, /*ignoreSortOrder*/ true);
+    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TConsumerTableDescriptor::Schema, /*ignoreSortOrder*/ true);
         compatibility != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION("Row range schema is incompatible with consumer table row schema")
             << error;
@@ -406,7 +412,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         }
         if (row.Schema) {
             // Enclosing into a list is a workaround for storing YSON with top-level attributes.
-            auto schemaYson = ConvertToYsonString(std::vector<TTableSchema>{*row.Schema});
+            auto schemaYson = ConvertToYsonString(std::vector{row.Schema});
             rowBuilder.AddValue(MakeUnversionedAnyValue(schemaYson.AsStringBuf(), nameTable->GetIdOrThrow("schema")));
         }
         if (row.Vital) {

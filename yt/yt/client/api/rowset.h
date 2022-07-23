@@ -18,8 +18,7 @@ template <class TRow>
 struct IRowset
     : public virtual TRefCounted
 {
-    // TODO(babenko): refcounted schema
-    virtual const NTableClient::TTableSchema& GetSchema() const = 0;
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const = 0;
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
     virtual TRange<TRow> GetRows() const = 0;
