@@ -193,18 +193,24 @@ private:
 
         TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
-            NProto::TResponseHeader header;
-            YT_VERIFY(TryParseResponseHeader(message, &header));
-            if (AcquireLock()) {
-                TError error;
-                if (header.has_error()) {
-                    error = FromProto<TError>(header.error());
-                }
-                if (error.IsOK()) {
-                    Handler_->HandleResponse(std::move(message), /*address*/ TString());
-                } else {
-                    Handler_->HandleError(error);
-                }
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto messageType = GetMessageType(message);
+            switch (messageType) {
+                case EMessageType::Response:
+                    OnResponseMessage(std::move(message));
+                    break;
+
+                case EMessageType::StreamingPayload:
+                    OnStreamingPayloadMessage(std::move(message));
+                    break;
+
+                case EMessageType::StreamingFeedback:
+                    OnStreamingFeedbackMessage(std::move(message));
+                    break;
+
+                default:
+                    YT_ABORT();
             }
             return VoidFuture;
         }
@@ -227,6 +233,56 @@ private:
 
         std::atomic<bool> Replied_ = false;
 
+        void OnResponseMessage(TSharedRefArray message)
+        {
+            NProto::TResponseHeader header;
+            YT_VERIFY(TryParseResponseHeader(message, &header));
+            if (AcquireLock()) {
+                TError error;
+                if (header.has_error()) {
+                    error = FromProto<TError>(header.error());
+                }
+                if (error.IsOK()) {
+                    Handler_->HandleResponse(std::move(message), /*address*/ TString());
+                } else {
+                    Handler_->HandleError(error);
+                }
+            }
+        }
+
+        void OnStreamingPayloadMessage(TSharedRefArray message)
+        {
+            NProto::TStreamingPayloadHeader header;
+            YT_VERIFY(ParseStreamingPayloadHeader(message, &header));
+
+            auto sequenceNumber = header.sequence_number();
+            auto attachments = std::vector<TSharedRef>(message.Begin() + 1, message.End());
+
+            YT_VERIFY(!attachments.empty());
+
+            NCompression::ECodec codec;
+            int intCodec = header.codec();
+            YT_VERIFY(TryEnumCast(intCodec, &codec));
+
+            TStreamingPayload payload{
+                codec,
+                sequenceNumber,
+                std::move(attachments)
+            };
+            Handler_->HandleStreamingPayload(payload);
+        }
+
+        void OnStreamingFeedbackMessage(TSharedRefArray message)
+        {
+            NProto::TStreamingFeedbackHeader header;
+            YT_VERIFY(ParseStreamingFeedbackHeader(message, &header));
+            auto readPosition = header.read_position();
+
+            TStreamingFeedback feedback{
+                readPosition
+            };
+            Handler_->HandleStreamingFeedback(feedback);
+        }
 
         bool AcquireLock()
         {
