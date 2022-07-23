@@ -1129,6 +1129,21 @@ void TChunkReplicator::OnNodeDisposed(TNode* node)
     }
 }
 
+void TChunkReplicator::OnNodeUnregistered(TNode* node)
+{
+    for (const auto& [chunkId, mediumToNode] : node->PushReplicationTargetNodeIds()) {
+        for (auto [mediumIndex, nodeId] : mediumToNode) {
+            MaybeRemoveFromPullReplicationSet(nodeId, chunkId, mediumIndex);
+        }
+    }
+
+    for (const auto& queue : node->ChunkPullReplicationQueues()) {
+        for (const auto& [chunkReplica, mediumSet] : queue) {
+            ScheduleChunkRefresh(chunkReplica.GetPtr());
+        }
+    }
+}
+
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
@@ -1145,7 +1160,7 @@ void TChunkReplicator::RemoveFromChunkReplicationQueues(
     auto& pullReplicationNodeIds = node->PushReplicationTargetNodeIds();
     if (auto it = pullReplicationNodeIds.find(chunkId); it != pullReplicationNodeIds.end()) {
         for (auto [mediumIndex, nodeId] : it->second) {
-            MaybeRemoveFromPullReplicaitonSet(nodeId, chunkId, mediumIndex);
+            MaybeRemoveFromPullReplicationSet(nodeId, chunkId, mediumIndex);
         }
     }
     node->RemoveFromChunkReplicationQueues(chunkWithIndexes);
@@ -1167,7 +1182,7 @@ void TChunkReplicator::OnReplicaRemoved(
     }
 }
 
-void TChunkReplicator::MaybeRemoveFromPullReplicaitonSet(
+void TChunkReplicator::MaybeRemoveFromPullReplicationSet(
     TNodeId nodeId,
     TChunkId chunkId,
     int mediumIndex)
@@ -1198,7 +1213,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     auto mediumIndex = targetMedium->GetIndex();
 
     auto finallyGuard = Finally([&] {
-        MaybeRemoveFromPullReplicaitonSet(targetNodeId, chunkId, mediumIndex);
+        MaybeRemoveFromPullReplicationSet(targetNodeId, chunkId, mediumIndex);
     });
 
     if (!IsObjectAlive(chunk)) {
@@ -2407,7 +2422,7 @@ void TChunkReplicator::RemoveChunkFromPullReplicationQueue(const TJobPtr& job)
         node->ChunksBeingPulled().erase(chunkId);
     }
 
-    MaybeRemoveFromPullReplicaitonSet(replicationJob->GetTargetNodeId(), chunkId, chunkIdWithIndexes.MediumIndex);
+    MaybeRemoveFromPullReplicationSet(replicationJob->GetTargetNodeId(), chunkId, chunkIdWithIndexes.MediumIndex);
 }
 
 void TChunkReplicator::OnJobCompleted(const TJobPtr& job)

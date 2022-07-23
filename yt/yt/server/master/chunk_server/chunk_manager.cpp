@@ -2768,7 +2768,10 @@ private:
             AbortAndRemoveJob(job);
         }
 
-        // XXX(gritukan): Do we really need to do it here?
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeUnregistered(node);
+        }
+
         node->Reset();
     }
 
@@ -2810,6 +2813,12 @@ private:
                 }
             }
         }
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeUnregistered(node);
+        }
+
+        node->Reset();
 
         DiscardEndorsements(node);
 
