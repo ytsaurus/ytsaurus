@@ -49,6 +49,7 @@ public:
     void Stop();
 
     void OnNodeDisposed(TNode* node);
+    void OnNodeUnregistered(TNode* node);
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
     // have been lost on all of the media.
@@ -331,7 +332,7 @@ private:
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes);
     void RemoveChunkFromPullReplicationQueue(const TJobPtr& job);
-    void MaybeRemoveFromPullReplicaitonSet(
+    void MaybeRemoveFromPullReplicationSet(
         TNodeId nodeId,
         TChunkId chunkId,
         int mediumIndex);
