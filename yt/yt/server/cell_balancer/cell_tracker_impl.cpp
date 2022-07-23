@@ -185,7 +185,7 @@ void TCellTrackerImpl::ScanCellarCells(
             }
         }
 
-        if (!cell->GetCellBundle()->GetOptions()->IndependentPeers) {
+        if (!cell->CellBundle()->GetOptions()->IndependentPeers) {
             if (ScheduleLeaderReassignment(cell, request)) {
                 continue;
             }

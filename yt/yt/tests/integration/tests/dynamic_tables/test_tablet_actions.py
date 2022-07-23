@@ -1398,28 +1398,6 @@ class TestTabletBalancerRpcProxy(TestTabletBalancer):
 ##################################################################
 
 
-class TestTabletBalancerWithCellBalancer(TestTabletBalancer):
-    NUM_CELL_BALANCERS = 1
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "tablet_manager": {
-            "enable_cell_tracker": False,
-            "leader_reassignment_timeout": 2000,
-            "peer_revocation_timeout": 3000,
-            "tablet_balancer": {
-                "config_check_period": 100,
-                "balance_period": 100,
-            },
-            "tablet_action_manager": {
-                "tablet_actions_cleanup_period": 100,
-            },
-        }
-    }
-
-
-##################################################################
-
-
 class TestRemoteChangelogStore(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6

@@ -65,6 +65,8 @@ DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TDirectObjectIdHa
 DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TDirectObjectIdHash)
 
+DECLARE_MASTER_OBJECT_TYPE(TCellBundle)
+
 extern const TString DefaultCellBundleName;
 extern const TString DefaultAreaName;
 

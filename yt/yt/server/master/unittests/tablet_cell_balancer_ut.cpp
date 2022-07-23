@@ -122,7 +122,7 @@ public:
         }
 
         for (auto [cellId, cell] : CellMap_) {
-            for (int peer = peers[cell]; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
+            for (int peer = peers[cell]; peer < cell->CellBundle()->GetOptions()->PeerCount; ++peer) {
                 UnassignedPeers_.emplace_back(cell, peer);
             }
         }
@@ -180,7 +180,7 @@ public:
                     .DoListFor(holder.GetSlots(), [&] (TFluentList fluent, const std::pair<const TCellBase*, int>& slot) {
                         fluent
                             .Item().Value(Format("(%v,%v,%v)",
-                                slot.first->GetCellBundle()->GetName(),
+                                slot.first->CellBundle()->GetName(),
                                 CellToIndex_[slot.first],
                                 slot.second));
                     });
@@ -268,7 +268,7 @@ private:
         auto id = GenerateTabletCellId();
         auto cellHolder = TPoolAllocator::New<TTabletCell>(id);
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
-        cellHolder->SetCellBundle(bundle);
+        cellHolder->CellBundle().Assign(bundle);
 
         auto* cell = CellMap_.Insert(id, std::move(cellHolder));
         YT_VERIFY(IndexToCell_.emplace(index, cell).second);
@@ -354,7 +354,7 @@ private:
             }
 
             for (auto [cellId, cell] : CellMap_) {
-                for (int peer = 0; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
+                for (int peer = 0; peer < cell->CellBundle()->GetOptions()->PeerCount; ++peer) {
                     if (!cellSet.contains(std::make_pair(cell, peer))) {
                         THROW_ERROR_EXCEPTION("Peer %v of cell %v is not assigned to any node",
                             peer,
@@ -370,7 +370,7 @@ private:
         for (const auto& holder : NodeHolders_) {
             THashSet<const TCellBase*> cellSet;
             for (const auto& slot : holder.GetSlots()) {
-                if (!IsPossibleHost(holder.GetNode(), GetBundleArea(slot.first->GetCellBundle()))) {
+                if (!IsPossibleHost(holder.GetNode(), GetBundleArea(slot.first->CellBundle().Get()))) {
                     THROW_ERROR_EXCEPTION("Cell %v is assigned to infeasible node %v",
                         CellToIndex_[slot.first],
                         NodeToName_[holder.GetNode()]);
@@ -393,7 +393,7 @@ private:
                 }
                 ++feasibleNodes;
                 for (const auto& slot : holder.GetSlots()) {
-                    if (slot.first->GetCellBundle() == bundle) {
+                    if (slot.first->CellBundle() == bundle) {
                         ++cells;
                         cellsPerNode[node]++;
                     }
@@ -426,19 +426,47 @@ private:
 class TCellBaseBalancerTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TSettingParam>
-{ };
+    , public TBootstrapMock
+{
+public:
+    void SetUp() override
+    {
+        SetupMasterSmartpointers();
+    }
+
+    void TearDown() override
+    {
+        ResetMasterSmartpointers();
+    }
+};
 
 class TCellBaseBalancerRevokeTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TSettingParam>
-{ };
+    , public TBootstrapMock
+{
+public:
+    void SetUp() override
+    {
+        SetupMasterSmartpointers();
+    }
+
+    void TearDown() override
+    {
+        ResetMasterSmartpointers();
+    }
+};
 
 class TCellBaseBalancerStressTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TStressSettingParam>
+    , public TBootstrapMock
 {
 public:
-    void SetUp() override {
+    void SetUp() override
+    {
+        SetupMasterSmartpointers();
+
         std::tie(NodesNum_, TabletSlotCount_, PeersNum_, BundlesNum_, CellsNum_) = GetParam();
 
         YT_VERIFY(NodesNum_ * TabletSlotCount_ == PeersNum_ * BundlesNum_ * CellsNum_);
@@ -474,7 +502,8 @@ public:
         }
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         auto setting = New<TSetting>(PeersPerCell_, CellLists_, NodeFeasibility_, TabletSlotCount_, CellDistribution_);
         auto balancer = CreateCellBalancer(setting);
         for (auto& unassigned : setting->GetUnassignedPeers()) {
@@ -482,6 +511,8 @@ public:
         }
 
         setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
+
+        ResetMasterSmartpointers();
     }
 
 protected:

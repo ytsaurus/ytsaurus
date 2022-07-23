@@ -48,7 +48,7 @@ void TCellProxyBase::ValidateRemoval()
 {
     const auto* cell = GetThisImpl();
 
-    ValidatePermission(cell->GetCellBundle(), EPermission::Write);
+    ValidatePermission(cell->CellBundle().Get(), EPermission::Write);
 
     if (!cell->IsDecommissionCompleted()) {
         THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
@@ -192,11 +192,11 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::TabletCellBundle:
-            if (!cell->GetCellBundle()) {
+            if (!cell->CellBundle()) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(cell->GetCellBundle()->GetName());
+                .Value(cell->CellBundle()->GetName());
             return true;
 
         case EInternedAttributeKey::Area:
@@ -269,7 +269,7 @@ bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonS
     switch (key) {
         case EInternedAttributeKey::Area: {
             auto areaName = ConvertTo<TString>(value);
-            auto* area = cellManager->GetAreaByNameOrThrow(cell->GetCellBundle(), areaName);
+            auto* area = cellManager->GetAreaByNameOrThrow(cell->CellBundle().Get(), areaName);
             cellManager->UpdateCellArea(cell, area);
             return true;
         }

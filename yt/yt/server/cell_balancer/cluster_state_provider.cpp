@@ -101,7 +101,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         auto cell = CellMap_.Insert(cellId, std::move(cellHolder));
         cell->RefObject();
         cell->SetLeadingPeerId(protoCell->leading_peer_id());
-        cell->SetCellBundle(cellBundle);
+        cell->CellBundle().Assign(cellBundle);
         cell->SetArea(area);
         if (protoCell->has_peer_count_override()) {
             cell->PeerCount() = protoCell->peer_count_override();

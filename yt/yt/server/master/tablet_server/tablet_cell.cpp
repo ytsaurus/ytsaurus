@@ -53,7 +53,7 @@ void TTabletCell::Load(TLoadContext& context)
 
 TTabletCellBundle* TTabletCell::GetTabletCellBundle() const
 {
-    auto* cellBundle = GetCellBundle();
+    const auto& cellBundle = CellBundle();
     YT_VERIFY(cellBundle->GetType() == EObjectType::TabletCellBundle);
     return cellBundle->As<TTabletCellBundle>();
 }

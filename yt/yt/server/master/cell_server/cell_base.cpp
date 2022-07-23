@@ -413,7 +413,7 @@ bool TCellBase::IsDecommissionCompleted() const
 
 bool TCellBase::IsIndependent() const
 {
-    return GetCellBundle()->GetOptions()->IndependentPeers;
+    return CellBundle()->GetOptions()->IndependentPeers;
 }
 
 ECellarType TCellBase::GetCellarType() const

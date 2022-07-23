@@ -231,7 +231,7 @@ private:
             }
 
             try {
-                if (cell->GetCellBundle()->GetOptions()->IndependentPeers) {
+                if (cell->CellBundle()->GetOptions()->IndependentPeers) {
                     for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                         if (!cell->IsAlienPeer(peerId)) {
                             auto path = Format("%v/%v/%v", GetCellCypressPrefix(cellId), cellId, peerId);

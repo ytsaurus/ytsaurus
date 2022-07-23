@@ -45,7 +45,7 @@ void TChaosCell::Load(TLoadContext& context)
 
 TChaosCellBundle* TChaosCell::GetChaosCellBundle() const
 {
-    auto* cellBundle = GetCellBundle();
+    const auto& cellBundle = CellBundle();
     YT_VERIFY(cellBundle->GetType() == EObjectType::ChaosCellBundle);
     return cellBundle->As<TChaosCellBundle>();
 }

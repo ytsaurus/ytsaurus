@@ -96,9 +96,9 @@ private:
                 auto metadataCellId = ConvertTo<TChaosCellId>(value);
                 const auto& cellManager = Bootstrap_->GetTamedCellManager();
                 auto* metadataCell = cellManager->GetCellOrThrow(metadataCellId);
-                if (metadataCell->GetCellBundle() != cellBundle) {
+                if (metadataCell->CellBundle() != cellBundle) {
                     THROW_ERROR_EXCEPTION("Cell %v belongs to a different bundle %Qv",
-                        metadataCell->GetCellBundle()->GetName());
+                        metadataCell->CellBundle()->GetName());
                 }
                 cellBundle->SetMetadataCell(metadataCell->As<TChaosCell>());
                 return true;

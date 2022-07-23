@@ -30,8 +30,11 @@
 
 #include <yt/yt/server/master/chaos_server/chaos_cell.h>
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+#include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/portal_exit_node.h>
+#include <yt/yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
@@ -503,12 +506,9 @@ public:
         auto* cell = CellMap_.Insert(cellId, std::move(holder));
 
         cell->Peers().resize(peerCount);
-        cell->SetCellBundle(cellBundle);
+        cell->CellBundle().Assign(cellBundle);
         InsertOrCrash(cellBundle->Cells(), cell);
         InsertOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(cellBundle);
 
         cell->SetArea(area);
         InsertOrCrash(area->Cells(), cell);
@@ -595,6 +595,7 @@ public:
                 "Error registering cell in Cypress (CellId: %v)",
                 cell->GetId());
 
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(cell);
             THROW_ERROR_EXCEPTION("Error registering cell in Cypress")
                 << ex;
@@ -670,13 +671,9 @@ public:
             }
         }
 
-        auto* cellBundle = cell->GetCellBundle();
+        const auto& cellBundle = cell->CellBundle();
         EraseOrCrash(cellBundle->Cells(), cell);
         EraseOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(cellBundle);
-        cell->SetCellBundle(nullptr);
 
         if (cell->GetType() == EObjectType::ChaosCell) {
             auto* chaosCell = cell->As<TChaosCell>();
@@ -715,7 +712,7 @@ public:
         cell->LastPeerCountUpdateTime() = TInstant::Now();
 
         int oldPeerCount = std::ssize(cell->Peers());
-        int newPeerCount = cell->GetCellBundle()->GetOptions()->PeerCount;
+        int newPeerCount = cell->CellBundle()->GetOptions()->PeerCount;
         if (cell->PeerCount()) {
             newPeerCount = *cell->PeerCount();
         }
@@ -1135,7 +1132,7 @@ public:
             return;
         }
 
-        if (cell->GetCellBundle() != area->GetCellBundle()) {
+        if (cell->CellBundle() != area->GetCellBundle()) {
             THROW_ERROR_EXCEPTION("Could not update cell area because it is from another bundle")
                 << TErrorAttribute("cell_id", cell->GetId())
                 << TErrorAttribute("area_id", area->GetId());
@@ -1196,7 +1193,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     // COMPAT(gritukan)
-    bool NeedToRecomputeTabletCellBundleRefCounters_ = false;
+    bool NeedToRecomputeCellBundleRefCounters_ = false;
 
     // COMPAT(gritukan)
     bool NeedToReplicatePrerequisiteTransactions_ = false;
@@ -1245,9 +1242,8 @@ private:
         CellMap_.LoadKeys(context);
         AreaMap_.LoadKeys(context);
 
-        NeedToRecomputeTabletCellBundleRefCounters_ =
-            context.GetVersion() >= EMasterReign::RefCountedInheritableAttributes &&
-            context.GetVersion() <  EMasterReign::RecomputeTabletCellBundleRefCounters;
+        NeedToRecomputeCellBundleRefCounters_ =
+            context.GetVersion() < EMasterReign::RecomputeCellBundleRefCounters;
 
         NeedToReplicatePrerequisiteTransactions_ =
             context.GetVersion() < EMasterReign::FixPrerequisiteTxReplication;
@@ -1315,7 +1311,7 @@ private:
 
             MaybeRegisterGlobalCell(cell);
 
-            InsertOrCrash(cell->GetCellBundle()->Cells(), cell);
+            InsertOrCrash(cell->CellBundle()->Cells(), cell);
             InsertOrCrash(cell->GetArea()->Cells(), cell);
             InsertOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
 
@@ -1345,42 +1341,10 @@ private:
             cell->GossipStatus().Initialize(Bootstrap_);
         }
 
-        if (NeedToRecomputeTabletCellBundleRefCounters_) {
-            THashMap<TCellBundle*, int> refCounters;
-
-            const auto& tabletCells = Cells(ECellarType::Tablet);
-
-            // Tablet cell bundles are referenced by their tablet cells.
-            for (auto* tabletCell : tabletCells) {
-                auto* cellBundle = tabletCell->GetCellBundle();
-                YT_VERIFY(IsObjectAlive(cellBundle) && cellBundle->GetType() == EObjectType::TabletCellBundle);
-                ++refCounters[cellBundle];
-            }
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                // Also, tablet cell bundles are referenced by tables in it.
-                if (IsTableType(node->GetType())) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->TabletCellBundle()) {
-                        ++refCounters[table->TabletCellBundle().Get()];
-                    }
-                }
-
-                // Finally, tablet cell bundles are referenced by Cypress nodes with
-                // @tablet_cell_bundle attribute.
-                if (auto* compositeNode = dynamic_cast<TCompositeNodeBase*>(node)) {
-                    if (auto tabletCellBundle = compositeNode->TryGetTabletCellBundle()) {
-                        ++refCounters[*tabletCellBundle];
-                    }
-                }
-            }
+        if (NeedToRecomputeCellBundleRefCounters_) {
+            auto refCounters = ComputeCellBundleRefCounters();
 
             for (auto [cellBundleId, cellBundle] : CellBundleMap_) {
-                if (cellBundle->GetType() != EObjectType::TabletCellBundle) {
-                    continue;
-                }
-
                 if (!IsObjectAlive(cellBundle)) {
                     YT_VERIFY(refCounters[cellBundle] == 0);
                     continue;
@@ -1396,8 +1360,8 @@ private:
                     objectManager->UnrefObject(cellBundle, oldRefCounter - newRefCounter);
                     YT_VERIFY(cellBundle->GetObjectRefCounter(/*flushUnrefs*/ true) == newRefCounter);
 
-                    YT_LOG_ALERT("Fixed tablet cell bundle ref counter "
-                        "(TabletCellBundleId: %v, TabletCellBundleName: %v, RefCounter: %v -> %v)",
+                    YT_LOG_ALERT("Fixed cell bundle ref counter "
+                        "(CellBundleId: %v, TabletCellBundleName: %v, RefCounter: %v -> %v)",
                         cellBundle->GetId(),
                         cellBundle->GetName(),
                         oldRefCounter,
@@ -1443,8 +1407,33 @@ private:
         CellsPerTypeMap_.clear();
         BundleNodeTracker_->Clear();
 
-        NeedToRecomputeTabletCellBundleRefCounters_ = false;
+        NeedToRecomputeCellBundleRefCounters_ = false;
         NeedToReplicatePrerequisiteTransactions_ = false;
+    }
+
+    void CheckInvariants() override
+    {
+        TMasterAutomatonPart::CheckInvariants();
+
+        // Check cell bundle ref counters.
+        {
+            auto refCounters = ComputeCellBundleRefCounters();
+            for (auto [cellBundleId, cellBundle] : CellBundleMap_) {
+                auto expectedRefCounter = refCounters[cellBundle];
+                if (IsObjectAlive(cellBundle)) {
+                    // Take fake reference into account.
+                    ++expectedRefCounter;
+                }
+                auto currentRefCounter = cellBundle->GetObjectRefCounter();
+                YT_LOG_FATAL_UNLESS(
+                    expectedRefCounter == currentRefCounter,
+                    "Cell bundle ref counter is invalid "
+                    "(CellBundleId: %v, ExpectedRefCounter: %v, CurrentRefCounter: %v)",
+                    cellBundleId,
+                    expectedRefCounter,
+                    currentRefCounter);
+            }
+        }
     }
 
     void OnCellStatusGossip(bool incremental)
@@ -1525,7 +1514,7 @@ private:
                 cell->GossipStatus().Cluster() = newStatus;
             }
 
-            updatedBundles.insert(cell->GetCellBundle());
+            updatedBundles.insert(cell->CellBundle().Get());
         }
 
         UpdateBundlesHealth(updatedBundles);
@@ -1706,7 +1695,7 @@ private:
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_peer_id(peerId);
 
-            const auto* cellBundle = cell->GetCellBundle();
+            const auto& cellBundle = cell->CellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
 
             protoInfo->set_cell_bundle(cellBundle->GetName());
@@ -1743,7 +1732,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
-            protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).ToString());
+            protoInfo->set_options(ConvertToYsonString(cell->CellBundle()->GetOptions()).ToString());
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
@@ -1771,7 +1760,7 @@ private:
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
 
-            const auto* cellBundle = cell->GetCellBundle();
+            const auto& cellBundle = cell->CellBundle();
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
             protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).ToString());
 
@@ -1928,7 +1917,7 @@ private:
             }
 
             if (slotInfo.has_dynamic_config_version() &&
-                slotInfo.dynamic_config_version() != cell->GetCellBundle()->GetDynamicConfigVersion())
+                slotInfo.dynamic_config_version() != cell->CellBundle()->GetDynamicConfigVersion())
             {
                 requestUpdateSlot(cell);
             }
@@ -2290,7 +2279,7 @@ private:
             if (!IsCellActive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == bundle && cell->IsHealthy()) {
+            if (cell->CellBundle() == bundle && cell->IsHealthy()) {
                 return true;
             }
         }
@@ -2737,6 +2726,64 @@ private:
         }
 
         return votingPeers;
+    }
+
+    THashMap<TCellBundle*, int> ComputeCellBundleRefCounters()
+    {
+        THashMap<TCellBundle*, int> refCounters;
+
+        // Cell bundles are referenced by their cells.
+        for (auto [cellId, cell] : Cells()) {
+            if (auto* cellBundle = cell->CellBundle().Get()) {
+                YT_VERIFY(IsObjectAlive(cellBundle));
+                ++refCounters[cellBundle];
+            }
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            // Also, tablet cell bundles are referenced by tables in them...
+            if (IsTableType(node->GetType())) {
+                auto* table = node->As<TTableNode>();
+                if (table->TabletCellBundle()) {
+                    ++refCounters[table->TabletCellBundle().Get()];
+                }
+            }
+
+            // ... and chaos cell bundles are referenced by replicated chaos tables in them.
+            if (node->GetType() == EObjectType::ChaosReplicatedTable) {
+                auto* table = node->As<TChaosReplicatedTableNode>();
+                if (table->ChaosCellBundle()) {
+                    ++refCounters[table->ChaosCellBundle().Get()];
+                }
+            }
+
+            // Finally, cell bundles are referenced by corresponding inherited attributes.
+            if (auto* compositeNode = dynamic_cast<TCompositeNodeBase*>(node)) {
+                if (const auto* attributes = compositeNode->FindAttributes()) {
+                    if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
+                        ++refCounters[*tabletCellBundle];
+                    }
+                    if (auto chaosCellBundle = attributes->ChaosCellBundle.ToOptional()) {
+                        ++refCounters[*chaosCellBundle];
+                    }
+                }
+            }
+        }
+
+        const auto& portalManager = Bootstrap_->GetPortalManager();
+        for (auto [exitId, exit] : portalManager->GetExitNodes()) {
+            if (const auto& attributes = exit->EffectiveInheritableAttributes()) {
+                if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
+                    ++refCounters[*tabletCellBundle];
+                }
+                if (auto chaosCellBundle = attributes->ChaosCellBundle.ToOptional()) {
+                    ++refCounters[*chaosCellBundle];
+                }
+            }
+        }
+
+        return refCounters;
     }
 };
 
