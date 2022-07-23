@@ -701,6 +701,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
+    Save(context, PreparedReplicatorTransactionIds_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -848,6 +849,13 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, LastDiscardStoresRevision_);
 
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SavePreparedReplicatorTxs) {
+        Load(context, PreparedReplicatorTransactionIds_);
+    } else {
+        MaxIgnoredPreparedReplicatorTransactionStartTime_ = TInstant::Now();
+    }
+
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 }
@@ -973,6 +981,8 @@ void TTablet::AsyncLoad(TLoadContext& context)
 void TTablet::Clear()
 {
     TabletWriteManager_->Clear();
+
+    MaxIgnoredPreparedReplicatorTransactionStartTime_ = TInstant::Zero();
 }
 
 void TTablet::OnAfterSnapshotLoaded()

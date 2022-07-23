@@ -490,9 +490,6 @@ public:
             }
             for (const auto& writeRecord : writeState->LocklessWriteLog) {
                 UpdateWriteRecordCounters(transaction, writeRecord);
-                if (Tablet_->GetCommitOrdering() == ECommitOrdering::Weak) {
-                    Tablet_->PreparedReplicatorTransactionIds().insert(transaction->GetId());
-                }
             }
 
             if (writeState->RowsPrepared) {
@@ -813,6 +810,17 @@ private:
         }
 
         if (IsReplicatorWrite(transaction)) {
+            if (!Tablet_->PreparedReplicatorTransactionIds().contains(transaction->GetId())) {
+                // COMPAT(ifsmirnov): ETabletReign::SavePreparedReplicatorTxs, make always alert later.
+                auto logLevel = transaction->GetStartTime() > Tablet_->GetMaxIgnoredPreparedReplicatorTransactionStartTime()
+                    ? NLogging::ELogLevel::Alert
+                    : NLogging::ELogLevel::Debug;
+
+                YT_LOG_EVENT(Logger, logLevel, "Unknown replicator transaction committed (%v, TransactionId: %v)",
+                    Tablet_->GetLoggingTag(),
+                    transaction->GetId());
+            }
+
             Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId());
 
             // May be null in tests.
@@ -843,7 +851,13 @@ private:
         UpdateLocklessRowCounters(transaction, ETransactionState::Aborted);
 
         if (IsReplicatorWrite(transaction) && !writeState->LocklessWriteLog.Empty()) {
+            if (!Tablet_->PreparedReplicatorTransactionIds().contains(transaction->GetId())) {
+                YT_LOG_DEBUG("Unknown replicator transaction aborted (%v, TransactionId: %v)",
+                    Tablet_->GetLoggingTag(),
+                    transaction->GetId());
+            }
             Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId());
+
             // May be null in tests.
             if (const auto& backupManager = Host_->GetBackupManager()) {
                 backupManager->OnReplicatorWriteTransactionFinished(Tablet_);
