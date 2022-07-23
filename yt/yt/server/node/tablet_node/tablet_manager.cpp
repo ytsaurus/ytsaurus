@@ -2137,6 +2137,14 @@ private:
         }
 
         // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
+            if (IsInUnmountWorkflow(tablet->GetState())) {
+                THROW_ERROR_EXCEPTION("Cannot write pulled rows since tablet is in %Qlv state",
+                    tablet->GetState());
+            }
+        }
+
+        // COMPAT(gritukan)
         if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
             if (chaosData->PreparedWritePulledRowsTransactionId) {
                 THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
@@ -2281,6 +2289,14 @@ private:
         }
 
         // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
+            if (IsInUnmountWorkflow(tablet->GetState())) {
+                THROW_ERROR_EXCEPTION("Cannot advance replication progress since tablet is in %Qlv state",
+                    tablet->GetState());
+            }
+        }
+
+        // COMPAT(gritukan)
         if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
             const auto& chaosData = tablet->ChaosData();
             if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
@@ -2409,6 +2425,14 @@ private:
             THROW_ERROR_EXCEPTION("Replica %v is in %Qlv state",
                 replicaId,
                 replicaInfo->GetState());
+        }
+
+        // COMPAT(gritukan)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
+            if (IsInUnmountWorkflow(tablet->GetState())) {
+                THROW_ERROR_EXCEPTION("Cannot prepare rows replication since tablet is in %Qlv state",
+                    tablet->GetState());
+            }
         }
 
         if (replicaInfo->GetPreparedReplicationTransactionId()) {
@@ -3936,6 +3960,10 @@ private:
 
     i64 LockTablet(TTablet* tablet) override
     {
+        // NB: Lock acquired after tablet unmount start will not prevent
+        // tablet from being unmounted, so such locks are forbidden.
+        YT_VERIFY(!IsInUnmountWorkflow(tablet->GetState()));
+
         return tablet->Lock();
     }
 
