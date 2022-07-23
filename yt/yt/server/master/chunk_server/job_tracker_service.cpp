@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -64,7 +65,42 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
         ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
+
+        if (request->reports_heartbeats_to_all_peers()) {
+            // New logic: node reports heartbeats to all peers, so
+            // leader processes heartbeats as usual and follower
+            // schedules no new jobs but aborts all jobs scheduled
+            // while being leader.
+            ValidatePeer(EPeerKind::LeaderOrFollower);
+
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            if (hydraManager->IsFollower()) {
+                for (const auto& jobStatus : request->jobs()) {
+                    auto jobId = FromProto<TJobId>(jobStatus.job_id());
+                    auto state = CheckedEnumCast<EJobState>(jobStatus.state());
+
+                    switch (state) {
+                        case EJobState::Completed:
+                        case EJobState::Failed:
+                        case EJobState::Aborted:
+                            continue;
+                        case EJobState::Running:
+                        case EJobState::Waiting:
+                            AddJobToAbort(response, {jobId});
+                            break;
+                        default:
+                            YT_ABORT();
+                    }
+                }
+
+                return;
+            }
+        } else {
+            // Old logic: node reports heartbeats to leader only, so
+            // attempt to report heartbeat to follower should end up
+            // with an error.
+            ValidatePeer(EPeerKind::Leader);
+        }
 
         auto nodeId = request->node_id();
 
