@@ -23,6 +23,10 @@ message TReqHeartbeat
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;
     optional bool supports_interruption_logic = 12;
+
+    // COMPAT(gritukan)
+    optional bool reports_heartbeats_to_all_peers = 13;
+
     reserved 11;
 }
 
