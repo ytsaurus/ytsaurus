@@ -125,33 +125,41 @@ public:
         , Bootstrap_(bootstrap)
         , SuccessfulSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfuleSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/unsuccessful_seals"))
-        , SealExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkSealer),
-            BIND(&TChunkSealer::OnRefresh, MakeWeak(this))))
         , SealScanner_(std::make_unique<TChunkScanner>(
             Bootstrap_->GetObjectManager(),
             EChunkScanKind::Seal,
-            true /*isJournal*/))
+            /*isJournal*/ true))
     {
-        YT_VERIFY(Config_);
-        YT_VERIFY(Bootstrap_);
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Start(TChunk* frontJournalChunk, int journalChunkCount) override
+    void Start() override
     {
-        SealScanner_->Start(frontJournalChunk, journalChunkCount);
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
+
+        SealExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkSealer),
+            BIND(&TChunkSealer::OnRefresh, MakeWeak(this)),
+            GetDynamicConfig()->ChunkRefreshPeriod);
         SealExecutor_->Start();
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+        YT_VERIFY(!std::exchange(Running_, true));
+
+        YT_LOG_INFO("Chunk sealer started");
     }
 
     void Stop() override
     {
-        SealExecutor_->Stop();
+        SealScanner_->Stop();
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+        SealExecutor_->Stop();
+        SealExecutor_.Reset();
+
+        YT_VERIFY(std::exchange(Running_, false));
+
+        YT_LOG_INFO("Chunk sealer stopped");
     }
 
     bool IsEnabled() override
@@ -162,6 +170,11 @@ public:
     void ScheduleSeal(TChunk* chunk) override
     {
         YT_ASSERT(IsObjectAlive(chunk));
+
+        // Fast path.
+        if (!Running_) {
+            return;
+        }
 
         if (IsSealNeeded(chunk)) {
             SealScanner_->EnqueueChunk(chunk);
@@ -181,6 +194,11 @@ public:
     // IJobController implementation.
     void ScheduleJobs(IJobSchedulingContext* context) override
     {
+        // Fast path.
+        if (!Running_) {
+            return;
+        }
+
         auto* node = context->GetNode();
         const auto& resourceUsage = context->GetNodeResourceUsage();
         const auto& resourceLimits = context->GetNodeResourceLimits();
@@ -245,14 +263,11 @@ private:
 
     const TAsyncSemaphorePtr Semaphore_ = New<TAsyncSemaphore>(0);
 
-    const TPeriodicExecutorPtr SealExecutor_;
+    TPeriodicExecutorPtr SealExecutor_;
     const std::unique_ptr<TChunkScanner> SealScanner_;
 
-    const TCallback<void(TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this));
-
     bool Enabled_ = true;
-
+    bool Running_ = false;
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
     {
@@ -262,7 +277,9 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
-        SealExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+        if (SealExecutor_) {
+            SealExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+        }
         Semaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkSeals);
     }
 
@@ -339,7 +356,6 @@ private:
         YT_LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
             chunk->GetId());
     }
-
 
     void OnRefresh()
     {

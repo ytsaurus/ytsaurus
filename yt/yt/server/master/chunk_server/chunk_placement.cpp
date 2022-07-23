@@ -196,7 +196,10 @@ TChunkPlacement::TChunkPlacement(
     : Bootstrap_(bootstrap)
     , Config_(bootstrap->GetConfig()->ChunkManager)
     , ConsistentPlacement_(std::move(consistentPlacement))
-{ }
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TChunkPlacement::OnDynamicConfigChanged, MakeWeak(this)));
+}
 
 void TChunkPlacement::Clear()
 {
@@ -217,7 +220,7 @@ void TChunkPlacement::Initialize()
     OnDynamicConfigChanged();
 }
 
-void TChunkPlacement::OnDynamicConfigChanged()
+void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     IsDataCenterAware_ = GetDynamicConfig()->UseDataCenterAwareReplicator;
 

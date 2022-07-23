@@ -22,23 +22,43 @@ TChunkScanner::TChunkScanner(
         Journal_))
 { }
 
-void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
+void TChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
 {
     YT_VERIFY(!GlobalIterator_);
-    YT_VERIFY(GlobalCount_ < 0);
+    YT_VERIFY(GlobalCount_ == 0);
 
-    ScheduleGlobalScan(frontChunk, chunkCount);
+    ScheduleGlobalScan(descriptor);
+
+    YT_VERIFY(!std::exchange(Running_, true));
 }
 
-void TChunkScanner::ScheduleGlobalScan(TChunk* frontChunk, int chunkCount)
+void TChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor)
 {
-    GlobalIterator_ = frontChunk;
-    GlobalCount_ = chunkCount;
+    GlobalIterator_ = descriptor.FrontChunk;
+    GlobalCount_ = descriptor.ChunkCount;
 
-    YT_VERIFY(!IsObjectAlive(frontChunk) || frontChunk->IsJournal() == Journal_);
+    YT_VERIFY(!IsObjectAlive(GlobalIterator_) || GlobalIterator_->IsJournal() == Journal_);
 
     YT_LOG_INFO("Global chunk scan started (ChunkCount: %v)",
         GlobalCount_);
+}
+
+void TChunkScanner::Stop()
+{
+    YT_LOG_INFO("Global chunk scan stopped (RemainingChunkCount: %v)",
+        GetQueueSize());
+
+    // Clear global chunk scan state.
+    GlobalIterator_ = nullptr;
+    GlobalCount_ = 0;
+
+    // NB: Queue may be huge, so we offload its destruction into heavy thread.
+    std::queue<TQueueEntry> queue;
+    std::swap(Queue_, queue);
+    NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+        BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
+
+    YT_VERIFY(std::exchange(Running_, false));
 }
 
 void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
@@ -50,6 +70,10 @@ void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
 
 bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 {
+    if (!Running_) {
+        return false;
+    }
+
     if (chunk->GetScanFlag(Kind_)) {
         return false;
     }
@@ -63,6 +87,8 @@ bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 
 TChunk* TChunkScanner::DequeueChunk()
 {
+    YT_VERIFY(Running_);
+
     if (GlobalIterator_) {
         auto* chunk = GlobalIterator_;
         AdvanceGlobalIterator();
@@ -85,6 +111,8 @@ TChunk* TChunkScanner::DequeueChunk()
 
 bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
+    YT_VERIFY(Running_);
+
     if (GlobalIterator_) {
         return true;
     }

@@ -286,6 +286,12 @@ constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = Migrati
 
 constexpr i64 MaxReplicaLagLimit = Max<i64>() / 4;
 
+struct TGlobalChunkScanDescriptor
+{
+    TChunk* FrontChunk;
+    int ChunkCount;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

@@ -15,7 +15,7 @@ struct IChunkSealer
     : public IJobController
 {
 public:
-    virtual void Start(TChunk* frontJournalChunk, int journalChunkCount) = 0;
+    virtual void Start() = 0;
     virtual void Stop() = 0;
 
     virtual bool IsEnabled() = 0;
