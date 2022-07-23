@@ -36,7 +36,7 @@ struct IChunkManager
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    virtual const TJobRegistryPtr& GetJobRegistry() const = 0;
+    virtual const IJobRegistryPtr& GetJobRegistry() const = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
         const NProto::TReqUpdateChunkRequisition& request) = 0;
@@ -318,6 +318,9 @@ struct IChunkManager
 
     //! Returns global chunk scan descriptor for blob chunks.
     virtual TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor() const = 0;
+
+    //! Aborts job both in job controller and job registry.
+    virtual void AbortAndRemoveJob(const TJobPtr& job) = 0;
 
 private:
     friend class TChunkTypeHandler;

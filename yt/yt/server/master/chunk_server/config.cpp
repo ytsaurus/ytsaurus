@@ -465,6 +465,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(50'000);
 
+    registrar.Parameter("abort_jobs_on_epoch_finish", &TThis::AbortJobsOnEpochFinish)
+        .Default(true);
+
     registrar.Parameter("enable_per_node_incremental_heartbeat_profiling", &TThis::EnablePerNodeIncrementalHeartbeatProfiling)
         .Default(false)
         .DontSerializeDefault();

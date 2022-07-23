@@ -112,7 +112,6 @@ using TChunkReplicaIndexList = TCompactVector<int, ChunkReplicaIndexBound>;
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
 
-DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 
 DECLARE_REFCOUNTED_CLASS(TJob)
@@ -123,6 +122,7 @@ DECLARE_REFCOUNTED_STRUCT(IChunkSealer)
 DECLARE_REFCOUNTED_STRUCT(ICompositeJobController)
 DECLARE_REFCOUNTED_STRUCT(IDataNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(IJobController)
+DECLARE_REFCOUNTED_STRUCT(IJobRegistry)
 
 DECLARE_REFCOUNTED_CLASS(TChunkMerger)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
@@ -261,6 +261,9 @@ constexpr int MediumDefaultPriority = 0;
 using TChunkLists = TEnumIndexedVector<EChunkListContentType, TChunkList*>;
 
 using TChunkRequisitionIndex = ui32;
+
+using TJobEpoch = int;
+constexpr TJobEpoch InvalidJobEpoch = -1;
 
 //! Refers to a requisition specifying that a chunk is not required by any account
 //! on any medium.

@@ -465,6 +465,8 @@ public:
 
     int FinishedJobsQueueSize;
 
+    bool AbortJobsOnEpochFinish;
+
     //! Controls if node={{node}} tag should be added to incremental heartbeat sensors.
     bool EnablePerNodeIncrementalHeartbeatProfiling;
 

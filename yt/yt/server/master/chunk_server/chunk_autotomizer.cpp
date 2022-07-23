@@ -105,6 +105,7 @@ public:
 public:
     TAutotomyJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TChunkId bodyChunkId,
         const TChunkSealInfo& bodySealInfo,
         TChunkId tailChunkId,
@@ -113,6 +114,7 @@ public:
         : TJob(
             jobId,
             EJobType::AutotomizeChunk,
+            jobEpoch,
             /*node*/ nullptr,
             TAutotomyJob::GetResourceUsage(),
             TChunkIdWithIndexes(bodyChunkId, GenericChunkReplicaIndex, GenericMediumIndex))
@@ -445,6 +447,9 @@ private:
     //! Queue of created but not scheduled jobs.
     std::queue<TJobId> PendingJobs_;
 
+    //! Current job epoch.
+    TJobEpoch JobEpoch_ = InvalidJobEpoch;
+
     // Autotomy is successful if it ends up with tail chunk seal
     // and unsuccessful otherwise.
     const TCounter SuccessfulAutotomyCounter_;
@@ -725,6 +730,10 @@ private:
         for (const auto& [bodyChunkId, autotomyState] : RegisteredChunks_) {
             ChunkRefreshQueue_.push(bodyChunkId);
         }
+
+        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+        YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
+        JobEpoch_ = jobRegistry->StartEpoch();
     }
 
     void OnStopLeading() override
@@ -746,6 +755,14 @@ private:
         if (ChunkUnstageExecutor_) {
             ChunkUnstageExecutor_->Stop();
             ChunkUnstageExecutor_.Reset();
+        }
+
+        PendingJobs_ = {};
+
+        if (JobEpoch_ != InvalidJobEpoch) {
+            const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+            jobRegistry->OnEpochFinished(JobEpoch_);
+            JobEpoch_ = InvalidJobEpoch;
         }
     }
 
@@ -1224,6 +1241,7 @@ private:
 
             auto job = New<TAutotomyJob>(
                 jobId,
+                JobEpoch_,
                 bodyChunkId,
                 autotomyState->ChunkSealInfo,
                 tailChunkId,
@@ -1231,8 +1249,9 @@ private:
                 urgent);
 
             YT_LOG_DEBUG("Autotomy job created "
-                "(JobId: %v, BodyChunkId: %v, TailChunkId: %v, Speculative: %v, Urgent: %v)",
+                "(JobId: %v, JobEpoch: %v, BodyChunkId: %v, TailChunkId: %v, Speculative: %v, Urgent: %v)",
                 jobId,
+                JobEpoch_,
                 bodyChunkId,
                 tailChunkId,
                 speculative,

@@ -19,7 +19,7 @@ struct IJobSchedulingContext
 
     virtual void ScheduleJob(const TJobPtr& job) = 0;
 
-    virtual const TJobRegistryPtr& GetJobRegistry() const = 0;
+    virtual const IJobRegistryPtr& GetJobRegistry() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

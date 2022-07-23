@@ -35,65 +35,38 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobRegistry
+struct IJobRegistry
     : public TRefCounted
 {
-public:
-    TJobRegistry(
-        TChunkManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
-    ~TJobRegistry();
+    virtual void RegisterJob(TJobPtr job) = 0;
+    virtual void OnJobFinished(TJobPtr job) = 0;
 
-    void RegisterJob(const TJobPtr& job);
-    void OnJobFinished(TJobPtr job);
+    virtual TJobPtr FindJob(TJobId jobId) = 0;
 
-    void Start();
-    void Stop();
+    virtual TJobPtr FindLastFinishedJob(TChunkId chunkId) const = 0;
 
-    bool IsOverdraft() const;
+    virtual const THashSet<TJobPtr>& GetNodeJobs(const TString& nodeAddress) const = 0;
 
-    bool IsOverdraft(EJobType jobType) const;
+    virtual int GetJobCount(EJobType jobType) const = 0;
 
-    void OverrideResourceLimits(NNodeTrackerClient::NProto::TNodeResources* resourceLimits, const TNode& node);
+    virtual TJobEpoch StartEpoch() = 0;
+    virtual void OnEpochFinished(TJobEpoch epoch) = 0;
 
-    int GetJobCount(EJobType type) const;
+    virtual bool IsOverdraft() const = 0;
+    virtual bool IsOverdraft(EJobType jobType) const = 0;
 
-    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
+    virtual void OverrideResourceLimits(
+        NNodeTrackerClient::NProto::TNodeResources* resourceLimits,
+        const TNode& node) = 0;
 
-    TJobPtr FindLastFinishedJob(TChunkId chunkId) const;
-
-private:
-    const TChunkManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* const Bootstrap_;
-
-    using TJobCounters = TEnumIndexedVector<EJobType, i64, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
-    // Number of jobs running - per job type. For profiling.
-    TJobCounters RunningJobs_;
-
-    TJobCounters JobsStarted_;
-    TJobCounters JobsCompleted_;
-    TJobCounters JobsFailed_;
-    TJobCounters JobsAborted_;
-
-    int FinishedJobQueueSizeLimit_ = 0;
-    TEnumIndexedVector<EJobType, TEnumIndexedVector<EJobState, TRingQueue<TJobPtr>>> FinishedJobQueues_;
-    THashMap<TChunkId, TJobPtr> LastFinishedJobs_;
-
-    void RegisterFinishedJob(const TJobPtr& job);
-
-    static THashMap<EJobType, NConcurrency::IReconfigurableThroughputThrottlerPtr> CreatePerTypeJobThrottlers();
-
-    const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
-    const THashMap<EJobType, NConcurrency::IReconfigurableThroughputThrottlerPtr> PerTypeJobThrottlers_;
-
-    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this));
-
-    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
+    virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobRegistry)
+DEFINE_REFCOUNTED_TYPE(IJobRegistry)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobRegistryPtr CreateJobRegistry(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

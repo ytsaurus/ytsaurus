@@ -25,11 +25,13 @@ using namespace NJobTrackerClient::NProto;
 TJob::TJob(
     TJobId jobId,
     EJobType type,
+    TJobEpoch jobEpoch,
     NNodeTrackerServer::TNode* node,
     const TNodeResources& resourceUsage,
     TChunkIdWithIndexes chunkIdWithIndexes)
     : JobId_(jobId)
     , Type_(type)
+    , JobEpoch_(jobEpoch)
     , NodeAddress_(IsObjectAlive(node) ? node->GetDefaultAddress() : "")
     , ResourceUsage_(resourceUsage)
     , ChunkIdWithIndexes_(chunkIdWithIndexes)

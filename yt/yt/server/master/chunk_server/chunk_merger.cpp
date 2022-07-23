@@ -90,6 +90,7 @@ void FromProto(TChunkMergerTraversalInfo* traversalInfo, const NProto::TTraversa
 
 TMergeJob::TMergeJob(
     TJobId jobId,
+    TJobEpoch jobEpoch,
     TMergeJobInfo jobInfo,
     NNodeTrackerServer::TNode* node,
     TChunkIdWithIndexes chunkIdWithIndexes,
@@ -97,7 +98,13 @@ TMergeJob::TMergeJob(
     TChunkMergerWriterOptions chunkMergerWriterOptions,
     TNodePtrWithIndexesList targetReplicas,
     bool validateShallowMerge)
-    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(inputChunks), chunkIdWithIndexes)
+    : TJob(
+        jobId,
+        EJobType::MergeChunks,
+        jobEpoch,
+        node,
+        TMergeJob::GetResourceUsage(inputChunks),
+        chunkIdWithIndexes)
     , TargetReplicas_(targetReplicas)
     , JobInfo_(std::move(jobInfo))
     , InputChunks_(std::move(inputChunks))
@@ -739,6 +746,10 @@ void TChunkMerger::OnLeaderActive()
 
         RegisterSessionTransient(node);
     }
+
+    const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+    YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
+    JobEpoch_ = jobRegistry->StartEpoch();
 }
 
 void TChunkMerger::OnStopLeading()
@@ -767,6 +778,12 @@ void TChunkMerger::OnStopLeading()
     if (FinalizeSessionExecutor_) {
         FinalizeSessionExecutor_->Stop();
         FinalizeSessionExecutor_.Reset();
+    }
+
+    if (JobEpoch_ != InvalidJobEpoch) {
+        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+        jobRegistry->OnEpochFinished(JobEpoch_);
+        JobEpoch_ = InvalidJobEpoch;
     }
 }
 
@@ -1272,6 +1289,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     auto validateShallowMerge = static_cast<int>(RandomNumber<ui32>() % 100) < config->ShallowMergeValidationProbability;
     auto job = New<TMergeJob>(
         jobInfo.JobId,
+        JobEpoch_,
         jobInfo,
         context->GetNode(),
         chunkIdWithIndexes,
@@ -1282,8 +1300,9 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Merge job scheduled "
-        "(JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v)",
         job->GetJobId(),
+        job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
         jobInfo.NodeId,
         jobInfo.InputChunkIds,

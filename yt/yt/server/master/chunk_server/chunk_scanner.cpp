@@ -45,6 +45,10 @@ void TChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor)
 
 void TChunkScanner::Stop()
 {
+    if (!Running_) {
+        return;
+    }
+
     YT_LOG_INFO("Global chunk scan stopped (RemainingChunkCount: %v)",
         GetQueueSize());
 
