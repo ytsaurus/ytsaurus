@@ -973,9 +973,11 @@ private:
                     EBackupStage::AwaitingReplicationFinish);
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Tablet has passed backup checkpoint but still has replicator writes "
-                    "in progress (%v, PreparedTransactionCount: %v)",
+                    "in progress (%v, PreparedTransactionIds: %v)",
                     tablet->GetLoggingTag(),
-                    std::ssize(tablet->PreparedReplicatorTransactionIds()));
+                    MakeFormattableView(
+                        tablet->PreparedReplicatorTransactionIds(),
+                        TDefaultFormatter{}));
                 continue;
             }
 

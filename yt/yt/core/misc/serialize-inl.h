@@ -8,6 +8,7 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
+#include <library/cpp/yt/small_containers/compact_set.h>
 
 #include <optional>
 #include <variant>
@@ -1035,6 +1036,12 @@ struct TSorterSelector<THashSet<T...>, C, TSortedTag>
     using TSorter = TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>>;
 };
 
+template <class C, class T, unsigned N, class Q>
+struct TSorterSelector<TCompactSet<T, N, Q>, C, TSortedTag>
+{
+    typedef TNoopSorter<TCompactSet<T, N, Q>, C> TSorter;
+};
+
 template <class C, class... T>
 struct TSorterSelector<std::unordered_multiset<T...>, C, TSortedTag>
 {
@@ -1794,6 +1801,12 @@ template <class T, class H, class E, class A, class C>
 struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
 {
     using TSerializer = TSetSerializer<>;
+};
+
+template <class T, unsigned N, class Q, class C>
+struct TSerializerTraits<TCompactSet<T, N, Q>, C, void>
+{
+    typedef TSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
