@@ -32,9 +32,9 @@ public:
         , NameTable_(std::move(nameTable))
     { }
 
-    const TTableSchema& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
-        return *Schema_;
+        return Schema_;
     }
 
     const TNameTablePtr& GetNameTable() const override

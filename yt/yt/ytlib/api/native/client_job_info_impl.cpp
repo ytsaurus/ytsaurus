@@ -400,8 +400,8 @@ TOperationId TClient::TryGetOperationId(
     }
 
     auto row = rows[0];
-    auto operationIdHiIndex = rowset->GetSchema().GetColumnIndexOrThrow("operation_id_hi");
-    auto operationIdLoIndex = rowset->GetSchema().GetColumnIndexOrThrow("operation_id_lo");
+    auto operationIdHiIndex = rowset->GetSchema()->GetColumnIndexOrThrow("operation_id_hi");
+    auto operationIdLoIndex = rowset->GetSchema()->GetColumnIndexOrThrow("operation_id_lo");
     auto operationIdHi = row[operationIdHiIndex];
     auto operationIdLo = row[operationIdLoIndex];
     YT_VERIFY(operationIdHi.Type == EValueType::Uint64);
@@ -1044,9 +1044,8 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
     auto findColumnIndex = [&] (auto ...names) -> std::optional<int> {
         for (auto name : {names...,}) {
-            auto column = schema.FindColumn(name);
-            if (column) {
-                return schema.GetColumnIndex(*column);
+            if (auto column = schema->FindColumn(name)) {
+                return schema->GetColumnIndex(*column);
             }
         }
         return {};

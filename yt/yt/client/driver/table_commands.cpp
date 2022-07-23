@@ -720,8 +720,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    // TODO(babenko): refcounted schema
-    auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
     writer->Write(rowset->GetRows());
 
@@ -926,8 +925,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
-        // TODO(babenko): refcounted schema
-        auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
+        auto writer = CreateVersionedWriterForFormat(format, rowset->GetSchema(), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();
@@ -936,8 +934,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
 
-        // TODO(babenko): refcounted schema
-        auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
+        auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();
@@ -983,12 +980,12 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
     });
 
     if (pullResult.Versioned) {
-        auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
+        auto writer = CreateVersionedWriterForFormat(format, pullResult.Rowset->GetSchema(), output);
         writer->Write(ReinterpretCastRange<TVersionedRow>(pullResult.Rowset->GetRows()));
         WaitFor(writer->Close())
             .ThrowOnError();
     } else {
-        auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
+        auto writer = CreateSchemafulWriterForFormat(format, pullResult.Rowset->GetSchema(), output);
         writer->Write(ReinterpretCastRange<TUnversionedRow>(pullResult.Rowset->GetRows()));
         WaitFor(writer->Close())
             .ThrowOnError();

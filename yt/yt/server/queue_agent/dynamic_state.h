@@ -70,8 +70,8 @@ struct TQueueTableRow
 
     static std::vector<TQueueTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        NTableClient::TNameTablePtr nameTable,
-        const NTableClient::TTableSchema& schema);
+        const NTableClient::TNameTablePtr& nameTable,
+        const NTableClient::TTableSchemaPtr& schema);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueTableRow> keys);
@@ -119,8 +119,8 @@ struct TConsumerTableRow
 
     static std::vector<TConsumerTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        NTableClient::TNameTablePtr nameTable,
-        const NTableClient::TTableSchema& schema);
+        const NTableClient::TNameTablePtr& nameTable,
+        const NTableClient::TTableSchemaPtr& schema);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerTableRow> keys);
