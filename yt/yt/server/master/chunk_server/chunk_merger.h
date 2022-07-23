@@ -77,6 +77,7 @@ public:
     using TChunkVector = TCompactVector<TChunk*, 16>;
     TMergeJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TMergeJobInfo jobInfo,
         NNodeTrackerServer::TNode* node,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
@@ -156,6 +157,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr ChunkCreatorExecutor_;
     NConcurrency::TPeriodicExecutorPtr StartTransactionExecutor_;
     NConcurrency::TPeriodicExecutorPtr FinalizeSessionExecutor_;
+
+    TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
     bool Enabled_ = false;
 

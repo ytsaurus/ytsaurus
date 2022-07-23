@@ -72,11 +72,13 @@ class TSealJob
 public:
     TSealJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes)
         : TJob(
             jobId,
             EJobType::SealChunk,
+            jobEpoch,
             node,
             TSealJob::GetResourceUsage(),
             ToChunkIdWithIndexes(chunkWithIndexes))
@@ -145,6 +147,10 @@ public:
             GetDynamicConfig()->ChunkRefreshPeriod);
         SealExecutor_->Start();
 
+        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+        YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
+        JobEpoch_ = jobRegistry->StartEpoch();
+
         YT_VERIFY(!std::exchange(Running_, true));
 
         YT_LOG_INFO("Chunk sealer started");
@@ -152,10 +158,18 @@ public:
 
     void Stop() override
     {
+        if (!Running_) {
+            return;
+        }
+
         SealScanner_->Stop();
 
         SealExecutor_->Stop();
         SealExecutor_.Reset();
+
+        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
+        jobRegistry->OnEpochFinished(JobEpoch_);
+        JobEpoch_ = InvalidJobEpoch;
 
         YT_VERIFY(std::exchange(Running_, false));
 
@@ -268,6 +282,8 @@ private:
 
     bool Enabled_ = true;
     bool Running_ = false;
+
+    TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
     {
@@ -604,12 +620,15 @@ private:
 
         auto job = New<TSealJob>(
             context->GenerateJobId(),
+            JobEpoch_,
             context->GetNode(),
             chunkWithIndexes);
         context->ScheduleJob(job);
 
-        YT_LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+        YT_LOG_DEBUG("Seal job scheduled "
+            "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
             job->GetJobId(),
+            job->GetJobEpoch(),
             job->NodeAddress(),
             chunkWithIndexes);
 

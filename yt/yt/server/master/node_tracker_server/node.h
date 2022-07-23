@@ -86,8 +86,6 @@ public:
     using TChunkPtrWithIndex = NChunkServer::TChunkPtrWithIndex;
     using TChunkId = NChunkServer::TChunkId;
     using TChunk = NChunkServer::TChunk;
-    using TJobId = NChunkServer::TJobId;
-    using TJobPtr = NChunkServer::TJobPtr;
     template <typename T>
     using TMediumMap = NChunkClient::TMediumMap<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
@@ -225,9 +223,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
     DEFINE_BYVAL_RO_PROPERTY(TDestroyedReplicaSet::iterator, DestroyedReplicasIterator);
 
-    using TJobMap = THashMap<TJobId, TJobPtr>;
-    DEFINE_BYREF_RO_PROPERTY(TJobMap, IdToJob);
-
     //! Indexed by priority. Each map is as follows:
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
@@ -352,10 +347,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    TJobPtr FindJob(TJobId jobId);
-    void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job);
 
     // Chunk Manager stuff.
     void ReserveReplicas(int mediumIndex, int sizeHint);

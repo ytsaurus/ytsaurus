@@ -109,6 +109,7 @@ public:
 public:
     TReplicationJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes,
         const TNodePtrWithIndexesList& targetReplicas,
@@ -116,6 +117,7 @@ public:
         : TJob(
             jobId,
             EJobType::ReplicateChunk,
+            jobEpoch,
             node,
             TReplicationJob::GetResourceUsage(chunkWithIndexes.GetPtr()),
             ToChunkIdWithIndexes(chunkWithIndexes))
@@ -159,12 +161,14 @@ class TRemovalJob
 public:
     TRemovalJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TNode* node,
         TChunk* chunk,
         const TChunkIdWithIndexes& chunkIdWithIndexes)
         : TJob(
             jobId,
             EJobType::RemoveChunk,
+            jobEpoch,
             node,
             TRemovalJob::GetResourceUsage(),
             chunkIdWithIndexes)
@@ -224,6 +228,7 @@ public:
 public:
     TRepairJob(
         TJobId jobId,
+        TJobEpoch jobEpoch,
         TNode* node,
         i64 jobMemoryUsage,
         TChunk* chunk,
@@ -232,6 +237,7 @@ public:
         : TJob(
             jobId,
             EJobType::RepairChunk,
+            jobEpoch,
             node,
             TRepairJob::GetResourceUsage(chunk, jobMemoryUsage),
             TChunkIdWithIndexes{chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex})
@@ -291,7 +297,7 @@ TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
-    TJobRegistryPtr jobRegistry)
+    IJobRegistryPtr jobRegistry)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
@@ -360,12 +366,18 @@ void TChunkReplicator::Start()
     FinishedRequisitionTraverseFlushExecutor_->Start();
     EnabledCheckExecutor_->Start();
 
+    YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
+    JobEpoch_ = JobRegistry_->StartEpoch();
+
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
 }
 
 void TChunkReplicator::Stop()
 {
+    JobRegistry_->OnEpochFinished(JobEpoch_);
+    JobEpoch_ = InvalidJobEpoch;
+
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
@@ -1121,7 +1133,6 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
 
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
-    YT_VERIFY(node->IdToJob().empty());
     YT_VERIFY(node->ChunkSealQueue().empty());
     YT_VERIFY(node->ChunkRemovalQueue().empty());
     for (const auto& queue : node->ChunkPushReplicationQueues()) {
@@ -1281,6 +1292,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     auto job = New<TReplicationJob>(
         context->GenerateJobId(),
+        JobEpoch_,
         sourceNode,
         chunkWithIndexes,
         targetReplicas,
@@ -1289,8 +1301,10 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     finallyGuard.Release();
 
-    YT_LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
+    YT_LOG_DEBUG("Replication job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
         job->GetJobId(),
+        job->GetJobEpoch(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
@@ -1334,14 +1348,17 @@ bool TChunkReplicator::TryScheduleBalancingJob(
 
     auto job = New<TReplicationJob>(
         context->GenerateJobId(),
+        JobEpoch_,
         sourceNode,
         chunkWithIndexes,
         targetReplicas,
         InvalidNodeId);
     context->ScheduleJob(job);
 
-    YT_LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
+    YT_LOG_DEBUG("Balancing job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
         job->GetJobId(),
+        job->GetJobEpoch(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
         targetNode->GetDefaultAddress());
@@ -1368,13 +1385,16 @@ bool TChunkReplicator::TryScheduleRemovalJob(
 
     auto job = New<TRemovalJob>(
         context->GenerateJobId(),
+        JobEpoch_,
         context->GetNode(),
         IsObjectAlive(chunk) ? chunk : nullptr,
         chunkIdWithIndexes);
     context->ScheduleJob(job);
 
-    YT_LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Removal job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
         job->GetJobId(),
+        job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
         chunkIdWithIndexes);
 
@@ -1475,6 +1495,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
 
     auto job = New<TRepairJob>(
         context->GenerateJobId(),
+        JobEpoch_,
         context->GetNode(),
         GetDynamicConfig()->RepairJobMemoryUsage,
         chunk,
@@ -1486,8 +1507,10 @@ bool TChunkReplicator::TryScheduleRepairJob(
         mediumIndex,
         job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
 
-    YT_LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
+    YT_LOG_DEBUG("Repair job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
         job->GetJobId(),
+        job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
         chunkWithIndexes,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
@@ -1644,8 +1667,10 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     }
 
     // Schedule removal jobs.
+    const auto& nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+
     THashSet<TChunkIdWithIndexes> chunksBeingRemoved;
-    for (const auto& [_, job] : node->IdToJob()) {
+    for (const auto& job : nodeJobs) {
         if (job->GetType() != EJobType::RemoveChunk) {
             continue;
         }

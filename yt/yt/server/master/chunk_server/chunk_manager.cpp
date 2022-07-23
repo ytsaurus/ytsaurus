@@ -266,7 +266,7 @@ public:
         TNode* node,
         NNodeTrackerClient::NProto::TNodeResources* nodeResourceUsage,
         NNodeTrackerClient::NProto::TNodeResources* nodeResourceLimits,
-        TJobRegistryPtr jobRegistry)
+        IJobRegistryPtr jobRegistry)
         : Bootstrap_(bootstrap)
         , Node_(node)
         , NodeResourceUsage_(nodeResourceUsage)
@@ -309,7 +309,7 @@ public:
         return ScheduledJobs_;
     }
 
-    const TJobRegistryPtr& GetJobRegistry() const override
+    const IJobRegistryPtr& GetJobRegistry() const override
     {
         return JobRegistry_;
     }
@@ -321,7 +321,7 @@ private:
     NNodeTrackerClient::NProto::TNodeResources* const NodeResourceUsage_;
     NNodeTrackerClient::NProto::TNodeResources* const NodeResourceLimits_;
 
-    const TJobRegistryPtr JobRegistry_;
+    const IJobRegistryPtr JobRegistry_;
 
     std::vector<TJobPtr> ScheduledJobs_;
 };
@@ -364,6 +364,7 @@ public:
         , ChunkPlacement_(New<TChunkPlacement>(
             Bootstrap_,
             ConsistentChunkPlacement_))
+        , JobRegistry_(CreateJobRegistry(Bootstrap_))
         , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
@@ -514,7 +515,7 @@ public:
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
     }
 
-    const TJobRegistryPtr& GetJobRegistry() const override
+    const IJobRegistryPtr& GetJobRegistry() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1812,7 +1813,7 @@ public:
         auto removeJob = [&] (TJobId jobId) {
             ToProto(response->add_jobs_to_remove(), {jobId});
 
-            if (auto job = node->FindJob(jobId)) {
+            if (auto job = JobRegistry_->FindJob(jobId)) {
                 JobRegistry_->OnJobFinished(job);
             }
         };
@@ -1836,8 +1837,7 @@ public:
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = CheckedEnumCast<EJobState>(jobStatus.state());
             auto jobError = FromProto<TError>(jobStatus.result().error());
-            auto job = node->FindJob(jobId);
-            if (job) {
+            if (auto job = JobRegistry_->FindJob(jobId)) {
                 YT_VERIFY(processedJobs.emplace(job).second);
 
                 auto jobType = job->GetType();
@@ -1959,11 +1959,11 @@ public:
             abortJob(jobToAbort->GetJobId());
         }
 
-        auto jobs = node->IdToJob();
-        for (const auto& [jobId, job] : jobs) {
+        const auto& nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+        for (const auto& job : nodeJobs) {
             if (!processedJobs.contains(job)) {
                 YT_LOG_WARNING("Job is missing, aborting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                    jobId,
+                    job->GetJobId(),
                     job->GetType(),
                     address,
                     job->GetChunkIdWithIndexes());
@@ -2567,7 +2567,7 @@ private:
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
     const TChunkPlacementPtr ChunkPlacement_;
 
-    TJobRegistryPtr JobRegistry_;
+    const IJobRegistryPtr JobRegistry_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
 
@@ -2763,8 +2763,8 @@ private:
             node,
             EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
 
-        auto jobs = node->IdToJob();
-        for (const auto& [jobId, job] : jobs) {
+        const auto& jobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+        for (const auto& job : jobs) {
             AbortAndRemoveJob(job);
         }
 
@@ -4686,7 +4686,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
-        JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
 
         JobController_ = CreateCompositeJobController();
@@ -4704,7 +4703,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        JobRegistry_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
 
@@ -4732,21 +4730,6 @@ private:
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();
             ChunkReplicator_.Reset();
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& node : nodeTracker->Nodes()) {
-            auto jobMap = node.second->IdToJob();
-            for (const auto& [jobId, job] : jobMap) {
-                // TODO(shakurov): make sure AbortAndRemoveJob does nothing that
-                // shouldn't be done outside of an epoch.
-                AbortAndRemoveJob(job);
-            }
-        }
-
-        if (JobRegistry_) {
-            JobRegistry_->Stop();
-            JobRegistry_.Reset();
         }
 
         ChunkSealer_->Stop();
@@ -5300,7 +5283,7 @@ private:
         medium->Config()->MaxReplicationFactor = Config_->MaxReplicationFactor;
     }
 
-    void AbortAndRemoveJob(const TJobPtr& job)
+    void AbortAndRemoveJob(const TJobPtr& job) override
     {
         job->SetState(EJobState::Aborted);
 

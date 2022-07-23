@@ -41,7 +41,7 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,
-        TJobRegistryPtr jobRegistry);
+        IJobRegistryPtr jobRegistry);
 
     ~TChunkReplicator();
 
@@ -166,7 +166,9 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
-    const TJobRegistryPtr JobRegistry_;
+    const IJobRegistryPtr JobRegistry_;
+
+    TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;

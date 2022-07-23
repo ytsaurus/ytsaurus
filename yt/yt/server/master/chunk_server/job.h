@@ -25,6 +25,7 @@ class TJob
 public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(TJobEpoch, JobEpoch);
     DEFINE_BYREF_RO_PROPERTY(TString, NodeAddress);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
@@ -44,6 +45,7 @@ public:
     TJob(
         TJobId jobId,
         EJobType type,
+        TJobEpoch jobEpoch,
         NNodeTrackerServer::TNode* node,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes);
