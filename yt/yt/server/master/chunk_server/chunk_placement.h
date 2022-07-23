@@ -94,8 +94,6 @@ public:
     void Clear();
     void Initialize();
 
-    void OnDynamicConfigChanged();
-
     void OnNodeRegistered(TNode* node);
     void OnNodeUpdated(TNode* node);
     void OnNodeUnregistered(TNode* node);
@@ -187,6 +185,8 @@ private:
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
+
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
 
     void RegisterNode(TNode* node);
     void UnregisterNode(TNode* node);

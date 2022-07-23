@@ -347,16 +347,14 @@ TChunkReplicator::TChunkReplicator(
 TChunkReplicator::~TChunkReplicator()
 { }
 
-void TChunkReplicator::Start(
-    TChunk* blobFrontChunk,
-    int blobChunkCount,
-    TChunk* journalFrontChunk,
-    int journalChunkCount)
+void TChunkReplicator::Start()
 {
-    BlobRefreshScanner_->Start(blobFrontChunk, blobChunkCount);
-    JournalRefreshScanner_->Start(journalFrontChunk, journalChunkCount);
-    BlobRequisitionUpdateScanner_->Start(blobFrontChunk, blobChunkCount);
-    JournalRequisitionUpdateScanner_->Start(journalFrontChunk, journalChunkCount);
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor());
+    JournalRefreshScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
+    BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor());
+    JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
+
     RefreshExecutor_->Start();
     RequisitionUpdateExecutor_->Start();
     FinishedRequisitionTraverseFlushExecutor_->Start();
@@ -2130,14 +2128,11 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
     }
 }
 
-void TChunkReplicator::ScheduleGlobalChunkRefresh(
-    TChunk* blobFrontChunk,
-    int blobChunkCount,
-    TChunk* journalFrontChunk,
-    int journalChunkCount)
+void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
-    BlobRefreshScanner_->ScheduleGlobalScan(blobFrontChunk, blobChunkCount);
-    JournalRefreshScanner_->ScheduleGlobalScan(journalFrontChunk, journalChunkCount);
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    BlobRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalBlobChunkScanDescriptor());
+    JournalRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalJournalChunkScanDescriptor());
 }
 
 void TChunkReplicator::OnRefresh()

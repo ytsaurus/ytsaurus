@@ -48,10 +48,13 @@ public:
 
     //! Must be called exactly once upon initialization.
     //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
-    void Start(TChunk* frontChunk, int chunkCount);
+    void Start(TGlobalChunkScanDescriptor descriptor);
 
     //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
-    void ScheduleGlobalScan(TChunk* frontChunk, int chunkCount);
+    void ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor);
+
+    //! Stops chunk scan. Clears both global chunk scan state and chunk queue.
+    void Stop();
 
     //! Notifies the scanner that a certain #chunk is dead.
     //! Enables advancing global iterator to avoid pointing to dead chunks.
@@ -59,8 +62,8 @@ public:
 
     //! Enqueues a given #chunk.
     /*!
-     *  If the chunk is already queued (as indicated by its scan flag), does
-     *  nothing and returns |false|.
+     *  If the chunk is already queued (as indicated by its scan flag) or scanner is stopped,
+     *  does nothing and returns |false|.
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
      */
@@ -96,15 +99,16 @@ private:
     const NLogging::TLogger Logger;
 
     TChunk* GlobalIterator_ = nullptr;
-    int GlobalCount_ = -1;
+    int GlobalCount_ = 0;
 
     struct TQueueEntry
     {
         NObjectServer::TEphemeralObjectPtr<TChunk> Chunk;
         NProfiling::TCpuInstant Instant;
     };
-
     std::queue<TQueueEntry> Queue_;
+
+    bool Running_ = false;
 
     void AdvanceGlobalIterator();
 };

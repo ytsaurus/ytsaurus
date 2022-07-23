@@ -45,11 +45,7 @@ public:
 
     ~TChunkReplicator();
 
-    void Start(
-        TChunk* blobFrontChunk,
-        int blobChunkCount,
-        TChunk* journalFrontChunk,
-        int journalChunkCount);
+    void Start();
     void Stop();
 
     void OnNodeDisposed(TNode* node);
@@ -83,11 +79,7 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
-    void ScheduleGlobalChunkRefresh(
-        TChunk* blobFrontChunk,
-        int blobChunkCount,
-        TChunk* journalFrontChunk,
-        int journalChunkCount);
+    void ScheduleGlobalChunkRefresh();
 
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);

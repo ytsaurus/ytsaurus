@@ -357,6 +357,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(Bootstrap_->GetConfig()->ChunkManager)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
+        , ChunkSealer_(CreateChunkSealer(Bootstrap_))
         , ConsistentChunkPlacement_(New<TConsistentChunkPlacement>(
             Bootstrap_,
             DefaultConsistentReplicaPlacementReplicasPerChunk))
@@ -1274,9 +1275,8 @@ public:
         if (ChunkReplicator_) {
             ChunkReplicator_->OnChunkDestroyed(chunk);
         }
-        if (ChunkSealer_) {
-            ChunkSealer_->OnChunkDestroyed(chunk);
-        }
+
+        ChunkSealer_->OnChunkDestroyed(chunk);
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             ConsistentChunkPlacement_->RemoveChunk(chunk);
@@ -2055,7 +2055,7 @@ public:
 
     bool IsChunkSealerEnabled() override
     {
-        return ChunkSealer_ && ChunkSealer_->IsEnabled();
+        return ChunkSealer_->IsEnabled();
     }
 
 
@@ -2136,9 +2136,7 @@ public:
 
     void ScheduleChunkSeal(TChunk* chunk) override
     {
-        if (ChunkSealer_) {
-            ChunkSealer_->ScheduleSeal(chunk);
-        }
+        ChunkSealer_->ScheduleSeal(chunk);
     }
 
     void ScheduleChunkMerge(TChunkOwnerBase* node) override
@@ -2286,11 +2284,7 @@ public:
     void ScheduleGlobalChunkRefresh() override
     {
         if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleGlobalChunkRefresh(
-                BlobChunks_.GetFront(),
-                BlobChunks_.GetSize(),
-                JournalChunks_.GetFront(),
-                JournalChunks_.GetSize());
+            ChunkReplicator_->ScheduleGlobalChunkRefresh();
         }
     }
 
@@ -2468,6 +2462,22 @@ public:
         return result;
     }
 
+    TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor() const override
+    {
+        return TGlobalChunkScanDescriptor{
+            .FrontChunk = JournalChunks_.GetFront(),
+            .ChunkCount = JournalChunks_.GetSize(),
+        };
+    }
+
+    TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor() const override
+    {
+        return TGlobalChunkScanDescriptor{
+            .FrontChunk = BlobChunks_.GetFront(),
+            .ChunkCount = BlobChunks_.GetSize(),
+        };
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
@@ -2548,7 +2558,7 @@ private:
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
     TChunkReplicatorPtr ChunkReplicator_;
-    IChunkSealerPtr ChunkSealer_;
+    const IChunkSealerPtr ChunkSealer_;
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
@@ -4669,7 +4679,6 @@ private:
 
         JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
-        ChunkSealer_ = CreateChunkSealer(Bootstrap_);
 
         JobController_ = CreateCompositeJobController();
         JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
@@ -4687,12 +4696,8 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         JobRegistry_->Start();
-        ChunkReplicator_->Start(
-            BlobChunks_.GetFront(),
-            BlobChunks_.GetSize(),
-            JournalChunks_.GetFront(),
-            JournalChunks_.GetSize());
-        ChunkSealer_->Start(JournalChunks_.GetFront(), JournalChunks_.GetSize());
+        ChunkReplicator_->Start();
+        ChunkSealer_->Start();
 
         {
             NProto::TReqConfirmChunkListsRequisitionTraverseFinished request;
@@ -4735,10 +4740,7 @@ private:
             JobRegistry_.Reset();
         }
 
-        if (ChunkSealer_) {
-            ChunkSealer_->Stop();
-            ChunkSealer_.Reset();
-        }
+        ChunkSealer_->Stop();
 
         ExpirationTracker_->Stop();
 
@@ -5340,8 +5342,6 @@ private:
                 }
             }
         }
-
-        ChunkPlacement_->OnDynamicConfigChanged();
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }

@@ -313,6 +313,12 @@ struct IChunkManager
     //! This reflects the target chunk placement, not the actual one.
     virtual TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const = 0;
 
+    //! Returns global chunk scan descriptor for journal chunks.
+    virtual TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor() const = 0;
+
+    //! Returns global chunk scan descriptor for blob chunks.
+    virtual TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor() const = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;
