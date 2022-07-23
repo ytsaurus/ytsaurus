@@ -1959,7 +1959,7 @@ public:
             abortJob(jobToAbort->GetJobId());
         }
 
-        const auto& nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+        auto nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
         for (const auto& job : nodeJobs) {
             if (!processedJobs.contains(job)) {
                 YT_LOG_WARNING("Job is missing, aborting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
@@ -2763,7 +2763,7 @@ private:
             node,
             EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
 
-        const auto& jobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+        auto jobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
         for (const auto& job : jobs) {
             AbortAndRemoveJob(job);
         }
