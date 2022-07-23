@@ -98,6 +98,8 @@ private:
     void InitializeProfilingCounters();
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TCellBundle)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellServer

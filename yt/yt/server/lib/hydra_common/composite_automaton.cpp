@@ -172,7 +172,12 @@ bool TCompositeAutomatonPart::IsRecovery() const
 
 bool TCompositeAutomatonPart::IsMutationLoggingEnabled() const
 {
-    return HydraManager_->IsMutationLoggingEnabled();
+    if (HydraManager_) {
+        return HydraManager_->IsMutationLoggingEnabled();
+    } else {
+        // NB: May be missing in unittests.
+        return true;
+    }
 }
 
 void TCompositeAutomatonPart::OnStartLeading()

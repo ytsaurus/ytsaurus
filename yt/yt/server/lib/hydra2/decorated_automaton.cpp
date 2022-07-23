@@ -1068,6 +1068,12 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     if (Config_->EnableStateHashChecker) {
         StateHashChecker_->Report(sequenceNumber, StateHash_);
     }
+
+    if (const auto& invariantsCheckProbability = Config_->InvariantsCheckProbability) {
+        if (RandomNumber<double>() <= invariantsCheckProbability) {
+            Automaton_->CheckInvariants();
+        }
+    }
 }
 
 EPeerState TDecoratedAutomaton::GetState() const

@@ -754,7 +754,7 @@ public:
                 THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
             }
 
-            if (cell->GetCellBundle() != bundle.Get()) {
+            if (cell->CellBundle() != bundle) {
                 THROW_ERROR_EXCEPTION("%v %v and tablet cell %v belong to different bundles",
                     table->GetCapitalizedObjectName(),
                     table->GetId(),
@@ -877,11 +877,11 @@ public:
         }
 
         auto validateCellBundle = [table] (const TTabletCell* cell) {
-            if (cell->GetCellBundle() != table->TabletCellBundle().Get()) {
+            if (cell->CellBundle() != table->TabletCellBundle()) {
                 THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the %v "
                     "is configured to use bundle %Qv",
                     cell->GetId(),
-                    cell->GetCellBundle()->GetName(),
+                    cell->CellBundle()->GetName(),
                     table->GetLowercaseObjectName(),
                     table->TabletCellBundle()->GetName());
             }
@@ -3550,7 +3550,7 @@ private:
                 YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
                 auto* cell = cellBase->As<TTabletCell>();
                 if (IsCellActive(cell)) {
-                    healthyBundles.insert(cell->GetCellBundle());
+                    healthyBundles.insert(cell->CellBundle().Get());
                     continue;
                 }
             }
@@ -7458,7 +7458,7 @@ private:
                 continue;
             }
 
-            if (cell->GetCellBundle() == table->TabletCellBundle().Get()) {
+            if (cell->CellBundle() == table->TabletCellBundle()) {
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }

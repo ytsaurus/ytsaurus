@@ -355,7 +355,7 @@ private:
                     const auto* cell = pair.first;
                     int peerId = pair.second;
                     builder->AppendFormat("<%v,%v,%v,%v>",
-                        cell->GetCellBundle()->GetName(),
+                        cell->CellBundle()->GetName(),
                         cell->GetArea()->GetName(),
                         cell->GetId(),
                         peerId);

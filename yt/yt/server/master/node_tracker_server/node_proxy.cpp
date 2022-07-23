@@ -755,9 +755,9 @@ private:
                         fluent
                             .Item("cell_id").Value(slot.Cell->GetId())
                             .Item("peer_id").Value(slot.PeerId)
-                            .Item("cell_bundle").Value(slot.Cell->GetCellBundle()->GetName())
+                            .Item("cell_bundle").Value(slot.Cell->CellBundle()->GetName())
                             // COMPAT(savrus)
-                            .Item("tablet_cell_bundle").Value(slot.Cell->GetCellBundle()->GetName());
+                            .Item("tablet_cell_bundle").Value(slot.Cell->CellBundle()->GetName());
                     })
                     .EndMap();
             });

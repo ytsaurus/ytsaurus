@@ -176,11 +176,11 @@ private:
                 return true;
 
             case EInternedAttributeKey::TabletCellBundle:
-                if (!cell->GetCellBundle()) {
+                if (!cell->CellBundle()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(cell->GetCellBundle()->GetName());
+                    .Value(cell->CellBundle()->GetName());
                 return true;
 
             default:

@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixCellarHeartbeat)                                           (2039))  // savrus
     ((SetNoneForHunkErasureCodecAttribute)                          (2040))  // gritukan
     ((OrderedChaosTables)                                           (2041))  // savrus
+    ((RecomputeCellBundleRefCounters)                               (2042))  // gritukan
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

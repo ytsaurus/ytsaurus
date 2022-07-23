@@ -306,7 +306,7 @@ private:
     {
         std::vector<const TTabletCell*> cells;
         for (const auto* cell : bundle->Cells()) {
-            if (IsObjectAlive(cell) && !cell->IsDecommissionStarted() && cell->GetCellBundle() == bundle) {
+            if (IsObjectAlive(cell) && !cell->IsDecommissionStarted() && cell->CellBundle().Get() == bundle) {
                 YT_VERIFY(cell->GetType() == EObjectType::TabletCell);
                 cells.push_back(cell->As<TTabletCell>());
             }

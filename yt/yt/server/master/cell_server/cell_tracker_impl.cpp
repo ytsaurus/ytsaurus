@@ -212,7 +212,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
             }
         }
 
-        if (!cell->GetCellBundle()->GetOptions()->IndependentPeers) {
+        if (!cell->CellBundle()->GetOptions()->IndependentPeers) {
             ScheduleLeaderReassignment(cell);
         }
         SchedulePeerAssignment(cell, balancer.get());
@@ -285,7 +285,7 @@ const TDynamicTabletManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
 void TCellTrackerImpl::Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors)
 {
     for (const auto& moveDescriptor : moveDescriptors) {
-        moveDescriptor.Cell->GetCellBundle()
+        moveDescriptor.Cell->CellBundle()
             ->ProfilingCounters()
             .TabletCellMoves.Increment();
     }
@@ -336,7 +336,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_peer_id(newLeaderId);
 
-    cell->GetCellBundle()
+    cell->CellBundle()
         ->ProfilingCounters()
         .GetLeaderReassignment(error.GetCode())
         .Increment();
@@ -392,7 +392,7 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
         }
     }
 
-    cell->GetCellBundle()
+    cell->CellBundle()
         ->ProfilingCounters()
         .PeerAssignment
         .Increment(assignCount);
@@ -440,7 +440,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
 
             balancer->RevokePeer(cell, peerId, error);
 
-            cell->GetCellBundle()
+            cell->CellBundle()
                 ->ProfilingCounters()
                 .GetPeerRevocation(error.GetCode())
                 .Increment();
