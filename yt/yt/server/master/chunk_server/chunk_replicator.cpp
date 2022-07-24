@@ -341,10 +341,12 @@ TChunkReplicator::~TChunkReplicator()
 void TChunkReplicator::Start()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor());
-    JournalRefreshScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
-    BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor());
-    JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        BlobRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+    }
 
     RefreshExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
@@ -2245,8 +2247,10 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    BlobRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalBlobChunkScanDescriptor());
-    JournalRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalJournalChunkScanDescriptor());
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+    }
 }
 
 void TChunkReplicator::OnRefresh()

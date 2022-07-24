@@ -139,7 +139,9 @@ public:
     void Start() override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            SealScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        }
 
         SealExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkSealer),
@@ -162,7 +164,9 @@ public:
             return;
         }
 
-        SealScanner_->Stop();
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            SealScanner_->Stop(shardIndex);
+        }
 
         SealExecutor_->Stop();
         SealExecutor_.Reset();

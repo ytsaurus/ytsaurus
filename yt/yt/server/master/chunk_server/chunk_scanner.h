@@ -33,6 +33,9 @@ namespace NYT::NChunkServer {
  *  3. Provides the effective size of the queue, including manually queued chunks and
  *  those scheduled for the global scan.
  *
+ *  4. Allows to scan chunks which are divided into several shards, including
+ *  starting and stopping particular shard scan in O(1) time.
+ *
  *  To avoid adding a chunk to the queue multiple times, scan flags are used
  *  (cf. #TChunk::GetScanFlag).
  *
@@ -46,15 +49,16 @@ public:
         EChunkScanKind kind,
         bool journal);
 
-    //! Must be called exactly once upon initialization.
-    //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
-    void Start(TGlobalChunkScanDescriptor descriptor);
+    //! Starts scan of one of the shards.
+    //! Schedules #chunkCount chunks starting from #frontChunk for the global shard scan.
+    void Start(int shardIndex, TGlobalChunkScanDescriptor descriptor);
 
-    //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
-    void ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor);
+    //! Schedules #chunkCount chunks starting from #frontChunk for the global shard scan.
+    void ScheduleGlobalScan(int shardIndex, TGlobalChunkScanDescriptor descriptor);
 
-    //! Stops chunk scan. Clears both global chunk scan state and chunk queue.
-    void Stop();
+    //! Stops scan of the shard. No more chunks from the shard will be returned
+    //! from the |DequeueChunk| call.
+    void Stop(int shardIndex);
 
     //! Notifies the scanner that a certain #chunk is dead.
     //! Enables advancing global iterator to avoid pointing to dead chunks.
@@ -64,6 +68,8 @@ public:
     /*!
      *  If the chunk is already queued (as indicated by its scan flag) or scanner is stopped,
      *  does nothing and returns |false|.
+     *
+     *  If the chunk belongs to a shard which is not scanned, does nothing and returns |false|.
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
      */
@@ -78,8 +84,10 @@ public:
      *
      *  If no chunk is available, returns |nullptr|.
      *
-     *  In both cases, the returned chunk may be a zombie. It is caller's responsibility
-     *  to handle this situation.
+     *  Note that |nullptr| as a result does not mean that there are no more chunks to scan.
+     *  Subsequent calls of |DequeueChunk| may return non-null chunks. Existence of the
+     *  unscanned chunks should be checked via |HasUnscannedChunk| call.
+     *
      */
     TChunk* DequeueChunk();
 
@@ -98,8 +106,15 @@ private:
     const bool Journal_;
     const NLogging::TLogger Logger;
 
-    TChunk* GlobalIterator_ = nullptr;
-    int GlobalCount_ = 0;
+    struct TGlobalChunkScanShard
+    {
+        TChunk* Iterator = nullptr;
+        int ChunkCount = 0;
+    };
+    std::array<TGlobalChunkScanShard, ChunkShardCount> GlobalChunkScanShards_;
+    int ActiveGlobalChunkScanIndex_ = -1;
+
+    std::bitset<ChunkShardCount> ActiveShardIndices_;
 
     struct TQueueEntry
     {
@@ -108,9 +123,9 @@ private:
     };
     std::queue<TQueueEntry> Queue_;
 
-    bool Running_ = false;
+    void AdvanceGlobalIterator(int shardIndex);
 
-    void AdvanceGlobalIterator();
+    void RecomputeActiveGlobalChunkScanIndex();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

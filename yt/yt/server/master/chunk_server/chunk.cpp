@@ -1,6 +1,8 @@
 #include "chunk.h"
+
 #include "chunk_list.h"
 #include "chunk_tree_statistics.h"
+#include "helpers.h"
 #include "medium.h"
 #include "private.h"
 
@@ -49,6 +51,7 @@ const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 TChunk::TChunk(TChunkId id)
     : TChunkTree(id)
     , ChunkMeta_(TImmutableChunkMeta::CreateNull())
+    , ShardIndex_(GetChunkShardIndex(id))
     , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
         : MigrationChunkRequisitionIndex)

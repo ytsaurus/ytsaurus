@@ -1220,6 +1220,11 @@ void SerializeMediumOverrides(
     }
 }
 
+int GetChunkShardIndex(TChunkId chunkId)
+{
+    return TDirectObjectIdHash()(chunkId) % ChunkShardCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

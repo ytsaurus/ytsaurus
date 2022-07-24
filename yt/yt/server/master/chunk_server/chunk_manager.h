@@ -314,10 +314,10 @@ struct IChunkManager
     virtual TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const = 0;
 
     //! Returns global chunk scan descriptor for journal chunks.
-    virtual TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor() const = 0;
+    virtual TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor(int shardIndex) const = 0;
 
     //! Returns global chunk scan descriptor for blob chunks.
-    virtual TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor() const = 0;
+    virtual TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor(int shardIndex) const = 0;
 
     //! Aborts job both in job controller and job registry.
     virtual void AbortAndRemoveJob(const TJobPtr& job) = 0;

@@ -2451,19 +2451,21 @@ public:
         return result;
     }
 
-    TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor() const override
+    TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor(int shardIndex) const override
     {
+        const auto& chunkList = JournalChunks_[shardIndex];
         return TGlobalChunkScanDescriptor{
-            .FrontChunk = JournalChunks_.GetFront(),
-            .ChunkCount = JournalChunks_.GetSize(),
+            .FrontChunk = chunkList.GetFront(),
+            .ChunkCount = chunkList.GetSize(),
         };
     }
 
-    TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor() const override
+    TGlobalChunkScanDescriptor GetGlobalBlobChunkScanDescriptor(int shardIndex) const override
     {
+        const auto& chunkList = BlobChunks_[shardIndex];
         return TGlobalChunkScanDescriptor{
-            .FrontChunk = BlobChunks_.GetFront(),
-            .ChunkCount = BlobChunks_.GetSize(),
+            .FrontChunk = chunkList.GetFront(),
+            .ChunkCount = chunkList.GetSize(),
         };
     }
 
@@ -2565,8 +2567,11 @@ private:
     const TChunkMergerPtr ChunkMerger_;
 
     // Global chunk lists; cf. TChunkDynamicData.
-    TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode> BlobChunks_;
-    TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode> JournalChunks_;
+    using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;
+    using TShardedGlobalChunkList = std::array<TGlobalChunkList, ChunkShardCount>;
+
+    TShardedGlobalChunkList BlobChunks_;
+    TShardedGlobalChunkList JournalChunks_;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
@@ -4328,8 +4333,13 @@ private:
     {
         TMasterAutomatonPart::Clear();
 
-        BlobChunks_.Clear();
-        JournalChunks_.Clear();
+        for (auto& chunkList : BlobChunks_) {
+            chunkList.Clear();
+        }
+        for (auto& chunkList : JournalChunks_) {
+            chunkList.Clear();
+        }
+
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
         ChunkViewMap_.Clear();
@@ -4721,7 +4731,8 @@ private:
 
     TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>& GetAllChunksLinkedList(TChunk* chunk)
     {
-        return chunk->IsJournal() ? JournalChunks_ : BlobChunks_;
+        auto shardIndex = chunk->GetShardIndex();
+        return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
     }
 
 
