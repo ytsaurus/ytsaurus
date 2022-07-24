@@ -3,11 +3,9 @@ package ru.yandex.spark.launcher
 import com.codahale.metrics.{Gauge, MetricRegistry}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.{Logger, LoggerFactory}
-import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
+import ru.yandex.spark.launcher.ClusterStateService.State
+import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
-import ru.yandex.yt.ytclient.proxy.request.{GetOperation, UpdateOperationParameters}
 
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicReference
@@ -24,16 +22,15 @@ object AutoScaler {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private object Metrics {
-    private case class MetricsState(state: State, userSlots: Long)
-    private val currentState: AtomicReference[MetricsState] = new AtomicReference()
+    private val currentState: AtomicReference[State] = new AtomicReference()
 
     val metricRegistry: MetricRegistry = new MetricRegistry()
 
-    def updateState(state: State, userSlots: Long): Unit = {
+    def updateState(state: State): Unit = {
       if (currentState.get() == null) {
         registerMetrics()
       }
-      currentState.set(MetricsState(state, userSlots))
+      currentState.set(state)
     }
 
     def registerMetrics(): Unit = {
@@ -42,35 +39,35 @@ object AutoScaler {
         })
 
         metricRegistry.register("running_jobs", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.operationState.runningJobs
+            override def getValue: Long = currentState.get().operationState.runningJobs
         })
 
         metricRegistry.register("planned_jobs", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.operationState.plannedJobs
+            override def getValue: Long = currentState.get().operationState.plannedJobs
         })
 
         metricRegistry.register("max_workers", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.maxWorkers
+            override def getValue: Long = currentState.get().sparkState.maxWorkers
         })
 
         metricRegistry.register("busy_workers", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.busyWorkers
+            override def getValue: Long = currentState.get().sparkState.busyWorkers
         })
 
         metricRegistry.register("waiting_apps", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.waitingApps
+            override def getValue: Long = currentState.get().sparkState.waitingApps
         })
 
         metricRegistry.register("cores_total", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.coresTotal
+            override def getValue: Long = currentState.get().sparkState.coresTotal
         })
 
         metricRegistry.register("cores_used", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.coresUsed
+            override def getValue: Long = currentState.get().sparkState.coresUsed
         })
 
         metricRegistry.register("max_wait_app_time_ms", new Gauge[Long] {
-            override def getValue: Long = currentState.get().state.sparkState.maxAppAwaitTimeMs
+            override def getValue: Long = currentState.get().sparkState.maxAppAwaitTimeMs
         })
     }
 
@@ -85,68 +82,6 @@ object AutoScaler {
       .setNameFormat("auto-scaler-%d")
       .build()
   )
-
-  trait ClusterStateService {
-    def query: Option[State]
-    def setUserSlots(count: Long): Unit
-  }
-
-  def clusterStateService(discoveryService: DiscoveryService, yt: CompoundClient): ClusterStateService =
-    new ClusterStateService {
-      val sparkStateService: SparkStateService =
-        SparkStateService.sparkStateService(discoveryService.discoverAddress().get.webUiHostAndPort,
-          discoveryService.discoverAddress().get.restHostAndPort)
-
-      override def query: Option[State] = {
-        log.debug("Querying cluster state")
-        discoveryService.operations() match {
-          case Some(OperationSet(_, children, _)) =>
-            if (children.isEmpty) {
-              log.error("Autoscaler operation with empty children ops called")
-              None
-            } else {
-              import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService.YTreeNodeExt
-              val workersOp = children.iterator.next() // just single children op supported now
-              log.info(s"Worker operation $workersOp")
-              val opStats = yt.getOperation(new GetOperation(GUID.valueOf(workersOp))).join()
-              val totalJobs = opStats.longAttribute("spec", "tasks", "workers", "job_count")
-              val runningJobs = opStats.longAttribute("brief_progress", "jobs", "running")
-              val currentUserSlots = opStats.longAttribute("runtime_parameters",
-                "scheduling_options_per_pool_tree", "physical", "resource_limits", "user_slots")
-              val operationState = for {
-                total <- totalJobs
-                running <- runningJobs
-                slots <- currentUserSlots.orElse(Some(total))
-              } yield OperationState(total, running, Math.max(0L, slots - running))
-              log.debug(s"operation $workersOp state: $operationState slots: $currentUserSlots")
-              val sparkState = sparkStateService.query
-              log.info(s"spark state: $sparkState")
-              val state = for {
-                operation <- operationState
-                spark <- sparkState.toOption
-              } yield State(operation, spark)
-              log.info(s"result state: $state")
-              for {
-                st <- state
-                sl <- currentUserSlots.orElse(Some(st.operationState.maxJobs))
-              } Metrics.updateState(st, sl)
-              state
-            }
-          case None =>
-            log.error("Autoscaler not supported for single op mode")
-            None
-        }
-      }
-
-      override def setUserSlots(slots: Long): Unit = {
-        val op = GUID.valueOf(discoveryService.operations().get.children.iterator.next())
-        val req = new UpdateOperationParameters(op)
-          .addSchedulingOptions("physical",
-              new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(slots)))
-        log.debug(s"Updating operation parameters: $req")
-        yt.updateOperationParameters(req).join()
-      }
-    }
 
   def autoScaleFunctionSliding(conf: Conf)(f: State => Action): (Seq[Action], State) => (Seq[Action], Action) = {
       case (window, newState) =>
@@ -169,39 +104,50 @@ object AutoScaler {
   }
 
   def autoScaleFunctionBasic(conf: Conf): State => Action = {
-    case State(operationState, sparkState) =>
-      if (sparkState.freeWorkers > conf.maxFreeWorkers && sparkState.waitingApps == 0) // always reduce planned jobs
-        SetUserSlot(Math.max(sparkState.busyWorkers, conf.maxFreeWorkers))
-      else if (operationState.plannedJobs > 0) // wait till all jobs started
-        DoNothing
-      // no free workers all there are apps waiting
-      else if (sparkState.freeWorkers == 0 || sparkState.waitingApps > 0) {
-        if (operationState.freeJobs > 0 )     // increase jobs count if there are slots left
-          SetUserSlot(Math.min(operationState.maxJobs, operationState.runningJobs + conf.slotIncrementStep))
-        else // no free slots left
+    case State(operationState, sparkState, slots) =>
+      val expectedWorkers = sparkState.busyWorkers + operationState.plannedJobs
+      log.debug(s"Expected workers count: $expectedWorkers," +
+        s" freeWorkers=${sparkState.freeWorkers}, freeJobs=${operationState.freeJobs}")
+      if (sparkState.freeWorkers > conf.maxFreeWorkers && sparkState.waitingApps == 0) { // always reduce planned jobs
+        val optimalSlots = Math.max(sparkState.busyWorkers, conf.maxFreeWorkers)
+        if (optimalSlots < slots)
+          SetUserSlot(slots - conf.slotDecrementStep)
+        else
           DoNothing
-      } else {
-        DoNothing  // there are free workers left
       }
+      // no free workers
+      else if (sparkState.freeWorkers < conf.minFreeWorkers && operationState.freeJobs > 0)
+        SetUserSlot(Math.min(operationState.maxJobs, slots + conf.slotIncrementStep))
+      else
+        DoNothing  // there are free workers left
   }
 
   def build(conf: Conf, discoveryService: DiscoveryService, yt: CompoundClient): AutoScaler = {
-    val stateService = AutoScaler.clusterStateService(discoveryService, yt)
+    val stateService = ClusterStateService(discoveryService, yt)
     autoScaler(stateService, Seq[Action]())(autoScaleFunctionSliding(conf)(autoScaleFunctionBasic(conf)))
   }
+
+  def jobsToStop(clusterStateService: ClusterStateService, currentSlots: Long, newSlots: Long): Set[String] =
+    if (newSlots < currentSlots)
+      clusterStateService.idleJobs.toSet.take((currentSlots - newSlots).toInt)
+    else
+      Set()
+
 
   def autoScaler[T](clusterStateService: ClusterStateService, zero: T)(f: (T, State) => (T, Action)): AutoScaler = {
       val st = new AtomicReference(zero)
       () => {
         log.debug("Autoscaling...")
         clusterStateService.query
-          .map { clusterState =>
+          .foreach { clusterState =>
             val (newState, action) = f(st.get, clusterState)
             st.set(newState)
+            Metrics.updateState(clusterState)
             action match {
               case SetUserSlot(count) =>
-                log.info(s"Updating user slots: $count")
-                clusterStateService.setUserSlots(count)
+                val toStop = jobsToStop(clusterStateService, clusterState.userSlots, count)
+                log.info(s"Updating user slots: $count, stop following jobs: [${toStop.mkString(", ")}]")
+                clusterStateService.setUserSlots(count, toStop)
               case DoNothing =>
                 log.info("Nothing to do")
             }
@@ -240,14 +186,12 @@ object AutoScaler {
       s"SparkState(maxWorkers=$maxWorkers, busyWorkers=$busyWorkers, waitingApps=$waitingApps)"
   }
 
-  case class State(operationState: OperationState, sparkState: SparkState)
-
-
   sealed trait Action
   case object DoNothing extends Action
   case class SetUserSlot(count: Long) extends Action
 
-  case class Conf(period: FiniteDuration, slidingWindowSize: Int, maxFreeWorkers: Long, slotIncrementStep: Long)
+  case class Conf(period: FiniteDuration, slidingWindowSize: Int, maxFreeWorkers: Long, minFreeWorkers: Long,
+                  slotIncrementStep: Long, slotDecrementStep: Long)
 
   object Conf {
     def apply(props: Map[String, String]): Option[Conf] = {
@@ -263,7 +207,9 @@ object AutoScaler {
             period = period,
             slidingWindowSize = props.get("spark.autoscaler.sliding_window_size").map(_.toInt).getOrElse(1),
             maxFreeWorkers = props.get("spark.autoscaler.max_free_workers").map(_.toLong).getOrElse(1),
-            slotIncrementStep = props.get("spark.autoscaler.slots_increment_step").map(_.toLong).getOrElse(1)
+            minFreeWorkers = props.get("spark.autoscaler.min_free_workers").map(_.toLong).getOrElse(1),
+            slotIncrementStep = props.get("spark.autoscaler.slots_increment_step").map(_.toLong).getOrElse(1),
+            slotDecrementStep = props.get("spark.autoscaler.slots_decrement_step").map(_.toLong).getOrElse(1)
           )
         }
     }

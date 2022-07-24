@@ -303,6 +303,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     else:
         spark_home = "./tmpfs"
 
+    def script_path(script):
+        return "{}/{}".format(spark_home, driver_op_discovery_script)
+
     def _launcher_command(component, xmx="512m"):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(
             spark_home)
@@ -316,17 +319,26 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     master_command = _launcher_command("Master")
 
+    def _script_absolute_path(script):
+        return "{}/{}".format(spark_home, script)
+
     worker_log_location = "yt:/{}".format(spark_discovery.worker_log())
     if "spark.workerLog.tablePath" not in config["spark_conf"]:
         config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
     if driver_op_discovery_script:
-        script_absolute_path = "{}/{}".format(spark_home, driver_op_discovery_script)
+        script_absolute_path = _script_absolute_path(driver_op_discovery_script)
         config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(
             driver_op_resources)
         config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = script_absolute_path
         config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = script_absolute_path
     if extra_metrics_enabled:
         config["spark_conf"]["spark.ui.prometheus.enabled"] = "true"
+
+    config["spark_conf"]["spark.worker.resource.jobid.amount"] = "1"
+    config["spark_conf"]["spark.worker.resource.jobid.discoveryScript"] = _script_absolute_path(
+        "spark/bin/job-id-discovery.sh")
+    config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
+        "spark/bin/job-id-discovery.sh")
 
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \

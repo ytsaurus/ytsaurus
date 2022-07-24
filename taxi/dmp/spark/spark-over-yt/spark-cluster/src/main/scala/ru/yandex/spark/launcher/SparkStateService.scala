@@ -21,6 +21,7 @@ trait SparkStateService {
   def query: Try[SparkState]
   def activeWorkers: Try[Seq[WorkerInfo]]
   def workerStats(workers: Seq[WorkerInfo]): Seq[Try[WorkerStats]]
+  def idleWorkers(workers: Seq[WorkerInfo]): Seq[WorkerInfo]
   def masterStats: Try[MasterStats]
   def appStats: Try[Seq[AppStats]]
 
@@ -46,6 +47,7 @@ object SparkStateService {
                         alive: Boolean, resources: Map[String, ResourceInfo]) {
     def isDriverOp: Boolean = resources.contains("driverop")
     def metricsUrl: Uri = uri"$webUiAddress/metrics/prometheus"
+    def ytJobId: Option[String] = resources.get("jobid").flatMap(_.addresses.headOption)
   }
 
   case class ResourceInfo(name: String, addresses: Seq[String])
@@ -167,6 +169,14 @@ object SparkStateService {
                 body => parseWorkerMetrics(body, wi)
               )
         }
+
+      override def idleWorkers(workers: Seq[WorkerInfo]): Seq[WorkerInfo] = {
+        val stats = workerStats(workers)
+        workers.zip(stats)
+          .filter(_._2.isSuccess) // let's ignore workers with failed stats request
+          .filter(_._2.get.coresUsed == 0)
+          .map(_._1)
+      }
 
 
       def parseMetrics(prefix: String, resp: String, ignoreNotMatching: Boolean = false): Try[Map[String, Long]] = {
