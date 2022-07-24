@@ -397,10 +397,12 @@ void TChunkReplicator::Stop()
     JobRegistry_->OnEpochFinished(JobEpoch_);
     JobEpoch_ = InvalidJobEpoch;
 
-    BlobRefreshScanner_->Stop();
-    JournalRefreshScanner_->Stop();
-    BlobRequisitionUpdateScanner_->Stop();
-    JournalRequisitionUpdateScanner_->Stop();
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        BlobRefreshScanner_->Stop(shardIndex);
+        JournalRefreshScanner_->Stop(shardIndex);
+        BlobRequisitionUpdateScanner_->Stop(shardIndex);
+        JournalRequisitionUpdateScanner_->Stop(shardIndex);
+    }
 
     RefreshExecutor_->Stop();
     RefreshExecutor_.Reset();
