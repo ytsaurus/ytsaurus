@@ -302,52 +302,37 @@ TChunkReplicator::TChunkReplicator(
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
     , JobRegistry_(std::move(jobRegistry))
-    , RefreshExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
-        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this))))
     , BlobRefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::Refresh,
-        false /*journal*/))
+        /*journal*/ false))
     , JournalRefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::Refresh,
-        true /*journal*/))
-    , RequisitionUpdateExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
-        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this))))
+        /*journal*/ true))
     , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate,
-        false /*journal*/))
+        /*journal*/ false))
     , JournalRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::RequisitionUpdate,
-        true /*journal*/))
-    , FinishedRequisitionTraverseFlushExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
-        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this))))
+        /*journal*/ true))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
     , DecommissionedPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
-    , EnabledCheckExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-        BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
-        Config_->ReplicatorEnabledCheckPeriod))
 {
-    YT_VERIFY(Config_);
-    YT_VERIFY(Bootstrap_);
-    YT_VERIFY(ChunkPlacement_);
-    YT_VERIFY(JobRegistry_);
-
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
         MissingPartChunkRepairQueueBalancer_.AddContender(i);
         DecommissionedPartChunkRepairQueueBalancer_.AddContender(i);
     }
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 TChunkReplicator::~TChunkReplicator()
@@ -361,49 +346,114 @@ void TChunkReplicator::Start()
     BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor());
     JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor());
 
+    RefreshExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
+        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
+        GetDynamicConfig()->ChunkRefreshPeriod);
     RefreshExecutor_->Start();
+
+    RequisitionUpdateExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
+        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
+        GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
     RequisitionUpdateExecutor_->Start();
+
+    FinishedRequisitionTraverseFlushExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
+        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this)),
+        GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
     FinishedRequisitionTraverseFlushExecutor_->Start();
+
+    EnabledCheckExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+        BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
+        Config_->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
 
     YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
     JobEpoch_ = JobRegistry_->StartEpoch();
 
-    const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+    YT_VERIFY(!std::exchange(Running_, true));
+
+    // Just in case.
+    Enabled_ = false;
+
+    YT_LOG_INFO("Chunk replicator started");
 }
 
 void TChunkReplicator::Stop()
 {
+    if (!std::exchange(Running_, false)) {
+        return;
+    }
+
+    ClearChunkRequisitionCache();
+    TmpRequisitionRegistry_.Clear();
+
+    LastPerNodeProfilingTime_ = TInstant::Zero();
+
     JobRegistry_->OnEpochFinished(JobEpoch_);
     JobEpoch_ = InvalidJobEpoch;
 
-    const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+    BlobRefreshScanner_->Stop();
+    JournalRefreshScanner_->Stop();
+    BlobRequisitionUpdateScanner_->Stop();
+    JournalRequisitionUpdateScanner_->Stop();
 
-    for (const auto& queue : MissingPartChunkRepairQueues_) {
+    RefreshExecutor_->Stop();
+    RefreshExecutor_.Reset();
+
+    RequisitionUpdateExecutor_->Stop();
+    RequisitionUpdateExecutor_.Reset();
+
+    FinishedRequisitionTraverseFlushExecutor_->Stop();
+    FinishedRequisitionTraverseFlushExecutor_.Reset();
+
+    EnabledCheckExecutor_->Stop();
+    EnabledCheckExecutor_.Reset();
+
+    ChunkListIdsWithFinishedRequisitionTraverse_.clear();
+
+    for (auto& queue : MissingPartChunkRepairQueues_) {
         for (auto chunkWithIndexes : queue) {
             chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
                 chunkWithIndexes.GetMediumIndex(),
                 EChunkRepairQueue::Missing,
                 TChunkRepairQueueIterator());
         }
+        queue.clear();
     }
     MissingPartChunkRepairQueueBalancer_.ResetWeights();
 
-    for (const auto& queue : DecommissionedPartChunkRepairQueues_) {
+    for (auto& queue : DecommissionedPartChunkRepairQueues_) {
         for (auto chunkWithIndexes : queue) {
             chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
                 chunkWithIndexes.GetMediumIndex(),
                 EChunkRepairQueue::Decommissioned,
                 TChunkRepairQueueIterator());
         }
+        queue.clear();
     }
     DecommissionedPartChunkRepairQueueBalancer_.ResetWeights();
+
+    ChunkIdsPendingEndorsementRegistration_.clear();
+
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        MisscheduledJobs_[jobType] = 0;
+    }
+
+    Enabled_ = false;
+
+    YT_LOG_INFO("Chunk replicator stopped");
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     const auto replication = GetChunkAggregatedReplication(chunk);
 
     for (auto& entry : replication) {
@@ -1157,6 +1207,11 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
@@ -1182,6 +1237,11 @@ void TChunkReplicator::OnReplicaRemoved(
     TChunkPtrWithIndexes chunkWithIndexes,
     ERemoveReplicaReason reason)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     auto* chunk = chunkWithIndexes.GetPtr();
     auto chunkIdWithIndexes = ToChunkIdWithIndexes(chunkWithIndexes);
     RemoveFromChunkReplicationQueues(node, chunkWithIndexes);
@@ -2141,6 +2201,11 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     if (!IsObjectAlive(chunk)) {
         return;
     }
@@ -2154,6 +2219,11 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     for (const auto& [mediumIndex, replicas] : node->Replicas()) {
@@ -2170,6 +2240,10 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
 void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
+    if (!Running_) {
+        return;
+    }
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     BlobRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalBlobChunkScanDescriptor());
     JournalRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalJournalChunkScanDescriptor());
@@ -2177,6 +2251,10 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
 
 void TChunkReplicator::OnRefresh()
 {
+    if (!Running_) {
+        return;
+    }
+
     if (!GetDynamicConfig()->EnableChunkRefresh) {
         YT_LOG_DEBUG("Chunk refresh disabled");
         return;
@@ -2259,6 +2337,10 @@ bool TChunkReplicator::IsRequisitionUpdateEnabled()
 
 void TChunkReplicator::OnCheckEnabled()
 {
+    if (!Running_) {
+        return;
+    }
+
     const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
     if (!worldInitializer->IsInitialized()) {
         return;
@@ -2376,6 +2458,10 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
 
 void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
 {
+    if (!Running_) {
+        return;
+    }
+
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
@@ -2469,6 +2555,11 @@ void TChunkReplicator::OnJobFailed(const TJobPtr& job)
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     class TVisitor
         : public IChunkVisitor
     {
@@ -2539,6 +2630,11 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 {
+    // Fast path.
+    if (!Running_) {
+        return;
+    }
+
     if (!IsObjectAlive(chunk)) {
         return;
     }
@@ -2548,6 +2644,10 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 
 void TChunkReplicator::OnRequisitionUpdate()
 {
+    if (!Running_) {
+        return;
+    }
+
     if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
         return;
     }
@@ -2784,6 +2884,10 @@ void TChunkReplicator::ConfirmChunkListRequisitionTraverseFinished(TChunkList* c
 
 void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
 {
+    if (!Running_) {
+        return;
+    }
+
     if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
         return;
     }
@@ -2922,9 +3026,15 @@ const TDynamicChunkManagerConfigPtr& TChunkReplicator::GetDynamicConfig() const
 
 void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
 {
-    RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
-    RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
-    FinishedRequisitionTraverseFlushExecutor_->SetPeriod(GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
+    if (RefreshExecutor_) {
+        RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+    }
+    if (RequisitionUpdateExecutor_) {
+        RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
+    }
+    if (FinishedRequisitionTraverseFlushExecutor_) {
+        FinishedRequisitionTraverseFlushExecutor_->SetPeriod(GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
+    }
 
     if (!GetDynamicConfig()->ConsistentReplicaPlacement->Enable &&
         oldConfig->ChunkManager->ConsistentReplicaPlacement->Enable)
