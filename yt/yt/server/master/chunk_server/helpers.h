@@ -145,6 +145,8 @@ void SerializeMediumOverrides(
     TNode* node,
     NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides);
 
+int GetChunkShardIndex(TChunkId chunkId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

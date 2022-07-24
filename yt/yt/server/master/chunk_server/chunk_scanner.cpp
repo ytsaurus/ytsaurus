@@ -1,4 +1,5 @@
 #include "chunk_scanner.h"
+
 #include "chunk.h"
 #include "private.h"
 
@@ -22,59 +23,84 @@ TChunkScanner::TChunkScanner(
         Journal_))
 { }
 
-void TChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
+void TChunkScanner::Start(int shardIndex, TGlobalChunkScanDescriptor descriptor)
 {
-    YT_VERIFY(!GlobalIterator_);
-    YT_VERIFY(GlobalCount_ == 0);
+    auto& globalScanShard = GlobalChunkScanShards_[shardIndex];
+    YT_VERIFY(!globalScanShard.Iterator);
+    YT_VERIFY(globalScanShard.ChunkCount == 0);
 
-    ScheduleGlobalScan(descriptor);
+    ScheduleGlobalScan(shardIndex, descriptor);
 
-    YT_VERIFY(!std::exchange(Running_, true));
+    YT_VERIFY(!ActiveShardIndices_[shardIndex]);
+    ActiveShardIndices_.set(shardIndex);
+
+    YT_LOG_INFO("Chunk scanner started for shard (ShardIndex: %v)",
+        shardIndex);
 }
 
-void TChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor)
+void TChunkScanner::ScheduleGlobalScan(int shardIndex, TGlobalChunkScanDescriptor descriptor)
 {
-    GlobalIterator_ = descriptor.FrontChunk;
-    GlobalCount_ = descriptor.ChunkCount;
-
-    YT_VERIFY(!IsObjectAlive(GlobalIterator_) || GlobalIterator_->IsJournal() == Journal_);
-
-    YT_LOG_INFO("Global chunk scan started (ChunkCount: %v)",
-        GlobalCount_);
-}
-
-void TChunkScanner::Stop()
-{
-    if (!Running_) {
+    if (!ActiveShardIndices_.test(shardIndex)) {
         return;
     }
 
-    YT_LOG_INFO("Global chunk scan stopped (RemainingChunkCount: %v)",
-        GetQueueSize());
+    auto& globalScanShard = GlobalChunkScanShards_[shardIndex];
+    globalScanShard.Iterator = descriptor.FrontChunk;
+    globalScanShard.ChunkCount = descriptor.ChunkCount;
+
+    if (auto* chunk = globalScanShard.Iterator) {
+        YT_VERIFY(chunk->IsJournal() == Journal_);
+        ActiveGlobalChunkScanIndex_ = shardIndex;
+
+        YT_LOG_INFO("Global chunk scan started (ShardIndex: %v, ChunkCount: %v)",
+            shardIndex,
+            globalScanShard.ChunkCount);
+    }
+}
+
+void TChunkScanner::Stop(int shardIndex)
+{
+    if (!ActiveShardIndices_.test(shardIndex)) {
+        return;
+    }
+    ActiveShardIndices_.reset(shardIndex);
+
+    YT_LOG_DEBUG("Chunk scanner stopped for shard (ShardIndex: %v)",
+        shardIndex);
 
     // Clear global chunk scan state.
-    GlobalIterator_ = nullptr;
-    GlobalCount_ = 0;
+    GlobalChunkScanShards_[shardIndex] = {};
 
-    // NB: Queue may be huge, so we offload its destruction into heavy thread.
-    std::queue<TQueueEntry> queue;
-    std::swap(Queue_, queue);
-    NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-        BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
+    if (ActiveGlobalChunkScanIndex_ == shardIndex) {
+        RecomputeActiveGlobalChunkScanIndex();
+    }
 
-    YT_VERIFY(std::exchange(Running_, false));
+    // If there are no more active shards, we clear the queue to drop all the
+    // ephemeral references. Since queue may be huge, destruction is offloaded into
+    // separate thread.
+    // Otherwise, queue is not changed. Note that queue now may contain chunks from
+    // non-active shards. We have to properly handle them during chunk dequeue.
+    if (ActiveShardIndices_.none()) {
+        std::queue<TQueueEntry> queue;
+        std::swap(Queue_, queue);
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+            BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
+    }
 }
 
 void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
 {
-    if (chunk == GlobalIterator_) {
-        AdvanceGlobalIterator();
+    auto shardIndex = chunk->GetShardIndex();
+    auto& globalScanShard = GlobalChunkScanShards_[shardIndex];
+    if (chunk == globalScanShard.Iterator) {
+        AdvanceGlobalIterator(shardIndex);
     }
 }
 
 bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 {
-    if (!Running_) {
+    auto shardIndex = chunk->GetShardIndex();
+    if (!ActiveShardIndices_.test(shardIndex)) {
         return false;
     }
 
@@ -91,11 +117,11 @@ bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 
 TChunk* TChunkScanner::DequeueChunk()
 {
-    YT_VERIFY(Running_);
-
-    if (GlobalIterator_) {
-        auto* chunk = GlobalIterator_;
-        AdvanceGlobalIterator();
+    if (ActiveGlobalChunkScanIndex_ != -1) {
+        auto& globalScanShard = GlobalChunkScanShards_[ActiveGlobalChunkScanIndex_];
+        auto* chunk = globalScanShard.Iterator;
+        YT_VERIFY(chunk);
+        AdvanceGlobalIterator(ActiveGlobalChunkScanIndex_);
         return IsObjectAlive(chunk) ? chunk : nullptr;
     }
 
@@ -110,14 +136,16 @@ TChunk* TChunkScanner::DequeueChunk()
         chunk->ClearScanFlag(Kind_);
     }
     Queue_.pop();
-    return alive ? chunk : nullptr;
+    if (alive && ActiveShardIndices_.test(chunk->GetShardIndex())) {
+        return chunk;
+    }
+
+    return nullptr;
 }
 
 bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
-    YT_VERIFY(Running_);
-
-    if (GlobalIterator_) {
+    if (ActiveGlobalChunkScanIndex_ != -1) {
         return true;
     }
 
@@ -130,22 +158,47 @@ bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 
 int TChunkScanner::GetQueueSize() const
 {
-    return GlobalCount_ + static_cast<int>(Queue_.size());
+    int queueSize = std::ssize(Queue_);
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        queueSize += GlobalChunkScanShards_[shardIndex].ChunkCount;
+    }
+
+    return queueSize;
 }
 
-void TChunkScanner::AdvanceGlobalIterator()
+void TChunkScanner::AdvanceGlobalIterator(int shardIndex)
 {
-    YT_VERIFY(GlobalCount_ > 0);
-    --GlobalCount_;
+    auto& globalScanShard = GlobalChunkScanShards_[shardIndex];
+    auto& chunkCount = globalScanShard.ChunkCount;
+    auto& iterator = globalScanShard.Iterator;
 
-    GlobalIterator_ = GlobalIterator_->GetNextScannedChunk();
-    if (!GlobalIterator_) {
+    YT_VERIFY(chunkCount > 0);
+    --chunkCount;
+
+    iterator = iterator->GetNextScannedChunk();
+    if (!iterator) {
         // NB: Some chunks could vanish during the scan so this is not
         // necessarily zero.
-        YT_VERIFY(GlobalCount_ >= 0);
-        YT_LOG_INFO("Global chunk scan finished (VanishedChunkCount: %v)",
-            GlobalCount_);
-        GlobalCount_ = 0;
+        YT_VERIFY(chunkCount >= 0);
+        YT_LOG_INFO("Global chunk scan finished (ShardIndex: %v, VanishedChunkCount: %v)",
+            shardIndex,
+            chunkCount);
+        chunkCount = 0;
+
+        if (ActiveGlobalChunkScanIndex_ == shardIndex) {
+            RecomputeActiveGlobalChunkScanIndex();
+        }
+    }
+}
+
+void TChunkScanner::RecomputeActiveGlobalChunkScanIndex()
+{
+    ActiveGlobalChunkScanIndex_ = -1;
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        if (GlobalChunkScanShards_[shardIndex].Iterator) {
+            ActiveGlobalChunkScanIndex_ = shardIndex;
+            break;
+        }
     }
 }
 

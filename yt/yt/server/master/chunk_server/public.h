@@ -295,6 +295,12 @@ struct TGlobalChunkScanDescriptor
     int ChunkCount;
 };
 
+//! All chunks are uniformly divided into |ChunkShardCount| shards.
+// BEWARE: Chaning this value requires reign promotion since rolling update
+// is not possible.
+constexpr int ChunkShardCount = 60;
+static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCount| must fit into i8");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
