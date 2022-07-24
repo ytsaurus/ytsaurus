@@ -357,7 +357,6 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(Bootstrap_->GetConfig()->ChunkManager)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
-        , ChunkSealer_(CreateChunkSealer(Bootstrap_))
         , ConsistentChunkPlacement_(New<TConsistentChunkPlacement>(
             Bootstrap_,
             DefaultConsistentReplicaPlacementReplicasPerChunk))
@@ -365,6 +364,8 @@ public:
             Bootstrap_,
             ConsistentChunkPlacement_))
         , JobRegistry_(CreateJobRegistry(Bootstrap_))
+        , ChunkReplicator_(New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_))
+        , ChunkSealer_(CreateChunkSealer(Bootstrap_))
         , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
@@ -397,6 +398,13 @@ public:
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
         DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xfffffffffffffffe);
+
+        JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::RemoveChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::RepairChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::SealChunk, ChunkSealer_);
+        JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
+        JobController_->RegisterJobController(EJobType::AutotomizeChunk, ChunkAutotomizer_);
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         Y_UNUSED(hydraFacade);
@@ -1273,9 +1281,7 @@ public:
         }
 
         // Cancel all jobs, reset status etc.
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnChunkDestroyed(chunk);
-        }
+        ChunkReplicator_->OnChunkDestroyed(chunk);
 
         ChunkSealer_->OnChunkDestroyed(chunk);
 
@@ -1312,13 +1318,6 @@ public:
                 nodeWithIndexes.GetMediumIndex());
             if (node->AddDestroyedReplica(chunkIdWithIndexes)) {
                 ++DestroyedReplicaCount_;
-            }
-
-            if (!ChunkReplicator_) {
-                return;
-            }
-            if (!node->ReportedDataNodeHeartbeat()) {
-                return;
             }
         };
 
@@ -1785,7 +1784,7 @@ public:
 
     void TouchChunk(TChunk* chunk) override
     {
-        if (chunk->IsErasure() && ChunkReplicator_) {
+        if (chunk->IsErasure()) {
             ChunkReplicator_->TouchChunk(chunk);
         }
     }
@@ -2040,17 +2039,17 @@ public:
 
     bool IsChunkReplicatorEnabled() override
     {
-        return ChunkReplicator_ && ChunkReplicator_->IsReplicatorEnabled();
+        return ChunkReplicator_->IsReplicatorEnabled();
     }
 
     bool IsChunkRefreshEnabled() override
     {
-        return ChunkReplicator_ && ChunkReplicator_->IsRefreshEnabled();
+        return ChunkReplicator_->IsRefreshEnabled();
     }
 
     bool IsChunkRequisitionUpdateEnabled() override
     {
-        return ChunkReplicator_ && ChunkReplicator_->IsRequisitionUpdateEnabled();
+        return ChunkReplicator_->IsRequisitionUpdateEnabled();
     }
 
     bool IsChunkSealerEnabled() override
@@ -2061,9 +2060,7 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk) override
     {
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
-        }
+        ChunkReplicator_->ScheduleChunkRefresh(chunk);
     }
 
     void ScheduleConsistentlyPlacedChunkRefresh(std::vector<TChunk*> chunks)
@@ -2077,9 +2074,7 @@ public:
 
     void ScheduleNodeRefresh(TNode* node)
     {
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleNodeRefresh(node);
-        }
+        ChunkReplicator_->ScheduleNodeRefresh(node);
     }
 
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) override
@@ -2122,16 +2117,12 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
             chunkList->GetId());
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleRequisitionUpdate(chunkList);
-        }
+        ChunkReplicator_->ScheduleRequisitionUpdate(chunkList);
     }
 
     void ScheduleChunkRequisitionUpdate(TChunk* chunk)
     {
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleRequisitionUpdate(chunk);
-        }
+        ChunkReplicator_->ScheduleRequisitionUpdate(chunk);
     }
 
     void ScheduleChunkSeal(TChunk* chunk) override
@@ -2283,9 +2274,7 @@ public:
 
     void ScheduleGlobalChunkRefresh() override
     {
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleGlobalChunkRefresh();
-        }
+        ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
     TMedium* FindMediumByName(const TString& name) const override
@@ -2557,9 +2546,6 @@ private:
 
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
-    TChunkReplicatorPtr ChunkReplicator_;
-    const IChunkSealerPtr ChunkSealer_;
-
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
     // Unlike chunk replicator and sealer, this is maintained on all
@@ -2568,6 +2554,9 @@ private:
     const TChunkPlacementPtr ChunkPlacement_;
 
     const IJobRegistryPtr JobRegistry_;
+
+    const TChunkReplicatorPtr ChunkReplicator_;
+    const IChunkSealerPtr ChunkSealer_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
 
@@ -2606,7 +2595,7 @@ private:
     // (whose number coincides with the chunk list's multiplicity) to ensure that.
     THashMultiSet<TChunkListPtr> ChunkListsAwaitingRequisitionTraverse_;
 
-    ICompositeJobControllerPtr JobController_;
+    const ICompositeJobControllerPtr JobController_ = CreateCompositeJobController();
 
     std::optional<TIncrementalHeartbeatCounters> TotalIncrementalHeartbeatCounters_;
 
@@ -2768,9 +2757,7 @@ private:
             AbortAndRemoveJob(job);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeUnregistered(node);
-        }
+        ChunkReplicator_->OnNodeUnregistered(node);
 
         node->Reset();
     }
@@ -2814,9 +2801,7 @@ private:
             }
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeUnregistered(node);
-        }
+        ChunkReplicator_->OnNodeUnregistered(node);
 
         node->Reset();
 
@@ -2827,9 +2812,7 @@ private:
 
         ChunkPlacement_->OnNodeDisposed(node);
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeDisposed(node);
-        }
+        ChunkReplicator_->OnNodeDisposed(node);
     }
 
     void OnNodeChanged(TNode* node)
@@ -4686,16 +4669,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
-        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
-
-        JobController_ = CreateCompositeJobController();
-        JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
-        JobController_->RegisterJobController(EJobType::RemoveChunk, ChunkReplicator_);
-        JobController_->RegisterJobController(EJobType::RepairChunk, ChunkReplicator_);
-        JobController_->RegisterJobController(EJobType::SealChunk, ChunkSealer_);
-        JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
-        JobController_->RegisterJobController(EJobType::AutotomizeChunk, ChunkAutotomizer_);
-
         ExpirationTracker_->Start();
     }
 
@@ -4725,18 +4698,13 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        // Reset replicator first so that aborting jobs below doesn't schedule
+        // Stop replicator first so that aborting jobs below doesn't schedule
         // chunk refresh.
-        if (ChunkReplicator_) {
-            ChunkReplicator_->Stop();
-            ChunkReplicator_.Reset();
-        }
+        ChunkReplicator_->Stop();
 
         ChunkSealer_->Stop();
 
         ExpirationTracker_->Stop();
-
-        JobController_.Reset();
     }
 
 
@@ -4855,7 +4823,7 @@ private:
             case ERemoveReplicaReason::ApproveTimeout:
             case ERemoveReplicaReason::ChunkDestroyed:
                 node->RemoveReplica(chunkWithIndexes);
-                if (ChunkReplicator_ && !cached) {
+                if (!cached) {
                     ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes, reason);
                 }
                 break;

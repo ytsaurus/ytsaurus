@@ -170,15 +170,15 @@ private:
 
     TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
-    const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
     const std::unique_ptr<TChunkScanner> JournalRefreshScanner_;
 
-    const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
+    NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRequisitionUpdateScanner_;
     const std::unique_ptr<TChunkScanner> JournalRequisitionUpdateScanner_;
 
-    const NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
+    NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
 
     // Contains the chunk list ids for which requisition update traversals
     // have finished. These confirmations are batched and then flushed.
@@ -189,21 +189,19 @@ private:
     //! Medium index designates the medium where the chunk is missing some of
     //! its parts. It's always equal to the index of its queue.
     //! In each queue, a single chunk may only appear once.
-    std::array<TChunkRepairQueue, MaxMediumCount>  MissingPartChunkRepairQueues_ = {};
-    std::array<TChunkRepairQueue, MaxMediumCount>  DecommissionedPartChunkRepairQueues_ = {};
+    std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
+    std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
     TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
     TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
-    const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
-
-    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
+    NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
     std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
 
-    std::optional<bool> Enabled_;
-
     TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
+
+    std::optional<bool> Enabled_;
+    bool Running_ = false;
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
