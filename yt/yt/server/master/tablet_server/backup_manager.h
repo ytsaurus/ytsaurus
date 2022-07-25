@@ -55,6 +55,8 @@ struct IBackupManager
         NCypressClient::ENodeCloneMode mode) = 0;
 
     virtual void UpdateAggregatedBackupState(NTableServer::TTableNode* table) = 0;
+
+    virtual void OnBackupInterruptedByUnmount(TTablet* tablet) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBackupManager)
