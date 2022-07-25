@@ -27,6 +27,7 @@ DEFINE_REFCOUNTED_TYPE(IApiService)
 //! between services (e.g.: ORM and RPC proxy).
 IApiServicePtr CreateApiService(
     IBootstrap* bootstrap,
+    NRpc::IAuthenticatorPtr authenticator,
     NLogging::TLogger logger,
     TApiServiceConfigPtr config,
     NProfiling::TProfiler profiler,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "http.h"
+#include "config.h"
 
 #include <yt/yt/core/net/public.h>
 #include <yt/yt/core/net/connection.h>
@@ -125,6 +126,9 @@ public:
     bool IsHttps() const override;
     void SetHttps();
 
+    int GetPort() const override;
+    void SetPort(int port);
+
 private:
     const NNet::IConnectionPtr Connection_;
     const NNet::TNetworkAddress RemoteAddress_;
@@ -139,6 +143,7 @@ private:
 
     TString RawUrl_;
     TUrlRef Url_;
+    int Port_;
     THeadersPtr Headers_;
 
     // Debug.

@@ -28,7 +28,10 @@ class THttpAuthenticator
     : public NHttp::IHttpHandler
 {
 public:
-    explicit THttpAuthenticator(TBootstrap* bootstrap);
+    explicit THttpAuthenticator(
+        TBootstrap* bootstrap,
+        const NAuth::TAuthenticationManagerConfigPtr& authManagerConfig,
+        const NAuth::TAuthenticationManagerPtr& authManager);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,
@@ -38,6 +41,8 @@ public:
         const NHttp::IRequestPtr& request,
         bool disableCsrfTokenCheck = false);
 
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
+
 private:
     TBootstrap* Bootstrap_;
 
@@ -45,6 +50,30 @@ private:
     const NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     const NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompositeHttpAuthenticator
+    : public NHttp::IHttpHandler
+{
+public:
+    explicit TCompositeHttpAuthenticator(const THashMap<int, THttpAuthenticatorPtr>& portAuthenticators);
+
+    void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+
+    TErrorOr<TAuthenticationResultAndToken> Authenticate(
+        const NHttp::IRequestPtr& request,
+        bool disableCsrfTokenCheck = false);
+
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticatorOrThrow(int port) const;
+
+private:
+    THashMap<int, THttpAuthenticatorPtr> PortAuthenticators_;
+
+    TErrorOr<THttpAuthenticatorPtr> GetPortAuthenticator(int port) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

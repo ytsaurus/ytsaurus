@@ -66,6 +66,7 @@ def auth_config(bb_port, tvm_port):
 class TestAuth(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+    ENABLE_TVM_ONLY_PROXIES = True
 
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
@@ -132,69 +133,98 @@ class TestAuth(YTEnvSetup):
         create_user("tvm:90231")
         set("//sys/tokens/" + sha1(b"cypress_token").hexdigest(), "prime")
 
-    def _create_yt_client(self, config=None):
-        return YtClient(proxy=self.Env.get_http_proxy_address(), config=config)
+    def _create_yt_client(self, tvm_only=False, config=None):
+        return YtClient(proxy=self.Env.get_http_proxy_address(tvm_only=tvm_only), config=config)
+
+    def _create_yt_rpc_client(self, tvm_only=False, config=None):
+        proxy = self.Env.get_rpc_proxy_address(tvm_only=tvm_only)
+        default_config = {
+            "backend": "rpc",
+            "driver_config": {
+                "connection_type": "rpc",
+                "proxy_addresses": [proxy],
+            },
+        }
+
+        if config is not None:
+            default_config.update(config)
+
+        return YtClient(proxy=None, config=default_config)
 
     @authors("prime", "verytable")
     def test_http_proxy_invalid_token(self):
-        yc = self._create_yt_client({"token": "bad_token"})
+        yc = self._create_yt_client(config={"token": "bad_token"})
 
         with pytest.raises(YtError):
             yc.create("map_node", "//tmp/bad_token")
 
     @authors("prime", "verytable")
     def test_rpc_proxy_invalid_token(self):
-        yc = self._create_yt_client({"token": "bad_token", "backend": "rpc"})
+        yc = self._create_yt_rpc_client(config={"token": "bad_token"})
 
         with pytest.raises(YtError):
             yc.create("map_node", "//tmp/bad_token_rpc")
 
     @authors("prime", "verytable")
     def test_http_proxy_oauth_token_from_cypress(self):
-        yc = self._create_yt_client({"token": "cypress_token"})
+        yc = self._create_yt_client(config={"token": "cypress_token"})
 
         yc.create("map_node", "//tmp/cypress_token")
-
         assert get("//tmp/cypress_token/@owner") == "prime"
+
+        yc = self._create_yt_client(tvm_only=True, config={"token": "cypress_token"})
+        with pytest.raises(YtError):
+            yc.create("map_node", "//tmp/cypress_token_tvm_only")
 
     @authors("prime", "verytable")
     def test_rpc_proxy_oauth_token_from_cypress(self):
-        yc = self._create_yt_client({"token": "cypress_token", "backend": "rpc"})
+        yc = self._create_yt_rpc_client(config={"token": "cypress_token"})
 
         yc.create("map_node", "//tmp/cypress_token_rpc")
-
         assert get("//tmp/cypress_token_rpc/@owner") == "prime"
+
+        yc = self._create_yt_rpc_client(tvm_only=True, config={"token": "cypress_token"})
+        with pytest.raises(YtError):
+            yc.create("map_node", "//tmp/cypress_token_rpc_tvm_only")
 
     @authors("prime", "verytable")
     def test_http_proxy_oauth_token_from_bb(self):
-        yc = self._create_yt_client({"token": "bb_token"})
+        yc = self._create_yt_client(config={"token": "bb_token"})
 
         yc.create("map_node", "//tmp/bb_token")
-
         assert get("//tmp/bb_token/@owner") == "prime"
+
+        yc = self._create_yt_client(tvm_only=True, config={"token": "bb_token"})
+        with pytest.raises(YtError):
+            yc.create("map_node", "//tmp/bb_token_tvm_only")
 
     @authors("prime", "verytable")
     def test_rpc_proxy_oauth_token_from_bb(self):
-        yc = self._create_yt_client({"token": "bb_token", "backend": "rpc"})
+        yc = self._create_yt_rpc_client(config={"token": "bb_token"})
 
         yc.create("map_node", "//tmp/bb_token_rpc")
-
         assert get("//tmp/bb_token_rpc/@owner") == "prime"
+
+        yc = self._create_yt_rpc_client(tvm_only=True, config={"token": "bb_token"})
+        with pytest.raises(YtError):
+            yc.create("map_node", "//tmp/bb_token_rpc_tvm_only")
 
     @authors("prime", "verytable")
     def test_http_proxy_user_ticket(self):
-        rsp = requests.post(
-            "http://{}/api/v4/create".format(self.Env.get_proxy_address()),
-            json={
-                "path": "//tmp/user_ticket",
-                "type": "map_node",
-            },
-            headers={
-                "X-Ya-User-Ticket": PRIME_USER_TICKET,
-            })
-        rsp.raise_for_status()
+        for tvm_only in [False, True]:
+            path = "//tmp/user_ticket" + ["", "_tvm_only"][tvm_only]
+            rsp = requests.post(
+                "http://{}/api/v4/create".format(self.Env.get_http_proxy_address(tvm_only=tvm_only)),
+                json={
+                    "path": path,
+                    "type": "map_node",
+                },
+                headers={
+                    "X-Ya-User-Ticket": PRIME_USER_TICKET,
+                })
+            rsp.raise_for_status()
 
-        assert get("//tmp/user_ticket/@owner") == "prime"
+            assert get(path+"/@owner") == "prime"
 
     @authors("prime", "verytable")
     def test_http_proxy_service_ticket(self):
@@ -208,11 +238,13 @@ class TestAuth(YTEnvSetup):
         tvm_auth = tvm.ServiceTicketAuth(tvm_client)
         tvm_auth.override_proxy_tvm_id(12345)
 
-        yc = self._create_yt_client({"tvm_auth": tvm_auth})
+        for tvm_only in [False, True]:
+            yc = self._create_yt_client(tvm_only=tvm_only, config={"tvm_auth": tvm_auth})
 
-        yc.create("map_node", "//tmp/service_ticket")
+            path = "//tmp/service_ticket" + ["", "_tvm_only"][tvm_only]
+            yc.create("map_node", path)
 
-        assert get("//tmp/service_ticket/@owner") == "tvm:90231"
+            assert get(path+"/@owner") == "tvm:90231"
 
     @authors("prime", "verytable")
     def test_rpc_proxy_service_ticket(self):
@@ -226,8 +258,10 @@ class TestAuth(YTEnvSetup):
         tvm_auth = tvm.ServiceTicketAuth(tvm_client)
         tvm_auth.override_proxy_tvm_id(12345)
 
-        yc = self._create_yt_client({"tvm_auth": tvm_auth, "backend": "rpc"})
+        for tvm_only in [False, True]:
+            yc = self._create_yt_rpc_client(tvm_only=tvm_only, config={"tvm_auth": tvm_auth})
 
-        yc.create("map_node", "//tmp/service_ticket_rpc")
+            path = "//tmp/service_ticket_rpc" + ["", "_tvm_only"][tvm_only]
+            yc.create("map_node", path)
 
-        assert get("//tmp/service_ticket_rpc/@owner") == "tvm:90231"
+            assert get(path+"/@owner") == "tvm:90231"

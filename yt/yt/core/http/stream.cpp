@@ -1,5 +1,4 @@
 #include "stream.h"
-#include "config.h"
 #include "private.h"
 
 #include <yt/yt/core/net/connection.h>
@@ -465,6 +464,16 @@ bool THttpInput::IsHttps() const
 void THttpInput::SetHttps()
 {
     IsHttps_ = true;
+}
+
+int THttpInput::GetPort() const
+{
+    return Port_;
+}
+
+void THttpInput::SetPort(int port)
+{
+    Port_ = port;
 }
 
 TSharedRef THttpInput::DoRead()

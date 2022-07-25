@@ -35,6 +35,7 @@ public:
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
 
     int RpcPort;
+    int TvmOnlyRpcPort;
     int MonitoringPort;
 
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();

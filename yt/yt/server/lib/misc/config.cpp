@@ -19,6 +19,10 @@ void TServerConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThan(65536);
+    registrar.Parameter("tvm_only_rpc_port", &TThis::TvmOnlyRpcPort)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThan(65536);
     registrar.Parameter("monitoring_port", &TThis::MonitoringPort)
         .Default(0)
         .GreaterThanOrEqual(0)

@@ -290,6 +290,8 @@ private:
             request->SetHttps();
         }
 
+        request->SetPort(Config_->Port);
+
         auto response = New<THttpOutput>(
             connection,
             EMessageType::Response,

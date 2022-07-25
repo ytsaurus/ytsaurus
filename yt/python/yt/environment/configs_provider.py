@@ -869,6 +869,8 @@ def _build_http_proxy_config(proxy_dir,
         config = default_config.get_proxy_config()
         config["port"] = \
             yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
+        if yt_config.enable_tvm_only_proxies:
+            config["tvm_only_http_server"] = {"port": next(ports_generator)}
         config["monitoring_port"] = next(ports_generator)
         config["rpc_port"] = next(ports_generator)
 
@@ -1027,6 +1029,8 @@ def _build_rpc_proxy_configs(logs_dir,
 
         config["rpc_port"] = \
             yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
+        if yt_config.enable_tvm_only_proxies:
+            config["tvm_only_rpc_port"] = next(ports_generator)
 
         configs.append(config)
 

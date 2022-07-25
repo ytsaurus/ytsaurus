@@ -25,6 +25,7 @@ public:
     MOCK_METHOD(TGuid, GetRequestId, (), (const, override));
     MOCK_METHOD(i64, GetReadByteCount, (), (const, override));
     MOCK_METHOD(TInstant, GetStartTime, (), (const, override));
+    MOCK_METHOD(int, GetPort, (), (const, override));
 
     TUrlRef Url;
     THeadersPtr Headers;
