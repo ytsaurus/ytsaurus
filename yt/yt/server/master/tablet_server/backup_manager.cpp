@@ -105,7 +105,6 @@ public:
             MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
                 builder->AppendFormat("%v", descriptor.ReplicaId);
             }));
-
         if (timestamp == NullTimestamp) {
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
         }
@@ -198,9 +197,17 @@ public:
 
                 ToProto(req.mutable_replicas(), replicaBackupDescriptors);
 
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Setting backup checkpoint (TableId: %v, TabletId: %v, TransactionId: %v, CellId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    transaction->GetId(),
+                    cell->GetId());
+
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
                 hiveManager->PostMessage(mailbox, req);
+
             } else {
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::None,
@@ -244,7 +251,8 @@ public:
 
             if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested &&
                 tablet->GetBackupState() != ETabletBackupState::CheckpointConfirmed &&
-                tablet->GetBackupState() != ETabletBackupState::CheckpointRejected)
+                tablet->GetBackupState() != ETabletBackupState::CheckpointRejected &&
+                tablet->GetBackupState() != ETabletBackupState::CheckpointInterrupted)
             {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Attempted to release backup checkpoint from a tablet "
@@ -257,20 +265,44 @@ public:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "Releasing backup checkpoint (TabletId: %v, BackupState: %v, TransactionId: %v)",
-                tablet->GetId(),
-                tablet->GetBackupState(),
-                transaction->GetId());
+            if (tablet->GetBackupState() == ETabletBackupState::CheckpointInterrupted) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Will not release backup checkpoint from the tablet whose backup was interrupted "
+                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    tablet->GetBackupState(),
+                    transaction->GetId());
+            } else {
+                auto* cell = tablet->GetCell();
 
-            if (auto* cell = tablet->GetCell()) {
-                TReqReleaseBackupCheckpoint req;
-                ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_mount_revision(tablet->GetMountRevision());
+                if (cell) {
+                    TReqReleaseBackupCheckpoint req;
+                    ToProto(req.mutable_tablet_id(), tablet->GetId());
+                    req.set_mount_revision(tablet->GetMountRevision());
 
-                const auto& hiveManager = Bootstrap_->GetHiveManager();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, req);
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Releasing backup checkpoint (TableId: %v, TabletId: %v, "
+                        "BackupState: %v, TransactionId: %v, CellId: %v)",
+                        table->GetId(),
+                        tablet->GetId(),
+                        tablet->GetBackupState(),
+                        transaction->GetId(),
+                        cell->GetId());
+
+                    const auto& hiveManager = Bootstrap_->GetHiveManager();
+                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                    hiveManager->PostMessage(mailbox, req);
+                } else {
+                    // Backup could start when the tablet was not mounted.
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Attempted to release backup checkpoint from a tablet without cell "
+                        "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
+                        table->GetId(),
+                        tablet->GetId(),
+                        tablet->GetBackupState(),
+                        transaction->GetId());
+                }
             }
 
             tablet->SetBackupState(ETabletBackupState::None);
@@ -297,15 +329,17 @@ public:
         int pendingCount = tabletCountByState[ETabletBackupState::CheckpointRequested];
         int confirmedCount = tabletCountByState[ETabletBackupState::CheckpointConfirmed];
         int rejectedCount = tabletCountByState[ETabletBackupState::CheckpointRejected];
+        int interruptedCount = tabletCountByState[ETabletBackupState::CheckpointInterrupted];
 
         YT_LOG_DEBUG("Backup checkpoint checked (TableId: %v, "
-            "PendingCount: %v, ConfirmedCount: %v, RejectedCount: %v)",
+            "PendingCount: %v, ConfirmedCount: %v, RejectedCount: %v, InterruptedCount: %v)",
             table->GetId(),
             pendingCount,
             confirmedCount,
-            rejectedCount);
+            rejectedCount,
+            interruptedCount);
 
-        if (rejectedCount > 0) {
+        if (rejectedCount + interruptedCount > 0) {
             auto error = TError(
                 NTabletClient::EErrorCode::BackupCheckpointRejected,
                 "Backup checkpoint rejected");
@@ -379,6 +413,7 @@ public:
                 case ETabletBackupState::CheckpointRequested:
                 case ETabletBackupState::CheckpointConfirmed:
                 case ETabletBackupState::CheckpointRejected:
+                case ETabletBackupState::CheckpointInterrupted:
                     clonedTablet->SetBackupState(ETabletBackupState::None);
                     break;
 
@@ -443,6 +478,30 @@ public:
             "Updated aggregated backup state (TableId: %v, BackupState: %v)",
             table->GetId(),
             *aggregate);
+    }
+
+    void OnBackupInterruptedByUnmount(TTablet* tablet) override
+    {
+        if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested &&
+            tablet->GetBackupState() != ETabletBackupState::CheckpointConfirmed &&
+            tablet->GetBackupState() != ETabletBackupState::CheckpointRejected)
+        {
+            return;
+        }
+
+        auto* table = tablet->GetTable();
+
+        auto error = TError("Backup interrupted by unmount")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("table_path", table->GetMountPath());
+        RegisterBackupError(tablet->GetTable(), error.Sanitize());
+
+        YT_LOG_DEBUG("Tablet backup interrupted by unmount (TableId: %v, TabletId: %v)",
+            table->GetId(),
+            tablet->GetId());
+
+        tablet->SetBackupState(ETabletBackupState::CheckpointInterrupted);
+        UpdateAggregatedBackupState(table);
     }
 
 private:
@@ -537,9 +596,11 @@ private:
                     YT_ABORT();
             }
 
-            tablet->CheckedSetBackupState(
-                ETabletBackupState::BackupStarted,
-                ETabletBackupState::BackupCompleted);
+            if (tablet->GetBackupState() != ETabletBackupState::BackupFailed) {
+                tablet->CheckedSetBackupState(
+                    ETabletBackupState::BackupStarted,
+                    ETabletBackupState::BackupCompleted);
+            }
             tablet->BackupCutoffDescriptor() = std::nullopt;
         }
 

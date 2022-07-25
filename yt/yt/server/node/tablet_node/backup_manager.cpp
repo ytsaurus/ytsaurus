@@ -455,7 +455,13 @@ private:
             tablet->GetLoggingTag(),
             tablet->GetBackupMode(),
             tablet->GetBackupStage());
-        YT_VERIFY(tablet->GetBackupCheckpointTimestamp());
+
+        if (!tablet->GetBackupCheckpointTimestamp()) {
+            YT_LOG_ALERT("Backup checkpoint released from a tablet that does not participate "
+                "in backup (%v)",
+                tablet->GetLoggingTag());
+            return;
+        }
 
         if (tablet->GetBackupStage() == EBackupStage::FeasibilityConfirmed) {
             TTabletWithCheckpoint holder(tablet);
@@ -802,7 +808,8 @@ private:
             // Active store is non-empty, should rotate.
             if (NeedsImmediateCutoffRotation(tablet)) {
                 if (tablet->GetState() != ETabletState::Mounted) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    // Tablet may be in freeze/unmount workflow. We abort the backup in this case.
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                         "Tablet with nonempty active store is not mounted "
                         "during backup checkpoint passing (%v, TabletState: %v)",
                         tablet->GetLoggingTag(),

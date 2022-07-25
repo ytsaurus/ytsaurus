@@ -34,6 +34,8 @@ DEFINE_ENUM(ETabletBackupState,
     ((CheckpointConfirmed)         (2))
     //! Tablet cell rejected checkpoint timestamp.
     ((CheckpointRejected)          (3))
+    //! Backup was interrupted by unmount.
+    ((CheckpointInterrupted)       (10))
 
     // Destination states.
     //! Table was cloned but backup is not yet finished.
