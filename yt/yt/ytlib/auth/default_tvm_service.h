@@ -14,6 +14,10 @@ ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
     NProfiling::TProfiler profiler = {});
 
+IDynamicTvmServicePtr CreateDefaultDynamicTvmService(
+    TDefaultTvmServiceConfigPtr config,
+    NProfiling::TProfiler profiler = {});
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth

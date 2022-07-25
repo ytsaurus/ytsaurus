@@ -17,6 +17,7 @@
 
 #include <library/cpp/tvmauth/client/facade.h>
 #include <library/cpp/tvmauth/client/logger.h>
+#include <library/cpp/tvmauth/client/misc/api/dynamic_dst/tvm_client.h>
 
 #include <util/system/mutex.h>
 
@@ -27,6 +28,7 @@ using namespace NHttp;
 using namespace NYPath;
 using namespace NConcurrency;
 using namespace NTvmAuth;
+using namespace NProfiling;
 
 using NYT::NLogging::ELogLevel;
 
@@ -60,13 +62,72 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultTvmService
-    : public ITvmService
+NTvmTool::TClientSettings MakeTvmToolSettings(const TDefaultTvmServiceConfigPtr& config)
+{
+    NTvmTool::TClientSettings settings(config->TvmToolSelfAlias);
+    settings.SetPort(config->TvmToolPort);
+    settings.SetAuthToken(config->TvmToolAuthToken);
+    return settings;
+}
+
+NTvmApi::TClientSettings MakeTvmApiSettings(const TDefaultTvmServiceConfigPtr& config)
+{
+    NTvmApi::TClientSettings settings;
+    settings.SetSelfTvmId(config->ClientSelfId);
+    if (!config->ClientDiskCacheDir.empty()) {
+        settings.SetDiskCacheDir(config->ClientDiskCacheDir);
+    }
+    if (!config->TvmHost.empty() && config->TvmPort != 0) {
+        settings.SetTvmHostPort(config->TvmHost, config->TvmPort);
+    }
+    if (config->ClientEnableUserTicketChecking) {
+        auto env = FromString<EBlackboxEnv>(config->ClientBlackboxEnv);
+        settings.EnableUserTicketChecking(env);
+    }
+    if (config->ClientEnableServiceTicketFetching) {
+        NTvmApi::TClientSettings::TDstMap dsts;
+        for (const auto& [alias, dst] : config->ClientDstMap) {
+            dsts[alias] = dst;
+        }
+        settings.EnableServiceTicketsFetchOptions(config->ClientSelfSecret, std::move(dsts));
+    }
+    if (config->ClientEnableServiceTicketChecking) {
+        settings.EnableServiceTicketChecking();
+    }
+    return settings;
+}
+
+// NB(gepardo): We need to inherit from NDynamicClient::TTvmClient, as it's impossible to
+// create an instance otherwise.
+//
+// NDynamicClient::TTvmClient has Create, which returns pointer to base, and protected
+// constructor. So, we cannot create a NDynamicClient::TTvmClient instance directly and
+// need a way to overcome the limitation. Other users in Arcadia use inheritance for this,
+// so do the same thing.
+class TDynamicTvmClient
+    : public NDynamicClient::TTvmClient
 {
 public:
-    TDefaultTvmService(
+    using NDynamicClient::TTvmClient::TTvmClient;
+
+    static ::TIntrusivePtr<TDynamicTvmClient> Create(const NTvmApi::TClientSettings& settings, TLoggerPtr logger)
+    {
+        ::TIntrusivePtr<TDynamicTvmClient> client(new TDynamicTvmClient(settings, std::move(logger)));
+        client->Init();
+        client->StartWorker();
+        return client;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDefaultTvmServiceBase
+    : public virtual ITvmService
+{
+public:
+    TDefaultTvmServiceBase(
         TDefaultTvmServiceConfigPtr config,
-        NProfiling::TProfiler profiler)
+        TProfiler profiler)
         : Config_(std::move(config))
         , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
         , SuccessfulGetServiceTicketCountCounter_(profiler.Counter("/successful_get_service_ticket_count"))
@@ -77,38 +138,31 @@ public:
         , ClientErrorCountCounter_(profiler.Counter("/client_error_count"))
         , ParseServiceTicketCountCounter_(profiler.Counter("/parse_service_ticket_count"))
         , FailedParseServiceTicketCountCounter_(profiler.Counter("/failed_parse_service_ticket_count"))
-    {
-        if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
-            MakeClient();
-        }
-    }
+    { }
 
     ui32 GetSelfTvmId() override
     {
         return Config_->ClientSelfId;
     }
 
-    TString GetServiceTicket(const TString& serviceId) override
+    TString GetServiceTicket(const TString& serviceAlias) override
     {
         if (!Config_->ClientEnableServiceTicketFetching) {
             THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
         }
 
-        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId: %v)", serviceId);
-        GetServiceTicketCountCounter_.Increment();
+        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceAlias: %v)", serviceAlias);
+        return DoGetServiceTicket(serviceAlias);
+    }
 
-        try {
-            CheckClient();
-            // The client caches everything locally, no need for async.
-            auto result = Client_->GetServiceTicketFor(serviceId);
-            SuccessfulGetServiceTicketCountCounter_.Increment();
-            return result;
-        } catch (const std::exception& ex) {
-            auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
-            YT_LOG_WARNING(error);
-            FailedGetServiceTicketCountCounter_.Increment();
-            THROW_ERROR error;
+    TString GetServiceTicket(ui32 serviceId) override
+    {
+        if (!Config_->ClientEnableServiceTicketFetching) {
+            THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
         }
+
+        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId %v)", serviceId);
+        return DoGetServiceTicket(serviceId);
     }
 
     TParsedTicket ParseUserTicket(const TString& ticket) override
@@ -122,7 +176,7 @@ public:
 
         try {
             CheckClient();
-            auto userTicket = Client_->CheckUserTicket(ticket);
+            auto userTicket = GetClient().CheckUserTicket(ticket);
             if (!userTicket) {
                 THROW_ERROR_EXCEPTION(TString(StatusToString(userTicket.GetStatus())));
             }
@@ -154,7 +208,7 @@ public:
 
         try {
             CheckClient();
-            auto serviceTicket = Client_->CheckServiceTicket(ticket);
+            auto serviceTicket = GetClient().CheckServiceTicket(ticket);
             if (!serviceTicket) {
                 THROW_ERROR_EXCEPTION(TString(StatusToString(serviceTicket.GetStatus())));
             }
@@ -171,69 +225,29 @@ public:
         }
     }
 
-
-private:
+protected:
     const TDefaultTvmServiceConfigPtr Config_;
 
-    std::unique_ptr<TTvmClient> Client_;
-
-    NProfiling::TCounter GetServiceTicketCountCounter_;
-    NProfiling::TCounter SuccessfulGetServiceTicketCountCounter_;
-    NProfiling::TCounter FailedGetServiceTicketCountCounter_;
-
-    NProfiling::TCounter ParseUserTicketCountCounter_;
-    NProfiling::TCounter SuccessfulParseUserTicketCountCounter_;
-    NProfiling::TCounter FailedParseUserTicketCountCounter_;
-
-    NProfiling::TCounter ClientErrorCountCounter_;
-
-    NProfiling::TCounter ParseServiceTicketCountCounter_;
-    NProfiling::TCounter FailedParseServiceTicketCountCounter_;
+    virtual TTvmClient& GetClient() = 0;
 
 private:
-    void MakeClient()
-    {
-        YT_LOG_INFO("Creating TvmClient");
+    TCounter GetServiceTicketCountCounter_;
+    TCounter SuccessfulGetServiceTicketCountCounter_;
+    TCounter FailedGetServiceTicketCountCounter_;
 
-        if (Config_->UseTvmTool) {
-            NTvmTool::TClientSettings settings(Config_->TvmToolSelfAlias);
-            settings.SetPort(Config_->TvmToolPort);
-            settings.SetAuthToken(Config_->TvmToolAuthToken);
+    TCounter ParseUserTicketCountCounter_;
+    TCounter SuccessfulParseUserTicketCountCounter_;
+    TCounter FailedParseUserTicketCountCounter_;
 
-            Client_ = std::make_unique<TTvmClient>(settings, MakeIntrusive<TTvmLoggerAdapter>());
-        } else {
-            NTvmApi::TClientSettings settings;
-            settings.SetSelfTvmId(Config_->ClientSelfId);
-            if (!Config_->ClientDiskCacheDir.empty()) {
-                settings.SetDiskCacheDir(Config_->ClientDiskCacheDir);
-            }
-            if (!Config_->TvmHost.empty() && Config_->TvmPort != 0) {
-                settings.SetTvmHostPort(Config_->TvmHost, Config_->TvmPort);
-            }
-            if (Config_->ClientEnableUserTicketChecking) {
-                auto env = FromString<EBlackboxEnv>(Config_->ClientBlackboxEnv);
-                settings.EnableUserTicketChecking(env);
-            }
-            if (Config_->ClientEnableServiceTicketFetching) {
-                NTvmApi::TClientSettings::TDstMap dsts;
-                for (const auto& [alias, dst] : Config_->ClientDstMap) {
-                    dsts[alias] = dst;
-                }
-                settings.EnableServiceTicketsFetchOptions(Config_->ClientSelfSecret, std::move(dsts));
-            }
-            if (Config_->ClientEnableServiceTicketChecking) {
-                settings.EnableServiceTicketChecking();
-            }
+    TCounter ClientErrorCountCounter_;
 
-            // If TVM is unreachable _and_ there are no cached keys, this will throw.
-            // We'll just crash and restart.
-            Client_ = std::make_unique<TTvmClient>(settings, MakeIntrusive<TTvmLoggerAdapter>());
-        }
-    }
+    TCounter ParseServiceTicketCountCounter_;
+    TCounter FailedParseServiceTicketCountCounter_;
 
+private:
     void CheckClient()
     {
-        auto status = Client_->GetStatus();
+        auto status = GetClient().GetStatus();
         switch (status.GetCode()) {
             case TClientStatus::Ok:
                 break;
@@ -246,13 +260,127 @@ private:
                 THROW_ERROR_EXCEPTION(status.GetLastError());
         }
     }
+
+    TString DoGetServiceTicket(const auto& serviceId)
+    {
+        GetServiceTicketCountCounter_.Increment();
+
+        try {
+            CheckClient();
+            // The client caches everything locally, no need for async.
+            auto result = GetClient().GetServiceTicketFor(serviceId);
+            SuccessfulGetServiceTicketCountCounter_.Increment();
+            return result;
+        } catch (const std::exception& ex) {
+            auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
+            YT_LOG_WARNING(error);
+            FailedGetServiceTicketCountCounter_.Increment();
+            THROW_ERROR error;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDefaultTvmService
+    : public TDefaultTvmServiceBase
+{
+public:
+    TDefaultTvmService(
+        TDefaultTvmServiceConfigPtr config,
+        TProfiler profiler)
+        : TDefaultTvmServiceBase(std::move(config), std::move(profiler))
+    {
+        if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
+            MakeClient();
+        }
+    }
+
+protected:
+    TTvmClient& GetClient() override
+    {
+        return *Client_.get();
+    }
+
+private:
+    std::unique_ptr<TTvmClient> Client_;
+
+    void MakeClient()
+    {
+        YT_LOG_INFO("Creating TvmClient (UseTvmTool: %v)", Config_->UseTvmTool);
+
+        auto logger = MakeIntrusive<TTvmLoggerAdapter>();
+
+        if (Config_->UseTvmTool) {
+            Client_ = std::make_unique<TTvmClient>(MakeTvmToolSettings(Config_), std::move(logger));
+        } else {
+            // If TVM is unreachable _and_ there are no cached keys, this will throw.
+            // We'll just crash and restart.
+            Client_ = std::make_unique<TTvmClient>(MakeTvmApiSettings(Config_), std::move(logger));
+        }
+    }
 };
 
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
-    NProfiling::TProfiler profiler)
+    TProfiler profiler)
 {
     return New<TDefaultTvmService>(
+        std::move(config),
+        std::move(profiler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDefaultDynamicTvmService
+    : public TDefaultTvmServiceBase
+    , public virtual IDynamicTvmService
+{
+public:
+    TDefaultDynamicTvmService(
+        TDefaultTvmServiceConfigPtr config,
+        TProfiler profiler)
+        : TDefaultTvmServiceBase(std::move(config), std::move(profiler))
+    {
+        if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
+            MakeClient();
+        }
+    }
+
+    void AddDestinationServiceIds(const std::vector<ui32>& serviceIds) override
+    {
+        NTvmApi::TDstSet dstSet(serviceIds.begin(), serviceIds.end());
+        DynamicClient_->Add(std::move(dstSet));
+    }
+
+protected:
+    TTvmClient& GetClient() override
+    {
+        return *Client_.get();
+    }
+
+private:
+    ::TIntrusivePtr<TDynamicTvmClient> DynamicClient_;
+    std::unique_ptr<TTvmClient> Client_;
+
+    void MakeClient()
+    {
+        YT_LOG_INFO("Creating TvmClient");
+
+        if (Config_->UseTvmTool) {
+            THROW_ERROR_EXCEPTION("TVM tool is not supported for dynamic client");
+        }
+
+        DynamicClient_ = TDynamicTvmClient::Create(MakeTvmApiSettings(Config_), MakeIntrusive<TTvmLoggerAdapter>());
+        Client_ = std::make_unique<TTvmClient>(TAsyncUpdaterPtr(DynamicClient_));
+    }
+};
+
+IDynamicTvmServicePtr CreateDefaultDynamicTvmService(
+    TDefaultTvmServiceConfigPtr config,
+    TProfiler profiler)
+{
+    return New<TDefaultDynamicTvmService>(
         std::move(config),
         std::move(profiler));
 }
