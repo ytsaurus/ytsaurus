@@ -55,7 +55,9 @@ private:
             case 0:
                 return Stream_.Read(buf, std::min(len, String_.size() / 2));
             case 1:
-                ythrow yexception() << "Just wanted to test you";
+                ythrow yexception() << "Just wanted to test you, first fail";
+            case 2:
+                ythrow yexception() << "Just wanted to test you, second fail";
             default:
                 return Stream_.Read(buf, len);
         }
@@ -137,6 +139,28 @@ Y_UNIT_TEST_SUITE(Readers)
         });
 
         UNIT_ASSERT_EXCEPTION(TSkiffTableReader(proxy, schema).GetRow(), yexception);
+    }
+    
+    Y_UNIT_TEST(SkiffBadFormat)
+    {
+        const char arr[] = "\x00\x00" "\x12" "\x23\x34\x00\x00";
+        auto proxy = ::MakeIntrusive<TRetryEmulatingRawTableReader>(TString(arr, sizeof(arr) - 1));
+
+        TSkiffSchemaPtr schema = CreateVariant16Schema({
+            CreateTupleSchema({
+                CreateVariant8Schema({
+                    CreateSimpleTypeSchema(EWireType::Nothing),
+                    CreateSimpleTypeSchema(EWireType::Int32)
+                })
+            })
+        });
+
+        UNIT_ASSERT_EXCEPTION_SATISFIES(
+            TSkiffTableReader(proxy, schema).GetRow(),
+            yexception,
+            [](const yexception& ex) {
+                return TString(ex.what()).Contains("Tag for 'variant8<nothing,int32>' expected to be 0 or 1");
+            });
     }
 
     Y_UNIT_TEST(ProtobufGood)

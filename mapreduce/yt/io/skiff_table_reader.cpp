@@ -83,7 +83,7 @@ bool TSkiffTableReader::IsValid() const
 void TSkiffTableReader::Next()
 {
     EnsureValidity();
-    if (Y_UNLIKELY(Finished_ || !Parser_.HasMoreData())) {
+    if (Y_UNLIKELY(Finished_ || !Parser_->HasMoreData())) {
         Finished_ = true;
         Valid_ = false;
         return;
@@ -94,16 +94,19 @@ void TSkiffTableReader::Next()
         return;
     }
 
-    try {
-        ReadRow();
-    } catch (const yexception& exception) {
-        YT_LOG_ERROR("Read error: %v", exception.what());
-        if (Input_.Retry(RangeIndex_, RowIndex_)) {
+    while (true) {
+        try {
+            ReadRow();
+            break;
+        } catch (const yexception& exception) {
+            YT_LOG_ERROR("Read error: %v", exception.what());
+            if (!Input_.Retry(RangeIndex_, RowIndex_)) {
+                throw;
+            }
+            BufferedInput_ = TBufferedInput(&Input_);
+            Parser_.emplace(NSkiff::TUncheckedSkiffParser(&BufferedInput_));
             RangeIndex_.Clear();
             RowIndex_.Clear();
-            ReadRow();
-        } else {
-            throw;
         }
     }
 }
@@ -217,24 +220,24 @@ void TSkiffTableReader::ReadRow()
         ++*RowIndex_;
     }
 
-    TableIndex_ = Parser_.ParseVariant16Tag();
+    TableIndex_ = Parser_->ParseVariant16Tag();
     Y_ENSURE(TableIndex_ < Schemas_.size(), "Table index out of range: " << TableIndex_ << " >= " << Schemas_.size());
     const auto& tableSchema = Schemas_[TableIndex_];
 
     auto parse = [&](NSkiff::EWireType wireType) -> TNode {
         switch (wireType) {
             case NSkiff::EWireType::Int64:
-                return Parser_.ParseInt64();
+                return Parser_->ParseInt64();
             case NSkiff::EWireType::Uint64:
-                return Parser_.ParseUint64();
+                return Parser_->ParseUint64();
             case NSkiff::EWireType::Boolean:
-                return Parser_.ParseBoolean();
+                return Parser_->ParseBoolean();
             case NSkiff::EWireType::Double:
-                return Parser_.ParseDouble();
+                return Parser_->ParseDouble();
             case NSkiff::EWireType::String32:
-                return Parser_.ParseString32();
+                return Parser_->ParseString32();
             case NSkiff::EWireType::Yson32:
-                return NodeFromYsonString(Parser_.ParseYson32());
+                return NodeFromYsonString(Parser_->ParseYson32());
             case NSkiff::EWireType::Nothing:
                 return TNode::CreateEntity();
             default:
@@ -244,7 +247,7 @@ void TSkiffTableReader::ReadRow()
 
     for (const auto& columnSchema : tableSchema.Columns) {
         if (!columnSchema.Required) {
-            auto tag = Parser_.ParseVariant8Tag();
+            auto tag = Parser_->ParseVariant8Tag();
             if (tag == 0) {
                 if (columnSchema.Type == EColumnType::Dense) {
                     Row_[columnSchema.Name] = TNode::CreateEntity();

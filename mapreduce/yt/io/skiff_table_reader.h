@@ -46,7 +46,7 @@ private:
 private:
     NDetail::TCountingRawTableReader Input_;
     TBufferedInput BufferedInput_;
-    NSkiff::TUncheckedSkiffParser Parser_;
+    std::optional<NSkiff::TUncheckedSkiffParser> Parser_;
     TVector<TSkiffTableSchema> Schemas_;
 
     TNode Row_;
