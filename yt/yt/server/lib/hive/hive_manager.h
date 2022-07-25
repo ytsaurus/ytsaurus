@@ -21,6 +21,10 @@ namespace NYT::NHiveServer {
 //! posted via Hive.
 bool IsHiveMutation();
 
+//! Returns the id of the cell that posted a mutation currently handed
+//! by a current fiber or null id if that mutation is not a Hive one.
+TCellId GetHiveMutationSenderId();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessage

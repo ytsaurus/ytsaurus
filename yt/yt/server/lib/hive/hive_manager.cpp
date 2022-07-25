@@ -58,26 +58,31 @@ static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFls<bool> HiveMutation;
+static NConcurrency::TFls<TCellId> HiveMutationSenderId;
 
 bool IsHiveMutation()
 {
-    return *HiveMutation;
+    return static_cast<bool>(*HiveMutationSenderId);
+}
+
+TCellId GetHiveMutationSenderId()
+{
+    return *HiveMutationSenderId;
 }
 
 class THiveMutationGuard
     : private TNonCopyable
 {
 public:
-    THiveMutationGuard()
+    THiveMutationGuard(TCellId senderId)
     {
-        YT_ASSERT(!*HiveMutation);
-        *HiveMutation = true;
+        YT_ASSERT(!*HiveMutationSenderId);
+        *HiveMutationSenderId = senderId;
     }
 
     ~THiveMutationGuard()
     {
-        *HiveMutation = false;
+        *HiveMutationSenderId = {};
     }
 };
 
@@ -1470,7 +1475,7 @@ private:
             messageId,
             message.type());
 
-        ApplyMessage(message);
+        ApplyMessage(message, mailbox->GetCellId());
 
         mailbox->SetNextPersistentIncomingMessageId(messageId + 1);
 
@@ -1490,10 +1495,10 @@ private:
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());
-        ApplyMessage(message);
+        ApplyMessage(message, mailbox->GetCellId());
     }
 
-    void ApplyMessage(const TEncapsulatedMessage& message)
+    void ApplyMessage(const TEncapsulatedMessage& message, TCellId senderId)
     {
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
@@ -1504,7 +1509,7 @@ private:
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        THiveMutationGuard hiveMutationGuard;
+        THiveMutationGuard hiveMutationGuard(senderId);
 
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
