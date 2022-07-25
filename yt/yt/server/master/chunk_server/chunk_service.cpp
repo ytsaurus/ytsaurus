@@ -292,7 +292,11 @@ private:
             request->subrequests_size());
 
         ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+
+        // TODO(gritukan): only sync with the leader is really needed,
+        // not with the primary cell.
+        SyncWithUpstream();
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
