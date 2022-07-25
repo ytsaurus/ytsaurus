@@ -94,9 +94,14 @@ private:
             return 100500;
         }
 
-        TString GetServiceTicket(const TString& serviceId) override
+        TString GetServiceTicket(const TString& serviceAlias) override
         {
-            return Format("ticket:%v", serviceId);
+            return Format("ticket:%v", serviceAlias);
+        }
+
+        TString GetServiceTicket(ui32 /*serviceId*/) override
+        {
+            THROW_ERROR_EXCEPTION("Not implemented");
         }
 
         TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
