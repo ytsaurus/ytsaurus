@@ -50,6 +50,8 @@ public:
     //! Raised on mutation logging failure.
     DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
 
+    TFuture<void> GetLastLoggedMutationFuture();
+
 protected:
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
@@ -163,6 +165,8 @@ private:
 
     bool AcquiringChangelog_ = false;
 
+    bool RotatingChangelog_ = false;
+
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
 
     struct TShapshotInfo
@@ -253,8 +257,6 @@ public:
 
     //! Forwards a given mutation to the leader via RPC.
     TFuture<NHydra::TMutationResponse> Forward(NHydra::TMutationRequest&& request);
-
-    TFuture<void> GetLastLoggedMutationFuture();
 
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;

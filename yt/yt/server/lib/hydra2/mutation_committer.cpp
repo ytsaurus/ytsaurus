@@ -83,6 +83,11 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
         .Run(std::move(mutations));
 }
 
+TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
+{
+    return LastLoggedMutationFuture_;
+}
+
 void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
 {
     if (!Config_->CloseChangelogs || !changelog) {
@@ -181,6 +186,11 @@ TFuture<void> TLeaderCommitter::GetLastMutationFuture()
 void TLeaderCommitter::SerializeMutations()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (RotatingChangelog_) {
+        YT_LOG_DEBUG("Skip serializing mutations as changelog is being rotated");
+        return;
+    }
 
     YT_LOG_DEBUG("Started serializing mutations");
 
@@ -873,6 +883,17 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 
     AcquiringChangelog_ = false;
 
+    RotatingChangelog_ = true;
+    auto result = WaitFor(LastLoggedMutationFuture_);
+    RotatingChangelog_ = false;
+
+    if (!result.IsOK()) {
+        LoggingFailed_.Fire(TError("Error logging mutations")
+            << TErrorAttribute("changelog_id", oldChangelog->GetId())
+            << result);
+        THROW_ERROR(result);
+    }
+
     CloseChangelog(oldChangelog);
 
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
@@ -950,13 +971,10 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
     MutationQueueSummarySize_.Record(MutationQueue_.size());
     MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
 
-    Changelog_->Append(std::move(recordsData))
-        .Subscribe(BIND_NEW(
-            &TLeaderCommitter::OnMutationsLogged,
-            MakeWeak(this),
-            firstSequenceNumber,
-            lastSequenceNumber)
-            .Via(EpochContext_->EpochControlInvoker));
+    auto future = Changelog_->Append(std::move(recordsData));
+    LastLoggedMutationFuture_ = future.Apply(
+        BIND_NEW(&TLeaderCommitter::OnMutationsLogged, MakeStrong(this), firstSequenceNumber, lastSequenceNumber)
+            .AsyncVia(EpochContext_->EpochControlInvoker));
 
     MaybeCheckpoint();
 }
@@ -1211,11 +1229,6 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
         CloseChangelog(Changelog_);
     }
     Changelog_ = nextChangelog;
-}
-
-TFuture<void> TFollowerCommitter::GetLastLoggedMutationFuture()
-{
-    return LastLoggedMutationFuture_;
 }
 
 void TFollowerCommitter::LogMutations()
