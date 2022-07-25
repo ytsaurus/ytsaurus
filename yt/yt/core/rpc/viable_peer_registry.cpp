@@ -112,6 +112,14 @@ public:
 
     IChannelPtr PickStickyChannel(const IClientRequestPtr& request) const override
     {
+        if (BacklogPeers_.Size() > 0) {
+            YT_LOG_WARNING(
+                "Sticky channels are used with non-empty peer backlog, random peer rotations might hurt stickiness (MaxPeerCount: %v, ViablePeers: %v, BacklogPeers: %v)",
+                Config_->MaxPeerCount,
+                ActivePeerToPriority_.Size(),
+                BacklogPeers_.Size());
+        }
+
         const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
         auto hash = request->GetHash();
         auto randomNumber = balancingExt.enable_client_stickiness() ? ClientStickinessRandomNumber_ : RandomNumber<size_t>();

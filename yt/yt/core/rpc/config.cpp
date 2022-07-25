@@ -147,7 +147,7 @@ void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(10);
     registrar.Parameter("random_peer_eviction_period", &TThis::RandomPeerEvictionPeriod)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("enable_peer_polling", &TThis::EnablePeerPolling)
         .Default(false);
