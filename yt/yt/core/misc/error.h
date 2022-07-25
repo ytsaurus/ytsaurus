@@ -298,14 +298,14 @@ TException&& operator <<= (TException&& ex, TError&& error)
         THROW_ERROR (error).Wrap(__VA_ARGS__); \
     }\
 
-#define THROW_ERROR_EXCEPTION_IF_NOT(condition, ...) \
+#define THROW_ERROR_EXCEPTION_UNLESS(condition, ...) \
     if ((condition)) {\
     } else { \
         THROW_ERROR ::NYT::TError(__VA_ARGS__); \
     }\
 
 #define THROW_ERROR_EXCEPTION_IF(condition, ...) \
-    THROW_ERROR_EXCEPTION_IF_NOT(!(condition), __VA_ARGS__) \
+    THROW_ERROR_EXCEPTION_UNLESS(!(condition), __VA_ARGS__) \
 
 ////////////////////////////////////////////////////////////////////////////////
 
