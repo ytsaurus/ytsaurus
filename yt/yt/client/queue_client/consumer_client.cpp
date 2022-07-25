@@ -69,7 +69,7 @@ public:
 
             auto offsetColumnIdRead = partitionRowset->GetNameTable()->GetIdOrThrow("Offset");
 
-            THROW_ERROR_EXCEPTION_IF_NOT(
+            THROW_ERROR_EXCEPTION_UNLESS(
                 std::ssize(partitionRowset->GetRows()) <= 1,
                 "The table for consumer %v should contain at most one row for partition %v when an old offset is specified",
                 Path_,

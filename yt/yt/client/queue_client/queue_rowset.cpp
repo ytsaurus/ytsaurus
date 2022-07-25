@@ -48,7 +48,7 @@ i64 GetStartOffset(const IUnversionedRowsetPtr& rowset)
 
     auto rowIndexColumnId = nameTable->GetIdOrThrow("$row_index");
     auto startOffsetValue = rowset->GetRows()[0][rowIndexColumnId];
-    THROW_ERROR_EXCEPTION_IF_NOT(
+    THROW_ERROR_EXCEPTION_UNLESS(
         startOffsetValue.Type == EValueType::Int64,
         "Incorrect type %Qlv for $row_index column, %Qlv expected; only ordered dynamic tables are supported as queues",
         startOffsetValue.Type,

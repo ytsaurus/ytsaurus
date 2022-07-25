@@ -764,7 +764,7 @@ int ConvertToProtobufEnumValueUntyped(
         case NYTree::ENodeType::Int64:
         case NYTree::ENodeType::Uint64: {
             int value = NYTree::ConvertTo<int>(node);
-            THROW_ERROR_EXCEPTION_IF_NOT(type->GetUnderlying()->FindValueByNumber(value),
+            THROW_ERROR_EXCEPTION_UNLESS(type->GetUnderlying()->FindValueByNumber(value),
                 "Unknown value %v of enum %Qv",
                 value,
                 type->GetUnderlying()->name());
@@ -773,7 +773,7 @@ int ConvertToProtobufEnumValueUntyped(
         case NYTree::ENodeType::String: {
             const TString& literal = node->AsString()->GetValue();
             auto value = type->FindValueByLiteral(literal);
-            THROW_ERROR_EXCEPTION_IF_NOT(value,
+            THROW_ERROR_EXCEPTION_UNLESS(value,
                 "Unknown value %Qv of enum %Qv",
                 literal,
                 type->GetUnderlying()->name());
