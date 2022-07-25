@@ -2473,6 +2473,18 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
 
+    buffer->AddGauge("/lost_chunk_count", LostChunks_.size());
+    buffer->AddGauge("/lost_vital_chunk_count", LostVitalChunks_.size());
+    buffer->AddGauge("/overreplicated_chunk_count", OverreplicatedChunks_.size());
+    buffer->AddGauge("/underreplicated_chunk_count", UnderreplicatedChunks_.size());
+    buffer->AddGauge("/data_missing_chunk_count", DataMissingChunks_.size());
+    buffer->AddGauge("/parity_missing_chunk_count", ParityMissingChunks_.size());
+    buffer->AddGauge("/precarious_chunk_count", PrecariousChunks_.size());
+    buffer->AddGauge("/precarious_vital_chunk_count", PrecariousVitalChunks_.size());
+    buffer->AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks_.size());
+    buffer->AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks_.size());
+    buffer->AddGauge("/inconsistently_placed_chunk_count", InconsistentlyPlacedChunks_.size());
+
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
         if (jobType >= NJobTrackerClient::FirstMasterJobType
             && jobType <= NJobTrackerClient::LastMasterJobType) {

@@ -237,6 +237,8 @@ struct IChunkManager
 
     virtual const IChunkAutotomizerPtr& GetChunkAutotomizer() const = 0;
 
+    virtual const TChunkReplicatorPtr& GetChunkReplicator() const = 0;
+
     virtual bool IsChunkReplicatorEnabled() = 0;
     virtual bool IsChunkRefreshEnabled() = 0;
     virtual bool IsChunkRequisitionUpdateEnabled() = 0;
@@ -249,18 +251,6 @@ struct IChunkManager
     virtual bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const = 0;
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() = 0;
 
-    virtual const THashSet<TChunk*>& LostVitalChunks() const = 0;
-    virtual const THashSet<TChunk*>& LostChunks() const = 0;
-    virtual const THashSet<TChunk*>& OverreplicatedChunks() const = 0;
-    virtual const THashSet<TChunk*>& UnderreplicatedChunks() const = 0;
-    virtual const THashSet<TChunk*>& DataMissingChunks() const = 0;
-    virtual const THashSet<TChunk*>& ParityMissingChunks() const = 0;
-    virtual const TOldestPartMissingChunkSet& OldestPartMissingChunks() const = 0;
-    virtual const THashSet<TChunk*>& PrecariousChunks() const = 0;
-    virtual const THashSet<TChunk*>& PrecariousVitalChunks() const = 0;
-    virtual const THashSet<TChunk*>& QuorumMissingChunks() const = 0;
-    virtual const THashSet<TChunk*>& UnsafelyPlacedChunks() const = 0;
-    virtual const THashSet<TChunk*>& InconsistentlyPlacedChunks() const = 0;
     virtual const THashSet<TChunk*>& ForeignChunks() const = 0;
 
     //! Returns the total number of all chunk replicas.

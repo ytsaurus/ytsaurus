@@ -13,4 +13,11 @@ bool TChunkPartLossTimeComparer::operator()(const TChunk* lhs, const TChunk* rhs
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int TChunkToShardIndex::operator()(const TChunk* chunk) const
+{
+    return chunk->GetShardIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
