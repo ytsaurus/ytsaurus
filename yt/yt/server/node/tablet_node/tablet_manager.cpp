@@ -3962,7 +3962,12 @@ private:
     {
         // NB: Lock acquired after tablet unmount start will not prevent
         // tablet from being unmounted, so such locks are forbidden.
-        YT_VERIFY(!IsInUnmountWorkflow(tablet->GetState()));
+        YT_LOG_ALERT_IF(IsInUnmountWorkflow(tablet->GetState()),
+            "Attempted to lock tablet during unmount workflow "
+            "(TabletId: %v, TabletState: %v, LockCount: %v)",
+            tablet->GetId(),
+            tablet->GetState(),
+            tablet->GetTabletLockCount());
 
         return tablet->Lock();
     }
