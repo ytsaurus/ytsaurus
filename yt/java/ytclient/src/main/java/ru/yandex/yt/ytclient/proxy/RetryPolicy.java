@@ -176,6 +176,16 @@ public abstract class RetryPolicy {
             return inner.getBackoffDuration(error, options);
         }
 
+        @Override
+        public void onNewAttempt() {
+            inner.onNewAttempt();
+        }
+
+        @Override
+        public String getTotalRetryCountDescription() {
+            return inner.getTotalRetryCountDescription();
+        }
+
         private boolean isChunkRetriableError(Integer code) {
             if (CHUNK_NOT_RETRIABLE_CODES.contains(code)) {
                 return false;
