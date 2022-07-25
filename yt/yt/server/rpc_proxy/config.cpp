@@ -62,6 +62,8 @@ void TProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .Default();
+    registrar.Parameter("tvm_only_auth", &TThis::TvmOnlyAuth)
+        .Optional();
     registrar.Parameter("api_service", &TThis::ApiService)
         .DefaultNew();
     registrar.Parameter("discovery_service", &TThis::DiscoveryService)
@@ -102,6 +104,17 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->GrpcServer && config->GrpcServer->Addresses.size() > 1) {
             THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
+        }
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->TvmOnlyAuth && config->TvmService) {
+            auto auth = New<TAuthenticationManagerConfig>();
+            auth->TvmService = CloneYsonSerializable(config->TvmService);
+            auth->BlackboxService = CloneYsonSerializable(config->BlackboxService);
+            auth->BlackboxTicketAuthenticator = CloneYsonSerializable(config->BlackboxTicketAuthenticator);
+
+            config->TvmOnlyAuth = auth;
         }
     });
 }

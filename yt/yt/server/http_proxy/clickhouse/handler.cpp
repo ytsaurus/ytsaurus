@@ -550,7 +550,8 @@ private:
                     NAuth::TTokenCredentials credentials;
                     credentials.Token = Token_;
 
-                    User_ = WaitFor(Bootstrap_->GetTokenAuthenticator()->Authenticate(credentials))
+                    auto authenticator = Bootstrap_->GetHttpAuthenticator()->GetTokenAuthenticatorOrThrow(Request_->GetPort());
+                    User_ = WaitFor(authenticator->Authenticate(credentials))
                         .ValueOrThrow()
                         .Login;
                 }

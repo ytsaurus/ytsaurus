@@ -195,9 +195,12 @@ public:
 
     NHttp::TServerConfigPtr HttpServer;
     NHttps::TServerConfigPtr HttpsServer;
+    NHttp::TServerConfigPtr TvmOnlyHttpServer;
+    NHttps::TServerConfigPtr TvmOnlyHttpsServer;
     NYTree::INodePtr Driver;
 
     NAuth::TAuthenticationManagerConfigPtr Auth;
+    NAuth::TAuthenticationManagerConfigPtr TvmOnlyAuth;
 
     bool RetryRequestQueueSizeLimitExceeded;
 

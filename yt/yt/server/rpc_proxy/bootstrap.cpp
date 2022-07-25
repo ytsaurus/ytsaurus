@@ -143,6 +143,14 @@ void TBootstrap::DoRun()
         Config_,
         HttpPoller_,
         NativeClient_);
+
+    if (Config_->TvmOnlyRpcPort && Config_->TvmOnlyAuth) {
+        TvmOnlyAuthenticationManager_ = New<TAuthenticationManager>(
+            Config_->TvmOnlyAuth,
+            HttpPoller_,
+            NativeClient_);
+    }
+
     ProxyCoordinator_ = CreateProxyCoordinator();
     TraceSampler_ = New<NTracing::TSampler>();
 
@@ -152,8 +160,16 @@ void TBootstrap::DoRun()
     AccessChecker_ = CreateAccessChecker(this);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    if (Config_->TvmOnlyRpcPort) {
+        auto busConfigCopy = CloneYsonSerializable(Config_->BusServer);
+        busConfigCopy->Port = Config_->TvmOnlyRpcPort;
+        TvmOnlyBusServer_ = CreateTcpBusServer(busConfigCopy);
+    }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+    if (TvmOnlyBusServer_) {
+        TvmOnlyRpcServer_ = NRpc::NBus::CreateBusServer(TvmOnlyBusServer_);
+    }
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -181,17 +197,34 @@ void TBootstrap::DoRun()
         orchidRoot,
         "proxy");
 
-    RpcServer_->RegisterService(CreateOrchidService(
+    auto orchidService =CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker());
+    RpcServer_->RegisterService(orchidService);
+    if (TvmOnlyRpcServer_) {
+        TvmOnlyRpcServer_->RegisterService(orchidService);
+    }
 
     ApiService_ = CreateApiService(
         this,
+        AuthenticationManager_->GetRpcAuthenticator(),
         RpcProxyLogger,
         Config_->ApiService,
         RpcProxyProfiler);
 
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyApiService_ = CreateApiService(
+            this,
+            TvmOnlyAuthenticationManager_->GetRpcAuthenticator(),
+            RpcProxyLogger,
+            Config_->ApiService,
+            RpcProxyProfiler);
+    }
+
     RpcServer_->RegisterService(ApiService_);
+    if (TvmOnlyRpcServer_ && TvmOnlyApiService_) {
+        TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
+    }
 
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
@@ -204,6 +237,9 @@ void TBootstrap::DoRun()
     if (Config_->DiscoveryService->Enable) {
         DiscoveryService_ = CreateDiscoveryService(this);
         RpcServer_->RegisterService(DiscoveryService_);
+        if (TvmOnlyRpcServer_) {
+            TvmOnlyRpcServer_->RegisterService(DiscoveryService_);
+        }
     } else {
         ProxyCoordinator_->SetAvailableState(true);
     }
@@ -216,7 +252,11 @@ void TBootstrap::DoRun()
         }
     }
 
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), /*coreDumper*/ nullptr));
+    auto adminService = CreateAdminService(GetControlInvoker(), /*coreDumper*/ nullptr);
+    RpcServer_->RegisterService(adminService);
+    if (TvmOnlyRpcServer_) {
+        TvmOnlyRpcServer_->RegisterService(adminService);
+    }
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -224,6 +264,13 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
+
+    if (TvmOnlyRpcServer_) {
+        YT_LOG_INFO("Listening for TVM-only RPC requests on port %v", Config_->TvmOnlyRpcPort);
+        auto rpcServerConfigCopy = CloneYsonSerializable(Config_->RpcServer);
+        TvmOnlyRpcServer_->Configure(rpcServerConfigCopy);
+        TvmOnlyRpcServer_->Start();
+    }
 
     if (Config_->GrpcServer) {
         const auto& addresses = Config_->GrpcServer->Addresses;

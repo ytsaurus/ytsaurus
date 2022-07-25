@@ -567,14 +567,29 @@ class YTInstance(object):
     def get_proxy_address(self):
         return self.get_http_proxy_address()
 
-    def get_http_proxy_address(self):
-        return self.get_http_proxy_addresses()[0]
+    def get_http_proxy_address(self, tvm_only=False):
+        return self.get_http_proxy_addresses(tvm_only=tvm_only)[0]
 
-    def get_http_proxy_addresses(self):
+    def get_http_proxy_addresses(self, tvm_only=False):
         if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")
+        if tvm_only:
+            return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "tvm_only_http_server/port", "http_proxy"))
+                    for config in self.configs["http_proxy"]]
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "http_proxy"))
                 for config in self.configs["http_proxy"]]
+
+    def get_rpc_proxy_address(self, tvm_only=False):
+        return self.get_rpc_proxy_addresses(tvm_only=tvm_only)[0]
+
+    def get_rpc_proxy_addresses(self, tvm_only=False):
+        if self.yt_config.rpc_proxy_count == 0:
+            raise YtError("Rpc proxies are not started")
+        if tvm_only:
+            return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "tvm_only_rpc_port", "rpc_proxy"))
+                    for config in self.configs["rpc_proxy"]]
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "rpc_port", "rpcproxy"))
+                for config in self.configs["rpc_proxy"]]
 
     def get_grpc_proxy_address(self):
         if self.yt_config.rpc_proxy_count == 0:

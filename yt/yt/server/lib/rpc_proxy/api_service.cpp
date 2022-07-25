@@ -560,6 +560,7 @@ public:
 
     TApiService(
         IBootstrap* bootstrap,
+        IAuthenticatorPtr authenticator,
         NLogging::TLogger logger,
         TApiServiceConfigPtr config,
         TProfiler profiler,
@@ -569,7 +570,7 @@ public:
             GetServiceDescriptor(),
             std::move(logger),
             NullRealmId,
-            bootstrap->GetRpcAuthenticator())
+            authenticator)
         , Bootstrap_(bootstrap)
         , Profiler_(std::move(profiler))
         , Config_(New<TApiServiceDynamicConfig>())
@@ -4595,6 +4596,7 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 
 IApiServicePtr CreateApiService(
     IBootstrap* bootstrap,
+    NRpc::IAuthenticatorPtr authenticator,
     NLogging::TLogger logger,
     TApiServiceConfigPtr config,
     TProfiler profiler,
@@ -4602,6 +4604,7 @@ IApiServicePtr CreateApiService(
 {
     return New<TApiService>(
         bootstrap,
+        authenticator,
         std::move(logger),
         std::move(config),
         std::move(profiler),

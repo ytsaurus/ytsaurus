@@ -185,10 +185,32 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->Auth,
         Poller_,
         RootClient_);
-    TokenAuthenticator_ = AuthenticationManager_->GetTokenAuthenticator();
-    CookieAuthenticator_ = AuthenticationManager_->GetCookieAuthenticator();
 
-    HttpAuthenticator_ = New<THttpAuthenticator>(this);
+    auto httpAuthenticator = New<THttpAuthenticator>(this, Config_->Auth, AuthenticationManager_);
+    THashMap<int, THttpAuthenticatorPtr> authenticators{{Config_->HttpServer->Port, httpAuthenticator}};
+
+    if (Config_->HttpsServer) {
+        authenticators[Config_->HttpsServer->Port] = httpAuthenticator;
+    }
+
+    THttpAuthenticatorPtr tvmOnlyAuthenticator = nullptr;
+    if (Config_->TvmOnlyAuth) {
+        TvmOnlyAuthenticationManager_ = New<TAuthenticationManager>(
+            Config_->TvmOnlyAuth,
+            Poller_,
+            RootClient_);
+        tvmOnlyAuthenticator = New<THttpAuthenticator>(this, Config_->TvmOnlyAuth, TvmOnlyAuthenticationManager_);
+    }
+
+    if (Config_->TvmOnlyHttpServer) {
+        authenticators[Config_->TvmOnlyHttpServer->Port] = tvmOnlyAuthenticator;
+    }
+
+    if (Config_->TvmOnlyHttpsServer) {
+        authenticators[Config_->TvmOnlyHttpsServer->Port] = tvmOnlyAuthenticator;
+    }
+
+    HttpAuthenticator_ = New<TCompositeHttpAuthenticator>(authenticators);
 
     Api_ = New<TApi>(this);
     Config_->HttpServer->ServerName = "HttpApi";
@@ -199,6 +221,18 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->HttpsServer->ServerName = "HttpsApi";
         ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
         RegisterRoutes(ApiHttpsServer_);
+    }
+
+    if (Config_->TvmOnlyHttpServer) {
+        Config_->TvmOnlyHttpServer->ServerName = "TvmOnlyHttpApi";
+        TvmOnlyApiHttpServer_ = NHttp::CreateServer(Config_->TvmOnlyHttpServer, Poller_, Acceptor_);
+        RegisterRoutes(TvmOnlyApiHttpServer_);
+    }
+
+    if (Config_->TvmOnlyHttpsServer) {
+        Config_->TvmOnlyHttpsServer->ServerName = "TvmOnlyHttpsApi";
+        TvmOnlyApiHttpsServer_ = NHttps::CreateServer(Config_->TvmOnlyHttpsServer, Poller_, Acceptor_);
+        RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 }
 
@@ -249,6 +283,12 @@ void TBootstrap::Run()
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {
         ApiHttpsServer_->Start();
+    }
+    if (TvmOnlyApiHttpServer_) {
+        TvmOnlyApiHttpServer_->Start();
+    }
+    if (TvmOnlyApiHttpsServer_) {
+        TvmOnlyApiHttpsServer_->Start();
     }
     Coordinator_->Start();
 
@@ -308,7 +348,7 @@ const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
     return AccessChecker_;
 }
 
-const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
+const TCompositeHttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
 {
     return HttpAuthenticator_;
 }
@@ -316,16 +356,6 @@ const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
 const NAuth::TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
 {
     return AuthenticationManager_;
-}
-
-const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
-{
-    return TokenAuthenticator_;
-}
-
-const ICookieAuthenticatorPtr& TBootstrap::GetCookieAuthenticator() const
-{
-    return CookieAuthenticator_;
 }
 
 const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const

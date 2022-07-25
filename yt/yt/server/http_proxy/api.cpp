@@ -87,7 +87,7 @@ const NDriver::IDriverPtr& TApi::GetDriverV4() const
     return DriverV4_;
 }
 
-const THttpAuthenticatorPtr& TApi::GetHttpAuthenticator() const
+const TCompositeHttpAuthenticatorPtr& TApi::GetHttpAuthenticator() const
 {
     return HttpAuthenticator_;
 }

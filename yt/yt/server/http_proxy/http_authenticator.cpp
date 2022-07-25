@@ -26,6 +26,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 
 DEFINE_REFCOUNTED_TYPE(THttpAuthenticator)
+DEFINE_REFCOUNTED_TYPE(TCompositeHttpAuthenticator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,8 @@ void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& 
         rsp->SetStatus(EStatusCode::Unauthorized);
     } else if (error.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
         rsp->SetStatus(EStatusCode::Unauthorized);
+    } else if (error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError)) {
+        rsp->SetStatus(EStatusCode::Unauthorized);
     } else {
         rsp->SetStatus(EStatusCode::ServiceUnavailable);
     }
@@ -42,12 +45,15 @@ void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpAuthenticator::THttpAuthenticator(TBootstrap* bootstrap)
+THttpAuthenticator::THttpAuthenticator(
+    TBootstrap* bootstrap,
+    const NAuth::TAuthenticationManagerConfigPtr& authManagerConfig,
+    const NAuth::TAuthenticationManagerPtr& authManager)
     : Bootstrap_(bootstrap)
-    , Config_(Bootstrap_->GetConfig()->Auth)
-    , AuthenticationManager_(Bootstrap_->GetAuthenticationManager())
-    , TokenAuthenticator_(Bootstrap_->GetTokenAuthenticator())
-    , CookieAuthenticator_(Bootstrap_->GetCookieAuthenticator())
+    , Config_(authManagerConfig)
+    , AuthenticationManager_(authManager)
+    , TokenAuthenticator_(authManager->GetTokenAuthenticator())
+    , CookieAuthenticator_(authManager->GetCookieAuthenticator())
 {
     YT_VERIFY(Config_);
 }
@@ -236,6 +242,66 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     return TError(
         NRpc::EErrorCode::InvalidCredentials,
         "Client is missing credentials");
+}
+
+const ITokenAuthenticatorPtr& THttpAuthenticator::GetTokenAuthenticator() const
+{
+    return TokenAuthenticator_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompositeHttpAuthenticator::TCompositeHttpAuthenticator(const THashMap<int, THttpAuthenticatorPtr>& portAuthenticators)
+    : PortAuthenticators_(std::move(portAuthenticators))
+{ }
+
+void TCompositeHttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+{
+    auto result = GetPortAuthenticator(req->GetPort());
+    if (result.IsOK()) {
+        result.Value()->HandleRequest(req, rsp);
+        return;
+    }
+
+    SetStatusFromAuthError(rsp, TError(result));
+    ReplyJson(rsp, [&] (auto consumer) {
+        BuildYsonFluently(consumer)
+            .Value(TError(result));
+    });
+}
+
+TErrorOr<TAuthenticationResultAndToken> TCompositeHttpAuthenticator::Authenticate(
+    const IRequestPtr& request,
+    bool disableCsrfTokenCheck)
+{
+    auto result = GetPortAuthenticator(request->GetPort());
+    if (!result.IsOK()) {
+        return TError(result);
+    }
+
+    return result.Value()->Authenticate(request, disableCsrfTokenCheck);
+}
+
+const ITokenAuthenticatorPtr& TCompositeHttpAuthenticator::GetTokenAuthenticatorOrThrow(int port) const
+{
+    auto result = GetPortAuthenticator(port);
+    if (!result.IsOK()) {
+        THROW_ERROR_EXCEPTION(TError(result));
+    }
+
+    return result.Value()->GetTokenAuthenticator();
+}
+
+TErrorOr<THttpAuthenticatorPtr> TCompositeHttpAuthenticator::GetPortAuthenticator(int port) const {
+    auto it = PortAuthenticators_.find(port);
+    if (it != PortAuthenticators_.end() && it->second) {
+        return it->second;
+    }
+
+    return TError(
+        NRpc::EErrorCode::InvalidCredentials,
+        "No authenticator configured for port %v",
+        port);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

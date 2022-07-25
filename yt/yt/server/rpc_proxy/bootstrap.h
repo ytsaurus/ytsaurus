@@ -63,9 +63,12 @@ private:
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
+    NBus::IBusServerPtr TvmOnlyBusServer_;
     IApiServicePtr ApiService_;
+    IApiServicePtr TvmOnlyApiService_;
     NRpc::IServicePtr DiscoveryService_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
     ICoreDumperPtr CoreDumper_;
@@ -73,6 +76,7 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
+    NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NTracing::TSamplerPtr TraceSampler_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;

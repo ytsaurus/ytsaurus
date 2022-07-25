@@ -111,6 +111,8 @@ public:
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
+    NAuth::TAuthenticationManagerConfigPtr TvmOnlyAuth;
+
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;

@@ -147,6 +147,10 @@ void TProxyConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("https_server", &TThis::HttpsServer)
         .Optional();
+    registrar.Parameter("tvm_only_http_server", &TThis::TvmOnlyHttpServer)
+        .Optional();
+    registrar.Parameter("tvm_only_https_server", &TThis::TvmOnlyHttpsServer)
+        .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
         config->HttpServer->Port = config->Port;
@@ -156,6 +160,8 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
+    registrar.Parameter("tvm_only_auth", &TThis::TvmOnlyAuth)
+        .Optional();
 
     registrar.Parameter("ui_redirect_url", &TThis::UIRedirectUrl)
         .Default();
@@ -198,6 +204,23 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default("//sys/proxies/@config");
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {
+            auto auth = New<TAuthenticationManagerConfig>();
+            auth->TvmService = CloneYsonSerializable(config->Auth->TvmService);
+            auth->BlackboxService = CloneYsonSerializable(config->Auth->BlackboxService);
+            auth->BlackboxTicketAuthenticator = CloneYsonSerializable(config->Auth->BlackboxTicketAuthenticator);
+
+            config->TvmOnlyAuth = auth;
+        }
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if ((config->TvmOnlyHttpServer || config->TvmOnlyHttpsServer) && !config->TvmOnlyAuth) {
+            THROW_ERROR_EXCEPTION("\"tvm_only_auth\" must be configured when using \"tvm_only_http_server\" or \"tvm_only_https_server\"");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

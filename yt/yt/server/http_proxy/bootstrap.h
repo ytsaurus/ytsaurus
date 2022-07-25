@@ -59,7 +59,7 @@ public:
     const NDriver::IDriverPtr& GetDriverV4() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const IAccessCheckerPtr& GetAccessChecker() const;
-    const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
+    const TCompositeHttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
@@ -92,9 +92,8 @@ private:
     NDriver::IDriverPtr DriverV4_;
 
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
-    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
-    NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
-    THttpAuthenticatorPtr HttpAuthenticator_;
+    NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
+    TCompositeHttpAuthenticatorPtr HttpAuthenticator_;
 
     IDynamicConfigManagerPtr DynamicConfigManager_;
 
@@ -102,6 +101,8 @@ private:
 
     NHttp::IServerPtr ApiHttpServer_;
     NHttp::IServerPtr ApiHttpsServer_;
+    NHttp::IServerPtr TvmOnlyApiHttpServer_;
+    NHttp::IServerPtr TvmOnlyApiHttpsServer_;
     TApiPtr Api_;
 
     NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;

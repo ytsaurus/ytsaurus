@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
@@ -238,6 +239,8 @@ struct IRequest
     virtual TInstant GetStartTime() const = 0;
 
     virtual bool IsHttps() const { return false; }
+
+    virtual int GetPort() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequest)

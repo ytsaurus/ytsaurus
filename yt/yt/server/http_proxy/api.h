@@ -55,7 +55,7 @@ public:
 
     const NDriver::IDriverPtr& GetDriverV3() const;
     const NDriver::IDriverPtr& GetDriverV4() const;
-    const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
+    const TCompositeHttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const TApiConfigPtr& GetConfig() const;
     TApiDynamicConfigPtr GetDynamicConfig() const;
@@ -95,7 +95,7 @@ private:
     const NDriver::IDriverPtr DriverV3_;
     const NDriver::IDriverPtr DriverV4_;
 
-    const THttpAuthenticatorPtr HttpAuthenticator_;
+    const TCompositeHttpAuthenticatorPtr HttpAuthenticator_;
     const TCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
 
