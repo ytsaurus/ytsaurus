@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/erasure/impl/public.h>
 
+#include <library/cpp/yt/containers/sharded_set.h>
+
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <map>
@@ -300,6 +302,13 @@ struct TGlobalChunkScanDescriptor
 // is not possible.
 constexpr int ChunkShardCount = 60;
 static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCount| must fit into i8");
+
+struct TChunkToShardIndex
+{
+    int operator()(const TChunk* chunk) const;
+};
+
+using TShardedChunkSet = TShardedSet<TChunk*, ChunkShardCount, TChunkToShardIndex>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

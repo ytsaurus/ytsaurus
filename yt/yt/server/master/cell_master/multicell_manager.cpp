@@ -37,6 +37,7 @@
 #include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_replicator.h>
 
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
@@ -1047,7 +1048,9 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         cellStatistics->set_chunk_count(chunkManager->Chunks().GetSize());
-        cellStatistics->set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
+
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
+        cellStatistics->set_lost_vital_chunk_count(chunkReplicator->LostVitalChunks().size());
 
         if (IsPrimaryMaster()) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();

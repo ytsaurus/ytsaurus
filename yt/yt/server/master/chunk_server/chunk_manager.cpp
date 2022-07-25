@@ -530,12 +530,15 @@ public:
         return JobRegistry_;
     }
 
-
     const IChunkAutotomizerPtr& GetChunkAutotomizer() const override
     {
         return ChunkAutotomizer_;
     }
 
+    const TChunkReplicatorPtr& GetChunkReplicator() const override
+    {
+        return ChunkReplicator_;
+    }
 
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request) override
     {
@@ -2012,20 +2015,6 @@ public:
         return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
     }
 
-
-    const THashSet<TChunk*>& LostVitalChunks() const override;
-    const THashSet<TChunk*>& LostChunks() const  override;
-    const THashSet<TChunk*>& OverreplicatedChunks() const override;
-    const THashSet<TChunk*>& UnderreplicatedChunks() const override;
-    const THashSet<TChunk*>& DataMissingChunks() const override;
-    const THashSet<TChunk*>& ParityMissingChunks() const override;
-    const TOldestPartMissingChunkSet& OldestPartMissingChunks() const override;
-    const THashSet<TChunk*>& PrecariousChunks() const override;
-    const THashSet<TChunk*>& PrecariousVitalChunks() const override;
-    const THashSet<TChunk*>& QuorumMissingChunks() const override;
-    const THashSet<TChunk*>& UnsafelyPlacedChunks() const override;
-    const THashSet<TChunk*>& InconsistentlyPlacedChunks() const override;
-
     const THashSet<TChunk*>& ForeignChunks() const override
     {
         return ForeignChunks_;
@@ -2035,7 +2024,6 @@ public:
     {
         return TotalReplicaCount_;
     }
-
 
     bool IsChunkReplicatorEnabled() override
     {
@@ -5160,18 +5148,6 @@ private:
 
         buffer.AddGauge("/destroyed_replica_count", DestroyedReplicaCount_);
 
-        buffer.AddGauge("/lost_chunk_count", LostChunks().size());
-        buffer.AddGauge("/lost_vital_chunk_count", LostVitalChunks().size());
-        buffer.AddGauge("/overreplicated_chunk_count", OverreplicatedChunks().size());
-        buffer.AddGauge("/underreplicated_chunk_count", UnderreplicatedChunks().size());
-        buffer.AddGauge("/data_missing_chunk_count", DataMissingChunks().size());
-        buffer.AddGauge("/parity_missing_chunk_count", ParityMissingChunks().size());
-        buffer.AddGauge("/precarious_chunk_count", PrecariousChunks().size());
-        buffer.AddGauge("/precarious_vital_chunk_count", PrecariousVitalChunks().size());
-        buffer.AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks().size());
-        buffer.AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size());
-        buffer.AddGauge("/inconsistently_placed_chunk_count", InconsistentlyPlacedChunks().size());
-
         BufferedProducer_->Update(std::move(buffer));
     }
 
@@ -5337,19 +5313,6 @@ DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_)
 DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, MediumMap_)
-
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostVitalChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, OverreplicatedChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, DataMissingChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ParityMissingChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, TOldestPartMissingChunkSet, OldestPartMissingChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, QuorumMissingChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_)
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, InconsistentlyPlacedChunks, *ChunkReplicator_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

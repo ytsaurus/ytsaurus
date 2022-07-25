@@ -1,9 +1,11 @@
 #include "cypress_integration.h"
+
 #include "private.h"
 #include "chunk_location.h"
 #include "chunk.h"
 #include "chunk_view.h"
 #include "chunk_list.h"
+#include "chunk_replicator.h"
 #include "medium.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -106,33 +108,34 @@ private:
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         switch (Type_) {
             case EObjectType::LostChunkMap:
-                return ToObjectIds(chunkManager->LostChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->LostChunks(), sizeLimit);
             case EObjectType::LostVitalChunkMap:
-                return ToObjectIds(chunkManager->LostVitalChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->LostVitalChunks(), sizeLimit);
             case EObjectType::PrecariousChunkMap:
-                return ToObjectIds(chunkManager->PrecariousChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->PrecariousChunks(), sizeLimit);
             case EObjectType::PrecariousVitalChunkMap:
-                return ToObjectIds(chunkManager->PrecariousVitalChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->PrecariousVitalChunks(), sizeLimit);
             case EObjectType::OverreplicatedChunkMap:
-                return ToObjectIds(chunkManager->OverreplicatedChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->OverreplicatedChunks(), sizeLimit);
             case EObjectType::UnderreplicatedChunkMap:
-                return ToObjectIds(chunkManager->UnderreplicatedChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->UnderreplicatedChunks(), sizeLimit);
             case EObjectType::DataMissingChunkMap:
-                return ToObjectIds(chunkManager->DataMissingChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->DataMissingChunks(), sizeLimit);
             case EObjectType::ParityMissingChunkMap:
-                return ToObjectIds(chunkManager->ParityMissingChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->ParityMissingChunks(), sizeLimit);
             case EObjectType::QuorumMissingChunkMap:
-                return ToObjectIds(chunkManager->QuorumMissingChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->QuorumMissingChunks(), sizeLimit);
             case EObjectType::UnsafelyPlacedChunkMap:
-                return ToObjectIds(chunkManager->UnsafelyPlacedChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->UnsafelyPlacedChunks(), sizeLimit);
             case EObjectType::InconsistentlyPlacedChunkMap:
-                return ToObjectIds(chunkManager->InconsistentlyPlacedChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->InconsistentlyPlacedChunks(), sizeLimit);
             case EObjectType::ForeignChunkMap:
                 return ToObjectIds(chunkManager->ForeignChunks(), sizeLimit);
             case EObjectType::OldestPartMissingChunkMap:
-                return ToObjectIds(chunkManager->OldestPartMissingChunks(), sizeLimit);
+                return ToObjectIds(chunkReplicator->OldestPartMissingChunks(), sizeLimit);
             default:
                 YT_ABORT();
         }
@@ -142,34 +145,34 @@ private:
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         switch (Type_) {
             case EObjectType::LostChunkMap:
-                return chunkManager->LostChunks().contains(chunk);
+                return chunkReplicator->LostChunks().contains(chunk);
             case EObjectType::LostVitalChunkMap:
-                return chunkManager->LostVitalChunks().contains(chunk);
+                return chunkReplicator->LostVitalChunks().contains(chunk);
             case EObjectType::PrecariousChunkMap:
-                return chunkManager->PrecariousChunks().contains(chunk);
+                return chunkReplicator->PrecariousChunks().contains(chunk);
             case EObjectType::PrecariousVitalChunkMap:
-                return chunkManager->PrecariousVitalChunks().contains(chunk);
+                return chunkReplicator->PrecariousVitalChunks().contains(chunk);
             case EObjectType::OverreplicatedChunkMap:
-                return chunkManager->OverreplicatedChunks().contains(chunk);
+                return chunkReplicator->OverreplicatedChunks().contains(chunk);
             case EObjectType::UnderreplicatedChunkMap:
-                return chunkManager->UnderreplicatedChunks().contains(chunk);
+                return chunkReplicator->UnderreplicatedChunks().contains(chunk);
             case EObjectType::DataMissingChunkMap:
-                return chunkManager->DataMissingChunks().contains(chunk);
+                return chunkReplicator->DataMissingChunks().contains(chunk);
             case EObjectType::ParityMissingChunkMap:
-                return chunkManager->ParityMissingChunks().contains(chunk);
+                return chunkReplicator->ParityMissingChunks().contains(chunk);
             case EObjectType::QuorumMissingChunkMap:
-                return chunkManager->QuorumMissingChunks().contains(chunk);
+                return chunkReplicator->QuorumMissingChunks().contains(chunk);
             case EObjectType::UnsafelyPlacedChunkMap:
-                return chunkManager->UnsafelyPlacedChunks().contains(chunk);
+                return chunkReplicator->UnsafelyPlacedChunks().contains(chunk);
             case EObjectType::InconsistentlyPlacedChunkMap:
-                return chunkManager->InconsistentlyPlacedChunks().contains(chunk);
+                return chunkReplicator->InconsistentlyPlacedChunks().contains(chunk);
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().contains(chunk);
             case EObjectType::OldestPartMissingChunkMap:
-                // std::set::contains is not a thing until C++20.
-                return chunkManager->OldestPartMissingChunks().count(chunk) != 0;
+                return chunkReplicator->OldestPartMissingChunks().contains(chunk);
             default:
                 YT_ABORT();
         }
@@ -179,33 +182,34 @@ private:
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         switch (Type_) {
             case EObjectType::LostChunkMap:
-                return chunkManager->LostChunks().size();
+                return chunkReplicator->LostChunks().size();
             case EObjectType::LostVitalChunkMap:
-                return chunkManager->LostVitalChunks().size();
+                return chunkReplicator->LostVitalChunks().size();
             case EObjectType::PrecariousChunkMap:
-                return chunkManager->PrecariousChunks().size();
+                return chunkReplicator->PrecariousChunks().size();
             case EObjectType::PrecariousVitalChunkMap:
-                return chunkManager->PrecariousVitalChunks().size();
+                return chunkReplicator->PrecariousVitalChunks().size();
             case EObjectType::OverreplicatedChunkMap:
-                return chunkManager->OverreplicatedChunks().size();
+                return chunkReplicator->OverreplicatedChunks().size();
             case EObjectType::UnderreplicatedChunkMap:
-                return chunkManager->UnderreplicatedChunks().size();
+                return chunkReplicator->UnderreplicatedChunks().size();
             case EObjectType::DataMissingChunkMap:
-                return chunkManager->DataMissingChunks().size();
+                return chunkReplicator->DataMissingChunks().size();
             case EObjectType::ParityMissingChunkMap:
-                return chunkManager->ParityMissingChunks().size();
+                return chunkReplicator->ParityMissingChunks().size();
             case EObjectType::QuorumMissingChunkMap:
-                return chunkManager->QuorumMissingChunks().size();
+                return chunkReplicator->QuorumMissingChunks().size();
             case EObjectType::UnsafelyPlacedChunkMap:
-                return chunkManager->UnsafelyPlacedChunks().size();
+                return chunkReplicator->UnsafelyPlacedChunks().size();
             case EObjectType::InconsistentlyPlacedChunkMap:
-                return chunkManager->InconsistentlyPlacedChunks().size();
+                return chunkReplicator->InconsistentlyPlacedChunks().size();
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().size();
             case EObjectType::OldestPartMissingChunkMap:
-                return chunkManager->OldestPartMissingChunks().size();
+                return chunkReplicator->OldestPartMissingChunks().size();
             default:
                 YT_ABORT();
         }

@@ -53,24 +53,24 @@ public:
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
     // have been lost on all of the media.
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, LostChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, LostVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, DataMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, ParityMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(TOldestPartMissingChunkSet, OldestPartMissingChunks);
     // Medium-wise unsafely placed chunks: all replicas are on transient media
     // (and requisitions of these chunks demand otherwise).
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, PrecariousChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, PrecariousVitalChunks);
 
     // 'On any medium'. E.g. UnderreplicatedChunks contain chunks that are
     // underreplicated on at least one medium.
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnderreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, OverreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnderreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, OverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, InconsistentlyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, InconsistentlyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
