@@ -1,4 +1,5 @@
 #include "chunk_replicator.h"
+
 #include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
@@ -13,6 +14,7 @@
 #include "chunk_replica.h"
 #include "medium.h"
 #include "helpers.h"
+#include "refresh_epoch.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -333,6 +335,10 @@ TChunkReplicator::TChunkReplicator(
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
+
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
+    }
 }
 
 TChunkReplicator::~TChunkReplicator()
@@ -375,6 +381,10 @@ void TChunkReplicator::Start()
     YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
     JobEpoch_ = JobRegistry_->StartEpoch();
 
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        SetRefreshEpoch(shardIndex, JobEpoch_);
+    }
+
     YT_VERIFY(!std::exchange(Running_, true));
 
     // Just in case.
@@ -396,6 +406,10 @@ void TChunkReplicator::Stop()
 
     JobRegistry_->OnEpochFinished(JobEpoch_);
     JobEpoch_ = InvalidJobEpoch;
+
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
+    }
 
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         BlobRefreshScanner_->Stop(shardIndex);
@@ -1620,7 +1634,10 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     };
 
     auto hasSparePullReplicationResources = [&] {
-        return std::ssize(node->ChunksBeingPulled()) < GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode;
+        return
+            // TODO(gritukan): Use some better bounds.
+            misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
+            std::ssize(node->ChunksBeingPulled()) < GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode;
     };
 
     // Move CRP-enabled chunks from pull to push queues.
@@ -1633,6 +1650,12 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             auto desiredReplica = jt->first;
             auto* chunk = desiredReplica.GetPtr();
             auto& mediumIndexSet = jt->second;
+
+            if (!chunk->IsRefreshActual()) {
+                queue.erase(jt);
+                ++misscheduledReplicationJobs;
+                continue;
+            }
 
             for (const auto& replica : chunk->StoredReplicas()) {
                 auto* pushNode = replica.GetPtr();
@@ -1669,6 +1692,14 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             auto chunkWithIndexes = jt->first;
             auto* chunk = chunkWithIndexes.GetPtr();
             auto& mediumIndexSet = jt->second;
+
+            if (!chunk->IsRefreshActual()) {
+                queue.erase(jt);
+                node->RemoveTargetReplicationNodeId(chunk->GetId());
+                ++misscheduledReplicationJobs;
+                continue;
+            }
+
             for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
                     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
@@ -1721,9 +1752,17 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
             auto chunkWithIndexes = *chunkIt;
             auto* chunk = chunkWithIndexes.GetPtr();
-            if (TryScheduleRepairJob(context, queue, chunkWithIndexes)) {
+
+            auto removeFromQueue = [&] {
                 chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
                 chunkRepairQueue.erase(chunkIt);
+            };
+
+            if (!chunk->IsRefreshActual()) {
+                removeFromQueue();
+                ++misscheduledRepairJobs;
+            } else if (TryScheduleRepairJob(context, queue, chunkWithIndexes)) {
+                removeFromQueue();
             } else {
                 ++misscheduledRepairJobs;
             }
@@ -1774,6 +1813,14 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             auto jt = it++;
             auto chunkIdWithIndex = jt->first;
             auto& mediumIndexSet = jt->second;
+
+            auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
+            if (IsObjectAlive(chunk) && !chunk->IsRefreshActual()) {
+                queue.erase(jt);
+                ++misscheduledRemovalJobs;
+                continue;
+            }
+
             for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
                     TChunkIdWithIndexes chunkIdWithIndexes(
@@ -1849,6 +1896,8 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     if (chunk->IsForeign()) {
         return;
     }
+
+    chunk->OnRefresh();
 
     const auto replication = GetChunkAggregatedReplication(chunk);
 

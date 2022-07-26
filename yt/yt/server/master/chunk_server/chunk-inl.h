@@ -62,16 +62,29 @@ inline void TChunk::MaybeResetObsoleteEpochData()
     auto* data = GetDynamicData();
     auto currentEpoch = NObjectServer::GetCurrentEpoch();
     if (currentEpoch != data->Epoch) {
-        data->EpochPartLossTime = {};
-        data->EpochScanFlags = EChunkScanKind::None;
+        data->EpochScanFlags &= EChunkScanKind::Refresh;
         data->Epoch = currentEpoch;
+    }
+
+    auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
+    if (currentRefreshEpoch != data->RefreshEpoch) {
+        data->EpochPartLossTime = {};
+        data->EpochScanFlags &= ~EChunkScanKind::Refresh;
+        data->RefreshEpoch = currentRefreshEpoch;
     }
 }
 
 inline bool TChunk::GetScanFlag(EChunkScanKind kind) const
 {
     auto* data = GetDynamicData();
-    return data->Epoch == NObjectServer::GetCurrentEpoch() ? Any(data->EpochScanFlags & kind) : false;
+    if (kind == EChunkScanKind::Refresh) {
+        auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
+        return data->RefreshEpoch == currentRefreshEpoch ? Any(data->EpochScanFlags & kind) : false;
+    } else {
+        YT_ASSERT(None(kind & EChunkScanKind::Refresh));
+        auto currentEpoch = NObjectServer::GetCurrentEpoch();
+        return data->Epoch == currentEpoch ? Any(data->EpochScanFlags & kind) : false;
+    }
 }
 
 inline void TChunk::SetScanFlag(EChunkScanKind kind)
@@ -373,6 +386,18 @@ inline bool TChunk::IsDiskSizeFinal() const
 inline int TChunk::ExportCounter() const
 {
     return ExportCounter_;
+}
+
+inline void TChunk::OnRefresh()
+{
+    auto* data = GetDynamicData();
+    data->LastRefreshEpoch = GetRefreshEpoch(ShardIndex_);
+}
+
+inline bool TChunk::IsRefreshActual() const
+{
+    auto* data = GetDynamicData();
+    return data->LastRefreshEpoch == GetRefreshEpoch(ShardIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

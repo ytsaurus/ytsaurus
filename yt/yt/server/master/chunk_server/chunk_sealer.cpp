@@ -234,7 +234,11 @@ public:
         while (it != queue.end() && hasSpareSealResources()) {
             auto jt = it++;
             auto chunkWithIndexes = *jt;
-            if (TryScheduleSealJob(context, chunkWithIndexes)) {
+            auto* chunk = chunkWithIndexes.GetPtr();
+            if (!chunk->IsRefreshActual()) {
+                queue.erase(jt);
+                ++misscheduledSealJobs;
+            } else if (TryScheduleSealJob(context, chunkWithIndexes)) {
                 queue.erase(jt);
             } else {
                 ++misscheduledSealJobs;

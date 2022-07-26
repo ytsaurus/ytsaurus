@@ -376,6 +376,7 @@ public:
     void RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
 
     void AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node);
+    void RemoveTargetReplicationNodeId(TChunkId chunkId);
     void RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
     TNodeId GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
 

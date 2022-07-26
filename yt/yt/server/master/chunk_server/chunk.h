@@ -4,6 +4,7 @@
 #include "chunk_requisition.h"
 #include "chunk_replica.h"
 #include "chunk_tree.h"
+#include "refresh_epoch.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -57,8 +58,15 @@ struct TChunkDynamicData
     //! Indicates that certain background scans were scheduled for this chunk.
     EChunkScanKind EpochScanFlags = EChunkScanKind::None;
 
-    //! Indicates for which epoch #EpochScanFlags and #EpochPartLossTime are valid.
+    //! Indicates for which epoch #EpochScanFlags (besides refresh) is valid.
     NObjectServer::TEpoch Epoch = 0;
+
+    //! Indicates for which epoch refresh epoch scan flag and #EpochPartLostTime are valid.
+    TRefreshEpoch RefreshEpoch = NullRefreshEpoch;
+
+    //! Indicates last refresh epoch chunk was refreshed in.
+    //! This is used to check whether chunk state in replicator is actual.
+    TRefreshEpoch LastRefreshEpoch = NullRefreshEpoch;
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.
@@ -341,6 +349,13 @@ public:
     NChunkClient::EChunkFormat GetChunkFormat() const;
 
     bool HasConsistentReplicaPlacementHash() const;
+
+    //! Called when chunk is being refreshed.
+    void OnRefresh();
+
+    //! Returns true if chunk was refreshed in current refresh epoch
+    //! and false otherwise.
+    bool IsRefreshActual() const;
 
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
