@@ -26,6 +26,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/library/auth/tvm.h>
+
 namespace NYT::NDriver {
 
 using namespace NYTree;
@@ -348,7 +350,10 @@ public:
         TClientOptions options{
             .User = request.AuthenticatedUser,
             .Token = request.UserToken,
-            .ServiceTicket = request.ServiceTicket,
+            .ServiceTicketAuth = request.ServiceTicket
+                ? std::optional<NAuth::IServiceTicketAuthPtr>(
+                    New<NAuth::TServiceTicketFixedAuth>(*request.ServiceTicket))
+                : std::nullopt,
         };
 
         auto client = ClientCache_->Get(identity, options);

@@ -27,11 +27,11 @@ TClientOptions TClientOptions::FromToken(const TString& token)
         .Token = token
     };
 }
-
-TClientOptions TClientOptions::FromServiceTicket(const TString& ticket)
+    
+TClientOptions TClientOptions::FromServiceTicketAuth(const NAuth::IServiceTicketAuthPtr& ticketAuth)
 {
     return {
-        .ServiceTicket = ticket
+        .ServiceTicketAuth = ticketAuth
     };
 }
 

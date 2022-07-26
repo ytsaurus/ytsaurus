@@ -72,11 +72,11 @@ IChannelPtr CreateCredentialsInjectingChannel(
             options.User,
             options.SessionId.value_or(TString()),
             options.SslSessionId.value_or(TString()));
-    } else if (options.ServiceTicket) {
+    } else if (options.ServiceTicketAuth) {
         return CreateServiceTicketInjectingChannel(
             underlying,
             options.User,
-            *options.ServiceTicket);
+            *options.ServiceTicketAuth);
     } else {
         return CreateUserInjectingChannel(underlying, options.User);
     }
