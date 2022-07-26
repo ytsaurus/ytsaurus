@@ -786,6 +786,11 @@ TNodeId TNode::GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumInde
     return idIt->second;
 }
 
+void TNode::RemoveTargetReplicationNodeId(TChunkId chunkId)
+{
+    PushReplicationTargetNodeIds_.erase(chunkId);
+}
+
 void TNode::RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex)
 {
     auto it = PushReplicationTargetNodeIds_.find(chunkId);
