@@ -135,14 +135,30 @@ def _default_value_eq(actual, expected):
     assert actual == expected
 
 
-def check_dump_load(type_, skiff_bytes, value, expected_type=None, ti_type=None, assert_value_eq=_default_value_eq):
+def create_single_value_row_class(type_):
     class Row:
         pass
 
     Row.__annotations__ = {"x": type_}
-    Row = yt_dataclass(Row)
+    return yt_dataclass(Row)
 
-    assert ti_type is None
+
+def dump_single_value_row(type_, value):
+    Row = create_single_value_row_class(type_)
+
+    py_schema = _create_row_py_schema(Row)
+    skiff_schema_for_writing = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=False)])
+
+    stream = io.BytesIO()
+    row = Row(x=value)
+    dump_structured(objects=[row], streams=[stream], py_schemas=[py_schema], skiff_schemas=[skiff_schema_for_writing])
+
+    return stream.getvalue()
+
+
+def check_dump_load(type_, skiff_bytes, value, *, expected_type=None, assert_value_eq=_default_value_eq):
+    Row = create_single_value_row_class(type_)
+
     py_schema = _create_row_py_schema(Row)
     skiff_schema_for_reading = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=True)])
 
@@ -160,14 +176,8 @@ def check_dump_load(type_, skiff_bytes, value, expected_type=None, ti_type=None,
         assert type(actual) == expected_type
     assert_value_eq(actual=actual, expected=value)
 
-    row = Row(x=value)
-    stream = io.BytesIO()
+    actual_skiff_bytes_with_table_index = dump_single_value_row(type_, value)
 
-    skiff_schema_for_writing = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=False)])
-
-    dump_structured(objects=[row], streams=[stream], py_schemas=[py_schema], skiff_schemas=[skiff_schema_for_writing])
-
-    actual_skiff_bytes_with_table_index = stream.getvalue()
     assert actual_skiff_bytes_with_table_index[:2] == b"\x00\x00"
     actual_skiff_bytes = actual_skiff_bytes_with_table_index[2:]
     assert actual_skiff_bytes == skiff_bytes
@@ -180,6 +190,10 @@ class TestDumpLoadStructuredSkiff(object):
         check_dump_load(Int64, SKIFF_INT64_15, 15, expected_type=int)
         check_dump_load(int, SKIFF_INT64_MAX, 2 ** 63 - 1)
         check_dump_load(int, SKIFF_INT64_MIN, -(2 ** 63))
+
+        with pytest.raises(yt.YtError) as ex:
+            dump_single_value_row(int, 2**63)
+        assert "Got too large integer value" in str(ex.value)
 
         check_dump_load(Uint64, SKIFF_UINT64_15, 15, expected_type=int)
         check_dump_load(Uint64, SKIFF_UINT64_MAX, 2 ** 64 - 1, expected_type=int)
