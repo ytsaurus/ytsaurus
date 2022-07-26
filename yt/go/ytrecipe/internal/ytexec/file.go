@@ -43,6 +43,12 @@ Use following command to download all logs and core dumps:
 
 ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --update-me-to-v3
 
+Download porto layer to open core dump:
+mkdir -p /tmp/testlayer
+yt --proxy hahn download //porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz > porto_layer.tgz
+tar xf porto_layer.tgz
+Run in GDB: set sysroot /tmp/testlayer
+
 Install ytrecipe-tool from source:
 
 ya make -r yt/go/ytrecipe/cmd/ytrecipe-tool/ --install $GOPATH/bin
