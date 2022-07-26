@@ -3,6 +3,7 @@
 #include "private.h"
 #include "tablet_owner_base.h"
 #include "tablet_manager.h"
+#include "tablet_base.h"
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
 

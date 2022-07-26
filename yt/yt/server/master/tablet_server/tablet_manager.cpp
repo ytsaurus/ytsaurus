@@ -9,6 +9,8 @@
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
+#include "tablet_action.h"
+#include "tablet_action_type_handler.h"
 #include "tablet_action_manager.h"
 #include "tablet_balancer.h"
 #include "tablet_cell.h"

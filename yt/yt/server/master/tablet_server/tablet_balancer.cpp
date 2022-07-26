@@ -4,6 +4,9 @@
 #include "public.h"
 #include "tablet_balancer.h"
 #include "tablet_manager.h"
+#include "tablet_cell.h"
+#include "tablet.h"
+#include "tablet_action.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>

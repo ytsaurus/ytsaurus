@@ -3,6 +3,7 @@
 #include "public.h"
 #include "tablet_action_manager.h"
 #include "tablet_manager.h"
+#include "tablet_action.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>

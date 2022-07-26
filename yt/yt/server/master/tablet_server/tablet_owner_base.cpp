@@ -1,6 +1,7 @@
 #include "tablet_owner_base.h"
 
 #include "tablet_cell_bundle.h"
+#include "tablet_base.h"
 
 namespace NYT::NTabletServer {
 

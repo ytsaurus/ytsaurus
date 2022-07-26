@@ -1,12 +1,16 @@
 #include "tablet_proxy_base.h"
 
 #include "tablet_base.h"
+#include "tablet_cell.h"
+#include "tablet_action.h"
 #include "tablet_manager.h"
 #include "tablet_owner_base.h"
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
+
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 

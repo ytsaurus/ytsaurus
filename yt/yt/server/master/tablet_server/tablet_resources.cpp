@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/security_server/helpers.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NYTree;

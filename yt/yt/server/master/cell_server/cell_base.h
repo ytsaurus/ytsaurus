@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/yt/server/master/tablet_server/public.h>
-#include <yt/yt/server/master/tablet_server/tablet.h>
 
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/cell_master/gossip_value.h>

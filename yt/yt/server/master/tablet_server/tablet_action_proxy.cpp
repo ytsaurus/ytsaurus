@@ -1,5 +1,6 @@
 #include "tablet_action_proxy.h"
 #include "tablet_action.h"
+#include "tablet_cell.h"
 #include "tablet_manager.h"
 #include "private.h"
 

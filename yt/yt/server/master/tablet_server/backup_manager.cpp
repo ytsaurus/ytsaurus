@@ -1,8 +1,10 @@
 #include "backup_manager.h"
 #include "tablet.h"
+#include "tablet_cell.h"
 #include "private.h"
 #include "tablet_manager.h"
 #include "config.h"
+#include "table_replica.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
