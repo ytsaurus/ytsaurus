@@ -31,6 +31,7 @@ namespace NYT::NTabletServer {
 namespace NProto {
 
 class TTabletCellStatistics;
+class TTabletResources;
 
 } // namespace NProto
 

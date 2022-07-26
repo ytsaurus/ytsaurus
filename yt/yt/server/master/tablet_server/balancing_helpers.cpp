@@ -2,6 +2,7 @@
 #include "config.h"
 #include "private.h"
 #include "tablet.h"
+#include "tablet_action.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_manager.h"

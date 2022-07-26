@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "tablet.h"
-#include "tablet_action.h"
+#include "tablet_statistics.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/cell_master/gossip_value.h>
@@ -14,11 +13,6 @@
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
-
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>

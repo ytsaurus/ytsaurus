@@ -2,8 +2,8 @@
 #include "private.h"
 #include "cell_bundle.h"
 #include "cell_base.h"
-#include "yt/yt/server/master/tablet_server/private.h"
 
+#include <yt/yt/server/master/tablet_server/private.h>
 #include <yt/yt/server/master/tablet_server/tablet_action.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>

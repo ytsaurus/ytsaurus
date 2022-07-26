@@ -1,6 +1,7 @@
 #include "tablet_action_type_handler.h"
 #include "tablet_action_proxy.h"
 #include "tablet_manager.h"
+#include "tablet_action.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 

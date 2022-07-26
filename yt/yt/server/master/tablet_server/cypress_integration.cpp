@@ -1,6 +1,7 @@
 #include "cypress_integration.h"
 
 #include "tablet.h"
+#include "tablet_action.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>

@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
-#include <yt/yt/core/ytree/static_service_dispatcher.h>
-
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////

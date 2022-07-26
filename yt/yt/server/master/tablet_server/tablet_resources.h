@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/master/cell_master/gossip_value.h>
 
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletServer {

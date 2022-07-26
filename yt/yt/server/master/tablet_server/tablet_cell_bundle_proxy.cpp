@@ -5,6 +5,7 @@
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_manager.h"
 #include "tablet_resources.h"
+#include "tablet_action.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
