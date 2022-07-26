@@ -53,7 +53,7 @@ public:
             if (it != Entries_.end()) {
                 auto& entry = *it->second;
                 auto entryGuard = Guard(entry.Lock);
-                if (auto optionalExistingReplicas = entry.Promise.TryGet()) {
+                if (auto optionalExistingReplicas = entry.Future.TryGet()) {
                     if (optionalExistingReplicas->IsOK()) {
                         entry.LastAccessTime = now;
                     }
@@ -84,7 +84,7 @@ public:
                     auto& entry = *it->second;
                     auto entryGuard = Guard(entry.Lock);
                     entry.LastAccessTime = now;
-                    futures[index] = entry.Promise.ToFuture();
+                    futures[index] = entry.Future;
                 }
             }
         }
@@ -103,11 +103,12 @@ public:
                     auto& entry = *it->second;
                     entry.LastAccessTime = now;
                     entry.Promise = NewPromise<TAllyReplicasInfo>();
+                    entry.Future = entry.Promise.ToFuture().ToUncancelable();
                     promises[index] = entry.Promise;
                 }
                 auto& entry = *it->second;
                 auto entryGuard = Guard(entry.Lock);
-                futures[index] = entry.Promise.ToFuture();
+                futures[index] = entry.Future;
             }
         }
 
@@ -206,7 +207,7 @@ public:
             auto& entry = *it->second;
             auto entryGuard = Guard(entry.Lock);
             entry.LastAccessTime = now;
-            if (entry.Promise.ToFuture() == future) {
+            if (entry.Future == future) {
                 entryGuard.Release();
                 Entries_.erase(it);
                 YT_LOG_DEBUG("Chunk replicas discarded (ChunkId: %v)",
@@ -225,6 +226,7 @@ public:
 
         auto update = [&] (TEntry& entry) {
             entry.Promise = MakePromise(replicas);
+            entry.Future = entry.Promise.ToFuture();
             entry.LastAccessTime = now;
 
             YT_LOG_DEBUG("Chunk replicas updated (ChunkId: %v, Replicas: %v, Revision: %llx)",
@@ -237,7 +239,7 @@ public:
             auto entryGuard = Guard(entry.Lock);
 
             auto oldRevision = NHydra::NullRevision;
-            if (auto optionalExistingReplicas = entry.Promise.TryGet()) {
+            if (auto optionalExistingReplicas = entry.Future.TryGet()) {
                 if (optionalExistingReplicas->IsOK()) {
                     oldRevision = optionalExistingReplicas->Value().Revision;
                 }
@@ -298,6 +300,7 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         TInstant LastAccessTime;
         TPromise<TAllyReplicasInfo> Promise;
+        TFuture<TAllyReplicasInfo> Future;
     };
 
     // TODO(babenko): maybe implement sharding
