@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/optional.h>
 
+#include <yt/yt/library/auth/public.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,11 @@ NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const std::optional<TString>& user,
     const TString& ticket);
+
+NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const std::optional<TString> &user,
+    const NAuth::IServiceTicketAuthPtr& serviceTicketAuth);
 
 ////////////////////////////////////////////////////////////////////////////////
 

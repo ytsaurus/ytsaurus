@@ -4,6 +4,8 @@
 #include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
+#include <yt/yt/library/auth/tvm.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
@@ -143,9 +145,9 @@ public:
     TServiceTicketInjectingChannel(
         IChannelPtr underlyingChannel,
         const std::optional<TString>& user,
-        const TString& ticket)
+        const NAuth::IServiceTicketAuthPtr& ticketAuth)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
-        , Ticket_(ticket)
+        , TicketAuth_(ticketAuth)
     { }
 
 protected:
@@ -154,23 +156,23 @@ protected:
         TUserInjectingChannel::DoInject(request);
 
         auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
-        ext->set_service_ticket(Ticket_);
+        ext->set_service_ticket(TicketAuth_->IssueServiceTicket());
     }
 
 private:
-    const TString Ticket_;
+    NAuth::IServiceTicketAuthPtr TicketAuth_;
 };
 
-IChannelPtr CreateServiceTicketInjectingChannel(
-    IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& ticket)
+NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const std::optional<TString> &user,
+    const NAuth::IServiceTicketAuthPtr& serviceTicketAuth)
 {
     YT_VERIFY(underlyingChannel);
     return New<TServiceTicketInjectingChannel>(
         std::move(underlyingChannel),
         user,
-        ticket);
+        serviceTicketAuth);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
+#include <yt/yt/library/auth/public.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +35,7 @@ struct TClientOptions
     static TClientOptions FromUser(const TString& user, const std::optional<TString>& userTag = {});
     static TClientOptions FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity);
     static TClientOptions FromToken(const TString& token);
-    static TClientOptions FromServiceTicket(const TString& ticket);
+    static TClientOptions FromServiceTicketAuth(const NAuth::IServiceTicketAuthPtr& ticketAuth);
 
     const TString& GetAuthenticatedUser() const;
     NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const;
@@ -49,9 +51,9 @@ struct TClientOptions
     std::optional<TString> UserTag;
 
     std::optional<TString> Token;
-    std::optional<TString> ServiceTicket;
     std::optional<TString> SessionId;
     std::optional<TString> SslSessionId;
+    std::optional<NAuth::IServiceTicketAuthPtr> ServiceTicketAuth;
 };
 
 struct TTransactionParticipantOptions
