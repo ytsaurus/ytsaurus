@@ -154,7 +154,8 @@ private:
         auto value = extractValue();
         if (value == static_cast<decltype(value)>(-1) && PyErr_Occurred()) {
             THROW_ERROR_EXCEPTION("Got too large integer value %v",
-                Repr(Py::Object(obj)));
+                Repr(Py::Object(obj)))
+                << Py::BuildErrorFromPythonException(/*clear*/ true);
         }
         if (value > std::numeric_limits<T>::max() || value < std::numeric_limits<T>::min()) {
             THROW_ERROR_EXCEPTION("Got integer value %v out of range [%v, %v]",
