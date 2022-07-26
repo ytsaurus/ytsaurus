@@ -80,21 +80,6 @@ bool CheckFreeStackSpace(size_t space);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IScheduler
-{
-    virtual ~IScheduler() = default;
-
-    //! Transfers control back to the scheduler and puts currently executing fiber
-    //! into sleep until occurrence of an external event.
-    virtual void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker) = 0;
-
-};
-
-//! Sets the current scheduler. Can only be called once per thread.
-void SetCurrentScheduler(IScheduler* scheduler);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } //namespace NYT::NConcurrency
 
 #define SCHEDULER_API_INL_H_
