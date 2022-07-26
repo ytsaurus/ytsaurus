@@ -454,27 +454,12 @@ private:
     TCancelerPtr Canceler_;
 };
 
-// Handler to support native fibers in Perl bindings.
-thread_local IScheduler* CurrentScheduler;
-
-void SetCurrentScheduler(IScheduler* scheduler)
-{
-    YT_VERIFY(!CurrentScheduler);
-    CurrentScheduler = scheduler;
-}
-
 void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
 {
     YT_VERIFY(future);
     YT_ASSERT(invoker);
 
-    if (CurrentScheduler) {
-        CurrentScheduler->WaitUntilSet(std::move(future), std::move(invoker));
-        return;
-    }
-
     auto* currentFiber = CurrentFiber().Get();
-
     if (!currentFiber) {
         // When called from a fiber-unfriendly context, we fallback to blocking wait.
         YT_VERIFY(invoker == GetCurrentInvoker());
