@@ -4,11 +4,12 @@ from ..errors import YtError
 
 from .. import skiff
 
+import typing
+
 try:
     import yandex.type_info.typing as ti
     import copy
     import dataclasses
-    import typing
     from typing_extensions import Annotated
 except ImportError:
     pass
@@ -150,7 +151,14 @@ def _check_ti_types_compatible(src_type, dst_type, field_path):
             raise_incompatible()
 
 
-class OutputRow:
+class _YtDataclassProtocol(typing.Protocol):
+    _YT_DATACLASS_MARKER = None
+
+
+YtDataclassType = typing.TypeVar('YtDataclassType', bound=_YtDataclassProtocol)
+
+
+class OutputRow(typing.Generic[YtDataclassType]):
     """
     Wrapper for job output row.
     """
@@ -160,6 +168,11 @@ class OutputRow:
     def __init__(self, row, table_index=0):
         self._row = row
         self._table_index = table_index
+
+
+class RowIteratorProtocol(typing.Iterable[YtDataclassType]):
+    def with_context():
+        pass
 
 
 if is_schema_module_available():

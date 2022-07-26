@@ -1,14 +1,20 @@
 from .batch_helpers import create_batch_client
 from .cypress_commands import get
-from .errors import YtResolveError, YtResponseError
+from .errors import YtError, YtResolveError, YtResponseError
 from .format import StructuredSkiffFormat
-from .schema import TableSchema, _create_row_py_schema, _validate_py_schema, is_yt_dataclass
+from .schema import (TableSchema, _create_row_py_schema, _validate_py_schema,
+                     is_yt_dataclass, check_schema_module_available, is_schema_module_available)
 from .ypath import TablePath
 
 from yt.yson import to_yson_type
 
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
+
+if is_schema_module_available():
+    from .schema import Variant, OutputRow, RowIterator
+
+    import typing
 
 
 class TypedJob:
@@ -19,7 +25,6 @@ class TypedJob:
 
     __metaclass__ = ABCMeta
 
-    @abstractmethod
     def prepare_operation(self, context, preparer):
         """
         Override this method to specify input and output row types
@@ -35,6 +40,13 @@ class TypedJob:
                 .outputs(range(context.get_output_count()), type=OutRow)
         ```
         """
+        try:
+            _infer_table_schemas(self, context, preparer)
+        except (TypeError, YtError) as e:
+            raise YtError("Failed to infer table schemas. "
+                          "Specify it manually by overriding `job.prepare_operation` method",
+                          attributes={"job_python_type": type(self).__qualname__}, inner_errors=e)
+
         return
 
     @abstractmethod
@@ -350,3 +362,76 @@ def run_operation_preparation(job, context, input_control_attributes):
     input_format = StructuredSkiffFormat(preparer._input_py_schemas, for_reading=True)
     output_format = StructuredSkiffFormat(preparer._output_py_schemas, for_reading=False)
     return input_format, output_format, input_paths, output_paths
+
+
+def _infer_table_schemas(job, context, preparer):
+    """
+    Try to infer table schemas from :func:`job.__call__`'s type hints.
+    The number of input and output types must match the number of input and output tables respectively.
+
+    Let `T` be any class decorated with `@yt_dataclass`, and `Ts` is a list of `T` types.
+
+    Restrictions:
+    1. First annotated argument should be annotated as either `InputType` or `RowIterator[InputType]`,
+    where `InputType` could be either `T` or `yt.schema.Variant[Ts]`,
+    where `Ts` is a list of `T` types
+
+    2. Return type should be annotated as any of `typing.Iterable[OutputType]`, `typing.Iterator[OutputType]`
+    or `typing.Generator[OutputType, ...]`,
+    where `OutputType` could be equal to `T`, `OutputRow[T]` or `OutputRow[yt.schema.Variant[Ts]]`
+
+    See examples in the tests *schema_inferring_from_type_hints in the test_typed_api.py
+    """
+    check_schema_module_available()
+
+    def extract_row_type(tp):
+        if typing.get_origin(tp) is OutputRow:
+            args = typing.get_args(tp)
+            if not args:
+                raise TypeError("OutputRow expected to be annotated with row type")
+            return args[0]
+
+        return tp
+
+    def extract_type_list(variant):
+        if typing.get_origin(variant) is not Variant:
+            return [variant]
+
+        return list(typing.get_args(variant))
+
+    type_hints = typing.get_type_hints(job.__call__)
+    if len(type_hints) < 2:
+        raise TypeError("`job.__call__` has wrong number of annotations. At least 2 expected")
+
+    if "return" not in type_hints:
+        raise TypeError("`job.__call__` return type is not annotated")
+
+    argument_type = next(iter(type_hints.values()))
+    return_type = type_hints["return"]
+
+    if typing.get_origin(argument_type) is RowIterator:
+        args = typing.get_args(argument_type)
+        if len(args) != 1:
+            raise TypeError("Argument expected to be annotated as RowIterator[T]")
+        argument_type = args[0]
+
+    input_tables_types = extract_type_list(argument_type)
+    if len(input_tables_types) != context.get_input_count():
+        raise TypeError("Wrong number of input types {}, {} expected".format(
+            len(input_tables_types), context.get_input_count()))
+
+    for i, tp in enumerate(input_tables_types):
+        preparer.input(i, type=tp)
+
+    iterable = [typing.get_origin(tp) for tp in [typing.Generator, typing.Iterator, typing.Iterable]]
+    if typing.get_origin(return_type) not in iterable or not typing.get_args(return_type):
+        raise TypeError("Return type expected to be annotated as Generator[T]")
+
+    iterable_item_type = extract_row_type(typing.get_args(return_type)[0])
+    output_tables_types = extract_type_list(iterable_item_type)
+    if len(output_tables_types) != context.get_output_count():
+        raise TypeError("Wrong number of output types {}, {} expected".format(
+            len(output_tables_types), context.get_output_count()))
+
+    for i, tp in enumerate(output_tables_types):
+        preparer.output(i, type=tp)

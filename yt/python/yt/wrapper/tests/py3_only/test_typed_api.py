@@ -1,3 +1,4 @@
+from yt.common import YtError
 from yt.testlib import authors
 
 from yt.wrapper.schema import (
@@ -14,14 +15,21 @@ from yt.wrapper.schema import (
     Uint64,
     YsonBytes,
     OtherColumns,
+    RowIterator,
+    Variant,
 )
 
-from yt.wrapper.prepare_operation import TypedJob
+from yt.wrapper.prepare_operation import (
+    TypedJob,
+    OperationPreparationContext,
+)
 
 import yt.yson as yson
 import yt.wrapper as yt
 
 import yandex.type_info.typing as ti
+
+from dataclasses import dataclass
 
 import copy
 import pytest
@@ -51,6 +59,12 @@ class RowWithContext(TheRow):
 class Row1:
     str_field: str
     int32_field: Int64
+
+
+@yt_dataclass
+class AnotherRow:
+    int32_field: Int64  # ??, done to match `TheRow` field's type
+    uint64_field: Uint64
 
 
 @yt_dataclass
@@ -1130,3 +1144,134 @@ class TestTypedApi(object):
         row = typed_rows[0]
         assert row.dict_str_to_int == {"a": 10, "b": 20}
         assert row.dict_int_to_bytes == {1: b"\x01", 2: b"\x02"}
+
+    class SimpleIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:
+            yield input_row
+
+    @yt.with_context
+    class ContextedIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow, context: OperationPreparationContext) -> typing.Iterator[TheRow]:
+            yield input_row
+
+    class ReturnOutputRowIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow) -> typing.Generator[OutputRow[Variant[TheRow]], None, None]:
+            yield OutputRow(input_row)
+
+    @authors("aleexfi")
+    @pytest.mark.parametrize("mapper", [SimpleIdentityMapper, ContextedIdentityMapper, ReturnOutputRowIdentityMapper])
+    def test_simple_schema_inferring_from_type_hints(self, mapper):
+        schema = TableSchema.from_row_type(TheRow)
+
+        src_table = "//tmp/src_table"
+        dest_table = "//tmp/dest_table"
+        yt.create_table(src_table, attributes={"schema": schema})
+        yt.create_table(dest_table, attributes={"schema": schema})
+        yt.write_table_structured(src_table, TheRow, ROWS)
+
+        yt.run_map(
+            mapper(),
+            source_table=src_table,
+            destination_table=dest_table,
+            spec={"max_failed_job_count": 1},
+        )
+
+        assert list(yt.read_table_structured(dest_table, TheRow)) == ROWS
+
+    class NotAnnotatedIdentityMapper(TypedJob):
+        def __call__(self, input_row):
+            yield input_row
+
+    class NoReturnTypeIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow):
+            yield input_row
+
+    class NoIterableIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow) -> OutputRow[TheRow]:
+            yield OutputRow(input_row)
+
+    class TooMuchInputTypesIdentityMapper(TypedJob):
+        def __call__(self, input_row: Variant[TheRow, TheRow]) -> typing.Iterable[OutputRow[TheRow]]:
+            yield OutputRow(input_row)
+
+    class TooMuchOutputTypesIdentityMapper(TypedJob):
+        def __call__(self, input_row: TheRow) -> typing.Iterable[OutputRow[Variant[TheRow, TheRow]]]:
+            yield OutputRow(input_row)
+
+    @authors("aleexfi")
+    @pytest.mark.parametrize("mapper", [
+        NotAnnotatedIdentityMapper, NoReturnTypeIdentityMapper,
+        NoIterableIdentityMapper, TooMuchInputTypesIdentityMapper,
+        TooMuchOutputTypesIdentityMapper,
+    ])
+    def test_bad_schema_inferring_from_type_hints(self, mapper):
+        schema = TableSchema.from_row_type(TheRow)
+
+        src_table = "//tmp/src_table"
+        dest_table = "//tmp/dest_table"
+        yt.create_table(src_table, attributes={"schema": schema})
+        yt.create_table(dest_table, attributes={"schema": schema})
+
+        with pytest.raises(YtError):
+            yt.run_map(
+                mapper(),
+                source_table=src_table,
+                destination_table=dest_table,
+            )
+
+    @dataclass
+    class TestConfig:
+        __test__ = False
+        reducer: typing.Type[TypedJob]
+        inputs: list[yt.schema.types.YtDataclassType]
+        outputs: list[yt.schema.types.YtDataclassType]
+
+    class SameInputTypesIdentityReducer(TypedJob):
+        def __call__(self, input_row_iterator: RowIterator[Variant[TheRow, TheRow]]) \
+                -> typing.Iterable[OutputRow[Variant[AnotherRow, AnotherRow, AnotherRow]]]:
+            yield OutputRow(AnotherRow())  # never called
+
+    class MultipleTypesIdentityReducer(TypedJob):
+        def __call__(self, input_row_iterator: RowIterator[Variant[TheRow, AnotherRow]]) \
+                -> typing.Iterable[OutputRow[Variant[AnotherRow, TheRow]]]:
+            yield OutputRow(TheRow())
+
+    @authors("aleexfi")
+    @pytest.mark.parametrize("config", [
+        TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, TheRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),
+        TestConfig(MultipleTypesIdentityReducer, inputs=[TheRow, AnotherRow], outputs=[AnotherRow, TheRow]),
+    ])
+    def test_multiple_tables_schema_inferring_from_type_hints(self, config):
+        def create_tables(table_path_prefix, tables_row_type_list):
+            paths = []
+            for i, row_type in enumerate(tables_row_type_list):
+                table_path = "{}_{}".format(table_path_prefix, i)
+                schema = TableSchema.from_row_type(row_type)
+                yt.create_table(table_path, attributes={"schema": schema})
+                paths.append(table_path)
+            return paths
+
+        src_tables = create_tables("//tmp/src_table", config.inputs)
+        dest_tables = create_tables("//tmp/dest_table", config.outputs)
+
+        for table in src_tables:
+            yt.run_sort(table, sort_by=["int32_field"])
+
+        yt.run_reduce(
+            config.reducer(),
+            source_table=src_tables,
+            destination_table=dest_tables,
+            reduce_by=["int32_field"],
+        )
+
+    @authors("aleexfi")
+    @pytest.mark.parametrize("config", [
+        TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, AnotherRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),
+        TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, TheRow], outputs=[TheRow, AnotherRow, AnotherRow]),
+        TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),
+        TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, TheRow], outputs=[AnotherRow, AnotherRow]),
+        TestConfig(MultipleTypesIdentityReducer, inputs=[AnotherRow, TheRow], outputs=[AnotherRow, TheRow]),
+    ])
+    def test_bad_multiple_tables_schema_inferring_from_type_hints(self, config):
+        with pytest.raises(YtError):
+            self.test_multiple_tables_schema_inferring_from_type_hints(config)
