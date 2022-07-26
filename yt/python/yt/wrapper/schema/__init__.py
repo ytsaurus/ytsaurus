@@ -12,6 +12,9 @@ if is_schema_module_available():
         Int8, Int16, Int32, Int64, Uint8, Uint16, Uint32, Uint64,
         YsonBytes, OtherColumns)
 
+    from .types import RowIteratorProtocol as RowIterator  # noqa
+    from .variant import Variant  # noqa
+
 
 class SkiffError(YtError):
     pass
