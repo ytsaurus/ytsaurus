@@ -89,7 +89,6 @@ class TProtobufWriterType
     : public TProtobufTypeBase
 {
 public:
-    static constexpr bool AllowStructurednessMismatch = true;
 
     int AddEmbedding(
         int parentParentEmbeddingIndex,
@@ -131,8 +130,6 @@ private:
     };
 
 public:
-    static constexpr bool AllowStructurednessMismatch = false;
-
     int AddEmbedding(
         int parentParentEmbeddingIndex,
         const TProtobufColumnConfigPtr& embeddingConfig);
