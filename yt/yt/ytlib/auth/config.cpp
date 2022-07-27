@@ -20,7 +20,7 @@ TAuthCacheConfig::TAuthCacheConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDefaultBlackboxServiceConfig::TDefaultBlackboxServiceConfig()
+TBlackboxServiceConfig::TBlackboxServiceConfig()
 {
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
@@ -44,7 +44,7 @@ TDefaultBlackboxServiceConfig::TDefaultBlackboxServiceConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDefaultTvmServiceConfig::TDefaultTvmServiceConfig()
+TTvmServiceConfig::TTvmServiceConfig()
 {
     RegisterParameter("use_tvm_tool", UseTvmTool)
         .Default(false);

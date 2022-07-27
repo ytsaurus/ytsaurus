@@ -1,7 +1,6 @@
 #include "mock_http_server.h"
 
 #include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/default_tvm_service.h>
 #include <yt/yt/ytlib/auth/helpers.h>
 #include <yt/yt/ytlib/auth/tvm_service.h>
 
@@ -39,7 +38,7 @@ static const TString CACHE_PATH = "./ticket_parser_cache/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultTvmTest
+class TTvmTest
     : public ::testing::Test
 {
 protected:
@@ -62,9 +61,9 @@ protected:
         }
     }
 
-    TDefaultTvmServiceConfigPtr CreateDefaultTvmServiceConfig()
+    TTvmServiceConfigPtr CreateTvmServiceConfig()
     {
-        auto config = New<TDefaultTvmServiceConfig>();
+        auto config = New<TTvmServiceConfig>();
         config->ClientSelfId = 100500;
         config->ClientDiskCacheDir = CACHE_PATH;
         config->TvmHost = "https://localhost";
@@ -76,62 +75,62 @@ protected:
         return config;
     }
 
-    ITvmServicePtr CreateDefaultTvmService(
-        TDefaultTvmServiceConfigPtr config = {}, bool populateCache = true)
+    ITvmServicePtr CreateTvmService(
+        TTvmServiceConfigPtr config = {}, bool populateCache = true)
     {
         if (populateCache) {
             PopulateCache();
         }
-        return NAuth::CreateDefaultTvmService(
-            config ? config : CreateDefaultTvmServiceConfig());
+        return NAuth::CreateTvmService(
+            config ? config : CreateTvmServiceConfig());
     }
 };
 
-TEST_F(TDefaultTvmTest, FetchesSelfId)
+TEST_F(TTvmTest, FetchesSelfId)
 {
-    auto service = CreateDefaultTvmService();
+    auto service = CreateTvmService();
     auto result = service->GetSelfTvmId();
     EXPECT_EQ(100500u, result);
 }
 
-TEST_F(TDefaultTvmTest, FetchesServiceTicket)
+TEST_F(TTvmTest, FetchesServiceTicket)
 {
-    auto service = CreateDefaultTvmService();
+    auto service = CreateTvmService();
     auto result = service->GetServiceTicket("TheDestination");
     EXPECT_EQ("3:serv:CBAQ__________9_IgYIKhCUkQY:CX", result);
 
     EXPECT_THROW(service->GetServiceTicket("AnotherDestination"), std::exception);
 }
 
-TEST_F(TDefaultTvmTest, DoesNotFetchServiceTicketWhenDisabled)
+TEST_F(TTvmTest, DoesNotFetchServiceTicketWhenDisabled)
 {
-    auto config = CreateDefaultTvmServiceConfig();
+    auto config = CreateTvmServiceConfig();
     config->ClientEnableServiceTicketFetching = false;
-    auto service = CreateDefaultTvmService(config);
+    auto service = CreateTvmService(config);
     EXPECT_THROW(service->GetServiceTicket("TheDestination"), TErrorException);
 }
 
-TEST_F(TDefaultTvmTest, ParsesUserTicket)
+TEST_F(TTvmTest, ParsesUserTicket)
 {
-    auto service = CreateDefaultTvmService();
+    auto service = CreateTvmService();
     auto result = service->ParseUserTicket(USER_TICKET);
     EXPECT_EQ(123u, result.DefaultUid);
     EXPECT_EQ(THashSet<TString>{"foo:bar"}, result.Scopes);
     EXPECT_THROW(service->ParseUserTicket("BadTicket"), TErrorException);
 }
 
-TEST_F(TDefaultTvmTest, DoesNotParseUserTicketWhenDisabled)
+TEST_F(TTvmTest, DoesNotParseUserTicketWhenDisabled)
 {
-    auto config = CreateDefaultTvmServiceConfig();
+    auto config = CreateTvmServiceConfig();
     config->ClientEnableUserTicketChecking = false;
-    auto service = CreateDefaultTvmService(config);
+    auto service = CreateTvmService(config);
     EXPECT_THROW(service->ParseUserTicket(USER_TICKET), TErrorException);
 }
 
-TEST_F(TDefaultTvmTest, InitializationFailure)
+TEST_F(TTvmTest, InitializationFailure)
 {
     EXPECT_THROW(
-        CreateDefaultTvmService(CreateDefaultTvmServiceConfig(), false),
+        CreateTvmService(CreateTvmServiceConfig(), false),
         std::exception);
 }
 

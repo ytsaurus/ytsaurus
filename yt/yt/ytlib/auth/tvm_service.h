@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NAuth {
@@ -43,6 +45,16 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(ITvmService)
 DEFINE_REFCOUNTED_TYPE(IDynamicTvmService)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITvmServicePtr CreateTvmService(
+    TTvmServiceConfigPtr config,
+    NProfiling::TProfiler profiler = {});
+
+IDynamicTvmServicePtr CreateDynamicTvmService(
+    TTvmServiceConfigPtr config,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,3 @@
-#include "default_tvm_service.h"
 #include "tvm_service.h"
 #include "config.h"
 #include "helpers.h"
@@ -62,7 +61,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTvmTool::TClientSettings MakeTvmToolSettings(const TDefaultTvmServiceConfigPtr& config)
+NTvmTool::TClientSettings MakeTvmToolSettings(const TTvmServiceConfigPtr& config)
 {
     NTvmTool::TClientSettings settings(config->TvmToolSelfAlias);
     settings.SetPort(config->TvmToolPort);
@@ -70,7 +69,7 @@ NTvmTool::TClientSettings MakeTvmToolSettings(const TDefaultTvmServiceConfigPtr&
     return settings;
 }
 
-NTvmApi::TClientSettings MakeTvmApiSettings(const TDefaultTvmServiceConfigPtr& config)
+NTvmApi::TClientSettings MakeTvmApiSettings(const TTvmServiceConfigPtr& config)
 {
     NTvmApi::TClientSettings settings;
     settings.SetSelfTvmId(config->ClientSelfId);
@@ -121,12 +120,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultTvmServiceBase
+class TTvmServiceBase
     : public virtual ITvmService
 {
 public:
-    TDefaultTvmServiceBase(
-        TDefaultTvmServiceConfigPtr config,
+    TTvmServiceBase(
+        TTvmServiceConfigPtr config,
         TProfiler profiler)
         : Config_(std::move(config))
         , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
@@ -226,7 +225,7 @@ public:
     }
 
 protected:
-    const TDefaultTvmServiceConfigPtr Config_;
+    const TTvmServiceConfigPtr Config_;
 
     virtual TTvmClient& GetClient() = 0;
 
@@ -282,14 +281,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultTvmService
-    : public TDefaultTvmServiceBase
+class TTvmService
+    : public TTvmServiceBase
 {
 public:
-    TDefaultTvmService(
-        TDefaultTvmServiceConfigPtr config,
+    TTvmService(
+        TTvmServiceConfigPtr config,
         TProfiler profiler)
-        : TDefaultTvmServiceBase(std::move(config), std::move(profiler))
+        : TTvmServiceBase(std::move(config), std::move(profiler))
     {
         if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
             MakeClient();
@@ -321,26 +320,26 @@ private:
     }
 };
 
-ITvmServicePtr CreateDefaultTvmService(
-    TDefaultTvmServiceConfigPtr config,
+ITvmServicePtr CreateTvmService(
+    TTvmServiceConfigPtr config,
     TProfiler profiler)
 {
-    return New<TDefaultTvmService>(
+    return New<TTvmService>(
         std::move(config),
         std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultDynamicTvmService
-    : public TDefaultTvmServiceBase
+class TDynamicTvmService
+    : public TTvmServiceBase
     , public virtual IDynamicTvmService
 {
 public:
-    TDefaultDynamicTvmService(
-        TDefaultTvmServiceConfigPtr config,
+    TDynamicTvmService(
+        TTvmServiceConfigPtr config,
         TProfiler profiler)
-        : TDefaultTvmServiceBase(std::move(config), std::move(profiler))
+        : TTvmServiceBase(std::move(config), std::move(profiler))
     {
         if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
             MakeClient();
@@ -376,11 +375,11 @@ private:
     }
 };
 
-IDynamicTvmServicePtr CreateDefaultDynamicTvmService(
-    TDefaultTvmServiceConfigPtr config,
+IDynamicTvmServicePtr CreateDynamicTvmService(
+    TTvmServiceConfigPtr config,
     TProfiler profiler)
 {
-    return New<TDefaultDynamicTvmService>(
+    return New<TDynamicTvmService>(
         std::move(config),
         std::move(profiler));
 }

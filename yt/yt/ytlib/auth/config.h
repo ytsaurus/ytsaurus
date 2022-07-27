@@ -27,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultBlackboxServiceConfig
+class TBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -42,14 +42,14 @@ public:
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
 
-    TDefaultBlackboxServiceConfig();
+    TBlackboxServiceConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultTvmServiceConfig
+class TTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -75,10 +75,10 @@ public:
     int TvmToolPort = 0;
     TString TvmToolAuthToken;
 
-    TDefaultTvmServiceConfig();
+    TTvmServiceConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TTvmServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,9 +260,9 @@ public:
     bool RequireAuthentication;
     NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
     NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
-    NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
+    NAuth::TBlackboxServiceConfigPtr BlackboxService;
     NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
-    NAuth::TDefaultTvmServiceConfigPtr TvmService;
+    NAuth::TTvmServiceConfigPtr TvmService;
     NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
 
     TString GetCsrfSecret() const;

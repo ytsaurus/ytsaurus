@@ -13,8 +13,8 @@ extern const NProfiling::TProfiler AuthProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TAuthCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TDefaultTvmServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TBlackboxServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TTvmServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingDefaultTvmServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTicketAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTokenAuthenticatorConfig)
