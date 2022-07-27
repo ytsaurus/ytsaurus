@@ -11,7 +11,7 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletAction final
+class TTabletAction final
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(ETabletActionKind, Kind);
