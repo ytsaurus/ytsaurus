@@ -42,19 +42,28 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
 
     bool isLocalMode = false;
     TString localModeAttr("//sys/@local_mode_fqdn");
-    auto fqdnNode = NRawClient::TryGet(
-        clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
-        TTransactionId(),
-        localModeAttr,
-        TGetOptions().ReadFrom(EMasterReadKind::Cache));
-    if (!fqdnNode.IsUndefined()) {
-        auto fqdn = fqdnNode.AsString();
-        isLocalMode = (fqdn == TProcessState::Get()->FqdnHostName);
-        YT_LOG_DEBUG("Checking local mode; LocalModeFqdn: %v FqdnHostName: %v IsLocalMode: %v",
-            fqdn,
-            TProcessState::Get()->FqdnHostName,
-            isLocalMode ? "true" : "false");
+    // We don't want to pollute logs with errors about failed request,
+    // so we check if path exists before getting it.
+    if (NRawClient::Exists(clientRetryPolicy->CreatePolicyForGenericRequest(),
+            auth,
+            TTransactionId(),
+            localModeAttr,
+            TExistsOptions().ReadFrom(EMasterReadKind::Cache)))
+    {
+        auto fqdnNode = NRawClient::TryGet(
+            clientRetryPolicy->CreatePolicyForGenericRequest(),
+            auth,
+            TTransactionId(),
+            localModeAttr,
+            TGetOptions().ReadFrom(EMasterReadKind::Cache));
+        if (!fqdnNode.IsUndefined()) {
+            auto fqdn = fqdnNode.AsString();
+            isLocalMode = (fqdn == TProcessState::Get()->FqdnHostName);
+            YT_LOG_DEBUG("Checking local mode; LocalModeFqdn: %v FqdnHostName: %v IsLocalMode: %v",
+                fqdn,
+                TProcessState::Get()->FqdnHostName,
+                isLocalMode ? "true" : "false");
+        }
     }
 
     {
