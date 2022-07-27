@@ -11,7 +11,7 @@
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
@@ -56,7 +56,7 @@ public:
     void RegisterSchedulerJobFactory(
         EJobType type,
         TSchedulerJobFactory factory);
-    
+
     //! Registers a factory for a given master job type.
     void RegisterMasterJobFactory(
         EJobType type,
@@ -156,7 +156,7 @@ public:
 
         TErrorOr<NExecNode::TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
             const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
-        
+
         TJobController* const JobController_;
         NClusterNode::IBootstrapBase* const Bootstrap_;
     };

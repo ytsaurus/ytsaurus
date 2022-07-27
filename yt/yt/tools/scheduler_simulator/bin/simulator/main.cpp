@@ -13,8 +13,8 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
-#include <yt/yt/ytlib/program/program.h>
-#include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
@@ -236,7 +236,7 @@ protected:
 
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 
-        ConfigureSingletons(config);
+        ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 
         {

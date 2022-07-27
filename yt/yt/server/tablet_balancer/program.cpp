@@ -42,7 +42,7 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
 
     auto config = GetConfig();
 
-    ConfigureSingletons(config);
+    ConfigureNativeSingletons(config);
     StartDiagnosticDump(config);
 
     auto configNode = GetConfigNode();

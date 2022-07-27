@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>

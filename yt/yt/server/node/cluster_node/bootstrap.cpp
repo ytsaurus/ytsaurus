@@ -99,7 +99,7 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/config.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -1241,7 +1241,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(Config_, newConfig);
 
         StorageHeavyThreadPool_->Configure(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));

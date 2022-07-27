@@ -26,7 +26,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public TSingletonsConfig
+    : public TNativeSingletonsConfig
     , public TDiagnosticDumpConfig
 {
 public:

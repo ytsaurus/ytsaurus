@@ -2,10 +2,10 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
-#include <yt/yt/ytlib/program/program.h>
-#include <yt/yt/ytlib/program/program_config_mixin.h>
-#include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
-#include <yt/yt/ytlib/program/program_setsid_mixin.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/program_config_mixin.h>
+#include <yt/yt/library/program/program_pdeathsig_mixin.h>
+#include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
@@ -61,7 +61,7 @@ protected:
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
-        ConfigureSingletons(config);
+        ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.

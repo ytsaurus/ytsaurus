@@ -1,16 +1,17 @@
 #pragma once
 
+#include <yt/yt/library/program/helpers.h>
+
 #include "public.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigureSingletons(const TSingletonsConfigPtr& config);
-void ReconfigureSingletons(
-    const TSingletonsConfigPtr& config,
-    const TSingletonsDynamicConfigPtr& dynamicConfig);
-void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config);
+void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config);
+void ReconfigureNativeSingletons(
+    const TNativeSingletonsConfigPtr& config,
+    const TNativeSingletonsDynamicConfigPtr& dynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

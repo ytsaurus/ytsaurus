@@ -166,7 +166,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentServerDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public TNativeSingletonsDynamicConfig
 {
 public:
     TAlertManagerDynamicConfigPtr AlertManager;

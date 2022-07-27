@@ -115,7 +115,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
@@ -1087,7 +1087,7 @@ void TBootstrap::ValidateLoadSnapshotParameters(
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureSingletons(Config_, config->CellMaster);
+    ReconfigureNativeSingletons(Config_, config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
 }

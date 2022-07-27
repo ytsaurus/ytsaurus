@@ -32,7 +32,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/client/driver/driver.h>
@@ -248,7 +248,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(Config_, newConfig);
 
     DynamicConfig_.Store(newConfig);
 

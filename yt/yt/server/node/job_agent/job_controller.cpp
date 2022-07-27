@@ -36,7 +36,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -608,7 +608,7 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
     if (includeWaiting) {
         result += WaitingJobResources_;
     }
-    
+
     if (Bootstrap_->IsExecNode()) {
         const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
         result.set_user_slots(slotManager->GetUsedSlotCount());
@@ -895,7 +895,7 @@ void TJobController::TImpl::StartWaitingJobs()
         job->SubscribeJobFinished(
             BIND(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
-        
+
         const auto& jobResourceLimits = job->GetResourceUsage();
         WaitingJobResources_ -= jobResourceLimits;
         ResourceUsage_ += jobResourceLimits;
@@ -1003,7 +1003,7 @@ void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPt
         FormatResources(WaitingJobResources_));
     job->SubscribeResourcesUpdated(
         BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job)));
-    
+
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
