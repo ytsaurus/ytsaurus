@@ -95,7 +95,7 @@ protected:
 
     NRpc::IChannelPtr GetNodeChannel(NNodeTrackerClient::TNodeId nodeId);
 
-    void StartFetchingRound();
+    void StartFetchingRound(const TError& error);
 
     // NB: Timeouts are retried on the same node.
     void OnChunkFailed(

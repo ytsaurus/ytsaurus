@@ -33,7 +33,7 @@ void TFetcherConfig::Register(TRegistrar registrar)
         .Default(500);
 
     registrar.Parameter("node_directory_synchronization_timeout", &TThis::NodeDirectorySynchronizationTimeout)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

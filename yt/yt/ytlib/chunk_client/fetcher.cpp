@@ -327,17 +327,23 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
     NodeToChunkIndexesToFetch_[nodeId].clear();
 }
 
-void TFetcherBase::StartFetchingRound()
+void TFetcherBase::StartFetchingRound(const TError& preparationError)
 {
-    YT_LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
-        UnfetchedChunkIndexes_.size(),
-        DeadNodes_.size(),
-        DeadChunks_.size());
+    if (!preparationError.IsOK()) {
+        YT_LOG_ERROR(preparationError, "Fetching preparation failed, abort fetching round");
+        Promise_.TrySet(preparationError);
+        return;
+    }
 
     if (Promise_.IsCanceled()) {
         YT_LOG_DEBUG("Fetcher canceled, abort fetching round");
         return;
     }
+
+    YT_LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
+        UnfetchedChunkIndexes_.size(),
+        DeadNodes_.size(),
+        DeadChunks_.size());
 
     // Unban nodes with expired ban duration.
     auto now = TInstant::Now();
@@ -523,7 +529,7 @@ void TFetcherBase::OnFetchingRoundCompleted(bool backoff, const TError& error)
 
     ActiveTaskFuture_.Store(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
         .AsyncVia(Invoker_)
-        .Run());
+        .Run(TError{}));
 }
 
 void TFetcherBase::OnFetchingStarted()

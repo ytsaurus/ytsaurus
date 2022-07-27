@@ -567,6 +567,7 @@ void TNodeDirectory::OnDescriptorAdded(TNodeId id, const TNodeDescriptor* descri
 {
     if (auto it = IdToPromise_.find(id); it != IdToPromise_.end()) {
         it->second.TrySet(descriptor);
+        YT_LOG_DEBUG("Awaited node descriptor added (NodeId: %v, NodeAddress: %v)", id, descriptor->GetDefaultAddress());
         IdToPromise_.erase(it);
     }
 }
