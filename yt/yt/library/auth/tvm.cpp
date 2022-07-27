@@ -8,8 +8,9 @@ TServiceTicketClientAuth::TServiceTicketClientAuth(const TTvmClientPtr& tvmClien
     : TvmClient_(tvmClient)
 { }
 
-TString TServiceTicketClientAuth::IssueServiceTicket() {
-    return TvmClient_->GetServiceTicketFor(PROXY_TVM_ID);
+TString TServiceTicketClientAuth::IssueServiceTicket()
+{
+    return TvmClient_->GetServiceTicketFor(ProxyTvmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,8 @@ TServiceTicketFixedAuth::TServiceTicketFixedAuth(const TString& ticket)
     : Ticket_(ticket)
 { }
 
-TString TServiceTicketFixedAuth::IssueServiceTicket() {
+TString TServiceTicketFixedAuth::IssueServiceTicket()
+{
     return Ticket_;
 }
 

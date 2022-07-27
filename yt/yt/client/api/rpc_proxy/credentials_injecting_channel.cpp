@@ -165,7 +165,7 @@ private:
 
 NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString> &user,
+    const std::optional<TString>& user,
     const NAuth::IServiceTicketAuthPtr& serviceTicketAuth)
 {
     YT_VERIFY(underlyingChannel);

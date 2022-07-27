@@ -32,7 +32,7 @@ NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
 
 NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString> &user,
+    const std::optional<TString>& user,
     const NAuth::IServiceTicketAuthPtr& serviceTicketAuth);
 
 ////////////////////////////////////////////////////////////////////////////////
