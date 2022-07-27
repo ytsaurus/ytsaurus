@@ -580,16 +580,13 @@ public:
         , Enumerations_(GetEphemeralNodeFactory()->CreateMap())
     { }
 
-    TProtobufTypeConfigPtr GetOrCreateTypeConfig(
-        const Descriptor* descriptor,
-        EProtobufSerializationMode serializationMode = EProtobufSerializationMode::Yt)
+    TProtobufTypeConfigPtr GetOrCreateTypeConfig(const Descriptor* descriptor)
     {
-        auto key = TDescriptorKey{descriptor, serializationMode};
-        if (auto it = DescriptorToTypeConfig_.find(key); it != DescriptorToTypeConfig_.end()) {
+        if (auto it = DescriptorToTypeConfig_.find(descriptor); it != DescriptorToTypeConfig_.end()) {
             return it->second;
         }
-        auto typeConfig = CreateTypeConfig(descriptor, serializationMode, GetDefaultFieldOptions(descriptor));
-        DescriptorToTypeConfig_.emplace(key, typeConfig);
+        auto typeConfig = CreateTypeConfig(descriptor, GetDefaultFieldOptions(descriptor));
+        DescriptorToTypeConfig_.emplace(descriptor, typeConfig);
         return typeConfig;
     }
 
@@ -601,9 +598,7 @@ public:
 private:
     const bool EnumsAsStrings_;
     const IMapNodePtr Enumerations_;
-
-    using TDescriptorKey = std::pair<const Descriptor*, EProtobufSerializationMode>;
-    THashMap<TDescriptorKey, TProtobufTypeConfigPtr> DescriptorToTypeConfig_;
+    THashMap<const Descriptor*, TProtobufTypeConfigPtr> DescriptorToTypeConfig_;
     TCycleChecker CycleChecker_;
 
 private:
@@ -621,7 +616,6 @@ private:
             case EProtobufMapMode::OptionalDict:
                 return CreateTypeConfig(
                     descriptor,
-                    fieldOptions.SerializationMode,
                     TProtobufFieldOptions{.SerializationMode = EProtobufSerializationMode::Yt});
         }
         Y_FAIL();
@@ -637,7 +631,7 @@ private:
                     if (fieldDescriptor->is_map()) {
                         return CreateMapConfig(fieldDescriptor, fieldOptions);
                     } else {
-                        return GetOrCreateTypeConfig(fieldDescriptor->message_type(), fieldOptions.SerializationMode);
+                        return GetOrCreateTypeConfig(fieldDescriptor->message_type());
                     }
                 case EProtobufSerializationMode::Embedded: {
                     auto config = GetOrCreateTypeConfig(fieldDescriptor->message_type());
@@ -645,7 +639,8 @@ private:
                     return config;
                 }
                 case EProtobufSerializationMode::Protobuf:
-                    return GetOrCreateTypeConfig(fieldDescriptor->message_type(), fieldOptions.SerializationMode);
+                    break;
+                    // EProtobufSerializationMode::Protobuf handled later
             }
         }
 
@@ -679,23 +674,23 @@ private:
         return typeConfig;
     }
 
-    TErrorOr<TProtobufColumnConfigPtr> CreateFieldConfig(
+    TProtobufColumnConfigPtr CreateFieldConfig(
         const FieldDescriptor* fieldDescriptor,
         const TProtobufFieldOptions& defaultOptions)
     {
         auto fieldOptions = GetFieldOptions(fieldDescriptor, defaultOptions);
         auto typeConfig = CreateFieldTypeConfig(fieldDescriptor, fieldOptions);
         if (!typeConfig) {
-            return TProtobufColumnConfigPtr(nullptr);
+            return nullptr;
         }
 
         auto fieldConfig = New<TProtobufColumnConfig>();
         fieldConfig->Name = GetColumnName(fieldDescriptor);
         fieldConfig->FieldNumber = fieldDescriptor->number();
         if (fieldDescriptor->is_repeated() && fieldOptions.SerializationMode != EProtobufSerializationMode::Yt) {
-            return TError(Format("Repeated field %Qv must have flag %Qv",
+            THROW_ERROR_EXCEPTION("Repeated field %Qv must have flag %Qv",
                 fieldDescriptor->full_name(),
-                EWrapperFieldFlag_Enum_Name(EWrapperFieldFlag::SERIALIZATION_YT)));
+                EWrapperFieldFlag_Enum_Name(EWrapperFieldFlag::SERIALIZATION_YT));
         }
         fieldConfig->Repeated = fieldDescriptor->is_repeated();
         fieldConfig->Packed = fieldDescriptor->is_packed();
@@ -711,7 +706,7 @@ private:
     {
         std::vector<TProtobufColumnConfigPtr> fieldConfigs;
         for (int i = 0; i < oneofDescriptor->field_count(); ++i) {
-            auto fieldConfig = CreateFieldConfig(oneofDescriptor->field(i), defaultFieldOptions).ValueOrThrow();
+            auto fieldConfig = CreateFieldConfig(oneofDescriptor->field(i), defaultFieldOptions);
             if (!fieldConfig) {
                 continue;
             }
@@ -741,49 +736,31 @@ private:
     // NB: This function does not caches the created config!
     TProtobufTypeConfigPtr CreateTypeConfig(
         const Descriptor* descriptor,
-        EProtobufSerializationMode serializationMode,
         const TProtobufFieldOptions& defaultFieldOptions)
     {
         auto typeConfig = New<TProtobufTypeConfig>();
+        typeConfig->ProtoType = EProtobufType::StructuredMessage;
+        auto& fields = typeConfig->Fields;
 
-        typeConfig->ProtoType = [&] {
-            switch (serializationMode) {
-                case EProtobufSerializationMode::Yt:
-                    return EProtobufType::StructuredMessage;
-                case EProtobufSerializationMode::Protobuf:
-                    return EProtobufType::Message;
-                case EProtobufSerializationMode::Embedded:
-                    YT_ABORT();
-            }
-            YT_ABORT();
-        }();
+        auto defaultOneofOptions = GetDefaultOneofOptions(descriptor);
 
-        typeConfig->Fields = [&] () -> TErrorOr<std::vector<TProtobufColumnConfigPtr>> {
-            std::vector<TProtobufColumnConfigPtr> fields;
-            auto defaultOneofOptions = GetDefaultOneofOptions(descriptor);
-            THashSet<const OneofDescriptor*> visitedOneofs;
-            auto guard = CycleChecker_.Enter(descriptor);
-            for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
-                auto fieldDescriptor = descriptor->field(fieldIndex);
-                auto oneofDescriptor = fieldDescriptor->containing_oneof();
-                if (!oneofDescriptor) {
-                    auto fieldConfigOrError = CreateFieldConfig(fieldDescriptor, defaultFieldOptions);
-                    if (!fieldConfigOrError.IsOK()) {
-                        return TError(std::move(fieldConfigOrError));
-                    }
-                    auto fieldConfig = std::move(fieldConfigOrError.Value());
-                    if (!fieldConfig) {
-                        continue;
-                    }
-                    fields.push_back(std::move(fieldConfig));
-                } else if (!visitedOneofs.contains(oneofDescriptor)) {
-                    auto addedFields = ProcessOneof(oneofDescriptor, defaultFieldOptions, defaultOneofOptions);
-                    fields.insert(fields.end(), addedFields.begin(), addedFields.end());
-                    visitedOneofs.insert(oneofDescriptor);
+        THashSet<const OneofDescriptor*> visitedOneofs;
+        auto guard = CycleChecker_.Enter(descriptor);
+        for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
+            auto fieldDescriptor = descriptor->field(fieldIndex);
+            auto oneofDescriptor = fieldDescriptor->containing_oneof();
+            if (!oneofDescriptor) {
+                auto fieldConfig = CreateFieldConfig(fieldDescriptor, defaultFieldOptions);
+                if (!fieldConfig) {
+                    continue;
                 }
+                fields.push_back(std::move(fieldConfig));
+            } else if (!visitedOneofs.contains(oneofDescriptor)) {
+                auto addedFields = ProcessOneof(oneofDescriptor, defaultFieldOptions, defaultOneofOptions);
+                fields.insert(fields.end(), addedFields.begin(), addedFields.end());
+                visitedOneofs.insert(oneofDescriptor);
             }
-            return fields;
-        }();
+        }
 
         return typeConfig;
     }
@@ -798,7 +775,7 @@ static TProtobufFormatConfigPtr CreateConfigWithTypes(
     for (const auto* descriptor : descriptors) {
         auto typeConfig = builder.GetOrCreateTypeConfig(descriptor);
         auto tableConfig = New<TProtobufTableConfig>();
-        for (const auto& field : typeConfig->Fields.ValueOrThrow()) {
+        for (const auto& field : typeConfig->Fields) {
             tableConfig->Columns.push_back(field);
         }
         config->Tables.push_back(std::move(tableConfig));
@@ -899,7 +876,7 @@ void TProtobufFormatDescriptionBase<TProtobufWriterType>::InitEmbeddedColumn(
 {
     auto embeddingIndex = tableType->AddEmbedding(parentEmbeddingIndex, columnConfig);
 
-    for (auto& fieldConfig: columnConfig->Type->Fields.ValueOrThrow()) {
+    for (auto& fieldConfig: columnConfig->Type->Fields) {
         InitColumn(fieldIndex, tableSchema, typeBuilder, tableType, fieldConfig, parent, embeddingIndex);
     }
 }
@@ -928,7 +905,7 @@ void TProtobufFormatDescriptionBase<TProtobufParserType>::InitEmbeddedColumn(
             std::move(child), //KMP
             fieldIndex);
 
-    for (auto& fieldConfig: columnConfig->Type->Fields.ValueOrThrow()) {
+    for (auto& fieldConfig: columnConfig->Type->Fields) {
         InitColumn(fieldIndex, tableSchema, typeBuilder, tableType, fieldConfig, childPtr->Type, parentEmbeddingIndex);
     }
 }
@@ -1173,33 +1150,14 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
 
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Struct:
-            if (
-                typeConfig->ProtoType == EProtobufType::StructuredMessage ||
-                (
-                    TType::AllowStructurednessMismatch &&
-                    typeConfig->ProtoType == EProtobufType::Message &&
-                    typeConfig->Fields.IsOK()
-                )
-            ) {
-                if (type->ProtoType == EProtobufType::Message) {
-                    type->ProtoType = EProtobufType::StructuredMessage;
-                }
-                VisitStruct(type, typeConfig, descriptor);
-                return type;
-            } else {
-                if (TType::AllowStructurednessMismatch && typeConfig->ProtoType == EProtobufType::Message) {
-                    typeConfig->Fields.ValueOrThrow();
-                }
-                auto expectedTypesStr = TType::AllowStructurednessMismatch
-                    ? "\"structured_message\" or \"message\""
-                    : "\"structured_message\"";
+            if (typeConfig->ProtoType != EProtobufType::StructuredMessage) {
                 ThrowSchemaMismatch(
-                    Format("expected %v protobuf type, got %Qlv",
-                        expectedTypesStr,
-                        typeConfig->ProtoType),
+                    Format("expected \"structured_message\" protobuf type, got %Qlv", typeConfig->ProtoType),
                     descriptor,
                     typeConfig);
             }
+            VisitStruct(type, typeConfig, descriptor);
+            return type;
         case ELogicalMetatype::VariantStruct:
             if (typeConfig->ProtoType != EProtobufType::Oneof) {
                 ThrowSchemaMismatch(
@@ -1214,12 +1172,6 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
             VisitDict(type, typeConfig, descriptor);
             return type;
         case ELogicalMetatype::Simple:
-            if (TType::AllowStructurednessMismatch &&
-                type->ProtoType == EProtobufType::StructuredMessage &&
-                logicalType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String)
-            {
-                type->ProtoType = EProtobufType::Message;
-            }
             ValidateSimpleType(type->ProtoType, logicalType->AsSimpleTypeRef().GetElement());
             return type;
         default:
@@ -1232,7 +1184,7 @@ typename TProtobufTypeBuilder<TType>::TTypePtr TProtobufTypeBuilder<TType>::Find
 }
 
 template <typename TType>
-void TProtobufTypeBuilder<TType>::VisitStruct(
+void TProtobufTypeBuilder<TType>:: VisitStruct(
     const TTypePtr& type,
     const TProtobufTypeConfigPtr& typeConfig,
     TComplexTypeFieldDescriptor descriptor)
@@ -1244,7 +1196,7 @@ void TProtobufTypeBuilder<TType>::VisitStruct(
     const auto isOneof = (type->ProtoType == EProtobufType::Oneof);
 
     THashMap<TStringBuf, TProtobufColumnConfigPtr> nameToConfig;
-    for (const auto& config : typeConfig->Fields.ValueOrThrow()) {
+    for (const auto& config : typeConfig->Fields) {
         auto inserted = nameToConfig.emplace(config->Name, config).second;
         if (!inserted) {
             ThrowSchemaMismatch(
@@ -1313,7 +1265,7 @@ void TProtobufTypeBuilder<TType>::VisitDict(
             descriptor,
             typeConfig);
     }
-    const auto& fields = typeConfig->Fields.ValueOrThrow();
+    const auto& fields = typeConfig->Fields;
     if (fields.size() != 2 ||
         fields[0]->Name != "key" ||
         fields[1]->Name != "value")
