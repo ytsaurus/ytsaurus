@@ -702,7 +702,7 @@ public:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime,
-        const std::optional<TDuration>& expirationTimeout)
+        std::optional<TDuration> expirationTimeout)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2972,7 +2972,7 @@ private:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime,
-        const std::optional<TDuration>& expirationTimeout)
+        std::optional<TDuration> expirationTimeout)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
@@ -8278,7 +8278,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
     bool skipFreezing,
     TGuid correlationId,
     TInstant expirationTime,
-    const std::optional<TDuration>& expirationTimeout)
+    std::optional<TDuration> expirationTimeout)
 {
     return Impl_->CreateTabletAction(
         hintId,

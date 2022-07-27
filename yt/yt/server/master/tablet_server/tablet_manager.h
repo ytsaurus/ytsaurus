@@ -248,7 +248,7 @@ private:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime,
-        const std::optional<TDuration>& expirationTimeout);
+        std::optional<TDuration> expirationTimeout);
     void DestroyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;
