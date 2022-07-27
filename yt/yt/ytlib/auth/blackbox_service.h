@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/profiling/profiler.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NAuth {
@@ -22,6 +24,14 @@ struct IBlackboxService
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlackboxService)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBlackboxServicePtr CreateBlackboxService(
+    TBlackboxServiceConfigPtr config,
+    ITvmServicePtr tvmService,
+    NConcurrency::IPollerPtr poller,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

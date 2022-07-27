@@ -4,7 +4,6 @@
 #include <yt/yt/ytlib/auth/blackbox_service.h>
 #include <yt/yt/ytlib/auth/config.h>
 #include <yt/yt/ytlib/auth/cookie_authenticator.h>
-#include <yt/yt/ytlib/auth/default_blackbox_service.h>
 #include <yt/yt/ytlib/auth/helpers.h>
 #include <yt/yt/ytlib/auth/ticket_authenticator.h>
 #include <yt/yt/ytlib/auth/token_authenticator.h>
@@ -29,13 +28,13 @@ using ::testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultBlackboxTest
+class TBlackboxTest
     : public ::testing::Test
 {
 protected:
-    TDefaultBlackboxServiceConfigPtr CreateDefaultBlackboxServiceConfig()
+    TBlackboxServiceConfigPtr CreateBlackboxServiceConfig()
     {
-        auto config = New<TDefaultBlackboxServiceConfig>();
+        auto config = New<TBlackboxServiceConfig>();
         config->Host = MockHttpServer_.IsStarted() ? MockHttpServer_.GetHost() : "localhost";
         config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
@@ -45,8 +44,8 @@ protected:
         return config;
     }
 
-    IBlackboxServicePtr CreateDefaultBlackboxService(
-        TDefaultBlackboxServiceConfigPtr config = {},
+    IBlackboxServicePtr CreateBlackboxService(
+        TBlackboxServiceConfigPtr config = {},
         bool mockTvmService = true)
     {
         if (mockTvmService) {
@@ -55,8 +54,8 @@ protected:
                 .WillByDefault(Return(TString("blackbox_ticket")));
         }
 
-        return NAuth::CreateDefaultBlackboxService(
-            config ? config : CreateDefaultBlackboxServiceConfig(),
+        return NAuth::CreateBlackboxService(
+            config ? config : CreateBlackboxServiceConfig(),
             MockTvmService_,
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
@@ -82,88 +81,88 @@ protected:
     TIntrusivePtr<TMockTvmService> MockTvmService_;
 };
 
-TEST_F(TDefaultBlackboxTest, FailOnBadHost)
+TEST_F(TBlackboxTest, FailOnBadHost)
 {
-    auto config = CreateDefaultBlackboxServiceConfig();
+    auto config = CreateBlackboxServiceConfig();
     config->Host = "lokalhozd";
     config->Port = 1;
-    auto service = CreateDefaultBlackboxService(config);
+    auto service = CreateBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("DNS resolve failed"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
+TEST_F(TBlackboxTest, FailOn5xxResponse)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(500, "");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     Cerr << ToString(result) << Endl;
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 500"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOn4xxResponse)
+TEST_F(TBlackboxTest, FailOn4xxResponse)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(404, "");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 404"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOnEmptyResponse)
+TEST_F(TBlackboxTest, FailOnEmptyResponse)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOnMalformedResponse)
+TEST_F(TBlackboxTest, FailOnMalformedResponse)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "#$&(^$#@(^");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
+TEST_F(TBlackboxTest, FailOnBlackboxException)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, R"jj({"exception":{"id": 666, "value": "bad stuff happened"}})jj");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox has raised an exception"));
 }
 
-TEST_F(TDefaultBlackboxTest, FailOnTvmException)
+TEST_F(TBlackboxTest, FailOnTvmException)
 {
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     EXPECT_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
         .WillOnce(Throw(std::exception()));
     auto result = service->Call("hello", {}).Get();
     EXPECT_FALSE(result.IsOK());
 }
 
-TEST_F(TDefaultBlackboxTest, Success)
+TEST_F(TBlackboxTest, Success)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
@@ -172,13 +171,13 @@ TEST_F(TDefaultBlackboxTest, Success)
         EXPECT_EQ("blackbox_ticket", header->Value());
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });
-    auto service = CreateDefaultBlackboxService();
+    auto service = CreateBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
 
-TEST_F(TDefaultBlackboxTest, NoTvmService)
+TEST_F(TBlackboxTest, NoTvmService)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox"));
@@ -186,13 +185,13 @@ TEST_F(TDefaultBlackboxTest, NoTvmService)
         EXPECT_EQ(nullptr, header);
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });
-    auto service = CreateDefaultBlackboxService(/*config*/ nullptr, /*useTvmService*/ false);
+    auto service = CreateBlackboxService(/*config*/ nullptr, /*useTvmService*/ false);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
 
-TEST_F(TDefaultBlackboxTest, RetriesErrors)
+TEST_F(TBlackboxTest, RetriesErrors)
 {
     std::atomic<int> counter = {0};
     SetCallback([&] (TClientRequest* request) {
@@ -208,11 +207,11 @@ TEST_F(TDefaultBlackboxTest, RetriesErrors)
         ++counter;
     });
 
-    auto config = CreateDefaultBlackboxServiceConfig();
+    auto config = CreateBlackboxServiceConfig();
     config->BackoffTimeout = TDuration::MilliSeconds(0);
     config->AttemptTimeout = TDuration::Seconds(30);
     config->RequestTimeout = TDuration::Seconds(30);
-    auto service = CreateDefaultBlackboxService(config);
+    auto service = CreateBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ(7, counter.load());

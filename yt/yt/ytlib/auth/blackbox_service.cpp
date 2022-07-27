@@ -1,4 +1,3 @@
-#include "default_blackbox_service.h"
 #include "blackbox_service.h"
 
 #include "config.h"
@@ -32,12 +31,12 @@ static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultBlackboxService
+class TBlackboxService
     : public IBlackboxService
 {
 public:
-    TDefaultBlackboxService(
-        TDefaultBlackboxServiceConfigPtr config,
+    TBlackboxService(
+        TBlackboxServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
@@ -56,7 +55,7 @@ public:
         const TString& method,
         const THashMap<TString, TString>& params) override
     {
-        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params)
+        return BIND(&TBlackboxService::DoCall, MakeStrong(this), method, params)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
     }
@@ -71,7 +70,7 @@ public:
     }
 
 private:
-    const TDefaultBlackboxServiceConfigPtr Config_;
+    const TBlackboxServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
 
     const NHttp::IClientPtr HttpClient_;
@@ -280,13 +279,13 @@ private:
     }
 };
 
-IBlackboxServicePtr CreateDefaultBlackboxService(
-    TDefaultBlackboxServiceConfigPtr config,
+IBlackboxServicePtr CreateBlackboxService(
+    TBlackboxServiceConfigPtr config,
     ITvmServicePtr tvmService,
     IPollerPtr poller,
     NProfiling::TProfiler profiler)
 {
-    return New<TDefaultBlackboxService>(
+    return New<TBlackboxService>(
         std::move(config),
         std::move(tvmService),
         std::move(poller),
