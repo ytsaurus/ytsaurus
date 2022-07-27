@@ -71,13 +71,9 @@ TBlockFetcher::TBlockFetcher(
         BlockInfos_.begin(),
         BlockInfos_.end(),
         [&] (const TBlockInfo& lhs, const TBlockInfo& rhs) {
-            if (lhs.Priority != rhs.Priority) {
-                return lhs.Priority < rhs.Priority;
-            } else {
-                return
-                    std::make_pair(lhs.ReaderIndex, lhs.BlockIndex) <
-                    std::make_pair(rhs.ReaderIndex, rhs.BlockIndex);
-            }
+            return
+                std::make_tuple(lhs.Priority, lhs.ReaderIndex, lhs.BlockIndex) <
+                std::make_tuple(rhs.Priority, rhs.ReaderIndex, rhs.BlockIndex);
         });
 
     int windowSize = 1;
@@ -134,12 +130,6 @@ TBlockFetcher::TBlockFetcher(
 
     MemoryManager_->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
     MemoryManager_->SetPrefetchMemorySize(std::min(Config_->WindowSize, totalRemainingSize));
-
-    std::vector<TChunkId> chunkIds;
-    chunkIds.reserve(ChunkReaders_.size());
-    for (const auto& chunkReader : ChunkReaders_) {
-        chunkIds.push_back(chunkReader->GetChunkId());
-    }
 
     TStringBuilder builder;
     bool first = true;
