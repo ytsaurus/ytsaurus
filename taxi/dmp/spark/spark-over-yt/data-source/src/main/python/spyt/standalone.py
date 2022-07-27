@@ -294,7 +294,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_log_update_interval, worker_log_table_ttl,
                                pool, enablers, client,
                                preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
-                               extra_metrics_enabled=True):
+                               extra_metrics_enabled=True, autoscaler_enabled=False):
     if job_types == [] or job_types == None:
         job_types = ['master', 'history', 'worker']
 
@@ -334,11 +334,12 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if extra_metrics_enabled:
         config["spark_conf"]["spark.ui.prometheus.enabled"] = "true"
 
-    config["spark_conf"]["spark.worker.resource.jobid.amount"] = "1"
-    config["spark_conf"]["spark.worker.resource.jobid.discoveryScript"] = _script_absolute_path(
-        "spark/bin/job-id-discovery.sh")
-    config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
-        "spark/bin/job-id-discovery.sh")
+    if autoscaler_enabled:
+        config["spark_conf"]["spark.worker.resource.jobid.amount"] = "1"
+        config["spark_conf"]["spark.worker.resource.jobid.discoveryScript"] = _script_absolute_path(
+            "spark/bin/job-id-discovery.sh")
+        config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
+            "spark/bin/job-id-discovery.sh")
 
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
@@ -678,6 +679,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'enablers': enablers,
         'client': client,
         'preemption_mode': preemption_mode,
+        'autoscaler_enabled': autoscaler_period is not None,
         'job_types': ['master', 'history', 'worker']
     }
 
