@@ -23,10 +23,15 @@ const NLogging::TLogger Logger("ChunkClientFetcherUnitTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetcherConfigPtr CreateFetcherConfig(int maxChunksPerNodeFetch)
+TFetcherConfigPtr CreateFetcherConfig(
+    int maxChunksPerNodeFetch,
+    const std::optional<TDuration>& nodeDirectorySynchronizationTimeout)
 {
     auto result = New<TFetcherConfig>();
     result->MaxChunksPerNodeFetch = maxChunksPerNodeFetch;
+    if (nodeDirectorySynchronizationTimeout) {
+        result->NodeDirectorySynchronizationTimeout = *nodeDirectorySynchronizationTimeout;
+    }
     return result;
 }
 
@@ -82,9 +87,10 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        bool createChunkScraper)
+        bool createChunkScraper,
+        const std::optional<TDuration>& nodeDirectorySynchronizationTimeout)
         : TFetcherBase(
-        CreateFetcherConfig(maxChunksPerNodeFetch),
+        CreateFetcherConfig(maxChunksPerNodeFetch, nodeDirectorySynchronizationTimeout),
             std::move(nodeDirectory),
             std::move(invoker),
             (createChunkScraper ? New<TFakeChunkScraper>() : nullptr),
@@ -182,7 +188,8 @@ protected:
         int nodeCount,
         int chunkCount,
         std::vector<std::vector<int>> chunkToReplicas,
-        bool createChunkScraper = true)
+        bool createChunkScraper = true,
+        const std::optional<TDuration>& nodeDirectorySynchronizationTimeout = {})
     {
         NodeCount_ = nodeCount;
         if (!NodeDirectory_) {
@@ -192,7 +199,7 @@ protected:
             }
         }
 
-        Fetcher_ = New<TTestFetcher>(maxChunksPerNodeFetch, NodeDirectory_, Invoker_, Logger, createChunkScraper);
+        Fetcher_ = New<TTestFetcher>(maxChunksPerNodeFetch, NodeDirectory_, Invoker_, Logger, createChunkScraper, nodeDirectorySynchronizationTimeout);
 
         YT_VERIFY(chunkCount == std::ssize(chunkToReplicas));
         ChunkCount_ = chunkCount;
@@ -320,6 +327,31 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectory)
     WaitFor(GetFetcher()->Fetch())
         .ThrowOnError();
     GetFetcher()->AssertFetchingCompleted();
+}
+
+TEST_F(TFetcherBaseTest, StaleNodeDirectoryFails)
+{
+    auto nodeDirectory = New<TNodeDirectory>();
+    // Skip some nodes (all replicas of chunk 3, see below).
+    for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
+        if (nodeId == 1 || nodeId == 3 || nodeId == 5) {
+            continue;
+        }
+
+        nodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+    }
+    NodeDirectory_ = nodeDirectory;
+
+    SetUpFetcher(/*maxChunksPerNodeFetch*/ 2, /*nodeCount*/ 5, /*chunkCount*/ 6, /*chunkToReplicas*/ {
+        {1, 2, 4}, // 0
+        {3, 5, 2}, // 1
+        {4, 3, 1}, // 2
+        {1, 5, 3}, // 3
+        {5, 2, 4}, // 4
+        {3, 1, 4}, // 5
+    }, /*createChunkScraper*/ true, /*nodeDirectorySynchronizationTimeout*/ TDuration::Seconds(5));
+
+    EXPECT_THROW_WITH_ERROR_CODE(WaitFor(GetFetcher()->Fetch()).ThrowOnError(), NYT::EErrorCode::Timeout);
 }
 
 TEST_F(TFetcherBaseTest, ASingleNodeSavesTheDay)
