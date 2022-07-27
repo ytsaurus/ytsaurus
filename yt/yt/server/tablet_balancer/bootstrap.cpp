@@ -136,7 +136,7 @@ private:
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting tablet balancer process (NativeCluster: %v)",
+    YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
         Config_->ClusterConnection->ClusterName);
 
     LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
@@ -260,7 +260,7 @@ void TBootstrap::RegisterInstance()
         batchReq->AddRequest(req);
     }
 
-    YT_LOG_INFO("Registering instance (Path: %Qv, OrchidPath: %Qv)",
+    YT_LOG_INFO("Registering instance (Path: %v, OrchidPath: %v)",
         instancePath,
         orchidPath);
 

@@ -12,12 +12,11 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Not thread-safe. All methods should be called in the control invoker.
-// More, this invoker must be serialized.
+//! Not thread-safe. All methods should be called in the control invoker.
+//! More, this invoker must be serialized.
 struct IActionManager
     : public TRefCounted
 {
-public:
     virtual void ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor) = 0;
     virtual void CreateActions(const TString& bundleName) = 0;
 

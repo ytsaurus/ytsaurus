@@ -30,7 +30,7 @@ static const auto& Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr unsigned MaxQueueSize = 1000;
+static constexpr int MaxQueueSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,7 +249,7 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
             if ((*it)->IsFinished()) {
                 finishedActions.emplace(*it);
-                if (finishedActions.size() > MaxQueueSize) {
+                if (std::ssize(finishedActions) > MaxQueueSize) {
                     finishedActions.pop();
                 }
                 runningActions.erase(it++);
@@ -292,7 +292,11 @@ IActionManagerPtr CreateActionManager(
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap)
 {
-    return New<TActionManager>(actionExpirationTime, pollingPeriod, std::move(client), std::move(bootstrap));
+    return New<TActionManager>(
+        actionExpirationTime,
+        pollingPeriod,
+        std::move(client),
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
