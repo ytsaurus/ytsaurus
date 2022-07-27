@@ -22,7 +22,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
@@ -627,7 +627,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConfig
-    : public TSingletonsDynamicConfig
+    : public TNativeSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.

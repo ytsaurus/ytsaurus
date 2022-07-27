@@ -42,7 +42,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/yt/ytlib/program/public.h>
+#include <yt/yt/library/program/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
@@ -245,7 +245,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public TSingletonsDynamicConfig
+    : public TNativeSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;

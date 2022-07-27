@@ -52,7 +52,7 @@ void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*par
 
     auto config = GetConfig();
 
-    ConfigureSingletons(config);
+    ConfigureNativeSingletons(config);
     StartDiagnosticDump(config);
 
     // TODO(babenko): This memory leak is intentional.

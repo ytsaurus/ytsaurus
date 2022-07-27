@@ -440,7 +440,7 @@ public:
 
         Config_ = config;
 
-        ReconfigureSingletons(Bootstrap_->GetConfig(), Config_);
+        ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 

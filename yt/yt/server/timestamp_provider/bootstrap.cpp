@@ -12,8 +12,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 

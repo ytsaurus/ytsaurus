@@ -25,7 +25,7 @@
 #include <yt/yt/ytlib/tools/tools.h>
 #include <yt/yt/ytlib/tools/proc.h>
 
-#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 

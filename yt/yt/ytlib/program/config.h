@@ -1,155 +1,40 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/core/ytree/yson_serializable.h>
-#include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/core/ytalloc/config.h>
-
-#include <yt/yt/core/net/config.h>
-
-#include <yt/yt/core/rpc/config.h>
-
-#include <yt/yt/core/bus/tcp/config.h>
-
-#include <yt/yt/core/logging/config.h>
-
-#include <yt/yt/core/profiling/config.h>
-
-#include <yt/yt/core/tracing/config.h>
-
-#include <yt/yt/core/service_discovery/yp/config.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
-
-#include <yt/yt/library/profiling/solomon/exporter.h>
-
-#include <yt/yt/library/tracing/jaeger/tracer.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcConfig
-    : public NYTree::TYsonSerializable
+class TNativeSingletonsConfig
+    : public TSingletonsConfig
 {
 public:
-    NTracing::TTracingConfigPtr Tracing;
-
-    TRpcConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TRpcConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTCMallocConfig
-    : public virtual NYTree::TYsonStruct
-{
-public:
-    i64 BackgroundReleaseRate;
-    int MaxPerCpuCacheSize;
-
-    i64 AggressiveReleaseThreshold;
-    i64 AggressiveReleaseSize;
-    TDuration AggressiveReleasePeriod;
-
-    REGISTER_YSON_STRUCT(TTCMallocConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TTCMallocConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSingletonsConfig
-    : public virtual NYTree::TYsonStruct
-{
-public:
-    TDuration SpinWaitSlowPathLoggingThreshold;
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-    THashMap<TString, int> FiberStackPoolSizes;
-    NNet::TAddressResolverConfigPtr AddressResolver;
-    NBus::TTcpDispatcherConfigPtr TcpDispatcher;
-    NRpc::TDispatcherConfigPtr RpcDispatcher;
-    NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
-    NProfiling::TProfileManagerConfigPtr ProfileManager;
-    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
-    NLogging::TLogManagerConfigPtr Logging;
-    NTracing::TJaegerTracerConfigPtr Jaeger;
-    TRpcConfigPtr Rpc;
-    TTCMallocConfigPtr TCMalloc;
-    bool EnableRefCountedTrackerProfiling;
-    bool EnableResourceTracker;
 
-    REGISTER_YSON_STRUCT(TSingletonsConfig);
+    REGISTER_YSON_STRUCT(TNativeSingletonsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
+DEFINE_REFCOUNTED_TYPE(TNativeSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingletonsDynamicConfig
-    : public virtual NYTree::TYsonStruct
+class TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
-    std::optional<TDuration> SpinWaitSlowPathLoggingThreshold;
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
-    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
-    NLogging::TLogManagerDynamicConfigPtr Logging;
-    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
-    TRpcConfigPtr Rpc;
-    TTCMallocConfigPtr TCMalloc;
 
-    REGISTER_YSON_STRUCT(TSingletonsDynamicConfig);
+    REGISTER_YSON_STRUCT(TNativeSingletonsDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSingletonsDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDiagnosticDumpConfig
-    : public virtual NYTree::TYsonStruct
-{
-public:
-    std::optional<TDuration> YTAllocDumpPeriod;
-    std::optional<TDuration> RefCountedTrackerDumpPeriod;
-
-    REGISTER_YSON_STRUCT(TDiagnosticDumpConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NB: These functions should not be called from bootstrap
-// config validator since logger is not set up yet.
-void WarnForUnrecognizedOptions(
-    const NLogging::TLogger& logger,
-    const NYTree::TYsonStructPtr& config);
-
-void WarnForUnrecognizedOptions(
-    const NLogging::TLogger& logger,
-    const NYTree::TYsonSerializablePtr& config);
-
-void AbortOnUnrecognizedOptions(
-    const NLogging::TLogger& logger,
-    const NYTree::TYsonStructPtr& config);
-
-void AbortOnUnrecognizedOptions(
-    const NLogging::TLogger& logger,
-    const NYTree::TYsonSerializablePtr& config);
+DEFINE_REFCOUNTED_TYPE(TNativeSingletonsDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -370,7 +370,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public TNativeSingletonsDynamicConfig
 {
 public:
     static constexpr bool EnableHazard = true;

@@ -37,7 +37,7 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public TNativeSingletonsDynamicConfig
 {
 public:
     // Enable standalone tablet balancer. The balancer will not work at all if set to false.

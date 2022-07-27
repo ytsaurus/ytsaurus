@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/exec_node/slot_location_builder.h>
 
-#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/library/program/program.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/tools/registry.h>

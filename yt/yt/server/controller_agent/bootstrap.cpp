@@ -13,8 +13,8 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>

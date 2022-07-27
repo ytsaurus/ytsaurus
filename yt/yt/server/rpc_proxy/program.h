@@ -4,10 +4,10 @@
 
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
-#include <yt/yt/ytlib/program/program.h>
-#include <yt/yt/ytlib/program/program_config_mixin.h>
-#include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
-#include <yt/yt/ytlib/program/program_setsid_mixin.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/program_config_mixin.h>
+#include <yt/yt/library/program/program_pdeathsig_mixin.h>
+#include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -109,7 +109,7 @@ protected:
             configNode = GetConfigNode();
         }
 
-        ConfigureSingletons(config);
+        ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 
         if (RemoteClusterProxy_) {

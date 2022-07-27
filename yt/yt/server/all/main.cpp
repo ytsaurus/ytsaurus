@@ -16,7 +16,7 @@
 #include <yt/yt/server/queue_agent/program.h>
 #include <yt/yt/server/tablet_balancer/program.h>
 
-#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/library/program/program.h>
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 
@@ -41,7 +41,7 @@ void TryProgram(int argc, const char** argv, const TString& nameSuffix)
     if (TStringBuf(argv[0]).EndsWith("ytserver-" + nameSuffix)) {
         T().Run(argc, argv);
     }
-}   
+}
 
 int main(int argc, const char** argv)
 {

@@ -15,7 +15,7 @@
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -354,7 +354,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(Config_, newConfig);
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 

@@ -25,8 +25,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/core/bus/server.h>
@@ -297,7 +297,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TQueueAgentServerDynamicConfigPtr& oldConfig,
     const TQueueAgentServerDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(Config_, newConfig);
 
     YT_VERIFY(QueueAgent_);
     YT_VERIFY(CypressSynchronizer_);

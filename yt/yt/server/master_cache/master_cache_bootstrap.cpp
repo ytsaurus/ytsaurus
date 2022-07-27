@@ -12,7 +12,7 @@
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 

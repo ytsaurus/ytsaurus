@@ -19,7 +19,7 @@
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

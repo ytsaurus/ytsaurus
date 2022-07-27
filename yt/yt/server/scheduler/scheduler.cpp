@@ -2400,7 +2400,7 @@ private:
 
             NodeManager_->UpdateConfig(Config_);
 
-            ReconfigureSingletons(Bootstrap_->GetConfig(), Config_);
+            ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
@@ -3718,7 +3718,7 @@ private:
             [scheduler{this}] (IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer).Value(scheduler->NodeManager_->GetOngoingHeartbeatsCount());
             })));
-        
+
         return nodesService;
     }
 

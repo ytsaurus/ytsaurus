@@ -38,7 +38,7 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -1125,7 +1125,7 @@ void TJobProxy::CheckMemoryUsage()
     }
 
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
-            
+
     const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
     if (schedulerJobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();

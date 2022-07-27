@@ -54,7 +54,7 @@ void TCellBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseRes
 
     auto config = GetConfig();
 
-    ConfigureSingletons(config);
+    ConfigureNativeSingletons(config);
     StartDiagnosticDump(config);
 
     // TODO(babenko): This memory leak is intentional.

@@ -17,7 +17,7 @@
 
 #include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/ypath/public.h>
 
@@ -701,7 +701,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceMeteringConfig)
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
-    , public TSingletonsDynamicConfig
+    , public TNativeSingletonsDynamicConfig
 {
 public:
     //! Number of shards the nodes are split into.

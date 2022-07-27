@@ -2,8 +2,8 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/program/helpers.h>
-#include <yt/yt/ytlib/program/program.h>
-#include <yt/yt/ytlib/program/program_config_mixin.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/program_config_mixin.h>
 
 #include <util/system/thread.h>
 
@@ -41,7 +41,7 @@ protected:
             config->LogTailer->LogRotation->LogWriterPid = FromString<int>(freeArgs[0]);
         }
 
-        ConfigureSingletons(config);
+        ConfigureNativeSingletons(config);
         StartDiagnosticDump(config);
 
         TBootstrap bootstrap(std::move(config));

@@ -40,7 +40,7 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
