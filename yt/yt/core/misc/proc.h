@@ -79,6 +79,22 @@ TCgroupCpuStat GetCgroupCpuStat(
     const TString& cgroupPath,
     const TString& cgroupMountPoint = "/sys/fs/cgroup");
 
+struct TCgroupMemoryStat
+{
+    ui64 HierarchicalMemoryLimit = 0;
+
+    ui64 Cache = 0;
+    ui64 Rss = 0;
+    ui64 RssHuge = 0;
+    ui64 MappedFile = 0;
+    ui64 Dirty = 0;
+    ui64 Writeback = 0;
+};
+
+TCgroupMemoryStat GetCgroupMemoryStat(
+    const TString& cgroupPath,
+    const TString& cgroupMountPoint = "/sys/fs/cgroup");
+
 THashMap<TString, i64> GetVmstat();
 
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
@@ -294,12 +310,12 @@ struct TDiskStat
     i32 MajorNumber = 0;
     i32 MinorNumber = 0;
     TString DeviceName;
-    
+
     i64 ReadsCompleted = 0;
     i64 ReadsMerged = 0;
     i64 SectorsRead = 0;
     TDuration TimeSpentReading;
-    
+
     i64 WritesCompleted = 0;
     i64 WritesMerged = 0;
     i64 SectorsWritten = 0;

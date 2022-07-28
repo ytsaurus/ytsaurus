@@ -27,13 +27,15 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NConcurrency;
 
-DEFINE_REFCOUNTED_TYPE(TCgroupTracker)
+DEFINE_REFCOUNTED_TYPE(TCpuCgroupTracker)
+DEFINE_REFCOUNTED_TYPE(TMemoryCgroupTracker)
 DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Profiling");
 static TProfiler Profiler("/resource_tracker");
+static TProfiler MemoryProfiler("/memory/cgroup");
 
 // Please, refer to /proc documentation to know more about available information.
 // http://www.kernel.org/doc/Documentation/filesystems/proc.txt
@@ -59,7 +61,7 @@ i64 GetTicksPerSecond()
 
 } // namespace
 
-void TCgroupTracker::CollectSensors(ISensorWriter* writer)
+void TCpuCgroupTracker::CollectSensors(ISensorWriter* writer)
 {
     try {
         auto cgroups = GetProcessCgroups();
@@ -100,6 +102,36 @@ void TCgroupTracker::CollectSensors(ISensorWriter* writer)
     }
 }
 
+void TMemoryCgroupTracker::CollectSensors(ISensorWriter* writer)
+{
+    try {
+        auto cgroups = GetProcessCgroups();
+        for (const auto& group : cgroups) {
+            for (const auto& controller : group.Controllers) {
+                if (controller == "memory") {
+                    auto stat = GetCgroupMemoryStat(group.Path);
+
+                    writer->AddGauge("/memory_limit", stat.HierarchicalMemoryLimit);
+
+                    writer->AddGauge("/cache", stat.Cache);
+                    writer->AddGauge("/rss", stat.Rss);
+                    writer->AddGauge("/rss_huge", stat.RssHuge);
+                    writer->AddGauge("/mapped_file", stat.MappedFile);
+                    writer->AddGauge("/dirty", stat.Dirty);
+                    writer->AddGauge("/writeback", stat.Writeback);
+
+                    return;
+                }
+            }
+        }
+    } catch (const std::exception& ex) {
+        if (!CgroupErrorLogged_) {
+            YT_LOG_INFO(ex, "Failed to collect cgroup memory statistics");
+            CgroupErrorLogged_ = true;
+        }
+    }
+}
+
 TResourceTracker::TTimings TResourceTracker::TTimings::operator-(const TResourceTracker::TTimings& other) const
 {
     return {UserJiffies - other.UserJiffies, SystemJiffies - other.SystemJiffies, CpuWaitNsec - other.CpuWaitNsec};
@@ -118,7 +150,8 @@ TResourceTracker::TResourceTracker()
     // to milliseconds and percentages.
     : TicksPerSecond_(GetTicksPerSecond())
     , LastUpdateTime_(TInstant::Now())
-    , CgroupTracker_(New<TCgroupTracker>())
+    , CpuCgroupTracker_(New<TCpuCgroupTracker>())
+    , MemoryCgroupTracker_(New<TMemoryCgroupTracker>())
 {
     Profiler.AddFuncGauge("/memory_usage/rss", MakeStrong(this), [] {
         return GetProcessMemoryUsage().Rss;
@@ -128,7 +161,8 @@ TResourceTracker::TResourceTracker()
         return MaxThreadPoolUtilization_.load();
     });
 
-    Profiler.AddProducer("", CgroupTracker_);
+    Profiler.AddProducer("", CpuCgroupTracker_);
+    MemoryProfiler.AddProducer("", MemoryCgroupTracker_);
 
     Profiler
         .WithProducerRemoveSupport()

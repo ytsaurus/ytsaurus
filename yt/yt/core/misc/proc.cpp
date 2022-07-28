@@ -439,6 +439,48 @@ TCgroupCpuStat GetCgroupCpuStat(
 #endif
 }
 
+TCgroupMemoryStat GetCgroupMemoryStat(
+    const TString& cgroupPath,
+    const TString& cgroupMountPoint)
+{
+#ifdef _linux_
+    TString path = cgroupMountPoint + "/memory" + cgroupPath + "/memory.stat";
+
+    TCgroupMemoryStat stat;
+
+    TIFStream cgroupFile(path);
+    for (TString line; cgroupFile.ReadLine(line); ) {
+        if (line.empty()) {
+            continue;
+        }
+
+        auto fields = SplitString(line, " ", 2);
+        if (fields.size() != 2) {
+            continue;
+        }
+
+        auto tryParse = [&] (auto field, auto name) {
+            if (fields[0] == name) {
+                *field = FromString<ui64>(fields[1]);
+            }
+        };
+
+        tryParse(&stat.HierarchicalMemoryLimit, "hierarchical_memory_limit");
+        tryParse(&stat.Cache, "cache");
+        tryParse(&stat.Rss, "rss");
+        tryParse(&stat.RssHuge, "rss_huge");
+        tryParse(&stat.MappedFile, "mapped_file");
+        tryParse(&stat.Dirty, "dirty");
+        tryParse(&stat.Writeback, "writeback");
+    }
+
+    return stat;
+#else
+    Y_UNUSED(cgroupPath, cgroupMountPoint);
+    return {};
+#endif
+}
+
 THashMap<TString, i64> GetVmstat()
 {
 #ifdef _linux_
