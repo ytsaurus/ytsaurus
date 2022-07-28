@@ -443,6 +443,7 @@ private:
 
             auto req = proxy.FinishChunk();
             ToProto(req->mutable_session_id(), sessionId);
+            req->set_ignore_missing_session(true);
 
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), replica)
                 .Via(Invoker_));

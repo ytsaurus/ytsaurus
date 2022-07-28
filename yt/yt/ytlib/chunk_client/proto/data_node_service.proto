@@ -67,6 +67,7 @@ message TReqFinishChunk
     required TSessionId session_id = 4;
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
+    optional bool ignore_missing_session = 5 [default = false];
 }
 
 message TRspFinishChunk
