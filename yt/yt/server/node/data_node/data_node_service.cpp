@@ -299,7 +299,16 @@ private:
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        ISessionPtr session;
+
+        if (request->ignore_missing_session()) {
+            if (session = sessionManager->FindSession(sessionId); !session) {
+                context->Reply();
+                return;
+            }
+        } else {
+            session = sessionManager->GetSessionOrThrow(sessionId);
+        }
 
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
