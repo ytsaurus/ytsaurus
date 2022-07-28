@@ -78,6 +78,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -425,6 +426,10 @@ public:
                     totalRowCount);
             }
 
+            if (tablet->GetReplicationCardId()) {
+                ValidateTrimmedRowCountPrecedeReplication(tablet, trimmedRowCount);
+            }
+
             NProto::TReqTrimRows hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
@@ -435,6 +440,42 @@ public:
             return mutation->Commit().As<void>();
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
+        }
+    }
+
+    void ValidateTrimmedRowCountPrecedeReplication(TTablet* tablet, i64 trimmedRowCount)
+    {
+        auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Load();
+        auto replicationCard = tablet->RuntimeData()->ReplicationCard.Load();
+
+        const auto& segments = replicationProgress->Segments;
+        const auto& upper = replicationProgress->UpperKey;
+        if (segments.size() != 1 || 
+            segments[0].LowerKey.GetCount() != 1 ||
+            segments[0].LowerKey[0].Type != EValueType::Int64 ||
+            upper.GetCount() != 1 ||
+            upper[0].Type != EValueType::Int64)
+        {
+            THROW_ERROR_EXCEPTION("Invalid replication progress for ordered table")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("replicatoin_progress", replicationProgress);
+        }
+
+        auto replicationTimestamp = MaxTimestamp;
+        for (const auto& [_, replica] : replicationCard->Replicas) {
+            auto minTimestamp = GetReplicationProgressMinTimestamp(
+                replica.ReplicationProgress,
+                segments[0].LowerKey,
+                upper);
+            replicationTimestamp = std::min(replicationTimestamp, minTimestamp);
+        }
+
+        auto it = tablet->StoreRowIndexMap().lower_bound(trimmedRowCount);
+        if (it == tablet->StoreRowIndexMap().end() || replicationTimestamp < it->second->GetMinTimestamp()) {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("replication_timestamp", replicationTimestamp);
         }
     }
 

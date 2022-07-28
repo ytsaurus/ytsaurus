@@ -12,7 +12,7 @@ from yt_commands import (
     get, set, ls, create, exists, remove, copy, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table,
-    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows,
+    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
@@ -1977,6 +1977,43 @@ class TestChaos(ChaosTestBase):
         set("//tmp/t/@commit_ordering", "weak")
         with pytest.raises(YtError):
             sync_mount_table("//tmp/t")
+
+    @authors("savrus")
+    def test_ordered_chaos_table_trim(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        data_values = [{"key": i, "value": str(i)} for i in range(2)]
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1)]
+        insert_rows("//tmp/t", values)
+
+        wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:1])
+
+        with pytest.raises(YtError):
+            trim_rows("//tmp/t", 0, 1)
+
+        sync_flush_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            trim_rows("//tmp/t", 0, 1)
+
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1, 2)]
+        insert_rows("//tmp/t", values)
+
+        with raises_yt_error("Could not trim tablet since some replicas may not be replicated up to this point"):
+            trim_rows("//tmp/t", 0, 1)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
+
+        trim_rows("//tmp/t", 0, 1)
+        assert select_rows("key, value from [//tmp/t]") == data_values[1:]
 
 
 ##################################################################
