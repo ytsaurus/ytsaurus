@@ -24,7 +24,7 @@ ya make --build=profile yt/yt/library/ytprof/example
 ./yt/yt/library/ytprof/example/example 10003
 
 # Смотрим потребление памяти
-ya tool pprof http://localhost:10003/heap
+ya tool pprof -symbolize=none http://localhost:10003/heap
 Fetching profile over HTTP from http://localhost:10003/heap
 Saved profile in /home/prime/pprof/pprof.example.allocations.space.002.pb.gz
 File: example
@@ -48,7 +48,7 @@ ROUTINE ======================== main in /home/prime/arc/yt/yt/library/ytprof/ex
          .          .     40:            THash<TString> hasher;
 
 # Смотрим потребление CPU в течении 15 секунд
-ya tool pprof 'http://localhost:10003/profile?d=15'
+ya tool pprof -symbolize=none 'http://localhost:10003/profile?d=15'
 Fetching profile over HTTP from http://localhost:10003/profile?d=15
 Saved profile in /home/prime/pprof/pprof.example.sample.profile.004.pb.gz
 File: example
