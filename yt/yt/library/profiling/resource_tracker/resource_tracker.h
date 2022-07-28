@@ -11,9 +11,9 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCgroupTracker)
+DECLARE_REFCOUNTED_CLASS(TCpuCgroupTracker)
 
-class TCgroupTracker
+class TCpuCgroupTracker
     : public NProfiling::ISensorProducer
 {
 public:
@@ -21,6 +21,20 @@ public:
 
 private:
     std::optional<TCgroupCpuStat> FirstCgroupStat_;
+    bool CgroupErrorLogged_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TMemoryCgroupTracker)
+
+class TMemoryCgroupTracker
+    : public NProfiling::ISensorProducer
+{
+public:
+    void CollectSensors(ISensorWriter* writer) override;
+
+private:
     bool CgroupErrorLogged_ = false;
 };
 
@@ -77,7 +91,8 @@ private:
 
     TThreadMap TidToInfo_;
 
-    TCgroupTrackerPtr CgroupTracker_;
+    TCpuCgroupTrackerPtr CpuCgroupTracker_;
+    TMemoryCgroupTrackerPtr MemoryCgroupTracker_;
 
     void EnqueueUsage();
 
