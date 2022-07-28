@@ -83,7 +83,6 @@ object SparkPackagePlugin extends AutoPlugin {
       Seq(
         sparkForkHome.value / "spark-defaults.conf",
         sparkForkHome.value / "spark-env.sh",
-        sparkForkHome.value / "metrics.properties",
         sparkForkHome.value / "log4j" / "log4j.properties",
         sparkForkHome.value / "log4j" / "log4j.clusterLogJson.properties",
         sparkForkHome.value / "log4j" / "log4j.clusterLog.properties",
