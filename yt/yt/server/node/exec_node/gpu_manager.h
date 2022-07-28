@@ -107,6 +107,7 @@ private:
     NHydra::TRevision DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
+    TAtomicObject<NJobAgent::IGpuInfoProviderPtr> GpuInfoProvider_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
