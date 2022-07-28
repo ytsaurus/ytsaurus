@@ -73,12 +73,10 @@ class TestPartitionTablesCommand(YTEnvSetup, TestPartitionTablesBase):
         self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=True)
 
         partitions = partition_tables([table], data_weight_per_partition=2 * row_weight * rows_per_chunk)
-        # TODO(galtsev): definitely wrong result
         assert partitions == [
             {
                 "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {}, "upper_limit": {}}]})],
             }
-            for _ in range(0, 2)
         ]
 
     @authors("galtsev")

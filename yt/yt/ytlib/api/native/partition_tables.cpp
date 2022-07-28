@@ -97,22 +97,31 @@ void TMultiTablePartitioner::CollectInput()
 
         YT_LOG_DEBUG("Fetching chunks (Path: %v)", path);
 
-        for (const auto& inputChunk : inputChunks) {
-            TLegacyDataSlice::TChunkSliceList inputChunkSliceList;
+        std::vector<TInputChunkSlicePtr> dynamicInputChunkSliceList;
 
+        for (const auto& inputChunk : inputChunks) {
             auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
             inputChunkSlice->TransformToNew(rowBuffer, schema->ToComparator().GetLength());
 
-            inputChunkSliceList.emplace_back(std::move(inputChunkSlice));
+            if (dynamic) {
+                dynamicInputChunkSliceList.emplace_back(inputChunkSlice);
+            } else {
+                TLegacyDataSlice::TChunkSliceList inputChunkSliceList;
 
-            auto dataSlice = New<TLegacyDataSlice>(
-                dynamic ? EDataSourceType::VersionedTable : EDataSourceType::UnversionedTable,
-                std::move(inputChunkSliceList),
-                TInputSliceLimit());
-            dataSlice->SetInputStreamIndex(tableIndex);
-            auto chunkStripe = New<TChunkStripe>(std::move(dataSlice));
+                inputChunkSliceList.emplace_back(std::move(inputChunkSlice));
+                auto dataSlice = New<TLegacyDataSlice>(
+                    EDataSourceType::UnversionedTable,
+                    std::move(inputChunkSliceList),
+                    TInputSliceLimit());
 
-            ChunkPool_->Add(std::move(chunkStripe));
+                AddDataSlice(tableIndex, dataSlice);
+            }
+        }
+
+        if (dynamic) {
+            for (const auto& dataSlice : CombineVersionedChunkSlices(dynamicInputChunkSliceList, schema->ToComparator())) {
+                AddDataSlice(tableIndex, dataSlice);
+            }
         }
 
         totalChunkCount += inputChunks.size();
@@ -207,6 +216,16 @@ std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> TMultiTablePartitio
     }
 
     return slicesByTable;
+}
+
+void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr dataSlice)
+{
+    YT_VERIFY(ChunkPool_);
+
+    dataSlice->SetInputStreamIndex(tableIndex);
+    auto chunkStripe = New<TChunkStripe>(std::move(dataSlice));
+
+    ChunkPool_->Add(std::move(chunkStripe));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

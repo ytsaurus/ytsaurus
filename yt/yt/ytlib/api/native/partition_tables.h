@@ -37,6 +37,7 @@ private:
     void AddDataSource(int tableIndex, const NQueryClient::TTableSchemaPtr& schema, bool dynamic);
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
         const NChunkPools::TChunkStripeListPtr& chunkStripeList);
+    void AddDataSlice(int tableIndex, NChunkClient::TLegacyDataSlicePtr dataSlice);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
