@@ -160,7 +160,7 @@ public:
             THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
         }
 
-        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId %v)", serviceId);
+        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId: %v)", serviceId);
         return DoGetServiceTicket(serviceId);
     }
 
@@ -170,7 +170,7 @@ public:
             THROW_ERROR_EXCEPTION("Parsing user tickets disabled");
         }
 
-        YT_LOG_DEBUG("Parsing user ticket: %v", NUtils::RemoveTicketSignature(ticket));
+        YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
         ParseUserTicketCountCounter_.Increment();
 
         try {
@@ -202,7 +202,7 @@ public:
             THROW_ERROR_EXCEPTION("Parsing service tickets disabled");
         }
 
-        YT_LOG_DEBUG("Parsing user ticket: %v", NUtils::RemoveTicketSignature(ticket));
+        YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
         ParseServiceTicketCountCounter_.Increment();
 
         try {
@@ -306,7 +306,7 @@ private:
 
     void MakeClient()
     {
-        YT_LOG_INFO("Creating TvmClient (UseTvmTool: %v)", Config_->UseTvmTool);
+        YT_LOG_INFO("Creating TVM client (UseTvmTool: %v)", Config_->UseTvmTool);
 
         auto logger = MakeIntrusive<TTvmLoggerAdapter>();
 
@@ -364,7 +364,7 @@ private:
 
     void MakeClient()
     {
-        YT_LOG_INFO("Creating TvmClient");
+        YT_LOG_INFO("Creating dynamic TVM client (UseTvmTool: %v)", Config_->UseTvmTool);
 
         if (Config_->UseTvmTool) {
             THROW_ERROR_EXCEPTION("TVM tool is not supported for dynamic client");
