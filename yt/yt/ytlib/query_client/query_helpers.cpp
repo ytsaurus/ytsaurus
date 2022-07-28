@@ -1,7 +1,6 @@
 #include "query_helpers.h"
 #include "private.h"
 #include "functions.h"
-#include "helpers.h"
 #include "key_trie.h"
 #include "query.h"
 

@@ -41,7 +41,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
-    NTabletClient::TReadTimestampRange timestampRange,
+    NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -55,7 +55,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    NTabletClient::TReadTimestampRange timestampRange,
+    NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -69,7 +69,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    NTabletClient::TReadTimestampRange timestampRange,
+    NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -84,7 +84,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    NTabletClient::TReadTimestampRange timestampRange,
+    NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);

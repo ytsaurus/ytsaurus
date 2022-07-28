@@ -1,6 +1,17 @@
+#pragma once
+
 #include "public.h"
 
 namespace NYT::NTransactionClient {
+
+//! Represents that only values with timestamp in range [|RetentionTimestamp|, |Timestamp|]
+//! should be read.
+//! Note that both endpoints are inclusive.
+struct TReadTimestampRange
+{
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
+    NTransactionClient::TTimestamp RetentionTimestamp = NTransactionClient::NullTimestamp;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

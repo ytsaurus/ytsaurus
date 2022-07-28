@@ -28,7 +28,6 @@ struct IExecutor
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TQueryOptions& options) = 0;
 
 };
@@ -42,9 +41,7 @@ struct IPrepareCallbacks
     virtual ~IPrepareCallbacks() = default;
 
     //! Returns the initial split for a given path.
-    virtual TFuture<TDataSplit> GetInitialSplit(
-        const NYPath::TYPath& path,
-        TTimestamp timestamp) = 0;
+    virtual TFuture<TDataSplit> GetInitialSplit(const NYPath::TYPath& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,11 +1,10 @@
 #include "query.h"
 #include "folding_profiler.h"
+#include "private.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/ytlib/query_client/proto/query.pb.h>
-
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -308,6 +307,11 @@ std::vector<size_t> GetJoinGroups(
     }
 
     return joinGroups;
+}
+
+NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)
+{
+    return QueryClientLogger.WithTag("FragmentId: %v", query->Id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -852,8 +856,8 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->UseMultijoin = serialized.use_multijoin();
     original->AllowFullScan = serialized.allow_full_scan();
     original->ReadSessionId  = serialized.has_read_session_id()
-        ? FromProto<NChunkClient::TReadSessionId>(serialized.read_session_id())
-        : NChunkClient::TReadSessionId::Create();
+        ? FromProto<TReadSessionId>(serialized.read_session_id())
+        : TReadSessionId::Create();
 
     if (serialized.has_memory_limit_per_node()) {
         original->MemoryLimitPerNode = serialized.memory_limit_per_node();

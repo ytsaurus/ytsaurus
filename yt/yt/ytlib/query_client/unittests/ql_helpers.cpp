@@ -78,23 +78,21 @@ TTableSchemaPtr GetSampleTableSchema()
     });
 }
 
-TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 counter)
+TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 /*counter*/)
 {
     TDataSplit dataSplit;
-    SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
-    SetTableSchema(&dataSplit, *GetSampleTableSchema());
+    dataSplit.TableSchema = GetSampleTableSchema();
     return dataSplit;
 }
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 /*counter*/)
 {
     TDataSplit dataSplit;
-    SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
-    SetTableSchema(&dataSplit, TTableSchema(columns));
+    dataSplit.TableSchema = New<TTableSchema>(columns);
     return dataSplit;
 }
 
-TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp /*timestamp*/)
+TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path)
 {
     return MakeFuture<TDataSplit>(TError(
         "Could not find table %v",

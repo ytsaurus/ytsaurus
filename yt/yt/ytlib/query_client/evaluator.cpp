@@ -3,7 +3,6 @@
 #include "config.h"
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
-#include "helpers.h"
 #include "query.h"
 
 #include <yt/yt/client/query_client/query_statistics.h>

@@ -1,6 +1,5 @@
 #include "coordinator.h"
 #include "private.h"
-#include "helpers.h"
 #include "query.h"
 #include "query_helpers.h"
 #include "range_inferrer.h"

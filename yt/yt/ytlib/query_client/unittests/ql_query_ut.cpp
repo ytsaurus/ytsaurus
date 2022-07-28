@@ -11,7 +11,6 @@
 #include <yt/yt/ytlib/query_client/coordinator.h>
 #include <yt/yt/ytlib/query_client/evaluator.h>
 #include <yt/yt/ytlib/query_client/folding_profiler.h>
-#include <yt/yt/ytlib/query_client/helpers.h>
 #include <yt/yt/ytlib/query_client/query.h>
 #include <yt/yt/ytlib/query_client/proto/query.pb.h>
 #include <yt/yt/ytlib/query_client/query_preparer.h>
@@ -60,6 +59,9 @@ using namespace NYson;
 
 using NChunkClient::NProto::TDataStatistics;
 
+void SetObjectId(TDataSplit* /*dataSplit*/, NObjectClient::TObjectId /*objectId*/)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryPrepareTest
@@ -106,7 +108,7 @@ TEST_F(TQueryPrepareTest, BadSyntax)
 
 TEST_F(TQueryPrepareTest, BadWhere)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -116,7 +118,7 @@ TEST_F(TQueryPrepareTest, BadWhere)
 
 TEST_F(TQueryPrepareTest, BadTableName)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table"))
         .WillOnce(Invoke(&RaiseTableNotFound));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -126,7 +128,7 @@ TEST_F(TQueryPrepareTest, BadTableName)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -136,7 +138,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -146,7 +148,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -164,7 +166,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
     }
     query += " > 0";
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -255,7 +257,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
         (a = 4325 and s = '932c592b-6ec4-4ec8-a4bd-79c4900996ab')
     )";
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -273,7 +275,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     }
     query += ")";
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     PreparePlanFragment(&PrepareMock_, query);
@@ -288,14 +290,14 @@ TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 
 TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
         ContainsRegex("Misuse of aggregate .*"));
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -305,7 +307,7 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
 TEST_F(TQueryPrepareTest, FailedTypeInference)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -315,20 +317,20 @@ TEST_F(TQueryPrepareTest, FailedTypeInference)
 
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//s"))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
         ContainsRegex("Ambiguous resolution"));
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//s"))));
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -355,9 +357,9 @@ TEST_F(TQueryPrepareTest, SelectColumns)
             TColumnSchema("d", EValueType::Int64)
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -412,9 +414,9 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("price", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *tableSchema);
+        dataSplit.TableSchema = tableSchema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -439,9 +441,9 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("Clicks", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -461,9 +463,9 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("status", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -483,9 +485,9 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("value", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -571,9 +573,9 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
             TColumnSchema("v", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -615,9 +617,9 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
             TColumnSchema("v", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
@@ -748,7 +750,7 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
         {"a", EValueType::String}
     });
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(split)));
 
     EXPECT_THROW_THAT({
@@ -762,7 +764,7 @@ TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
         {"a", EValueType::String}
     });
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(split)));
 
     EXPECT_THROW_THAT({
@@ -776,7 +778,7 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
         {"a", EValueType::String}
     });
 
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(split)));
 
     EXPECT_THROW_THAT({
@@ -802,13 +804,15 @@ TEST_F(TJobQueryPrepareTest, FalsePredicate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::vector<TDataSplit> TDataSplits;
+
 class TQueryCoordinateTest
     : public ::testing::Test
 {
 protected:
     void SetUp() override
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
             .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
@@ -826,10 +830,9 @@ protected:
         auto buffer = New<TRowBuffer>();
         TRowRanges sources;
         for (const auto& split : dataSplits) {
-            auto range = GetBothBoundsFromDataSplit(split);
             sources.emplace_back(
-                buffer->CaptureRow(range.first.Get()),
-                buffer->CaptureRow(range.second.Get()));
+                buffer->CaptureRow(split.LowerBound),
+                buffer->CaptureRow(split.UpperBound));
         }
 
         auto rowBuffer = New<TRowBuffer>();
@@ -880,19 +883,16 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
     TDataSplits splits;
 
     splits.emplace_back(MakeSimpleSplit("//t", 1));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), YsonToKey("0;0;0"));
-    SetUpperBound(&splits.back(), YsonToKey("1;0;0"));
+    splits.back().LowerBound = YsonToKey("0;0;0");
+    splits.back().UpperBound = YsonToKey("1;0;0");
 
     splits.emplace_back(MakeSimpleSplit("//t", 2));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), YsonToKey("1;0;0"));
-    SetUpperBound(&splits.back(), YsonToKey("2;0;0"));
+    splits.back().LowerBound = YsonToKey("1;0;0");
+    splits.back().UpperBound = YsonToKey("2;0;0");
 
     splits.emplace_back(MakeSimpleSplit("//t", 3));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), YsonToKey("2;0;0"));
-    SetUpperBound(&splits.back(), YsonToKey("3;0;0"));
+    splits.back().LowerBound = YsonToKey("2;0;0");
+    splits.back().UpperBound = YsonToKey("3;0;0");
 
     EXPECT_NO_THROW({
         Coordinate("a from [//t] where k = 1 and l = 2 and m = 3", splits, 1);
@@ -937,7 +937,7 @@ TOwningRow YsonToRow(
     const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
-    auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
+    auto tableSchema = dataSplit.TableSchema;
     return NTableClient::YsonToSchemafulRow(yson, *tableSchema, treatMissingAsNull);
 }
 
@@ -1290,7 +1290,7 @@ protected:
     TQueryPtr Prepare(const TString& query, const std::map<TString, TDataSplit>& dataSplits)
     {
         for (const auto& dataSplit : dataSplits) {
-            EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
+            EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
         }
 
@@ -4307,7 +4307,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
             TColumnSchema("value", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
         splits["//phrases"] = dataSplit;
     }
@@ -4332,7 +4332,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
             TColumnSchema("value", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
         splits["//tag_group"] = dataSplit;
     }
@@ -4360,7 +4360,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
             TColumnSchema("value", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, *schema);
+        dataSplit.TableSchema = schema;
 
         splits["//DirectPhraseStatV2"] = dataSplit;
     }

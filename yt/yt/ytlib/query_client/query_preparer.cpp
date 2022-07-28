@@ -2,7 +2,6 @@
 #include "private.h"
 #include "callbacks.h"
 #include "functions.h"
-#include "helpers.h"
 #include "lexer.h"
 #include "query_helpers.h"
 
@@ -2417,21 +2416,18 @@ std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mod
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFunctionsFetcher& functionsFetcher,
-    TTimestamp timestamp)
+    const TFunctionsFetcher& functionsFetcher)
 {
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query),
-        functionsFetcher,
-        timestamp);
+        functionsFetcher);
 }
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher,
-    TTimestamp timestamp)
+    const TFunctionsFetcher& functionsFetcher)
 {
     auto query = New<TQuery>(TGuid::Create());
 
@@ -2454,9 +2450,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }));
 
     std::vector<TFuture<TDataSplit>> asyncDataSplits;
-    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path, timestamp));
+    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path));
     for (const auto& join : ast.Joins) {
-        asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path, timestamp));
+        asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path));
     }
 
     auto dataSplits = WaitFor(AllSucceeded(asyncDataSplits))
@@ -2466,7 +2462,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     const auto& selfDataSplit = dataSplits[0];
 
-    auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
+    auto tableSchema = selfDataSplit.TableSchema;
     query->Schema.Original = tableSchema;
 
     TBuilderCtx builder{
@@ -2484,13 +2480,13 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         const auto& join = ast.Joins[joinIndex];
         const auto& foreignDataSplit = dataSplits[joinIndex + 1];
 
-        auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
+        auto foreignTableSchema = foreignDataSplit.TableSchema;
         auto foreignKeyColumnsCount = foreignTableSchema->GetKeyColumns().size();
 
         auto joinClause = New<TJoinClause>();
         joinClause->Schema.Original = foreignTableSchema;
-        joinClause->ForeignObjectId = GetObjectIdFromDataSplit(foreignDataSplit);
-        joinClause->ForeignCellId = GetCellIdFromDataSplit(foreignDataSplit);
+        joinClause->ForeignObjectId = foreignDataSplit.ObjectId;
+        joinClause->ForeignCellId = foreignDataSplit.CellId;
         joinClause->IsLeft = join.IsLeft;
 
         // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
@@ -2755,20 +2751,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         *query->GetReadSchema(),
         *query->GetTableSchema());
 
-    auto range = GetBothBoundsFromDataSplit(selfDataSplit);
-
-    TCompactVector<TRowRange, 1> rowRanges;
-    auto buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
-    rowRanges.push_back({
-        buffer->CaptureRow(range.first.Get()),
-        buffer->CaptureRow(range.second.Get())
-    });
-
     auto fragment = std::make_unique<TPlanFragment>();
     fragment->Query = query;
-    fragment->DataSource.ObjectId = GetObjectIdFromDataSplit(selfDataSplit);
-    fragment->DataSource.CellId = GetCellIdFromDataSplit(selfDataSplit);
-    fragment->DataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
+    fragment->DataSource.ObjectId = selfDataSplit.ObjectId;
+    fragment->DataSource.CellId = selfDataSplit.CellId;
+    fragment->DataSource.Ranges = MakeSingletonRowRange(selfDataSplit.LowerBound, selfDataSplit.UpperBound);
+
     return fragment;
 }
 

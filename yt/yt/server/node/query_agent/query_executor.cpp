@@ -40,7 +40,6 @@
 #include <yt/yt/ytlib/query_client/coordinator.h>
 #include <yt/yt/ytlib/query_client/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/helpers.h>
 #include <yt/yt/ytlib/query_client/query.h>
 #include <yt/yt/ytlib/query_client/query_helpers.h>
 #include <yt/yt/ytlib/query_client/private.h>
@@ -309,7 +308,6 @@ public:
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
-        TClientChunkReadOptions chunkReadOptions,
         TQueryOptions queryOptions)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
@@ -329,7 +327,10 @@ public:
         , Logger(MakeQueryLogger(Query_))
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
-        , ChunkReadOptions_(std::move(chunkReadOptions))
+        , ChunkReadOptions_{
+            .WorkloadDescriptor = QueryOptions_.WorkloadDescriptor,
+            .ReadSessionId = QueryOptions_.ReadSessionId
+        }
     { }
 
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
@@ -418,6 +419,7 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
         MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+
         FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
@@ -541,7 +543,6 @@ private:
                             ExternalCGInfo_,
                             std::move(dataSource),
                             pipe->GetWriter(),
-                            ChunkReadOptions_,
                             remoteOptions);
 
                         asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -584,7 +585,6 @@ private:
                                 ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
-                                ChunkReadOptions_,
                                 remoteOptions);
 
                             asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -1083,7 +1083,6 @@ TQueryStatistics ExecuteSubquery(
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
-    TClientChunkReadOptions chunkReadOptions,
     TQueryOptions queryOptions,
     TServiceProfilerGuard& profilerGuard)
 {
@@ -1100,7 +1099,6 @@ TQueryStatistics ExecuteSubquery(
         std::move(writer),
         std::move(memoryChunkProvider),
         invoker,
-        std::move(chunkReadOptions),
         std::move(queryOptions));
 
     return execution->Execute(profilerGuard);

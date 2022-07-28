@@ -2,20 +2,21 @@
 
 #include <yt/yt/client/query_client/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/yt/ytlib/table_client/public.h>
-
-#include <yt/yt/ytlib/tablet_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/ypath/public.h>
 
-// TODO(babenko): kill this when refactoring TDataSplit
-namespace NYT { namespace NChunkClient { namespace NProto {
-    class TChunkSpec;
-} } }
-
 namespace NYT::NQueryClient {
+
+using NTransactionClient::TTimestamp;
+
+using NTableClient::TRowRange;
+
+using TReadSessionId = TGuid;
+
+struct TDataSplit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,10 +112,6 @@ DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
 
 DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 
-// TODO(babenko): kill this when refactoring TDataSplit
-typedef NChunkClient::NProto::TChunkSpec TDataSplit;
-typedef std::vector<TDataSplit> TDataSplits;
-
 using NTableClient::ISchemafulUnversionedReader;
 using NTableClient::ISchemafulUnversionedReaderPtr;
 using NTableClient::ISchemalessUnversionedReader;
@@ -134,8 +131,6 @@ using NTransactionClient::NullTimestamp;
 
 using NTableClient::TRowBuffer;
 using NTableClient::TRowBufferPtr;
-
-using NNodeTrackerClient::TNodeDirectoryPtr;
 
 typedef std::vector<NTableClient::TColumnSchema> TSchemaColumns;
 

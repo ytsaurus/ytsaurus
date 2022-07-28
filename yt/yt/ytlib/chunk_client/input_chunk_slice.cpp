@@ -1,10 +1,9 @@
 #include "input_chunk_slice.h"
 
 #include "private.h"
-#include "chunk_meta_extensions.h"
 #include "input_chunk.h"
 
-#include <yt/yt/ytlib/query_client/helpers.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/serialize.h>
@@ -15,13 +14,10 @@
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <cmath>
 
 namespace NYT::NChunkClient {
 
-using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NYson;

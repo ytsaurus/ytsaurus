@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/yt/ytlib/query_client/helpers.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -18,7 +18,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
-using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -26,7 +25,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
-    : ChunkId_(GetObjectIdFromDataSplit(chunkSpec))
+    : ChunkId_(GetObjectIdFromChunkSpec(chunkSpec))
     , TableIndex_(chunkSpec.has_table_index() ? chunkSpec.table_index() : -1)
     , ErasureCodec_(FromProto<NErasure::ECodec>(chunkSpec.erasure_codec()))
     , TableRowIndex_(chunkSpec.table_row_index())
@@ -68,7 +67,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         CompressedDataSize_ = 1;
         MaxBlockSize_ = DefaultMaxBlockSize;
         UniqueKeys_ = IsSortedDynamicStore();
-        TabletId_ = GetTabletIdFromDataSplit(chunkSpec);
+        TabletId_ = GetTabletIdFromChunkSpec(chunkSpec);
     } else {
         YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
         ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());

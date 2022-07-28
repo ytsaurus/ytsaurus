@@ -2,7 +2,6 @@
 #include "column_evaluator.h"
 #include "coordinator.h"
 #include "evaluator.h"
-#include "helpers.h"
 #include "query.h"
 #include "query_helpers.h"
 #include "query_service_proxy.h"
@@ -189,7 +188,6 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const TClientChunkReadOptions& chunkReadOptions,
         const TQueryOptions& options) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
@@ -204,7 +202,6 @@ public:
                 std::move(externalCGInfo),
                 std::move(dataSource),
                 options,
-                chunkReadOptions,
                 std::move(writer));
     }
 
@@ -220,7 +217,6 @@ private:
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
-        const TClientChunkReadOptions& chunkReadOptions,
         const IUnversionedRowsetWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataSource>, TString>(int)> getSubsources)
@@ -237,6 +233,12 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
         MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = options.WorkloadDescriptor,
+            .ReadSessionId = options.ReadSessionId
+        };
+
         FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
@@ -284,7 +286,6 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         const TQueryOptions& options,
-        const TClientChunkReadOptions& chunkReadOptions,
         IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -331,7 +332,6 @@ private:
             query,
             externalCGInfo,
             options,
-            chunkReadOptions,
             writer,
             groupedSplits.size(),
             [&] (int index) {
@@ -344,7 +344,6 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         const TQueryOptions& options,
-        const TClientChunkReadOptions& chunkReadOptions,
         IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -365,7 +364,6 @@ private:
             query,
             externalCGInfo,
             options,
-            chunkReadOptions,
             writer,
             allSplits.size(),
             [&] (int index) {
