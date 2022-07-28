@@ -83,12 +83,14 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
   }
 
   it should "process failed job" in {
-    val testCase = jobWithFail
-    val jobId = submitJob(testCase)
-    log.info(s"Started job ${testCase.name} (id: $jobId)")
+    measure({
+      val testCase = jobWithFail
+      val jobId = submitJob(testCase)
+      log.info(s"Started job ${testCase.name} (id: $jobId)")
 
-    val status = waitFinalStatus(jobId)
-    status shouldBe DriverState.FAILED
+      val status = waitFinalStatus(jobId)
+      status shouldBe DriverState.FAILED
+    }, 30 seconds)
   }
 
   jobs.foreach { testCase =>
@@ -117,8 +119,9 @@ object SubmitTest {
   private val executionTimeSpread = 1.5
   val basePath: String = System.getProperty("e2eTestHomePath")
   val userDirPath: String = System.getProperty("e2eTestUDirPath")
+  val discoveryPath: String = System.getProperty("discoveryPath")
 
-  private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",
+  private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, discoveryPath,
     System.getProperty("clientVersion"), DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
   def submitJob(testCase: E2ETestCase): String = {

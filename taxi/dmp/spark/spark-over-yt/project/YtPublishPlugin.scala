@@ -175,6 +175,16 @@ object YtPublishPlugin extends AutoPlugin {
       }
     }
 
+    def discoveryPath: String = {
+      val propPath = Option(System.getProperty("discoveryPath"))
+      propPath match {
+        case None =>
+          throw new NoSuchElementException("No discovery path provided")
+        case Some(path) =>
+          path
+      }
+    }
+
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
     val publishYtCredentials = settingKey[RpcCredentials]("Yt publish credentials")

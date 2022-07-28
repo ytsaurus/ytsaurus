@@ -195,6 +195,7 @@ lazy val `e2e-test` = (project in file("e2e-test"))
     Test / javaOptions ++= Seq(s"-De2eTestHomePath=$sparkYtE2ETestPath"),
     Test / javaOptions ++= Seq(s"-De2eTestUDirPath=$e2eTestUDirPath"),
     Test / javaOptions ++= Seq(s"-Dproxies=$onlyYtProxy"),
+    Test / javaOptions ++= Seq(s"-DdiscoveryPath=$discoveryPath"),
     Test / javaOptions ++= Seq(s"-DclientVersion=${e2eClientVersion.value}")
   )
 
