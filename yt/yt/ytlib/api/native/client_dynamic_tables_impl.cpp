@@ -483,6 +483,10 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
     std::vector<TTabletId> tabletIdsToRequest;
     for (const auto& tablet : tabletsNode->GetChildren()) {
         auto tabletNode = tablet->AsMap();
+        if (ConvertTo<ETabletState>(tabletNode->GetChildOrThrow("state")) == ETabletState::Unmounted) {
+            continue;
+        }
+
         auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
 
         if (errorCount < limit &&
