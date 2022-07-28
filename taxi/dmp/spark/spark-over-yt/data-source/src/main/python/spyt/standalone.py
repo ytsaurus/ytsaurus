@@ -307,6 +307,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         return "{}/{}".format(spark_home, driver_op_discovery_script)
 
     def _launcher_command(component, xmx="512m"):
+        create_dir = "mkdir -p {}".format(spark_home)
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(
             spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
@@ -314,8 +315,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             xmx)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        return "{0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(unpack_tar, move_java, run_launcher,
-                                                                                    spark_conf, component)
+        return "{5} && {0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(
+            unpack_tar, move_java, run_launcher, spark_conf, component, create_dir)
 
     master_command = _launcher_command("Master")
 

@@ -1,9 +1,9 @@
-package ru.yandex.spark.yt.fs
+package ru.yandex.spark.yt.fs.path
 
 import org.apache.hadoop.fs.Path
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtLatestVersionPath, YtTimestampPath, YtTransactionPath}
+import ru.yandex.spark.yt.fs.path.YPathEnriched.{YtLatestVersionPath, YtTimestampPath, YtTransactionPath}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
@@ -205,7 +205,7 @@ object YPathEnriched {
         YtLatestVersionPath(ypath(parentPath))
       case _ =>
         val tr = GlobalTableSettings.getTransaction(path.toString)
-        if (path.getParent.toString.contains("@")) { // TODO NPE when file in root directory
+        if (path.getParent != null && path.getParent.toString.contains("@")) {
           YtSimplePath(ypath(path.getParent), path.getName).withTransaction(tr)
         } else {
           YtRootPath(path).withTransaction(tr)

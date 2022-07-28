@@ -7,9 +7,10 @@ import org.apache.spark.internal.io.FileCommitProtocol
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
-import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf._
+import ru.yandex.spark.yt.fs.path.GlobalTableSettings
+import ru.yandex.spark.yt.fs.path.YPathEnriched.YtRootPath
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
@@ -35,12 +36,20 @@ class YtOutputCommitter(jobId: String,
       deletedDirectories.get().foreach(p => YtWrapper.remove(p.toUri.getPath, Some(transaction)))
       deletedDirectories.set(Nil)
       if (isTableSorted(conf)) setupSortedTmpTables(transaction)
-      if (isTable(conf)) setupTable(path, conf, transaction)
+      if (isTable(conf)) {
+        setupTable(path, conf, transaction)
+      } else {
+        setupFiles(transaction)
+      }
     }, removeGlobalTransactions())
   }
 
   private def setupSortedTmpTables(transaction: String)(implicit yt: CompoundClient): Unit = {
     YtWrapper.createDir(tmpPath, Some(transaction))
+  }
+
+  private def setupFiles(transaction: String)(implicit yt: CompoundClient): Unit = {
+    YtWrapper.createDir(path, Some(transaction))
   }
 
   /**
@@ -138,8 +147,21 @@ class YtOutputCommitter(jobId: String,
     s"$tmpPath/part-${taskContext.getTaskAttemptID.getTaskID.getId}"
   }
 
+  private def partFilename(taskContext: TaskAttemptContext, ext: String): String = {
+    val split = taskContext.getTaskAttemptID.getTaskID.getId
+    f"part-$split%05d-$jobId$ext"
+  }
+
   override def newTaskTempFile(taskContext: TaskAttemptContext, dir: Option[String], ext: String): String = {
-    if (isTableSorted(taskContext.getConfiguration)) tmpTablePath(taskContext) else path
+    if (isTableSorted(taskContext.getConfiguration)) {
+      tmpTablePath(taskContext)
+    } else if (isTable(taskContext.getConfiguration)) {
+      path
+    } else {
+      YtRootPath(new Path(s"$path/${partFilename(taskContext, ext)}"))
+        .withTransaction(taskContext.getConfiguration.ytConf(Transaction))
+        .toStringPath
+    }
   }
 
   override def newTaskTempFileAbsPath(taskContext: TaskAttemptContext, absoluteDir: String, ext: String): String = path

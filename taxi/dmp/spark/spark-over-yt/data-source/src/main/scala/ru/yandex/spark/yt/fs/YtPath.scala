@@ -1,8 +1,9 @@
 package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.fs.Path
-import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.YtStaticPath.toFileName
+import ru.yandex.spark.yt.fs.path.YPathEnriched
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.wrapper.YtWrapper.PivotKey
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 

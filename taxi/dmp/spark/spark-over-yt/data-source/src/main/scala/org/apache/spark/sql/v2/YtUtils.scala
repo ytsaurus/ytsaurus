@@ -3,14 +3,14 @@ package org.apache.spark.sql.v2
 import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.SparkException
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.{BinaryType, MetadataBuilder, StructField, StructType}
-import org.apache.spark.sql.yson.YsonType
+import org.apache.spark.sql.types.{MetadataBuilder, StructField, StructType}
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.{YPathEnriched, YtPath}
-import ru.yandex.spark.yt.serializers.{SchemaConverter, SchemaConverterConfig}
+import ru.yandex.spark.yt.fs.YtPath
+import ru.yandex.spark.yt.fs.path.YPathEnriched
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
+import ru.yandex.spark.yt.serializers.{SchemaConverter, SchemaConverterConfig}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient

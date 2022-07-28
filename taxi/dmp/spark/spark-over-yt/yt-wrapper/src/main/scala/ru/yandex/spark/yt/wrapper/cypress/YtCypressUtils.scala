@@ -36,7 +36,12 @@ trait YtCypressUtils {
 
   def getNodeType(path: String, transaction: Option[String] = None)
                  (implicit yt: CompoundClient): Option[CypressNodeType] = {
-    val fp = formatPath(path) + "/@type"
+    getNodeType(YPath.simple(formatPath(path)), transaction)
+  }
+
+  def getNodeType(path: YPath, transaction: Option[String])
+                 (implicit yt: CompoundClient): Option[CypressNodeType] = {
+    val fp = path.justPath().attribute("type")
     if (yt.existsNode(new ExistsNode(fp).optionalTransaction(transaction)).join()) {
       val nt = yt.getNode(new GetNode(fp).optionalTransaction(transaction))
         .join()
@@ -46,7 +51,11 @@ trait YtCypressUtils {
       None
   }
 
-  def isDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean =
+  def isDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
+    isDir(YPath.simple(formatPath(path)), transaction)
+  }
+
+  def isDir(path: YPath, transaction: Option[String])(implicit yt: CompoundClient): Boolean =
     try {
       getNodeType(path, transaction).contains(CypressNodeType.MAP)
     } catch {
@@ -68,11 +77,15 @@ trait YtCypressUtils {
 
   def createDir(path: String, transaction: Option[String] = None, ignoreExisting: Boolean = false)
                (implicit yt: CompoundClient): Unit = {
+    createDir(YPath.simple(formatPath(path)), transaction, ignoreExisting)
+  }
+
+  def createDir(path: YPath, transaction: Option[String], ignoreExisting: Boolean)
+               (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create new directory: $path, transaction $transaction")
-    val fp = formatPath(path)
-    if (!ignoreExisting || !isDir(fp, transaction)) {
+    if (!ignoreExisting || !isDir(path, transaction)) {
       yt.createNode(
-        new CreateNode(fp, ObjectType.MapNode)
+        new CreateNode(path, ObjectType.MapNode)
           .setRecursive(true)
           .setIgnoreExisting(ignoreExisting)
           .optionalTransaction(transaction)

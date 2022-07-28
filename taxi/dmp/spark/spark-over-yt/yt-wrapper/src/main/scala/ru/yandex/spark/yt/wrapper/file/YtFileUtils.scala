@@ -2,10 +2,6 @@ package ru.yandex.spark.yt.wrapper.file
 
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
-
-import java.io.OutputStream
-import java.time.format.DateTimeFormatter
-import java.time.{LocalDateTime, ZoneOffset}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
@@ -14,6 +10,9 @@ import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadFile, WriteFile}
 
+import java.io.{FileOutputStream, OutputStream}
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZoneOffset}
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.language.postfixOps
@@ -45,26 +44,51 @@ trait YtFileUtils {
     }
   }
 
+  def downloadFile(path: String, localPath: String)(implicit yt: CompoundClient): Unit = {
+    val is = readFile(path)
+    try {
+      val os = new FileOutputStream(localPath)
+      try {
+        val b = new Array[Byte](65536)
+        Stream.continually(is.read(b)).takeWhile(_ > 0).foreach(os.write(b, 0, _))
+      } finally {
+        os.close()
+      }
+    } finally {
+      is.close()
+    }
+  }
+
   def createFile(path: String, transaction: Option[String] = None, force: Boolean = false)
                 (implicit yt: CompoundClient): Unit = {
+    createFile(YPath.simple(formatPath(path)), transaction, force)
+  }
+
+  def createFile(path: YPath, transaction: Option[String], force: Boolean)
+                (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create file: $path, transaction: $transaction")
-    val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction).setForce(force)
+    val request = new CreateNode(path, ObjectType.File).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
   }
 
-  private def writeFileRequest(path: String, transaction: Option[String], timeout: Duration): WriteFile = {
-    new WriteFile(formatPath(path))
+  private def writeFileRequest(path: YPath, transaction: Option[String], timeout: Duration): WriteFile = {
+    new WriteFile(path.toString)
       .setWindowSize(10000000L)
       .setPacketSize(1000000L)
       .optionalTransaction(transaction)
       .setTimeout(toJavaDuration(timeout))
   }
 
-  def writeFile(path: String, timeout: Duration, ytRpcClient: Option[YtRpcClient], transaction: Option[String])
+  def writeFile(path: YPath, timeout: Duration, ytRpcClient: Option[YtRpcClient], transaction: Option[String])
                (implicit yt: CompoundClient): OutputStream = {
     log.debug(s"Write file: $path, transaction: $transaction")
     val writer = yt.writeFile(writeFileRequest(path, transaction, timeout)).join()
     new YtFileOutputStream(writer, ytRpcClient)
+  }
+
+  def writeFile(path: String, timeout: Duration, ytRpcClient: Option[YtRpcClient], transaction: Option[String])
+               (implicit yt: CompoundClient): OutputStream = {
+    writeFile(YPath.simple(formatPath(path)), timeout, ytRpcClient, transaction)
   }
 
   def writeFile(path: String, timeout: Duration, transaction: Option[String])

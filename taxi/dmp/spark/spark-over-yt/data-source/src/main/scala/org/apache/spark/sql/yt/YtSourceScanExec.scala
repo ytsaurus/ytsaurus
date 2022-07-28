@@ -1,7 +1,5 @@
 package org.apache.spark.sql.yt
 
-import java.util.concurrent.TimeUnit.NANOSECONDS
-
 import org.apache.hadoop.fs.Path
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
@@ -22,6 +20,7 @@ import org.apache.spark.util.collection.BitSet
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 
+import java.util.concurrent.TimeUnit.NANOSECONDS
 import scala.collection.mutable.HashMap
 
 case class YtSourceScanExec(

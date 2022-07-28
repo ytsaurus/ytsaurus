@@ -11,6 +11,7 @@ import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, D
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.File
+import java.nio.file.{Files, Path}
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.io.Source
@@ -39,16 +40,33 @@ trait SparkLauncher {
     }
   }
 
+  private def sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
+
+  private def prepareSparkConf(): Unit = {
+    moveToSparkConfIfExists("metrics.properties")
+  }
+
+  private def moveToSparkConfIfExists(filename: String): Unit = {
+    val src = Path.of(home, filename)
+    val dst = Path.of(sparkHome, "conf", filename)
+    if (Files.exists(src)) {
+      Files.deleteIfExists(dst)
+      Files.move(src, dst)
+    }
+  }
+
   def startMaster: MasterService = {
     log.info("Start Spark master")
     val config = SparkDaemonConfig.fromProperties("master", "512M")
+    prepareSparkConf()
     val thread = runSparkThread(masterClass, config.memory, namedArgs = Map("host" -> ytHostnameOrIpAddress))
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
   }
 
-    def startWorker(master: Address, cores: Int, memory: String): BasicService = {
+  def startWorker(master: Address, cores: Int, memory: String): BasicService = {
     val config = SparkDaemonConfig.fromProperties("worker", "512M")
+    prepareSparkConf()
     val thread = runSparkThread(
       workerClass,
       config.memory,
@@ -72,6 +90,7 @@ trait SparkLauncher {
     )
     val config = SparkDaemonConfig.fromProperties("history", memory)
 
+    prepareSparkConf()
     val thread = runSparkThread(
       historyServerClass,
       config.memory,
@@ -136,7 +155,6 @@ trait SparkLauncher {
                             positionalArgs: Seq[String],
                             memory: String,
                             log: Logger): Process = {
-    val sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
     val command = s"$sparkHome/bin/spark-class " +
       s"$className " +
       s"${namedArgs.map { case (k, v) => s"--$k $v" }.mkString(" ")} " +

@@ -7,6 +7,7 @@ import org.apache.hadoop.util.Progressable
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.hadoopPathToYt
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.TError
@@ -53,14 +54,15 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
                        statistics: FileSystem.Statistics): FSDataOutputStream = convertExceptions {
     log.debugLazy(s"Create new file: $f")
     statistics.incrementWriteOps(1)
-    val path = hadoopPathToYt(f)
+    val path = ypath(f)
 
-    YtWrapper.createDir(hadoopPathToYt(f.getParent), None, ignoreExisting = true)(yt)
+    YtWrapper.createDir(path.toYPath.parent(), path.transaction, ignoreExisting = true)(yt)
 
     def createFile(ytRpcClient: Option[YtRpcClient], ytClient: CompoundClient): FSDataOutputStream = {
-      YtWrapper.createFile(path, None, overwrite)(ytClient)
+      YtWrapper.createFile(path.toYPath, path.transaction, overwrite)(ytClient)
       statistics.incrementWriteOps(1)
-      new FSDataOutputStream(YtWrapper.writeFile(path, 7 days, ytRpcClient, None)(ytClient), statistics)
+      val writeFile = YtWrapper.writeFile(path.toYPath, 7 days, ytRpcClient, path.transaction)(ytClient)
+      new FSDataOutputStream(writeFile, statistics)
     }
 
     if (_ytConf.extendedFileTimeout) {

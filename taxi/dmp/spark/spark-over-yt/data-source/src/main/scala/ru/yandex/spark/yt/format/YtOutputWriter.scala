@@ -1,7 +1,5 @@
 package ru.yandex.spark.yt.format
 
-import java.util
-import java.util.concurrent.{CompletableFuture, TimeUnit}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
@@ -13,13 +11,15 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.fs.GlobalTableSettings
+import ru.yandex.spark.yt.fs.path.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, TableWriter}
 
+import java.util
+import java.util.concurrent.{CompletableFuture, TimeUnit}
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Try}
 
