@@ -212,6 +212,9 @@ default_config = {
     # Address resolver configuration.
     "driver_address_resolver_config": None,
 
+    # YP service discovery configuration.
+    "yp_service_discovery_config": None,
+
     # Path to driver config.
     # ATTENTION: It is compatible with native yt binary written in C++, it means
     # that config should be in YSON format and contain driver, logging and tracing configurations.

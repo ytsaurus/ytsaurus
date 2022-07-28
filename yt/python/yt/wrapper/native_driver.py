@@ -20,6 +20,7 @@ except ImportError:  # Python 3
 driver_bindings = None
 logging_configured = False
 address_resolver_configured = False
+yp_service_discovery_configured = False
 
 
 class NullStream(object):
@@ -61,10 +62,12 @@ def read_config(path):
             driver_config["driver"],
             driver_config.get("logging"),
             driver_config.get("address_resolver"),
+            driver_config.get("yp_service_discovery"),
         )
     else:
         return (
             driver_config,
+            None,
             None,
             None
         )
@@ -120,17 +123,34 @@ def configure_address_resolver(address_resolver_config, client):
     address_resolver_configured = True
 
 
+def configure_yp_service_discovery(yp_service_discovery_config, client):
+    global yp_service_discovery_configured
+    if yp_service_discovery_configured:
+        return
+
+    config = get_config(client)
+    if config["yp_service_discovery_config"] is not None:
+        driver_bindings.configure_yp_service_discovery(config["yp_service_discovery_config"])
+    elif yp_service_discovery_config is not None:
+        driver_bindings.configure_yp_service_discovery(yp_service_discovery_config)
+    else:
+        driver_bindings.configure_yp_service_discovery({})
+
+    yp_service_discovery_configured = True
+
+
 def get_driver_instance(client):
     driver = get_option("_driver", client=client)
     if driver is None:
         logging_config = None
         address_resolver_config = None
+        yp_service_discovery_config = None
 
         config = get_config(client)
         if config["driver_config"] is not None:
             driver_config = config["driver_config"]
         elif config["driver_config_path"] is not None:
-            driver_config, logging_config, address_resolver_config = \
+            driver_config, logging_config, address_resolver_config, yp_service_discovery_config = \
                 read_config(config["driver_config_path"])
         else:
             if config["backend"] == "rpc":
@@ -164,6 +184,7 @@ def get_driver_instance(client):
 
         configure_logging(logging_config, client)
         configure_address_resolver(address_resolver_config, client)
+        configure_yp_service_discovery(yp_service_discovery_config, client)
 
         specified_api_version = get_value(
             get_config(client)["api_version"],

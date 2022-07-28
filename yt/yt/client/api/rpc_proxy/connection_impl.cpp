@@ -387,6 +387,10 @@ std::vector<TString> TConnection::DiscoverProxiesViaServiceDiscovery()
 {
     YT_LOG_DEBUG("Updating proxy list via Service Discovery");
 
+    if (!ServiceDiscovery_) {
+        THROW_ERROR_EXCEPTION("No service discovery configured");
+    }
+
     std::vector<TFuture<TEndpointSet>> asyncEndpointSets;
     for (const auto& cluster : Config_->ProxyEndpoints->Clusters) {
         asyncEndpointSets.push_back(ServiceDiscovery_->ResolveEndpoints(
