@@ -19,6 +19,10 @@
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/service_discovery/yp/config.h>
+#include <yt/yt/core/service_discovery/yp/service_discovery.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/net/config.h>
@@ -296,6 +300,7 @@ void TDriverModuleBase::Initialize(
 
     addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");
     addPycxxMethod("configure_address_resolver", &TDriverModuleBase::ConfigureAddressResolver, "Configures YT address resolver");
+    addPycxxMethod("configure_yp_service_discovery", &TDriverModuleBase::ConfigureYPServiceDiscovery, "Configures YP service discovery.");
     addPycxxMethod("reopen_logs", &TDriverModuleBase::ReopenLogs, "Reopen driver logs");
     addPycxxMethod("shutdown", &TDriverModuleBase::Shutdown, "Shutdown YT subsystem");
     addPycxxMethod("_internal_shutdown", &TDriverModuleBase::InternalShutdown, "Internal shutdown");
@@ -358,6 +363,21 @@ Py::Object TDriverModuleBase::ConfigureAddressResolver(const Py::Tuple& args_, c
     auto config = ConvertTo<NNet::TAddressResolverConfigPtr>(configNode);
 
     NNet::TAddressResolver::Get()->Configure(config);
+
+    return Py::None();
+}
+
+Py::Object TDriverModuleBase::ConfigureYPServiceDiscovery(const Py::Tuple& args_, const Py::Dict& kwargs_)
+{
+    auto args = args_;
+    auto kwargs = kwargs_;
+
+    auto configNode = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+    ValidateArgumentsEmpty(args, kwargs);
+
+    auto config = ConvertTo<NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr>(configNode);
+    NRpc::TDispatcher::Get()->SetServiceDiscovery(
+        NServiceDiscovery::NYP::CreateServiceDiscovery(config));
 
     return Py::None();
 }
