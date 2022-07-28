@@ -12,11 +12,6 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/cookie_authenticator.h>
-#include <yt/yt/ytlib/auth/token_authenticator.h>
-#include <yt/yt/ytlib/auth/helpers.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -65,6 +60,11 @@
 #include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
+
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/cookie_authenticator.h>
+#include <yt/yt/library/auth_server/token_authenticator.h>
+#include <yt/yt/library/auth_server/helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

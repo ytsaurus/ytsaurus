@@ -4,8 +4,7 @@
 #include "tvm_service.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
-
-#include <yt/yt/ytlib/auth/config.h>
+#include "config.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
 

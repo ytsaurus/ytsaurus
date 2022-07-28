@@ -1,8 +1,8 @@
 #include "mock_http_server.h"
 
-#include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/helpers.h>
-#include <yt/yt/ytlib/auth/tvm_service.h>
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/helpers.h>
+#include <yt/yt/library/auth_server/tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/test_framework/framework.h>

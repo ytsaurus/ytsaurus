@@ -9,9 +9,9 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/helpers.h>
-#include <yt/yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/helpers.h>
+#include <yt/yt/library/auth_server/token_authenticator.h>
 
 #include <yt/yt/client/api/client.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/auth/public.h>
+#include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/ytlib/api/public.h>
 

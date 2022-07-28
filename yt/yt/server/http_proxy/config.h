@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/zookeeper/public.h>
 
-#include <yt/yt/ytlib/auth/public.h>
+#include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
