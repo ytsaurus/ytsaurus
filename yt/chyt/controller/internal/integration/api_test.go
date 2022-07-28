@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ import (
 
 type apiClient struct {
 	Endpoint string
+	Proxy    string
 	User     string
 
 	httpClient *http.Client
@@ -37,7 +39,7 @@ func (c *apiClient) MakeRequest(command string, params api.RequestParams) apiRes
 
 	c.env.L.Debug("making http api request", log.String("command", command), log.Any("params", params))
 
-	req, err := http.NewRequest(http.MethodPost, c.Endpoint+"/"+command, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, c.Endpoint+"/"+c.Proxy+"/"+command, bytes.NewReader(body))
 	require.NoError(c.t, err)
 
 	req.Header.Set("Content-Type", "application/yson")
@@ -85,7 +87,8 @@ func prepareAPI(t *testing.T) (*yttest.Env, *apiClient) {
 	server.WaitReady()
 
 	client := &apiClient{
-		Endpoint:   "http://" + server.RealAddress() + "/" + proxy,
+		Endpoint:   "http://" + server.RealAddress(),
+		Proxy:      proxy,
 		User:       "root",
 		httpClient: &http.Client{},
 		t:          t,
@@ -95,13 +98,15 @@ func prepareAPI(t *testing.T) (*yttest.Env, *apiClient) {
 	return env, client
 }
 
-func TestHTTPAPICreateAndDelete(t *testing.T) {
+func TestHTTPAPICreateAndRemove(t *testing.T) {
 	t.Parallel()
 
 	env, c := prepareAPI(t)
 	alias := guid.New().String()
 
-	r := c.MakeRequest("create", api.RequestParams{Args: []any{alias}})
+	r := c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	ok, err := env.YT.NodeExists(env.Ctx, root.Child(alias), nil)
@@ -119,21 +124,25 @@ func TestHTTPAPICreateAndDelete(t *testing.T) {
 		speclet)
 
 	// Alias already exists.
-	r = c.MakeRequest("create", api.RequestParams{Args: []any{alias}})
+	r = c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
 	// Wrong arguments.
 	r = c.MakeRequest("create", api.RequestParams{})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
-	r = c.MakeRequest("create", api.RequestParams{Args: []any{"a", "b", "c"}})
-	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 	r = c.MakeRequest("create", api.RequestParams{
-		Args:   []any{guid.New().String()},
-		Params: map[string]any{"xxx": "yyy"},
+		Params: map[string]any{
+			"alias": guid.New().String(),
+			"xxx":   "yyy",
+		},
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
-	r = c.MakeRequest("delete", api.RequestParams{Args: []any{alias}})
+	r = c.MakeRequest("remove", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	ok, err = env.YT.NodeExists(env.Ctx, root.Child(alias), nil)
@@ -141,20 +150,28 @@ func TestHTTPAPICreateAndDelete(t *testing.T) {
 	require.False(t, ok)
 
 	// Alias does not exist anymore.
-	r = c.MakeRequest("delete", api.RequestParams{Args: []any{alias}})
+	r = c.MakeRequest("remove", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 }
 
-func TestHTTPAPISetAndRemove(t *testing.T) {
+func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	t.Parallel()
 
 	env, c := prepareAPI(t)
 	alias := guid.New().String()
 
-	r := c.MakeRequest("create", api.RequestParams{Args: []any{alias}})
+	r := c.MakeRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("set", api.RequestParams{Args: []any{"test_option", 1234}, Params: map[string]any{"alias": alias}})
+	r = c.MakeRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_option",
+			"value": 1234,
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var speclet map[string]any
@@ -168,7 +185,13 @@ func TestHTTPAPISetAndRemove(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("set", api.RequestParams{Args: []any{"test_dict/option", "1234"}, Params: map[string]any{"alias": alias}})
+	r = c.MakeRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_dict/option",
+			"value": "1234",
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	err = env.YT.GetNode(env.Ctx, root.JoinChild(alias, "speclet"), &speclet, nil)
@@ -184,10 +207,20 @@ func TestHTTPAPISetAndRemove(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("remove", api.RequestParams{Args: []any{"test_option"}, Params: map[string]any{"alias": alias}})
+	r = c.MakeRequest("remove_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_option",
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("remove", api.RequestParams{Args: []any{"test_dict"}, Params: map[string]any{"alias": alias}})
+	r = c.MakeRequest("remove_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_dict",
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	err = env.YT.GetNode(env.Ctx, root.JoinChild(alias, "speclet"), &speclet, nil)
@@ -199,7 +232,12 @@ func TestHTTPAPISetAndRemove(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("remove", api.RequestParams{Args: []any{"test_option"}, Params: map[string]any{"alias": alias}})
+	r = c.MakeRequest("remove_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_option",
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 }
 
@@ -209,10 +247,19 @@ func TestHTTPAPIParseParams(t *testing.T) {
 	env, c := prepareAPI(t)
 	alias := guid.New().String()
 
-	r := c.MakeRequest("create", api.RequestParams{Args: []any{alias}})
+	r := c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("set", api.RequestParams{Args: []any{"test_dict/option", "1234", alias}, Unparsed: true})
+	r = c.MakeRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "test_dict/option",
+			"value": "1234",
+		},
+		Unparsed: true,
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var speclet map[string]any
@@ -235,7 +282,9 @@ func TestHTTPAPISetPool(t *testing.T) {
 	env, c := prepareAPI(t)
 	alias := guid.New().String()
 
-	r := c.MakeRequest("create", api.RequestParams{Args: []any{alias}})
+	r := c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	pool := guid.New().String()
@@ -259,10 +308,22 @@ func TestHTTPAPISetPool(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r = c.MakeRequest("set", api.RequestParams{Args: []any{"pool", thisPoolDoesNotExist, alias}})
+	r = c.MakeRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "pool",
+			"value": thisPoolDoesNotExist,
+		},
+	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
-	r = c.MakeRequest("set", api.RequestParams{Args: []any{"pool", subpool, alias}})
+	r = c.MakeRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "pool",
+			"value": subpool,
+		},
+	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var speclet map[string]any
@@ -275,4 +336,43 @@ func TestHTTPAPISetPool(t *testing.T) {
 			"pool":   subpool,
 		},
 		speclet)
+}
+
+func TestHTTPAPIDescribeAndPing(t *testing.T) {
+	t.Parallel()
+
+	_, c := prepareAPI(t)
+
+	rsp, err := http.Get(c.Endpoint + "/ping")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, rsp.StatusCode)
+
+	rsp, err = http.Get(c.Endpoint + "/describe")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, rsp.StatusCode)
+
+	body, err := io.ReadAll(rsp.Body)
+	require.NoError(t, err)
+
+	var description map[string]any
+	err = yson.Unmarshal(body, &description)
+	require.NoError(t, err)
+
+	require.Equal(t, []any{c.Proxy}, description["clusters"])
+
+	// It's unlikely that the interface of the 'remove' command will be changed in the future,
+	// so we rely on it in this test.
+	deletePresent := false
+	for _, anyCmd := range description["commands"].([]any) {
+		cmd := anyCmd.(map[string]any)
+		if reflect.DeepEqual(cmd["name"], "remove") {
+			deletePresent = true
+			params := cmd["parameters"].([]any)
+			require.Equal(t, 1, len(params))
+			param := params[0].(map[string]any)
+			require.Equal(t, "alias", param["name"])
+			require.Equal(t, true, param["required"])
+		}
+	}
+	require.True(t, deletePresent)
 }
