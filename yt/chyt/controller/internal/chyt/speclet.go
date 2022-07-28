@@ -32,7 +32,7 @@ const (
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
 	DefaultEnableGeoData = true
-	DefaultGeoDataPath   = ypath.Path("//sys/clickhouse/geodata/geodata.gz")
+	DefaultGeoDataPath   = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
 	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
 )

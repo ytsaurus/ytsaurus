@@ -50,7 +50,7 @@ func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, file
 	}
 
 	if speclet.EnableGeoDataOrDefault() {
-		artifacts = append(artifacts, artifact{"geodata.gz", speclet.GeoDataPathOrDefault()})
+		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeoDataPathOrDefault()})
 	}
 
 	var artifactDescription = map[string]yson.RawValue{}
