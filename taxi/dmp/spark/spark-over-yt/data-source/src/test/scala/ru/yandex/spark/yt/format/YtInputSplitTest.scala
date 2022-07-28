@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
-import org.apache.spark.sql.functions.{col, days}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.mockito.scalatest.MockitoSugar
@@ -13,7 +13,7 @@ import ru.yandex.spark.yt.common.utils.ExpressionTransformer.expressionToSegment
 import ru.yandex.spark.yt.common.utils._
 import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathWithRowNumsImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
-import ru.yandex.spark.yt.fs.YPathEnriched.ypath
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.test._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
@@ -147,7 +147,9 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
         val filtered = res.filter(res("a") <= aH && res("a") > aL)
         filtered.collect() should contain theSameElementsAs data
           .filter { a => a <= aH && a > aL }
-          .map { Row(_) }
+          .map {
+            Row(_)
+          }
     }
   }
 
@@ -164,9 +166,11 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     (1 to 100).foreach {
       _ =>
         val isin = (1 to 10).map(_ => rng.nextInt(100))
-        res.filter(res("a").isin(isin:_*)).collect() should contain theSameElementsAs data
+        res.filter(res("a").isin(isin: _*)).collect() should contain theSameElementsAs data
           .filter { a => isin.contains(a) }
-          .map { Row(_) }
+          .map {
+            Row(_)
+          }
     }
   }
 
@@ -273,9 +277,9 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
 
     val res = spark.read.yt(tmpPath)
     val test = Seq(
-      (res("a").isNotNull, data.filter { case (s, _) => s != null } ),
-      (res("a").isNull || res("a") > "1", data.filter { case (s, _) => s == null || s > "1" } ),
-      (res("a") < "1", data.filter { case (s, _) => s != null && s < "1" } ),
+      (res("a").isNotNull, data.filter { case (s, _) => s != null }),
+      (res("a").isNull || res("a") > "1", data.filter { case (s, _) => s == null || s > "1" }),
+      (res("a") < "1", data.filter { case (s, _) => s != null && s < "1" }),
     )
     test.foreach {
       case (input, output) =>
@@ -321,7 +325,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     val keyColumns = List("a", "b")
     val file = new YtPartitionedFile("//dir/path", Array(), Array(), 2,
       5, 10, false, keyColumns, 0, YtPartitionedFile.emptyInternalRow)
-    val baseYPath =  ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
+    val baseYPath = ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
     getYPathWithRowNumsImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
@@ -391,7 +395,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
   it should "read filtered dynamic tables" in {
     val data = (1L to 1000L).map(x => (x / 10, x % 10, 0.toString))
     prepareTestTable(tmpPath,
-      data.map{ case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
+      data.map { case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
 
     val res = spark.read.yt(tmpPath)
     val test = Seq(
@@ -418,7 +422,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
         data.filter { case (a, b, c) => a < 50 && c < "1" }
       ), (
         res("c") === "0",
-        data.filter { case (a, b, c) => c == "0"}
+        data.filter { case (a, b, c) => c == "0" }
       ), (
         res("a") <= 6,
         data.filter { case (a, b, c) => a <= 6 }
@@ -437,7 +441,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
   it should "reduce number of read rows in dynamic tables" in {
     val data = (1L to 1000L).map(x => (x / 10, x % 10, 0.toString))
     prepareTestTable(tmpPath,
-      data.map{ case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
+      data.map { case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
 
     val res = spark.read.yt(tmpPath)
     val test = Seq(

@@ -8,7 +8,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.vectorized.YtFileFormat
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.GlobalTransaction
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
+import ru.yandex.spark.yt.fs.path.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
 
 class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
   private val defaultOptions: Map[String, String] = Map()

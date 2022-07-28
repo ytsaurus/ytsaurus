@@ -6,8 +6,8 @@ import org.apache.hadoop.util.Progressable
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtDynamicVersionPath, YtLatestVersionPath, YtObjectPath, YtRootPath, YtSimplePath, YtTimestampPath, YtTransactionPath, ypath}
-import ru.yandex.spark.yt.fs.conf.SparkYtHadoopConfiguration
+import ru.yandex.spark.yt.fs.path.YPathEnriched.{YtDynamicVersionPath, YtObjectPath, YtRootPath, YtSimplePath, YtTimestampPath, YtTransactionPath, ypath}
+import ru.yandex.spark.yt.fs.path._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType

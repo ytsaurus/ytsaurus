@@ -5,7 +5,6 @@ import org.apache.spark.sql.types._
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
@@ -20,11 +19,6 @@ package object yt {
 
   implicit class YtReader(reader: DataFrameReader) {
     def yt(paths: String*): DataFrame = reader.format("yt").load(paths.map(normalizePath): _*)
-
-    def yt(path: String, filesCount: Int): DataFrame = {
-      GlobalTableSettings.setFilesCount(normalizePath(path), filesCount)
-      yt(normalizePath(path))
-    }
 
     def schemaHint(schemaHint: StructType): DataFrameReader = {
       reader.options(SchemaConverter.serializeSchemaHint(schemaHint))

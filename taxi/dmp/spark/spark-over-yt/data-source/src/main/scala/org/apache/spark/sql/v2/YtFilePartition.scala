@@ -10,9 +10,9 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, PInfinity, TuplePoint}
 import ru.yandex.spark.yt.format.conf.KeyPartitioningConfig
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
-import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf.YT_MIN_PARTITION_BYTES
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, PivotKeysConverter, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper

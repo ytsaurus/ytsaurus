@@ -1,16 +1,15 @@
 package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.v2.YtUtils.FileWithSchema
+import org.apache.spark.sql.v2.YtUtils.{FileWithSchema, _}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.SchemaTestUtils
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtRootPath, YtSimplePath}
+import ru.yandex.spark.yt.fs.path.YPathEnriched.YtRootPath
 import ru.yandex.spark.yt.fs.{YtFileStatus, YtStaticPath, YtStaticPathAttributes}
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import YtUtils._
-import org.apache.spark.SparkException
 
 import scala.util.Try
 

@@ -5,14 +5,14 @@ import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.log4j.Level
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.cypress.{RangeLimit, YPath}
-import ru.yandex.inside.yt.kosher.impl.ytree.{YTreeBooleanNodeImpl, YTreeDoubleNodeImpl, YTreeEntityNodeImpl, YTreeIntegerNodeImpl, YTreeStringNodeImpl}
+import ru.yandex.inside.yt.kosher.impl.ytree._
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.common.utils.TupleSegment.TupleSegment
 import ru.yandex.spark.yt.common.utils._
 import ru.yandex.spark.yt.format.YtInputSplit._
 import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
-import ru.yandex.spark.yt.fs.YPathEnriched.ypath
+import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.logger.{YtDynTableLogger, YtDynTableLoggerConfig, YtLogger}
 import ru.yandex.spark.yt.serializers.PivotKeysConverter.{toList, toRangeLimit}
 import ru.yandex.spark.yt.serializers.SchemaConverter

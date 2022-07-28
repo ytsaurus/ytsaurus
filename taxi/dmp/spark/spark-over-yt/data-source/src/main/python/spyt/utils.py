@@ -212,8 +212,10 @@ def default_user():
 def default_token():
     token = os.getenv("YT_TOKEN")
     if token is None:
-        with open(os.path.join(os.getenv("HOME"), ".yt", "token")) as f:
-            token = f.readline().strip()
+        token_file = os.path.join(os.getenv("HOME"), ".yt", "token")
+        if os.path.exists(token_file):
+            with open(token_file) as f:
+                token = f.readline().strip()
     return token
 
 
