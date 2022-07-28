@@ -63,6 +63,8 @@ using namespace NTabletClient;
 
 using NYT::FromProto;
 
+using NTransactionClient::TReadTimestampRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr i64 RowBufferCapacity = 1000;

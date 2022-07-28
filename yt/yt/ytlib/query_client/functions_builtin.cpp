@@ -2,7 +2,6 @@
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
 #include "query.h"
-#include "helpers.h"
 #include "functions_builder.h"
 
 #include <library/cpp/resource/resource.h>
@@ -938,7 +937,7 @@ void RegisterBuiltinFunctions(
         UDF_BC(first),
         ECallingConvention::UnversionedValue,
         true);
-    
+
     auto xdeltaConstraints = std::unordered_map<TTypeArgument, TUnionType>();
     xdeltaConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Null,

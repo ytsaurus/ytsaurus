@@ -31,7 +31,6 @@
 #include <yt/yt/ytlib/query_client/functions.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/helpers.h>
 #include <yt/yt/ytlib/query_client/explain.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -292,13 +291,11 @@ public:
     { }
 
     // IPrepareCallbacks implementation.
-    TFuture<TDataSplit> GetInitialSplit(
-        const TYPath& path,
-        TTimestamp timestamp) override
+    TFuture<TDataSplit> GetInitialSplit(const TYPath& path) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run(path, timestamp);
+            .Run(path);
     }
 
 private:
@@ -320,9 +317,7 @@ private:
         return tableInfo->Schemas[ETableSchemaKind::Query];
     }
 
-    TDataSplit DoGetInitialSplit(
-        const TRichYPath& path,
-        TTimestamp timestamp)
+    TDataSplit DoGetInitialSplit(const TRichYPath& path)
     {
         NProfiling::TWallTimer timer;
         auto tableInfo = WaitFor(TableMountCache_->GetTableInfo(path.GetPath()))
@@ -336,11 +331,10 @@ private:
 
         tableInfo->ValidateNotPhysicallyLog();
 
-        TDataSplit result;
-        SetObjectId(&result, tableInfo->TableId);
-        SetTableSchema(&result, *GetTableSchema(path, tableInfo));
-        SetTimestamp(&result, timestamp);
-        return result;
+        return TDataSplit {
+            .ObjectId = tableInfo->TableId,
+            .TableSchema = GetTableSchema(path, tableInfo),
+        };
     }
 };
 
@@ -1212,8 +1206,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
-        fetchFunctions,
-        options.Timestamp);
+        fetchFunctions);
     const auto& query = fragment->Query;
     const auto& dataSource = fragment->DataSource;
 
@@ -1292,11 +1285,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
 
-    TClientChunkReadOptions chunkReadOptions{
-        .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
-        .ReadSessionId = queryOptions.ReadSessionId
-    };
-
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
     std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1306,7 +1294,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         externalCGInfo,
         dataSource,
         writer,
-        chunkReadOptions,
         queryOptions))
         .ValueOrThrow();
 
@@ -1366,8 +1353,7 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
-        fetchFunctions,
-        options.Timestamp);
+        fetchFunctions);
 
     return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);
 }

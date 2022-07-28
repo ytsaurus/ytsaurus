@@ -30,7 +30,7 @@ protected:
     {
         SetUpSchema();
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit(_, _))
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(_))
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
@@ -123,16 +123,14 @@ private:
         SetSchema(tableSchema);
     }
 
-    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TYPath& path, ui64 counter = 0)
+    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TYPath& path)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
-
         if (path == "//t") {
-            SetTableSchema(&dataSplit, Schema_);
+            dataSplit.TableSchema = New<TTableSchema>(Schema_);
         } else {
-            SetTableSchema(&dataSplit, SecondarySchema_);
+            dataSplit.TableSchema = New<TTableSchema>(SecondarySchema_);
         }
 
         return MakeFuture(dataSplit);

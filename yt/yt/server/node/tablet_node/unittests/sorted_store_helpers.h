@@ -145,7 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TMockBackendChunkReadersHolder)
 inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
     TTablet* tablet,
     const std::vector<TUnversionedRow>& keys,
-    const TReadTimestampRange& timestampRange,
+    const NTransactionClient::TReadTimestampRange& timestampRange,
     const std::vector<int>& columnIndexes,
     TTabletSnapshotPtr tabletSnapshot,
     TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
@@ -247,7 +247,7 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
             NCompression::GetCodec(NCompression::ECodec::None),
             /*maxRetryCount*/ 1,
             /*maxConcurrentSubqueries*/ 1,
-            TReadTimestampRange{
+            NTransactionClient::TReadTimestampRange{
                 .Timestamp = timestamp,
             },
             /*useLookupCache*/ false,

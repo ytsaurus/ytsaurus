@@ -32,7 +32,6 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     NQueryClient::IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
-    NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NQueryClient::TQueryOptions queryOptions,
     TServiceProfilerGuard& profilerGuard);
 

@@ -56,6 +56,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NObjectClient::TObjectServiceProxy;
+using NNodeTrackerClient::TNodeDirectoryPtr;
 using NYT::FromProto;
 using NYT::ToProto;
 

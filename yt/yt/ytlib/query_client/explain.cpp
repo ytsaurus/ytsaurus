@@ -1,7 +1,6 @@
 #include "coordinator.h"
 #include "explain.h"
 #include "functions.h"
-#include "helpers.h"
 #include "query_helpers.h"
 #include "query_preparer.h"
 

@@ -38,6 +38,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NConcurrency;
 
+using NTransactionClient::TReadTimestampRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletReaderPoolTag { };

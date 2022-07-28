@@ -5,12 +5,15 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
-#include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/yt/ytlib/query_client/proto/functions_cache.pb.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h>
 
 namespace NYT::NQueryClient {
 

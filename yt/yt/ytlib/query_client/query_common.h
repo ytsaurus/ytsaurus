@@ -2,15 +2,31 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/misc/workload.h>
 
 namespace NYT::NQueryClient {
+
+using NTransactionClient::TReadTimestampRange;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDataSplit
+{
+    TGuid ObjectId;
+    TGuid CellId;
+
+    TTableSchemaPtr TableSchema;
+
+    TLegacyOwningKey LowerBound = NTableClient::MinKey();
+    TLegacyOwningKey UpperBound = NTableClient::MaxKey();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +102,7 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(lukyan): Use opaque data descriptor instead of ObjectId, CellId and MountRevision.
 struct TDataSource
 {
     // Could be:
@@ -98,8 +115,9 @@ struct TDataSource
 
     NHydra::TRevision MountRevision;
 
-    TSharedRange<TRowRange> Ranges;
     std::vector<NTableClient::TLogicalTypePtr> Schema;
+
+    TSharedRange<TRowRange> Ranges;
     TSharedRange<TRow> Keys;
 
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
@@ -115,14 +133,14 @@ struct TQueryBaseOptions
 
     bool EnableCodeCache = true;
     bool UseMultijoin = true;
-    NChunkClient::TReadSessionId ReadSessionId;
+    TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
 struct TQueryOptions
     : public TQueryBaseOptions
 {
-    NTabletClient::TReadTimestampRange TimestampRange{
+    TReadTimestampRange TimestampRange{
         .Timestamp = NTransactionClient::SyncLastCommittedTimestamp,
         .RetentionTimestamp = NTransactionClient::NullTimestamp,
     };

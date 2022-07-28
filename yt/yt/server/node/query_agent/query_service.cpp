@@ -513,12 +513,14 @@ private:
             queryOptions.MemoryLimitPerNode,
             dataSources.size());
 
-        TClientChunkReadOptions chunkReadOptions{
-            .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
-            .ReadSessionId = queryOptions.ReadSessionId
-        };
+
 
         if (RejectUponThrottlerOverdraft_.load()) {
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
+                .ReadSessionId = queryOptions.ReadSessionId
+            };
+
             ThrowUponNodeThrottlerOverdraft(
                 context->GetStartTime(),
                 context->GetTimeout(),
@@ -553,7 +555,6 @@ private:
                     writer,
                     memoryChunkProvider,
                     invoker,
-                    chunkReadOptions,
                     queryOptions,
                     profilerGuard);
 

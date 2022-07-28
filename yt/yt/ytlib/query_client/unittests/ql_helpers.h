@@ -2,12 +2,9 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/query_client/callbacks.h>
-#include <yt/yt/ytlib/query_client/helpers.h>
 #include <yt/yt/ytlib/query_client/query.h>
 #include <yt/yt/ytlib/query_client/query_preparer.h>
 
@@ -64,100 +61,8 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
-    MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (
-        const TYPath&,
-        TTimestamp), (override));
+    MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (const TYPath&), (override));
 };
-
-MATCHER_P(HasCounter, expectedCounter, "")
-{
-    auto objectId = GetObjectIdFromDataSplit(arg);
-    auto cellTag = CellTagFromId(objectId);
-    auto counter = CounterFromId(objectId);
-
-    if (cellTag != 0x42) {
-        *result_listener << "cell id is bad";
-        return false;
-    }
-
-    if (counter != expectedCounter) {
-        *result_listener
-            << "actual counter id is " << counter << " while "
-            << "expected counter id is " << expectedCounter;
-        return false;
-    }
-
-    return true;
-}
-
-MATCHER_P(HasSplitsCount, expectedCount, "")
-{
-    if (arg.size() != expectedCount) {
-        *result_listener
-            << "actual splits count is " << arg.size() << " while "
-            << "expected count is " << expectedCount;
-        return false;
-    }
-
-    return true;
-}
-
-MATCHER_P(HasLowerBound, encodedLowerBound, "")
-{
-    auto expected = NTableClient::YsonToKey(encodedLowerBound);
-    auto actual = GetLowerBoundFromDataSplit(arg);
-
-    auto result = CompareRows(expected, actual);
-
-    if (result != 0 && result_listener->IsInterested()) {
-        *result_listener << "expected lower bound to be ";
-        PrintTo(expected, result_listener->stream());
-        *result_listener << " while actual is ";
-        PrintTo(actual, result_listener->stream());
-        *result_listener
-            << " which is "
-            << (result > 0 ? "greater" : "lesser")
-            << " than expected";
-    }
-
-    return result == 0;
-}
-
-MATCHER_P(HasUpperBound, encodedUpperBound, "")
-{
-    auto expected = NTableClient::YsonToKey(encodedUpperBound);
-    auto actual = GetUpperBoundFromDataSplit(arg);
-
-    auto result = CompareRows(expected, actual);
-
-    if (result != 0) {
-        *result_listener << "expected upper bound to be ";
-        PrintTo(expected, result_listener->stream());
-        *result_listener << " while actual is ";
-        PrintTo(actual, result_listener->stream());
-        *result_listener
-            << " which is "
-            << (result > 0 ? "greater" : "lesser")
-            << " than expected";
-        return false;
-    }
-
-    return true;
-}
-
-MATCHER_P(HasSchema, expectedSchema, "")
-{
-    auto schema = GetTableSchemaFromDataSplit(arg);
-
-    if (schema != expectedSchema) {
-        *result_listener
-            << "actual schema is " << ToString(schema) << " while "
-            << "expected schema is " << ToString(expectedSchema);
-        return false;
-    }
-
-    return true;
-}
 
 TKeyColumns GetSampleKeyColumns();
 TKeyColumns GetSampleKeyColumns2();
@@ -166,7 +71,7 @@ TTableSchemaPtr GetSampleTableSchema();
 TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);
 
-TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp);
+TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

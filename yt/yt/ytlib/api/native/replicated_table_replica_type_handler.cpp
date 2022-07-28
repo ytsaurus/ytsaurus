@@ -4,6 +4,8 @@
 #include "client_impl.h"
 #include "ypath_helpers.h"
 
+#include <yt/yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/helpers.h>

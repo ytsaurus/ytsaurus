@@ -35,7 +35,7 @@ ILookupSessionPtr CreateLookupSession(
     NCompression::ICodec* responseCodec,
     int maxRetryCount,
     int maxSubqueries,
-    NTabletClient::TReadTimestampRange timestampRange,
+    NTransactionClient::TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,

@@ -4,7 +4,6 @@
 #include "functions_cg.h"
 #include "query_helpers.h"
 #include "llvm_folding_set.h"
-#include "helpers.h"
 
 namespace NYT::NQueryClient {
 namespace {

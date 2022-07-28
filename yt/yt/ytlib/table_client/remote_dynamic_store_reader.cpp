@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/ytlib/query_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -27,6 +26,7 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -178,7 +178,7 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", GetObjectIdFromDataSplit(ChunkSpec_));
+        Logger.AddTag("StoreId: %v", GetObjectIdFromChunkSpec(ChunkSpec_));
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
         if (ChunkSpec_.has_row_index_is_absolute() && !ChunkSpec_.row_index_is_absolute()) {
@@ -304,9 +304,9 @@ protected:
     {
         YT_LOG_DEBUG("Opening remote dynamic store reader");
 
-        auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
-        auto tabletId = GetTabletIdFromDataSplit(ChunkSpec_);
-        auto cellId = GetCellIdFromDataSplit(ChunkSpec_);
+        auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
+        auto tabletId = GetTabletIdFromChunkSpec(ChunkSpec_);
+        auto cellId = GetCellIdFromChunkSpec(ChunkSpec_);
 
         try {
             if (ChunkSpec_.replicas_size() == 0) {
@@ -719,7 +719,7 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", GetObjectIdFromDataSplit(ChunkSpec_));
+        Logger.AddTag("StoreId: %v", GetObjectIdFromChunkSpec(ChunkSpec_));
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
         YT_LOG_DEBUG("Retrying remote dynamic store reader created");
@@ -854,7 +854,7 @@ protected:
 
     bool IsDynamicStoreSpec(const TChunkSpec& chunkSpec)
     {
-        auto storeId = GetObjectIdFromDataSplit(chunkSpec);
+        auto storeId = GetObjectIdFromChunkSpec(chunkSpec);
         return IsDynamicTabletStoreType(TypeFromId(storeId));
     }
 
@@ -889,9 +889,9 @@ protected:
     TFuture<void> LocateDynamicStore()
     {
         if (RetryCount_ == Config_->RetryCount) {
-            auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
-            auto tabletId = GetTabletIdFromDataSplit(ChunkSpec_);
-            auto cellId = GetCellIdFromDataSplit(ChunkSpec_);
+            auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
+            auto tabletId = GetTabletIdFromChunkSpec(ChunkSpec_);
+            auto cellId = GetCellIdFromChunkSpec(ChunkSpec_);
 
             auto error = TError("Too many dynamic store locate retries failed")
                 << TErrorAttribute("dynamic_store_id", storeId)
@@ -923,7 +923,7 @@ protected:
             RetryCount_,
             Config_->RetryCount);
 
-        auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
+        auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
 
         NRpc::IChannelPtr channel;
         try {
@@ -1022,7 +1022,7 @@ protected:
             PatchChunkSpecWithContinuationToken();
 
             YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
-                GetObjectIdFromDataSplit(ChunkSpec_));
+                GetObjectIdFromChunkSpec(ChunkSpec_));
 
             return ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManager_)
                 .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this)));

@@ -49,14 +49,12 @@ struct TPlanFragment
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
-    TTimestamp timestamp = NullTimestamp);
+    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions);
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
-    TTimestamp timestamp = NullTimestamp);
+    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
