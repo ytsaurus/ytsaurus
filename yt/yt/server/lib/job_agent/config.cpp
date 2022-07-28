@@ -96,6 +96,9 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_gpu_count", &TThis::TestGpuCount)
         .Default(0);
 
+    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+        .Default(EGpuInfoSource::NvidiaSmi);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->TestLayers && !config->TestResource) {
             THROW_ERROR_EXCEPTION("You need to specify 'test_resource' option if 'test_layers' is specified");
@@ -122,6 +125,9 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
         .Alias("toolkit_min_driver_version")
         .Default();
+
+    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+        .Default(EGpuInfoSource::NvidiaSmi);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

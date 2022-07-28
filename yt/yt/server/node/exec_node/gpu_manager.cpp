@@ -82,6 +82,7 @@ TGpuManager::TGpuManager(
             .Period = Config_->DriverLayerFetchPeriod,
             .Splay = Config_->DriverLayerFetchPeriodSplay
         }))
+    , GpuInfoProvider_(CreateGpuInfoProvider(Config_->GpuInfoSource))
 {
     if (!Config_->Enable) {
         return;
@@ -176,6 +177,11 @@ void TGpuManager::OnDynamicConfigChanged(
     } else {
         FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
     }
+    if (gpuManagerConfig) {
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(gpuManagerConfig->GpuInfoSource));
+    } else {
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(Config_->GpuInfoSource));
+    }
 }
 
 TDuration TGpuManager::GetHealthCheckTimeout() const
@@ -211,7 +217,7 @@ void TGpuManager::OnHealthCheck()
     }
 
     try {
-        auto gpuInfos = GetGpuInfos(GetHealthCheckTimeout());
+        auto gpuInfos = GpuInfoProvider_.Load()->GetGpuInfos(GetHealthCheckTimeout());
 
         THashSet<int> deviceNumbers;
         for (const auto& info : gpuInfos) {

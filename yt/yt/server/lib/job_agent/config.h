@@ -45,6 +45,11 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EGpuInfoSource,
+    (NvGpuManager)
+    (NvidiaSmi)
+);
+
 class TGpuManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -64,6 +69,8 @@ public:
     TDuration DriverLayerFetchPeriodSplay;
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
+
+    EGpuInfoSource GpuInfoSource;
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
@@ -95,6 +102,8 @@ public:
     std::optional<TDuration> DriverLayerFetchPeriod;
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
+
+    EGpuInfoSource GpuInfoSource;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
