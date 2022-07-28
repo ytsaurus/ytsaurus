@@ -15,15 +15,15 @@ from yt.wrapper.cypress_commands import list as yt_list, remove, exists
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARN)
 
-e2e_home_path = os.environ['e2eTestHomePath']
-user_dir_path = os.environ['e2eTestUDirPath']
+e2e_home_path = os.environ['E2E_TEST_HOME_PATH']
+user_dir_path = os.environ['E2E_TEST_UDIR_PATH']
 
 scripts_path = user_dir_path + "/scripts"
 python_dir_path = user_dir_path + "/python"
 
-proxy = os.environ['proxies']
-discovery_path = e2e_home_path + "/cluster"
-client_version = os.environ['clientVersion']
+proxy = os.environ['PROXIES']
+discovery_path = os.environ['DISCOVERY_PATH']
+client_version = os.environ['CLIENT_VERSION']
 
 
 @pytest.fixture(scope="module")

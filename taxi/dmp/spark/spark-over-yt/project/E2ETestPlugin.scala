@@ -4,12 +4,12 @@ import sbt.plugins.JvmPlugin
 import sbtbuildinfo.BuildInfoPlugin
 import spyt.SparkPackagePlugin.autoImport.sparkAddCustomFiles
 import spyt.SparkPaths.sparkYtE2ETestPath
-import spyt.SpytPlugin.autoImport.{spytClientPythonVersion, spytClientVersion}
+import spyt.SpytPlugin.autoImport.{spytClientPythonVersion, spytClientVersion, spytClusterVersion, spytPublishClusterSnapshot}
 import spyt.{SparkPackagePlugin, YtPublishPlugin}
 
 import java.time.Duration
 import java.util.UUID
-import scala.sys.process.Process
+import scala.sys.process.{Process, ProcessLogger}
 
 object E2ETestPlugin extends AutoPlugin {
   override def trigger = AllRequirements
@@ -17,7 +17,7 @@ object E2ETestPlugin extends AutoPlugin {
   override def requires = JvmPlugin && YtPublishPlugin && SparkPackagePlugin && BuildInfoPlugin
 
   object autoImport {
-    lazy val e2eDirTTL = Duration.ofMinutes(60).toMillis
+    lazy val e2eDirTTL = Duration.ofHours(2).toMillis
     lazy val e2eTestUDirPath = s"$sparkYtE2ETestPath/${UUID.randomUUID()}"
 
     lazy val e2eConfigShow = taskKey[Unit]("Show e2e configuration")
@@ -27,6 +27,10 @@ object E2ETestPlugin extends AutoPlugin {
     lazy val e2ePythonTest = taskKey[Unit]("Run python e2e tests")
     lazy val e2eScalaTestImpl = taskKey[Unit]("Run scala e2e tests process")
     lazy val e2ePythonTestImpl = taskKey[Unit]("Run python e2e tests process")
+    lazy val e2eFullCircleTest = taskKey[Unit]("Build e2e environment and run all tests")
+    lazy val e2ePrepareEnv = taskKey[Unit]("")
+    lazy val e2eLaunchCluster = taskKey[Unit]("")
+    lazy val e2eDiscoveryCluster = taskKey[Unit]("")
 
     lazy val e2eClientVersion: TaskKey[String] = taskKey[String]("Client version for e2e tests, " +
       "default is current client version")
@@ -36,8 +40,20 @@ object E2ETestPlugin extends AutoPlugin {
   import YtPublishPlugin.autoImport._
   import autoImport._
 
+  private def runProcess(command: String, log: Logger, env: (String, String)*): Unit = {
+    log.info(s"Running command: $command")
+    log.info(s"Process environment: $env")
+    val process = Process(
+      command,
+      new File("."),
+      env : _*
+    ).run(ProcessLogger(log.info(_)))
+    val exitCode = process.exitValue()
+    if (exitCode != 0) throw new IllegalStateException(s"Process running is failed (exit code = $exitCode)")
+  }
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
+    e2eFullCircleTest := Def.sequential(e2ePrepareEnv, e2eLaunchCluster, e2eDiscoveryCluster, e2eTest).value,
     e2eConfigShow := {
       val log = streams.value.log
       log.info(s"===== E2E CONFIGURATION =====")
@@ -56,18 +72,56 @@ object E2ETestPlugin extends AutoPlugin {
     e2eClientVersion := {
       Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)
     },
+    e2ePrepareEnv := {
+      runProcess(
+        "tox",
+        streams.value.log,
+        "PYTHON_CLIENT_VERSION" -> e2ePythonClientVersion.value
+      )
+    },
+    e2eLaunchCluster := {
+      val sparkLaunchYtCommand = Seq(
+        ".tox/py27/bin/spark-launch-yt",
+        "--proxy", onlyYtProxy,
+        "--abort-existing",
+        "--discovery-path", discoveryPath,
+        "--worker-cores", "4",
+        "--worker-num", "4",
+        "--worker-memory", "16G",
+        "--tmpfs-limit", "8G",
+        "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,
+        "--enable-advanced-event-log"
+      )
+      runProcess(
+        sparkLaunchYtCommand.mkString(" "),
+        streams.value.log
+      )
+    },
+    e2eDiscoveryCluster := {
+      val log = streams.value.log
+      log.info("===== CLUSTER =====")
+      val sparkDiscoveryYtCommand = Seq(
+        ".tox/py27/bin/spark-discovery-yt",
+        "--proxy", onlyYtProxy,
+        "--discovery-path", discoveryPath
+      )
+      runProcess(
+        sparkDiscoveryYtCommand.mkString(" "),
+        log
+      )
+      log.info("=====")
+    },
     e2ePythonTestImpl := {
-      val command = "tox"
-      val workingDirectory = new File(".")
-      val s: TaskStreams = streams.value
-      val exitCode = Process(command,
-        workingDirectory,
-        "e2eTestHomePath" -> sparkYtE2ETestPath,
-        "e2eTestUDirPath" -> e2eTestUDirPath,
-        "proxies" -> onlyYtProxy,
-        "clientVersion" -> e2eClientVersion.value,
-        "pythonClientVersion" -> e2ePythonClientVersion.value) ! s.log
-      if (exitCode != 0) throw new IllegalStateException(s"Exit code is $exitCode")
+      runProcess(
+        "tox test",
+        streams.value.log,
+        "DISCOVERY_PATH" -> discoveryPath,
+        "E2E_TEST_HOME_PATH" -> sparkYtE2ETestPath,
+        "E2E_TEST_UDIR_PATH" -> e2eTestUDirPath,
+        "PROXIES" -> onlyYtProxy,
+        "CLIENT_VERSION" -> e2eClientVersion.value,
+        "PYTHON_CLIENT_VERSION" -> e2ePythonClientVersion.value
+      )
     }
   )
 
