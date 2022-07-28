@@ -16,15 +16,6 @@ type RequestParams struct {
 	// Params contains request parameters which are set by the user.
 	// E.g. in CLI "--xxx yyy" should set an "xxx" parameter with the value "yyy".
 	Params map[string]any `yson:"params"`
-	// ImplicitParams contains params which are not set directly by the user.
-	// Implicit parameters do not cause "unknown parameter" errors if the command does not support such a parameter.
-	// If there are both explicit and implicit parameters with the same name, the explicit one is prefered.
-	// E.g. these parameters can be set via environment variables (YT_STRAWBERRY_ALIAS).
-	ImplicitParams map[string]any `yson:"implicit_params"`
-	// Args contains a list of parameters without names. The names will be derived from the command syntax.
-	// If the parameter is present in both Args and Params, the error will be thrown.
-	// E.g. in CLI "... set xxx yyy" should set Args to ["xxx";"yyy"].
-	Args []any `yson:"args"`
 	// Unparsed indicates that all params are provided as strings and should be parsed to proper types.
 	// It can be useful in CLI, where all arguments are strings and params' types are unknown.
 	Unparsed bool `yson:"unparsed"`
@@ -59,7 +50,10 @@ func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
 }
 
 func (a HTTPAPI) replyWithError(w http.ResponseWriter, err error) {
-	a.reply(w, http.StatusBadRequest, yterrors.FromError(err))
+	a.reply(w, http.StatusBadRequest, map[string]any{
+		"to_print": err.Error(),
+		"error":    yterrors.FromError(err),
+	})
 }
 
 func (a HTTPAPI) replyOK(w http.ResponseWriter, rsp any) {
@@ -73,17 +67,31 @@ const (
 	TypeAny    ParamType = "any"
 )
 
-type CmdDescriptor struct {
-	Args           []string
-	RequiredParams []string
-	OptionalParams []string
-	ParamTypes     map[string]ParamType
+type CmdParameter struct {
+	Name     string    `yson:"name"`
+	Aliases  []string  `yson:"aliases,omitempty"`
+	Type     ParamType `yson:"type"`
+	Required bool      `yson:"required"`
+	// Explicit inidcates that this parameter shoud be provided in CLI explicitly.
+	// Default values from config/env variable are not allowed.
+	Explicit    bool   `yson:"explicit,omitempty"`
+	Description string `yson:"description,omitempty"`
 }
 
-var defaultParamTypes = map[string]ParamType{
-	"alias": TypeString,
-	"key":   TypeString,
-	"value": TypeAny,
+func (c CmdParameter) AsRequired() CmdParameter {
+	c.Required = true
+	return c
+}
+
+func (c CmdParameter) AsExplicit() CmdParameter {
+	c.Explicit = true
+	return c
+}
+
+type CmdDescriptor struct {
+	Name        string         `yson:"name"`
+	Parameters  []CmdParameter `yson:"parameters"`
+	Description string         `yson:"description,omitempty"`
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
@@ -100,51 +108,21 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 		return nil
 	}
 
-	if len(request.Args) > len(cmd.Args) {
-		a.replyWithError(w, yterrors.Err("too many arguments",
-			yterrors.Attr("req_arg_count", len(request.Args)),
-			yterrors.Attr("cmd_arg_count", len(cmd.Args))))
-		return nil
-	}
-
 	params := request.Params
 
-	// Converting args to params.
-	for index, value := range request.Args {
-		name := cmd.Args[index]
-		if _, ok := params[name]; ok {
-			a.replyWithError(w, yterrors.Err("parameter is present in both arguments and parameters",
-				yterrors.Attr("param_name", name)))
-			return nil
-		}
-		params[name] = value
-	}
-
 	// Check that all required parameters are present.
-	for _, name := range cmd.RequiredParams {
-		if _, ok := params[name]; !ok {
-			if value, ok := request.ImplicitParams[name]; ok {
-				params[name] = value
-			} else {
-				a.replyWithError(w, yterrors.Err("missing required parameter", yterrors.Attr("param_name", name)))
-				return nil
-			}
+	for _, param := range cmd.Parameters {
+		if _, ok := params[param.Name]; param.Required && !ok {
+			a.replyWithError(w, yterrors.Err("missing required parameter", yterrors.Attr("param_name", param.Name)))
+			return nil
 		}
 	}
 
 	// Validate that all present parameters are supported in the command.
 	supportedParams := make(map[string]bool)
-
-	for _, name := range cmd.Args {
-		supportedParams[name] = true
+	for _, param := range cmd.Parameters {
+		supportedParams[param.Name] = true
 	}
-	for _, name := range cmd.RequiredParams {
-		supportedParams[name] = true
-	}
-	for _, name := range cmd.OptionalParams {
-		supportedParams[name] = true
-	}
-
 	for name := range params {
 		if !supportedParams[name] {
 			a.replyWithError(w, yterrors.Err("unexpected parameter", yterrors.Attr("param_name", name)))
@@ -154,45 +132,64 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 
 	// Cast params to proper type.
 	if request.Unparsed {
-		for name, value := range params {
-			unparsedValue, ok := value.(string)
-			if !ok {
-				a.replyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
-					yterrors.Attr("param_name", name),
-					yterrors.Attr("param_type", reflect.TypeOf(value).String())))
-				return nil
-			}
-			// Try to parse anything expect the TypeString as a yson-string.
-			if cmd.ParamTypes[name] != TypeString {
-				var parsedValue any
-				err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
-				if err != nil {
-					a.replyWithError(w, err)
+		for _, param := range cmd.Parameters {
+			if value, ok := params[param.Name]; ok {
+				unparsedValue, ok := value.(string)
+				if !ok {
+					a.replyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
+						yterrors.Attr("param_name", param.Name),
+						yterrors.Attr("param_type", reflect.TypeOf(value).String())))
 					return nil
 				}
-				params[name] = parsedValue
+				// Try to parse anything expect the TypeString as a yson-string.
+				if param.Type != TypeString {
+					var parsedValue any
+					err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
+					if err != nil {
+						a.replyWithError(w, err)
+						return nil
+					}
+					params[param.Name] = parsedValue
+				}
 			}
 		}
 	}
 
 	// Validate params' types.
-	if cmd.ParamTypes != nil {
-		for name, value := range params {
-			var ok = true
-
-			switch cmd.ParamTypes[name] {
+	for _, param := range cmd.Parameters {
+		if value, ok := params[param.Name]; ok {
+			switch param.Type {
 			case TypeString:
 				_, ok = value.(string)
 			}
 
 			if !ok {
 				a.replyWithError(w, yterrors.Err("invalid parameter type",
-					yterrors.Attr("param_name", name),
-					yterrors.Attr("expected_type", cmd.ParamTypes[name]),
+					yterrors.Attr("param_name", param.Name),
+					yterrors.Attr("expected_type", param.Type),
 					yterrors.Attr("actual_type", reflect.TypeOf(value).String())))
 			}
 		}
 	}
 
 	return params
+}
+
+func HandlePing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
+	body, err := yson.Marshal(map[string]any{
+		"clusters": clusters,
+		"commands": []CmdDescriptor{
+			CreateCmdDescriptor,
+			RemoveCmdDescriptor,
+			SetOptionCmdDescriptor,
+			RemoveOptionCmdDescriptor,
+		}})
+	if err != nil {
+		panic(err)
+	}
+	_, _ = w.Write(body)
 }

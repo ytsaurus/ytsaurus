@@ -13,10 +13,18 @@ import (
 	"a.yandex-team.ru/yt/internal/go/ythttputil"
 )
 
+var AliasParameter = CmdParameter{
+	Name:        "alias",
+	Aliases:     []string{"a"},
+	Type:        TypeString,
+	Required:    true,
+	Description: "alias for the operation",
+}
+
 var CreateCmdDescriptor = CmdDescriptor{
-	Args:           []string{"alias"},
-	RequiredParams: []string{"alias"},
-	ParamTypes:     defaultParamTypes,
+	Name:        "create",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "create a new strawberry operation",
 }
 
 func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request) {
@@ -36,21 +44,21 @@ func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, struct{}{})
 }
 
-var DeleteCmdDescriptor = CmdDescriptor{
-	Args:           []string{"alias"},
-	RequiredParams: []string{"alias"},
-	ParamTypes:     defaultParamTypes,
+var RemoveCmdDescriptor = CmdDescriptor{
+	Name:        "remove",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "remove the strawberry operation",
 }
 
-func (a HTTPAPI) HandleDelete(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, DeleteCmdDescriptor)
+func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, RemoveCmdDescriptor)
 	if params == nil {
 		return
 	}
 
 	alias := params["alias"].(string)
 
-	err := a.api.Delete(r.Context(), alias)
+	err := a.api.Remove(r.Context(), alias)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
@@ -59,14 +67,28 @@ func (a HTTPAPI) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, struct{}{})
 }
 
-var SetCmdDescriptor = CmdDescriptor{
-	Args:           []string{"key", "value", "alias"},
-	RequiredParams: []string{"key", "value", "alias"},
-	ParamTypes:     defaultParamTypes,
+var KeyParameter = CmdParameter{
+	Name:        "key",
+	Type:        TypeString,
+	Required:    true,
+	Description: "speclet option name",
 }
 
-func (a HTTPAPI) HandleSet(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, SetCmdDescriptor)
+var ValueParameter = CmdParameter{
+	Name:        "value",
+	Type:        TypeAny,
+	Required:    true,
+	Description: "speclet option value",
+}
+
+var SetOptionCmdDescriptor = CmdDescriptor{
+	Name:        "set_option",
+	Parameters:  []CmdParameter{AliasParameter, KeyParameter, ValueParameter},
+	Description: "set speclet option",
+}
+
+func (a HTTPAPI) HandleSetOption(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, SetOptionCmdDescriptor)
 	if params == nil {
 		return
 	}
@@ -84,14 +106,14 @@ func (a HTTPAPI) HandleSet(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, struct{}{})
 }
 
-var RemoveCmdDescriptor = CmdDescriptor{
-	Args:           []string{"key", "alias"},
-	RequiredParams: []string{"key", "alias"},
-	ParamTypes:     defaultParamTypes,
+var RemoveOptionCmdDescriptor = CmdDescriptor{
+	Name:        "remove_option",
+	Parameters:  []CmdParameter{AliasParameter, KeyParameter},
+	Description: "remove speclet option",
 }
 
-func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, RemoveCmdDescriptor)
+func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, RemoveOptionCmdDescriptor)
 	if params == nil {
 		return
 	}
@@ -121,8 +143,10 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 		}
 	}
 
-	r.Use(ythttputil.CORS())
-	r.Use(ythttputil.Auth(bb, l.Structured()))
+	r.Get("/ping", HandlePing)
+	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
+		HandleDescribe(w, r, c.Clusters)
+	})
 
 	for _, cluster := range c.Clusters {
 		ytc, err := ythttp.NewClient(&yt.Config{
@@ -137,10 +161,12 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 		api := NewHTTPAPI(ytc, c.APIConfig, l)
 
 		r.Route("/"+cluster, func(r chi.Router) {
-			r.Post("/create", api.HandleCreate)
-			r.Post("/delete", api.HandleDelete)
-			r.Post("/set", api.HandleSet)
-			r.Post("/remove", api.HandleRemove)
+			r.Use(ythttputil.CORS())
+			r.Use(ythttputil.Auth(bb, l.Structured()))
+			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
+			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
+			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
+			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 		})
 	}
 }

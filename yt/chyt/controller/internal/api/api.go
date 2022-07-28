@@ -149,7 +149,7 @@ func (a *API) Create(ctx context.Context, alias string) error {
 				{
 					Action:      yt.ActionAllow,
 					Subjects:    []string{user},
-					Permissions: []string{yt.PermissionUse, yt.PermissionManage},
+					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionUse, yt.PermissionManage},
 				},
 			},
 		},
@@ -162,8 +162,8 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	return tx.Commit()
 }
 
-func (a *API) Delete(ctx context.Context, alias string) error {
-	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+func (a *API) Remove(ctx context.Context, alias string) error {
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRemove); err != nil {
 		return err
 	}
 	return a.ytc.RemoveNode(ctx, a.cfg.Root.Child(alias), &yt.RemoveNodeOptions{Recursive: true})
