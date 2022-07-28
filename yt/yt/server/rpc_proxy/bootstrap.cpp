@@ -29,7 +29,7 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/yt/ytlib/auth/authentication_manager.h>
+#include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 

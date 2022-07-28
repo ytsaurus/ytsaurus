@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/lib/zookeeper/config.h>
 
-#include <yt/yt/ytlib/auth/config.h>
+#include <yt/yt/library/auth_server/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
 

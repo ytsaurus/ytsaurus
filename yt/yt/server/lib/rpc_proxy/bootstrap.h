@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/auth/public.h>
+#include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
 

@@ -1,9 +1,9 @@
 #include "mock_http_server.h"
 
-#include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/default_secret_vault_service.h>
-#include <yt/yt/ytlib/auth/secret_vault_service.h>
-#include <yt/yt/ytlib/auth/tvm_service.h>
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/default_secret_vault_service.h>
+#include <yt/yt/library/auth_server/secret_vault_service.h>
+#include <yt/yt/library/auth_server/tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/json/json_writer.h>

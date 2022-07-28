@@ -3,7 +3,7 @@
 
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
-#include <yt/yt/ytlib/auth/config.h>
+#include <yt/yt/library/auth_server/config.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>

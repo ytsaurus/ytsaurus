@@ -3,13 +3,13 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/auth/config.h>
-#include <yt/yt/ytlib/auth/token_authenticator.h>
-#include <yt/yt/ytlib/auth/ticket_authenticator.h>
-#include <yt/yt/ytlib/auth/cookie_authenticator.h>
-#include <yt/yt/ytlib/auth/helpers.h>
-#include <yt/yt/ytlib/auth/tvm_service.h>
-#include <yt/yt/ytlib/auth/authentication_manager.h>
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/token_authenticator.h>
+#include <yt/yt/library/auth_server/ticket_authenticator.h>
+#include <yt/yt/library/auth_server/cookie_authenticator.h>
+#include <yt/yt/library/auth_server/helpers.h>
+#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>

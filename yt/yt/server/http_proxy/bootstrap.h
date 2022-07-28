@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/zookeeper/public.h>
 
-#include <yt/yt/ytlib/auth/public.h>
+#include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>

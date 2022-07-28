@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 
-#include <yt/yt/ytlib/auth/public.h>
+#include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/helpers.h>

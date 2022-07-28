@@ -23,7 +23,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/auth/authentication_manager.h>
+#include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
