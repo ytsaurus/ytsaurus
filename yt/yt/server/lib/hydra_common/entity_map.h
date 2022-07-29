@@ -81,8 +81,8 @@ public:
 
         TIterator& operator++();
         TIterator& operator--();
-        TIterator& operator++(int);
-        TIterator& operator--(int);
+        TIterator operator++(int);
+        TIterator operator--(int);
 
         bool operator==(const TIterator& other) const;
         bool operator!=(const TIterator& other) const;
