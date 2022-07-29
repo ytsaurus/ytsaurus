@@ -55,6 +55,8 @@ class LocalFile(object):
 
         # Hacky way to split string into file path and file path attributes.
         if PY3:
+            if hasattr(os, 'fspath'):
+                path = os.fspath(path)
             path_bytes = path.encode("utf-8")
         else:
             path_bytes = path
