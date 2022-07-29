@@ -122,8 +122,10 @@ void FormatValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(capone212): make config parameter.
-static const auto RequestSizesModelingPeriod = TDuration::Minutes(5);
-static const auto RequestLatenciesModelingPeriod = TDuration::Seconds(5);
+static constexpr auto RequestSizesModelingPeriod = TDuration::Minutes(5);
+static constexpr auto RequestLatenciesModelingPeriod = TDuration::Seconds(5);
+
+DECLARE_REFCOUNTED_CLASS(TWorkloadModelManager)
 
 class TWorkloadModelManager
     : public virtual TRefCounted
@@ -233,6 +235,8 @@ private:
         RequestLatenciesSignal_.Fire(std::move(latencies));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TWorkloadModelManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,13 +395,13 @@ public:
 private:
     const IIOEnginePtr Underlying_;
     const NLogging::TLogger Logger;
-
-    TIntrusivePtr<TWorkloadModelManager> ModelManager_;
+    const TWorkloadModelManagerPtr ModelManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
     std::optional<TRequestLatencies> LatencyStats_;
 
-    void OnUpdateRequestLatencies(const TRequestLatencies& latencies) {
+    void OnUpdateRequestLatencies(const TRequestLatencies& latencies)
+    {
         auto guard = Guard(StatsLock_);
         LatencyStats_ = latencies;
     }
