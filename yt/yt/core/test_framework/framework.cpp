@@ -107,7 +107,7 @@ void RunAndTrackFiber(TClosure closure)
 
     auto startedAt = TInstant::Now();
     while (!result.IsSet()) {
-        if (TInstant::Now() - startedAt > TDuration::Seconds(5)) {
+        if (TInstant::Now() - startedAt > TDuration::Seconds(300)) {
             GTEST_FAIL() << "Probably stuck.";
             break;
         }

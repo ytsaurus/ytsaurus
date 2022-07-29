@@ -137,11 +137,7 @@ void ITransaction::AdvanceConsumer(
     std::optional<i64> oldOffset,
     i64 newOffset)
 {
-    auto tableInfo = WaitFor(GetClient()->GetTableMountCache()->GetTableInfo(path))
-        .ValueOrThrow();
-    auto schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-
-    auto consumerClient = CreateConsumerClient(path, *schema);
+    auto consumerClient = CreateConsumerClient(GetClient(), path);
     consumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 

@@ -17,6 +17,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NObjectClient;
+using namespace NQueueClient;
 using namespace NRpc;
 using namespace NTracing;
 using namespace NYson;

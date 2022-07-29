@@ -14,12 +14,11 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <util/string/split.h>
-
 namespace NYT::NQueueAgent {
 
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NQueueClient;
 using namespace NTableClient;
 using namespace NYPath;
 using namespace NApi;
@@ -29,37 +28,6 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = QueueAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TCrossClusterReference::operator==(const TCrossClusterReference& other) const
-{
-    return Cluster == other.Cluster && Path == other.Path;
-}
-
-bool TCrossClusterReference::operator<(const TCrossClusterReference& other) const
-{
-    return std::tie(Cluster, Path) < std::tie(other.Cluster, other.Path);
-}
-
-TCrossClusterReference TCrossClusterReference::FromString(TStringBuf path)
-{
-    TCrossClusterReference result;
-    if (!StringSplitter(path).Split(':').Limit(2).TryCollectInto(&result.Cluster, &result.Path)) {
-        THROW_ERROR_EXCEPTION("Ill-formed cross-cluster reference %Qv", path);
-    }
-    return result;
-}
-
-TString ToString(const TCrossClusterReference& queueRef)
-{
-    return Format("%v:%v", queueRef.Cluster, queueRef.Path);
-}
-
-void Serialize(const TCrossClusterReference& queueRef, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer).Value(ToString(queueRef));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,13 +476,3 @@ TDynamicState::TDynamicState(TYPath root, IClientPtr client)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueAgent
-
-size_t THash<NYT::NQueueAgent::TCrossClusterReference>::operator()(const NYT::NQueueAgent::TCrossClusterReference& queueRef) const
-{
-    using NYT::HashCombine;
-
-    size_t result = 0;
-    HashCombine(result, queueRef.Cluster);
-    HashCombine(result, queueRef.Path);
-    return result;
-}

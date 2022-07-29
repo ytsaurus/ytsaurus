@@ -1,4 +1,6 @@
- #pragma once
+#pragma once
+
+#include <yt/yt/client/queue_client/common.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -81,11 +83,10 @@ DEFINE_ENUM(EQueueFamily,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCrossClusterReference;
 struct TQueueTableRow;
 struct TConsumerTableRow;
 
-using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
+using TConsumerRowMap = THashMap<NQueueClient::TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

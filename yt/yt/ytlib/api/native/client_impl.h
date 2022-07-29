@@ -236,7 +236,7 @@ public:
         const TUpdateChaosTableReplicaProgressOptions& options = {}),
         (replicaId, options))
 
-    IMPLEMENT_METHOD(NQueueClient::TQueueRowsetPtr, PullQueue, (
+    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueue, (
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
@@ -915,7 +915,7 @@ private:
     // Queues
     //
 
-    NQueueClient::TQueueRowsetPtr DoPullQueue(
+    NQueueClient::IQueueRowsetPtr DoPullQueue(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

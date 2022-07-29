@@ -27,6 +27,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NHydra;
+using namespace NQueueClient;
 using namespace NTracing;
 using namespace NHiveClient;
 using namespace NCypressElection;

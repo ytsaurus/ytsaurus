@@ -1804,7 +1804,7 @@ struct IClient
         const TPartitionTablesOptions& options) = 0;
 
     // Queues
-    virtual TFuture<NQueueClient::TQueueRowsetPtr> PullQueue(
+    virtual TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

@@ -59,39 +59,55 @@ i64 GetStartOffset(const IUnversionedRowsetPtr& rowset)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueueRowset::TQueueRowset(IUnversionedRowsetPtr rowset, i64 startOffset)
-    : Rowset_(std::move(rowset))
-    , StartOffset_(startOffset)
-{ }
-
-const NTableClient::TTableSchemaPtr& TQueueRowset::GetSchema() const
+class TQueueRowset
+    : public IQueueRowset
 {
-    return Rowset_->GetSchema();
-}
+public:
+    TQueueRowset(IUnversionedRowsetPtr rowset, i64 startOffset)
+        : Rowset_(std::move(rowset))
+        , StartOffset_(startOffset)
+    { }
 
-const NTableClient::TNameTablePtr& TQueueRowset::GetNameTable() const
-{
-    return Rowset_->GetNameTable();
-}
+    const TTableSchemaPtr& GetSchema() const override
+    {
+        return Rowset_->GetSchema();
+    }
 
-TRange<NTableClient::TUnversionedRow> TQueueRowset::GetRows() const
-{
-    return Rowset_->GetRows();
-}
+    const TNameTablePtr& GetNameTable() const override
+    {
+        return Rowset_->GetNameTable();
+    }
 
-TSharedRange<NTableClient::TUnversionedRow> TQueueRowset::GetSharedRange() const
-{
-    return Rowset_->GetSharedRange();
-}
+    TRange<TUnversionedRow> GetRows() const override
+    {
+        return Rowset_->GetRows();
+    }
 
-i64 TQueueRowset::GetStartOffset() const
-{
-    return StartOffset_;
-}
+    TSharedRange<TUnversionedRow> GetSharedRange() const override
+    {
+        return Rowset_->GetSharedRange();
+    }
 
-i64 TQueueRowset::GetFinishOffset() const
+    i64 GetStartOffset() const override
+    {
+        return StartOffset_;
+    }
+
+    i64 GetFinishOffset() const override
+    {
+        return StartOffset_ + std::ssize(GetRows());
+    }
+
+private:
+    const IUnversionedRowsetPtr Rowset_;
+    const i64 StartOffset_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQueueRowsetPtr CreateQueueRowset(IUnversionedRowsetPtr rowset, i64 startOffset)
 {
-    return StartOffset_ + std::ssize(GetRows());
+    return New<TQueueRowset>(std::move(rowset), startOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

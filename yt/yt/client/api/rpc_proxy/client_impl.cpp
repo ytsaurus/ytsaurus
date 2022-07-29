@@ -49,6 +49,7 @@ using namespace NChaosClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NScheduler;
+using namespace NQueueClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -699,11 +700,11 @@ TFuture<void> TClient::UpdateChaosTableReplicaProgress(
     YT_UNIMPLEMENTED();
 }
 
-TFuture<NQueueClient::TQueueRowsetPtr> TClient::PullQueue(
+TFuture<IQueueRowsetPtr> TClient::PullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
-    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullQueueOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -722,11 +723,11 @@ TFuture<NQueueClient::TQueueRowsetPtr> TClient::PullQueue(
         protoOptions->set_data_weight_per_row_hint(*rowBatchReadOptions.DataWeightPerRowHint);
     }
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) {
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) -> IQueueRowsetPtr {
         auto rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
-        return New<NQueueClient::TQueueRowset>(rowset, rsp->start_offset());
+        return CreateQueueRowset(rowset, rsp->start_offset());
     }));
 }
 

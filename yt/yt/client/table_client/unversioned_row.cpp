@@ -658,6 +658,17 @@ size_t GetDataWeight(TUnversionedRow row)
         });
 }
 
+size_t GetDataWeight(TRange<TUnversionedRow> rows)
+{
+    return std::accumulate(
+        rows.begin(),
+        rows.end(),
+        0ULL,
+        [] (size_t x, const TUnversionedRow& row) {
+            return GetDataWeight(row) + x;
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool, ui32 valueCount)

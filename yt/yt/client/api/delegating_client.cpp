@@ -80,7 +80,7 @@ TFuture<ITableWriterPtr> TDelegatingClient::CreateTableWriter(
     return Underlying_->CreateTableWriter(path, options);
 }
 
-TFuture<NQueueClient::TQueueRowsetPtr> TDelegatingClient::PullQueue(
+TFuture<NQueueClient::IQueueRowsetPtr> TDelegatingClient::PullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
