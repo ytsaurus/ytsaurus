@@ -15,7 +15,7 @@ namespace NYT::NChaosClient {
 IReplicationCardCachePtr CreateNativeReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

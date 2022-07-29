@@ -33,7 +33,7 @@ IChannelPtr CreatePeerChannel(
             .Item("kind").Value(kind)
         .EndMap());
     auto checkPeerState = !config->IgnorePeerState;
-    auto balancingChannel = CreateBalancingChannel(
+    return CreateBalancingChannel(
         std::move(config),
         std::move(realmChannelFactory),
         std::move(endpointDescription),
@@ -44,7 +44,6 @@ IChannelPtr CreatePeerChannel(
                 ext->set_peer_kind(static_cast<int>(kind));
             }
         }));
-    return balancingChannel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

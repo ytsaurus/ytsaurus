@@ -71,10 +71,7 @@ protected:
     const IChannelPtr ChaosCacheChannel_;
     const NLogging::TLogger Logger;
 
-    IChannelPtr CreateChaosCacheChannel(NNative::IConnectionPtr connection);
-    IChannelPtr CreateChaosCacheChannelFromAddresses(
-        IChannelFactoryPtr channelFactory,
-        const std::vector<TString>& discoveredAddresses);
+    IChannelPtr CreateChaosCacheChannel(const NNative::IConnectionPtr& connection);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,7 +194,7 @@ void TReplicationCardCache::Clear()
     TAsyncExpiringCache::Clear();
 }
 
-IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(NNative::IConnectionPtr connection)
+IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(const NNative::IConnectionPtr& connection)
 {
     auto channelFactory = connection->GetChannelFactory();
     auto endpointDescription = TString("ChaosCache");
@@ -221,12 +218,12 @@ IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(NNative::IConnectionP
 IReplicationCardCachePtr CreateNativeReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     IConnectionPtr connection,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
 {
     return New<TReplicationCardCache>(
         std::move(config),
         std::move(connection),
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

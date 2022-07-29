@@ -65,9 +65,10 @@ IYPathServicePtr CreateService(
 
         // NB: an attempt to obtain orchid manifest from #owningNode->Attributes() would lead
         // to an infinite recursion because attribute building would lead to execution of this method.
-        auto* objectNode = dynamic_cast<TObjectProxyBase*>(owningNode.Get());
-        // Actually it is true that *owningNode is always of type TVirtualNodeProxy.
+        // Actually it is true that owningNode is always of type TVirtualNodeProxy.
+        auto objectNode = DynamicPointerCast<TObjectProxyBase>(owningNode);
         YT_VERIFY(objectNode);
+
         auto manifestNode = ConvertToNode(objectNode->GetCustomAttributes());
 
         try {
