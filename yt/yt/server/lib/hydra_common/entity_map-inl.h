@@ -62,17 +62,19 @@ auto TReadOnlyEntityMap<TValue>::TIterator::operator--() -> TIterator&
 }
 
 template <class TValue>
-auto TReadOnlyEntityMap<TValue>::TIterator::operator++(int) -> TIterator&
+auto TReadOnlyEntityMap<TValue>::TIterator::operator++(int) -> TIterator
 {
-    Iterator_++;
-    return *this;
+    auto old = *this;
+    ++Iterator_;
+    return old;
 }
 
 template <class TValue>
-auto TReadOnlyEntityMap<TValue>::TIterator::operator--(int) -> TIterator&
+auto TReadOnlyEntityMap<TValue>::TIterator::operator--(int) -> TIterator
 {
-    Iterator_--;
-    return *this;
+    auto old = *this;
+    --Iterator_;
+    return old;
 }
 
 template <class TValue>
