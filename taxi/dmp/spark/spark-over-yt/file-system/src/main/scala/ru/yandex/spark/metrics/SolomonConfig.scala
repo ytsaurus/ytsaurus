@@ -1,6 +1,11 @@
 package ru.yandex.spark.metrics
 
+import com.google.common.net.HostAndPort
+import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.spark.metrics.SolomonConfig.Encoding
+import ru.yandex.spark.yt.fs.conf.PropertiesConf
+
+import java.util.Properties
 
 case class SolomonConfig(
   url: String,
@@ -12,6 +17,8 @@ case class SolomonConfig(
 )
 
 object SolomonConfig {
+  private val log: Logger = LoggerFactory.getLogger(SolomonConfig.getClass)
+
   sealed trait Encoding {
     def contentType: String
   }
@@ -22,5 +29,25 @@ object SolomonConfig {
 
   case object SpackEncoding extends Encoding {
     override def contentType: String = "application/x-solomon-spack"
+  }
+
+  def read(props: Properties): SolomonConfig = {
+    val host = props.ytConf(SolomonSinkSettings.SolomonHost)
+    val port = props.ytConf(SolomonSinkSettings.SolomonPort)
+    val token = props.getYtConf(SolomonSinkSettings.SolomonToken)
+    val commonLabels = props.ytConf(SolomonSinkSettings.SolomonCommonLabels)
+    val metricNameRegex = props.ytConf(SolomonSinkSettings.SolomonMetricNameRegex)
+    val metricNameTransform = Some(props.ytConf(SolomonSinkSettings.SolomonMetricNameTransform)).filter(!_.isBlank)
+    //noinspection UnstableApiUsage
+    val hostAndPort = HostAndPort.fromParts(host, port)
+    log.info(s"Solomon host: $host, port: $port commonLabels=$commonLabels")
+    SolomonConfig(
+      url = s"http://$hostAndPort",
+      encoding = JsonEncoding,
+      commonLabels,
+      token,
+      metricNameRegex,
+      metricNameTransform
+    )
   }
 }

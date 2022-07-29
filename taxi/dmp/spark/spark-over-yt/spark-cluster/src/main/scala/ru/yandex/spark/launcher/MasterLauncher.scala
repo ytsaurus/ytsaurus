@@ -1,8 +1,10 @@
 package ru.yandex.spark.launcher
 
+import com.codahale.metrics.MetricRegistry
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.rest.MasterWrapperLauncher
+import ru.yandex.spark.metrics.AdditionalMetrics
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.SparkConfYsonable
 
@@ -20,31 +22,35 @@ object MasterLauncher extends App
   import masterArgs._
 
   val autoscalerConf: Option[AutoScaler.Conf] = AutoScaler.Conf(sparkSystemProperties)
+  val additionalMetrics: MetricRegistry = new MetricRegistry
+  AdditionalMetrics.register(additionalMetrics, "master")
 
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
-        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort,
-          autoscalerConf)) { solomonAgent =>
+        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) {
+          solomonAgent =>
 
-          master.waitAndThrowIfNotAlive(5 minutes)
-          masterWrapper.waitAndThrowIfNotAlive(5 minutes)
+            master.waitAndThrowIfNotAlive(5 minutes)
+            masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
-          log.info("Register master")
-          discoveryService.registerMaster(
-            operationId,
-            master.masterAddress,
-            clusterVersion,
-            masterWrapper.address,
-            SparkConfYsonable(sparkSystemProperties)
-          )
-          log.info("Master registered")
+            log.info("Register master")
+            discoveryService.registerMaster(
+              operationId,
+              master.masterAddress,
+              clusterVersion,
+              masterWrapper.address,
+              SparkConfYsonable(sparkSystemProperties)
+            )
+            log.info("Master registered")
 
-          autoscalerConf foreach { conf =>
-            AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf)
-          }
-          checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
-          log.error("Master is not alive")
+            autoscalerConf foreach { conf =>
+              AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf, additionalMetrics)
+            }
+            AdditionalMetricsSender(sparkSystemProperties, "master", additionalMetrics).start()
+
+            checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
+            log.error("Master is not alive")
         }
       }
     }
