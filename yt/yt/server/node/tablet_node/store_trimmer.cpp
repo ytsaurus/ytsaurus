@@ -150,12 +150,13 @@ private:
 
         auto minRowCount = mountConfig->RowCountToKeep;
 
-        auto latestTimestamp = Bootstrap_
-            ->GetMasterConnection()
-            ->GetTimestampProvider()
-            ->GetLatestTimestamp();
+        auto latestTimestamp = slot->GetLatestTimestamp();
         auto now = TimestampToInstant(latestTimestamp).first;
         auto deathTimestamp = InstantToTimestamp(now - dataTtl).first;
+
+        if (tablet->GetReplicationCardId()) {
+            deathTimestamp = std::min(deathTimestamp, tablet->GetOrderedChaosReplicationMinTimestamp());
+        }
 
         i64 trimmedRowCount = 0;
         i64 remainingRowCount = tablet->GetTotalRowCount() - tablet->GetTrimmedRowCount();

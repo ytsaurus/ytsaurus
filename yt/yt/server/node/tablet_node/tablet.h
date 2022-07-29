@@ -717,6 +717,8 @@ public:
 
     void UpdateUnmergedRowCount();
 
+    TTimestamp GetOrderedChaosReplicationMinTimestamp();
+
 private:
     ITabletContext* const Context_;
 
