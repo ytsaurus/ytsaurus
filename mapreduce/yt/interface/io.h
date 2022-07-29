@@ -13,6 +13,7 @@
 #include "format.h"
 #include "node.h"
 #include "mpl.h"
+#include "skiff_row.h"
 
 #include <google/protobuf/message.h>
 
@@ -57,6 +58,21 @@ public:
     TProtoOneOf() = delete;
 };
 
+///
+/// @brief "Marker" type to use for several skiff row types in @ref NYT::TTableReader.
+///
+/// @tparam Ts Possible types of rows to be read.
+template<class... TSkiffRowTypes>
+class TSkiffRowOneOf
+{
+public:
+    static_assert(
+        (TIsSkiffRow<TSkiffRowTypes>::value && ...),
+        "Template parameters can only be SkiffRow types");
+
+    TSkiffRowOneOf() = delete;
+};
+
 namespace NDetail {
 
 /// "Marker" type to use for YDL types in @ref NYT::TTableWriter.
@@ -86,6 +102,7 @@ struct TProtoOneOfUnique
 struct INodeReaderImpl;
 struct IYaMRReaderImpl;
 struct IProtoReaderImpl;
+struct ISkiffRowReaderImpl;
 struct IYdlReaderImpl;
 struct INodeWriterImpl;
 struct IYaMRWriterImpl;
@@ -451,6 +468,12 @@ private:
         const TRichYPath& path,
         const TTableReaderOptions& options,
         const ::google::protobuf::Message* prototype) = 0;
+
+    virtual ::TIntrusivePtr<ISkiffRowReaderImpl> CreateSkiffRowReader(
+        const TRichYPath& path,
+        const TTableReaderOptions& options,
+        const ISkiffRowSkipperPtr& skipper,
+        const NSkiff::TSkiffSchemaPtr& schema) = 0;
 
     virtual ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
         const TRichYPath& /*path*/,

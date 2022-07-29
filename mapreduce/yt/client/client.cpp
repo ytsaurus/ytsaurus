@@ -15,6 +15,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/fluent.h>
+#include <mapreduce/yt/interface/skiff_row.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
@@ -34,6 +35,7 @@
 #include <mapreduce/yt/io/node_table_writer.h>
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
+#include <mapreduce/yt/io/skiff_row_table_reader.h>
 #include <mapreduce/yt/io/ydl_table_reader.h>
 #include <mapreduce/yt/io/ydl_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
@@ -681,6 +683,21 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             CreateClientReader(path, format, options),
             std::move(descriptors));
     }
+}
+
+::TIntrusivePtr<ISkiffRowReaderImpl> TClientBase::CreateSkiffRowReader(
+    const TRichYPath& path,
+    const TTableReaderOptions& options,
+    const ISkiffRowSkipperPtr& skipper,
+    const NSkiff::TSkiffSchemaPtr& schema)
+{
+    auto skiffOptions = TCreateSkiffSchemaOptions().HasRangeIndex(true);
+    auto resultSchema = NYT::NDetail::CreateSkiffSchema(TVector{schema}, skiffOptions);
+    return new TSkiffRowTableReader(
+        CreateClientReader(path, NYT::NDetail::CreateSkiffFormat(resultSchema), options),
+        resultSchema,
+        {skipper},
+        std::move(skiffOptions));
 }
 
 ::TIntrusivePtr<INodeWriterImpl> TClientBase::CreateNodeWriter(

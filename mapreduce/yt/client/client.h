@@ -252,6 +252,12 @@ private:
         const TTableReaderOptions& options,
         const Message* prototype) override;
 
+    ::TIntrusivePtr<ISkiffRowReaderImpl> CreateSkiffRowReader(
+        const TRichYPath& path,
+        const TTableReaderOptions& options,
+        const ISkiffRowSkipperPtr& skipper,
+        const NSkiff::TSkiffSchemaPtr& schema) override;
+
     ::TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override;
 

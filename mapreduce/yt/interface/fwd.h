@@ -239,6 +239,14 @@ namespace NYT {
 
     using ::google::protobuf::Message;
 
+    class ISkiffRowParser;
+
+    using ISkiffRowParserPtr = ::TIntrusivePtr<ISkiffRowParser>;
+
+    class ISkiffRowSkipper;
+
+    using ISkiffRowSkipperPtr = ::TIntrusivePtr<ISkiffRowSkipper>;
+
     namespace NDetail {
 
     class TYdlGenericRowType;
@@ -250,6 +258,9 @@ namespace NYT {
 
     template<class... TProtoRowTypes>
     class TProtoOneOf;
+
+    template<class... TSkiffRowTypes>
+    class TSkiffRowOneOf;
 
     using TYaMRReader = TTableReader<TYaMRRow>;
     using TYaMRWriter = TTableWriter<TYaMRRow>;

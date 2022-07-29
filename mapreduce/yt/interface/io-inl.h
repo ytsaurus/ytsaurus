@@ -44,6 +44,16 @@ struct TIsProtoOneOf<TProtoOneOf<TProtoRowTypes...>>
     : std::true_type
 { };
 
+template <class T>
+struct TIsSkiffRowOneOf
+    : std::false_type
+{ };
+
+template <class ...TSkiffRowTypes>
+struct TIsSkiffRowOneOf<TSkiffRowOneOf<TSkiffRowTypes...>>
+    : std::true_type
+{ };
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +91,20 @@ struct TRowTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
     using TRowType = T;
     using IReaderImpl = IProtoReaderImpl;
     using IWriterImpl = IProtoWriterImpl;
+};
+
+template <class T>
+struct TRowTraits<T, std::enable_if_t<TIsSkiffRow<T>::value>>
+{
+    using TRowType = T;
+    using IReaderImpl = ISkiffRowReaderImpl;
+};
+
+template <class... TSkiffRowTypes>
+struct TRowTraits<TSkiffRowOneOf<TSkiffRowTypes...>>
+{
+    using TRowType = TSkiffRowOneOf<TSkiffRowTypes...>;
+    using IReaderImpl = ISkiffRowReaderImpl;
 };
 
 template <>
@@ -162,6 +186,12 @@ struct IProtoReaderImpl
     : public IReaderImplBase
 {
     virtual void ReadRow(Message* row) = 0;
+};
+
+struct ISkiffRowReaderImpl
+    : public IReaderImplBase
+{
+    virtual void ReadRow(const ISkiffRowParserPtr& parser) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -495,7 +525,6 @@ private:
     mutable THolder<Message> CachedRow_;
 };
 
-
 template<class... TProtoRowTypes>
 class TTableReader<TProtoOneOf<TProtoRowTypes...>>
     : public NDetail::TTableReaderBase<TProtoOneOf<TProtoRowTypes...>>
@@ -589,6 +618,108 @@ public:
     }
 };
 
+template<class... TSkiffRowTypes>
+class TTableReader<TSkiffRowOneOf<TSkiffRowTypes...>>
+    : public NDetail::TTableReaderBase<TSkiffRowOneOf<TSkiffRowTypes...>>
+{
+public:
+    using TBase = NDetail::TTableReaderBase<TSkiffRowOneOf<TSkiffRowTypes...>>;
+
+    using TBase::TBase;
+
+    explicit TTableReader(::TIntrusivePtr<typename TBase::IReaderImpl> reader)
+        : TBase(reader)
+        , Parsers_({(CreateSkiffParser<TSkiffRowTypes>(&std::get<TSkiffRowTypes>(CachedRows_)))...})   
+    { }
+
+    template <class U>
+    const U& GetRow() const
+    {
+        AssertIsOneOf<U>();
+        return TBase::DoGetRowCached(
+            /* cacher */ [&] {
+                auto index = NDetail::TIndexInTuple<U, decltype(CachedRows_)>::Value;
+                Reader_->ReadRow(Parsers_[index]);
+                CachedIndex_ = index;
+            },
+            /* cacheGetter */ [&] {
+                return &std::get<U>(CachedRows_);
+            });
+    }
+
+    template <class U>
+    void MoveRow(U* result)
+    {
+        AssertIsOneOf<U>();
+        return TBase::DoMoveRowCached(
+            result,
+            /* mover */ [&] (U* result) {
+                auto index = NDetail::TIndexInTuple<U, decltype(CachedRows_)>::Value;
+                Reader_->ReadRow(Parsers_[index]);
+                *result = std::move(std::get<U>(CachedRows_));
+            },
+            /* cacheMover */ [&] (U* result) {
+                Y_VERIFY((NDetail::TIndexInTuple<U, decltype(CachedRows_)>::Value) == CachedIndex_);
+                *result = std::move(std::get<U>(CachedRows_));
+            });
+    }
+
+    template <class U>
+    U MoveRow()
+    {
+        U result;
+        MoveRow(&result);
+        return result;
+    }
+
+    ::TIntrusivePtr<ISkiffRowReaderImpl> GetReaderImpl() const
+    {
+        return Reader_;
+    }
+
+private:
+    using TBase::Reader_;
+    // std::variant could also be used here, but std::tuple leads to better performance
+    // because of deallocations that std::variant has to do
+    mutable std::tuple<TSkiffRowTypes...> CachedRows_;
+    mutable std::vector<ISkiffRowParserPtr> Parsers_;
+    mutable int CachedIndex_;
+
+    template <class U>
+    static constexpr void AssertIsOneOf()
+    {
+        static_assert(
+            (std::is_same<U, TSkiffRowTypes>::value || ...),
+            "Template parameter must be one of TSkiffRowOneOf template parameter");
+    }
+};
+
+template <class T>
+class TTableReader<T, std::enable_if_t<TIsSkiffRow<T>::value>>
+    : public TTableReader<TSkiffRowOneOf<T>>
+{
+public:
+    using TRowType = T;
+    using TBase = TTableReader<TSkiffRowOneOf<T>>;
+
+    using TBase::TBase;
+
+    const T& GetRow()
+    {
+        return TBase::template GetRow<T>();
+    }
+
+    void MoveRow(T* result)
+    {
+        TBase::template MoveRow<T>(result);
+    }
+
+    T MoveRow()
+    {
+        return TBase::template MoveRow<T>();
+    }
+};
+
 template <>
 inline TTableReaderPtr<TNode> IIOClient::CreateTableReader<TNode>(
     const TRichYPath& path, const TTableReaderOptions& options)
@@ -621,6 +752,10 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
         return new TTableReader<T>(CreateProtoReader(path, options, prototype.Get()));
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
         return new TTableReader<T>(CreateYdlReader(path, options, NYdl::TYdlTraits<T>::Reflect()));
+    } else if constexpr (TIsSkiffRow<T>::value) {
+        auto schema = GetSkiffSchema<T>();
+        auto skipper = CreateSkiffSkipper<T>();
+        return new TTableReader<T>(CreateSkiffRowReader(path, options, skipper, schema));
     } else {
         static_assert(TDependentFalse<T>, "Unsupported type for table reader");
     }

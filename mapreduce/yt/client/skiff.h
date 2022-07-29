@@ -34,6 +34,10 @@ struct TCreateSkiffSchemaOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
+    const TVector<NSkiff::TSkiffSchemaPtr>& tableSchemas,
+    const TCreateSkiffSchemaOptions& options);
+
 NSkiff::TSkiffSchemaPtr GetJobInputSkiffSchema();
 
 NSkiff::EWireType ValueTypeToSkiffType(EValueType valueType);
