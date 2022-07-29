@@ -13,10 +13,12 @@ namespace {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NQueueClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): Move this unittest along with TCrossClusterReference.
 TEST(TCrossClusterReferenceTest, FromString)
 {
     EXPECT_EQ(

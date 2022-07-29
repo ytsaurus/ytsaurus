@@ -30,28 +30,18 @@ i64 GetStartOffset(const NApi::IUnversionedRowsetPtr& rowset);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueRowset
+struct IQueueRowset
     : public NApi::IUnversionedRowset
 {
-public:
-    TQueueRowset(NApi::IUnversionedRowsetPtr rowset, i64 startOffset);
-
-    const NTableClient::TTableSchemaPtr& GetSchema() const override;
-    const NTableClient::TNameTablePtr& GetNameTable() const override;
-
-    TRange<NTableClient::TUnversionedRow> GetRows() const override;
-
-    TSharedRange<NTableClient::TUnversionedRow> GetSharedRange() const override;
-
-    i64 GetStartOffset() const;
-    i64 GetFinishOffset() const;
-
-private:
-    const NApi::IUnversionedRowsetPtr Rowset_;
-    const i64 StartOffset_;
+    virtual i64 GetStartOffset() const = 0;
+    virtual i64 GetFinishOffset() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueRowset)
+DEFINE_REFCOUNTED_TYPE(IQueueRowset)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQueueRowsetPtr CreateQueueRowset(NApi::IUnversionedRowsetPtr rowset, i64 startOffset);
 
 ////////////////////////////////////////////////////////////////////////////////
 

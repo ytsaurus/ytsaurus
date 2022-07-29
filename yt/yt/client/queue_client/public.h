@@ -14,9 +14,14 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TQueueRowset)
+DECLARE_REFCOUNTED_STRUCT(IQueueRowset)
+
+DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 
 DECLARE_REFCOUNTED_STRUCT(IConsumerClient)
+
+DECLARE_REFCOUNTED_STRUCT(IPartitionReader)
+DECLARE_REFCOUNTED_CLASS(TPartitionReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

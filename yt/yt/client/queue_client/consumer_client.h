@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "common.h"
 
 #include <yt/yt/client/api/public.h>
 
@@ -44,15 +45,45 @@ struct IConsumerClient
         const NApi::IClientPtr& client,
         int expectedPartitionCount,
         bool withLastConsumeTime = false) const = 0;
+
+    //! Collect partition infos.
+    //! Entries in the consumer table with partition indices not in the given vector will be ignored.
+    virtual TFuture<std::vector<TPartitionInfo>> CollectPartitions(
+        const NApi::IClientPtr& client,
+        const std::vector<int>& partitionIndexes,
+        bool withLastConsumeTime = false) const = 0;
+
+    //! Fetch and parse the target_queue attribute of this consumer.
+    virtual TFuture<TCrossClusterReference> FetchTargetQueue(const NApi::IClientPtr& client) const = 0;
+
+    struct TPartitionStatistics
+    {
+        i64 FlushedDataWeight = 0;
+        i64 FlushedRowCount = 0;
+    };
+
+    // TODO(achulkov2): This should probably handle multiple partition indexes at some point.
+    // TODO(achulkov2): Move this to a separate IQueueClient class?
+    //! Fetch relevant per-tablet statistics for queue.
+    virtual TFuture<TPartitionStatistics> FetchPartitionStatistics(
+        const NApi::IClientPtr& client,
+        const NYPath::TYPath& queue,
+        int partitionIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConsumerClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Uses the given schema to dispatch the appropriate consumer client.
 IConsumerClientPtr CreateConsumerClient(
     const NYPath::TYPath& path,
     const NTableClient::TTableSchema& schema);
+
+//! Uses the table mount cache to fetch the consumer's schema and dispatch the appropriate consumer client.
+IConsumerClientPtr CreateConsumerClient(
+    const NApi::IClientPtr& client,
+    const NYPath::TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

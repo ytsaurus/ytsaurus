@@ -59,7 +59,7 @@ public:
         const TString& query,
         const TSelectRowsOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NQueueClient::TQueueRowsetPtr>, PullQueue, (
+    MOCK_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue, (
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

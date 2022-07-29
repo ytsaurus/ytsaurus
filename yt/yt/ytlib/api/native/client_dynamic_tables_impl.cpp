@@ -2199,7 +2199,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     return tabletActions;
 }
 
-NQueueClient::TQueueRowsetPtr TClient::DoPullQueue(
+NQueueClient::IQueueRowsetPtr TClient::DoPullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -2238,7 +2238,7 @@ NQueueClient::TQueueRowsetPtr TClient::DoPullQueue(
         startOffset = NQueueClient::GetStartOffset(readResult.Rowset);
     }
 
-    return New<NQueueClient::TQueueRowset>(readResult.Rowset, startOffset);
+    return NQueueClient::CreateQueueRowset(readResult.Rowset, startOffset);
 }
 
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(

@@ -18,7 +18,7 @@ struct TQueueSnapshot
     int PartitionCount = 0;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
-    THashMap<TCrossClusterReference, TConsumerSnapshotPtr> ConsumerSnapshots;
+    THashMap<NQueueClient::TCrossClusterReference, TConsumerSnapshotPtr> ConsumerSnapshots;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueSnapshot);
@@ -51,7 +51,7 @@ struct TConsumerSnapshot
 
     TError Error;
 
-    TCrossClusterReference TargetQueue;
+    NQueueClient::TCrossClusterReference TargetQueue;
     bool Vital = false;
 
     TString Owner;

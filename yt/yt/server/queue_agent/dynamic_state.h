@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/client/queue_client/common.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -15,23 +17,6 @@
 #include <yt/yt/client/api/client.h>
 
 namespace NYT::NQueueAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCrossClusterReference
-{
-    TString Cluster;
-    NYPath::TYPath Path;
-
-    bool operator ==(const TCrossClusterReference& other) const;
-    bool operator <(const TCrossClusterReference& other) const;
-
-    static TCrossClusterReference FromString(TStringBuf path);
-};
-
-TString ToString(const TCrossClusterReference& queueRef);
-
-void Serialize(const TCrossClusterReference& queueRef, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +43,7 @@ private:
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
-    TCrossClusterReference Queue;
+    NQueueClient::TCrossClusterReference Queue;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
@@ -79,7 +64,7 @@ struct TQueueTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
-        const TCrossClusterReference& queue,
+        const NQueueClient::TCrossClusterReference& queue,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -104,11 +89,11 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
-    TCrossClusterReference Consumer;
+    NQueueClient::TCrossClusterReference Consumer;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
-    std::optional<TCrossClusterReference> TargetQueue;
+    std::optional<NQueueClient::TCrossClusterReference> TargetQueue;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> TreatAsQueueConsumer;
@@ -128,7 +113,7 @@ struct TConsumerTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
-        const TCrossClusterReference& consumer,
+        const NQueueClient::TCrossClusterReference& consumer,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -164,9 +149,3 @@ DEFINE_REFCOUNTED_TYPE(TDynamicState)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueAgent
-
-template <>
-struct THash<NYT::NQueueAgent::TCrossClusterReference>
-{
-    size_t operator()(const NYT::NQueueAgent::TCrossClusterReference& queueRef) const;
-};

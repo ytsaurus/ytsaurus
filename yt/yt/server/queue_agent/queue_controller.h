@@ -41,7 +41,7 @@ public:
     /*!
      *  \note Thread affinity: controller invoker.
      */
-    virtual void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, NYTree::TFluentMap fluent) const = 0;
+    virtual void BuildConsumerOrchid(const NQueueClient::TCrossClusterReference& consumerRef, NYTree::TFluentMap fluent) const = 0;
 
     virtual void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
@@ -55,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 IQueueControllerPtr CreateQueueController(
     TQueueControllerDynamicConfigPtr dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,
-    TCrossClusterReference queueRef,
+    NQueueClient::TCrossClusterReference queueRef,
     EQueueFamily queueFamily,
     TQueueTableRow queueRow,
     TConsumerRowMap consumerRefToRow,

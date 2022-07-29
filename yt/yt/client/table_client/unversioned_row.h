@@ -282,6 +282,8 @@ size_t GetUnversionedRowByteSize(ui32 valueCount);
 //! Returns the storage-invariant data weight of a given row.
 size_t GetDataWeight(TUnversionedRow row);
 
+size_t GetDataWeight(TRange<TUnversionedRow> rows);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A row with unversioned data.

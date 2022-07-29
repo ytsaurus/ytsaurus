@@ -125,7 +125,7 @@ public:
         const TUpdateChaosTableReplicaProgressOptions& options = {}) override;
 
     // Queues.
-    TFuture<NQueueClient::TQueueRowsetPtr> PullQueue(
+    TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

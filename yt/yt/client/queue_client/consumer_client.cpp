@@ -7,6 +7,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -15,14 +17,19 @@
 
 #include <library/cpp/iterator/functools.h>
 
+#include <util/string/join.h>
+
 namespace NYT::NQueueClient {
 
-using namespace NTableClient;
-using namespace NHiveClient;
-using namespace NYPath;
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,17 +144,70 @@ public:
     TFuture<std::vector<TPartitionInfo>> CollectPartitions(
         const IClientPtr& client,
         int expectedPartitionCount,
-        bool withLastConsumeTime) const override
+        bool withLastConsumeTime = false) const override
     {
+        auto selectQuery = Format("[ShardId], [Offset] from [%v] where [ShardId] between 0 and %v", Path_, expectedPartitionCount);
         return BIND(
             &TBigRTConsumerClient::DoCollectPartitions,
             MakeStrong(this),
             client,
-            expectedPartitionCount,
+            selectQuery,
             withLastConsumeTime)
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
+
+    TFuture<std::vector<TPartitionInfo>> CollectPartitions(
+        const IClientPtr& client,
+        const std::vector<int>& partitionIndexes,
+        bool withLastConsumeTime) const override
+    {
+        auto selectQuery = Format("[ShardId], [Offset] from [%v] where [ShardId] in (%v)", Path_, JoinSeq(",", partitionIndexes));
+        return BIND(
+            &TBigRTConsumerClient::DoCollectPartitions,
+            MakeStrong(this),
+            client,
+            selectQuery,
+            withLastConsumeTime)
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
+    TFuture<TCrossClusterReference> FetchTargetQueue(const IClientPtr& client) const override
+    {
+        return client->GetNode(Path_ + "/@target_queue")
+            .Apply(BIND([] (const TYsonString& ysonString) {
+                return TCrossClusterReference::FromString(ConvertTo<TString>(ysonString));
+            }));
+    }
+
+    TFuture<TPartitionStatistics> FetchPartitionStatistics(
+        const IClientPtr& client,
+        const TYPath& queue,
+        int partitionIndex) const override
+    {
+        return client->GetNode(queue + "/@tablets")
+            .Apply(BIND([queue, partitionIndex] (const TYsonString& ysonString) -> TPartitionStatistics {
+                auto tabletList = ConvertToNode(ysonString)->AsList();
+
+                for (const auto& tablet : tabletList->GetChildren()) {
+                    const auto& tabletMapNode = tablet->AsMap();
+                    auto tabletIndex = ConvertTo<i64>(tabletMapNode->FindChild("index"));
+
+                    if (partitionIndex == tabletIndex) {
+                        auto flushedDataWeight = ConvertTo<i64>(tabletMapNode->FindChild("statistics")->AsMap()->FindChild("uncompressed_data_size"));
+                        auto flushedRowCount = ConvertTo<i64>(tabletMapNode->FindChild("flushed_row_count"));
+
+                        return {.FlushedDataWeight = flushedDataWeight, .FlushedRowCount = flushedRowCount};
+                    }
+                }
+
+                THROW_ERROR_EXCEPTION("Queue %Qv has no tablet with index %v", queue, partitionIndex);
+            }));
+    }
+
+private:
+    TYPath Path_;
 
     static void ValidateSchemaOrThrow(const TTableSchema& schema)
     {
@@ -165,18 +225,14 @@ public:
         }
     }
 
-private:
-    TYPath Path_;
-
     std::vector<TPartitionInfo> DoCollectPartitions(
         const IClientPtr& client,
-        int expectedPartitionCount,
+        const TString& selectQuery,
         bool withLastConsumeTime) const
     {
         std::vector<TPartitionInfo> result;
 
-        auto selectRowsResult = WaitFor(client->SelectRows(
-            Format("[ShardId], [Offset] from [%v]", Path_)))
+        auto selectRowsResult = WaitFor(client->SelectRows(selectQuery))
             .ValueOrThrow();
 
         // Note that after table construction table schema may have changed.
@@ -191,12 +247,6 @@ private:
             auto shardIdColumnId = selectRowsResult.Rowset->GetNameTable()->GetIdOrThrow("ShardId");
             const auto& shardIdValue = row[shardIdColumnId];
             YT_VERIFY(shardIdValue.Type == EValueType::Uint64);
-
-            if (shardIdValue.Data.Uint64 >= static_cast<ui32>(expectedPartitionCount)) {
-                // This row does not correspond to any partition considering the expected partition count,
-                // so just skip it.
-                continue;
-            }
 
             shardIndices.push_back(shardIdValue.Data.Uint64);
 
@@ -271,6 +321,17 @@ IConsumerClientPtr CreateConsumerClient(
         THROW_ERROR_EXCEPTION("Table schema %v is not recognized as a valid consumer schema", schema);
     }
 
+}
+
+IConsumerClientPtr CreateConsumerClient(
+    const IClientPtr& client,
+    const TYPath& path)
+{
+    auto tableInfo = WaitFor(client->GetTableMountCache()->GetTableInfo(path))
+        .ValueOrThrow();
+    auto schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    return CreateConsumerClient(path, *schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

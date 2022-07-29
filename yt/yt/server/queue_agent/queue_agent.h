@@ -69,13 +69,13 @@ private:
         EQueueFamily QueueFamily = EQueueFamily::Null;
 
         //! Revisions of the consumer rows, for which the controller was created.
-        THashMap<TCrossClusterReference, TRowRevision> ConsumerRowRevisions;
+        THashMap<NQueueClient::TCrossClusterReference, TRowRevision> ConsumerRowRevisions;
 
         //! Properly stops #Controller if it is set and resets it.
         void Reset();
     };
 
-    using TQueueMap = THashMap<TCrossClusterReference, TQueue>;
+    using TQueueMap = THashMap<NQueueClient::TCrossClusterReference, TQueue>;
     TQueueMap Queues_;
 
     struct TConsumer
@@ -86,10 +86,10 @@ private:
         //! If set, defines the reason why this consumer is not functioning properly.
         TError Error;
         //! Target cross-cluster reference.
-        std::optional<TCrossClusterReference> Target;
+        std::optional<NQueueClient::TCrossClusterReference> Target;
     };
 
-    using TConsumerMap = THashMap<TCrossClusterReference, TConsumer>;
+    using TConsumerMap = THashMap<NQueueClient::TCrossClusterReference, TConsumer>;
     TConsumerMap Consumers_;
 
     //! Current poll error if any.
@@ -108,8 +108,8 @@ private:
 
     NYTree::IYPathServicePtr RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key);
 
-    void BuildQueueYson(const TCrossClusterReference& queueRef, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
-    void BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, NYson::IYsonConsumer* ysonConsumer);
+    void BuildQueueYson(const NQueueClient::TCrossClusterReference& queueRef, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
+    void BuildConsumerYson(const NQueueClient::TCrossClusterReference& consumerRef, const TConsumer& consumer, NYson::IYsonConsumer* ysonConsumer);
 
     //! One iteration of state polling and queue/consumer in-memory state updating.
     void Poll();
