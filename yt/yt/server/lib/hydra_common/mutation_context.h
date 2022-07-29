@@ -71,6 +71,7 @@ public:
     ui64 GetStateHash() const;
 
     void SetResponseData(TSharedRefArray data);
+    void SetResponseData(TError error);
     const TSharedRefArray& GetResponseData() const;
 
     void SetResponseKeeperSuppressed(bool value);

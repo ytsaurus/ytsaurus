@@ -43,7 +43,7 @@ std::unique_ptr<TMutation> CreateMutation(
                 static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
                 mutationContext->SetResponseData(cachedResponseMessage);
             } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
+                mutationContext->SetResponseData(ex);
             }
         }));
     return mutation;
@@ -75,7 +75,7 @@ std::unique_ptr<TMutation> CreateMutation(
                 (target->*handler)(context, &context->Request(), response.get());
                 mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
+                mutationContext->SetResponseData(ex);
             }
         }));
     return mutation;
@@ -96,7 +96,7 @@ std::unique_ptr<TMutation> CreateMutation(
                 (target->*handler)(nullptr, request, response);
                 mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
+                mutationContext->SetResponseData(ex);
             }
         }));
     return mutation;
@@ -120,7 +120,7 @@ std::unique_ptr<TMutation> CreateMutation(
                 (target->*handler)(context, &request, response.get());
                 mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
             } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
+                mutationContext->SetResponseData(ex);
             }
         }));
     return mutation;

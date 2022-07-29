@@ -7,7 +7,7 @@
 #include "private.h"
 #include "serialize.h"
 
-#include <yt/yt/server/master/cell_master/epoch_history_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 

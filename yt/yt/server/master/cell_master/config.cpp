@@ -116,6 +116,8 @@ void TMasterCellDescriptor::Register(TRegistrar registrar)
         .Optional();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_statistics_gossip_period", &TThis::CellStatisticsGossipPeriod)
@@ -166,6 +168,20 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicResponseKeeperConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("expiration_timeout", &TThis::ExpirationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("max_response_count_per_eviction_pass", &TThis::MaxResponseCountPerEvictionPass)
+        .Default(1000);
+
+    registrar.Parameter("eviction_period", &TThis::EvictionPeriod)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +286,9 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
         .Default(TDuration::Zero())
         .DontSerializeDefault();
+
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -189,6 +189,7 @@ protected:
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;
+    IResponseKeeperManagerPtr ResponseKeeperManager_;
     NObjectServer::IObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;

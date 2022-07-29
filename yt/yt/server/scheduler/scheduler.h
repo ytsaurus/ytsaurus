@@ -162,7 +162,7 @@ public:
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const;
 
-    const NRpc::TResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
+    const NRpc::IResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
 
 private:
     class TImpl;

@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
     ((DestroySequoiaChunks)                                         (2102))  // aleksandra-zh
     ((TabletBase)                                                   (2103))  // gritukan
+    ((PersistentResponseKeeper)                                     (2104))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

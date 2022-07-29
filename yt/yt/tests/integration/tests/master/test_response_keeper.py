@@ -15,11 +15,11 @@ class TestResponseKeeper(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
-    DELTA_MASTER_CONFIG = {
-        "hydra_manager": {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cell_master": {
             "response_keeper": {
-                "expiration_time": 200,
-                "enable_warmup": False
+                "eviction_period": 100,
+                "expiration_timeout": 200,
             }
         }
     }

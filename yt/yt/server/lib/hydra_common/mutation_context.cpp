@@ -4,7 +4,11 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/rpc/message.h>
+
 namespace NYT::NHydra {
+
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +79,12 @@ ui64 TMutationContext::GetStateHash() const
 void TMutationContext::SetResponseData(TSharedRefArray data)
 {
     ResponseData_ = std::move(data);
+}
+
+void TMutationContext::SetResponseData(TError error)
+{
+    auto sanitizedError = SanitizeWithCurrentHydraContext(std::move(error));
+    SetResponseData(CreateErrorResponseMessage(std::move(sanitizedError)));
 }
 
 const TSharedRefArray& TMutationContext::GetResponseData() const

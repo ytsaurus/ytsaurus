@@ -44,7 +44,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     IInvokerPtr trackerInvoker,
     NHydra::IHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
-    NRpc::TResponseKeeperPtr responseKeeper,
+    NRpc::IResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
     NApi::TClusterTag selfClockClusterTag,

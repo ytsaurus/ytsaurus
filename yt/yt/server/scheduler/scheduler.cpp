@@ -170,7 +170,7 @@ public:
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
         , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
         , BackgroundThreadPool_(New<TThreadPool>(Config_->BackgroundThreadCount, "Background"))
-        , OperationServiceResponseKeeper_(New<TResponseKeeper>(
+        , OperationServiceResponseKeeper_(CreateResponseKeeper(
             Config_->OperationServiceResponseKeeper,
             GetControlInvoker(EControlQueue::UserRequest),
             SchedulerLogger,
@@ -1713,7 +1713,7 @@ public:
         return NodeManager_->FindOperationIdByJobId(jobId, considerFinished);
     }
 
-    const TResponseKeeperPtr& GetOperationServiceResponseKeeper() const
+    const IResponseKeeperPtr& GetOperationServiceResponseKeeper() const
     {
         return OperationServiceResponseKeeper_;
     }
@@ -1738,7 +1738,7 @@ private:
     const TThreadPoolPtr FairShareUpdatePool_;
     const TThreadPoolPtr BackgroundThreadPool_;
 
-    NRpc::TResponseKeeperPtr OperationServiceResponseKeeper_;
+    IResponseKeeperPtr OperationServiceResponseKeeper_;
 
     std::optional<TString> ClusterName_;
 
@@ -4670,7 +4670,7 @@ TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId, bool cons
     return Impl_->FindOperationIdByJobId(jobId, considerFinished);
 }
 
-const TResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const
+const IResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const
 {
     return Impl_->GetOperationServiceResponseKeeper();
 }

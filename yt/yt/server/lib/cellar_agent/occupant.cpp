@@ -207,7 +207,7 @@ public:
         return HydraManager_.Load();
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const override
+    const IResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
     }
@@ -390,7 +390,7 @@ public:
         } else {
             Automaton_ = occupier->CreateAutomaton();
 
-            ResponseKeeper_ = New<TResponseKeeper>(
+            ResponseKeeper_ = CreateResponseKeeper(
                 Config_->ResponseKeeper,
                 occupier->GetOccupierAutomatonInvoker(),
                 Logger,
@@ -637,7 +637,7 @@ private:
 
     TAtomicObject<IDistributedHydraManagerPtr> HydraManager_;
 
-    TResponseKeeperPtr ResponseKeeper_;
+    IResponseKeeperPtr ResponseKeeper_;
 
     THiveManagerPtr HiveManager_;
 

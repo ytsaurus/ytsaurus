@@ -214,7 +214,7 @@ public:
         , Config_(SchedulerConfig_->ControllerAgentTracker)
         , Bootstrap_(bootstrap)
         , MessageOffloadThreadPool_(New<TThreadPool>(Config_->MessageOffloadThreadCount, "MessageOffload"))
-        , ResponseKeeper_(New<TResponseKeeper>(
+        , ResponseKeeper_(CreateResponseKeeper(
             Config_->ResponseKeeper,
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
             SchedulerLogger,
@@ -399,7 +399,7 @@ public:
         Config_ = SchedulerConfig_->ControllerAgentTracker;
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const
+    const IResponseKeeperPtr& GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
@@ -936,7 +936,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TThreadPoolPtr MessageOffloadThreadPool_;
 
-    TResponseKeeperPtr ResponseKeeper_;
+    IResponseKeeperPtr ResponseKeeper_;
 
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
 
@@ -1241,7 +1241,7 @@ void TControllerAgentTracker::UpdateConfig(TSchedulerConfigPtr config)
     Impl_->UpdateConfig(std::move(config));
 }
 
-const TResponseKeeperPtr& TControllerAgentTracker::GetResponseKeeper() const
+const IResponseKeeperPtr& TControllerAgentTracker::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }

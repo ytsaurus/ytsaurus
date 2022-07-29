@@ -8,7 +8,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateOperationService(TBootstrap* bootstrap, const NRpc::TResponseKeeperPtr& responseKeeper);
+NRpc::IServicePtr CreateOperationService(TBootstrap* bootstrap, const NRpc::IResponseKeeperPtr& responseKeeper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
