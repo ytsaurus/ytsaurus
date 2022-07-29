@@ -177,7 +177,7 @@ public:
         IAttributeDictionaryPtr endpointAttributes,
         TDiscoverRequestHook discoverRequestHook)
         : Config_(std::move(config))
-        , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
+        , ChannelFactory_(std::move(channelFactory))
         , DiscoverRequestHook_(std::move(discoverRequestHook))
         , EndpointDescription_(Format("%v%v",
             endpointDescription,

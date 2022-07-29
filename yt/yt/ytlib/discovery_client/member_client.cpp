@@ -85,7 +85,7 @@ public:
             std::move(invoker),
             BIND(&TMemberClient::OnHeartbeat, MakeWeak(this)),
             config->HeartbeatPeriod))
-        , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
+        , ChannelFactory_(std::move(channelFactory))
         , Logger(DiscoveryClientLogger.WithTag("GroupId: %v, MemberId: %v",
             GroupId_,
             Id_))
