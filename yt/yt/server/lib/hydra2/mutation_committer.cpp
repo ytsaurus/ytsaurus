@@ -229,6 +229,12 @@ void TLeaderCommitter::SerializeMutations()
                 NRpc::EErrorCode::Unavailable,
                 "Cannot commit a mutation at the moment")
                 << error);
+            if (Options_.ResponseKeeper && mutationDraft.Request.MutationId) {
+                Options_.ResponseKeeper->EndRequest(
+                    mutationDraft.Request.MutationId,
+                    error,
+                    /*remember*/ false);
+            }
             continue;
         }
 

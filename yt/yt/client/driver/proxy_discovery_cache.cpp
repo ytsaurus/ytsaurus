@@ -82,6 +82,8 @@ private:
     {
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.SuppressUpstreamSync = true;
+        options.SuppressTransactionCoordinatorSync = true;
         options.Attributes = {BannedAttributeName, RoleAttributeName};
 
         auto path = GetProxyRegistryPath(request.Type);

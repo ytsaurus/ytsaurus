@@ -687,14 +687,16 @@ private:
             }
 
             const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-
+            const auto multicellSyncExt = requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
             TObjectServiceCacheKey key(
                 Bootstrap_->GetCellTag(),
                 cachingRequestHeaderExt.disable_per_user_cache() ? TString() : RpcContext_->GetAuthenticationIdentity().User,
                 subrequest.YPathExt->target_path(),
                 requestHeader.service(),
                 requestHeader.method(),
-                subrequest.RequestMessage[1]);
+                subrequest.RequestMessage[1],
+                multicellSyncExt.suppress_upstream_sync(),
+                multicellSyncExt.suppress_transaction_coordinator_sync());
 
             YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 RequestId_,

@@ -24,6 +24,8 @@ struct TObjectServiceCacheKey
     TString Method;
     TSharedRef RequestBody;
     size_t RequestBodyHash;
+    bool SuppressUpstreamSync;
+    bool SuppressTransactionCoordinatorSync;
 
     TObjectServiceCacheKey(
         TCellTag cellTag,
@@ -31,7 +33,9 @@ struct TObjectServiceCacheKey
         NYPath::TYPath path,
         TString service,
         TString method,
-        TSharedRef requestBody);
+        TSharedRef requestBody,
+        bool suppressUpstreamSync,
+        bool suppressTransactionCoordinatorSync);
 
     operator size_t() const;
     bool operator == (const TObjectServiceCacheKey& other) const;
