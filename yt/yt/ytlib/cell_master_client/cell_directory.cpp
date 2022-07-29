@@ -61,7 +61,7 @@ public:
         : Config_(std::move(config))
         , PrimaryMasterCellId_(Config_->PrimaryMaster->CellId)
         , PrimaryMasterCellTag_(CellTagFromId(PrimaryMasterCellId_))
-        , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
+        , ChannelFactory_(std::move(std::move(channelFactory)))
         , Logger(std::move(logger))
         , Cache_(New<TObjectServiceCache>(
             Config_->CachingObjectService,

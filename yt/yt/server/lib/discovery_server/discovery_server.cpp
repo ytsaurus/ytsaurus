@@ -210,7 +210,7 @@ public:
         : RpcServer_(std::move(rpcServer))
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
-        , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
+        , ChannelFactory_(std::move(channelFactory))
         , Logger(DiscoveryServerLogger.WithTag("SelfAddress: %v", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
