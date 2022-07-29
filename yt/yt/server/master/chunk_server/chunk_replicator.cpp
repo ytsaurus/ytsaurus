@@ -1216,9 +1216,13 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
         }
     }
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& queue : node->ChunkPullReplicationQueues()) {
         for (const auto& [chunkReplica, mediumSet] : queue) {
-            ScheduleChunkRefresh(chunkReplica.GetPtr());
+            auto* chunk = chunkManager->FindChunk(chunkReplica.Id);
+            if (IsObjectAlive(chunk)) {
+                ScheduleChunkRefresh(chunk);
+            }
         }
     }
 }
@@ -1640,6 +1644,8 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             std::ssize(node->ChunksBeingPulled()) < GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode;
     };
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
     // Move CRP-enabled chunks from pull to push queues.
     auto& queues = node->ChunkPullReplicationQueues();
     for (int priority = 0; priority < std::ssize(queues); ++priority) {
@@ -1648,10 +1654,11 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         while (it != queue.end() && hasSparePullReplicationResources()) {
             auto jt = it++;
             auto desiredReplica = jt->first;
-            auto* chunk = desiredReplica.GetPtr();
+            auto chunkId = desiredReplica.Id;
+            auto* chunk = chunkManager->FindChunk(chunkId);
             auto& mediumIndexSet = jt->second;
 
-            if (!chunk->IsRefreshActual()) {
+            if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
                 queue.erase(jt);
                 ++misscheduledReplicationJobs;
                 continue;
@@ -1666,7 +1673,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
                             continue;
                         }
 
-                        if (desiredReplica.GetReplicaIndex() != replica.GetReplicaIndex()) {
+                        if (desiredReplica.ReplicaIndex != replica.GetReplicaIndex()) {
                             continue;
                         }
 
@@ -1683,7 +1690,6 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         }
     }
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
     // Schedule replication jobs.
     for (auto& queue : node->ChunkPushReplicationQueues()) {
         auto it = queue.begin();

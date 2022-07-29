@@ -15,6 +15,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/job.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
@@ -751,14 +752,14 @@ void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int tar
 void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunkPullReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
+
+    ChunkPullReplicationQueues_[priority][ToChunkIdWithIndexes(replica)].set(targetMediumIndex);
 }
 
 void TNode::AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunksBeingPulled_[chunkId].set(targetMediumIndex);
-
 }
 
 void TNode::AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node)
@@ -823,17 +824,15 @@ void TNode::RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex
 
 void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
 {
-    auto removeFromQueue = [&] (auto& queue) {
+    for (auto& queue : ChunkPushReplicationQueues_) {
         if (auto it = queue.find(replica.ToGenericState()); it != queue.end()) {
             queue.erase(it);
         }
-    };
-
-    for (auto& queue : ChunkPushReplicationQueues_) {
-        removeFromQueue(queue);
     }
     for (auto& queue : ChunkPullReplicationQueues_) {
-        removeFromQueue(queue);
+        if (auto it = queue.find(ToChunkIdWithIndexes(replica)); it != queue.end()) {
+            queue.erase(it);
+        }
     }
 
     auto chunkId = replica.GetPtr()->GetId();

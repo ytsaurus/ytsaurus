@@ -17,7 +17,7 @@
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -229,10 +229,15 @@ public:
     //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkReplicationQueue = THashMap<TChunkPtrWithIndexes, TMediumIndexSet>;
-    using TChunkReplicationQueues = std::vector<TChunkReplicationQueue>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPushReplicationQueues);
-    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPullReplicationQueues);
+    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithIndexes, TMediumIndexSet>;
+    using TChunkPushReplicationQueues = std::vector<TChunkPushReplicationQueue>;
+    DEFINE_BYREF_RW_PROPERTY(TChunkPushReplicationQueues, ChunkPushReplicationQueues);
+
+    //! Has the same structure as push replication queues, but uses chunk ids instead
+    //! of chunk pointers to prevent danging pointers after chunk destruction.
+    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndexes, TMediumIndexSet>;
+    using TChunkPullReplicationQueues = std::vector<TChunkPullReplicationQueue>;
+    DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationQueues, ChunkPullReplicationQueues);
 
     // For chunks in push queue, its correspondent pull queue node id.
     // Used for CRP-enabled chunks only.

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
