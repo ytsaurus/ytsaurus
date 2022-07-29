@@ -31,9 +31,8 @@ trait SolomonLauncher extends SidecarLauncher {
 
   def startSolomonAgent(args: Array[String],
                         sparkComponent: String,
-                        sparkUiPort: Int,
-                        autoscalerConf: Option[AutoScaler.Conf]): Option[BasicService] = {
-    SolomonConfig(sparkSystemProperties, args, sparkComponent, sparkUiPort, autoscalerConf).map { config =>
+                        sparkUiPort: Int): Option[BasicService] = {
+    SolomonConfig(sparkSystemProperties, args, sparkComponent, sparkUiPort).map { config =>
       startService(config, prepareConfigFile, processWorkingDir = Some(new File(path(config.configDirectory))))
     }
   }
@@ -64,19 +63,15 @@ object SolomonConfig extends SidecarConfigUtils {
   def apply(sparkConf: Map[String, String],
             args: Array[String],
             sparkComponent: String,
-            sparkUiPort: Int,
-            autoscalerConf: Option[AutoScaler.Conf]): Option[SolomonConfig] = {
-    SolomonConfig(sparkConf, Args(args), sparkComponent, sparkUiPort, autoscalerConf)
+            sparkUiPort: Int): Option[SolomonConfig] = {
+    SolomonConfig(sparkConf, Args(args), sparkComponent, sparkUiPort)
   }
 
-  def apply(sparkConf: Map[String, String], args: Args, sparkComponent: String, sparkUiPort: Int,
-            autoscalerConf: Option[AutoScaler.Conf]): Option[SolomonConfig] = {
+  def apply(sparkConf: Map[String, String], args: Args, sparkComponent: String, sparkUiPort: Int): Option[SolomonConfig] = {
     implicit val a: Args = args
     if (optionArg("enabled").forall(_.toBoolean)) {
       val agentConfig = "solomon-agent.template.conf"
-      val serviceConfig =
-        if (autoscalerConf.isEmpty) s"solomon-service-$sparkComponent.template.conf"
-        else s"solomon-service-$sparkComponent-autoscaler.template.conf"
+      val serviceConfig = s"solomon-service-$sparkComponent.template.conf"
       Some(SolomonConfig(
         binaryPath = optionArg("binary-path").getOrElse("/usr/local/bin/solomon-agent"),
         configPaths = optionArg("config-paths")

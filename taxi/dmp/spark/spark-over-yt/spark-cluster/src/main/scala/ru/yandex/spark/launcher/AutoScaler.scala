@@ -23,54 +23,52 @@ object AutoScaler {
 
   private object Metrics {
     private val currentState: AtomicReference[State] = new AtomicReference()
-
-    val metricRegistry: MetricRegistry = new MetricRegistry()
+    val metricRegistry: AtomicReference[MetricRegistry] = new AtomicReference()
 
     def updateState(state: State): Unit = {
       if (currentState.get() == null) {
-        registerMetrics()
+        register(metricRegistry.get())
       }
       currentState.set(state)
     }
 
-    def registerMetrics(): Unit = {
-        metricRegistry.register("user_slots", new Gauge[Long] {
+    def register(metricRegistry: MetricRegistry): Unit = {
+        metricRegistry.register("autoscaler.user_slots", new Gauge[Long] {
             override def getValue: Long = currentState.get().userSlots
         })
 
-        metricRegistry.register("running_jobs", new Gauge[Long] {
+        metricRegistry.register("autoscaler.running_jobs", new Gauge[Long] {
             override def getValue: Long = currentState.get().operationState.runningJobs
         })
 
-        metricRegistry.register("planned_jobs", new Gauge[Long] {
+        metricRegistry.register("autoscaler.planned_jobs", new Gauge[Long] {
             override def getValue: Long = currentState.get().operationState.plannedJobs
         })
 
-        metricRegistry.register("max_workers", new Gauge[Long] {
+        metricRegistry.register("autoscaler.max_workers", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.maxWorkers
         })
 
-        metricRegistry.register("busy_workers", new Gauge[Long] {
+        metricRegistry.register("autoscaler.busy_workers", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.busyWorkers
         })
 
-        metricRegistry.register("waiting_apps", new Gauge[Long] {
+        metricRegistry.register("autoscaler.waiting_apps", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.waitingApps
         })
 
-        metricRegistry.register("cores_total", new Gauge[Long] {
+        metricRegistry.register("autoscaler.cores_total", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.coresTotal
         })
 
-        metricRegistry.register("cores_used", new Gauge[Long] {
+        metricRegistry.register("autoscaler.cores_used", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.coresUsed
         })
 
-        metricRegistry.register("max_wait_app_time_ms", new Gauge[Long] {
+        metricRegistry.register("autoscaler.max_wait_app_time_ms", new Gauge[Long] {
             override def getValue: Long = currentState.get().sparkState.maxAppAwaitTimeMs
         })
     }
-
   }
 
   private val scheduler = new ScheduledThreadPoolExecutor(1,
@@ -155,8 +153,9 @@ object AutoScaler {
     }
   }
 
-  def start(autoScaler: AutoScaler, c: Conf): Closeable = {
+  def start(autoScaler: AutoScaler, c: Conf, metricRegistry: MetricRegistry): Closeable = {
     log.info(s"Starting autoscaler service: period = ${c.period}")
+    Metrics.metricRegistry.set(metricRegistry)
     val f = scheduler.scheduleAtFixedRate(() => {
       try {
         log.debug("Autoscaler called")
