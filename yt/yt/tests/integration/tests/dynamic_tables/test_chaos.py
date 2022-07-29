@@ -1989,31 +1989,43 @@ class TestChaos(ChaosTestBase):
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
         _, remote_driver0, remote_driver1 = self._get_drivers()
 
-        data_values = [{"key": i, "value": str(i)} for i in range(2)]
+        data_values = [{"key": i, "value": str(i)} for i in range(3)]
         values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1)]
         insert_rows("//tmp/t", values)
 
-        wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:1])
+        def _try_trim_rows():
+            with raises_yt_error("Could not trim tablet since some replicas may not be replicated up to this point"):
+                trim_rows("//tmp/t", 0, 1)
 
-        with pytest.raises(YtError):
-            trim_rows("//tmp/t", 0, 1)
+        wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:1])
+        _try_trim_rows()
 
         sync_flush_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            trim_rows("//tmp/t", 0, 1)
+        _try_trim_rows()
 
         values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1, 2)]
         insert_rows("//tmp/t", values)
-
-        with raises_yt_error("Could not trim tablet since some replicas may not be replicated up to this point"):
-            trim_rows("//tmp/t", 0, 1)
+        _try_trim_rows()
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
-        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[:2])
 
-        trim_rows("//tmp/t", 0, 1)
-        assert select_rows("key, value from [//tmp/t]") == data_values[1:]
+        def _insistent_trim_rows(table, driver=None):
+            try:
+                trim_rows(table, 0, 1, driver=driver)
+                return True
+            except YtError as err:
+                print_debug("Table {0} trim failed: ".format(table), err)
+                return False
+
+        wait(lambda: _insistent_trim_rows("//tmp/t"))
+        assert select_rows("key, value from [//tmp/t]") == data_values[1:2]
+
+        sync_flush_table("//tmp/r", driver=remote_driver0)
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(2, 3)]
+        insert_rows("//tmp/t", values)
+        wait(lambda: _insistent_trim_rows("//tmp/r", driver=remote_driver0))
+        assert select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[1:]
 
 
 ##################################################################
