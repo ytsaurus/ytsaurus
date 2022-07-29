@@ -9,6 +9,7 @@ import spyt.ReleaseUtils._
 import spyt.SpytPlugin.autoImport._
 
 import scala.sys.process.Process
+import scala.util.Random
 import scala.util.control.NonFatal
 
 object SpytSnapshot {
@@ -86,37 +87,45 @@ object SpytSnapshot {
           case p(q, n) => Some(q.toLowerCase + n)
           case "develop" => Some("develop")
           case "trunk" => Some("trunk")
+          case "teamcity" => Some("teamcity")
           case _ => None
         }
       }
     }
 
-    private def getVcsInfo(submodule: String = ""): Option[VcsInfo] =
-      try {
-        val catchStderr: ProcessLogger = new ProcessLogger {
-          override def out(s: => String): Unit = ()
-          override def err(s: => String): Unit = ()
-          override def buffer[T](f: => T): T = f
-        }
-        val out = Process("arc info").lineStream(catchStderr).toList
-        val m = out.map(_.split(':').toList)
-          .map(as => (as(0), as(1).trim))
-          .toMap
-        for {
-          hash <- m.get("hash")
-          branch <- m.get("branch")
-        } yield VcsInfo(hash.take(7), branch, isGit = false)
-      } catch {
-        // arc not found or it is not arc branch
-        // let's try git
-        case NonFatal(_) =>
+    private def getTeamcityBuildNumber: String = {
+      sys.env.getOrElse("TC_BUILD", Random.alphanumeric.take(7).mkString)
+    }
+
+    private def getVcsInfo(submodule: String = ""): Option[VcsInfo] = {
+      if (isTeamCity) {
+        Some(VcsInfo("teamcity", getTeamcityBuildNumber, isGit = false))
+      } else {
+        try {
+          val catchStderr: ProcessLogger = new ProcessLogger {
+            override def out(s: => String): Unit = ()
+            override def err(s: => String): Unit = ()
+            override def buffer[T](f: => T): T = f
+          }
+          val out = Process("arc info").lineStream(catchStderr).toList
+          val m = out.map(_.split(':').toList)
+            .map(as => (as(0), as(1).trim))
+            .toMap
           for {
-            branch <- gitBranch(submodule)
-            hash <- gitHash(submodule)
-          } yield VcsInfo(hash, branch, isGit = true)
+            hash <- m.get("hash")
+            branch <- m.get("branch")
+          } yield VcsInfo(hash.take(7), branch, isGit = false)
+        } catch {
+          // arc not found or it is not arc branch
+          // let's try git
+          case NonFatal(_) =>
+            for {
+              branch <- gitBranch(submodule)
+              hash <- gitHash(submodule)
+            } yield VcsInfo(hash, branch, isGit = true)
+        }
       }
-
-
+    }
 
     private def gitBranch(submodule: String = ""): Option[String] = {
       val cmd = "git rev-parse --abbrev-ref HEAD"
