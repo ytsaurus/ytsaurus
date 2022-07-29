@@ -151,6 +151,8 @@ class TTabletManager::TImpl
 {
 public:
     DEFINE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+    DEFINE_SIGNAL(void(), EpochStarted);
+    DEFINE_SIGNAL(void(), EpochStopped);
 
 public:
     explicit TImpl(
@@ -948,10 +950,14 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             StartTabletEpoch(tablet);
         }
+
+        EpochStarted_.Fire();
     }
 
     void StopEpoch()
     {
+        EpochStopped_.Fire();
+
         for (auto [tabletId, tablet] : TabletMap_) {
             StopTabletEpoch(tablet);
         }
@@ -4117,6 +4123,8 @@ bool TTabletManager::AllocateDynamicStoreIfNeeded(TTablet* tablet)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 
 DELEGATE_SIGNAL(TTabletManager, void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(), EpochStarted, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(), EpochStopped, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

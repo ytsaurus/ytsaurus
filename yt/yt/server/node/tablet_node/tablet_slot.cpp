@@ -380,6 +380,10 @@ public:
             this,
             Bootstrap_);
 
+        TabletManager_->SubscribeEpochStarted(
+            BIND_NO_PROPAGATE(&TTabletSlot::OnTabletsEpochStarted, MakeWeak(this)));
+        TabletManager_->SubscribeEpochStopped(
+            BIND_NO_PROPAGATE(&TTabletSlot::OnTabletsEpochStopped, MakeWeak(this)));
         TabletManager_->Initialize();
         TabletCellWriteManager_->Initialize();
     }
@@ -501,6 +505,8 @@ private:
 
     ITransactionSupervisorPtr TransactionSupervisor_;
 
+    std::atomic<bool> IsTabletEpochActive_;
+
     NRpc::IServicePtr TabletService_;
 
 
@@ -516,6 +522,21 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetEpochInvokers();
+    }
+
+    void OnTabletsEpochStarted()
+    {
+        IsTabletEpochActive_ = true;
+    }
+
+    void OnTabletsEpochStopped()
+    {
+        IsTabletEpochActive_ = false;
+    }
+
+    virtual bool IsTabletEpochActive() const override
+    {
+        return IsTabletEpochActive_;
     }
 
     NLogging::TLogger GetLogger() const

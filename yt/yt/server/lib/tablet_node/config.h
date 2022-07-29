@@ -232,6 +232,10 @@ public:
 
     bool EnableReplicationProgressAdvanceToBarrier;
 
+    // For testing purposes only.
+    TDuration SimulatedTabletSnapshotDelay;
+    TDuration SimulatedStorePreloadDelay;
+
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
     static void Register(TRegistrar registrar);

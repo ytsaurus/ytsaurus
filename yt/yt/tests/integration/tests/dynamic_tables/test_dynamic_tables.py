@@ -313,6 +313,50 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("capone212")
+    def test_decommission_through_extra_peers_preload(self):
+        set(
+            "//sys/@config/tablet_manager/decommission_through_extra_peers",
+            True,
+        )
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t",
+                                    tablet_cell_bundle="b",
+                                    in_memory_mode="uncompressed")
+
+        set("//tmp/t/@mount_config/simulated_tablet_snapshot_delay", 1000)
+        set("//tmp/t/@mount_config/simulated_store_preload_delay", 3000)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        many_rows = [{"key": i, "value": str(i)} for i in range(4, 300, 2)]
+        insert_rows("//tmp/t", many_rows)
+        sync_flush_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
+
+        set_node_decommissioned(leader_address, True)
+        wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
+
+        assert get("#" + cell_id + "/@health") == "good"
+        peers = get("#" + cell_id + "/@peers")
+        leaders = list(x["address"] for x in peers if x["state"] == "leading")
+        assert len(leaders) == 1
+        assert leaders[0] != leader_address
+        assert get("#{}/@total_statistics/preload_completed_store_count".format(cell_id)) != 0
+        assert get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(leaders[0], cell_id))
+        assert lookup_rows("//tmp/t", keys) == rows
+
     @authors("gritukan")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_all_peers(self, decommission_through_extra_peers):

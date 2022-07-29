@@ -326,6 +326,14 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_replication_progress_advance_to_barrier", &TThis::EnableReplicationProgressAdvanceToBarrier)
         .Default(true);
 
+    registrar.Parameter("simulated_tablet_snapshot_delay", &TThis::SimulatedTabletSnapshotDelay)
+        .Default()
+        .DontSerializeDefault();
+
+    registrar.Parameter("simulated_store_preload_delay", &TThis::SimulatedStorePreloadDelay)
+        .Default()
+        .DontSerializeDefault();
+
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
