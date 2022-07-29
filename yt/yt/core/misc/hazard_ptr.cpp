@@ -152,7 +152,6 @@ private:
 
     THazardPointerManager();
 
-    static void ShutdownThunk();
     void Shutdown();
 
     THazardThreadState* AllocateThread();
@@ -183,11 +182,6 @@ THazardPointerManager::THazardPointerManager()
         [=] { BeforeFork(); },
         [=] { AfterForkParent(); },
         [=] { AfterForkChild(); });
-}
-
-void THazardPointerManager::ShutdownThunk()
-{
-    THazardPointerManager::Get()->Shutdown();
 }
 
 void THazardPointerManager::Shutdown()
