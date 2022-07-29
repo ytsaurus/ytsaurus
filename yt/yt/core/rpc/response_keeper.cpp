@@ -25,11 +25,11 @@ static constexpr auto EvictionTickTimeCheckPeriod = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResponseKeeper::TImpl
-    : public TRefCounted
+class TResponseKeeper
+    : public IResponseKeeper
 {
 public:
-    TImpl(
+    TResponseKeeper(
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
@@ -43,7 +43,7 @@ public:
 
         EvictionExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
-            BIND(&TImpl::OnEvict, MakeWeak(this)),
+            BIND(&TResponseKeeper::OnEvict, MakeWeak(this)),
             EvictionPeriod);
         EvictionExecutor_->Start();
 
@@ -55,7 +55,7 @@ public:
         });
     }
 
-    void Start()
+    void Start() override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -73,7 +73,7 @@ public:
             Config_->ExpirationTime);
     }
 
-    void Stop()
+    void Stop() override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -91,21 +91,21 @@ public:
         YT_LOG_INFO("Response keeper stopped");
     }
 
-    TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry)
+    TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry) override
     {
         auto guard = WriterGuard(Lock_);
 
         return DoTryBeginRequest(id, isRetry);
     }
 
-    TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const
+    TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const override
     {
         auto guard = ReaderGuard(Lock_);
 
         return DoFindRequest(id, isRetry);
     }
 
-    void EndRequest(TMutationId id, TSharedRefArray response, bool remember)
+    void EndRequest(TMutationId id, TSharedRefArray response, bool remember) override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -131,29 +131,27 @@ public:
         if (remember) {
             // NB: Allow duplicates.
             auto [it, inserted] = FinishedResponses_.emplace(id, response);
-            if (!inserted) {
-                return;
+            if (inserted) {
+                auto space = static_cast<i64>(GetByteSize(response));
+                ResponseEvictionQueue_.push(TEvictionItem{
+                    id,
+                    NProfiling::GetCpuInstant(),
+                    space,
+                    it
+                });
+
+                FinishedResponseCount_ += 1;
+                FinishedResponseSpace_ += space;
             }
-
-            auto space = static_cast<i64>(GetByteSize(response));
-            ResponseEvictionQueue_.push(TEvictionItem{
-                id,
-                NProfiling::GetCpuInstant(),
-                space,
-                it
-            });
-
-            FinishedResponseCount_ += 1;
-            FinishedResponseSpace_ += space;
         }
 
         if (promise) {
             guard.Release();
-            promise.Set(response);
+            promise.TrySet(response);
         }
     }
 
-    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
+    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember) override
     {
         YT_ASSERT(id);
 
@@ -178,10 +176,10 @@ public:
 
         guard.Release();
 
-        promise.Set(TError(std::move(responseOrError)));
+        promise.TrySet(TError(std::move(responseOrError)));
     }
 
-    void CancelPendingRequests(const TError& error)
+    void CancelPendingRequests(const TError& error) override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -194,13 +192,13 @@ public:
         guard.Release();
 
         for (const auto& [id, promise] : pendingResponses) {
-            promise.Set(error);
+            promise.TrySet(error);
         }
 
         YT_LOG_INFO(error, "All pending requests canceled");
     }
 
-    bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse)
+    bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse) override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -231,7 +229,7 @@ public:
         return false;
     }
 
-    bool IsWarmingUp() const
+    bool IsWarmingUp() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -360,63 +358,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResponseKeeper::TResponseKeeper(
+IResponseKeeperPtr CreateResponseKeeper(
     TResponseKeeperConfigPtr config,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        std::move(invoker),
+{
+    return New<TResponseKeeper>(
+        config,
+        invoker,
         logger,
-        profiler))
-{ }
-
-TResponseKeeper::~TResponseKeeper() = default;
-
-void TResponseKeeper::Start()
-{
-    Impl_->Start();
-}
-
-void TResponseKeeper::Stop()
-{
-    Impl_->Stop();
-}
-
-TFuture<TSharedRefArray> TResponseKeeper::TryBeginRequest(TMutationId id, bool isRetry)
-{
-    return Impl_->TryBeginRequest(id, isRetry);
-}
-
-TFuture<TSharedRefArray> TResponseKeeper::FindRequest(TMutationId id, bool isRetry) const
-{
-    return Impl_->FindRequest(id, isRetry);
-}
-
-void TResponseKeeper::EndRequest(TMutationId id, TSharedRefArray response, bool remember)
-{
-    Impl_->EndRequest(id, std::move(response), remember);
-}
-
-void TResponseKeeper::EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
-{
-    Impl_->EndRequest(id, std::move(responseOrError), remember);
-}
-
-void TResponseKeeper::CancelPendingRequests(const TError& error)
-{
-    Impl_->CancelPendingRequests(error);
-}
-
-bool TResponseKeeper::TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse)
-{
-    return Impl_->TryReplyFrom(context, subscribeToResponse);
-}
-
-bool TResponseKeeper::IsWarmingUp() const
-{
-    return Impl_->IsWarmingUp();
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

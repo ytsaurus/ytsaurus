@@ -39,7 +39,7 @@ public:
 
     void UpdateConfig(TSchedulerConfigPtr config);
 
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    const NRpc::IResponseKeeperPtr& GetResponseKeeper() const;
 
     /*!
      *  Thread affinity: any

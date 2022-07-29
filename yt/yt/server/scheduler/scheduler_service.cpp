@@ -35,7 +35,7 @@ class TOperationService
     : public TServiceBase
 {
 public:
-    TOperationService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
+    TOperationService(TBootstrap* bootstrap, const IResponseKeeperPtr& responseKeeper)
         : TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TOperationServiceProxy::GetDescriptor(),
@@ -53,7 +53,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const TResponseKeeperPtr ResponseKeeper_;
+    const IResponseKeeperPtr ResponseKeeper_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
@@ -225,7 +225,7 @@ private:
     }
 };
 
-IServicePtr CreateOperationService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
+IServicePtr CreateOperationService(TBootstrap* bootstrap, const IResponseKeeperPtr& responseKeeper)
 {
     return New<TOperationService>(bootstrap, responseKeeper);
 }

@@ -19,7 +19,7 @@ class TControllerAgentTrackerService
     : public TServiceBase
 {
 public:
-    TControllerAgentTrackerService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
+    TControllerAgentTrackerService(TBootstrap* bootstrap, const IResponseKeeperPtr& responseKeeper)
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::AgentTracker),
             TControllerAgentTrackerServiceProxy::GetDescriptor(),
@@ -42,7 +42,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    TResponseKeeperPtr ResponseKeeper_;
+    IResponseKeeperPtr ResponseKeeper_;
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Handshake)
     {
@@ -83,7 +83,7 @@ private:
     }
 };
 
-IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
+IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap, const IResponseKeeperPtr& responseKeeper)
 {
     return New<TControllerAgentTrackerService>(bootstrap, responseKeeper);
 }

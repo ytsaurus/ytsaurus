@@ -41,7 +41,7 @@ TRecoveryBase::TRecoveryBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
+    IResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     TVersion syncVersion,
     NLogging::TLogger logger)
@@ -401,7 +401,7 @@ TLeaderRecovery::TLeaderRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
+    IResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     NLogging::TLogger logger)
     : TRecoveryBase(
@@ -453,7 +453,7 @@ TFollowerRecovery::TFollowerRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
+    IResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     TVersion syncVersion,
     NLogging::TLogger logger)

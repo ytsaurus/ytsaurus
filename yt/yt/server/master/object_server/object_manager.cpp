@@ -47,6 +47,7 @@
 #include <yt/yt/server/lib/hydra_common/hydra_context.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
+#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -1731,7 +1732,6 @@ void TObjectManager::HydraExecuteLeader(
     TWallTimer timer;
 
     TCodicilGuard codicilGuard(codicilData);
-
     auto mutationId = rpcContext->GetMutationId();
     if (mutationId && MutationIdempotizer_->IsMutationApplied(mutationId)) {
         // Usually, the response keeper protects us from duplicate mutations,
@@ -1772,7 +1772,7 @@ void TObjectManager::HydraExecuteLeader(
         user = userGuard.GetUser();
         ExecuteVerb(RootService_, rpcContext);
     } catch (const std::exception& ex) {
-        rpcContext->Reply(ex);
+        rpcContext->Reply(SanitizeWithCurrentHydraContext(ex));
     }
 
     if (!IsRecovery()) {

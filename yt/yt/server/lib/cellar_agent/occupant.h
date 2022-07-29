@@ -30,7 +30,7 @@ struct ICellarOccupant
     virtual int GetConfigVersion() const = 0;
 
     virtual const NHydra::IDistributedHydraManagerPtr GetHydraManager() const = 0;
-    virtual const NRpc::TResponseKeeperPtr& GetResponseKeeper() const = 0;
+    virtual const NRpc::IResponseKeeperPtr& GetResponseKeeper() const = 0;
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() const = 0;
     virtual const NHiveServer::THiveManagerPtr& GetHiveManager() const = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;

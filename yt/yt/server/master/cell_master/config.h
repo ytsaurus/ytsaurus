@@ -176,6 +176,25 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicResponseKeeperConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration ExpirationTimeout;
+
+    int MaxResponseCountPerEvictionPass;
+
+    TDuration EvictionPeriod;
+
+    REGISTER_YSON_STRUCT(TDynamicResponseKeeperConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellMasterConfig
     : public TServerConfig
 {
@@ -255,6 +274,8 @@ public:
     THashMap<TString, double> AutomatonThreadBucketWeights;
 
     TDuration ExpectedMutationCommitDuration;
+
+    TDynamicResponseKeeperConfigPtr ResponseKeeper;
 
     REGISTER_YSON_STRUCT(TDynamicCellMasterConfig);
 

@@ -38,7 +38,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         NHydra::IChangelogStorePtr changelogStore,
         NHydra::ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
+        NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TReachableState targetState,
         bool isLeader,
@@ -53,7 +53,7 @@ private:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const NHydra::IChangelogStorePtr ChangelogStore_;
     const NHydra::ISnapshotStorePtr SnapshotStore_;
-    const NRpc::TResponseKeeperPtr ResponseKeeper_;
+    const NRpc::IResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
     const TReachableState TargetState_;
     const bool IsLeader_;

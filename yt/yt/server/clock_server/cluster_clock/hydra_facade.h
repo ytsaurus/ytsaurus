@@ -27,7 +27,7 @@ public:
     const TClockAutomatonPtr& GetAutomaton() const;
     const NElection::IElectionManagerPtr& GetElectionManager() const;
     const NHydra::IHydraManagerPtr& GetHydraManager() const;
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    const NRpc::IResponseKeeperPtr& GetResponseKeeper() const;
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;

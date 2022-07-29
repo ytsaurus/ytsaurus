@@ -63,7 +63,7 @@ public:
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>("Automaton");
         Automaton_ = New<TClockAutomaton>(Bootstrap_);
 
-        ResponseKeeper_ = New<TResponseKeeper>(
+        ResponseKeeper_ = CreateResponseKeeper(
             Config_->HydraManager->ResponseKeeper,
             GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             ClusterClockLogger,
@@ -148,7 +148,7 @@ public:
         return HydraManager_;
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const
+    const IResponseKeeperPtr& GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
@@ -179,7 +179,7 @@ private:
     TClockAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
 
-    TResponseKeeperPtr ResponseKeeper_;
+    IResponseKeeperPtr ResponseKeeper_;
 
     TLocalHydraJanitorPtr LocalJanitor_;
 
@@ -236,7 +236,7 @@ const IHydraManagerPtr& THydraFacade::GetHydraManager() const
     return Impl_->GetHydraManager();
 }
 
-const TResponseKeeperPtr& THydraFacade::GetResponseKeeper() const
+const IResponseKeeperPtr& THydraFacade::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }

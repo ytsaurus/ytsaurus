@@ -7,6 +7,7 @@
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
+#include "response_keeper_manager.h"
 #include "private.h"
 #include "world_initializer.h"
 
@@ -39,6 +40,7 @@
 #include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
+#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
@@ -745,6 +747,8 @@ void TBootstrap::DoInitialize()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
+    ResponseKeeperManager_ = CreateResponseKeeperManager(this);
+
     ObjectManager_ = CreateObjectManager(this);
 
     YsonInternRegistry_ = CreateYsonInternRegistry(this);

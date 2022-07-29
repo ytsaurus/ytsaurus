@@ -27,32 +27,18 @@ namespace NYT::NRpc {
  *  \note
  *  Thread affinity: single-threaded (unless noted otherwise)
  */
-class TResponseKeeper
+struct IResponseKeeper
     : public TRefCounted
 {
 public:
-    TResponseKeeper(
-        TResponseKeeperConfigPtr config,
-        IInvokerPtr invoker,
-        const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
-    ~TResponseKeeper();
-
-    //! Activates the keeper.
-    /*!
-     *  If the keeper is already started, the call does nothing.
-     *  The keeper will start remembering responses.
-     *  During the warm-up period, however, it cannot detect duplicate requests
-     *  reliably and thus #TryBeginRequest may throw.
-     */
-    void Start();
+    virtual void Start() = 0;
 
     //! Deactivates the keeper.
     /*!
      *  If the keeper is already stopped, the call does nothing.
      *  Calling #TryBeginRequest for an inactive keeper will lead to an exception.
      */
-    void Stop();
+    virtual void Stop() = 0;
 
     //! Called upon receiving a request with a given mutation #id.
     /*!
@@ -65,11 +51,11 @@ public:
      *  The call throws if the keeper is not active or if #isRetry is |true| and
      *  the keeper is warming up.
      */
-    TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry);
+    virtual TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry) = 0;
 
     //! Same as above but does not change the state of response keeper.
     //! That is, if a null future is returned, no pending future has been created for it.
-    TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const;
+    virtual TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const = 0;
 
     //! Called when a request with a given mutation #id is finished and a #response is ready.
     /*
@@ -77,14 +63,14 @@ public:
      *  previously returned by #TryBeginRequest. Additionally, if #remember is true,
      *  #response is remembered and returned by future calls to #TryBeginRequest.
      */
-    void EndRequest(TMutationId id, TSharedRefArray response, bool remember = true);
+    virtual void EndRequest(TMutationId id, TSharedRefArray response, bool remember = true) = 0;
 
     //! Similar to its non-error counterpart but also accepts errors.
     //! Note that these are never remembered and are just propagated to the listeners.
-    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember = true);
+    virtual void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember = true) = 0;
 
     //! Forgets all pending requests, which were previously registered via #TryBeginRequest.
-    void CancelPendingRequests(const TError& error);
+    virtual void CancelPendingRequests(const TError& error) = 0;
 
     //! Combines #TryBeginRequest and #EndBeginRequest.
     /*!
@@ -97,24 +83,27 @@ public:
      *  Also, if #subscribeToResponse is set and the request has mutation id assigned the response will
      *  be automatically remembered when #context is replied.
      */
-    bool TryReplyFrom(
+    virtual bool TryReplyFrom(
         const IServiceContextPtr& context,
-        bool subscribeToResponse = true);
+        bool subscribeToResponse = true) = 0;
 
     //! Returns |true| if the keeper is still warming up.
     /*!
      *  \note
      *  Thread affinity: any
      */
-    bool IsWarmingUp() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual bool IsWarmingUp() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TResponseKeeper)
+DEFINE_REFCOUNTED_TYPE(IResponseKeeper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IResponseKeeperPtr CreateResponseKeeper(
+    TResponseKeeperConfigPtr config,
+    IInvokerPtr invoker,
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

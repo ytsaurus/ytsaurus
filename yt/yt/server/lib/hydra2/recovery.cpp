@@ -40,7 +40,7 @@ TRecovery::TRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
+    IResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     TReachableState targetState,
     bool isLeader,

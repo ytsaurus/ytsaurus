@@ -19,6 +19,7 @@
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 #include <yt/yt/server/lib/hydra_common/local_hydra_janitor.h>
+#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/private.h>
@@ -110,9 +111,7 @@ public:
 
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 
-        ResponseKeeper_ = New<TResponseKeeper>(
-            Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(EAutomatonThreadQueue::ResponseKeeper),
+        ResponseKeeper_ = CreatePersistentResponseKeeper(
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
@@ -204,7 +203,7 @@ public:
         return HydraManager_;
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const override
+    const IPersistentResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
     }
@@ -315,7 +314,7 @@ private:
 
     TActionQueuePtr TransactionTrackerQueue_;
 
-    TResponseKeeperPtr ResponseKeeper_;
+    IPersistentResponseKeeperPtr ResponseKeeper_;
 
     TLocalHydraJanitorPtr LocalJanitor_;
 

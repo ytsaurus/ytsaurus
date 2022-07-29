@@ -663,7 +663,7 @@ struct TSharedRefArraySerializer
         TSizeSerializer::Save(context, value.Size());
 
         for (const auto& part : value) {
-            Save(context, part);
+            NYT::Save(context, part);
         }
     }
 
@@ -677,7 +677,7 @@ struct TSharedRefArraySerializer
         SERIALIZATION_DUMP_INDENT(context) {
             for (int index = 0; index < static_cast<int>(size); ++index) {
                 SERIALIZATION_DUMP_SUSPEND(context) {
-                    Load(context, parts[index]);
+                    NYT::Load(context, parts[index]);
                 }
                 SERIALIZATION_DUMP_WRITE(context, "%v => %v", index, DumpRangeToHex(parts[index]));
             }

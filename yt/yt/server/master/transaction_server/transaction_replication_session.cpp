@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 

@@ -78,7 +78,7 @@ public:
         IInvokerPtr trackerInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
-        TResponseKeeperPtr responseKeeper,
+        IResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         TCellId selfCellId,
         TClusterTag selfClockClusterTag,
@@ -198,7 +198,7 @@ private:
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;
     const IHydraManagerPtr HydraManager_;
-    const TResponseKeeperPtr ResponseKeeper_;
+    const IResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
     const TCellId SelfCellId_;
     const TClusterTag SelfClockClusterTag_;
@@ -1053,7 +1053,7 @@ private:
             YT_LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, %v)",
                 transactionId,
                 NRpc::GetCurrentAuthenticationIdentity());
-            SetCommitFailed(commit, ex);
+            SetCommitFailed(commit, ex, /*remember*/ false);
             RemoveTransientCommit(commit);
             // Best effort, fire-and-forget.
             AbortTransaction(transactionId, true);
@@ -2362,7 +2362,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     IInvokerPtr trackerInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    TResponseKeeperPtr responseKeeper,
+    IResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
     TClusterTag selfClockClusterTag,

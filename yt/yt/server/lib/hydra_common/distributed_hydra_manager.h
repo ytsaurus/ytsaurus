@@ -19,7 +19,7 @@ struct TDistributedHydraManagerOptions
     bool UseFork = false;
     bool WriteChangelogsAtFollowers = true;
     bool WriteSnapshotsAtFollowers = true;
-    NRpc::TResponseKeeperPtr ResponseKeeper;
+    NRpc::IResponseKeeperPtr ResponseKeeper;
 };
 
 struct TDistributedHydraManagerDynamicOptions

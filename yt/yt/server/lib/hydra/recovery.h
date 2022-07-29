@@ -33,7 +33,7 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
+        NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TVersion syncVersion,
         NLogging::TLogger logger);
@@ -52,7 +52,7 @@ protected:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
-    const NRpc::TResponseKeeperPtr ResponseKeeper_;
+    const NRpc::IResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
     const TVersion SyncVersion_;
     const NLogging::TLogger Logger;
@@ -90,7 +90,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
+        NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         NLogging::TLogger logger);
 
@@ -124,7 +124,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
+        NRpc::IResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TVersion syncVersion,
         NLogging::TLogger logger);

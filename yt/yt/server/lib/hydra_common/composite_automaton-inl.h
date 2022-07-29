@@ -81,7 +81,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LogHandlerError(error);
-            context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
+            context->SetResponseData(error);
         }
         descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
     });
@@ -115,7 +115,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LogHandlerError(error);
-            context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
+            context->SetResponseData(error);
         }
         descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
     });
