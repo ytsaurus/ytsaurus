@@ -140,7 +140,7 @@ Y_UNIT_TEST_SUITE(Readers)
 
         UNIT_ASSERT_EXCEPTION(TSkiffTableReader(proxy, schema).GetRow(), yexception);
     }
-    
+
     Y_UNIT_TEST(SkiffBadFormat)
     {
         const char arr[] = "\x00\x00" "\x12" "\x23\x34\x00\x00";

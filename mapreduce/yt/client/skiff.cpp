@@ -345,5 +345,50 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
+    const TVector<NSkiff::TSkiffSchemaPtr>& tableSchemas,
+    const TCreateSkiffSchemaOptions& options
+) {
+    constexpr auto KEY_SWITCH_COLUMN = "$key_switch";
+    constexpr auto ROW_INDEX_COLUMN = "$row_index";
+    constexpr auto RANGE_INDEX_COLUMN = "$range_index";
+
+    TVector<NSkiff::TSkiffSchemaPtr> schemas;
+    schemas.reserve(tableSchemas.size());
+
+    for (const auto& tableSchema : tableSchemas) {
+        Y_ENSURE(tableSchema->GetWireType() == NSkiff::EWireType::Tuple,
+                "Expected 'tuple' wire type for table schema, got '" << tableSchema->GetWireType() << "'");
+
+        const auto& children = tableSchema->GetChildren();
+        NSkiff::TSkiffSchemaList columns;
+
+        columns.reserve(children.size() + 3);
+        if (options.HasKeySwitch_) {
+            columns.push_back(
+                CreateSimpleTypeSchema(NSkiff::EWireType::Boolean)->SetName(KEY_SWITCH_COLUMN));
+        }
+        columns.push_back(
+            NSkiff::CreateVariant8Schema({
+                CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
+                CreateSimpleTypeSchema(NSkiff::EWireType::Int64)})
+            ->SetName(ROW_INDEX_COLUMN));
+        if (options.HasRangeIndex_) {
+            columns.push_back(
+                NSkiff::CreateVariant8Schema({
+                    CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
+                    CreateSimpleTypeSchema(NSkiff::EWireType::Int64)})
+                ->SetName(RANGE_INDEX_COLUMN));
+        }
+        columns.insert(columns.end(), children.begin(), children.end());
+
+        schemas.push_back(NSkiff::CreateTupleSchema(columns));
+    }
+
+    return NSkiff::CreateVariant16Schema(schemas);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
 } // namespace NYT
