@@ -144,10 +144,9 @@ public:
         const TString& threadNamePrefix)
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
-    {
-        Profiler_ = TProfiler{"/fair_share_queue"}
-            .WithHot();
-    }
+        , Profiler_(TProfiler("/fair_share_queue")
+            .WithHot())
+    { }
 
     ~TTwoLevelFairShareQueue()
     {
@@ -406,7 +405,7 @@ private:
         const TString PoolName;
 
         TGauge BucketCounter;
-        std::atomic<i64> Size{0};
+        std::atomic<i64> Size = 0;
         NProfiling::TSummary SizeCounter;
         TEventTimer WaitTimeCounter;
         TEventTimer ExecTimeCounter;
@@ -421,8 +420,7 @@ private:
 
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
     const TString ThreadNamePrefix_;
-
-    TProfiler Profiler_;
+    const TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
@@ -534,7 +532,6 @@ private:
 
         return nullptr;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTwoLevelFairShareQueue)
