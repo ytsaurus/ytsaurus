@@ -86,6 +86,8 @@ struct ITabletSlot
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 
     virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
+
+    virtual bool IsTabletEpochActive() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

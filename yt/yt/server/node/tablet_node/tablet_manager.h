@@ -35,6 +35,8 @@ class TTabletManager
 public:
     //! Raised when replication transaction is finished (committed or aborted).
     DECLARE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+    DECLARE_SIGNAL(void(), EpochStarted);
+    DECLARE_SIGNAL(void(), EpochStopped);
 
 public:
     TTabletManager(

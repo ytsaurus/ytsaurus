@@ -259,6 +259,12 @@ private:
 
     }
 
+    static bool IsPeerHealthy(NHydra::EPeerState state)
+    {
+        return state == EPeerState::Leading ||
+            state == EPeerState::Following;
+    }
+
     void OnCellarNodeHeartbeatRequested(
         ECellarType cellarType,
         const ICellarPtr& tabletCellar,
@@ -268,19 +274,42 @@ private:
             return;
         }
 
+        THashSet<NHydra::TCellId> notReadyCellIds;
+
+        for (auto occupant : tabletCellar->Occupants()) {
+            if (!occupant) {
+                continue;
+            }
+
+            if (auto tabletSlot = occupant->GetTypedOccupier<ITabletSlot>()) {
+                bool snapshotsReady = tabletSlot->IsTabletEpochActive();
+                auto* protoSlotInfo = heartbeatRequest->mutable_cell_slots(occupant->GetIndex());
+
+                // Signaling master that store preload is not completed yet
+                // (actually it did not even started).
+                if (IsPeerHealthy(static_cast<NHydra::EPeerState>(protoSlotInfo->peer_state())) && !snapshotsReady) {
+                    notReadyCellIds.insert(occupant->GetCellId());
+                    static const int PreloadPendingStoreSentinel = 1;
+                    protoSlotInfo->set_preload_pending_store_count(PreloadPendingStoreSentinel);
+                }
+            }
+        }
+
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshots = snapshotStore->GetTabletSnapshots();
         for (const auto& tabletSnapshot : tabletSnapshots) {
-            if (tabletSnapshot->CellId) {
-                if (const auto& occupant = tabletCellar->FindOccupant(tabletSnapshot->CellId)) {
-                    auto* protoSlotInfo = heartbeatRequest->mutable_cell_slots(occupant->GetIndex());
-                    protoSlotInfo->set_preload_pending_store_count(protoSlotInfo->preload_pending_store_count() +
-                        tabletSnapshot->PreloadPendingStoreCount);
-                    protoSlotInfo->set_preload_completed_store_count(protoSlotInfo->preload_completed_store_count() +
-                        tabletSnapshot->PreloadCompletedStoreCount);
-                    protoSlotInfo->set_preload_failed_store_count(protoSlotInfo->preload_failed_store_count() +
-                        tabletSnapshot->PreloadFailedStoreCount);
-                }
+            auto cellId = tabletSnapshot->CellId;
+            if (!cellId || notReadyCellIds.contains(cellId)) {
+                continue;
+            }
+            if (const auto& occupant = tabletCellar->FindOccupant(cellId)) {
+                auto* protoSlotInfo = heartbeatRequest->mutable_cell_slots(occupant->GetIndex());
+                protoSlotInfo->set_preload_pending_store_count(protoSlotInfo->preload_pending_store_count() +
+                    tabletSnapshot->PreloadPendingStoreCount);
+                protoSlotInfo->set_preload_completed_store_count(protoSlotInfo->preload_completed_store_count() +
+                    tabletSnapshot->PreloadCompletedStoreCount);
+                protoSlotInfo->set_preload_failed_store_count(protoSlotInfo->preload_failed_store_count() +
+                    tabletSnapshot->PreloadFailedStoreCount);
             }
         }
     }
