@@ -282,6 +282,7 @@ void TCoordinator::UpdateState()
     }
 
     auto onUpdateSuccess = [&] {
+        YT_LOG_DEBUG("Coordinator update succeded");
         BannedGauge_.Update(Self_->Entry->IsBanned ? 1 : 0);
         AvailableAt_.Store(TInstant::Now());
         FirstUpdateIterationFinished_.TrySet();
@@ -362,8 +363,14 @@ void TCoordinator::UpdateState()
             setOptions.SuppressTransactionCoordinatorSync = true;
             setOptions.SuppressUpstreamSync = true;
 
-            WaitFor(Client_->SetNode(selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness), setOptions))
-                .ThrowOnError();
+            auto future = Client_->SetNode(
+                selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness),
+                setOptions);
+            future.Apply(BIND([&] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_LOG_INFO(error, "Error updating proxy liveness");
+                }
+            }));
         }
 
         auto proxies = ListCypressProxies();

@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -137,13 +139,24 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         auto refreshRevision = cachingRequestHeaderExt->refresh_revision();
 
+        auto suppressUpstreamSync = request->suppress_upstream_sync();
+        auto suppressTransactionCoordinatorSync = request->suppress_transaction_coordinator_sync();
+        // COMPAT(aleksandra-zh)
+        if (subrequestHeader.HasExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext)) {
+            const auto& multicellSyncExt = subrequestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+            suppressUpstreamSync |= multicellSyncExt.suppress_upstream_sync();
+            suppressTransactionCoordinatorSync |= multicellSyncExt.suppress_transaction_coordinator_sync();
+        }
+
         TObjectServiceCacheKey key(
             CellTagFromId(CellId_),
             cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
-            subrequestMessage[1]);
+            subrequestMessage[1],
+            suppressUpstreamSync,
+            suppressTransactionCoordinatorSync);
 
         if (ypathExt.mutating()) {
             THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
@@ -197,6 +210,10 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 cachingRequestHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
                 cachingRequestHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
             }
+
+            auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+            multicellSyncExt->set_suppress_upstream_sync(suppressUpstreamSync);
+            multicellSyncExt->set_suppress_transaction_coordinator_sync(suppressTransactionCoordinatorSync);
 
             subrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 

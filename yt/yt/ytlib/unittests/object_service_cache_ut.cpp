@@ -34,7 +34,9 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service
         "Execute", // method
-        TSharedRef::FromString("request"));
+        TSharedRef::FromString("request"),
+        /*suppressUpstreamSync*/ false,
+        /*suppressTransactionCoordinatorSync*/ false);
 
     auto requestId = NRpc::TRequestId::Create();
     auto expirationTime = TDuration::MilliSeconds(10);
@@ -131,7 +133,9 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service
         "Execute", // method
-        TSharedRef::FromString("request"));
+        TSharedRef::FromString("request"),
+        /*suppressUpstreamSync*/ false,
+        /*suppressTransactionCoordinatorSync*/ false);
 
     auto requestId = NRpc::TRequestId::Create();
     auto expirationTime = TDuration::MilliSeconds(10);

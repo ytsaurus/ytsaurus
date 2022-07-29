@@ -36,7 +36,9 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     TYPath path,
     TString service,
     TString method,
-    TSharedRef requestBody)
+    TSharedRef requestBody,
+    bool suppressUpstreamSync,
+    bool suppressTransactionCoordinatorSync)
     : CellTag(std::move(cellTag))
     , User(std::move(user))
     , Path(std::move(path))
@@ -44,6 +46,8 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     , Method(std::move(method))
     , RequestBody(std::move(requestBody))
     , RequestBodyHash(GetChecksum(RequestBody))
+    , SuppressUpstreamSync(suppressUpstreamSync)
+    , SuppressTransactionCoordinatorSync(suppressTransactionCoordinatorSync)
 { }
 
 TObjectServiceCacheKey::operator size_t() const
@@ -55,6 +59,8 @@ TObjectServiceCacheKey::operator size_t() const
     HashCombine(result, Service);
     HashCombine(result, Method);
     HashCombine(result, RequestBodyHash);
+    HashCombine(result, SuppressUpstreamSync);
+    HashCombine(result, SuppressTransactionCoordinatorSync);
     return result;
 }
 
@@ -67,7 +73,9 @@ bool TObjectServiceCacheKey::operator == (const TObjectServiceCacheKey& other) c
         Service == other.Service &&
         Method == other.Method &&
         RequestBodyHash == other.RequestBodyHash &&
-        TRef::AreBitwiseEqual(RequestBody, other.RequestBody);
+        TRef::AreBitwiseEqual(RequestBody, other.RequestBody) &&
+        SuppressUpstreamSync == other.SuppressUpstreamSync &&
+        SuppressTransactionCoordinatorSync == other.SuppressTransactionCoordinatorSync;
 }
 
 i64 TObjectServiceCacheKey::ComputeExtraSpace() const
@@ -82,13 +90,15 @@ i64 TObjectServiceCacheKey::ComputeExtraSpace() const
 
 void FormatValue(TStringBuilderBase* builder, const TObjectServiceCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{%v %v %v.%v %v %zx}",
+    builder->AppendFormat("{%v %v %v.%v %v %zx %v %v}",
         key.CellTag,
         key.User,
         key.Service,
         key.Method,
         key.Path,
-        key.RequestBodyHash);
+        key.RequestBodyHash,
+        key.SuppressUpstreamSync,
+        key.SuppressTransactionCoordinatorSync);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
