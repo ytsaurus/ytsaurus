@@ -58,7 +58,7 @@ IYPathServicePtr TTabletProxyBase::CreateOrchidService()
 
     return CreateOrchidYPathService(TOrchidOptions{
         .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(nodeAddresses),
-        .RemoteRoot = Format("//tablet_cells/%v/tablets/%v", cellId, tablet->GetId()),
+        .RemoteRoot = Format("//tablet_cells/%v/%v", cellId, GetOrchidPath(tablet->GetId())),
         .Timeout = timeout,
     });
 }
@@ -85,8 +85,10 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(EInternedAttributeKey::OwnerId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableId)
         .SetPresent(tablet->GetType() == EObjectType::Tablet));
-    descriptors->push_back(EInternedAttributeKey::ChunkListId);
-    descriptors->push_back(EInternedAttributeKey::HunkChunkListId);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkListId)
+        .SetPresent(tablet->GetChunkList()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkListId)
+        .SetPresent(tablet->GetHunkChunkList()));
     descriptors->push_back(EInternedAttributeKey::InMemoryMode);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellId)
         .SetPresent(tablet->GetCell()));
@@ -162,11 +164,19 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::ChunkListId:
+            if (!chunkList) {
+                break;
+            }
+
             BuildYsonFluently(consumer)
                 .Value(chunkList->GetId());
             return true;
 
         case EInternedAttributeKey::HunkChunkListId:
+            if (!hunkChunkList) {
+                break;
+            }
+
             BuildYsonFluently(consumer)
                 .Value(hunkChunkList->GetId());
             return true;

@@ -153,7 +153,7 @@ public:
         bool updateTabletStatistics,
         bool useNativeContentRevisionCas) override
     {
-        YT_ASSERT(!updateTabletStatistics || IsTableType(chunkOwner->GetType()));
+        YT_ASSERT(!updateTabletStatistics || IsTabletOwnerType(chunkOwner->GetType()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {

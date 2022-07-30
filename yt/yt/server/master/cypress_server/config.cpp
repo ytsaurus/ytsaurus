@@ -26,12 +26,29 @@ void TCypressManagerConfig::Register(TRegistrar registrar)
         .Default(2)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
 
+    registrar.Parameter("default_hunk_storage_erasure_codec", &TThis::DefaultHunkStorageErasureCodec)
+        .Default(NErasure::ECodec::None);
+    registrar.Parameter("default_hunk_storage_replication_factor", &TThis::DefaultHunkStorageReplicationFactor)
+        .Default(3)
+        .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
+    registrar.Parameter("default_hunk_storage_read_quorum", &TThis::DefaultHunkStorageReadQuorum)
+        .Default(2)
+        .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
+    registrar.Parameter("default_hunk_storage_write_quorum", &TThis::DefaultHunkStorageWriteQuorum)
+        .Default(2)
+        .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,
             config->DefaultJournalReplicationFactor,
             config->DefaultJournalReadQuorum,
             config->DefaultJournalWriteQuorum);
+        NJournalClient::ValidateJournalAttributes(
+            config->DefaultHunkStorageErasureCodec,
+            config->DefaultHunkStorageReplicationFactor,
+            config->DefaultHunkStorageReadQuorum,
+            config->DefaultHunkStorageWriteQuorum);
     });
 }
 

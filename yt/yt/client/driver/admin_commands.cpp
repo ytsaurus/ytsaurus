@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/ytree/fluent.h>

@@ -157,6 +157,11 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
+
+    virtual TYPath GetOrchidPath(TTabletId tabletId) const override
+    {
+        return Format("tablets/%v", tabletId);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

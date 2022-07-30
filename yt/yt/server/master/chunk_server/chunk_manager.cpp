@@ -70,6 +70,7 @@
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 // COMPAT(gritukan)
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -953,6 +954,9 @@ public:
 
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
             const auto* chunkList = chunkTree->As<TChunkList>();
+            if (chunkList->GetKind() != EChunkListKind::JournalRoot) {
+                continue;
+            }
             const auto& children = chunkList->Children();
             int index = GetChildIndex(chunkList, chunk);
             if (index == 0) {
@@ -974,6 +978,9 @@ public:
 
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
             const auto* chunkList = chunkTree->As<TChunkList>();
+            if (chunkList->GetKind() != EChunkListKind::JournalRoot) {
+                continue;
+            }
             const auto& children = chunkList->Children();
             int index = GetChildIndex(chunkList, chunk);
             if (index + 1 == static_cast<int>(children.size())) {
@@ -5002,6 +5009,13 @@ private:
 
         if (chunk->IsJournal()) {
             UpdateResourceUsage(chunk, +1);
+        }
+
+        // Journal hunk chunks require special treatment.
+        if (chunk->GetSealable()) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            tabletManager->OnHunkJournalChunkSealed(chunk);
+            return;
         }
 
         auto parentCount = chunk->GetParentCount();

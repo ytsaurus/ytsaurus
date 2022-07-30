@@ -185,6 +185,8 @@ public:
         int* first,
         int* last) const;
 
+    void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk);
+
     // Backup stuff. Used internally by TBackupManager.
     void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
     TError PromoteFlushedDynamicStores(TTablet* tablet);

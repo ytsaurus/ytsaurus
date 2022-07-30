@@ -19,11 +19,18 @@ class TCypressManagerConfig
 {
 public:
     int DefaultFileReplicationFactor;
+
     int DefaultTableReplicationFactor;
+
     NErasure::ECodec DefaultJournalErasureCodec;
     int DefaultJournalReplicationFactor;
     int DefaultJournalReadQuorum;
     int DefaultJournalWriteQuorum;
+
+    NErasure::ECodec DefaultHunkStorageErasureCodec;
+    int DefaultHunkStorageReplicationFactor;
+    int DefaultHunkStorageReadQuorum;
+    int DefaultHunkStorageWriteQuorum;
 
     REGISTER_YSON_STRUCT(TCypressManagerConfig);
 

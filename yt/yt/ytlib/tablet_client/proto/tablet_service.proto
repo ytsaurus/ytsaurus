@@ -72,3 +72,39 @@ message TRspResumeTabletCell
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqWriteHunks
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+
+    // Payloads are passed via attachments.
+}
+
+message TRspWriteHunks
+{
+    message TDescriptor
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 record_index = 2;
+        required int32 record_offset = 3;
+        required int32 length = 4;
+    }
+    repeated TDescriptor descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqToggleHunkTabletStoreLock
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required NYT.NProto.TGuid store_id = 3;
+    required NYT.NProto.TGuid locker_tablet_id = 4;
+
+    //! If true, store is locked.
+    //! If false, store is unlocked.
+    required bool lock = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

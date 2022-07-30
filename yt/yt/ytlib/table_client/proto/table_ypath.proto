@@ -113,7 +113,7 @@ message TTabletInfo
     required uint64 mount_revision = 7;
     required int32 state = 2; // ETabletState
     required int32 in_memory_mode = 8; // EInMemoryMode
-    required bytes pivot_key = 3;
+    optional bytes pivot_key = 3;
     optional NYT.NProto.TGuid cell_id = 4;
     optional int32 cell_config_version = 5;
 }
@@ -129,11 +129,11 @@ message TReplicaInfo
 message TRspGetMountInfo
 {
     required NYT.NProto.TGuid table_id = 1;
-    required TTableSchemaExt schema = 2;
+    optional TTableSchemaExt schema = 2;
     repeated TTabletInfo tablets = 3;
     repeated NYT.NHiveClient.NProto.TCellDescriptor tablet_cells = 4;
-    required bool dynamic = 5;
-    required NYT.NProto.TGuid upstream_replica_id = 6;
+    optional bool dynamic = 5;
+    optional NYT.NProto.TGuid upstream_replica_id = 6;
     repeated TReplicaInfo replicas = 7;
     optional bool enable_detailed_profiling = 8;
     optional NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId

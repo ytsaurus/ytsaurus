@@ -93,6 +93,7 @@
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
@@ -960,6 +961,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAreaMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateHunkStorageTypeHandler(this));
     CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(this));
 

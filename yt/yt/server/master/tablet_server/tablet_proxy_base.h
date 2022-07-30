@@ -27,6 +27,8 @@ protected:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
 
+    virtual NYPath::TYPath GetOrchidPath(TTabletId tabletId) const = 0;
+
 private:
     NYTree::IYPathServicePtr CreateOrchidService();
 };

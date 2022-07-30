@@ -12,23 +12,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadHunksCommand::TSerializableReadHunkRequest::TSerializableReadHunkRequest()
-{
-    RegisterParameter("chunk_id", ChunkId);
-    RegisterParameter("erasure_codec", ErasureCodec)
-        .Optional();
-    RegisterParameter("block_index", BlockIndex);
-    RegisterParameter("block_offset", BlockOffset);
-    RegisterParameter("block_size", BlockSize)
-        .Optional();
-    RegisterParameter("length", Length);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TReadHunksCommand::TReadHunksCommand()
 {
-    RegisterParameter("requests", Requests);
+    RegisterParameter("descriptors", Descriptors);
 }
 
 void TReadHunksCommand::DoExecute(ICommandContextPtr context)
@@ -37,24 +23,105 @@ void TReadHunksCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->ChunkFragmentReader,
         ChunkFragmentReader);
 
-    std::vector<TReadHunkRequest> requests;
-    for (const auto& request : Requests) {
-        requests.push_back(*request);
+    std::vector<THunkDescriptor> descriptors;
+    descriptors.reserve(Descriptors.size());
+    for (const auto& descriptor : Descriptors) {
+        descriptors.push_back(*descriptor);
     }
 
     auto internalClient = context->GetInternalClientOrThrow();
-    auto responses = WaitFor(internalClient->ReadHunks(requests, Options))
+    auto responses = WaitFor(internalClient->ReadHunks(descriptors, Options))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
-            .Item("responses").DoListFor(responses, [&] (auto fluent, const TSharedRef& response) {
+            .Item("hunks").DoListFor(responses, [&] (auto fluent, const TSharedRef& response) {
                 fluent
                     .Item().BeginMap()
                         .Item("payload").Value(TStringBuf(response.Begin(), response.End()))
                     .EndMap();
             })
         .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWriteHunksCommand::TWriteHunksCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_index", TabletIndex);
+    RegisterParameter("payloads", Payloads);
+}
+
+void TWriteHunksCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    std::vector<TSharedRef> payloads;
+    payloads.reserve(Payloads.size());
+    for (const auto& payload : Payloads) {
+        payloads.push_back(TSharedRef::FromString(payload));
+    }
+
+    auto descriptors = WaitFor(internalClient->WriteHunks(Path, TabletIndex, payloads))
+        .ValueOrThrow();
+
+    std::vector<NApi::TSerializableHunkDescriptorPtr> serializableDescriptors;
+    serializableDescriptors.reserve(descriptors.size());
+    for (const auto& descriptor : descriptors) {
+        serializableDescriptors.push_back(New<NApi::TSerializableHunkDescriptor>(descriptor));
+    }
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(serializableDescriptors));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLockHunkStoreCommand::TLockHunkStoreCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_index", TabletIndex);
+    RegisterParameter("store_id", StoreId);
+    RegisterParameter("locker_tablet_id", LockerTabletId);
+}
+
+void TLockHunkStoreCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->LockHunkStore(
+        Path,
+        TabletIndex,
+        StoreId,
+        LockerTabletId))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnlockHunkStoreCommand::TUnlockHunkStoreCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_index", TabletIndex);
+    RegisterParameter("store_id", StoreId);
+    RegisterParameter("locker_tablet_id", LockerTabletId);
+}
+
+void TUnlockHunkStoreCommand::DoExecute(ICommandContextPtr context)
+{
+    auto internalClient = context->GetInternalClientOrThrow();
+
+    WaitFor(internalClient->UnlockHunkStore(
+        Path,
+        TabletIndex,
+        StoreId,
+        LockerTabletId))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

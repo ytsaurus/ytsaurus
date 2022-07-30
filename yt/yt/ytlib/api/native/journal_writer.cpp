@@ -334,15 +334,15 @@ private:
             TSessionId Id;
             std::vector<TNodePtr> Nodes;
 
+            EChunkSessionState State = EChunkSessionState::Allocating;
+            bool SwitchScheduled = false;
+
             //! Row is called completed iff it is written to all the replicas.
             i64 ReplicationFactorFlushedRowCount = 0;
 
             //! Row is called flushed iff it is written to #WriteQuorum replicas.
             i64 QuorumFlushedRowCount = 0;
             i64 QuorumFlushedDataSize = 0;
-
-            EChunkSessionState State = EChunkSessionState::Allocating;
-            bool SwitchScheduled = false;
 
             std::optional<i64> FirstRowIndex;
 

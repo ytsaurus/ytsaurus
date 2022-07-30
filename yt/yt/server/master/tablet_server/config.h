@@ -211,6 +211,9 @@ public:
     //! Hunk chunk writer config for all dynamic tables.
     NTabletNode::TTabletHunkWriterConfigPtr HunkChunkWriter;
 
+    //! Hunk store writer config for all hunk storages.
+    NTabletNode::THunkStoreWriterConfigPtr HunkStoreWriter;
+
     //! Tablet balancer config.
     TTabletBalancerMasterConfigPtr TabletBalancer;
 

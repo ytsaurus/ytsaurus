@@ -39,7 +39,7 @@ private:
 
     bool IsValid(TObject* object) const override
     {
-        return object->GetType() == EObjectType::Tablet;
+        return IsTabletType(object->GetType());
     }
 
     i64 GetSize() const override

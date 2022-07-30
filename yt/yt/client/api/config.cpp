@@ -85,7 +85,7 @@ TPersistentQueuePollerConfig::TPersistentQueuePollerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJournalWriterConfig::Register(TRegistrar registrar)
+void TJournalChunkWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_batch_row_count", &TThis::MaxBatchRowCount)
         .Default(256);
@@ -99,15 +99,6 @@ void TJournalWriterConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_flush_data_size", &TThis::MaxFlushDataSize)
         .Default(100_MB);
 
-    registrar.Parameter("max_chunk_row_count", &TThis::MaxChunkRowCount)
-        .GreaterThan(0)
-        .Default(1'000'000);
-    registrar.Parameter("max_chunk_data_size", &TThis::MaxChunkDataSize)
-        .GreaterThan(0)
-        .Default(10_GB);
-    registrar.Parameter("max_chunk_session_duration", &TThis::MaxChunkSessionDuration)
-        .Default(TDuration::Hours(60));
-
     registrar.Parameter("prefer_local_host", &TThis::PreferLocalHost)
         .Default(true);
 
@@ -118,29 +109,15 @@ void TJournalWriterConfig::Register(TRegistrar registrar)
     registrar.Parameter("node_ban_timeout", &TThis::NodeBanTimeout)
         .Default(TDuration::Seconds(60));
 
-    registrar.Parameter("open_session_backoff_time", &TThis::OpenSessionBackoffTime)
-        .Default(TDuration::Seconds(10));
-
     registrar.Parameter("node_channel", &TThis::NodeChannel)
         .DefaultNew();
 
-    registrar.Parameter("prerequisite_transaction_probe_period", &TThis::PrerequisiteTransactionProbePeriod)
-        .Default(TDuration::Seconds(60));
-
-    registrar.Parameter("dont_close", &TThis::DontClose)
-        .Default(false);
-    registrar.Parameter("dont_seal", &TThis::DontSeal)
-        .Default(false);
-    registrar.Parameter("dont_preallocate", &TThis::DontPreallocate)
-        .Default(false);
     registrar.Parameter("replica_failure_probability", &TThis::ReplicaFailureProbability)
         .Default(0.0)
         .InRange(0.0, 1.0);
     registrar.Parameter("replica_row_limits", &TThis::ReplicaRowLimits)
         .Default();
     registrar.Parameter("replica_fake_timeout_delay", &TThis::ReplicaFakeTimeoutDelay)
-        .Default();
-    registrar.Parameter("open_delay", &TThis::OpenDelay)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
@@ -155,6 +132,56 @@ void TJournalWriterConfig::Register(TRegistrar registrar)
                 << TErrorAttribute("max_flush_data_size", config->MaxFlushDataSize);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJournalWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_chunk_row_count", &TThis::MaxChunkRowCount)
+        .GreaterThan(0)
+        .Default(1'000'000);
+    registrar.Parameter("max_chunk_data_size", &TThis::MaxChunkDataSize)
+        .GreaterThan(0)
+        .Default(10_GB);
+    registrar.Parameter("max_chunk_session_duration", &TThis::MaxChunkSessionDuration)
+        .Default(TDuration::Hours(60));
+
+    registrar.Parameter("open_session_backoff_time", &TThis::OpenSessionBackoffTime)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("prerequisite_transaction_probe_period", &TThis::PrerequisiteTransactionProbePeriod)
+        .Default(TDuration::Seconds(60));
+
+    registrar.Parameter("dont_close", &TThis::DontClose)
+        .Default(false);
+    registrar.Parameter("dont_seal", &TThis::DontSeal)
+        .Default(false);
+    registrar.Parameter("dont_preallocate", &TThis::DontPreallocate)
+        .Default(false);
+    registrar.Parameter("open_delay", &TThis::OpenDelay)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJournalChunkWriterOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("replication_factor", &TThis::ReplicationFactor)
+        .Default(3);
+    registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
+        .Default(NErasure::ECodec::None);
+
+    registrar.Parameter("read_quorum", &TThis::ReadQuorum)
+        .Default(2);
+    registrar.Parameter("write_quorum", &TThis::WriteQuorum)
+        .Default(2);
+
+    registrar.Parameter("replica_lag_limit", &TThis::ReplicaLagLimit)
+        .Default(NJournalClient::DefaultReplicaLagLimit);
+
+    registrar.Parameter("enable_multiplexing", &TThis::EnableMultiplexing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

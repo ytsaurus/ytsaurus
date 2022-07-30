@@ -720,6 +720,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             if (isExternal) {
                 break;
             }
+
             BuildYsonFluently(consumer)
                 .Value(chunkList->GetId());
             return true;

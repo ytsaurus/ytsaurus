@@ -254,12 +254,16 @@ private:
             PrimaryRevision_ = batchRsp->GetRevision(0);
 
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
             CellTag_ = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTagSentinel);
             TableId_ = attributes->Get<TObjectId>("id");
             auto dynamic = attributes->Get<bool>("dynamic", false);
 
-            if (!dynamic) {
-                THROW_ERROR_EXCEPTION("Table %v is not dynamic", Path_);
+            auto type = TypeFromId(TableId_);
+            if (IsTableType(type) && !dynamic) {
+                THROW_ERROR_EXCEPTION(
+                    "Table %v is not dynamic",
+                    Path_);
             }
         }
 

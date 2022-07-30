@@ -197,7 +197,11 @@ const NChunkServer::TChunkList* TTabletBase::GetHunkChunkList() const
 
 TChunkList* TTabletBase::GetChunkList(EChunkListContentType type)
 {
-    return Owner_->GetTrunkNode()->GetChunkList(type)->Children()[Index_]->AsChunkList();
+    if (auto* rootChunkList = Owner_->GetTrunkNode()->GetChunkList(type)) {
+        return rootChunkList->Children()[Index_]->AsChunkList();
+    } else {
+        return nullptr;
+    }
 }
 
 const TChunkList* TTabletBase::GetChunkList(EChunkListContentType type) const

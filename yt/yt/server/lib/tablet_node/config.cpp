@@ -853,4 +853,35 @@ void TReplicatorHintConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THunkStorageMountConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("desired_allocated_store_count", &TThis::DesiredAllocatedStoreCount)
+        .Default(1);
+
+    registrar.Parameter("store_rotation_period", &TThis::StoreRotationPeriod)
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("store_removal_grace_period", &TThis::StoreRemovalGracePeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THunkStoreWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("desired_hunk_count_per_chunk", &TThis::DesiredHunkCountPerChunk)
+        .Default(10'000'000);
+    registrar.Parameter("desired_chunk_size", &TThis::DesiredChunkSize)
+        .Default(1_GB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THunkStoreWriterOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("medium_name", &TThis::MediumName);
+    registrar.Parameter("account", &TThis::Account);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode

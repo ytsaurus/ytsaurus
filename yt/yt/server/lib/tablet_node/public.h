@@ -206,6 +206,18 @@ DEFINE_ENUM(EPeriodicCompactionMode,
     (Partition)
 );
 
+DEFINE_ENUM(EHunkStoreState,
+    ((Undefined)              (0)) // not initialized
+    ((Allocated)              (1)) // ready to recieve data
+    ((Active)                 (2)) // ready to recieve data; used by tablet for new writes
+    ((Passive)                (3)) // rotated and cannot recieve data
+);
+
+DEFINE_ENUM(EHunkStoreLockMode,
+    ((Exclusive)              (1))
+    ((Shared)                 (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
@@ -240,6 +252,9 @@ DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
 DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletHunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TBackupManagerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(THunkStorageMountConfig)
+DECLARE_REFCOUNTED_CLASS(THunkStoreWriterConfig)
+DECLARE_REFCOUNTED_CLASS(THunkStoreWriterOptions)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

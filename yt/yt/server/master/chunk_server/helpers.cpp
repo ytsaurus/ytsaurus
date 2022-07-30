@@ -293,7 +293,7 @@ void AttachToChunkList(
     if (!childrenSealed) {
         unsealedCount += static_cast<int>(childrenEnd - childrenBegin);
     }
-    if (unsealedCount > 1) {
+    if (unsealedCount > 1 && chunkList->GetKind() == EChunkListKind::JournalRoot) {
         if (!childrenOverlayed) {
             THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since the former is not overlayed",
                 firstChild->GetId(),
@@ -403,10 +403,22 @@ void DetachFromChunkList(
             break;
         }
 
-        case EChunkDetachPolicy::SortedTablet: {
-            YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet ||
-                chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
-                chunkList->GetKind() == EChunkListKind::Hunk);
+        case EChunkDetachPolicy::SortedTablet:
+        case EChunkDetachPolicy::HunkTablet: {
+            switch (policy) {
+                case EChunkDetachPolicy::SortedTablet:
+                    YT_VERIFY(
+                        chunkList->GetKind() == EChunkListKind::SortedDynamicTablet ||
+                        chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                        chunkList->GetKind() == EChunkListKind::Hunk);
+                    break;
+                case EChunkDetachPolicy::HunkTablet:
+                    YT_VERIFY(chunkList->GetKind() == EChunkListKind::HunkTablet);
+                    break;
+                default:
+                    YT_ABORT();
+            }
+
             // Can handle arbitrary children.
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());

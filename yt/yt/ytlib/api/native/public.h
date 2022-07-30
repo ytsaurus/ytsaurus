@@ -27,6 +27,8 @@ DECLARE_REFCOUNTED_CLASS(TClockServersConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionDynamicConfig)
 
+DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
+
 struct TConnectionOptions;
 
 struct TNativeTransactionStartOptions;

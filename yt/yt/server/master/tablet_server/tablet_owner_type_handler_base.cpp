@@ -1,5 +1,6 @@
 #include "tablet_owner_type_handler_base.h"
 
+#include "hunk_storage_node.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
@@ -114,6 +115,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
 
 template class TTabletOwnerTypeHandlerBase<TTableNode>;
 template class TTabletOwnerTypeHandlerBase<TReplicatedTableNode>;
+template class TTabletOwnerTypeHandlerBase<THunkStorageNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

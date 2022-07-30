@@ -1436,7 +1436,7 @@ class TestChaos(ChaosTestBase):
             wait(lambda: lookup_rows("//tmp/t", keys) == rows)
             wait(lambda: get("//tmp/q/@tablets/0/trimmed_row_count", driver=remote_driver0) == row_count)
             sync_flush_table("//tmp/q", driver=remote_driver0)
-            wait(lambda: get("//tmp/q/@chunk_count", driver=remote_driver0) == 0)
+            wait(lambda: len(get("//tmp/q/@chunk_ids", driver=remote_driver0)) == 0)
 
         _check("1", 1)
         _check("2", 2)

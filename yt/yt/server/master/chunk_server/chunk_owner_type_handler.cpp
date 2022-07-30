@@ -17,6 +17,7 @@
 
 #include <yt/yt/server/master/table_server/table_manager.h>
 
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -613,10 +614,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template class TChunkOwnerTypeHandler<TFileNode>;
 template class TChunkOwnerTypeHandler<TTableNode>;
 template class TChunkOwnerTypeHandler<TReplicatedTableNode>;
 template class TChunkOwnerTypeHandler<TJournalNode>;
+template class TChunkOwnerTypeHandler<NTabletServer::THunkStorageNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

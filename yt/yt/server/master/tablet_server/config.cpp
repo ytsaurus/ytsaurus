@@ -139,6 +139,8 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
         .DefaultNew();
+    registrar.Parameter("hunk_store_writer", &TThis::HunkStoreWriter)
+        .DefaultNew();
     registrar.Parameter("tablet_cell_decommissioner", &TThis::TabletCellDecommissioner)
         .DefaultNew();
     registrar.Parameter("tablet_action_manager", &TThis::TabletActionManager)

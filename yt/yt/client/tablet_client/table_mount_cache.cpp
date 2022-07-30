@@ -164,7 +164,7 @@ void TTableMountInfo::ValidateOrdered() const
     if (!IsOrdered()) {
         THROW_ERROR_EXCEPTION("Table %v is not ordered", Path);
     }
-}   
+}
 
 void TTableMountInfo::ValidateNotPhysicallyLog() const
 {

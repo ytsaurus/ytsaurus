@@ -316,6 +316,9 @@ public:
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );
+            REGISTER_ALL(TWriteHunksCommand,               "write_hunks",                     Null,       Structured, false,  true );
+            REGISTER_ALL(TLockHunkStoreCommand,            "lock_hunk_store",                 Null,       Structured, false,  true );
+            REGISTER_ALL(TUnlockHunkStoreCommand,          "unlock_hunk_store",               Null,       Structured, false,  true );
         }
 
 #undef REGISTER

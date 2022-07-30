@@ -6,6 +6,10 @@
 #include "cypress_integration.h"
 #include "mount_config_storage.h"
 #include "private.h"
+#include "hunk_tablet.h"
+#include "hunk_tablet_type_handler.h"
+#include "hunk_storage_node.h"
+#include "hunk_storage_node_type_handler.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
@@ -248,6 +252,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnHunkTabletMounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnHunkTabletUnmounted, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
         tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
@@ -262,6 +268,7 @@ public:
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateTabletTypeHandler(Bootstrap_));
+        objectManager->RegisterHandler(CreateHunkTabletTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateTableReplicaTypeHandler(Bootstrap_, &TableReplicaMap_));
         objectManager->RegisterHandler(CreateTabletActionTypeHandler(Bootstrap_, &TabletActionMap_));
 
@@ -271,6 +278,10 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, MakeStrong(this))));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
@@ -322,11 +333,23 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
-        YT_VERIFY(type == EObjectType::Tablet);
+        YT_VERIFY(IsTabletType(type));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(type);
-        auto tabletHolder = TPoolAllocator::New<TTablet>(id);
+
+        std::unique_ptr<TTabletBase> tabletHolder;
+        switch (type) {
+            case EObjectType::Tablet:
+                tabletHolder = TPoolAllocator::New<TTablet>(id);
+                break;
+            case EObjectType::HunkTablet:
+                tabletHolder = TPoolAllocator::New<THunkTablet>(id);
+                break;
+            default:
+                YT_ABORT();
+        }
+
         tabletHolder->SetOwner(table);
 
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
@@ -1021,8 +1044,8 @@ public:
                 std::move(tabletsToMount));
         }
 
-        auto tableSettings = GetTableSettings(table->As<TTableNode>());
-        auto serializedTableSettings = SerializeTableSettings(tableSettings);
+        auto tableSettings = GetTabletOwnerSettings(table);
+        auto serializedTableSettings = SerializeTabletOwnerSettings(tableSettings);
 
         DoMountTablets(
             table,
@@ -1335,7 +1358,9 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        if (IsTableType(table->GetType())) {
+            TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        }
     }
 
     void Reshard(
@@ -2457,25 +2482,30 @@ public:
         return GetBuiltin(DefaultTabletCellBundle_);
     }
 
-    void SetTabletCellBundle(TTabletOwnerBase* owner, TTabletCellBundle* newBundle)
+    void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* newBundle)
     {
-        YT_VERIFY(owner->IsTrunk());
+        YT_VERIFY(table->IsTrunk());
 
-        auto* oldBundle = owner->TabletCellBundle().Get();
+        auto* oldBundle = table->TabletCellBundle().Get();
         if (oldBundle == newBundle) {
             return;
         }
 
-        if (IsTableType(owner->GetType())) {
+        if (IsTableType(table->GetType())) {
             DoSetTabletCellBundle(
-                owner->As<TTableNode>(),
+                table->As<TTableNode>(),
+                oldBundle,
+                newBundle);
+        } else if (table->GetType() == EObjectType::HunkStorage) {
+            DoSetTabletCellBundle(
+                table->As<THunkStorageNode>(),
                 oldBundle,
                 newBundle);
         } else {
             YT_ABORT();
         }
 
-        owner->TabletCellBundle().Assign(newBundle);
+        table->TabletCellBundle().Assign(newBundle);
     }
 
     void DoSetTabletCellBundle(
@@ -2485,18 +2515,38 @@ public:
     {
         YT_VERIFY(table->IsTrunk());
 
+        if (table->IsDynamic()) {
+            DoSetTabletCellBundleImpl(table, oldBundle, newBundle);
+        }
+    }
+
+    void DoSetTabletCellBundle(
+        THunkStorageNode* hunkStorage,
+        TTabletCellBundle* oldBundle,
+        TTabletCellBundle* newBundle)
+    {
+        YT_VERIFY(hunkStorage->IsTrunk());
+
+        DoSetTabletCellBundleImpl(hunkStorage, oldBundle, newBundle);
+    }
+
+    void DoSetTabletCellBundleImpl(
+        TTabletOwnerBase* table,
+        TTabletCellBundle* oldBundle,
+        TTabletCellBundle* newBundle)
+    {
+        YT_VERIFY(table->IsTrunk());
+
         auto resourceUsageDelta = table->GetTabletResourceUsage();
 
         if (table->IsNative()) {
-            if (table->IsDynamic()) {
-                table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
-                if (newBundle && GetDynamicConfig()->EnableTabletResourceValidation) {
-                    newBundle->ValidateResourceUsageIncrease(resourceUsageDelta);
-                }
+            table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
+            if (newBundle && GetDynamicConfig()->EnableTabletResourceValidation) {
+                newBundle->ValidateResourceUsageIncrease(resourceUsageDelta);
             }
         }
 
-        if (!table->IsExternal() && table->IsDynamic()) {
+        if (!table->IsExternal()) {
             if (oldBundle) {
                 oldBundle->UpdateResourceUsage(-resourceUsageDelta);
             }
@@ -2527,6 +2577,17 @@ public:
                 cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             }
         }
+    }
+
+    void OnHunkJournalChunkSealed(TChunk* chunk)
+    {
+        YT_VERIFY(chunk->IsSealed());
+
+        // TODO(gritukan): Copy chunk list if shared.
+        // TODO(gritukan): Multiple parents.
+
+        auto statistics = chunk->GetStatistics();
+        AccumulateUniqueAncestorsStatistics(chunk, statistics);
     }
 
     void WrapWithBackupChunkViews(TTablet* tablet, TTimestamp maxClipTimestamp)
@@ -2732,11 +2793,11 @@ public:
     }
 
     void ParseTabletRangeOrThrow(
-        const TTabletOwnerBase* owner,
+        const TTabletOwnerBase* table,
         int* first,
         int* last) const
     {
-        TryParseTabletRange(owner, first, last)
+        TryParseTabletRange(table, first, last)
             .ThrowOnError();
     }
 
@@ -3754,6 +3815,112 @@ private:
         tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
     }
 
+    struct THunkStorageSettings
+    {
+        NTabletNode::THunkStorageMountConfigPtr MountConfig;
+        NTabletNode::THunkStoreWriterConfigPtr HunkStoreConfig;
+        NTabletNode::THunkStoreWriterOptionsPtr HunkStoreOptions;
+    };
+
+    THunkStorageSettings GetHunkStorageSettings(THunkStorageNode* hunkStorage)
+    {
+        THunkStorageSettings result;
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto hunkStorageProxy = objectManager->GetProxy(hunkStorage);
+        const auto& tableAttributes = hunkStorageProxy->Attributes();
+
+        // Parse and prepare mount config.
+        try {
+            result.MountConfig = ConvertTo<NTabletNode::THunkStorageMountConfigPtr>(tableAttributes);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing hunk storage mount configuration")
+                << ex;
+        }
+
+        // Parse and prepare store writer config.
+        try {
+            result.HunkStoreConfig = UpdateYsonStruct(
+                GetDynamicConfig()->HunkStoreWriter,
+                tableAttributes.FindYson(EInternedAttributeKey::HunkStoreWriter.Unintern()));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing hunk store writer config")
+                << ex;
+        }
+
+        const auto& chunkReplication = hunkStorage->Replication();
+        auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+        auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
+
+        // Prepare store writer options.
+        auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
+        storeWriterOptions->MediumName = primaryMedium->GetName();
+        storeWriterOptions->Account = hunkStorage->GetAccount()->GetName();
+        storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
+        storeWriterOptions->ReplicationFactor = replicationFactor;
+        storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
+        storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
+        storeWriterOptions->EnableMultiplexing = false;
+        result.HunkStoreOptions = std::move(storeWriterOptions);
+
+        return result;
+    }
+
+    struct TSerializedHunkStorageSettings
+    {
+        TYsonString MountConfig;
+        TYsonString HunkStoreConfig;
+        TYsonString HunkStoreOptions;
+    };
+
+    static TSerializedHunkStorageSettings SerializeHunkStorageSettings(const THunkStorageSettings& settings)
+    {
+        return {
+            .MountConfig = ConvertToYsonString(settings.MountConfig),
+            .HunkStoreConfig = ConvertToYsonString(settings.HunkStoreConfig),
+            .HunkStoreOptions = ConvertToYsonString(settings.HunkStoreOptions),
+        };
+    }
+
+    template <class TRequest>
+    void FillHunkStorageSettings(TRequest* request, const TSerializedHunkStorageSettings& settings)
+    {
+        auto* hunkStorageSettings = request->mutable_hunk_storage_settings();
+        hunkStorageSettings->set_mount_config(settings.MountConfig.ToString());
+        hunkStorageSettings->set_hunk_store_config(settings.HunkStoreConfig.ToString());
+        hunkStorageSettings->set_hunk_store_options(settings.HunkStoreOptions.ToString());
+    }
+
+    using TTabletOwnerSettings = std::variant<
+        TTableSettings,
+        THunkStorageSettings
+    >;
+
+    TTabletOwnerSettings GetTabletOwnerSettings(TTabletOwnerBase* table)
+    {
+        if (IsTableType(table->GetType())) {
+            return GetTableSettings(table->As<TTableNode>());
+        } else if (table->GetType() == EObjectType::HunkStorage) {
+            return GetHunkStorageSettings(table->As<THunkStorageNode>());
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    using TSerializedTabletOwnerSettings = std::variant<
+        TSerializedTableSettings,
+        TSerializedHunkStorageSettings
+    >;
+
+    TSerializedTabletOwnerSettings SerializeTabletOwnerSettings(const TTabletOwnerSettings& settings)
+    {
+        return Visit(settings,
+            [] (const TTableSettings& settings) -> TSerializedTabletOwnerSettings { return SerializeTableSettings(settings); },
+            [] (const THunkStorageSettings& settings) -> TSerializedTabletOwnerSettings { return SerializeHunkStorageSettings(settings); },
+            [] (auto) { YT_ABORT(); });
+    }
 
     void MountTablet(
         TTabletBase* tablet,
@@ -3761,8 +3928,8 @@ private:
         bool freeze)
     {
         auto* table = tablet->GetOwner();
-        auto tableSettings = GetTableSettings(table->As<TTableNode>());
-        auto serializedTableSettings = SerializeTableSettings(tableSettings);
+        auto tableSettings = GetTabletOwnerSettings(table);
+        auto serializedTableSettings = SerializeTabletOwnerSettings(tableSettings);
         auto assignment = ComputeTabletAssignment(
             table,
             cell,
@@ -3773,7 +3940,7 @@ private:
 
     void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTableSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedTableSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         TTimestamp mountTimestamp = NullTimestamp)
@@ -3807,8 +3974,10 @@ private:
             }
 
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                const auto& chunkLists = table->GetChunkList(contentType)->Children();
-                YT_VERIFY(allTablets.size() == chunkLists.size());
+                if (auto* chunkList = table->GetChunkList(contentType)) {
+                    const auto& chunkLists = chunkList->Children();
+                    YT_VERIFY(allTablets.size() == chunkLists.size());
+                }
             }
 
             tablet->SetCell(cell);
@@ -3833,10 +4002,17 @@ private:
                     DoMountTableTablet(
                         tablet->As<TTablet>(),
                         table->As<TTableNode>(),
-                        serializedTableSettings,
+                        std::get<TSerializedTableSettings>(serializedTableSettings),
                         cell,
                         freeze,
                         mountTimestamp);
+                    break;
+
+                case EObjectType::HunkTablet:
+                    DoMountHunkTablet(
+                        tablet->As<THunkTablet>(),
+                        std::get<TSerializedHunkStorageSettings>(serializedTableSettings),
+                        cell);
                     break;
 
                 default:
@@ -4024,6 +4200,35 @@ private:
         }
     }
 
+    void DoMountHunkTablet(
+        THunkTablet* tablet,
+        const TSerializedHunkStorageSettings& serializedSettings,
+        TTabletCell* cell)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        TReqMountHunkTablet request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.set_mount_revision(tablet->GetMountRevision());
+
+        FillHunkStorageSettings(&request, serializedSettings);
+
+        auto chunks = EnumerateChunksInChunkTree(tablet->GetChunkList());
+        for (auto* chunk : chunks) {
+            ToProto(request.add_store_ids(), chunk->GetId());
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        hiveManager->PostMessage(mailbox, request);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Mounting hunk tablet (TabletId: %v, CellId: %v)",
+            tablet->GetId(),
+            cell->GetId());
+    }
+
     void DoFreezeTablet(TTabletBase* tablet)
     {
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
@@ -4065,7 +4270,7 @@ private:
             state == ETabletState::Unfreezing);
 
         if (tablet->GetState() == ETabletState::Frozen) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unfreezing tablet (OwnerId: %v, TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId());
@@ -4425,6 +4630,12 @@ private:
                 lastTabletIndex,
                 newTabletCount,
                 pivotKeys);
+        } else if (table->GetType() == EObjectType::HunkStorage) {
+            return DoReshardHunkStorage(
+                table->As<THunkStorageNode>(),
+                firstTabletIndex,
+                lastTabletIndex,
+                newTabletCount);
         } else {
             YT_ABORT();
         }
@@ -4456,6 +4667,107 @@ private:
                 newPivotKeys);
             return newTabletCount;
         }
+    }
+
+    int DoReshardHunkStorage(
+        THunkStorageNode* hunkStorage,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+        YT_VERIFY(hunkStorage->IsTrunk());
+        YT_VERIFY(!hunkStorage->IsExternal());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto& tablets = hunkStorage->MutableTablets();
+
+        ParseTabletRange(hunkStorage, &firstTabletIndex, &lastTabletIndex);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Resharding hunk storage (HunkStorageId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v)",
+            hunkStorage->GetId(),
+            firstTabletIndex,
+            lastTabletIndex,
+            newTabletCount);
+
+        // Create new tablets.
+        std::vector<THunkTablet*> newTablets;
+        newTablets.reserve(newTabletCount);
+        for (int index = 0; index < newTabletCount; ++index) {
+            auto* newTablet = CreateTablet(hunkStorage, EObjectType::HunkTablet)->As<THunkTablet>();
+            newTablets.push_back(newTablet);
+        }
+
+        // Drop old tablets.
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = tablets[index];
+            hunkStorage->DiscountTabletStatistics(tablet->GetTabletStatistics());
+            tablet->SetOwner(nullptr);
+
+            objectManager->UnrefObject(tablet);
+        }
+
+        // Replace old tablets with new.
+        tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
+        tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
+
+        // Update tablet indices.
+        for (int index = 0; index < std::ssize(tablets); ++index) {
+            auto* tablet = tablets[index];
+            tablet->SetIndex(index);
+        }
+
+        // Update chunk lists.
+        auto* oldRootChunkList = hunkStorage->GetChunkList();
+        auto* newRootChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkStorageRoot);
+        std::vector<TChunkTree*> newTabletChunkLists;
+        newTabletChunkLists.reserve(newTabletCount);
+        for (int index = 0; index < newTabletCount; ++index) {
+            auto* newTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkTablet);
+            newTabletChunkLists.push_back(newTabletChunkList);
+        }
+
+        // NB: When resharding during creation root chunk list is empty.
+        if (oldRootChunkList) {
+            const auto& oldTabletChunkLists = oldRootChunkList->Children();
+            chunkManager->AttachToChunkList(
+                newRootChunkList,
+                oldTabletChunkLists.data(),
+                oldTabletChunkLists.data() + firstTabletIndex);
+        } else {
+            YT_VERIFY(firstTabletIndex == 0);
+        }
+
+        chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkLists);
+
+        // NB: When resharding during creation root chunk list is empty.
+        if (oldRootChunkList) {
+            const auto& oldTabletChunkLists = oldRootChunkList->Children();
+            chunkManager->AttachToChunkList(
+                newRootChunkList,
+                oldTabletChunkLists.data() + lastTabletIndex + 1,
+                oldTabletChunkLists.data() + oldTabletChunkLists.size());
+        } else {
+            YT_VERIFY(firstTabletIndex == 0);
+            YT_VERIFY(tablets.empty());
+        }
+
+        if (oldRootChunkList) {
+            oldRootChunkList->RemoveOwningNode(hunkStorage);
+        }
+        hunkStorage->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(hunkStorage);
+
+        // Account new tablet statistics.
+        for (auto* newTablet : newTablets) {
+            hunkStorage->AccountTabletStatistics(newTablet->GetTabletStatistics());
+        }
+
+        return newTabletCount;
     }
 
     // If there are several otherwise identical chunk views with adjacent read ranges
@@ -5451,8 +5763,8 @@ private:
             }
 
             auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
-            auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
-            auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
+            auto exp10 = std::exp(-timeDelta / (60. * 10 / 2));
+            auto exp60 = std::exp(-timeDelta / (60. * 60 / 2));
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
@@ -5680,6 +5992,21 @@ private:
     void HydraOnTabletMounted(NProto::TRspMountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
+
+        auto frozen = response->frozen();
+        OnTabletMounted(tabletId, frozen);
+    }
+
+    void HydraOnHunkTabletMounted(NProto::TRspMountHunkTablet* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
+        OnTabletMounted(tabletId, /*frozen*/ false);
+    }
+
+    void OnTabletMounted(TTabletId tabletId, bool frozen)
+    {
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
             return;
@@ -5703,7 +6030,6 @@ private:
             return;
         }
 
-        bool frozen = response->frozen();
         auto* table = tablet->GetOwner();
         auto* cell = tablet->GetCell();
 
@@ -5723,53 +6049,58 @@ private:
     void HydraOnTabletUnmounted(NProto::TRspUnmountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
-        auto* tabletBase = FindTablet(tabletId);
-        if (!IsObjectAlive(tabletBase)) {
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
+
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 
-        auto state = tabletBase->GetState();
-        if (state != ETabletState::Unmounting) {
-            if (!tabletBase->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                    state,
-                    tabletId);
-            }
+        if (!ValidateTabletUnmounted(tablet)) {
             return;
         }
 
-        switch (tabletBase->GetType()) {
-            case EObjectType::Tablet: {
-                auto* tablet = tabletBase->As<TTablet>();
-                if (response->has_replication_progress()) {
-                    tablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
-                }
-
-                SetTabletEdenStoreIds(tablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
-                DiscardDynamicStores(tablet);
-
-                DoTabletUnmounted(tablet, /*force*/ false);
-                break;
-            }
-            default:
-                YT_ABORT();
+        auto* typedTablet = tablet->As<TTablet>();
+        if (response->has_replication_progress()) {
+            typedTablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
         }
 
-        OnTabletActionStateChanged(tabletBase->GetAction());
+        SetTabletEdenStoreIds(typedTablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
+        DiscardDynamicStores(typedTablet);
+
+        DoTabletUnmounted(typedTablet, /*force*/ false);
+
+        OnTabletActionStateChanged(tablet->GetAction());
+    }
+
+    void HydraOnHunkTabletUnmounted(NProto::TRspUnmountHunkTablet* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
+
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        if (!ValidateTabletUnmounted(tablet)) {
+            return;
+        }
+
+        auto* hunkTablet = tablet->As<THunkTablet>();
+        DoTabletUnmounted(hunkTablet, /*force*/ false);
     }
 
     void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
-        auto* tablet = FindTablet(tabletId);
+        auto* tablet = FindTablet(tabletId)->As<TTablet>();
         if (!IsObjectAlive(tablet)) {
             return;
         }
 
-        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
-
-        auto* table = tablet->GetOwner();
+        auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
         auto state = tablet->GetState();
@@ -6048,6 +6379,21 @@ private:
         }
     }
 
+    bool ValidateTabletUnmounted(TTabletBase* tablet)
+    {
+        auto state = tablet->GetState();
+        if (state != ETabletState::Unmounting) {
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                    state,
+                    tablet->GetId());
+            }
+            return false;
+        }
+
+        return true;
+    }
+
     void DoTabletUnmountedBase(TTabletBase* tablet, bool force)
     {
         auto* table = tablet->GetOwner();
@@ -6148,6 +6494,22 @@ private:
         tablet->UnconfirmedDynamicTableLocks().clear();
 
         tablet->GetOwner()->AccountTabletStatistics(tablet->GetTabletStatistics());
+    }
+
+    void DoTabletUnmounted(THunkTablet* tablet, bool force)
+    {
+        DoTabletUnmountedBase(tablet, force);
+
+        auto* owner = tablet->GetOwner();
+        owner->AccountTabletStatistics(tablet->GetTabletStatistics());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto chunks = EnumerateChunksInChunkTree(tablet->GetChunkList());
+        for (auto* chunk : chunks) {
+            chunk->SetSealable(true);
+            chunkManager->ScheduleChunkSeal(chunk);
+        }
     }
 
     TDynamicStoreId GenerateDynamicStoreId(const TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
@@ -6400,13 +6762,9 @@ private:
         }
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tabletBase = GetTabletOrThrow(tabletId);
+        auto* tablet = GetTabletOrThrow(tabletId);
 
-        if (tabletBase->GetStoresUpdatePreparedTransaction()) {
-            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
-                tabletId,
-                tabletBase->GetStoresUpdatePreparedTransaction()->GetId());
-        }
+        PrepareTabletStoresUpdateBase(tablet, transaction);
 
         auto validateStoreType = [&] (TObjectId id, TStringBuf action) {
             auto type = TypeFromId(id);
@@ -6448,26 +6806,15 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        tabletBase->ValidateMountRevision(mountRevision);
+        tablet->ValidateMountRevision(mountRevision);
 
-        auto state = tabletBase->GetState();
-        if (state != ETabletState::Mounted &&
-            state != ETabletState::Unmounting &&
-            state != ETabletState::Freezing)
-        {
-            THROW_ERROR_EXCEPTION("Cannot update stores while tablet %v is in %Qlv state",
-                tabletId,
-                state);
-        }
-
-        switch (tabletBase->GetType()) {
+        switch (tablet->GetType()) {
             case EObjectType::Tablet: {
-                auto* tablet = tabletBase->As<TTablet>();
-                auto* table = tablet->GetTable();
+                auto* table = tablet->As<TTablet>()->GetTable();
                 if (table->IsPhysicallySorted()) {
-                    PrepareSortedTabletStoresUpdate(tablet, request);
+                    PrepareSortedTabletStoresUpdate(tablet->As<TTablet>(), request);
                 } else {
-                    PrepareOrderedTabletStoresUpdate(tablet, request);
+                    PrepareOrderedTabletStoresUpdate(tablet->As<TTablet>(), request);
                 }
                 break;
             }
@@ -6475,13 +6822,58 @@ private:
                 YT_ABORT();
         }
 
-        tabletBase->SetStoresUpdatePreparedTransaction(transaction);
-
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
-            tabletBase->GetOwner()->GetId(),
+            tablet->GetOwner()->GetId(),
             tabletId);
+    }
+
+    void HydraPrepareUpdateHunkTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateHunkTabletStores* request,
+        const TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
+        auto* tablet = GetTabletOrThrow(tabletId)->As<THunkTablet>();
+
+        auto mountRevision = request->mount_revision();
+        tablet->ValidateMountRevision(mountRevision);
+
+        PrepareTabletStoresUpdateBase(tablet, transaction);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Hunk tablet stores update prepared "
+            "(TransactionId: %v, HunkStorageId: %v, TabletId: %v)",
+            transaction->GetId(),
+            tablet->GetOwner()->GetId(),
+            tabletId);
+    }
+
+    void PrepareTabletStoresUpdateBase(
+        TTabletBase* tablet,
+        TTransaction* transaction)
+    {
+        if (tablet->GetStoresUpdatePreparedTransaction()) {
+            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
+                tablet->GetId(),
+                tablet->GetStoresUpdatePreparedTransaction()->GetId());
+        }
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounted &&
+            state != ETabletState::Unmounting &&
+            state != ETabletState::Freezing)
+        {
+            THROW_ERROR_EXCEPTION("Cannot update stores while tablet %v is in %Qlv state",
+                tablet->GetId(),
+                state);
+        }
+
+        tablet->SetStoresUpdatePreparedTransaction(transaction);
     }
 
     void PrepareOrderedTabletStoresUpdate(
@@ -6582,7 +6974,7 @@ private:
         }
     }
 
-    void AttachChunksToTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
+    void AttachChunksToTablet(TTabletBase* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
         std::vector<TChunkTree*> storeChildren;
         std::vector<TChunkTree*> hunkChildren;
@@ -6601,7 +6993,7 @@ private:
         chunkManager->AttachToChunkList(tablet->GetHunkChunkList(), hunkChildren);
     }
 
-    TChunkList* GetTabletChildParent(TTablet* tablet, TChunkTree* child)
+    TChunkList* GetTabletChildParent(TTabletBase* tablet, TChunkTree* child)
     {
         if (IsHunkChunk(child)) {
             return tablet->GetHunkChunkList();
@@ -6626,7 +7018,7 @@ private:
     }
 
     void DetachChunksFromTablet(
-        TTablet* tablet,
+        TTabletBase* tablet,
         const std::vector<TChunkTree*>& chunkTrees,
         EChunkDetachPolicy policy)
     {
@@ -6639,7 +7031,9 @@ private:
             return;
         }
 
-        YT_VERIFY(policy == EChunkDetachPolicy::SortedTablet);
+        YT_VERIFY(
+            policy == EChunkDetachPolicy::SortedTablet ||
+            policy == EChunkDetachPolicy::HunkTablet);
 
         // Ensure deteministic ordering of keys.
         std::map<TChunkList*, std::vector<TChunkTree*>, TObjectIdComparer> childrenByParent;
@@ -6650,7 +7044,7 @@ private:
         }
 
         for (const auto& [parent, children] : childrenByParent) {
-            chunkManager->DetachFromChunkList(parent, children, EChunkDetachPolicy::SortedTablet);
+            chunkManager->DetachFromChunkList(parent, children, policy);
             PruneEmptySubtabletChunkList(parent);
         }
     }
@@ -6666,44 +7060,88 @@ private:
             return;
         }
 
-        auto* table = tablet->GetOwner();
+        if (!CommitUpdateTabletStoresBase(transaction, tablet, request->mount_revision())) {
+            return;
+        }
+
+        auto* owner = tablet->GetOwner();
+        YT_VERIFY(IsObjectAlive(owner));
 
         TWallTimer timer;
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
-        auto counters = GetCounters(updateReason, table);
+        auto counters = GetCounters(updateReason, owner);
         auto updateTime = Finally([&] {
             counters->UpdateTabletStoreTime.Add(timer.GetElapsedTime());
         });
 
+        CommitUpdateTabletStores(
+            tablet->As<TTablet>(),
+            transaction,
+            request,
+            updateReason);
+    }
+
+    void HydraCommitUpdateHunkTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateHunkTabletStores* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        if (!CommitUpdateTabletStoresBase(transaction, tablet, request->mount_revision())) {
+            return;
+        }
+
+        CommitUpdateHunkTabletStores(tablet->As<THunkTablet>(), transaction, request);
+    }
+
+    bool CommitUpdateTabletStoresBase(
+        TTransaction* transaction,
+        TTabletBase* tablet,
+        NHydra::TRevision mountRevision)
+    {
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update commit for an improperly prepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
-                tabletId,
+                tablet->GetId(),
                 transaction->GetId(),
                 GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
-            return;
+            return false;
         }
 
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
-                tabletId,
+                tablet->GetId(),
                 transaction->GetId(),
                 mountRevision,
                 tablet->GetMountRevision());
-            return;
+            return false;
         }
 
-        if (!IsObjectAlive(table)) {
-            return;
+        auto* owner = tablet->GetOwner();
+        if (!IsObjectAlive(owner)) {
+            return false;
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetModified(table, EModificationType::Content);
+        cypressManager->SetModified(owner, EModificationType::Content);
 
+        return true;
+    }
+
+    void CommitUpdateTabletStores(
+        TTabletBase* tablet,
+        TTransaction* transaction,
+        NProto::TReqUpdateTabletStores* request,
+        ETabletStoresUpdateReason updateReason)
+    {
         switch (tablet->GetType()) {
             case EObjectType::Tablet: {
                 CommitUpdateTabletStores(
@@ -6971,18 +7409,140 @@ private:
             updateReason);
     }
 
+    void CommitUpdateHunkTabletStores(
+        THunkTablet* tablet,
+        TTransaction* transaction,
+        NProto::TReqUpdateHunkTabletStores* request)
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        // Save old tablet resource usage.
+        auto oldStatistics = tablet->GetTabletStatistics();
+
+        std::vector<TChunkTree*> chunksToAdd;
+        chunksToAdd.reserve(request->stores_to_add_size());
+        for (const auto& storeToAdd : request->stores_to_add()) {
+            auto chunkId = FromProto<NChunkClient::TSessionId>(storeToAdd.session_id()).ChunkId;
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Requested to attach dead chunk to hunk tablet; ignored "
+                    "(ChunkId: %v, HunkStorageId: %v, TableId: %v)",
+                    chunk->GetId(),
+                    tablet->GetId(),
+                    tablet->GetOwner()->GetId());
+                continue;
+            }
+
+            chunksToAdd.push_back(chunk);
+        }
+
+        AttachToTabletChunkLists(tablet, chunksToAdd);
+
+        std::vector<TChunkTree*> chunksToRemove;
+        chunksToRemove.reserve(request->stores_to_remove_size());
+        for (const auto& storeToRemove : request->stores_to_remove()) {
+            auto chunkId = FromProto<TChunkId>(storeToRemove.store_id());
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Requested to detach dead chunk from hunk tablet; ignored "
+                    "(ChunkId: %v, TabletId: %v, HunkStorageId: %v)",
+                    chunk->GetId(),
+                    tablet->GetId(),
+                    tablet->GetOwner()->GetId());
+                continue;
+            }
+
+            chunksToRemove.push_back(chunk);
+        }
+
+        DetachChunksFromTablet(tablet, chunksToRemove, EChunkDetachPolicy::HunkTablet);
+
+        std::vector<TChunk*> chunksToMarkSealable;
+        for (const auto& chunkToMarkSealable : request->stores_to_mark_sealable()) {
+            auto chunkId = FromProto<TChunkId>(chunkToMarkSealable.store_id());
+            auto* chunk = chunkManager->GetChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Requested to mark dead chunk as sealable; ignored "
+                    "(ChunkId: %v, TabletId: %v, HunkStorageId: %v)",
+                    chunk->GetId(),
+                    tablet->GetId(),
+                    tablet->GetOwner()->GetId());
+                continue;
+            }
+
+            chunksToMarkSealable.push_back(chunk);
+        }
+
+        for (auto* chunk : chunksToMarkSealable) {
+            chunk->SetSealable(true);
+            chunkManager->ScheduleChunkSeal(chunk);
+        }
+
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
+
+        auto newStatistics = tablet->GetTabletStatistics();
+        auto deltaStatistics = newStatistics - oldStatistics;
+
+        auto* cell = tablet->GetCell();
+        cell->GossipStatistics().Local() += deltaStatistics;
+
+        auto* owner = tablet->GetOwner();
+        owner->DiscountTabletStatistics(oldStatistics);
+        owner->AccountTabletStatistics(newStatistics);
+
+        for (auto* chunk : chunksToAdd) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+        for (auto* chunk : chunksToRemove) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Hunk tablet stores update committed (TransactionId: %v, HunkStorageId: %v, TabletId: %v, "
+            "AddedChunkIds: %v, RemovedChunkIds: %v, MarkSealableChunkIds: %v)",
+            transaction->GetId(),
+            tablet->GetOwner()->GetId(),
+            tablet->GetId(),
+            MakeFormattableView(chunksToAdd, TObjectIdFormatter()),
+            MakeFormattableView(chunksToRemove, TObjectIdFormatter()),
+            MakeFormattableView(chunksToMarkSealable, TObjectIdFormatter()));
+    }
+
     void HydraAbortUpdateTabletStores(
         TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        AbortUpdateTabletStores(
+            transaction,
+            FromProto<TTabletId>(request->tablet_id()),
+            request->mount_revision());
+    }
+
+    void HydraAbortUpdateHunkTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateHunkTabletStores* request,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        AbortUpdateTabletStores(
+            transaction,
+            FromProto<TTabletId>(request->tablet_id()),
+            request->mount_revision());
+    }
+
+    void AbortUpdateTabletStores(
+        TTransaction* transaction,
+        TTabletId tabletId,
+        NHydra::TRevision mountRevision)
+    {
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
             return;
         }
 
-        auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
@@ -7572,14 +8132,6 @@ private:
             force);
 
         tablet->SetState(ETabletState::Unmounting);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-
-        TReqUnmountTablet request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_force(force);
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-        hiveManager->PostMessage(mailbox, request);
     }
 
     void DoUnmountTablet(
@@ -7591,7 +8143,19 @@ private:
             return;
         }
 
+        // NB: Cell can be destroyed.
+        auto cellId = tablet->GetCell()->GetId();
+
         DoUnmountTabletBase(tablet, force);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        {
+            TReqUnmountTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_force(force);
+            auto* mailbox = hiveManager->GetMailbox(cellId);
+            hiveManager->PostMessage(mailbox, request);
+        }
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto* replica = it->first;
@@ -7614,6 +8178,31 @@ private:
         }
     }
 
+    void DoUnmountHunkTablet(THunkTablet* tablet, bool force)
+    {
+        if (tablet->GetState() == ETabletState::Unmounted) {
+            return;
+        }
+
+        // NB: Cell can be destroyed in DoUnmountTabletBase.
+        auto cellId = tablet->GetCell()->GetId();
+
+        DoUnmountTabletBase(tablet, force);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        {
+            TReqUnmountHunkTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_force(force);
+            auto* mailbox = hiveManager->GetMailbox(cellId);
+            hiveManager->PostMessage(mailbox, request);
+        }
+
+        if (force) {
+            DoTabletUnmounted(tablet, force);
+        }
+    }
+
     void UnmountTablet(
         TTabletBase* tablet,
         bool force,
@@ -7622,6 +8211,9 @@ private:
         switch (tablet->GetType()) {
             case EObjectType::Tablet:
                 DoUnmountTablet(tablet->As<TTablet>(), force, onDestroy);
+                break;
+            case EObjectType::HunkTablet:
+                DoUnmountHunkTablet(tablet->As<THunkTablet>(), force);
                 break;
             default:
                 YT_ABORT();
@@ -7824,6 +8416,8 @@ private:
     {
         if (IsTableType(trunkNode->GetType())) {
             DoValidateNodeCloneMode(trunkNode->As<TTableNode>(), mode);
+        } else if (trunkNode->GetType() == EObjectType::HunkStorage) {
+            DoValidateNodeCloneMode(trunkNode->As<THunkStorageNode>(), mode);
         } else {
             YT_ABORT();
         }
@@ -7872,6 +8466,48 @@ private:
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
                 << ex;
         }
+    }
+
+    void DoValidateNodeCloneMode(THunkStorageNode* trunkNode, ENodeCloneMode mode)
+    {
+        try {
+            switch (mode) {
+                case ENodeCloneMode::Move:
+                case ENodeCloneMode::Copy:
+                case ENodeCloneMode::Backup:
+                case ENodeCloneMode::Restore:
+                    THROW_ERROR_EXCEPTION("Hunk storage does not support clone mode %Qlv", mode);
+
+                default:
+                    YT_ABORT();
+            }
+        } catch (const std::exception& ex) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            THROW_ERROR_EXCEPTION("Error cloning hunk storage %v",
+                cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
+                << ex;
+        }
+    }
+
+    void AttachToTabletChunkLists(
+        TTabletBase* tablet,
+        const std::vector<TChunkTree*>& children)
+    {
+        std::vector<TChunkTree*> storeChildren;
+        std::vector<TChunkTree*> hunkChildren;
+        storeChildren.reserve(children.size());
+        hunkChildren.reserve(children.size());
+        for (auto* child : children) {
+            if (IsHunkChunk(child)) {
+                hunkChildren.push_back(child);
+            } else {
+                storeChildren.push_back(child);
+            }
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->AttachToChunkList(tablet->GetChunkList(), storeChildren);
+        chunkManager->AttachToChunkList(tablet->GetHunkChunkList(), hunkChildren);
     }
 
 
@@ -8329,6 +8965,11 @@ void TTabletManager::ParseTabletRangeOrThrow(
     int* last) const
 {
     Impl_->ParseTabletRangeOrThrow(owner, first, last);
+}
+
+void TTabletManager::OnHunkJournalChunkSealed(TChunk* chunk)
+{
+    Impl_->OnHunkJournalChunkSealed(chunk);
 }
 
 void TTabletManager::WrapWithBackupChunkViews(TTablet* tablet, TTimestamp timestamp)

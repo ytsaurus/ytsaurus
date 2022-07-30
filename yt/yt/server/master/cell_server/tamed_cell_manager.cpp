@@ -2742,8 +2742,8 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
-            // Also, tablet cell bundles are referenced by tables in them...
-            if (IsTableType(node->GetType())) {
+            // Also, tablet cell bundles are referenced by tablet owners in them...
+            if (IsTabletOwnerType(node->GetType())) {
                 auto* table = node->As<TTableNode>();
                 if (table->TabletCellBundle()) {
                     ++refCounters[table->TabletCellBundle().Get()];
