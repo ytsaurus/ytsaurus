@@ -17,18 +17,58 @@ public:
     TReadHunksCommand();
 
 private:
-    class TSerializableReadHunkRequest
-        : public NApi::TReadHunkRequest
-        , public NYTree::TYsonSerializable
-    {
-    public:
-        TSerializableReadHunkRequest();
-    };
-
-    using TSerializableReadHunkRequestPtr = TIntrusivePtr<TSerializableReadHunkRequest>;
-
-    std::vector<TSerializableReadHunkRequestPtr> Requests;
+    std::vector<NApi::TSerializableHunkDescriptorPtr> Descriptors;
     NYTree::INodePtr ChunkFragmentReader;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWriteHunksCommand
+    : public TTypedCommand<NApi::TWriteHunksOptions>
+{
+public:
+    TWriteHunksCommand();
+
+private:
+    NYTree::TYPath Path;
+    int TabletIndex;
+    std::vector<TString> Payloads;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockHunkStoreCommand
+    : public TTypedCommand<NApi::TLockHunkStoreOptions>
+{
+public:
+    TLockHunkStoreCommand();
+
+private:
+    NYTree::TYPath Path;
+    int TabletIndex;
+    NTabletClient::TStoreId StoreId;
+    NTabletClient::TTabletId LockerTabletId;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnlockHunkStoreCommand
+    : public TTypedCommand<NApi::TUnlockHunkStoreOptions>
+{
+public:
+    TUnlockHunkStoreCommand();
+
+private:
+    NYTree::TYPath Path;
+    int TabletIndex;
+    NTabletClient::TStoreId StoreId;
+    NTabletClient::TTabletId LockerTabletId;
 
     void DoExecute(ICommandContextPtr context) override;
 };

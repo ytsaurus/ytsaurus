@@ -38,7 +38,7 @@ public:
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) override;
-    
+
     void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override;
 
 private:

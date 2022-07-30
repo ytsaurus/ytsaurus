@@ -200,6 +200,8 @@ DEFINE_ENUM(EChunkListKind,
     ((JournalRoot)            (6))
     ((HunkRoot)               (7))
     ((Hunk)                   (8))
+    ((HunkStorageRoot)        (9))
+    ((HunkTablet)            (10))
 );
 
 DEFINE_ENUM(EChunkListContentType,
@@ -235,6 +237,7 @@ DEFINE_ENUM(EChunkDetachPolicy,
     ((SortedTablet)        (0))
     ((OrderedTabletPrefix) (1))
     ((OrderedTabletSuffix) (2))
+    ((HunkTablet)          (3))
 );
 
 using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;

@@ -353,9 +353,23 @@ private:
 
     static bool CanBeSealed(TChunk* chunk)
     {
+        if (!IsSealNeeded(chunk) || !HasEnoughReplicas(chunk)) {
+            return false;
+        }
+
+        // Chunk was forcefully marked as sealable.
+        if (chunk->GetSealable()) {
+            return true;
+        }
+
+        const auto& parents = chunk->Parents();
+        if (std::ssize(parents) != 1 || parents.begin()->first->AsChunkList()->GetKind() != EChunkListKind::JournalRoot) {
+            // Chunk does not belong to a journal, probably it is a journal hunk chunk.
+            return false;
+        }
+
+        // Chunk is ready to be sealed in journal.
         return
-            IsSealNeeded(chunk) &&
-            HasEnoughReplicas(chunk) &&
             IsAttached(chunk) &&
             !IsLocked(chunk) &&
             IsFirstUnsealedInChunkList(chunk);

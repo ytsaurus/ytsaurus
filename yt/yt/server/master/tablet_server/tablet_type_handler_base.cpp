@@ -1,6 +1,7 @@
 #include "tablet_type_handler_base.h"
 
 #include "tablet_manager.h"
+#include "hunk_tablet.h"
 
 namespace NYT::NTabletServer {
 
@@ -40,6 +41,7 @@ void TTabletTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TTabletTypeHandlerBase<TTablet>;
+template class TTabletTypeHandlerBase<THunkTablet>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

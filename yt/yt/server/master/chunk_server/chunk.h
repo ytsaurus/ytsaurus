@@ -294,6 +294,9 @@ public:
     bool GetStripedErasure() const;
     void SetStripedErasure(bool value);
 
+    bool GetSealable() const;
+    void SetSealable(bool value);
+
     i64 GetPhysicalSealedRowCount() const;
 
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
@@ -378,6 +381,7 @@ private:
         bool Overlayed : 1;
         bool Sealed : 1;
         bool StripedErasure : 1;
+        bool Sealable : 1;
     } Flags_ = {};
 
     //! The number of non-empty entries in #ExportDataList_.

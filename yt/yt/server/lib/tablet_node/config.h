@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/ytlib/journal_client/config.h>
+
 #include <yt/yt/ytlib/table_client/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
@@ -835,6 +837,56 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class THunkStorageMountConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int DesiredAllocatedStoreCount;
+
+    TDuration StoreRotationPeriod;
+    TDuration StoreRemovalGracePeriod;
+
+    REGISTER_YSON_STRUCT(THunkStorageMountConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkStorageMountConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class THunkStoreWriterConfig
+    : public NJournalClient::TJournalHunkChunkWriterConfig
+{
+public:
+    i64 DesiredHunkCountPerChunk;
+    i64 DesiredChunkSize;
+
+    REGISTER_YSON_STRUCT(THunkStoreWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkStoreWriterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class THunkStoreWriterOptions
+    : public NJournalClient::TJournalHunkChunkWriterOptions
+{
+public:
+    TString MediumName;
+    TString Account;
+
+    REGISTER_YSON_STRUCT(THunkStoreWriterOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkStoreWriterOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 

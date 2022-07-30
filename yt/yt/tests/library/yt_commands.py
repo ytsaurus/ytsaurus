@@ -2755,12 +2755,44 @@ def remove_area(id, **kwargs):
     remove("#" + id, **kwargs)
 
 
-def read_hunks(requests, **kwargs):
+def read_hunks(descriptors, **kwargs):
     params = {}
-    params["requests"] = requests
+    params["descriptors"] = descriptors
     if "driver" in kwargs:
         params["driver"] = kwargs.pop("driver")
     return execute_command("read_hunks", params, parse_yson=True)
+
+
+def write_hunks(path, payloads, tablet_index=0, **kwargs):
+    params = {}
+    params["path"] = path
+    params["tablet_index"] = tablet_index
+    params["payloads"] = payloads
+    if "driver" in kwargs:
+        params["driver"] = kwargs.pop("driver")
+    return execute_command("write_hunks", params, parse_yson=True)
+
+
+def lock_hunk_store(path, tablet_index, store_id, locker_tablet_id="1-1-1-1", **kwargs):
+    params = {}
+    params["path"] = path
+    params["tablet_index"] = tablet_index
+    params["store_id"] = store_id
+    params["locker_tablet_id"] = locker_tablet_id
+    if "driver" in kwargs:
+        params["driver"] = kwargs.pop("driver")
+    return execute_command("lock_hunk_store", params, parse_yson=True)
+
+
+def unlock_hunk_store(path, tablet_index, store_id, locker_tablet_id="1-1-1-1", **kwargs):
+    params = {}
+    params["path"] = path
+    params["tablet_index"] = tablet_index
+    params["store_id"] = store_id
+    params["locker_tablet_id"] = locker_tablet_id
+    if "driver" in kwargs:
+        params["driver"] = kwargs.pop("driver")
+    return execute_command("unlock_hunk_store", params, parse_yson=True)
 
 
 def sync_control_chunk_replicator(enabled):

@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     ((DestroySequoiaChunks)                                         (2102))  // aleksandra-zh
     ((TabletBase)                                                   (2103))  // gritukan
     ((PersistentResponseKeeper)                                     (2104))  // aleksandra-zh
+    ((HunkStorage)                                                  (2105))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,12 +2,21 @@
 #include "config.h"
 #include "connection.h"
 #include "private.h"
+#include "transaction.h"
 
 #include <yt/yt/ytlib/admin/admin_service_proxy.h>
+
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+
+#include <yt/yt/ytlib/journal_client/chunk_reader.h>
 
 #include <yt/yt/ytlib/exec_node_admin/exec_node_admin_service_proxy.h>
 
@@ -37,6 +46,7 @@ using namespace NAdmin;
 using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
+using namespace NChunkClient;
 using namespace NExecNode;
 using namespace NHiveClient;
 using namespace NHydra;
@@ -46,6 +56,8 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NTabletClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

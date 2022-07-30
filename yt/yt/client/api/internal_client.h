@@ -12,7 +12,7 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadHunkRequest
+struct THunkDescriptor
 {
     NChunkClient::TChunkId ChunkId;
     NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
@@ -22,11 +22,48 @@ struct TReadHunkRequest
     std::optional<i64> BlockSize;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableHunkDescriptor
+    : public THunkDescriptor
+    , public NYTree::TYsonSerializable
+{
+public:
+    TSerializableHunkDescriptor();
+
+    TSerializableHunkDescriptor(const THunkDescriptor& descriptor);
+
+private:
+    void Initialize();
+};
+
+using TSerializableHunkDescriptorPtr = TIntrusivePtr<TSerializableHunkDescriptor>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TReadHunksOptions
     : public TTimeoutOptions
 {
     NChunkClient::TChunkFragmentReaderConfigPtr Config;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWriteHunksOptions
+    : public TTimeoutOptions
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLockHunkStoreOptions
+    : public TTimeoutOptions
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUnlockHunkStoreOptions
+    : public TTimeoutOptions
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,8 +75,27 @@ struct IInternalClient
     : public virtual TRefCounted
 {
     virtual TFuture<std::vector<TSharedRef>> ReadHunks(
-        const std::vector<TReadHunkRequest>& requests,
+        const std::vector<THunkDescriptor>& descriptors,
         const TReadHunksOptions& options = {}) = 0;
+
+    virtual TFuture<std::vector<THunkDescriptor>> WriteHunks(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        const std::vector<TSharedRef>& payloads,
+        const TWriteHunksOptions& options = {}) = 0;
+
+    virtual TFuture<void> LockHunkStore(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TLockHunkStoreOptions& options = {}) = 0;
+    virtual TFuture<void> UnlockHunkStore(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TUnlockHunkStoreOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInternalClient)

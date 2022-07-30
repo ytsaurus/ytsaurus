@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "hunk_tablet_manager.h"
 #include "master_connector.h"
 #include "private.h"
 #include "security_manager.h"
@@ -92,6 +93,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NSecurityServer;
 using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTransactionSupervisor;
@@ -276,6 +278,16 @@ public:
         return TabletCellWriteManager_;
     }
 
+    const IHunkTabletManagerPtr& GetHunkTabletManager() override
+    {
+        return HunkTabletManager_;
+    }
+
+    const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
+    {
+        return Bootstrap_->GetResourceLimitsManager();
+    }
+
     TObjectId GenerateId(EObjectType type) override
     {
         return Occupant_->GenerateId(type);
@@ -353,6 +365,10 @@ public:
             this,
             Bootstrap_);
 
+        HunkTabletManager_ = CreateHunkTabletManager(
+            Bootstrap_,
+            this);
+
         TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
             this,
@@ -385,6 +401,7 @@ public:
         TabletManager_->SubscribeEpochStopped(
             BIND_NO_PROPAGATE(&TTabletSlot::OnTabletsEpochStopped, MakeWeak(this)));
         TabletManager_->Initialize();
+        HunkTabletManager_->Initialize();
         TabletCellWriteManager_->Initialize();
     }
 
@@ -412,6 +429,8 @@ public:
         TabletManager_->Finalize();
         TabletManager_.Reset();
 
+        HunkTabletManager_.Reset();
+
         TransactionManager_.Reset();
         DistributedThrottlerManager_.Reset();
         TabletCellWriteManager_.Reset();
@@ -438,7 +457,8 @@ public:
                 MakeWeak(TabletManager_))
                 ->Via(GetAutomatonInvoker()))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
-            ->AddChild("tablets", TabletManager_->GetOrchidService());
+            ->AddChild("tablets", TabletManager_->GetOrchidService())
+            ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService());
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() override
@@ -496,6 +516,8 @@ private:
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 
     TTabletManagerPtr TabletManager_;
+
+    IHunkTabletManagerPtr HunkTabletManager_;
 
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
 

@@ -1,13 +1,19 @@
 package NYT.NTabletNode.NProto;
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/core/misc/proto/error.proto";
-import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
-import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
-import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
-import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt/ytlib/tablet_client/proto/backup.proto";
+
+import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
+
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
+
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,6 +354,50 @@ message TReqAdvanceReplicationProgress
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NChaosClient.NProto.TReplicationProgress new_replication_progress = 2;
     required bool validate_strict_advance = 3;
+}
+
+message THunkStorageSettings
+{
+    required bytes mount_config = 1; // YSON-serialized
+    required bytes hunk_store_config = 2; // YSON-serialized
+    required bytes hunk_store_options = 3; // YSON-serialized
+}
+
+message TReqMountHunkTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required THunkStorageSettings hunk_storage_settings = 3;
+    required NYT.NProto.TGuid storage_id = 4;
+    required string storage_path = 5;
+    repeated NYT.NProto.TGuid store_ids = 6;
+}
+
+message TReqUnmountHunkTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bool force = 2;
+}
+
+message TReqRemountHunkTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required THunkStorageSettings hunk_storage_settings = 2;
+}
+
+message TAddHunkStoreDescriptor
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRemoveHunkStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+}
+
+message TMarkHunkStoreSealableDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

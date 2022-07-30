@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
+#include <yt/yt/server/lib/security_server/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
@@ -70,6 +72,10 @@ struct ITabletSlot
 
     virtual const TTabletManagerPtr& GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
+
+    virtual const IHunkTabletManagerPtr& GetHunkTabletManager() = 0;
+
+    virtual const NSecurityServer::IResourceLimitsManagerPtr& GetResourceLimitsManager() const = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 

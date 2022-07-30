@@ -140,6 +140,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetMovable());
     Save(context, GetOverlayed());
     Save(context, GetStripedErasure());
+    Save(context, GetSealable());
     {
         // COMPAT(shakurov)
         TCompactVector<TChunkTree*, TypicalChunkParentCount> parents;
@@ -194,6 +195,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetStripedErasure(Load<bool>(context));
     } else {
         SetStripedErasure(false);
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::HunkStorage) {
+        SetSealable(Load<bool>(context));
+    } else {
+        SetSealable(false);
     }
 
     auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
@@ -506,6 +514,16 @@ bool TChunk::GetStripedErasure() const
 void TChunk::SetStripedErasure(bool value)
 {
     Flags_.StripedErasure = value;
+}
+
+bool TChunk::GetSealable() const
+{
+    return Flags_.Sealable;
+}
+
+void TChunk::SetSealable(bool value)
+{
+    Flags_.Sealable = value;
 }
 
 i64 TChunk::GetPhysicalSealedRowCount() const

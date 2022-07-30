@@ -48,6 +48,7 @@ using NTabletClient::NullTabletCellId;
 using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
+using NTabletClient::THunkStorageId;
 using NTabletClient::ETabletState;
 using NTabletClient::ETableReplicaMode;
 using NTabletClient::TypicalPeerCount;
@@ -96,12 +97,15 @@ class TTableReplica;
 DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletBase, TTabletId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletOwnerBase, TTabletOwnerId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableReplica, TTableReplicaId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletAction, TTabletActionId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(THunkStorageNode, THunkStorageId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TTabletCellBundle)
+DECLARE_MASTER_OBJECT_TYPE(THunkStorageNode)
 
 struct TTabletStatistics;
 struct TTabletPerformanceCounter;

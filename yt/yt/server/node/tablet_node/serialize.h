@@ -48,6 +48,7 @@ DEFINE_ENUM(ETabletReign,
     ((SavePreparedReplicatorTxs)          (100511)) // ifsmirnov
     // 22.3 starts here.
     ((TabletWriteManager)                 (100600)) // gritukan
+    ((HunkTablets)                        (100601)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

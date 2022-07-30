@@ -1663,7 +1663,6 @@ struct IClientBase
     virtual IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = {}) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)

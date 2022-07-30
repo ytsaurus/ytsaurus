@@ -111,6 +111,9 @@ extern const TPartitionId NullPartitionId;
 using TTabletCellBundleId = NObjectClient::TObjectId;
 extern const TTabletCellBundleId NullTabletCellBundleId;
 
+using THunkStorageId = NObjectClient::TObjectId;
+extern const THunkStorageId NullHunkStorageId;
+
 constexpr int TypicalTableReplicaCount = 6;
 
 using TTableReplicaId = NObjectClient::TObjectId;

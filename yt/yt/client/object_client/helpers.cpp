@@ -87,7 +87,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::RpcProxyRoleMap ||
         type == EObjectType::MasterTableSchemaMap ||
         type == EObjectType::ChaosReplicatedTable ||
-        type == EObjectType::AccessControlObjectNamespaceMap;
+        type == EObjectType::AccessControlObjectNamespaceMap ||
+        type == EObjectType::HunkStorage;
 }
 
 bool IsUserType(EObjectType type)
@@ -119,7 +120,8 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Account ||
         type == EObjectType::SchedulerPool ||
         type == EObjectType::SchedulerPoolTree ||
-        type == EObjectType::ChaosReplicatedTable;
+        type == EObjectType::ChaosReplicatedTable ||
+        type == EObjectType::HunkStorage;
 }
 
 bool IsTableType(EObjectType type)
@@ -139,7 +141,9 @@ bool IsLogTableType(EObjectType type)
 
 bool IsTabletOwnerType(EObjectType type)
 {
-    return IsTableType(type);
+    return
+        IsTableType(type) ||
+        type == EObjectType::HunkStorage;
 }
 
 bool IsCellType(EObjectType type)
@@ -159,6 +163,13 @@ bool IsCellBundleType(EObjectType type)
 bool IsAlienType(EObjectType type)
 {
     return type == EObjectType::ChaosCell;
+}
+
+bool IsTabletType(EObjectType type)
+{
+    return
+        type == EObjectType::Tablet ||
+        type == EObjectType::HunkTablet;
 }
 
 bool HasSchema(EObjectType type)

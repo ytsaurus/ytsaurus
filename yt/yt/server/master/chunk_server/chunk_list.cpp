@@ -288,7 +288,9 @@ bool TChunkList::HasModifyableCumulativeStatistics() const
         Kind_ == EChunkListKind::SortedDynamicTablet ||
         Kind_ == EChunkListKind::SortedDynamicSubtablet ||
         Kind_ == EChunkListKind::HunkRoot ||
-        Kind_ == EChunkListKind::Hunk;
+        Kind_ == EChunkListKind::Hunk ||
+        Kind_ == EChunkListKind::HunkStorageRoot ||
+        Kind_ == EChunkListKind::HunkTablet;
 }
 
 bool TChunkList::HasTrimmableCumulativeStatistics() const
@@ -306,7 +308,9 @@ bool TChunkList::HasChildToIndexMapping() const
         Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::HunkRoot ||
         Kind_ == EChunkListKind::Hunk ||
-        Kind_ == EChunkListKind::JournalRoot;
+        Kind_ == EChunkListKind::JournalRoot ||
+        Kind_ == EChunkListKind::HunkStorageRoot ||
+        Kind_ == EChunkListKind::HunkTablet;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

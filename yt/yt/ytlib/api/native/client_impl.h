@@ -555,9 +555,29 @@ public:
         (alienCellDescriptors, options))
 
     IMPLEMENT_METHOD(std::vector<TSharedRef>, ReadHunks, (
-        const std::vector<TReadHunkRequest>& requests,
+        const std::vector<THunkDescriptor>& descriptors,
         const TReadHunksOptions& options),
-        (requests, options))
+        (descriptors, options))
+    IMPLEMENT_METHOD(std::vector<THunkDescriptor>, WriteHunks, (
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        const std::vector<TSharedRef>& payloads,
+        const TWriteHunksOptions& options),
+        (path, tabletIndex, payloads, options))
+    IMPLEMENT_METHOD(void, LockHunkStore, (
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TLockHunkStoreOptions& options),
+        (path, tabletIndex, storeId, lockerTabletId, options))
+    IMPLEMENT_METHOD(void, UnlockHunkStore, (
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TUnlockHunkStoreOptions& options),
+        (path, tabletIndex, storeId, lockerTabletId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1403,8 +1423,32 @@ private:
     //
 
     std::vector<TSharedRef> DoReadHunks(
-        const std::vector<TReadHunkRequest>& requests,
+        const std::vector<THunkDescriptor>& descriptors,
         const TReadHunksOptions& options);
+    std::vector<THunkDescriptor> DoWriteHunks(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        const std::vector<TSharedRef>& payloads,
+        const TWriteHunksOptions& options);
+    void DoLockHunkStore(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TLockHunkStoreOptions& options);
+    void DoUnlockHunkStore(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        const TUnlockHunkStoreOptions& options);
+    void DoToggleHunkStoreLock(
+        const NYTree::TYPath& path,
+        int tabletIndex,
+        NTabletClient::TStoreId storeId,
+        NTabletClient::TTabletId lockerTabletId,
+        bool lock,
+        const TTimeoutOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

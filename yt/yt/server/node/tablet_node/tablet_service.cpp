@@ -1,6 +1,8 @@
 #include "tablet_service.h"
 #include "bootstrap.h"
 #include "private.h"
+#include "hunk_store.h"
+#include "hunk_tablet_manager.h"
 #include "security_manager.h"
 #include "slot_manager.h"
 #include "store_manager.h"
@@ -44,6 +46,7 @@ using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCompression;
 using namespace NConcurrency;
+using namespace NJournalClient;
 using namespace NHydra;
 using namespace NRpc;
 using namespace NTableClient;
@@ -81,6 +84,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteHunks));
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
     }
@@ -343,6 +347,42 @@ private:
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqResumeTabletCell());
         mutation->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, WriteHunks)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+        const auto& payloads = request->Attachments();
+
+        context->SetRequestInfo("TabletId: %v, MountRevision: %v, HunkCount: %v",
+            tabletId,
+            mountRevision,
+            payloads.size());
+
+        const auto& tabletManager = Slot_->GetHunkTabletManager();
+        auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+        tablet->ValidateMounted(mountRevision);
+
+        tablet->WriteHunks(payloads)
+            .Apply(BIND([=] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) {
+                if (!descriptorsOrError.IsOK()) {
+                    context->Reply(descriptorsOrError);
+                    return;
+                }
+
+                const auto& descriptors = descriptorsOrError.Value();
+                for (const auto& descriptor : descriptors) {
+                    auto* protoDescriptor = response->add_descriptors();
+                    ToProto(protoDescriptor->mutable_chunk_id(), descriptor.ChunkId);
+                    protoDescriptor->set_record_index(descriptor.RecordIndex);
+                    protoDescriptor->set_record_offset(descriptor.RecordOffset);
+                    protoDescriptor->set_length(descriptor.Size);
+                }
+                context->Reply();
+            }));
     }
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(

@@ -214,12 +214,14 @@ protected:
 
                 case EChunkListKind::SortedDynamicRoot:
                 case EChunkListKind::OrderedDynamicRoot:
+                case EChunkListKind::HunkStorageRoot:
                     VisitEntryDynamicRoot(&entry);
                     break;
 
                 case EChunkListKind::SortedDynamicTablet:
                 case EChunkListKind::SortedDynamicSubtablet:
                 case EChunkListKind::OrderedDynamicTablet:
+                case EChunkListKind::HunkTablet:
                 case EChunkListKind::HunkRoot:
                 case EChunkListKind::Hunk:
                     VisitEntryDynamic(&entry);
@@ -779,6 +781,8 @@ protected:
         switch (childType) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk:
             case EObjectType::ChunkView: {
                 TChunk* childChunk = nullptr;
                 const TChunkViewModifier* modifier = nullptr;
@@ -933,6 +937,7 @@ protected:
             case EChunkListKind::SortedDynamicRoot:
             case EChunkListKind::OrderedDynamicRoot:
             case EChunkListKind::HunkRoot:
+            case EChunkListKind::HunkStorageRoot:
                 PushFirstChildDynamicRoot(chunkList, rowIndex, lowerLimit, upperLimit);
                 break;
 
@@ -940,6 +945,7 @@ protected:
             case EChunkListKind::SortedDynamicSubtablet:
             case EChunkListKind::OrderedDynamicTablet:
             case EChunkListKind::Hunk:
+            case EChunkListKind::HunkTablet:
                 PushFirstChildDynamic(chunkList, entryIndex, rowIndex, tabletIndex, lowerLimit, upperLimit);
                 break;
 

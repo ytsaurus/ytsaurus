@@ -171,4 +171,14 @@ using TSyncReplicaIdList = TCompactVector<TTableReplicaId, 2>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_REFCOUNTED_STRUCT(IHunkTabletHost)
+DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
+DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
+
+DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode

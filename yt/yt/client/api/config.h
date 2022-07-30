@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/file_client/config.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/misc/backoff_strategy_api.h>
@@ -157,7 +159,7 @@ DEFINE_REFCOUNTED_TYPE(TJournalReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalWriterConfig
+class TJournalChunkWriterConfig
     : public virtual TWorkloadConfig
 {
 public:
@@ -168,26 +170,15 @@ public:
     int MaxFlushRowCount;
     i64 MaxFlushDataSize;
 
-    int MaxChunkRowCount;
-    i64 MaxChunkDataSize;
-    TDuration MaxChunkSessionDuration;
-
     bool PreferLocalHost;
 
     TDuration NodeRpcTimeout;
     TDuration NodePingPeriod;
     TDuration NodeBanTimeout;
 
-    TDuration OpenSessionBackoffTime;
-
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
-    TDuration PrerequisiteTransactionProbePeriod;
-
     // For testing purposes only.
-    bool DontClose;
-    bool DontSeal;
-    bool DontPreallocate;
     double ReplicaFailureProbability;
 
     //! After writing #ReplicaRowLimits[index] rows to replica #index
@@ -195,6 +186,32 @@ public:
     //! but rows will be actually written.
     std::optional<std::vector<int>> ReplicaRowLimits;
     TDuration ReplicaFakeTimeoutDelay;
+
+    REGISTER_YSON_STRUCT(TJournalChunkWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalChunkWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalWriterConfig
+    : public TJournalChunkWriterConfig
+{
+public:
+    int MaxChunkRowCount;
+    i64 MaxChunkDataSize;
+    TDuration MaxChunkSessionDuration;
+
+    TDuration OpenSessionBackoffTime;
+
+    TDuration PrerequisiteTransactionProbePeriod;
+
+    // For testing purposes only.
+    bool DontClose;
+    bool DontSeal;
+    bool DontPreallocate;
 
     std::optional<TDuration> OpenDelay;
 
@@ -207,5 +224,27 @@ DEFINE_REFCOUNTED_TYPE(TJournalWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi
+class TJournalChunkWriterOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    int ReplicationFactor;
+    NErasure::ECodec ErasureCodec;
 
+    int ReadQuorum;
+    int WriteQuorum;
+
+    int ReplicaLagLimit;
+
+    bool EnableMultiplexing;
+
+    REGISTER_YSON_STRUCT(TJournalChunkWriterOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalChunkWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NApi

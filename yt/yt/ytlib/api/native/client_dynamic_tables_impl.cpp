@@ -1379,8 +1379,8 @@ IAttributeDictionaryPtr TClient::ResolveExternalTable(
         *externalCellTag = rsp->external_cell_tag();
     }
 
-    if (!IsTableType(TypeFromId(*tableId))) {
-        THROW_ERROR_EXCEPTION("%v is not a table", path);
+    if (!IsTabletOwnerType(TypeFromId(*tableId))) {
+        THROW_ERROR_EXCEPTION("%v is not a tablet owner", path);
     }
 
     IAttributeDictionaryPtr extraAttributes;
@@ -1454,8 +1454,8 @@ void TClient::ExecuteTabletServiceRequest(
         &externalCellTag,
         {"path"});
 
-    if (!IsTableType(TypeFromId(tableId))) {
-        THROW_ERROR_EXCEPTION("Object %v is not a table", path);
+    if (!IsTabletOwnerType(TypeFromId(tableId))) {
+        THROW_ERROR_EXCEPTION("Object %v is not a tablet owner", path);
     }
 
     auto nativeCellTag = CellTagFromId(tableId);
@@ -1463,7 +1463,7 @@ void TClient::ExecuteTabletServiceRequest(
     auto transactionAttributes = CreateEphemeralAttributes();
     transactionAttributes->Set(
         "title",
-        Format("%v table %v", action, path));
+        Format("%v node %v", action, path));
 
     TNativeTransactionStartOptions transactionOptions;
     transactionOptions.Attributes = std::move(transactionAttributes);

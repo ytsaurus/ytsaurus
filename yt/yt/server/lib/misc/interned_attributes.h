@@ -206,6 +206,8 @@
     XX(HunkCount, hunk_count) \
     XX(HunkErasureCodec, hunk_erasure_codec) \
     XX(HunkStatistics, hunk_statistics) \
+    XX(HunkStoreWriter, hunk_store_writer) \
+    XX(HunkStorageNode, hunk_storage_node) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
