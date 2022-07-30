@@ -100,6 +100,12 @@ public:
     bool IsRefreshEnabled();
     bool IsRequisitionUpdateEnabled();
 
+    //! Returns true if chunk replicator is processing
+    //! shard |chunk| belongs to and false otherwise.
+    bool ShouldProcessChunk(TChunk* chunk);
+
+    TJobEpoch GetJobEpoch(TChunk* chunk) const;
+
     void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
     // IJobController implementation.
@@ -168,7 +174,7 @@ private:
     const TChunkPlacementPtr ChunkPlacement_;
     const IJobRegistryPtr JobRegistry_;
 
-    TJobEpoch JobEpoch_ = InvalidJobEpoch;
+    std::array<TJobEpoch, ChunkShardCount> JobEpochs_;
 
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
@@ -189,6 +195,8 @@ private:
     //! Medium index designates the medium where the chunk is missing some of
     //! its parts. It's always equal to the index of its queue.
     //! In each queue, a single chunk may only appear once.
+    // NB: Queues are not modified when a replicator shard is disabled, so one should
+    // take care of such a chunks.
     std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
     std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
     TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
@@ -201,7 +209,9 @@ private:
     TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
 
     std::optional<bool> Enabled_;
-    bool Running_ = false;
+
+    std::bitset<ChunkShardCount> RefreshRunning_;
+    bool RequisitionUpdateRunning_ = false;
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
@@ -341,6 +351,12 @@ private:
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
     bool IsConsistentChunkPlacementEnabled() const;
     bool UsePullReplication(TChunk* chunk) const;
+
+    void StartRefresh(int shardIndex);
+    void StopRefresh(int shardIndex);
+
+    void StartRequisitionUpdate();
+    void StopRequisitionUpdate();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

@@ -1,4 +1,5 @@
 #include "chunk_sealer.h"
+
 #include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
@@ -6,6 +7,7 @@
 #include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
+#include "chunk_replicator.h"
 #include "config.h"
 #include "helpers.h"
 #include "chunk_scanner.h"
@@ -149,10 +151,6 @@ public:
             GetDynamicConfig()->ChunkRefreshPeriod);
         SealExecutor_->Start();
 
-        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
-        YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
-        JobEpoch_ = jobRegistry->StartEpoch();
-
         YT_VERIFY(!std::exchange(Running_, true));
 
         YT_LOG_INFO("Chunk sealer started");
@@ -170,10 +168,6 @@ public:
 
         SealExecutor_->Stop();
         SealExecutor_.Reset();
-
-        const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
-        jobRegistry->OnEpochFinished(JobEpoch_);
-        JobEpoch_ = InvalidJobEpoch;
 
         YT_VERIFY(std::exchange(Running_, false));
 
@@ -212,11 +206,6 @@ public:
     // IJobController implementation.
     void ScheduleJobs(IJobSchedulingContext* context) override
     {
-        // Fast path.
-        if (!Running_) {
-            return;
-        }
-
         auto* node = context->GetNode();
         const auto& resourceUsage = context->GetNodeResourceUsage();
         const auto& resourceLimits = context->GetNodeResourceLimits();
@@ -290,8 +279,6 @@ private:
 
     bool Enabled_ = true;
     bool Running_ = false;
-
-    TJobEpoch JobEpoch_ = InvalidJobEpoch;
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
     {
@@ -634,15 +621,25 @@ private:
             return true;
         }
 
+        const auto& chunkReplicator = Bootstrap_->GetChunkManager()->GetChunkReplicator();
+        if (!chunkReplicator->ShouldProcessChunk(chunk)) {
+            return true;
+        }
+
         // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
         if (std::ssize(chunk->StoredReplicas()) < chunk->GetReadQuorum()) {
             return true;
         }
 
+        // NB: Seal jobs are scheduled from seal queues which are filled
+        // by chunk replicator, so chunk sealer reuses replicator's job epochs.
+        auto jobEpoch = chunkReplicator->GetJobEpoch(chunk);
+        YT_VERIFY(jobEpoch != InvalidJobEpoch);
+
         auto job = New<TSealJob>(
             context->GenerateJobId(),
-            JobEpoch_,
+            jobEpoch,
             context->GetNode(),
             chunkWithIndexes);
         context->ScheduleJob(job);

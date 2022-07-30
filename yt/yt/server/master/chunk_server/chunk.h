@@ -194,6 +194,7 @@ public:
     bool GetScanFlag(EChunkScanKind kind) const;
     void SetScanFlag(EChunkScanKind kind);
     void ClearScanFlag(EChunkScanKind kind);
+
     TChunk* GetNextScannedChunk() const;
 
     std::optional<NProfiling::TCpuInstant> GetPartLossTime() const;

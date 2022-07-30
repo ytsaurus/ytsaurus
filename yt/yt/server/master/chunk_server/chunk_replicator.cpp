@@ -336,6 +336,7 @@ TChunkReplicator::TChunkReplicator(
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
 
+    std::fill(JobEpochs_.begin(), JobEpochs_.end(), InvalidJobEpoch);
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
     }
@@ -346,13 +347,10 @@ TChunkReplicator::~TChunkReplicator()
 
 void TChunkReplicator::Start()
 {
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
-        BlobRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        StartRefresh(shardIndex);
     }
+    StartRequisitionUpdate();
 
     RefreshExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
@@ -378,45 +376,21 @@ void TChunkReplicator::Start()
         Config_->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
 
-    YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
-    JobEpoch_ = JobRegistry_->StartEpoch();
-
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        SetRefreshEpoch(shardIndex, JobEpoch_);
-    }
-
-    YT_VERIFY(!std::exchange(Running_, true));
-
     // Just in case.
     Enabled_ = false;
-
-    YT_LOG_INFO("Chunk replicator started");
 }
 
 void TChunkReplicator::Stop()
 {
-    if (!std::exchange(Running_, false)) {
-        return;
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        StopRefresh(shardIndex);
     }
+    StopRequisitionUpdate();
 
     ClearChunkRequisitionCache();
     TmpRequisitionRegistry_.Clear();
 
     LastPerNodeProfilingTime_ = TInstant::Zero();
-
-    JobRegistry_->OnEpochFinished(JobEpoch_);
-    JobEpoch_ = InvalidJobEpoch;
-
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
-    }
-
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRefreshScanner_->Stop(shardIndex);
-        JournalRefreshScanner_->Stop(shardIndex);
-        BlobRequisitionUpdateScanner_->Stop(shardIndex);
-        JournalRequisitionUpdateScanner_->Stop(shardIndex);
-    }
 
     RefreshExecutor_->Stop();
     RefreshExecutor_.Reset();
@@ -461,14 +435,12 @@ void TChunkReplicator::Stop()
     }
 
     Enabled_ = false;
-
-    YT_LOG_INFO("Chunk replicator stopped");
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     // Fast path.
-    if (!Running_) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
@@ -1229,10 +1201,8 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
-    // Fast path.
-    if (!Running_) {
-        return;
-    }
+    // NB: We have to handle chunk here even if it should not be processed by replicator
+    // since it may be in some of the queues being put when replicator processed this chunk.
 
     GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
@@ -1259,12 +1229,13 @@ void TChunkReplicator::OnReplicaRemoved(
     TChunkPtrWithIndexes chunkWithIndexes,
     ERemoveReplicaReason reason)
 {
+    auto* chunk = chunkWithIndexes.GetPtr();
+
     // Fast path.
-    if (!Running_) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
-    auto* chunk = chunkWithIndexes.GetPtr();
     auto chunkIdWithIndexes = ToChunkIdWithIndexes(chunkWithIndexes);
     RemoveFromChunkReplicationQueues(node, chunkWithIndexes);
     if (reason != ERemoveReplicaReason::ChunkDestroyed) {
@@ -1374,7 +1345,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     auto job = New<TReplicationJob>(
         context->GenerateJobId(),
-        JobEpoch_,
+        GetJobEpoch(chunk),
         sourceNode,
         chunkWithIndexes,
         targetReplicas,
@@ -1430,7 +1401,7 @@ bool TChunkReplicator::TryScheduleBalancingJob(
 
     auto job = New<TReplicationJob>(
         context->GenerateJobId(),
-        JobEpoch_,
+        GetJobEpoch(chunk),
         sourceNode,
         chunkWithIndexes,
         targetReplicas,
@@ -1465,9 +1436,10 @@ bool TChunkReplicator::TryScheduleRemovalJob(
         }
     }
 
+    auto shardIndex = GetChunkShardIndex(chunkIdWithIndexes.Id);
     auto job = New<TRemovalJob>(
         context->GenerateJobId(),
-        JobEpoch_,
+        JobEpochs_[shardIndex],
         context->GetNode(),
         IsObjectAlive(chunk) ? chunk : nullptr,
         chunkIdWithIndexes);
@@ -1577,7 +1549,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
 
     auto job = New<TRepairJob>(
         context->GenerateJobId(),
-        JobEpoch_,
+        GetJobEpoch(chunk),
         context->GetNode(),
         GetDynamicConfig()->RepairJobMemoryUsage,
         chunk,
@@ -1764,6 +1736,8 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
                 chunkRepairQueue.erase(chunkIt);
             };
 
+            // NB: Repair queues are not cleared when shard processing is stopped,
+            // so we have to handle chunks replicator should not process.
             if (!chunk->IsRefreshActual()) {
                 removeFromQueue();
                 ++misscheduledRepairJobs;
@@ -1855,34 +1829,38 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     }
 
     // Schedule balancing jobs.
-    for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = mediumIdAndPtrPair.second;
-        if (medium->GetCache()) {
-            continue;
-        }
+    // TODO(gritukan): YT-17358, balancing jobs are probably not needed and are hard to
+    // implement with sharded replicator.
+    if (RefreshRunning_.all()) {
+        for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
+            auto* medium = mediumIdAndPtrPair.second;
+            if (medium->GetCache()) {
+                continue;
+            }
 
-        auto mediumIndex = medium->GetIndex();
-        auto sourceFillFactor = node->GetFillFactor(mediumIndex);
-        if (!sourceFillFactor) {
-            continue; // No storage of this medium on this node.
-        }
+            auto mediumIndex = medium->GetIndex();
+            auto sourceFillFactor = node->GetFillFactor(mediumIndex);
+            if (!sourceFillFactor) {
+                continue; // No storage of this medium on this node.
+            }
 
-        double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
-        if (hasSpareReplicationResources() &&
-            *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
-            ChunkPlacement_->HasBalancingTargets(
-                medium,
-                targetFillFactor))
-        {
-            int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
-            auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
-            for (auto chunkWithIndexes : chunksToBalance) {
-                if (!hasSpareReplicationResources()) {
-                    break;
-                }
+            double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
+            if (hasSpareReplicationResources() &&
+                *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
+                ChunkPlacement_->HasBalancingTargets(
+                    medium,
+                    targetFillFactor))
+            {
+                int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
+                auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
+                for (auto chunkWithIndexes : chunksToBalance) {
+                    if (!hasSpareReplicationResources()) {
+                        break;
+                    }
 
-                if (!TryScheduleBalancingJob(context, chunkWithIndexes, targetFillFactor)) {
-                    ++misscheduledReplicationJobs;
+                    if (!TryScheduleBalancingJob(context, chunkWithIndexes, targetFillFactor)) {
+                        ++misscheduledReplicationJobs;
+                    }
                 }
             }
         }
@@ -2261,7 +2239,7 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
     // Fast path.
-    if (!Running_) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
@@ -2278,11 +2256,6 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
-    // Fast path.
-    if (!Running_) {
-        return;
-    }
-
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     for (const auto& [mediumIndex, replicas] : node->Replicas()) {
@@ -2299,23 +2272,17 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
 void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
-    if (!Running_) {
-        return;
-    }
-
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        if (RefreshRunning_.test(shardIndex)) {
+            BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+            JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        }
     }
 }
 
 void TChunkReplicator::OnRefresh()
 {
-    if (!Running_) {
-        return;
-    }
-
     if (!GetDynamicConfig()->EnableChunkRefresh) {
         YT_LOG_DEBUG("Chunk refresh disabled");
         return;
@@ -2396,12 +2363,18 @@ bool TChunkReplicator::IsRequisitionUpdateEnabled()
     return GetDynamicConfig()->EnableChunkRequisitionUpdate;
 }
 
+bool TChunkReplicator::ShouldProcessChunk(TChunk* chunk)
+{
+    return RefreshRunning_.test(chunk->GetShardIndex());
+}
+
+TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
+{
+    return JobEpochs_[chunk->GetShardIndex()];
+}
+
 void TChunkReplicator::OnCheckEnabled()
 {
-    if (!Running_) {
-        return;
-    }
-
     const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
     if (!worldInitializer->IsInitialized()) {
         return;
@@ -2519,10 +2492,6 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
 
 void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
 {
-    if (!Running_) {
-        return;
-    }
-
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
@@ -2541,8 +2510,9 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     buffer->AddGauge("/inconsistently_placed_chunk_count", InconsistentlyPlacedChunks_.size());
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        if (jobType >= NJobTrackerClient::FirstMasterJobType
-            && jobType <= NJobTrackerClient::LastMasterJobType) {
+        if (jobType >= NJobTrackerClient::FirstMasterJobType &&
+            jobType <= NJobTrackerClient::LastMasterJobType)
+        {
             TWithTagGuard tagGuard(buffer, "job_type", FormatEnum(jobType));
             buffer->AddCounter("/misscheduled_jobs", MisscheduledJobs_[jobType]);
         }
@@ -2629,7 +2599,7 @@ void TChunkReplicator::OnJobFailed(const TJobPtr& job)
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 {
     // Fast path.
-    if (!Running_) {
+    if (!RequisitionUpdateRunning_) {
         return;
     }
 
@@ -2704,7 +2674,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 {
     // Fast path.
-    if (!Running_) {
+    if (!RequisitionUpdateRunning_) {
         return;
     }
 
@@ -2717,7 +2687,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 
 void TChunkReplicator::OnRequisitionUpdate()
 {
-    if (!Running_) {
+    if (!RequisitionUpdateRunning_) {
         return;
     }
 
@@ -2957,7 +2927,7 @@ void TChunkReplicator::ConfirmChunkListRequisitionTraverseFinished(TChunkList* c
 
 void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
 {
-    if (!Running_) {
+    if (!RequisitionUpdateRunning_) {
         return;
     }
 
@@ -3127,6 +3097,106 @@ bool TChunkReplicator::UsePullReplication(TChunk* chunk) const
     return chunk->HasConsistentReplicaPlacementHash() &&
         IsConsistentChunkPlacementEnabled() &&
         GetDynamicConfig()->ConsistentReplicaPlacement->EnablePullReplication;
+}
+
+void TChunkReplicator::StartRefresh(int shardIndex)
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+    JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+
+    YT_VERIFY(!RefreshRunning_.test(shardIndex));
+    RefreshRunning_.set(shardIndex);
+
+    auto& jobEpoch = JobEpochs_[shardIndex];
+    YT_VERIFY(jobEpoch == InvalidJobEpoch);
+    jobEpoch = JobRegistry_->StartEpoch();
+    SetRefreshEpoch(shardIndex, jobEpoch);
+
+    YT_LOG_INFO("Chunk refresh started (ShardIndex: %v, JobEpoch: %v)",
+        shardIndex,
+        jobEpoch);
+}
+
+void TChunkReplicator::StopRefresh(int shardIndex)
+{
+    if (!RefreshRunning_.test(shardIndex)) {
+        return;
+    }
+    RefreshRunning_.reset(shardIndex);
+
+    BlobRefreshScanner_->Stop(shardIndex);
+    JournalRefreshScanner_->Stop(shardIndex);
+
+    auto clearChunkSetShard = [&] (TShardedChunkSet& set) {
+        THashSet<TChunk*> shard;
+        std::swap(set.MutableShard(shardIndex), shard);
+
+        // Shard may be heavy, so we offload its destruction into
+        // separate thread.
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+            BIND([shard = std::move(shard)] { }));
+    };
+    clearChunkSetShard(LostChunks_);
+    clearChunkSetShard(LostVitalChunks_);
+    clearChunkSetShard(DataMissingChunks_);
+    clearChunkSetShard(ParityMissingChunks_);
+    clearChunkSetShard(PrecariousChunks_);
+    clearChunkSetShard(PrecariousVitalChunks_);
+    clearChunkSetShard(UnderreplicatedChunks_);
+    clearChunkSetShard(PrecariousVitalChunks_);
+    clearChunkSetShard(UnderreplicatedChunks_);
+    clearChunkSetShard(OverreplicatedChunks_);
+    clearChunkSetShard(QuorumMissingChunks_);
+    clearChunkSetShard(UnsafelyPlacedChunks_);
+    clearChunkSetShard(InconsistentlyPlacedChunks_);
+
+    // |OldestPartMissingChunks| should be ordered, so we use std::set
+    // instead of sharded set for it. However this set is always small,
+    // so O(n log n) time for shard removal is OK.
+    TOldestPartMissingChunkSet newOldestPartMissingChunks;
+    for (auto* chunk : OldestPartMissingChunks_) {
+        if (chunk->GetShardIndex() != shardIndex) {
+            newOldestPartMissingChunks.insert(chunk);
+        }
+    }
+    OldestPartMissingChunks_ = std::move(newOldestPartMissingChunks);
+
+    auto& jobEpoch = JobEpochs_[shardIndex];
+    YT_VERIFY(jobEpoch != InvalidJobEpoch);
+    JobRegistry_->OnEpochFinished(jobEpoch);
+    jobEpoch = InvalidJobEpoch;
+
+    YT_LOG_INFO("Chunk refresh stopped (ShardIndex: %v, JobEpoch: %v)",
+        shardIndex,
+        jobEpoch);
+}
+
+void TChunkReplicator::StartRequisitionUpdate()
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        BlobRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+    }
+
+    YT_VERIFY(!std::exchange(RequisitionUpdateRunning_, true));
+
+    YT_LOG_INFO("Chunk requisition update started");
+}
+
+void TChunkReplicator::StopRequisitionUpdate()
+{
+    if (std::exchange(RequisitionUpdateRunning_, false)) {
+        return;
+    }
+
+    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+        BlobRequisitionUpdateScanner_->Stop(shardIndex);
+        JournalRequisitionUpdateScanner_->Stop(shardIndex);
+    }
+
+    YT_LOG_INFO("Chunk requisition update stopped");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
