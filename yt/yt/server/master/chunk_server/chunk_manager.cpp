@@ -2368,13 +2368,6 @@ public:
         return chunkTree;
     }
 
-
-    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk) override
-    {
-        return ChunkReplicator_->ComputeChunkStatuses(chunk);
-    }
-
-
     TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(TChunk* chunk) override
     {
         return GetChunkQuorumInfo(
