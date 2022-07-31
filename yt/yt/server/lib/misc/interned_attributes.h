@@ -80,6 +80,7 @@
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
+    XX(ChunkReplicatorAddress, chunk_replicator_address) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkRequisitionUpdateEnabled, chunk_requisition_update_enabled) \
@@ -240,9 +241,13 @@
     XX(LeadingPeerId, leading_peer_id) \
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LifeStage, life_stage) \
+    XX(LocalJobs, local_jobs) \
     XX(LocalHealth, local_health) \
+    XX(LocalPartLossTime, local_part_loss_time) \
+    XX(LocalReplicationStatus, local_replication_status) \
     XX(LocalRequisition, local_requisition) \
     XX(LocalRequisitionIndex, local_requisition_index) \
+    XX(LocalScanFlags, local_scan_flags) \
     XX(LockCount, lock_count) \
     XX(LockIds, lock_ids) \
     XX(LockMode, lock_mode) \

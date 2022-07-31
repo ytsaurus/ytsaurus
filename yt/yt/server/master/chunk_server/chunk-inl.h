@@ -111,7 +111,8 @@ inline TChunk* TChunk::GetNextScannedChunk() const
 inline std::optional<NProfiling::TCpuInstant> TChunk::GetPartLossTime() const
 {
     auto* data = GetDynamicData();
-    if (data->Epoch == NObjectServer::GetCurrentEpoch() && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
+    auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
+    if (data->RefreshEpoch == currentRefreshEpoch && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
         return data->EpochPartLossTime;
     } else {
         return std::nullopt;

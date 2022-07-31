@@ -1,7 +1,9 @@
 #include "chunk_proxy.h"
+
 #include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "chunk_replicator.h"
 #include "job.h"
 #include "job_registry.h"
 #include "medium.h"
@@ -27,10 +29,14 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
+#include <yt/yt/ytlib/election/cell_manager.h>
+
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -39,9 +45,11 @@
 namespace NYT::NChunkServer {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTableClient;
 using namespace NJournalClient;
@@ -54,6 +62,10 @@ using NTableClient::NProto::THunkChunkMiscExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +113,12 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalRequisitionIndexes)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationStatus)
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalReplicationStatus)
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicatorAddress)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Available)
             .SetPresent(!isForeign));
@@ -170,12 +188,19 @@ private:
             .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Eden)
             .SetPresent(chunk->IsConfirmed()));
-        descriptors->push_back(EInternedAttributeKey::ScanFlags);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ScanFlags)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalScanFlags)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt && miscExt->has_creation_time()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Jobs)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalJobs)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalPartLossTime)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkRefs)
             .SetPresent(chunk->IsConfirmed())
@@ -201,6 +226,7 @@ private:
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
@@ -314,13 +340,17 @@ private:
                     .Value(chunk->GetMovable());
                 return true;
 
-            case EInternedAttributeKey::ReplicationStatus: {
+            case EInternedAttributeKey::LocalReplicationStatus: {
                 if (isForeign) {
                     break;
                 }
 
-                RequireLeader();
-                auto statuses = chunkManager->ComputeChunkStatuses(chunk);
+                if (!chunkReplicator->ShouldProcessChunk(chunk)) {
+                    THROW_ERROR_EXCEPTION("Local chunk replicator does not process chunk %v",
+                        chunk->GetId());
+                }
+
+                auto statuses = chunkReplicator->ComputeChunkStatuses(chunk);
 
                 BuildYsonFluently(consumer).DoMapFor(
                     statuses.begin(),
@@ -348,6 +378,18 @@ private:
 
                 return true;
             }
+
+            case EInternedAttributeKey::ChunkReplicatorAddress:
+                if (isForeign) {
+                    break;
+                }
+
+                RequireLeader();
+
+                // TODO(gritukan): Use incumbent manager here.
+                BuildYsonFluently(consumer)
+                    .Value(NNet::GetLocalHostName());
+                return true;
 
             case EInternedAttributeKey::Available:
                 if (isForeign) {
@@ -726,19 +768,39 @@ private:
                 break;
             }
 
-            case EInternedAttributeKey::ScanFlags:
-                RequireLeader();
+            case EInternedAttributeKey::LocalScanFlags: {
+                const static THashSet<EChunkScanKind> LeaderChunkScanKinds = {
+                    EChunkScanKind::RequisitionUpdate,
+                    EChunkScanKind::Seal,
+                };
+                const static THashSet<EChunkScanKind> ReplicatorChunkScanKinds = {
+                    EChunkScanKind::Refresh,
+                };
+
                 BuildYsonFluently(consumer)
                     .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
-                        if (kind != EChunkScanKind::None) {
-                            fluent
-                                .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind));
+                        if (kind == EChunkScanKind::None) {
+                            return;
                         }
+
+                        YT_ASSERT(LeaderChunkScanKinds.contains(kind) || ReplicatorChunkScanKinds.contains(kind));
+                        if (LeaderChunkScanKinds.contains(kind) && !IsLeader()) {
+                            return;
+                        }
+
+                        if (ReplicatorChunkScanKinds.contains(kind) && !chunkReplicator->ShouldProcessChunk(chunk)) {
+                            return;
+                        }
+
+                        fluent
+                            .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind));
                     });
                 return true;
+            }
 
-            case EInternedAttributeKey::Jobs: {
-                RequireLeader();
+            case EInternedAttributeKey::LocalJobs: {
+                // NB: This attribute is requested from all peers.
+
                 auto list = BuildYsonFluently(consumer).BeginList();
                 auto addJob = [&] (const TJobPtr& job) {
                     list.Item().BeginMap()
@@ -747,6 +809,8 @@ private:
                         .Item("start_time").Value(job->GetStartTime())
                         .Item("address").Value(job->NodeAddress())
                         .Item("state").Value(job->GetState())
+                        .Item("epoch").Value(job->GetJobEpoch())
+                        .Item("origin").Value(NNet::GetLocalHostName())
                     .EndMap();
                 };
                 for (const auto& job : chunk->GetJobs()) {
@@ -760,8 +824,7 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::PartLossTime: {
-                RequireLeader();
+            case EInternedAttributeKey::LocalPartLossTime: {
                 if (auto partLossTime = chunk->GetPartLossTime()) {
                     BuildYsonFluently(consumer)
                         .Value(CpuInstantToInstant(*partLossTime));
@@ -865,14 +928,42 @@ private:
 
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& cellManager = Bootstrap_->GetCellManager();
+
         auto* chunk = GetThisImpl();
+
+        auto isForeign = chunk->IsForeign();
+
+        auto requestAttributeFromAllPeers = [&] (const TString& attributeSuffix) {
+            std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
+            responseFutures.reserve(cellManager->GetTotalPeerCount());
+
+            for (int peerIndex = 0; peerIndex < cellManager->GetTotalPeerCount(); ++peerIndex) {
+                auto peerChannel = cellManager->GetPeerChannel(peerIndex);
+                TObjectServiceProxy proxy(std::move(peerChannel));
+                auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
+                responseFutures.push_back(proxy.Execute(req));
+            }
+
+            return responseFutures;
+        };
+
+        auto requestAttributeFromChunkReplicator = [&] (const TString& attributeSuffix) {
+            auto replicatorChannel = chunkManager->GetChunkReplicatorChannelOrThrow(chunk);
+            TObjectServiceProxy proxy(std::move(replicatorChannel));
+            auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
+            return proxy.Execute(req)
+                .Apply(BIND([] (const TIntrusivePtr<TObjectYPathProxy::TRspGet>& rsp) {
+                    return MakeFuture(TYsonString{rsp->value()});
+                }));
+        };
 
         switch (key) {
             case EInternedAttributeKey::QuorumInfo: {
                 if (!chunk->IsJournal()) {
                     break;
                 }
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 return chunkManager->GetChunkQuorumInfo(chunk)
                     .Apply(BIND([] (const TChunkQuorumInfo& info) {
                         return MakeFuture(BuildYsonStringFluently()
@@ -890,6 +981,56 @@ private:
 
             case EInternedAttributeKey::OwningNodes:
                 return GetMulticellOwningNodes(Bootstrap_, chunk);
+
+            case EInternedAttributeKey::ScanFlags: {
+                return AllSet(requestAttributeFromAllPeers("/@local_scan_flags"))
+                    .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
+                        auto builder = BuildYsonStringFluently().BeginMap();
+                        THashSet<TString> seenScanKinds;
+                        for (const auto& rspOrError : rspOrErrors) {
+                            if (!rspOrError.IsOK()) {
+                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk scan flags from peer");
+                                continue;
+                            }
+
+                            auto chunkScanFlags = ConvertTo<IMapNodePtr>(TYsonString{rspOrError.Value()->value()});
+                            for (const auto& [scanKind, flag] : chunkScanFlags->GetChildren()) {
+                                if (seenScanKinds.insert(scanKind).second) {
+                                    builder.Item(scanKind).Value(flag);
+                                }
+                            }
+                        }
+                        return MakeFuture(builder.EndMap());
+                    }));
+            }
+
+            case EInternedAttributeKey::Jobs: {
+                return AllSet(requestAttributeFromAllPeers("/@local_jobs"))
+                    .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
+                        auto builder = BuildYsonStringFluently().BeginList();
+                        for (const auto& rspOrError : rspOrErrors) {
+                            if (!rspOrError.IsOK()) {
+                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk jobs from peer");
+                                continue;
+                            }
+
+                            auto jobs = ConvertTo<IListNodePtr>(TYsonString{rspOrError.Value()->value()});
+                            for (const auto& job : jobs->GetChildren()) {
+                                builder.Item().Value(job);
+                            }
+                        }
+                        return MakeFuture(builder.EndList());
+                    }));
+            }
+
+            case EInternedAttributeKey::PartLossTime:
+                return requestAttributeFromChunkReplicator("/@local_part_loss_time");
+
+            case EInternedAttributeKey::ReplicationStatus:
+                if (isForeign) {
+                    break;
+                }
+                return requestAttributeFromChunkReplicator("/@local_replication_status");
 
             default:
                 break;

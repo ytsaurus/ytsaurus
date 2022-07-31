@@ -258,8 +258,6 @@ struct IChunkManager
 
     virtual void ScheduleGlobalChunkRefresh() = 0;
 
-    virtual TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk) = 0;
-
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
