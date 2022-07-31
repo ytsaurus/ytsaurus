@@ -312,6 +312,10 @@ struct IChunkManager
     //! Aborts job both in job controller and job registry.
     virtual void AbortAndRemoveJob(const TJobPtr& job) = 0;
 
+    // TODO(gritukan): This is a mock for future incumbent manager. Remove it.
+    virtual NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* chunk) = 0;
+    virtual NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

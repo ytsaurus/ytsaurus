@@ -5261,6 +5261,18 @@ private:
         JobRegistry_->OnJobFinished(job);
     }
 
+    NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* /*chunk*/) override
+    {
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        return cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader);
+    }
+
+    NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override
+    {
+        return FindChunkReplicatorChannel(chunk);
+    }
+
     std::vector<TError> GetAlerts() const
     {
         std::vector<TError> alerts;

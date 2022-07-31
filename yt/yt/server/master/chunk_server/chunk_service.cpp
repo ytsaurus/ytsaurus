@@ -1,8 +1,10 @@
 #include "chunk_service.h"
+
 #include "private.h"
 #include "config.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "chunk_replicator.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
 #include "medium.h"
@@ -112,24 +114,17 @@ private:
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
 
         auto addressType = request->has_address_type()
             ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto leaderChannel = cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader);
-
-        TChunkServiceProxy leaderProxy(std::move(leaderChannel));
-        auto leaderRequest = leaderProxy.TouchChunks();
-        leaderRequest->SetTimeout(context->GetTimeout());
-        NRpc::SetCurrentAuthenticationIdentity(leaderRequest);
-
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        bool follower = hydraManager->IsFollower();
         auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+
+        THashMap<NRpc::IChannelPtr, NChunkClient::NProto::TReqTouchChunks> channelToTouchChunksRequest;
 
         for (const auto& protoChunkId : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
@@ -155,17 +150,27 @@ private:
                 nodeDirectoryBuilder.Add(replica);
             }
 
-            if (follower && chunk->IsErasure() && !chunk->IsAvailable()) {
-                ToProto(leaderRequest->add_subrequests(), chunkId);
+            // NB: LocateChunk also touches chunk if its replicator is local.
+            if (!chunkReplicator->ShouldProcessChunk(chunk) && chunk->IsErasure() && !chunk->IsAvailable()) {
+                if (auto replicatorChannel = chunkManager->FindChunkReplicatorChannel(chunk)) {
+                    auto& request = channelToTouchChunksRequest[replicatorChannel];
+                    ToProto(request.add_subrequests(), chunkId);
+                }
             }
         }
 
         response->set_revision(revision);
 
-        if (leaderRequest->subrequests_size() > 0) {
-            YT_LOG_DEBUG("Touching chunks at leader (Count: %v)",
-                leaderRequest->subrequests_size());
-            leaderRequest->Invoke();
+        for (const auto& [channel, request] : channelToTouchChunksRequest) {
+            TChunkServiceProxy proxy(channel);
+            auto req = proxy.TouchChunks();
+            static_cast<NChunkClient::NProto::TReqTouchChunks&>(*req) = request;
+            req->SetTimeout(context->GetTimeout());
+            NRpc::SetCurrentAuthenticationIdentity(req);
+
+            YT_LOG_DEBUG("Forwarding touch request to remote replicator (ChunkCount: %v)",
+                req->subrequests_size());
+            req->Invoke();
         }
 
         context->Reply();
@@ -270,7 +275,7 @@ private:
             request->subrequests_size());
 
         ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
+        ValidatePeer(EPeerKind::LeaderOrFollower);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
