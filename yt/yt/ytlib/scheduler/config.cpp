@@ -657,7 +657,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("enable_prefetching_job_throttler", &TThis::EnablePrefetchingJobThrottler)
-        .Default();
+        .Default(false);
 
     registrar.Parameter("enable_squashfs", &TThis::EnableSquashFS)
         .Default();
