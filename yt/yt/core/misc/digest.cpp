@@ -10,7 +10,7 @@ using namespace NPhoenix;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogDigest
-    : public IDigest
+    : public IPersistentDigest
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
@@ -33,7 +33,7 @@ public:
             // Discard all incorrect values (those that are non-positive, too small or too large).
             return;
         }
-        ++Buckets_[std::max(0, std::min(BucketCount_ - 1, static_cast<int>(bucketId)))];
+        ++Buckets_[std::clamp(static_cast<int>(bucketId), 0, BucketCount_ - 1)];
         ++SampleCount_;
     }
 
@@ -52,6 +52,12 @@ public:
             value *= Step_;
         }
         return UpperBound_;
+    }
+
+    void Reset() override
+    {
+        SampleCount_ = 0;
+        std::fill(Buckets_.begin(), Buckets_.end(), 0);
     }
 
     void Persist(const TPersistenceContext& context) override
@@ -88,9 +94,75 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLogDigest);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IDigest> CreateLogDigest(TLogDigestConfigPtr config)
+std::unique_ptr<IPersistentDigest> CreateLogDigest(TLogDigestConfigPtr config)
 {
     return std::make_unique<TLogDigest>(std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THistogramDigest
+    : public IDigest
+{
+public:
+    explicit THistogramDigest(THistogramDigestConfigPtr config)
+        : Config_(std::move(config))
+        , Step_(Config_->AbsolutePrecision)
+        , BucketCount_(static_cast<int>((Config_->UpperBound - Config_->LowerBound) / Step_) + 1)
+        , Buckets_(BucketCount_)
+    { }
+
+    void AddSample(double value) override
+    {
+        double bucketId = (value - Config_->LowerBound) / Step_;
+        if (std::isnan(bucketId) || bucketId < std::numeric_limits<i32>::min() || bucketId > std::numeric_limits<i32>::max()) {
+            // Discard all incorrect values (those that are non-positive, too small or too large).
+            return;
+        }
+        // Note that due to round, i-th bucket corresponds to range [LowerBound + i*Step - Step/2; LowerBound + i*Step + Step/2).
+        ++Buckets_[std::clamp(static_cast<int>(std::round(bucketId)), 0, BucketCount_ - 1)];
+        ++SampleCount_;
+    }
+
+    double GetQuantile(double alpha) const override
+    {
+        if (SampleCount_ == 0) {
+            return Config_->DefaultValue.value_or(Config_->LowerBound);
+        }
+
+        double value = Config_->LowerBound;
+        i64 sum = 0;
+        for (int index = 0; index < BucketCount_; ++index) {
+            sum += Buckets_[index];
+            if (sum >= alpha * SampleCount_) {
+                return value;
+            }
+            value += Step_;
+        }
+
+        return Config_->UpperBound;
+    }
+
+    void Reset() override
+    {
+        SampleCount_ = 0;
+        std::fill(Buckets_.begin(), Buckets_.end(), 0);
+    }
+
+private:
+    THistogramDigestConfigPtr Config_;
+    const double Step_;
+    const int BucketCount_;
+
+    i64 SampleCount_ = 0;
+    std::vector<i64> Buckets_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config)
+{
+    return std::make_unique<THistogramDigest>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
