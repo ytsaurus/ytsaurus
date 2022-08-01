@@ -665,6 +665,8 @@ public:
      */
     TDuration SessionTimeout;
 
+    TDuration SessionBlockReorderTimeout;
+
     //! Timeout for "PutBlocks" requests to other data nodes.
     TDuration NodeRpcTimeout;
 
