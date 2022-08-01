@@ -19,6 +19,7 @@ var AliasParameter = CmdParameter{
 	Type:        TypeString,
 	Required:    true,
 	Description: "alias for the operation",
+	EnvVariable: "ALIAS",
 }
 
 var CreateCmdDescriptor = CmdDescriptor{
