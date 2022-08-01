@@ -18,12 +18,12 @@ type Speclet struct {
 	RuntimeDataPath *ypath.Path `yson:"runtime_data_path"`
 
 	// QuerySettings defines default settings for queries.
-	QuerySettings map[string]interface{} `yson:"query_settings"`
+	QuerySettings map[string]any `yson:"query_settings"`
 
 	// ClickHouseConfig is a base config for ClickHouse part of CHYT. Its usage is highly discouraged.
-	ClickHouseConfig map[string]interface{} `yson:"clickhouse_config"`
+	ClickHouseConfig map[string]any `yson:"clickhouse_config"`
 	// YTConfig is a base config for YT part of CHYT. Its usage is highly discouraged.
-	YTConfig map[string]interface{} `yson:"yt_config"`
+	YTConfig map[string]any `yson:"yt_config"`
 }
 
 const (
