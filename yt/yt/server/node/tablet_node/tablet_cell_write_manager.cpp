@@ -243,9 +243,13 @@ public:
                 rowCount,
                 dataWeight);
 
-            if (!reader->IsFinished()) {
-                prepareSignature = 0;
-                commitSignature = 0;
+            // For last mutation we use signature from the request,
+            // for other mutations signature is zero, see comment above.
+            auto mutationPrepareSignature = 0;
+            auto mutationCommitSignature = 0;
+            if (reader->IsFinished()) {
+                mutationPrepareSignature = prepareSignature;
+                mutationCommitSignature = commitSignature;
             }
 
             auto lockless = context.Lockless;
@@ -258,13 +262,13 @@ public:
                 context.RowCount,
                 lockless,
                 generation,
-                prepareSignature,
-                commitSignature);
+                mutationPrepareSignature,
+                mutationCommitSignature);
 
             auto readerAfter = reader->GetCurrent();
 
             if (atomicity == EAtomicity::Full) {
-                transaction->TransientPrepareSignature() += prepareSignature;
+                transaction->TransientPrepareSignature() += mutationPrepareSignature;
             }
 
             if (readerBefore != readerAfter) {
@@ -285,8 +289,8 @@ public:
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
                 hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
-                hydraRequest.set_prepare_signature(prepareSignature);
-                hydraRequest.set_commit_signature(commitSignature);
+                hydraRequest.set_prepare_signature(mutationPrepareSignature);
+                hydraRequest.set_commit_signature(mutationCommitSignature);
                 hydraRequest.set_generation(generation);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
@@ -301,8 +305,8 @@ public:
                     MakeStrong(this),
                     transactionId,
                     tablet->GetMountRevision(),
-                    prepareSignature,
-                    commitSignature,
+                    mutationPrepareSignature,
+                    mutationCommitSignature,
                     generation,
                     lockless,
                     writeRecord,
