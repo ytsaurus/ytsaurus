@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,26 @@ void TCellarNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCpuLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
+        .GreaterThan(0)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBundleDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_limits", &TThis::CpuLimits)
+        .DefaultNew();
+
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

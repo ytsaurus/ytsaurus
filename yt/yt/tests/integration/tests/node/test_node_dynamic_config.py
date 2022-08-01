@@ -23,6 +23,8 @@ import yt_error_codes
 import yt.yson as yson
 from yt.common import YtError
 
+from collections import namedtuple
+
 import pytest
 
 #################################################################
@@ -394,9 +396,15 @@ class TestNodeDynamicConfig(YTEnvSetup):
         for address in ls("//sys/cluster_nodes"):
             self._check_tablet_node_rct(address)
 
-    @authors("gritukan", "savrus")
-    @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
-    def test_dynamic_tablet_slot_count(self, config_node):
+    def _healthy_cell_count(self):
+        result = 0
+        for cell in ls("//sys/tablet_cells", attributes=["health"]):
+            if cell.attributes["health"] == "good":
+                result += 1
+        return result
+
+    def _init_zero_slot_nodes(self, config_node):
+        set("//sys/tablet_cell_bundles/@config", {})
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100)
         set(
             "//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging",
@@ -404,15 +412,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         )
         set("//sys/@config/tablet_manager/peer_revocation_timeout", 3000)
 
-        def healthy_cell_count():
-            result = 0
-            for cell in ls("//sys/tablet_cells", attributes=["health"]):
-                if cell.attributes["health"] == "good":
-                    result += 1
-            return result
-
         sync_create_cells(5)
-        assert healthy_cell_count() == 5
+        assert self._healthy_cell_count() == 5
 
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["nodeA"])
@@ -434,7 +435,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         }
         set("//sys/cluster_nodes/@config", config)
 
-        wait(lambda: healthy_cell_count() == 0)
+        wait(lambda: self._healthy_cell_count() == 0)
 
         if config_node == "cellar":
             config["nodeA"]["cellar_node"] = {
@@ -447,6 +448,12 @@ class TestNodeDynamicConfig(YTEnvSetup):
                     }
                 }
             }
+        return node, config
+
+    @authors("gritukan", "savrus")
+    @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
+    def test_dynamic_tablet_slot_count(self, config_node):
+        _, config = self._init_zero_slot_nodes(config_node)
 
         for slot_count in [2, 0, 7, 3, 1, 0, 2, 4]:
             if config_node == "cellar":
@@ -454,8 +461,64 @@ class TestNodeDynamicConfig(YTEnvSetup):
             else:
                 config["nodeA"]["tablet_node"]["slots"] = slot_count
             set("//sys/cluster_nodes/@config", config)
-            wait(lambda: healthy_cell_count() == min(5, slot_count))
+            wait(lambda: self._healthy_cell_count() == min(5, slot_count))
             self._check_tablet_nodes_rct()
+
+    @authors("capone212")
+    @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
+    def test_bundle_dynamic_config(self, config_node):
+        nodeWithTagNodeA, _ = self._init_zero_slot_nodes(config_node)
+
+        def get_orchid_memory_limits(category):
+            return get("//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
+                        .format(nodeWithTagNodeA, category))
+
+        bundleDynamicConfig = {
+            "nodeA": {
+                "config_annotation": "nodeA",
+                "cpu_limits": {
+                },
+                "memory_limits": {
+                    "tablet_static": {
+                        "type" : "static",
+                        "value": 0,
+                    },
+                    "tablet_dynamic": {
+                        "type" : "static",
+                        "value": 0,
+                    },
+                }
+            },
+            "!nodeA": {
+                "config_annotation": "notNodeA",
+                "cpu_limits": {
+                    "write_thread_pool_size": 0,
+                },
+            },
+        }
+
+        set("//sys/tablet_cell_bundles/@config", bundleDynamicConfig)
+
+        ConfigPatch = namedtuple("ConfigPatch", ["slot_count", "tablet_static", "tablet_dynamic"])
+        patches = [
+            ConfigPatch(2, 2048, 4096),
+            ConfigPatch(7, 4096, 2048),
+            ConfigPatch(3, 1024, 8192),
+            ConfigPatch(1, 8192, 1024),
+            ConfigPatch(2, 4096, 8192),
+            ConfigPatch(4, 8192, 2048),
+        ]
+
+        for patch in patches:
+            bundleDynamicConfig["nodeA"]["cpu_limits"]["write_thread_pool_size"] = patch.slot_count
+            bundleDynamicConfig["nodeA"]["memory_limits"]["tablet_static"]["value"] = patch.tablet_static
+            bundleDynamicConfig["nodeA"]["memory_limits"]["tablet_dynamic"]["value"] = patch.tablet_dynamic
+
+            set("//sys/tablet_cell_bundles/@config", bundleDynamicConfig)
+            wait(lambda: self._healthy_cell_count() == min(5, patch.slot_count))
+            self._check_tablet_nodes_rct()
+            wait(lambda: get_orchid_memory_limits("tablet_static") == patch.tablet_static)
+            wait(lambda: get_orchid_memory_limits("tablet_dynamic") == patch.tablet_dynamic)
 
     @authors("starodub")
     def test_versioned_chunk_meta_cache(self):
@@ -504,6 +567,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     @authors("achulkov2")
     def test_alert_solomon_export(self):
+        set("//sys/tablet_cell_bundles/@config", {})
         nodes = ls("//sys/cluster_nodes")
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])

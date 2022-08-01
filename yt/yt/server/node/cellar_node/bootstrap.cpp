@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "dynamic_bundle_config_manager.h"
 #include "master_connector.h"
 #include "private.h"
 
@@ -102,6 +103,11 @@ public:
     {
         YT_LOG_INFO("Initializing cellar node");
 
+        BundleDynamicConfigManager_ = New<TBundleDynamicConfigManager>(this);
+        BundleDynamicConfigManager_
+            ->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
+        BundleDynamicConfigManager_->Start();
+
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
@@ -191,6 +197,11 @@ public:
         }
     }
 
+    TBundleDynamicConfigManagerPtr GetBundleDynamicConfigManager() const override
+    {
+        return BundleDynamicConfigManager_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -202,25 +213,52 @@ private:
 
     IMasterConnectorPtr MasterConnector_;
 
+    TBundleDynamicConfigManagerPtr BundleDynamicConfigManager_;
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        // COMPAT(savrus)
+        auto bundleConfig = BundleDynamicConfigManager_->GetConfig();
+        ReconfigureCellarManager(bundleConfig, newConfig);
+    }
+
+    void OnBundleDynamicConfigChanged(
+        const TBundleDynamicConfigPtr& /*oldConfig*/,
+        const TBundleDynamicConfigPtr& newConfig)
+    {
+        auto nodeConfig = GetDynamicConfigManager()->GetConfig();
+        ReconfigureCellarManager(newConfig, nodeConfig);
+    }
+
+    void ReconfigureCellarManager(
+        const TBundleDynamicConfigPtr& bundleConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        auto bundleDynamicSlotsCount = bundleConfig->CpuLimits->WriteThreadPoolSize;
+
+        std::optional<int> slotsCount = bundleDynamicSlotsCount;
+        if (!slotsCount && newConfig->TabletNode->Slots) {
+            slotsCount = *newConfig->TabletNode->Slots;
+        }
+
+        // COMPAT(savrus, capone212)
         auto getCellarManagerConfig = [&] {
             auto& config = newConfig->CellarNode->CellarManager;
-            if (!newConfig->TabletNode->Slots) {
+            if (!slotsCount) {
                 return config;
             } else {
-                for (const auto& [type, _] : config->Cellars) {
+                auto cellarManagerConfig = CloneYsonSerializable(config);
+                for (const auto& [type, cellarConfig] : cellarManagerConfig->Cellars) {
                     if (type == ECellarType::Tablet) {
-                        return config;
+                        if (bundleDynamicSlotsCount) {
+                            cellarConfig->Size = *bundleDynamicSlotsCount;
+                        }
+                        return cellarManagerConfig;
                     }
                 }
-
-                auto cellarManagerConfig = CloneYsonSerializable(config);
                 auto cellarConfig = New<TCellarDynamicConfig>();
-                cellarConfig->Size = newConfig->TabletNode->Slots;
+                cellarConfig->Size = slotsCount;
                 cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
                 return cellarManagerConfig;
             }

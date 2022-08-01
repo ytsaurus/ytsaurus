@@ -6,7 +6,12 @@
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 
+#include <yt/yt/server/node/cellar_node/bootstrap.h>
+
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
@@ -328,9 +333,19 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
     TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> limits;
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
+
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
 
+    NCellarNode::TBundleDynamicConfigPtr bundleDynamicConfig;
+    if (auto* cellarBootstrap = Bootstrap_->GetCellarNodeBootstrap()) {
+        bundleDynamicConfig = cellarBootstrap->GetBundleDynamicConfigManager()->GetConfig();
+    }
+
     auto getMemoryLimit = [&] (EMemoryCategory category) {
+        if (bundleDynamicConfig && bundleDynamicConfig->MemoryLimits[category]) {
+            return bundleDynamicConfig->MemoryLimits[category];
+        }
+
         auto memoryLimit = dynamicConfig->MemoryLimits[category];
         if (!memoryLimit) {
             memoryLimit = config->MemoryLimits[category];
