@@ -76,7 +76,12 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
       f(transaction)
     } catch {
       case e: Throwable =>
-        transaction.abort().join()
+        try {
+          transaction.abort().join()
+        } catch {
+          case ae: Throwable =>
+            e.addSuppressed(ae)
+        }
         throw e
     }
   }

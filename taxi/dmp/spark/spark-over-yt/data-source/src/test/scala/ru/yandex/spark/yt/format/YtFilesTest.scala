@@ -51,7 +51,7 @@ class YtFilesTest extends FlatSpec with Matchers with LocalSpark with TmpDir wit
     )
   }
 
-  it should "read large csv" in {
+  it should "read large csv" ignore {
     writeFileFromResource("test.csv", tmpPath)
     spark.read.csv(s"yt:/$tmpPath").count() shouldEqual 100000
   }
