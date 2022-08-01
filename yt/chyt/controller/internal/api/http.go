@@ -68,23 +68,18 @@ const (
 )
 
 type CmdParameter struct {
-	Name     string    `yson:"name"`
-	Aliases  []string  `yson:"aliases,omitempty"`
-	Type     ParamType `yson:"type"`
-	Required bool      `yson:"required"`
-	// Explicit inidcates that this parameter shoud be provided in CLI explicitly.
-	// Default values from config/env variable are not allowed.
-	Explicit    bool   `yson:"explicit,omitempty"`
-	Description string `yson:"description,omitempty"`
+	Name        string    `yson:"name"`
+	Aliases     []string  `yson:"aliases,omitempty"`
+	Type        ParamType `yson:"type"`
+	Required    bool      `yson:"required"`
+	Description string    `yson:"description,omitempty"`
+	EnvVariable string    `yson:"env_variable,omitempty"`
 }
 
-func (c CmdParameter) AsRequired() CmdParameter {
-	c.Required = true
-	return c
-}
-
+// AsExplicit returns a copy of the parameter with empty EnvVariable field,
+// so this parameter should be set explicitly in CLI.
 func (c CmdParameter) AsExplicit() CmdParameter {
-	c.Explicit = true
+	c.EnvVariable = ""
 	return c
 }
 
@@ -191,5 +186,6 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 	if err != nil {
 		panic(err)
 	}
+	w.Header()["Content-Type"] = []string{"application/yson"}
 	_, _ = w.Write(body)
 }
