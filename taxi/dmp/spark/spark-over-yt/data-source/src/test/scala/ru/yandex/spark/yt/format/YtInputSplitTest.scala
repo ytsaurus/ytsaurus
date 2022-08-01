@@ -397,7 +397,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     prepareTestTable(tmpPath,
       data.map { case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
 
-    val res = spark.read.yt(tmpPath)
+    val res = spark.read.option("enable_inconsistent_read", "true").yt(tmpPath)
     val test = Seq(
       (
         (res("a") <= 50 && res("a") >= 50 - 1) && res("b") === 1L,
@@ -443,7 +443,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     prepareTestTable(tmpPath,
       data.map { case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
 
-    val res = spark.read.yt(tmpPath)
+    val res = spark.read.option("enable_inconsistent_read", "true").yt(tmpPath)
     val test = Seq(
       (res("a") <= 50 && res("a") >= 50 - 1 && res("b") === 1L, 20L),
       (res("a") >= 77L && res("b").isin(0L) && res("c") === "0", 300L),
