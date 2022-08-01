@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/server/lib/cellar_agent/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -84,6 +86,36 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarNodeConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TCpuLimits
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> WriteThreadPoolSize;
+
+    REGISTER_YSON_STRUCT(TCpuLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCpuLimits)
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TBundleDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    TCpuLimitsPtr CpuLimits;
+
+    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
+
+    REGISTER_YSON_STRUCT(TBundleDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleDynamicConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
