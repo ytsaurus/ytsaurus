@@ -150,6 +150,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletBase)                                                   (2103))  // gritukan
     ((PersistentResponseKeeper)                                     (2104))  // aleksandra-zh
     ((HunkStorage)                                                  (2105))  // gritukan
+    ((RemoveCellRoles)                                              (2106))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

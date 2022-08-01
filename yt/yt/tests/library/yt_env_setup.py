@@ -209,7 +209,7 @@ class YTEnvSetup(object):
     NUM_SECONDARY_MASTER_CELLS = 0
     DEFER_SECONDARY_CELL_START = False
     ENABLE_SECONDARY_CELLS_CLEANUP = True
-    MASTER_CELL_ROLES = {}
+    MASTER_CELL_DESCRIPTORS = {}
     NUM_NODES = 5
     DEFER_NODE_START = False
     NUM_CHAOS_NODES = 0
@@ -719,7 +719,7 @@ class YTEnvSetup(object):
             if driver is None:
                 continue
 
-            master_cell_roles = self.get_param("MASTER_CELL_ROLES", cluster_index)
+            master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
 
             scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
             if scheduler_count > 0:
@@ -730,7 +730,7 @@ class YTEnvSetup(object):
                 scheduler_pool_trees_root = "//sys/pool_trees"
             self._restore_globals(
                 cluster_index=cluster_index,
-                master_cell_roles=master_cell_roles,
+                master_cell_descriptors=master_cell_descriptors,
                 scheduler_count=scheduler_count,
                 scheduler_pool_trees_root=scheduler_pool_trees_root,
                 driver=driver,
@@ -1064,7 +1064,7 @@ class YTEnvSetup(object):
 
     def _restore_globals(self,
                          cluster_index,
-                         master_cell_roles,
+                         master_cell_descriptors,
                          scheduler_count,
                          scheduler_pool_trees_root,
                          driver=None):
@@ -1072,7 +1072,7 @@ class YTEnvSetup(object):
         dynamic_master_config = update_inplace(
             dynamic_master_config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
-        dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
+        dynamic_master_config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
         if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
             dynamic_master_config["enable_descending_sort_order"] = True
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True

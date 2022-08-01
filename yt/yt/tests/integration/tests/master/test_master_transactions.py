@@ -524,7 +524,9 @@ class TestMasterTransactions(YTEnvSetup):
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {"12": ["chunk_host"]}
+    MASTER_CELL_DESCRIPTORS = {
+        "12": {"roles": ["chunk_host"]},
+    }
 
     def _assert_native_content_revision_matches(self, path, tx="0-0-0-0"):
         content_revision = get(path + "/@content_revision", tx=tx)
@@ -610,13 +612,13 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     NUM_SECONDARY_MASTER_CELLS = 5
     NUM_TEST_PARTITIONS = 4
     ENABLE_TMP_PORTAL = True
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["cypress_node_host"],
-        "12": ["chunk_host"],
-        "13": ["cypress_node_host"],
-        "14": ["transaction_coordinator"],
-        "15": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["cypress_node_host"]},
+        "14": {"roles": ["transaction_coordinator"]},
+        "15": {"roles": ["transaction_coordinator"]},
     }
 
     @authors("shakurov")
@@ -730,6 +732,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     def test_object_prerequisite_transactions(self):
+        get("//sys/@config/multicell_manager/cell_descriptors")
         create_group("g")
 
         tx = start_transaction(timeout=60000)

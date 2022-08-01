@@ -211,7 +211,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
             return get("//sys/@config/multicell_manager/cell_descriptors/{}/name".format(cell_tag), default=str(cell_tag))
 
         def _is_chunk_host(self, cell_tag):
-            path = "//sys/@config/multicell_manager/cell_roles/{}".format(cell_tag)
+            path = "//sys/@config/multicell_manager/cell_descriptors/{}/roles".format(cell_tag)
             return "chunk_host" in get(path) if exists(path) else True
 
         def _add_node_resource_usage_to_account(self, account_resource_usage, node_resource_usage, node, subtract=False):

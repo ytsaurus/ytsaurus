@@ -572,9 +572,9 @@ class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulti
 
 class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "13": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
     }
 
 
@@ -927,9 +927,9 @@ class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
 
 class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "13": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
     }
 
 
