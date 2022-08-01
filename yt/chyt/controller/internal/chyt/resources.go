@@ -200,7 +200,7 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 func (c *Controller) populateResources(speclet *Speclet) (err error) {
 	if speclet.CliqueCPU != nil || speclet.CliqueMemory != nil {
 		err = c.populateResourcesClique(&speclet.Resources)
-	} else if speclet.InstanceCPU != nil || speclet.InstanceTotalMemory != nil || speclet.InstanceMemory != nil {
+	} else if speclet.InstanceCPU != nil || speclet.InstanceTotalMemory != nil || speclet.InstanceMemory != nil || speclet.InstanceCount != nil {
 		err = c.populateResourcesInstance(&speclet.Resources)
 	} else {
 		speclet.Resources = *buildResources(defaultInstanceCount, cpu, memDefault)
