@@ -1827,13 +1827,13 @@ class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
 
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     NUM_SECONDARY_MASTER_CELLS = 5
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["cypress_node_host"],
-        "12": ["chunk_host"],
-        "13": ["cypress_node_host"],
-        "14": ["transaction_coordinator"],
-        "15": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["cypress_node_host"]},
+        "14": {"roles": ["transaction_coordinator"]},
+        "15": {"roles": ["transaction_coordinator"]},
     }
 
 

@@ -2094,11 +2094,11 @@ class TestBulkInsertPortal(TestBulkInsertMulticell):
 
 class TestBulkInsertShardedTx(TestBulkInsertPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["cypress_node_host"],
-        "12": ["chunk_host"],
-        "13": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
     }
 
 
@@ -2110,9 +2110,9 @@ class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["cypress_node_host"],
-        "12": ["chunk_host"],
-        "13": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
     }

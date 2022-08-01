@@ -2932,10 +2932,10 @@ class TestTablesPortal(TestTablesMulticell):
 
 class TestTablesShardedTx(TestTablesPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "13": ["transaction_coordinator", "chunk_host"],
-        "14": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["transaction_coordinator", "chunk_host"]},
+        "14": {"roles": ["transaction_coordinator"]},
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {

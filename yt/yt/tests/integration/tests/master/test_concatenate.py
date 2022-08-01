@@ -858,13 +858,13 @@ class TestConcatenatePortal(TestConcatenateMulticell):
 
 class TestConcatenateShardedTx(TestConcatenatePortal):
     NUM_SECONDARY_MASTER_CELLS = 5
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["cypress_node_host", "chunk_host"],
-        "12": ["cypress_node_host", "chunk_host"],
-        "13": ["chunk_host"],
-        "14": ["transaction_coordinator"],
-        "15": ["transaction_coordinator"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["transaction_coordinator"]},
+        "15": {"roles": ["transaction_coordinator"]},
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {

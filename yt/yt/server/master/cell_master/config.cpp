@@ -123,23 +123,10 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_statistics_gossip_period", &TThis::CellStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
 
-    registrar.Parameter("cell_roles", &TThis::CellRoles)
-        .Default();
-
     registrar.Parameter("cell_descriptors", &TThis::CellDescriptors)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        for (const auto& [cellTag, cellRoles] : config->CellRoles) {
-            auto [it, inserted] = config->CellDescriptors.emplace(cellTag, New<TMasterCellDescriptor>());
-            auto& roles = it->second->Roles;
-            if (!roles) {
-                roles = cellRoles;
-            } else {
-                roles = *roles | cellRoles;
-            }
-        }
-
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
         for (auto& [cellTag, descriptor] : config->CellDescriptors) {
             if (descriptor->Roles && None(*descriptor->Roles)) {

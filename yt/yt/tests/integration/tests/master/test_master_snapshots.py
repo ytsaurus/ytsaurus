@@ -552,10 +552,10 @@ class TestAllMastersSnapshots(YTEnvSetup):
 
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {
-        "10": ["cypress_node_host"],
-        "11": ["transaction_coordinator"],
-        "12": ["chunk_host"],
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     @authors("aleksandra-zh")
