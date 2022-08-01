@@ -414,6 +414,18 @@ private:
 
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
 
+        auto* mutationContext = GetCurrentMutationContext();
+        if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
+            tablet->GetPersistentState() != ETabletState::Mounted)
+        {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
+                "(%v, TransactionId: %v, TabletState: %v)",
+                tablet->GetLoggingTag(),
+                transactionId,
+                tablet->GetPersistentState());
+            return;
+        }
+
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
                 "(%v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
@@ -525,6 +537,18 @@ private:
         auto* tablet = Host_->FindTablet(tabletId);
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
+            return;
+        }
+
+        auto* mutationContext = GetCurrentMutationContext();
+        if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
+            tablet->GetPersistentState() != ETabletState::Mounted)
+        {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
+                "(%v, TransactionId: %v, TabletState: %v)",
+                tablet->GetLoggingTag(),
+                transactionId,
+                tablet->GetPersistentState());
             return;
         }
 
