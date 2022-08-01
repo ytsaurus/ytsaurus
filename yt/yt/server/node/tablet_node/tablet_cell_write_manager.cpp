@@ -163,6 +163,11 @@ public:
             }
         }
 
+        // Due to possible row blocking, serving the request may involve a number of write attempts.
+        // Each attempt causes a mutation to be enqueued to Hydra.
+        // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
+        // actually relevant.
+        // Note that we're passing signature to every such call but only the last one actually uses it.
         while (!reader->IsFinished()) {
             // NB: No yielding beyond this point.
             // May access tablet and transaction.

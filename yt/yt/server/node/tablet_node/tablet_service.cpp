@@ -246,31 +246,24 @@ private:
         struct TWriteBufferTag { };
         auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag()));
 
-        const auto& tabletWriteManager = Slot_->GetTabletCellWriteManager();
+        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
 
         TFuture<void> commitResult;
         try {
-            while (!reader->IsFinished()) {
-                // Due to possible row blocking, serving the request may involve a number of write attempts.
-                // Each attempt causes a mutation to be enqueued to Hydra.
-                // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
-                // actually relevant.
-                // Note that we're passing signature to every such call but only the last one actually uses it.
-                tabletWriteManager->Write(
-                    tabletSnapshot,
-                    transactionId,
-                    transactionStartTimestamp,
-                    transactionTimeout,
-                    prepareSignature,
-                    commitSignature,
-                    generation,
-                    rowCount,
-                    dataWeight,
-                    versioned,
-                    syncReplicaIds,
-                    reader.get(),
-                    &commitResult);
-            }
+            tabletCellWriteManager->Write(
+                tabletSnapshot,
+                transactionId,
+                transactionStartTimestamp,
+                transactionTimeout,
+                prepareSignature,
+                commitSignature,
+                generation,
+                rowCount,
+                dataWeight,
+                versioned,
+                syncReplicaIds,
+                reader.get(),
+                &commitResult);
         } catch (const std::exception&) {
             ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
             throw;
