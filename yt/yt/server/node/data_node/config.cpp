@@ -504,6 +504,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
+    registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
         .Default(TDuration::Seconds(120));
     registrar.Parameter("peer_update_period", &TThis::PeerUpdatePeriod)

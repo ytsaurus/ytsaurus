@@ -48,6 +48,7 @@ private:
     {
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
+        TPromise<void> ReceivedPromise = NewPromise<void>();
         TPromise<void> WrittenPromise = NewPromise<void>();
         TMemoryUsageTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
@@ -68,6 +69,13 @@ private:
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
+    TFuture<void> DoAcquireBlockMemory(int startBlockIndex,
+        const std::vector<NChunkClient::TBlock>& blocks,
+        bool enableCaching);
+    TFuture<void> DoPerformPutBlocks(int startBlockIndex,
+        const std::vector<NChunkClient::TBlock>& blocks,
+        std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
+        bool enableCaching);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,

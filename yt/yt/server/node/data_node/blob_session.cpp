@@ -447,6 +447,16 @@ TFuture<void> TBlobSession::DoPutBlocks(
         return VoidFuture;
     }
 
+    return DoAcquireBlockMemory(startBlockIndex, blocks, enableCaching);
+}
+
+TFuture<void> TBlobSession::DoAcquireBlockMemory(
+    int startBlockIndex,
+    const std::vector<TBlock>& blocks,
+    bool enableCaching)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
     // Make all acquisitions in advance to ensure that this error is retriable.
     auto memoryTracker = Bootstrap_
         ->GetMemoryUsageTracker()
@@ -462,6 +472,43 @@ TFuture<void> TBlobSession::DoPutBlocks(
         }
         memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
     }
+
+    // Work around possible livelock. We might consume all memory allocated for blob sessions. That would block
+    // all other PutBlock requests.
+    std::vector<TFuture<void>> precedingBlockReceived;
+    for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {
+        auto& slot = GetSlot(precedingBlockIndex);
+        if (slot.State == EBlobSessionSlotState::Empty) {
+            precedingBlockReceived.push_back(slot.ReceivedPromise.ToFuture().ToUncancelable());
+        }
+    }
+
+    if (precedingBlockReceived.empty()) {
+        return DoPerformPutBlocks(startBlockIndex, blocks, std::move(memoryTrackerGuards), enableCaching);
+    }
+
+    return AllSucceeded(precedingBlockReceived)
+        .WithTimeout(Config_->SessionBlockReorderTimeout)
+        .Apply(BIND([config=Config_] (const TError& error) {
+            if (error.GetCode() == NYT::EErrorCode::Timeout) {
+                return TError(
+                    NChunkClient::EErrorCode::WriteThrottlingActive,
+                    "Block reordering timeout")
+                    << TErrorAttribute("timeout", config->SessionBlockReorderTimeout);
+            }
+
+            return error;
+        }))
+        .Apply(BIND(&TBlobSession::DoPerformPutBlocks, MakeStrong(this), startBlockIndex, blocks, Passed(std::move(memoryTrackerGuards)), enableCaching).AsyncVia(SessionInvoker_));
+}
+
+TFuture<void> TBlobSession::DoPerformPutBlocks(
+    int startBlockIndex,
+    const std::vector<TBlock>& blocks,
+    std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
+    bool enableCaching)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& blockCache = Bootstrap_->GetBlockCache();
 
@@ -497,6 +544,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.State = ESlotState::Received;
         slot.Block = block;
         slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
+        slot.ReceivedPromise.Set();
 
         if (enableCaching) {
             blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
@@ -737,6 +785,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         slot.MemoryTrackerGuard.Release();
         slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
+        slot.ReceivedPromise.Reset();
         ++WindowStartBlockIndex_;
     }
 
@@ -809,6 +858,10 @@ void TBlobSession::MarkAllSlotsFailed(const TError& error)
 
     for (const auto& slot : Window_) {
         if (const auto& promise = slot.WrittenPromise) {
+            promise.TrySet(error);
+        }
+
+        if (const auto& promise = slot.ReceivedPromise) {
             promise.TrySet(error);
         }
     }
