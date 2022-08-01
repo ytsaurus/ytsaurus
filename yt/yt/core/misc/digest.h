@@ -16,16 +16,32 @@ namespace NYT {
 // TODO(max42): implement Q-Digest (https://github.com/addthis/stream-lib/blob/master/src/main/java/com/clearspring/analytics/stream/quantile/QDigest.java)
 // and T-Digest (https://github.com/tdunning/t-digest) algorithms and compare them with TLogDigest.
 struct IDigest
-    : public NPhoenix::IPersistent
 {
+    virtual ~IDigest() = default;
+
     virtual void AddSample(double value) = 0;
 
     virtual double GetQuantile(double alpha) const = 0;
 
+    virtual void Reset() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IPersistentDigest
+    : public IDigest
+    , public NPhoenix::IPersistent
+{
     void Persist(const NPhoenix::TPersistenceContext& context) override = 0;
 };
 
-std::unique_ptr<IDigest> CreateLogDigest(TLogDigestConfigPtr config);
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IPersistentDigest> CreateLogDigest(TLogDigestConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

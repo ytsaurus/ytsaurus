@@ -35,6 +35,31 @@ DEFINE_REFCOUNTED_TYPE(TLogDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THistogramDigestConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // We will round each sample x to the range from [x - AbsolutePrecision, x + AbsolutePrecision].
+    // This parameter affects the memory usage of the digest, it is proportional to
+    // (UpperBound - LowerBound) / AbsolutePrecision.
+    double AbsolutePrecision;
+
+    // The bounds of the range operated by the class.
+    double LowerBound;
+    double UpperBound;
+
+    // The value that is returned when there are no samples in the digest.
+    std::optional<double> DefaultValue;
+
+    REGISTER_YSON_STRUCT(THistogramDigestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THistogramDigestConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EHistoricUsageAggregationMode,
     ((None)                     (0))
     ((ExponentialMovingAverage) (1))
