@@ -218,7 +218,7 @@ class YtStuff(object):
         prepare_yt_binaries(self.binaries_yt_path, source_prefix, use_from_package=True, package_dir="yt/packages/latest")
         copy_misc_binaries(self.binaries_yt_path)
 
-        self.yt_local_exec = [search_binary_path("yt_local")]
+        self.yt_local_exec = [search_binary_path("yt_local", build_path_dir="yt/packages/latest")]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
