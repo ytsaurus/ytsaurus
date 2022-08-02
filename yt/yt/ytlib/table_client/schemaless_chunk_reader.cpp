@@ -130,6 +130,10 @@ std::vector<int> BuildColumnIdMapping(
                 if (auto* column = readerSchema->FindColumn(name)) {
                     stableName = column->StableName().Get();
                 }
+                else if (readerSchema->FindColumnByStableName(TStableName{TString{name}})) {
+                    // Column was renamed. We don't want to fetch it by old name.
+                    continue;
+                }
             }
 
             auto chunkColumnId = chunkNameTable->FindId(stableName);

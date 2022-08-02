@@ -171,6 +171,21 @@ std::vector<TString> TNameTable::GetNames() const
     return result;
 }
 
+void FormatValue(TStringBuilderBase* builder, const TNameTable& nameTable, TStringBuf /*spec*/)
+{
+    builder->AppendChar('{');
+    bool first = false;
+    for (const auto& name : nameTable.GetNames()) {
+        if (first) {
+            first = false;
+        } else {
+            builder->AppendString("; ");
+        }
+        builder->AppendFormat("%Qv=%v", name, nameTable.GetId(name));
+    }
+    builder->AppendChar('}');
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNameTableReader::TNameTableReader(TNameTablePtr nameTable)
