@@ -233,6 +233,8 @@ public:
             transactionId,
             options.CommitTimestamp,
             options.CommitTimestampClusterTag);
+
+        TransactionMap_.Remove(transactionId);
     }
 
     void AbortTransaction(
@@ -283,6 +285,8 @@ private:
 
     TEntityMap<TTransaction> TransactionMap_;
     TTransactionIdPool AbortTransactionIdPool_;
+
+    bool NeedClearCommittedTransactions_ = false;
 
     IYPathServicePtr OrchidService_;
 
@@ -363,6 +367,18 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnAfterSnapshotLoaded();
+
+        if (NeedClearCommittedTransactions_) {
+            std::vector<TTransactionId> transactionIds;
+            for (const auto& [transactionId, transaction] : TransactionMap_) {
+                if (transaction->GetPersistentState() == ETransactionState::Committed) {
+                    transactionIds.push_back(transactionId);
+                }
+            }
+            for (auto transactionId : transactionIds) {
+                TransactionMap_.Remove(transactionId);
+            }
+        }
     }
 
     void OnLeaderActive() override
@@ -428,6 +444,10 @@ private:
 
         using NYT::Load;
         TransactionMap_.LoadValues(context);
+
+        NeedClearCommittedTransactions_ = context.GetVersion() < EChaosReign::RemoveCommitted;
+
+        Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
     }
 
 
@@ -438,6 +458,7 @@ private:
         TChaosAutomatonPart::Clear();
 
         TransactionMap_.Clear();
+        NeedClearCommittedTransactions_ = false;
     }
 
 
@@ -471,9 +492,12 @@ private:
     }
 
 
-    TTransaction* GetTransaction(TTransactionId transactionId)
+    TTransaction* FindTransaction(TTransactionId transactionId)
     {
-        return TransactionMap_.Get(transactionId);
+        if (auto* transaction = TransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+        return nullptr;
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
@@ -485,14 +509,6 @@ private:
             NTransactionClient::EErrorCode::NoSuchTransaction,
             "No such transaction %v",
             transactionId);
-    }
-
-    TTransaction* FindTransaction(TTransactionId transactionId)
-    {
-        if (auto* transaction = TransactionMap_.Find(transactionId)) {
-            return transaction;
-        }
-        return nullptr;
     }
 
     TTransaction* GetOrCreateTransaction(
