@@ -46,6 +46,32 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBundleControllerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Cluster;
+    TDuration BundleScanPeriod;
+    TDuration BundleScanTransactionTimeout;
+    TDuration HulkRequestTimeout;
+    TDuration CellRemovalTimeout;
+
+    NYPath::TYPath RootPath;
+
+    NYPath::TYPath HulkAllocationsPath;
+    NYPath::TYPath HulkAllocationsHistoryPath;
+    NYPath::TYPath HulkDeallocationsPath;
+    NYPath::TYPath HulkDeallocationsHistoryPath;
+
+    REGISTER_YSON_STRUCT(TBundleControllerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellBalancerBootstrapConfig
     : public TServerConfig
 {
@@ -53,12 +79,15 @@ public:
     bool AbortOnUnrecognizedOptions;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
-    TCellBalancerConfigPtr CellBalancer;
     TCellBalancerMasterConnectorConfigPtr MasterConnector;
-
     NNodeTrackerClient::TNetworkAddressList Addresses;
+
+    bool EnableCellBalancer;
+    TCellBalancerConfigPtr CellBalancer;
+
+    bool EnableBundleController;
+    TBundleControllerConfigPtr BundleController;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 
