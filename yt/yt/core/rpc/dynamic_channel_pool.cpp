@@ -6,6 +6,8 @@
 #include "private.h"
 #include "viable_peer_registry.h"
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
 
@@ -61,7 +63,13 @@ public:
             EndpointDescription_,
             ServiceName_))
        , ViablePeerRegistry_(CreateViablePeerRegistry(Config_, BIND(&TImpl::CreateChannel, Unretained(this)), Logger))
-    { }
+       , RandomPeerRotationExecutor_(New<TPeriodicExecutor>(
+           TDispatcher::Get()->GetLightInvoker(),
+           BIND(&TDynamicChannelPool::TImpl::MaybeEvictRandomPeer, MakeWeak(this)),
+           Config_->RandomPeerEvictionPeriod))
+    {
+        RandomPeerRotationExecutor_->Start();
+    }
 
     TFuture<IChannelPtr> GetRandomChannel()
     {
@@ -140,6 +148,10 @@ public:
 
     void Terminate(const TError& error)
     {
+        // Holds a weak reference to this class and the callback has no meaningful side-effects,
+        // so not waiting on this future is ok.
+        RandomPeerRotationExecutor_->Stop();
+
         std::vector<IChannelPtr> activeChannels;
 
         {
@@ -180,14 +192,14 @@ private:
     TError TerminationError_;
     TError PeerDiscoveryError_;
 
-    TInstant RandomEvictionDeadline_;
-
     THashSet<TString> ActiveAddresses_;
     THashSet<TString> BannedAddresses_;
 
     THashMap<TString, TPeerPollerPtr> AddressToPoller_;
 
     IViablePeerRegistryPtr ViablePeerRegistry_;
+
+    TPeriodicExecutorPtr RandomPeerRotationExecutor_;
 
     struct TTooManyConcurrentRequests { };
     struct TNoMorePeers { };
@@ -706,22 +718,13 @@ private:
         for (const auto& address : newAddresses) {
             AddPeer(address);
         }
-
-        MaybeEvictRandomPeer();
     }
 
     void MaybeEvictRandomPeer()
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
-
-        auto now = TInstant::Now();
-        if (now < RandomEvictionDeadline_) {
-            return;
-        }
+        auto guard = WriterGuard(SpinLock_);
 
         ViablePeerRegistry_->MaybeRotateRandomPeer();
-
-        RandomEvictionDeadline_ = now + Config_->RandomPeerEvictionPeriod + RandomDuration(Config_->RandomPeerEvictionPeriod);
     }
 
     void AddPeer(const TString& address)
