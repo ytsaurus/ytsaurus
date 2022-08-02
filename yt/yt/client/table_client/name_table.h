@@ -56,6 +56,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TNameTable)
 
+void FormatValue(TStringBuilderBase* builder, const TNameTable& nameTable, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A non thread-safe read-only wrapper for TNameTable.

@@ -1150,6 +1150,42 @@ print row + table_index
             {"a_renamed": 43, "c_new": False},
         ]
 
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("strict_schema", [True, False])
+    def test_rename_with_both_columns_in_filter(self, optimize_for, strict_schema):
+        input_table = "//tmp/tin"
+        output_table = "//tmp/tout"
+
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "original", "type": "int64"},
+                    ],
+                    strict=strict_schema,
+                ),
+            }
+        )
+        write_table(input_table, [{"original": None}, {"original": 1}])
+
+        create("table", output_table)
+        map(
+            in_=[
+                '<columns=["original";"new"]; rename_columns={"original"="new"}>' + input_table,
+            ],
+            out=[output_table],
+            command="cat",
+        )
+
+        result = read_table(output_table)
+        assert result == [
+            {"new": None},
+            {"new": 1},
+        ]
+
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_two_tables_with_column_filter(self, optimize_for):
