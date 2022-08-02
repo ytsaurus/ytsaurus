@@ -68,12 +68,12 @@ struct IMasterConnector
      */
     virtual void ScheduleHeartbeat(bool immediately) = 0;
 
-    //! Schedules out-of-order job heartbeate to a given master cell.
+    //! Schedules out-of-order job heartbeate to a given job tracker.
     /*!
      *  \note
      *  Thread affinity: any
      */
-    virtual void ScheduleJobHeartbeat(NObjectClient::TCellTag cellTag) = 0;
+    virtual void ScheduleJobHeartbeat(const TString& jobTrackerAddress) = 0;
 
     //! Returns |true| if this node has received full heartbeat responses from all cells.
     /*!

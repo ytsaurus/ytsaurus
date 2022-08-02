@@ -121,6 +121,7 @@ void TSchedulerConnector::SendHeartbeat() noexcept
     const auto& masterConnection = client->GetNativeConnection();
     YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
+        /*jobTrackerAddress*/ "",
         EObjectType::SchedulerJob,
         req))
         .IsOK());
@@ -175,7 +176,10 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob));
+    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(
+        /*jobTrackerAddress*/ "",
+        rsp,
+        EObjectType::SchedulerJob));
     YT_LOG_FATAL_IF(!result.IsOK(), result, "Error while processing scheduler heartbeat response");
 }
 

@@ -138,11 +138,13 @@ public:
     TMasterJobBase(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : JobId_(jobId)
         , JobSpec_(jobSpec)
+        , JobTrackerAddress_(std::move(jobTrackerAddress))
         , Config_(config)
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
@@ -171,7 +173,7 @@ public:
     bool IsStarted() const noexcept override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         return Started_;
     }
 
@@ -255,6 +257,13 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return -1;
+    }
+
+    const TString& GetJobTrackerAddress() const override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return JobTrackerAddress_;
     }
 
     TNodeResources GetResourceUsage() const override
@@ -475,6 +484,7 @@ public:
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;
+    const TString JobTrackerAddress_;
     const TDataNodeConfigPtr Config_;
     const TInstant StartTime_;
     IBootstrap* const Bootstrap_;
@@ -596,12 +606,14 @@ public:
     TChunkRemovalJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             config,
             bootstrap)
@@ -666,12 +678,14 @@ public:
     TChunkReplicationJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             config,
             bootstrap)
@@ -857,6 +871,7 @@ public:
     TChunkRepairJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap,
@@ -864,6 +879,7 @@ public:
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             config,
             bootstrap)
@@ -1148,12 +1164,14 @@ public:
     TSealChunkJob(
         TJobId jobId,
         TJobSpec&& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             config,
             bootstrap)
@@ -1322,12 +1340,14 @@ public:
     TChunkMergeJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             std::move(config),
             bootstrap)
@@ -1926,12 +1946,14 @@ public:
     TChunkAutotomyJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
+            std::move(jobTrackerAddress),
             resourceLimits,
             std::move(config),
             bootstrap)
@@ -2525,6 +2547,7 @@ private:
 IJobPtr CreateMasterJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
+    TString jobTrackerAddress,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap,
@@ -2536,6 +2559,7 @@ IJobPtr CreateMasterJob(
             return New<TChunkReplicationJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap);
@@ -2544,6 +2568,7 @@ IJobPtr CreateMasterJob(
             return New<TChunkRemovalJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap);
@@ -2552,6 +2577,7 @@ IJobPtr CreateMasterJob(
             return New<TChunkRepairJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap,
@@ -2561,6 +2587,7 @@ IJobPtr CreateMasterJob(
             return New<TSealChunkJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap);
@@ -2569,6 +2596,7 @@ IJobPtr CreateMasterJob(
             return New<TChunkMergeJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap);
@@ -2577,6 +2605,7 @@ IJobPtr CreateMasterJob(
             return New<TChunkAutotomyJob>(
                 jobId,
                 std::move(jobSpec),
+                std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
                 bootstrap);

@@ -8,6 +8,8 @@
 
 namespace NYT::NDataNode {
 
+using namespace NJobAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
@@ -21,6 +23,7 @@ using namespace NJobTrackerClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMasterJobHeartbeatProcessor::ProcessResponse(
+    const TString& jobTrackerAddress,
     const TJobController::TRspHeartbeatPtr& response)
 {
     ProcessHeartbeatCommonResponsePart(response);
@@ -30,9 +33,11 @@ void TMasterJobHeartbeatProcessor::ProcessResponse(
     for (const auto& startInfo : response->jobs_to_start()) {
         auto operationId = FromProto<TOperationId>(startInfo.operation_id());
         auto jobId = FromProto<TJobId>(startInfo.job_id());
-        YT_LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job spec is passed via attachments "
+            "(OperationId: %v, JobId: %v, JobTrackerAddress: %v)",
             operationId,
-            jobId);
+            jobId,
+            jobTrackerAddress);
 
         const auto& attachment = response->Attachments()[attachmentIndex];
 
@@ -41,7 +46,12 @@ void TMasterJobHeartbeatProcessor::ProcessResponse(
 
         const auto& resourceLimits = startInfo.resource_limits();
 
-        CreateMasterJob(jobId, operationId, resourceLimits, std::move(spec));
+        CreateMasterJob(
+            jobId,
+            operationId,
+            jobTrackerAddress,
+            resourceLimits,
+            std::move(spec));
 
         ++attachmentIndex;
     }
@@ -49,6 +59,7 @@ void TMasterJobHeartbeatProcessor::ProcessResponse(
 
 void TMasterJobHeartbeatProcessor::PrepareRequest(
     TCellTag cellTag,
+    const TString& jobTrackerAddress,
     const TJobController::TReqHeartbeatPtr& request)
 {
     PrepareHeartbeatCommonRequestPart(request);
@@ -56,9 +67,11 @@ void TMasterJobHeartbeatProcessor::PrepareRequest(
     for (const auto& job : JobController_->GetJobs()) {
         auto jobId = job->GetId();
 
-        if (CellTagFromId(jobId) != cellTag || TypeFromId(jobId) != EObjectType::MasterJob) {
+        if (TypeFromId(jobId) != EObjectType::MasterJob || job->GetJobTrackerAddress() != jobTrackerAddress) {
             continue;
         }
+
+        YT_VERIFY(CellTagFromId(jobId) == cellTag);
 
         auto* jobStatus = request->add_jobs();
         FillJobStatus(jobStatus, job);
@@ -86,14 +99,12 @@ void TMasterJobHeartbeatProcessor::PrepareRequest(
     request->set_confirmed_job_count(0);
 }
 
-void TMasterJobHeartbeatProcessor::ScheduleHeartbeat(TJobId jobId)
+void TMasterJobHeartbeatProcessor::ScheduleHeartbeat(const IJobPtr& job)
 {
-    auto cellTag = CellTagFromId(jobId);
-
     YT_VERIFY(Bootstrap_->IsDataNode());
     auto* bootstrap = Bootstrap_->GetDataNodeBootstrap();
     const auto& masterConnector = bootstrap->GetMasterConnector();
-    masterConnector->ScheduleJobHeartbeat(cellTag);
+    masterConnector->ScheduleJobHeartbeat(job->GetJobTrackerAddress());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

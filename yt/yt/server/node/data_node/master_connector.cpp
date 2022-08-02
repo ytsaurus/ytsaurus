@@ -39,7 +39,11 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <yt/yt/core/rpc/helpers.h>
+
 #include <yt/yt/core/utilex/random.h>
+
+#include <util/random/shuffle.h>
 
 namespace NYT::NDataNode {
 
@@ -91,9 +95,26 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
+            auto cellId = Bootstrap_->GetMasterConnection()->GetMasterCellId(cellTag);
+
             auto cellTagData = std::make_unique<TPerCellTagData>();
-            YT_VERIFY(PerCellTagData_.emplace(cellTag, std::move(cellTagData)).second);
+            EmplaceOrCrash(PerCellTagData_, cellTag, std::move(cellTagData));
+
+            for (const auto& jobTrackerAddress : Bootstrap_->GetMasterAddressesOrThrow(cellTag)) {
+                auto jobTrackerData = std::make_unique<TPerJobTrackerData>();
+                jobTrackerData->CellTag = cellTag;
+
+                const auto& channelFactory = Bootstrap_->GetMasterConnection()->GetChannelFactory();
+                auto channel = channelFactory->CreateChannel(jobTrackerAddress);
+                jobTrackerData->Channel = CreateRealmChannel(std::move(channel), cellId);
+
+                EmplaceOrCrash(PerJobTrackerData_, jobTrackerAddress, std::move(jobTrackerData));
+
+                JobTrackerAddresses_.push_back(jobTrackerAddress);
+            }
         }
+
+        Shuffle(JobTrackerAddresses_.begin(), JobTrackerAddresses_.end());
 
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
@@ -426,16 +447,20 @@ public:
         }
     }
 
-    void ScheduleJobHeartbeat(TCellTag cellTag) override
+    void ScheduleJobHeartbeat(const TString& jobTrackerAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Scheduling out-of-order job heartbeat (CellTag: %v)",
-            cellTag);
+        YT_LOG_DEBUG("Scheduling out-of-order job heartbeat "
+            "(JobTrackerAddress: %v)",
+            jobTrackerAddress);
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
-        controlInvoker->Invoke(
-            BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this), cellTag, /*outOfOrder*/ true));
+        controlInvoker->Invoke(BIND(
+            &TMasterConnector::ReportJobHeartbeat,
+            MakeWeak(this),
+            jobTrackerAddress,
+            /*outOfOrder*/ true));
     }
 
     bool IsOnline() const override
@@ -481,15 +506,28 @@ private:
         TAsyncReaderWriterLock DataNodeHeartbeatLock;
         int ScheduledDataNodeHeartbeatCount = 0;
 
-        TAsyncReaderWriterLock JobHeartbeatLock;
     };
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
+
+    struct TPerJobTrackerData
+    {
+        //! Tag of the cell job tracker belongs to.
+        TCellTag CellTag;
+
+        //! Channel to job tracker.
+        NRpc::IChannelPtr Channel;
+
+        //! Prevents concurrent job heartbeats.
+        TAsyncReaderWriterLock JobHeartbeatLock;
+    };
+    THashMap<TString, std::unique_ptr<TPerJobTrackerData>> PerJobTrackerData_;
 
     IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
-    int JobHeartbeatCellIndex_ = 0;
+    std::vector<TString> JobTrackerAddresses_;
+    int JobHeartbeatJobTrackerIndex_ = 0;
 
     IInvokerPtr HeartbeatInvoker_;
 
@@ -568,7 +606,7 @@ private:
 
         OnlineCellCount_ = 0;
 
-        JobHeartbeatCellIndex_ = 0;
+        JobHeartbeatJobTrackerIndex_ = 0;
     }
 
     void OnMasterConnected(TNodeId /*nodeId*/)
@@ -641,66 +679,77 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto delay = immediately ? TDuration::Zero() : JobHeartbeatPeriod_ + RandomDuration(JobHeartbeatPeriodSplay_);
-        delay /= (Bootstrap_->GetMasterClient()->GetNativeConnection()->GetSecondaryMasterCellTags().size() + 1);
+        delay /= JobTrackerAddresses_.size();
 
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        auto cellTag = masterCellTags[JobHeartbeatCellIndex_];
+        const auto& jobTrackerAddress = JobTrackerAddresses_[JobHeartbeatJobTrackerIndex_];
 
         TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this), cellTag, /*outOfOrder*/ false),
+            BIND(
+                &TMasterConnector::ReportJobHeartbeat,
+                MakeWeak(this),
+                jobTrackerAddress,
+                /*outOfOrder*/ false),
             delay,
             HeartbeatInvoker_);
     }
 
-    void ReportJobHeartbeat(TCellTag cellTag, bool outOfOrder)
+    void ReportJobHeartbeat(TString jobTrackerAddress, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Reporting job heartbeat to master (CellTag: %v, OutOfOrder: %v)",
-            cellTag,
+        YT_LOG_DEBUG("Reporting job heartbeat to master (JobTrackerAddress: %v, OutOfOrder: %v)",
+            jobTrackerAddress,
             outOfOrder);
 
-        auto* cellTagData = GetCellTagData(cellTag);
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&cellTagData->JobHeartbeatLock))
+        auto* jobTrackerData = GetJobTrackerData(jobTrackerAddress);
+        auto cellTag = jobTrackerData->CellTag;
+
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&jobTrackerData->JobHeartbeatLock))
             .ValueOrThrow();
 
         auto state = GetMasterConnectorState(cellTag);
         if (state == EMasterConnectorState::Online) {
-            auto channel = Bootstrap_->GetMasterChannel(cellTag);
-            TJobTrackerServiceProxy proxy(channel);
+            TJobTrackerServiceProxy proxy(jobTrackerData->Channel);
 
             auto req = proxy.Heartbeat();
             req->SetTimeout(GetDynamicConfig()->JobHeartbeatTimeout);
 
             const auto& jobController = Bootstrap_->GetJobController();
-            YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
+            YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
+                cellTag,
+                jobTrackerAddress,
+                EObjectType::MasterJob,
+                req))
                 .IsOK());
 
-            YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, CellTag: %v)",
+            YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, JobTrackerAddress: %v)",
                 FormatResourceUsage(req->resource_usage(), req->resource_limits()),
-                cellTag);
+                jobTrackerAddress);
 
             auto rspOrError = WaitFor(req->Invoke());
 
             if (rspOrError.IsOK()) {
-                YT_LOG_INFO("Successfully reported job heartbeat to master (CellTag: %v)",
-                    cellTag);
+                YT_LOG_INFO("Successfully reported job heartbeat to master (JobTrackerAddress: %v)",
+                    jobTrackerAddress);
 
                 const auto& rsp = rspOrError.Value();
-                YT_VERIFY(WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob))
+                YT_VERIFY(WaitFor(jobController->ProcessHeartbeatResponse(
+                    jobTrackerAddress,
+                    rsp,
+                    EObjectType::MasterJob))
                     .IsOK());
             } else {
-                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (CellTag: %v)",
-                    cellTag);
+                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (JobTrackerAddress: %v)",
+                    jobTrackerAddress);
+
+                if (!outOfOrder) {
+                    JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % JobTrackerAddresses_.size();
+                }
+
                 if (NRpc::IsRetriableError(rspOrError)) {
                     DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
                     Bootstrap_->ResetAndRegisterAtMaster();
-                }
-
-                if (!outOfOrder) {
-                    const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-                    JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
                 }
 
                 return;
@@ -708,8 +757,7 @@ private:
         }
 
         if (!outOfOrder) {
-            const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-            JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
+            JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % JobTrackerAddresses_.size();
 
             DoScheduleJobHeartbeat(/*immediately*/ false);
         }
@@ -962,6 +1010,13 @@ private:
 
         auto* cellTagData = GetCellTagData(cellTag);
         return cellTagData->ChunksDelta.get();
+    }
+
+    TPerJobTrackerData* GetJobTrackerData(const TString& jobTrackerAddress)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetOrCrash(PerJobTrackerData_, jobTrackerAddress).get();
     }
 
     TChunksDelta* GetChunksDelta(TObjectId id)
