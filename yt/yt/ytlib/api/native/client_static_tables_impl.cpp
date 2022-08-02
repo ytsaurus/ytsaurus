@@ -4,6 +4,7 @@
 #include "partition_tables.h"
 #include "skynet.h"
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -70,6 +71,11 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         auto transactionId = path.GetTransactionId();
 
+        std::vector<i32> extensionTags;
+        if (options.FetcherMode != EColumnarStatisticsFetcherMode::FromNodes) {
+            extensionTags.push_back(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+        }
+
         auto [inputChunks, schema, _] = CollectTableInputChunks(
             path,
             this,
@@ -78,7 +84,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             transactionId
                 ? *transactionId
                 : options.TransactionId,
-            options.FetcherMode != EColumnarStatisticsFetcherMode::FromNodes,
+            extensionTags,
             Logger);
 
         YT_LOG_INFO("Fetching columnar statistics (Columns: %v, FetcherMode: %v)",

@@ -65,7 +65,7 @@ class TestPartitionTablesCommand(YTEnvSetup, TestPartitionTablesBase):
         ]
 
     @authors("galtsev")
-    def test_unordered_one_dynamic_table(self):
+    def test_unordered_one_sorted_dynamic_table(self):
         table = "//tmp/sorted-dynamic"
         chunk_count = 6
         rows_per_chunk = 1000
@@ -73,11 +73,59 @@ class TestPartitionTablesCommand(YTEnvSetup, TestPartitionTablesBase):
         self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=True)
 
         partitions = partition_tables([table], data_weight_per_partition=2 * row_weight * rows_per_chunk)
-        assert partitions == [
-            {
-                "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {}, "upper_limit": {}}]})],
-            }
-        ]
+
+        assert len(partitions) > 1
+
+        def key_into_linear(key, rows_per_chunk):
+            return int(key[0]) * rows_per_chunk + int(key[1])
+
+        def key_from_linear(linear_key, rows_per_chunk):
+            return ("{:010d}".format(linear_key // rows_per_chunk), "{:010d}".format(linear_key % rows_per_chunk))
+
+        def occurs(key, key_range):
+            for limit in ("lower_limit", "upper_limit"):
+                operation, bound = key_range[limit]["key_bound"]
+                bound = tuple(bound)
+                if (
+                    (operation == ">=" and key < bound) or
+                    (operation == "<=" and key > bound) or
+                    (operation == ">" and key <= bound) or
+                    (operation == "<" and key >= bound)
+                ):
+                    return False
+            return True
+
+        def test_keys_from_chunks(chunk_count, rows_per_chunk):
+            test_keys = set()
+            for chunk in range(chunk_count):
+                for row in (0, 1, rows_per_chunk - 2, rows_per_chunk - 1):
+                    test_keys.add(("{:010d}".format(chunk), "{:010d}".format(row)))
+            return test_keys
+
+        def test_keys_from_partitions(partitions):
+            test_keys = set()
+            for partition in partitions:
+                for table_range in partition["table_ranges"]:
+                    for key_range in table_range.attributes["ranges"]:
+                        for limit in ("lower_limit", "upper_limit"):
+                            key = key_range[limit]["key_bound"][1]
+                            for delta in (-1, 0, 1):
+                                linear_key = key_into_linear(key, rows_per_chunk) + delta
+                                if 0 <= linear_key and linear_key < chunk_count * rows_per_chunk:
+                                    test_keys.add(key_from_linear(linear_key, rows_per_chunk))
+            return test_keys
+
+        def count_occurrences(key, partitions):
+            occurrences = 0
+            for partition in partitions:
+                for table_range in partition["table_ranges"]:
+                    for key_range in table_range.attributes["ranges"]:
+                        if occurs(key, key_range):
+                            occurrences += 1
+            return occurrences
+
+        for key in test_keys_from_chunks(chunk_count, rows_per_chunk) | test_keys_from_partitions(partitions):
+            assert count_occurrences(key, partitions) == 1
 
     @authors("galtsev")
     def test_max_partition_count_exceeded(self):

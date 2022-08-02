@@ -110,7 +110,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     NObjectClient::TTransactionId transactionId,
-    bool fetchHeavyColumnStatisticsExt,
+    std::vector<i32> extensionTags,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

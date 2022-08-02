@@ -1,5 +1,4 @@
 #include "helpers.h"
-#include "chunk_meta_extensions.h"
 #include "config.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
@@ -329,7 +328,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     TTransactionId transactionId,
-    bool fetchHeavyColumnStatisticsExt,
+    std::vector<i32> extensionTags,
     const TLogger& logger)
 {
     auto Logger = logger.WithTag("Path: %v", path.GetPath());
@@ -397,8 +396,8 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
         config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (fetchHeavyColumnStatisticsExt) {
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+            for (auto extensionTag : extensionTags) {
+                req->add_extension_tags(extensionTag);
             }
             req->set_fetch_all_meta_extensions(false);
             SetTransactionId(req, userObject.ExternalTransactionId);
