@@ -11,12 +11,14 @@ namespace NYT::NCellBalancer {
 DECLARE_REFCOUNTED_CLASS(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellBalancerMasterConnectorConfig)
+DECLARE_REFCOUNTED_CLASS(TBundleControllerConfig)
 
 struct IBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(IMasterConnector)
 DECLARE_REFCOUNTED_CLASS(ICellTracker)
 DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
+DECLARE_REFCOUNTED_CLASS(IBundleController)
 
 DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 

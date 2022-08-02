@@ -3,6 +3,7 @@
 #include "cell_tracker.h"
 #include "config.h"
 #include "master_connector.h"
+#include "bundle_controller.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -140,6 +141,7 @@ private:
     ICypressElectionManagerPtr ElectionManager_;
     IMasterConnectorPtr MasterConnector_;
     ICellTrackerPtr CellTracker_;
+    IBundleControllerPtr BundleController_;
 
     void DoInitialize()
     {
@@ -169,6 +171,7 @@ private:
 
         MasterConnector_ = CreateMasterConnector(this, Config_->MasterConnector);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
+        BundleController_ = CreateBundleController(this, Config_->BundleController);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -208,7 +211,13 @@ private:
 
         ElectionManager_->Start();
 
-        CellTracker_->Start();
+        if (Config_->EnableCellBalancer) {
+            CellTracker_->Start();
+        }
+
+        if (Config_->EnableBundleController) {
+            BundleController_->Start();
+        }
     }
 };
 
