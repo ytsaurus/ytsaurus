@@ -624,6 +624,9 @@ private:
             NProfiling::TEventTimer TotalTimeCounter;
 
             NProfiling::TCounter RequestCounter;
+            NProfiling::TCounter FailedRequestCounter;
+            NProfiling::TCounter TimedOutRequestCounter;
+            NProfiling::TCounter CancelledRequestCounter;
             NProfiling::TCounter RequestMessageBodySizeCounter;
             NProfiling::TCounter RequestMessageAttachmentSizeCounter;
             NProfiling::TCounter ResponseMessageBodySizeCounter;
@@ -655,6 +658,9 @@ private:
                 metadata.CancelTimeCounter = profiler.Timer("/request_time/cancel");
                 metadata.TotalTimeCounter = profiler.Timer("/request_time/total");
                 metadata.RequestCounter = profiler.Counter("/request_count");
+                metadata.FailedRequestCounter = profiler.Counter("/failed_request_count");
+                metadata.TimedOutRequestCounter = profiler.Counter("/timed_out_request_count");
+                metadata.CancelledRequestCounter = profiler.Counter("/cancelled_request_count");
                 metadata.RequestMessageBodySizeCounter = profiler.Counter("/request_message_body_bytes");
                 metadata.RequestMessageAttachmentSizeCounter = profiler.Counter("/request_message_attachment_bytes");
                 metadata.ResponseMessageBodySizeCounter = profiler.Counter("/response_message_body_bytes");
@@ -932,6 +938,7 @@ private:
                         responseHandler,
                         std::move(message));
                 } else {
+                    requestControl->ProfileError(error);
                     if (error.GetCode() == EErrorCode::PoisonPill) {
                         YT_LOG_FATAL(error, "Poison pill received");
                     }
@@ -1250,11 +1257,18 @@ private:
         void ProfileCancel()
         {
             DoProfile(MethodMetadata_->CancelTimeCounter);
+            MethodMetadata_->CancelledRequestCounter.Increment();
         }
 
         void ProfileTimeout()
         {
             DoProfile(MethodMetadata_->TimeoutTimeCounter);
+            MethodMetadata_->TimedOutRequestCounter.Increment();
+        }
+
+        void ProfileError(const TError& /* error */)
+        {
+            MethodMetadata_->FailedRequestCounter.Increment();
         }
 
         // IClientRequestControl overrides
