@@ -129,12 +129,20 @@ def prepare_yt_binaries(destination,
         insert_sudo_wrapper(destination)
 
 
-def copy_misc_binaries(destination, arcadia_root=None):
-    watcher_path = get_binary_path("yt_env_watcher", arcadia_root)
-    shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))
+def copy_binary(destination, binary_name, arcadia_root, *source_paths):
+    for source_path in source_paths:
+        try:
+            binary_path = get_binary_path(binary_name, arcadia_root, build_path_dir=source_path)
+            shutil.copy(binary_path, os.path.join(destination, binary_name))
+            return
+        except:
+            continue
+    raise RuntimeError("binary {} is not found in {}".format(binary_name, source_paths))
 
-    logrotate_path = get_binary_path("logrotate", arcadia_root)
-    shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
+
+def copy_misc_binaries(destination, arcadia_root=None):
+    copy_binary(destination, "yt_env_watcher", arcadia_root, "yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment")
+    copy_binary(destination, "logrotate", arcadia_root, "infra/nanny/logrotate", "yt/packages/latest/infra/nanny/logrotate")
 
 
 # Supposed to be used in core YT components only.
