@@ -392,17 +392,25 @@ void TChunkReplicator::Stop()
 
     LastPerNodeProfilingTime_ = TInstant::Zero();
 
-    RefreshExecutor_->Stop();
-    RefreshExecutor_.Reset();
+    if (RefreshExecutor_) {
+        RefreshExecutor_->Stop();
+        RefreshExecutor_.Reset();
+    }
 
-    RequisitionUpdateExecutor_->Stop();
-    RequisitionUpdateExecutor_.Reset();
+    if (RequisitionUpdateExecutor_) {
+        RequisitionUpdateExecutor_->Stop();
+        RequisitionUpdateExecutor_.Reset();
+    }
 
-    FinishedRequisitionTraverseFlushExecutor_->Stop();
-    FinishedRequisitionTraverseFlushExecutor_.Reset();
+    if (FinishedRequisitionTraverseFlushExecutor_) {
+        FinishedRequisitionTraverseFlushExecutor_->Stop();
+        FinishedRequisitionTraverseFlushExecutor_.Reset();
+    }
 
-    EnabledCheckExecutor_->Stop();
-    EnabledCheckExecutor_.Reset();
+    if (EnabledCheckExecutor_) {
+        EnabledCheckExecutor_->Stop();
+        EnabledCheckExecutor_.Reset();
+    }
 
     ChunkListIdsWithFinishedRequisitionTraverse_.clear();
 
