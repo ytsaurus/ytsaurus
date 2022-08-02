@@ -601,6 +601,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
             static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),
             chunkReadOptions);
+        blockFetcher->Start();
         readerStatistics->CreateBlockFetcherTime = createBlockFetcherTimer.GetElapsedTime();
     }
 

@@ -86,6 +86,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
         static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
         ChunkReadOptions_);
+    SequentialBlockFetcher_->Start();
 
     InitFirstBlockNeeded_ = true;
     YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());

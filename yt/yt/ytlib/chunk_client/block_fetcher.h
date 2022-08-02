@@ -54,6 +54,9 @@ public:
 
     ~TBlockFetcher();
 
+    //! Starts fetching blocks.
+    void Start();
+
     //! Returns |true| if there are requested blocks that were not fetched enough times.
     bool HasMoreBlocks() const;
 
@@ -81,10 +84,12 @@ public:
     //! Returns codec and CPU time spent in compression.
     TCodecDuration GetDecompressionTime() const;
 
+    //! Signals that block fetcher finished reading from the reader with given index.
+    DEFINE_SIGNAL(void(int), OnReaderFinished);
+
 private:
     const TBlockFetcherConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
-    const std::vector<IChunkReaderPtr> ChunkReaders_;
     const IBlockCachePtr BlockCache_;
     const IInvokerPtr CompressionInvoker_;
     const IInvokerPtr ReaderInvoker_;
@@ -94,12 +99,18 @@ private:
     const TClientChunkReadOptions ChunkReadOptions_;
     NLogging::TLogger Logger;
 
+    struct TChunkState
+    {
+        IChunkReaderPtr Reader;
+        THashMap<int, int> BlockIndexToWindowIndex;
+        std::atomic<i64> RemainingBlockCount = 0;
+    };
+
+    std::vector<TChunkState> Chunks_;
+
     std::atomic<i64> UncompressedDataSize_ = 0;
     std::atomic<i64> CompressedDataSize_ = 0;
     std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = 0;
-
-    //! (ReaderIndex, BlockIndex) -> WindowIndex.
-    THashMap<std::pair<int, int>, int> BlockDescriptorToWindowIndex_;
 
     TFuture<TMemoryUsageGuardPtr> FetchNextGroupMemoryFuture_;
 
@@ -109,6 +120,7 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BlockPromiseLock);
         TPromise<TBlock> BlockPromise;
 
+        //! Number of not finished blocks. Used for firing OnReaderFinished signal.
         std::atomic<int> RemainingFetches = 0;
 
         TMemoryUsageGuardPtr MemoryUsageGuard;
@@ -119,9 +131,13 @@ private:
     std::unique_ptr<TWindowSlot[]> Window_;
 
     int TotalRemainingFetches_ = 0;
-    std::atomic<i64> TotalRemainingSize_ = 0;
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
+
+    //! Total size of not started blocks.
+    std::atomic<i64> TotalRemainingSize_ = 0;
+
+    std::atomic<bool> Started_ = false;
 
     struct TBlockDescriptor
     {
@@ -135,8 +151,7 @@ private:
 
     void RequestBlocks(
         std::vector<int> windowIndexes,
-        std::vector<TBlockDescriptor> blockDescriptor,
-        i64 uncompressedSize);
+        std::vector<TBlockDescriptor> blockDescriptor);
 
     void OnGotBlocks(
         int readerIndex,
@@ -156,6 +171,9 @@ private:
 
     static TPromise<TBlock> GetBlockPromise(TWindowSlot& windowSlot);
     static void ResetBlockPromise(TWindowSlot& windowSlot);
+
+    void DoStartBlock(const TBlockInfo& blockInfo);
+    void DoFinishBlock(const TBlockInfo& blockInfo);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
@@ -186,6 +204,7 @@ public:
     using TBlockFetcher::GetUncompressedDataSize;
     using TBlockFetcher::GetCompressedDataSize;
     using TBlockFetcher::GetDecompressionTime;
+    using TBlockFetcher::Start;
 
 private:
     std::vector<TBlockInfo> OriginalOrderBlockInfos_;

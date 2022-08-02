@@ -444,6 +444,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
             ChunkReadOptions_);
+        BlockFetcher_->Start();
     }
 }
 
@@ -596,6 +597,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
         CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
         static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
         ChunkReadOptions_);
+    BlockFetcher_->Start();
 }
 
 bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
