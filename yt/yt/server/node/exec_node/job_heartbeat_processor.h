@@ -14,11 +14,13 @@ public:
 
     void PrepareRequest(
         NObjectClient::TCellTag cellTag,
+        const TString& jobTrackerAddress,
         const NJobAgent::TJobController::TReqHeartbeatPtr& request) final;
     void ProcessResponse(
+        const TString& jobTrackerAddress,
         const NJobAgent::TJobController::TRspHeartbeatPtr& response) final;
 
-    virtual void ScheduleHeartbeat(NJobTrackerClient::TJobId jobId) final;
+    virtual void ScheduleHeartbeat(const NJobAgent::IJobPtr& job) final;
 
 private:
     THashSet<NObjectClient::TJobId> JobIdsToConfirm_;

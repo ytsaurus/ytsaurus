@@ -66,6 +66,8 @@ struct IJob
 
     virtual int GetSlotIndex() const = 0;
 
+    virtual const TString& GetJobTrackerAddress() const = 0;
+
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const = 0;
     virtual bool IsGpuRequested() const = 0;
 
@@ -142,6 +144,7 @@ DEFINE_REFCOUNTED_TYPE(IJob)
 using TMasterJobFactory = TCallback<IJobPtr(
     TJobId jobId,
     TOperationId operationId,
+    const TString& jobTrackerAddress,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 

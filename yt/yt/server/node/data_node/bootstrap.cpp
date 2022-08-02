@@ -232,12 +232,14 @@ public:
         auto createMasterJob = BIND([this] (
             NJobAgent::TJobId jobId,
             NJobAgent::TOperationId /*operationId*/,
+            const TString& jobTrackerAddress,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> NJobAgent::IJobPtr
         {
             return CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
+                jobTrackerAddress,
                 resourceLimits,
                 GetConfig()->DataNode,
                 this,

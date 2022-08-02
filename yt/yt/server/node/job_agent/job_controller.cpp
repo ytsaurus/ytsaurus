@@ -138,9 +138,11 @@ public:
 
     TFuture<void> PrepareHeartbeatRequest(
         TCellTag cellTag,
+        const TString& jobTrackerAddress,
         EObjectType jobObjectType,
         const TReqHeartbeatPtr& request);
     TFuture<void> ProcessHeartbeatResponse(
+        const TString& jobTrackerAddress,
         const TRspHeartbeatPtr& response,
         EObjectType jobObjectType);
 
@@ -231,9 +233,16 @@ private:
     void RemoveSchedulerJobsOnFatalAlert();
     bool NeedTotalConfirmation() noexcept;
 
-    void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
+    void DoPrepareHeartbeatRequest(
+        TCellTag cellTag,
+        const TString& jobTrackerAddress,
+        EObjectType jobObjectType,
+        const TReqHeartbeatPtr& request);
     void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
-    void DoProcessHeartbeatResponse(const TRspHeartbeatPtr& response, EObjectType jobObjectType);
+    void DoProcessHeartbeatResponse(
+        const TString& jobTrackerAddress,
+        const TRspHeartbeatPtr& response,
+        EObjectType jobObjectType);
     void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
 
     void OnJobSpecsReceived(
@@ -253,6 +262,7 @@ private:
     IJobPtr CreateMasterJob(
         TJobId jobId,
         TOperationId operationId,
+        const TString& jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
 
@@ -958,6 +968,7 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
 IJobPtr TJobController::TImpl::CreateMasterJob(
     TJobId jobId,
     TOperationId operationId,
+    const TString& jobTrackerAddress,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
@@ -972,13 +983,16 @@ IJobPtr TJobController::TImpl::CreateMasterJob(
     auto job = factory.Run(
         jobId,
         operationId,
+        jobTrackerAddress,
         resourceLimits,
         std::move(jobSpec));
 
-    YT_LOG_INFO("Master job created (JobId: %v, OperationId: %v, JobType: %v)",
+    YT_LOG_INFO("Master job created "
+        "(JobId: %v, OperationId: %v, JobType: %v, JobTrackerAddress: %v)",
         jobId,
         operationId,
-        type);
+        type,
+        jobTrackerAddress);
 
     TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
 
@@ -1229,7 +1243,7 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
             job->GetId(),
             job->GetType(),
             origin);
-        GetJobHeartbeatProcessor(jobObjectType)->ScheduleHeartbeat(job->GetId());
+        GetJobHeartbeatProcessor(jobObjectType)->ScheduleHeartbeat(job);
     }
 
     auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
@@ -1278,6 +1292,7 @@ bool TJobController::TImpl::HasEnoughResources(
 
 TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
     TCellTag cellTag,
+    const TString& jobTrackerAddress,
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
@@ -1286,15 +1301,16 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
     return
         BIND(&TJobController::TImpl::DoPrepareHeartbeatRequest, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run(cellTag, jobObjectType, request);
+        .Run(cellTag, jobTrackerAddress, jobObjectType, request);
 }
 
 void TJobController::TImpl::DoPrepareHeartbeatRequest(
     TCellTag cellTag,
+    const TString& jobTrackerAddress,
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
-    GetJobHeartbeatProcessor(jobObjectType)->PrepareRequest(cellTag, request);
+    GetJobHeartbeatProcessor(jobObjectType)->PrepareRequest(cellTag, jobTrackerAddress, request);
 }
 
 void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
@@ -1319,6 +1335,7 @@ void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbea
 }
 
 TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
+    const TString& jobTrackerAddress,
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
@@ -1326,14 +1343,16 @@ TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
 
     return BIND(&TJobController::TImpl::DoProcessHeartbeatResponse, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run(response, jobObjectType);
+        .Run(jobTrackerAddress, response, jobObjectType);
 }
 
 void TJobController::TImpl::DoProcessHeartbeatResponse(
+    const TString& jobTrackerAddress,
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
-    GetJobHeartbeatProcessor(jobObjectType)->ProcessResponse(response);
+    const auto& heartbeatProcessor = GetJobHeartbeatProcessor(jobObjectType);
+    heartbeatProcessor->ProcessResponse(jobTrackerAddress, response);
 }
 
 void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
@@ -1592,6 +1611,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                     .Item("job_phase").Value(job->GetPhase())
                                     .Item("job_type").Value(job->GetType())
                                     .Item("slot_index").Value(job->GetSlotIndex())
+                                    .Item("job_tracker_address").Value(job->GetJobTrackerAddress())
                                     .Item("start_time").Value(job->GetStartTime())
                                     .Item("duration").Value(TInstant::Now() - job->GetStartTime())
                                     .OptionalItem("statistics", job->GetStatistics())
@@ -1933,17 +1953,26 @@ void TJobController::SetDisableSchedulerJobs(bool value)
 
 TFuture<void> TJobController::PrepareHeartbeatRequest(
     TCellTag cellTag,
+    const TString& jobTrackerAddress,
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
-    return Impl_->PrepareHeartbeatRequest(cellTag, jobObjectType, request);
+    return Impl_->PrepareHeartbeatRequest(
+        cellTag,
+        jobTrackerAddress,
+        jobObjectType,
+        request);
 }
 
 TFuture<void> TJobController::ProcessHeartbeatResponse(
+    const TString& jobTrackerAddress,
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
-    return Impl_->ProcessHeartbeatResponse(response, jobObjectType);
+    return Impl_->ProcessHeartbeatResponse(
+        jobTrackerAddress,
+        response,
+        jobObjectType);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()
@@ -2010,10 +2039,16 @@ TFuture<void> TJobController::TJobHeartbeatProcessorBase::RequestJobSpecsAndStar
 IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateMasterJob(
     TJobId jobId,
     TOperationId operationId,
+    const TString& jobTrackerAddress,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
-    return JobController_->Impl_->CreateMasterJob(jobId, operationId, resourceLimits, std::move(jobSpec));
+    return JobController_->Impl_->CreateMasterJob(
+        jobId,
+        operationId,
+        jobTrackerAddress,
+        resourceLimits,
+        std::move(jobSpec));
 }
 
 const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds() const noexcept

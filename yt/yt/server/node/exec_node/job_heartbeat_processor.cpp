@@ -30,8 +30,11 @@ using namespace NCypressClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSchedulerJobHeartbeatProcessor::ProcessResponse(
+    const TString& jobTrackerAddress,
     const TJobController::TRspHeartbeatPtr& response)
 {
+    YT_VERIFY(jobTrackerAddress.empty());
+
     ProcessHeartbeatCommonResponsePart(response);
 
     for (const auto& jobToInterrupt : response->jobs_to_interrupt()) {
@@ -126,7 +129,7 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
 
         jobIdsToConfirm.push_back(jobId);
     }
-    
+
     JobIdsToConfirm_.clear();
     if (!std::empty(jobIdsToConfirm)) {
         JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
@@ -139,11 +142,11 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
     for (const auto& startInfo : response->jobs_to_start()) {
         jobWithoutSpecStartInfos.push_back(startInfo);
 
-        // We get vcpu here. Need to replace it with real cpu back. 
+        // We get vcpu here. Need to replace it with real cpu back.
         auto& resourceLimits = *jobWithoutSpecStartInfos.back().mutable_resource_limits();
         resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
     }
-    
+
     Y_UNUSED(WaitFor(RequestJobSpecsAndStartJobs(std::move(jobWithoutSpecStartInfos))));
 }
 
@@ -155,8 +158,11 @@ void TSchedulerJobHeartbeatProcessor::ReplaceCpuWithVCpu(NNodeTrackerClient::NPr
 
 void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     TCellTag cellTag,
+    const TString& jobTrackerAddress,
     const TJobController::TReqHeartbeatPtr& request)
 {
+    YT_VERIFY(jobTrackerAddress.empty());
+
     PrepareHeartbeatCommonRequestPart(request);
 
     // Only for scheduler `cpu` stores `vcpu` actually.
@@ -278,7 +284,7 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     }
 }
 
-void TSchedulerJobHeartbeatProcessor::ScheduleHeartbeat(TJobId /*jobId*/)
+void TSchedulerJobHeartbeatProcessor::ScheduleHeartbeat(const IJobPtr& /*job*/)
 {
     YT_UNIMPLEMENTED();
 }

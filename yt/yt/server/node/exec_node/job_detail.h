@@ -110,6 +110,8 @@ public:
 
     int GetSlotIndex() const override;
 
+    const TString& GetJobTrackerAddress() const override;
+
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const override;
     bool IsGpuRequested() const override;
 
@@ -122,7 +124,7 @@ public:
     double GetProgress() const override;
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) override;
-    
+
     bool ResourceUsageOverdrafted() const override;
 
     void SetProgress(double progress) override;

@@ -678,6 +678,12 @@ int TJob::GetSlotIndex() const
     return Slot_->GetSlotIndex();
 }
 
+const TString& TJob::GetJobTrackerAddress() const
+{
+    const static TString EmptyJobTrackerAddress;
+    return EmptyJobTrackerAddress;
+}
+
 TNodeResources TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);

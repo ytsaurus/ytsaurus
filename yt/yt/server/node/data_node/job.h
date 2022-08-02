@@ -24,6 +24,7 @@ struct TMasterJobSensors
 NJobAgent::IJobPtr CreateMasterJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    TString jobTrackerAddress,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap,

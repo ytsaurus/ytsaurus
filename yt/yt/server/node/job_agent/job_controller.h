@@ -108,11 +108,13 @@ public:
     //! Prepares a heartbeat request.
     TFuture<void> PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
+        const TString& jobTrackerAddress,
         NObjectClient::EObjectType jobObjectType,
         const TReqHeartbeatPtr& request);
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     TFuture<void> ProcessHeartbeatResponse(
+        const TString& jobTrackerAddress,
         const TRspHeartbeatPtr& response,
         NObjectClient::EObjectType jobObjectType);
 
@@ -132,12 +134,14 @@ public:
 
         virtual void PrepareRequest(
             NObjectClient::TCellTag cellTag,
+            const TString& jobTrackerAddress,
             const TReqHeartbeatPtr& request) = 0;
         virtual void ProcessResponse(
+            const TString& jobTrackerAddress,
             const TRspHeartbeatPtr& response) = 0;
 
         //! Schedules an out-of-order heartbeat for a specific job.
-        virtual void ScheduleHeartbeat(TJobId jobId) = 0;
+        virtual void ScheduleHeartbeat(const IJobPtr& job) = 0;
 
     protected:
         void RemoveSchedulerJobsOnFatalAlert();
@@ -147,6 +151,7 @@ public:
         IJobPtr CreateMasterJob(
             TJobId jobId,
             TOperationId operationId,
+            const TString& jobTrackerAddress,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec);
         const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const noexcept;
