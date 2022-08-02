@@ -151,6 +151,7 @@ public:
             NCompression::ECodec::None,
             /*compressionRatio*/ 1.0,
             chunkReadOptions);
+        BlockFetcher_->Start();
     }
 
     TFuture<TBlock> ReadSegmentPart(const TSegmentPartDescriptor& descriptor)

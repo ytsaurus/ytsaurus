@@ -1018,6 +1018,7 @@ private:
                 NCompression::ECodec::None,
                 1.0, /* compressionRatio */
                 chunkReadOptions);
+            blockFetcher->Start();
 
             for (int index = 0; index < blockCount; ++index) {
                 YT_LOG_DEBUG("Downloading block (BlockIndex: %v)",

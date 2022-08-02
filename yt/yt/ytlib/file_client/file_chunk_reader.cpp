@@ -306,6 +306,7 @@ private:
             CodecId_,
             static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
             ChunkReadOptions_);
+        SequentialBlockFetcher_->Start();
 
         YT_LOG_DEBUG("File chunk reader opened (BlockIndexes: %v-%v, SelectedSize: %v)",
             blockIndex,
