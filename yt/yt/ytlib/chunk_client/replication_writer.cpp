@@ -808,7 +808,12 @@ private:
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG("Ping failed (Address: %v)",
                 node->Descriptor.GetDefaultAddress());
-                return;
+
+            if (rspOrError.FindMatching(NYT::NChunkClient::EErrorCode::NoSuchSession)) {
+                OnNodeFailed(node, rspOrError);
+            }
+
+            return;
         }
 
         const auto& rsp = rspOrError.Value();
