@@ -336,7 +336,7 @@ private:
             // For tablet nodes, it is crucial because of non-atomic transactions that require
             // in-sync time for clients.
             Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetTimestampProvider()
                 ->GetLatestTimestamp();

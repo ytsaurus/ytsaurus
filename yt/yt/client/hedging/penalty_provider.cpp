@@ -42,12 +42,12 @@ class TLagPenaltyProvider
     : public IPenaltyProvider
 {
 public:
-    TLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NApi::IClientPtr masterClient)
+    TLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NApi::IClientPtr client)
         : TablePath_(config.GetTablePath())
         , MaxTabletLag_(TDuration::Seconds(config.GetMaxTabletLag()))
         , LagPenalty_(NProfiling::DurationToCpuDuration(TDuration::MilliSeconds(config.GetLagPenalty())))
         , MaxTabletsWithLagFraction_(config.GetMaxTabletsWithLagFraction())
-        , MasterClient_(masterClient)
+        , Client_(client)
         , ClearPenaltiesOnErrors_(config.GetClearPenaltiesOnErrors())
         , Counters_(New<TLagPenaltyProviderCounters>(TablePath_,
             TVector<TString>{config.GetReplicaClusters().begin(), config.GetReplicaClusters().end()}))
@@ -57,7 +57,7 @@ public:
             TDuration::Seconds(config.GetCheckPeriod())))
     {
         Y_ENSURE(Executor_);
-        Y_ENSURE(MasterClient_);
+        Y_ENSURE(Client_);
 
         for (const auto& cluster : config.GetReplicaClusters()) {
             auto [_, inserted] = ReplicaClusters_.try_emplace(cluster);
@@ -84,7 +84,7 @@ public:
     // Fills ReplicaIds in ReplicaClusters_.
     void UpdateReplicaIds()
     {
-        auto replicasNode = NYTree::ConvertToNode(NConcurrency::WaitFor(MasterClient_->GetNode(TablePath_ + "/@replicas", GetNodeOptions_)).ValueOrThrow())->AsMap();
+        auto replicasNode = NYTree::ConvertToNode(NConcurrency::WaitFor(Client_->GetNode(TablePath_ + "/@replicas", GetNodeOptions_)).ValueOrThrow())->AsMap();
 
         for (const auto& row : replicasNode->GetChildren()) {
             TString cluster = row.second->AsMap()->GetChildOrThrow("cluster_name")->AsString()->GetValue();
@@ -98,14 +98,14 @@ public:
 
     ui64 GetTotalNumberOfTablets()
     {
-        return NYTree::ConvertTo<ui64>(NConcurrency::WaitFor(MasterClient_->GetNode(TablePath_ + "/@tablet_count", GetNodeOptions_)).ValueOrThrow());
+        return NYTree::ConvertTo<ui64>(NConcurrency::WaitFor(Client_->GetNode(TablePath_ + "/@tablet_count", GetNodeOptions_)).ValueOrThrow());
     }
 
     // Returns a map: ReplicaId -> # of tablets.
     THashMap<NTabletClient::TTableReplicaId, ui64> CalculateNumbersOfTabletsWithLag(const ui64 tabletsCount)
     {
         auto tabletsRange = xrange(tabletsCount);
-        auto tabletsInfo = NConcurrency::WaitFor(MasterClient_->GetTabletInfos(TablePath_, {tabletsRange.begin(), tabletsRange.end()})).ValueOrThrow();
+        auto tabletsInfo = NConcurrency::WaitFor(Client_->GetTabletInfos(TablePath_, {tabletsRange.begin(), tabletsRange.end()})).ValueOrThrow();
 
         const auto now = TInstant::Now();
         THashMap<NTabletClient::TTableReplicaId, ui64> tabletsWithLag;
@@ -200,7 +200,7 @@ private:
     const TDuration MaxTabletLag_;
     const NProfiling::TCpuDuration LagPenalty_;
     const float MaxTabletsWithLagFraction_;
-    NApi::IClientPtr MasterClient_;
+    NApi::IClientPtr Client_;
     const bool ClearPenaltiesOnErrors_;
     TLagPenaltyProviderCountersPtr Counters_;
     NApi::TGetNodeOptions GetNodeOptions_;
@@ -220,9 +220,9 @@ IPenaltyProviderPtr CreateDummyPenaltyProvider()
 
 IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(
         const TReplicaionLagPenaltyProviderConfig& config,
-        NApi::IClientPtr masterClient)
+        NApi::IClientPtr client)
 {
-    return New<TLagPenaltyProvider>(config, masterClient);
+    return New<TLagPenaltyProvider>(config, client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

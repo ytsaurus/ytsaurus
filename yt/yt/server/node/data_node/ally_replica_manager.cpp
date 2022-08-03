@@ -578,7 +578,7 @@ private:
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
         const auto& channelFactory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetChannelFactory();
 

@@ -48,9 +48,9 @@ public:
         return Bootstrap_->GetCellId();
     }
 
-    IClientPtr GetMasterClient() const override
+    IClientPtr GetClient() const override
     {
-        return Bootstrap_->GetMasterClient();
+        return Bootstrap_->GetClient();
     }
 
     TNetworkPreferenceList GetLocalNetworks() const override

@@ -49,7 +49,7 @@ void FetchContentRevision(
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
 
-    const auto& client = bootstrap->GetMasterClient();
+    const auto& client = bootstrap->GetClient();
     auto rsp = WaitFor(client->GetNode(FromObjectId(userObject->ObjectId) + "/@content_revision"))
         .ValueOrThrow();
     userObject->ContentRevision = ConvertTo<NHydra::TRevision>(rsp);
@@ -78,7 +78,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         options.SuppressExpirationTimeoutRenewal = true;
         options.ReadFrom = EMasterChannelKind::Cache;
         GetUserObjectBasicAttributes(
-            bootstrap->GetMasterClient(),
+            bootstrap->GetClient(),
             {&userObject},
             NullTransactionId,
             Logger,
@@ -126,7 +126,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         objectId,
         userObject.ContentRevision);
 
-    const auto& client = bootstrap->GetMasterClient();
+    const auto& client = bootstrap->GetClient();
     const auto& connection = client->GetNativeConnection();
 
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);

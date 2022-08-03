@@ -70,7 +70,7 @@ public:
 
         JobReporter_ = New<TJobReporter>(
             GetConfig()->ExecNode->JobReporter,
-            GetMasterConnection(),
+            GetConnection(),
             GetLocalDescriptor().GetDefaultAddress());
 
         MasterConnector_ = CreateMasterConnector(this);

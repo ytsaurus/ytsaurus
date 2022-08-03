@@ -31,8 +31,8 @@ public:
     ~TBootstrap();
 
     const TSchedulerBootstrapConfigPtr& GetConfig() const;
-    const NApi::NNative::IClientPtr& GetMasterClient() const;
-    const NApi::NNative::IClientPtr& GetRemoteMasterClient(NObjectClient::TCellTag tag) const;
+    const NApi::NNative::IClientPtr& GetClient() const;
+    const NApi::NNative::IClientPtr& GetRemoteClient(NObjectClient::TCellTag tag) const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;

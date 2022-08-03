@@ -644,7 +644,7 @@ void TP2PDistributor::DistributeBlocks()
             this_ = MakeStrong(this)
         ] () mutable {
             const auto& channelFactory = Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetChannelFactory();
 

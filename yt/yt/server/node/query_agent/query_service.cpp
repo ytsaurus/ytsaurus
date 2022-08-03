@@ -382,11 +382,11 @@ public:
         , Bootstrap_(bootstrap)
         , PoolWeightCache_(New<TPoolWeightCache>(
             config->PoolWeightCache,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             GetDefaultInvoker()))
         , FunctionImplCache_(CreateFunctionImplCache(
             config->FunctionImplCache,
-            bootstrap->GetMasterClient()))
+            bootstrap->GetClient()))
         , Evaluator_(CreateEvaluator(Config_, QueryAgentProfiler))
         , MemoryTracker_(
             Bootstrap_

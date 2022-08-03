@@ -25,7 +25,7 @@ public:
 
     void Initialize() override
     {
-        auto masterClient = GetMasterConnection()->CreateNativeClient(
+        auto client = GetConnection()->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
 
         ChaosCacheQueue_ = New<TActionQueue>("ChaosCache");
@@ -36,7 +36,7 @@ public:
 
         ChaosCacheService_ = CreateChaosCacheService(
             ChaosCacheQueue_->GetInvoker(),
-            masterClient,
+            client,
             ChaosCache_);
 
         GetRpcServer()->RegisterService(ChaosCacheService_);

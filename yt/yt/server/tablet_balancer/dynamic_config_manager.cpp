@@ -17,7 +17,7 @@ TDynamicConfigManager::TDynamicConfigManager(
             .Name = "TabletBalancer",
         },
         config->DynamicConfigManager,
-        bootstrap->GetMasterClient(),
+        bootstrap->GetClient(),
         bootstrap->GetControlInvoker())
 { }
 

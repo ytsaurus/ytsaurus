@@ -57,7 +57,7 @@ public:
                 CreateDefaultTimeoutChannel(
                     CreatePeerChannel(
                         masterConfig,
-                        GetMasterConnection()->GetChannelFactory(),
+                        GetConnection()->GetChannelFactory(),
                         EPeerKind::Follower),
                     masterConfig->RpcTimeout),
                 ObjectServiceCache_,

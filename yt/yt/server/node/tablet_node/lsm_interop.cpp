@@ -122,7 +122,7 @@ private:
         NLsm::TLsmBackendState backendState;
 
         auto timestampProvider = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetTimestampProvider();
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();

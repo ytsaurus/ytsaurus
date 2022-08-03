@@ -29,14 +29,14 @@ class TChaosCacheService
 public:
     TChaosCacheService(
         IInvokerPtr invoker,
-        IClientPtr masterClient,
+        IClientPtr client,
         TChaosCachePtr cache)
         : TServiceBase(
             std::move(invoker),
             TChaosNodeServiceProxy::GetDescriptor(),
             MasterCacheLogger)
         , Cache_(std::move(cache))
-        , Client_(std::move(masterClient))
+        , Client_(std::move(client))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
     }
@@ -120,12 +120,12 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 
 IServicePtr CreateChaosCacheService(
     IInvokerPtr invoker,
-    IClientPtr masterClient,
+    IClientPtr client,
     TChaosCachePtr cache)
 {
     return New<TChaosCacheService>(
         std::move(invoker),
-        std::move(masterClient),
+        std::move(client),
         std::move(cache));
 }
 

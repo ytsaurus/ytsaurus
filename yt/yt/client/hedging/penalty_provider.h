@@ -14,7 +14,7 @@ namespace NYT::NClient::NHedging::NRpc {
 DECLARE_REFCOUNTED_CLASS(IPenaltyProvider);
 
 class IPenaltyProvider
-    : public TRefCounted 
+    : public TRefCounted
 {
 public:
     virtual NProfiling::TCpuDuration Get(const TString& cluster) = 0;
@@ -34,7 +34,7 @@ class TReplicaionLagPenaltyProviderConfig;
 //        Based on values from TReplicaionLagPenaltyProviderConfig add current number of tablets with lag, it either returns 0 or LagPenalty value.
 //        Master client - main cluster with replicated table. ReplicaCluster + TablePath specifies concrete replica for table from main cluster.
 IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(
-    const TReplicaionLagPenaltyProviderConfig& config, NApi::IClientPtr masterClient);
+    const TReplicaionLagPenaltyProviderConfig& config, NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

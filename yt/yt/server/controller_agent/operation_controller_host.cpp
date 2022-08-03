@@ -333,7 +333,7 @@ void TOperationControllerHost::AddChunkTreesToUnstageList(const std::vector<TChu
 
 const NApi::NNative::IClientPtr& TOperationControllerHost::GetClient()
 {
-    return Bootstrap_->GetMasterClient();
+    return Bootstrap_->GetClient();
 }
 
 const NNodeTrackerClient::TNodeDirectoryPtr& TOperationControllerHost::GetNodeDirectory()
@@ -429,7 +429,7 @@ const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDirectory()
 {
     return Bootstrap_
-        ->GetMasterClient()
+        ->GetClient()
         ->GetNativeConnection()
         ->GetMediumDirectory();
 }
@@ -487,10 +487,10 @@ void TOperationControllerHost::ValidateOperationAccess(
             permission))
         .ThrowOnError();
 }
-    
+
 TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
     NSecurityClient::TAccountResourceUsageLeaseId leaseId,
-    const TDiskQuota& diskQuota) 
+    const TDiskQuota& diskQuota)
 {
     return Bootstrap_->GetControllerAgent()->GetMasterConnector()->UpdateAccountResourceUsageLease(
         leaseId,

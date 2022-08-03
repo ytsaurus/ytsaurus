@@ -232,7 +232,7 @@ public:
         }
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         YT_LOG_DEBUG("Fetching \"tags_override\" attribute");
@@ -329,7 +329,7 @@ private:
     {
         if (!ArchiveExists_) {
             ArchiveExists_ = WaitFor(
-                Bootstrap_->GetMasterClient()->NodeExists("//sys/operations_archive", TNodeExistsOptions()))
+                Bootstrap_->GetClient()->NodeExists("//sys/operations_archive", TNodeExistsOptions()))
                 .ValueOrThrow();
         }
         return *ArchiveExists_;
@@ -457,7 +457,7 @@ private:
     void RegisterInstance()
     {
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
         auto batchReq = proxy.ExecuteBatch();
         auto path = GetInstancePath();
@@ -508,7 +508,7 @@ private:
         TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
 
@@ -531,7 +531,7 @@ private:
     TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
         TChunkServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
         return proxy.ExecuteBatch();
     }
@@ -557,7 +557,7 @@ private:
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = FindRemoteConnection(
-                    Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                    Bootstrap_->GetClient()->GetNativeConnection(),
                     cellTag);
                 if (!connection) {
                     continue;
@@ -766,7 +766,7 @@ private:
         const TYsonString& progress,
         const TYsonString& briefProgress)
     {
-        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
            .ValueOrThrow();
         YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v, OperationId: %v)",
@@ -1090,7 +1090,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        NScheduler::SaveJobFiles(Bootstrap_->GetMasterClient(), operationId, files);
+        NScheduler::SaveJobFiles(Bootstrap_->GetClient(), operationId, files);
     }
 
     void BuildSnapshot()
@@ -1113,7 +1113,7 @@ private:
 
         auto builder = New<TSnapshotBuilder>(
             Config_,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
             Bootstrap_->GetControllerAgent()->GetIncarnationId(),
             ForkCounters_);
@@ -1132,12 +1132,12 @@ private:
         const TDiskQuota& diskQuota)
     {
         auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1186,7 +1186,7 @@ private:
             }
 
             TChunkServiceProxy proxy(Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag));
 
             auto batchReq = proxy.ExecuteBatch();
@@ -1276,7 +1276,7 @@ private:
 
         try {
             TObjectServiceProxy proxy(Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
             auto req = TYPathProxy::Get("//sys/controller_agents/config");
@@ -1338,7 +1338,7 @@ private:
         }
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
@@ -1353,7 +1353,7 @@ private:
     IAttributeDictionaryPtr CreateEphemeralAttributesNestingLimited() const
     {
         const auto nestingLevelLimit = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetConfig()
             ->CypressWriteYsonNestingLevelLimit;
@@ -1363,7 +1363,7 @@ private:
     int GetYsonNestingLevelLimit() const
     {
         return Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetConfig()
             ->CypressWriteYsonNestingLevelLimit;

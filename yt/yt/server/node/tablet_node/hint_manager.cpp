@@ -43,7 +43,7 @@ public:
                 .ConfigIsTagged = false
             },
             std::move(config),
-            bootstrap->GetMasterClient(),
+            bootstrap->GetClient(),
             bootstrap->GetControlInvoker())
     { }
 };

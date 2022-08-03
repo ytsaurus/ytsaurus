@@ -25,7 +25,7 @@ public:
 
     const TLogTailerConfigPtr& GetConfig();
 
-    const NApi::NNative::IClientPtr& GetMasterClient() const;
+    const NApi::NNative::IClientPtr& GetClient() const;
 
     const IInvokerPtr& GetLogTailerInvoker() const;
 

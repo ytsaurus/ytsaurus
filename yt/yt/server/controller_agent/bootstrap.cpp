@@ -203,7 +203,7 @@ const TControllerAgentBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetClient() const
 {
     return Client_;
 }

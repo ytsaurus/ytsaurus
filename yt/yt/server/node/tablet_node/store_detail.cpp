@@ -272,7 +272,7 @@ public:
         TChunkStoreBase* owner,
         TNodeId localNodeId) const override
     {
-        const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
         auto replicasList = chunkReplicaCache->FindReplicas({owner->GetChunkId()});
         YT_VERIFY(replicasList.size() == 1);
         auto replicasOrError = std::move(replicasList[0]);

@@ -101,7 +101,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         MasterCellTags_.push_back(connection->GetPrimaryMasterCellTag());
         for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
             MasterCellTags_.push_back(cellTag);
@@ -224,7 +224,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
-        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& client = Bootstrap_->GetClient();
         const auto& connection = client->GetNativeConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
         return cellDirectory->GetChannelByCellId(cellId, NHydra::EPeerKind::Leader);
@@ -462,7 +462,7 @@ private:
         // NB: Media initialization for data node occurred at registration at primary master.
 
         if (Bootstrap_->IsExecNode()) {
-            const auto& nativeConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+            const auto& nativeConnection = Bootstrap_->GetClient()->GetNativeConnection();
             WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
                 .ThrowOnError();
             auto mediumDirectory = nativeConnection->GetMediumDirectory();
@@ -482,7 +482,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         TTransactionStartOptions options{
             .Timeout = Config_->LeaseTransactionTimeout,
             .PingPeriod = Config_->LeaseTransactionPingPeriod,
@@ -495,7 +495,7 @@ private:
         attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(RpcAddresses_)));
         options.Attributes = std::move(attributes);
 
-        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(ETransactionType::Master, options);
+        auto asyncTransaction = Bootstrap_->GetClient()->StartTransaction(ETransactionType::Master, options);
         LeaseTransaction_ = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
@@ -597,7 +597,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
 
         YT_LOG_INFO("Synchronizing cell directory");
         WaitFor(connection->GetCellDirectorySynchronizer()->Sync())

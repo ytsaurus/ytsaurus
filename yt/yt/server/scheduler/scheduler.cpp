@@ -264,7 +264,7 @@ public:
 
         EventLogWriter_ = New<TEventLogWriter>(
             Config_->EventLog,
-            GetMasterClient(),
+            GetClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::EventLog));
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
         FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
@@ -341,11 +341,11 @@ public:
             .Counter("/metering/guarantees/usage_quantity");
     }
 
-    const NApi::NNative::IClientPtr& GetMasterClient() const
+    const NApi::NNative::IClientPtr& GetClient() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetMasterClient();
+        return Bootstrap_->GetClient();
     }
 
     IYPathServicePtr CreateOrchidService()
@@ -530,7 +530,7 @@ public:
             user,
             path);
 
-        const auto& client = GetMasterClient();
+        const auto& client = GetClient();
         auto result = WaitFor(client->CheckPermission(user, Config_->PoolTreesRoot + path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
@@ -560,7 +560,7 @@ public:
                 TJobId(),
                 permissions,
                 operation->GetRuntimeParameters()->Acl,
-                GetMasterClient(),
+                GetClient(),
                 Logger);
         });
 
@@ -574,10 +574,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTagSentinel));
         auto connectionConfig = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetConfig();
         TMasterReadOptions readOptions;
@@ -666,7 +666,7 @@ public:
 
         auto operationId = MakeRandomId(
             EObjectType::Operation,
-            GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
+            GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParameters = New<TOperationRuntimeParameters>();
         InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
@@ -1557,7 +1557,7 @@ public:
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
         const auto* descriptor = mediumDirectory->FindByName(mediumName);
@@ -1567,7 +1567,7 @@ public:
     const TString& GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
         const auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
@@ -1606,7 +1606,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& channelFactory = GetMasterClient()->GetChannelFactory();
+        const auto& channelFactory = GetClient()->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(addressWithNetwork);
 
         TJobProberServiceProxy proxy(std::move(channel));
@@ -1641,7 +1641,7 @@ public:
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
     {
         auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
@@ -1650,7 +1650,7 @@ public:
     void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
         SerializeJobResourcesWithQuota(resources, mediumDirectory, consumer);
@@ -1659,7 +1659,7 @@ public:
     void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
         NScheduler::SerializeDiskQuota(diskQuota, mediumDirectory, consumer);
@@ -1677,7 +1677,7 @@ public:
         }
 
         auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
 
@@ -3668,7 +3668,7 @@ private:
                         })
                     .Item("medium_directory").Value(
                         Bootstrap_
-                        ->GetMasterClient()
+                        ->GetClient()
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                     )

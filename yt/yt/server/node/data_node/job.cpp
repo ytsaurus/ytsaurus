@@ -751,7 +751,7 @@ private:
             options,
             sessionId,
             std::move(targetReplicas),
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
@@ -928,7 +928,7 @@ private:
         options->AllowFetchingSeedsFromMaster = false;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
@@ -966,7 +966,7 @@ private:
             options,
             partSessionId,
             TChunkReplicaWithMediumList(1, targetReplica),
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
@@ -1234,7 +1234,7 @@ private:
                 sealRowCount - 1);
 
             auto chunkReaderHost = New<TChunkReaderHost>(
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
@@ -1737,7 +1737,7 @@ private:
             CellTag_,
             NullTransactionId,
             NullChunkListId,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
@@ -1766,7 +1766,7 @@ private:
         erasureReaderConfig->EnableAutoRepair = false;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
@@ -2199,7 +2199,7 @@ private:
         auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
 
         auto chunkReaderHost = New<TChunkReaderHost>(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
@@ -2295,7 +2295,7 @@ private:
                 New<TRemoteWriterOptions>(),
                 writeSessionId,
                 erasureCodec,
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 /*trafficMeter*/ nullptr,
                 Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut),
                 GetNullBlockCache());
@@ -2315,7 +2315,7 @@ private:
             // #ReplicationFactor replication writers instead of one.
 
             auto writeTargets = AllocateWriteTargets(
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 writeSessionId,
                 /*desiredTargetCount*/ ReplicationFactor_,
                 /*minTargetCount*/ ReplicationFactor_,
@@ -2341,7 +2341,7 @@ private:
                     writerOptions,
                     writeSessionId,
                     {writeTargets[index]},
-                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetClient(),
                     Bootstrap_->GetLocalHostName(),
                     GetNullBlockCache(),
                     /*trafficMeter*/ nullptr,
@@ -2460,7 +2460,7 @@ private:
                 replica.GetChunkLocationUuid());
         }
 
-        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& client = Bootstrap_->GetClient();
         auto cellTag = CellTagFromId(TailChunkId_);
         auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
 
@@ -2529,7 +2529,7 @@ private:
     INodeChannelFactoryPtr GetNodeChannelFactory() const
     {
         auto nativeClient = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->CreateNativeClient({.User = NSecurityClient::RootUserName});
         return nativeClient->GetChannelFactory();

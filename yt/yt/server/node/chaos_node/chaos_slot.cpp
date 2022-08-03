@@ -231,7 +231,7 @@ public:
 
         auto clockClusterTag = Occupant_->GetOptions()->ClockClusterTag != InvalidCellTag
             ? Occupant_->GetOptions()->ClockClusterTag
-            : Bootstrap_->GetMasterConnection()->GetClusterTag();
+            : Bootstrap_->GetConnection()->GetClusterTag();
 
         TransactionManager_ = CreateTransactionManager(
             Config_->TransactionManager,

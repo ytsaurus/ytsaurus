@@ -454,7 +454,7 @@ public:
             }
 
             auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
-            auto channel = Bootstrap_->GetMasterClient()->GetChannelFactory()->CreateChannel(address);
+            auto channel = Bootstrap_->GetClient()->GetChannelFactory()->CreateChannel(address);
 
             YT_LOG_INFO("Registering agent (AgentId: %v, Addresses: %v, Tags: %v)",
                 agentId,

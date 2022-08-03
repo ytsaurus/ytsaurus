@@ -19,7 +19,7 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(IBootstrap* b
             .ConfigIsTagged = true
         },
         bootstrap->GetConfig()->DynamicConfigManager,
-        bootstrap->GetMasterClient(),
+        bootstrap->GetClient(),
         bootstrap->GetControlInvoker())
     , Bootstrap_(bootstrap)
 { }

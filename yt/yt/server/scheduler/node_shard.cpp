@@ -636,7 +636,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     auto mediumDirectory = Bootstrap_
-        ->GetMasterClient()
+        ->GetClient()
         ->GetNativeConnection()
         ->GetMediumDirectory();
     auto schedulingContext = CreateSchedulingContext(
@@ -2146,7 +2146,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     switch (allocationState) {
         case EAllocationState::Finished: {
-            if (auto error = FromProto<TError>(jobStatus->result().error()); 
+            if (auto error = FromProto<TError>(jobStatus->result().error());
                 ParseAbortReason(error, jobId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
             {
                 YT_LOG_DEBUG("Node has failed to get job spec, abort job");

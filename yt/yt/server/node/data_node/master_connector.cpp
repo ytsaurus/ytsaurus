@@ -95,7 +95,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
-            auto cellId = Bootstrap_->GetMasterConnection()->GetMasterCellId(cellTag);
+            auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
 
             auto cellTagData = std::make_unique<TPerCellTagData>();
             EmplaceOrCrash(PerCellTagData_, cellTag, std::move(cellTagData));
@@ -104,7 +104,7 @@ public:
                 auto jobTrackerData = std::make_unique<TPerJobTrackerData>();
                 jobTrackerData->CellTag = cellTag;
 
-                const auto& channelFactory = Bootstrap_->GetMasterConnection()->GetChannelFactory();
+                const auto& channelFactory = Bootstrap_->GetConnection()->GetChannelFactory();
                 auto channel = channelFactory->CreateChannel(jobTrackerAddress);
                 jobTrackerData->Channel = CreateRealmChannel(std::move(channel), cellId);
 
@@ -306,8 +306,7 @@ public:
 
         OnlineCellCount_ += 1;
 
-        const auto& connection = Bootstrap_->GetMasterConnection();
-
+        const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             ProcessHeartbeatResponseMediaInfo(response);
         }
@@ -393,7 +392,7 @@ public:
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
 
-        const auto& connection = Bootstrap_->GetMasterConnection();
+        const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             ProcessHeartbeatResponseMediaInfo(response);
 
@@ -414,7 +413,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         if (cellTag != connection->GetPrimaryMasterCellTag()) {
             return true;
         }

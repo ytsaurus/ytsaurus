@@ -674,7 +674,7 @@ private:
 
         NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override
         {
-            return Owner_->Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+            return Owner_->Bootstrap_->GetConnection()->GetChunkReplicaCache();
         }
 
         IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override
@@ -3134,7 +3134,7 @@ private:
             hunkChunkIds.size());
 
         const auto& chunkReplicaCache = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetChunkReplicaCache();
 
@@ -3182,7 +3182,7 @@ private:
                 Config_,
                 tablet,
                 replicaInfo,
-                Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                Bootstrap_->GetClient()->GetNativeConnection(),
                 Slot_,
                 Bootstrap_->GetTabletSnapshotStore(),
                 Bootstrap_->GetHintManager(),
@@ -3216,11 +3216,11 @@ private:
             tablet,
             Slot_,
             replicationCardId,
-            Bootstrap_->GetMasterClient()->GetNativeConnection()));
+            Bootstrap_->GetClient()->GetNativeConnection()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,
             tablet,
-            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+            Bootstrap_->GetClient()->GetNativeConnection(),
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
@@ -3618,7 +3618,7 @@ private:
             &TabletContext_,
             Slot_->GetHydraManager(),
             Bootstrap_->GetInMemoryManager(),
-            Bootstrap_->GetMasterClient());
+            Bootstrap_->GetClient());
     }
 
 
@@ -3679,7 +3679,7 @@ private:
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
-                        Bootstrap_->GetMasterClient(),
+                        Bootstrap_->GetClient(),
                         Bootstrap_->GetLocalDescriptor(),
                         Bootstrap_->GetChunkRegistry(),
                         tablet->GetSettings().StoreReaderConfig));
@@ -3706,7 +3706,7 @@ private:
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
-                        Bootstrap_->GetMasterClient(),
+                        Bootstrap_->GetClient(),
                         Bootstrap_->GetLocalDescriptor(),
                         Bootstrap_->GetChunkRegistry(),
                         tablet->GetSettings().StoreReaderConfig));

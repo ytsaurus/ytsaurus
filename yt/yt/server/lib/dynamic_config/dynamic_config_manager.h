@@ -29,14 +29,14 @@ public:
 
 public:
     //! Raises when dynamic config changes.
-    DEFINE_SIGNAL(void(const TConfigPtr& /* oldConfig */, const TConfigPtr& /* newConfig */), ConfigChanged);
+    DEFINE_SIGNAL(void(const TConfigPtr& /*oldConfig*/, const TConfigPtr& /*newConfig*/), ConfigChanged);
 
 public:
     // NB: Invoker must be serialized.
     TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions options,
         TDynamicConfigManagerConfigPtr config,
-        NApi::IClientPtr masterClient,
+        NApi::IClientPtr client,
         IInvokerPtr invoker);
 
     explicit TDynamicConfigManagerBase(
@@ -73,7 +73,7 @@ private:
     const TDynamicConfigManagerOptions Options_;
     const TDynamicConfigManagerConfigPtr Config_;
 
-    const NApi::IClientPtr MasterClient_;
+    const NApi::IClientPtr Client_;
 
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;

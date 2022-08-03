@@ -30,7 +30,7 @@ TBundleDynamicConfigManager::TBundleDynamicConfigManager(IBootstrap* bootstrap)
             .ConfigIsTagged = true
         },
         MakeManagerConfig(bootstrap),
-        bootstrap->GetMasterClient(),
+        bootstrap->GetClient(),
         bootstrap->GetControlInvoker())
     , Bootstrap_(bootstrap)
 { }

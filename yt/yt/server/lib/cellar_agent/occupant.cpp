@@ -276,7 +276,7 @@ public:
         YT_VERIFY(CanConfigure());
 
         auto occupier = GetOccupier();
-        auto client = Bootstrap_->GetMasterClient();
+        auto client = Bootstrap_->GetClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
 
@@ -330,7 +330,7 @@ public:
         }
 
         // COMPAT(akozhikhov)
-        auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        auto connection = Bootstrap_->GetClient()->GetNativeConnection();
         auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
 
@@ -779,7 +779,7 @@ private:
 
     void ConfigureTimestampProvider(TCellTag clockClusterTag)
     {
-        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
 
         YT_LOG_INFO("Configure cell timestamp provider (ClockClusterTag: %v, ClusterTag: %v)",
             clockClusterTag,

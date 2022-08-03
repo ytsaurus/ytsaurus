@@ -380,14 +380,14 @@ public:
         return StorageHeavyInvoker_;
     }
 
-    const NApi::NNative::IClientPtr& GetMasterClient() const override
+    const NApi::NNative::IClientPtr& GetClient() const override
     {
-        return MasterClient_;
+        return Client_;
     }
 
-    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override
+    const NApi::NNative::IConnectionPtr& GetConnection() const override
     {
-        return MasterConnection_;
+        return Connection_;
     }
 
     IChannelPtr GetMasterChannel(TCellTag cellTag) override
@@ -479,7 +479,7 @@ public:
 
     const TNodeDirectoryPtr& GetNodeDirectory() const override
     {
-        return MasterConnection_->GetNodeDirectory();
+        return Connection_->GetNodeDirectory();
     }
 
     TNetworkPreferenceList GetLocalNetworks() const override
@@ -715,8 +715,8 @@ private:
 
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
 
-    NApi::NNative::IClientPtr MasterClient_;
-    NApi::NNative::IConnectionPtr MasterConnection_;
+    NApi::NNative::IClientPtr Client_;
+    NApi::NNative::IConnectionPtr Connection_;
 
     TJobControllerPtr JobController_;
 
@@ -783,11 +783,11 @@ private:
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
-        MasterConnection_ = NApi::NNative::CreateConnection(
+        Connection_ = NApi::NNative::CreateConnection(
             Config_->ClusterConnection,
             std::move(connectionOptions));
 
-        MasterClient_ = MasterConnection_->CreateNativeClient(
+        Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
 
         MemoryUsageTracker_ = CreateNodeMemoryTracker(
@@ -874,7 +874,7 @@ private:
                 config->CellId,
                 Config_->BatchingChunkService,
                 config,
-                MasterConnection_->GetChannelFactory()));
+                Connection_->GetChannelFactory()));
         };
 
         createBatchingChunkService(Config_->ClusterConnection->PrimaryMaster);
@@ -937,7 +937,7 @@ private:
         }
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
-            CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
+            CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
         RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
@@ -953,7 +953,7 @@ private:
                 CreateDefaultTimeoutChannel(
                     CreatePeerChannel(
                         masterConfig,
-                        MasterConnection_->GetChannelFactory(),
+                        Connection_->GetChannelFactory(),
                         EPeerKind::Follower),
                     masterConfig->RpcTimeout),
                 ObjectServiceCache_,
@@ -1087,7 +1087,7 @@ private:
         NodeResourceManager_->Start();
 
         // Force start node directory synchronizer.
-        MasterConnection_->GetNodeDirectorySynchronizer()->Start();
+        Connection_->GetNodeDirectorySynchronizer()->Start();
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -1106,7 +1106,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/cluster_connection",
-            CreateVirtualNode(MasterConnection_->GetOrchidService()));
+            CreateVirtualNode(Connection_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/dynamic_config_manager",
@@ -1435,14 +1435,14 @@ const IPrioritizedInvokerPtr& TBootstrapBase::GetStorageHeavyInvoker() const
     return Bootstrap_->GetStorageHeavyInvoker();
 }
 
-const NNative::IClientPtr& TBootstrapBase::GetMasterClient() const
+const NNative::IClientPtr& TBootstrapBase::GetClient() const
 {
-    return Bootstrap_->GetMasterClient();
+    return Bootstrap_->GetClient();
 }
 
-const NNative::IConnectionPtr& TBootstrapBase::GetMasterConnection() const
+const NNative::IConnectionPtr& TBootstrapBase::GetConnection() const
 {
-    return Bootstrap_->GetMasterConnection();
+    return Bootstrap_->GetConnection();
 }
 
 IChannelPtr TBootstrapBase::GetMasterChannel(TCellTag cellTag)

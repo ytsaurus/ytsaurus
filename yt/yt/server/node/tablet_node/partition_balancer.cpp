@@ -561,13 +561,13 @@ private:
 
         auto* tablet = partition->GetTablet();
 
-        auto nodeDirectory = Bootstrap_->GetMasterConnection()->GetNodeDirectory();
+        auto nodeDirectory = Bootstrap_->GetConnection()->GetNodeDirectory();
 
         auto chunkScraper = CreateFetcherChunkScraper(
             Config_->ChunkScraper,
             Bootstrap_->GetControlInvoker(),
             ThrottlerManager_,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             nodeDirectory,
             Logger);
 
@@ -581,15 +581,15 @@ private:
             GetCurrentInvoker(),
             rowBuffer,
             chunkScraper,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Logger);
 
-        const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
 
         std::vector<TChunkId> chunkIds;
         std::vector<TFuture<TAllyReplicasInfo>> replicasFutures;
         {
-            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+            auto channel = Bootstrap_->GetClient()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Follower,
                 CellTagFromId(tablet->GetId()));
             TChunkServiceProxy proxy(channel);

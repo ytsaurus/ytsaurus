@@ -33,7 +33,7 @@ TMediumDirectoryPtr TMediumDirectoryManager::GetMediumDirectory() const
         return MediumDirectory_;
     }
 
-    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
     const auto& mediumDirectorySynchronizer = connection->GetMediumDirectorySynchronizer();
     YT_LOG_DEBUG("Waiting for at least one medium directory synchronization since startup");
     WaitFor(mediumDirectorySynchronizer

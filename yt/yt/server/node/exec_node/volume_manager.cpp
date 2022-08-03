@@ -1278,7 +1278,7 @@ private:
 
     void UpdateLayers()
     {
-        const auto& client = Bootstrap_->GetMasterClient();
+        const auto& client = Bootstrap_->GetClient();
 
         auto tag = TGuid::Create();
         auto Logger = ExecNodeLogger.WithTag("Tag: %v", tag);

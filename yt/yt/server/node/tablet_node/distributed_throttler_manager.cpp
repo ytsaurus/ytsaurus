@@ -122,7 +122,7 @@ private:
 
         return CreateDistributedThrottlerFactory(
             config,
-            Bootstrap_->GetMasterConnection()->GetChannelFactory(),
+            Bootstrap_->GetConnection()->GetChannelFactory(),
             Bootstrap_->GetControlInvoker(),
             factoryName,
             MemberId_,

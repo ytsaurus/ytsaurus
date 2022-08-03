@@ -28,8 +28,8 @@ class TJobReporter
 public:
     TJobReporter(
         TJobReporterConfigPtr reporterConfig,
-        const NApi::NNative::IConnectionPtr& masterConnection,
-        std::optional<TString> localAddress = std::nullopt);
+        const NApi::NNative::IConnectionPtr& connection,
+        std::optional<TString> localAddress = {});
 
     ~TJobReporter();
 

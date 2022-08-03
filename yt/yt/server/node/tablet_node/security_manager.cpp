@@ -90,7 +90,7 @@ private:
         YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);
 
-        auto client = Bootstrap_->GetMasterClient();
+        auto client = Bootstrap_->GetClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
 

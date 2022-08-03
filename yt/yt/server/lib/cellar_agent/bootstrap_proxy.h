@@ -23,7 +23,7 @@ struct ICellarBootstrapProxy
 {
     virtual NElection::TCellId GetCellId() const = 0;
 
-    virtual NApi::NNative::IClientPtr GetMasterClient() const = 0;
+    virtual NApi::NNative::IClientPtr GetClient() const = 0;
 
     virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
 

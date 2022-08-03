@@ -98,7 +98,7 @@ TTabletBalancer::TTabletBalancer(
     , ActionManager_(CreateActionManager(
         Config_->TabletActionExpirationTime,
         Config_->TabletActionPollingPeriod,
-        Bootstrap_->GetMasterClient(),
+        Bootstrap_->GetClient(),
         Bootstrap_))
     , IterationIndex_(0)
 {
@@ -225,7 +225,7 @@ void TTabletBalancer::UpdateBundleList()
     options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids"};
 
     auto bundles = WaitFor(Bootstrap_
-        ->GetMasterClient()
+        ->GetClient()
         ->ListNode(TabletCellBundlesPath, options))
         .ValueOrThrow();
     auto bundlesList = ConvertTo<IListNodePtr>(bundles);
@@ -240,7 +240,7 @@ void TTabletBalancer::UpdateBundleList()
             name,
             New<TBundleState>(
                 name,
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 WorkerPool_->GetInvoker())).first;
         it->second->UpdateBundleAttributes(&bundle->Attributes());
     }

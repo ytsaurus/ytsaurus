@@ -187,12 +187,12 @@ const TSchedulerBootstrapConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetMasterClient() const
+const NNative::IClientPtr& TBootstrap::GetClient() const
 {
     return Client_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetRemoteMasterClient(TCellTag tag) const
+const NNative::IClientPtr& TBootstrap::GetRemoteClient(TCellTag tag) const
 {
     auto it = RemoteClients_.find(tag);
     if (it == RemoteClients_.end()) {

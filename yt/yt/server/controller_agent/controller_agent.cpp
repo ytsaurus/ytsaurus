@@ -259,11 +259,11 @@ public:
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
         , EventLogWriter_(New<TEventLogWriter>(
             Config_->EventLog,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetControlInvoker()))
         , JobReporter_(New<NJobAgent::TJobReporter>(
             Config_->JobReporter,
-            Bootstrap_->GetMasterClient()->GetNativeConnection()))
+            Bootstrap_->GetClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             std::move(configNode),
@@ -274,7 +274,7 @@ public:
             BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
             Bootstrap_->GetControlInvoker()))
-        , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
+        , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , MemoryTagQueue_(New<TMemoryTagQueue>(
             Config_,
@@ -416,7 +416,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
     }
@@ -991,7 +991,7 @@ public:
             TJobId(),
             permission,
             GetOperationOrThrow(operationId)->GetAcl(),
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Logger);
     }
 
@@ -1190,7 +1190,7 @@ private:
         YT_LOG_INFO("Synchronizing cluster directory");
 
         WaitFor(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->Sync(/* force */ true))
@@ -1204,7 +1204,7 @@ private:
         YT_LOG_INFO("Requesting medium directory");
 
         WaitFor(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectorySynchronizer()
             ->NextSync(/* force */ true))
@@ -1248,7 +1248,7 @@ private:
         YT_LOG_INFO("Fetching operations effective acl");
 
         OperationsEffectiveAcl_ = ConvertToNode(
-            WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
+            WaitFor(Bootstrap_->GetClient()->GetNode("//sys/operations/@effective_acl"))
                 .ValueOrThrow());
     }
 
@@ -2017,7 +2017,7 @@ private:
                     })
                 .Item("medium_directory").Value(
                     Bootstrap_
-                        ->GetMasterClient()
+                        ->GetClient()
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                 )

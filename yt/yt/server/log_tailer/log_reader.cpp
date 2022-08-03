@@ -129,7 +129,7 @@ TLogFileReader::TLogFileReader(
     std::vector<TYPath> paths;
     for (const auto& tableConfig : Config_->Tables) {
         const auto& path = tableConfig->Path;
-        if (!WaitFor(Bootstrap_->GetMasterClient()->NodeExists(path)).ValueOrThrow()) {
+        if (!WaitFor(Bootstrap_->GetClient()->NodeExists(path)).ValueOrThrow()) {
             YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", path);
         }
         paths.emplace_back(path);
@@ -289,7 +289,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     TTransactionStartOptions transactionStartOptions;
     transactionStartOptions.Atomicity = NTransactionClient::EAtomicity::None;
     auto transactionOrError = WaitFor(
-        Bootstrap_->GetMasterClient()->StartTransaction(
+        Bootstrap_->GetClient()->StartTransaction(
             NTransactionClient::ETransactionType::Tablet,
             transactionStartOptions));
 

@@ -85,8 +85,8 @@ struct IBootstrapBase
     virtual const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const = 0;
 
     // Master connection stuff.
-    virtual const NApi::NNative::IClientPtr& GetMasterClient() const = 0;
-    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetClient() const = 0;
+    virtual const NApi::NNative::IConnectionPtr& GetConnection() const = 0;
     virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) = 0;
 
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
@@ -236,8 +236,8 @@ public:
     const IInvokerPtr& GetStorageLightInvoker() const override;
     const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override;
 
-    const NApi::NNative::IClientPtr& GetMasterClient() const override;
-    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
+    const NApi::NNative::IClientPtr& GetClient() const override;
+    const NApi::NNative::IConnectionPtr& GetConnection() const override;
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
 
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;

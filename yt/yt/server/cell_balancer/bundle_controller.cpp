@@ -163,7 +163,7 @@ private:
         transactionOptions.Timeout = Config_->BundleScanTransactionTimeout;
 
         return WaitFor(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->StartTransaction(ETransactionType::Master, transactionOptions))
             .ValueOrThrow();
     }

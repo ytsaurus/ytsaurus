@@ -671,7 +671,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& channelFactory = Bootstrap_
-        ->GetMasterClient()
+        ->GetClient()
         ->GetNativeConnection()
         ->GetChannelFactory();
     auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddressWithNetworkOrThrow(Bootstrap_->GetLocalNetworks()));
