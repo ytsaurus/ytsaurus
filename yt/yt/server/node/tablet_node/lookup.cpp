@@ -1476,7 +1476,9 @@ TFuture<void> TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                     if (!session.PrepareBatch()) {
                         auto future = session.GetReadyEvent();
                         // TODO(akozhikhov): Proper block fetcher: make scenario of empty batch and set future here impossible.
-                        if (!future.IsSet()) {
+                        if (!future.IsSet() || !future.Get().IsOK()) {
+                            // NB: In case of error AllSucceeded below will terminate this session
+                            // and cancel its other block fetchers.
                             futures.push_back(std::move(future));
                         }
                     }
@@ -1565,9 +1567,10 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
     for (int sessionIndex = 0; sessionIndex < std::ssize(*sessions); ++sessionIndex) {
         auto& session = (*sessions)[sessionIndex];
         // TODO(akozhikhov): Proper block fetcher: make scenario of empty batch here impossible.
-        YT_VERIFY(session.GetReadyEvent().IsSet());
         if (!session.PrepareBatch()) {
-            YT_VERIFY(session.GetReadyEvent().IsSet());
+            auto readyEvent = session.GetReadyEvent();
+            YT_VERIFY(readyEvent.IsSet());
+            readyEvent.Get().ThrowOnError();
             YT_VERIFY(session.PrepareBatch());
         }
         auto row = session.FetchRow();
