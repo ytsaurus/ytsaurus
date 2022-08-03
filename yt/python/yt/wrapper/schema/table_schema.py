@@ -104,13 +104,20 @@ class TableSchema(object):
     See https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_overview
     """
 
-    def __init__(self, columns=None, strict=True, unique_keys=False):
+    def __init__(self, columns=None, strict=None, unique_keys=None):
         _check_ti_available()
+
         if columns is None:
             self.columns = []
         else:
             self.columns = columns[:]
+
+        if strict is None:
+            strict = True
         self.strict = strict
+
+        if unique_keys is None:
+            unique_keys = False
         self.unique_keys = unique_keys
 
     @classmethod
