@@ -88,6 +88,10 @@ public:
         , JobHeartbeatPeriodSplay_(Config_->JobHeartbeatPeriodSplay)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DataNodeProfiler.AddFuncGauge("/online", MakeStrong(this), [this] {
+            return IsOnline() ? 1.0 : 0.0;
+        });
     }
 
     void Initialize() override
