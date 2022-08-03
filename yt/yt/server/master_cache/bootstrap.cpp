@@ -81,9 +81,9 @@ public:
         return Config_;
     }
 
-    const IConnectionPtr& GetMasterConnection() const override
+    const IConnectionPtr& GetConnection() const override
     {
-        return MasterConnection_;
+        return Connection_;
     }
 
     const IMapNodePtr& GetOrchidRoot() const override
@@ -115,7 +115,7 @@ private:
 
     ICoreDumperPtr CoreDumper_;
 
-    IConnectionPtr MasterConnection_;
+    IConnectionPtr Connection_;
 
     std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
     std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
@@ -136,7 +136,7 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
         MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
         ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);
@@ -182,9 +182,9 @@ const TMasterCacheConfigPtr& TBootstrapBase::GetConfig() const
     return Bootstrap_->GetConfig();
 }
 
-const IConnectionPtr& TBootstrapBase::GetMasterConnection() const
+const IConnectionPtr& TBootstrapBase::GetConnection() const
 {
-    return Bootstrap_->GetMasterConnection();
+    return Bootstrap_->GetConnection();
 }
 
 const IMapNodePtr& TBootstrapBase::GetOrchidRoot() const

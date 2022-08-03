@@ -268,7 +268,7 @@ private:
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
         transactionOptions.ReplicateToMasterCellTags = TCellTagList();
-        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+        auto asyncTransaction = Bootstrap_->GetClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             transactionOptions);
         auto transaction = WaitFor(asyncTransaction)
@@ -331,7 +331,7 @@ private:
             writerOptions->Account,
             writerOptions->MediumName);
 
-        auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+        auto masterChannel = Bootstrap_->GetClient()->GetMasterChannelOrThrow(
             NApi::EMasterChannelKind::Leader,
             /*cellTag*/ CellTagFromId(tablet->GetId()));
         TChunkServiceProxy proxy(masterChannel);

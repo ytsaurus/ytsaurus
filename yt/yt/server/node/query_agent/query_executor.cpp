@@ -313,7 +313,7 @@ public:
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
         , ColumnEvaluatorCache_(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetColumnEvaluatorCache())
         , Evaluator_(std::move(evaluator))
@@ -403,7 +403,7 @@ private:
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->CreateNativeClient(clientOptions);
 

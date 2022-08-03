@@ -20,7 +20,7 @@ class TDynamicConfigManager
 public:
     TDynamicConfigManager(
         const TQueueAgentServerConfigPtr& queueAgentConfig,
-        NApi::IClientPtr masterClient,
+        NApi::IClientPtr client,
         IInvokerPtr invoker);
 };
 

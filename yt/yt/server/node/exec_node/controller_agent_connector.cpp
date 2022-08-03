@@ -336,7 +336,7 @@ void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
 
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
 {
-    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetClient();
     const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
     return channelFactory->CreateChannel(agentDescriptor.Address);
 }

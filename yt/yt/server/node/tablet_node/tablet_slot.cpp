@@ -306,14 +306,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+        return Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     }
 
     const NNative::IConnectionPtr& GetNativeConnection() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetMasterClient()->GetNativeConnection();
+        return Bootstrap_->GetClient()->GetNativeConnection();
     }
 
 
@@ -498,7 +498,7 @@ public:
     {
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetHintManager(),
             tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"));
     }

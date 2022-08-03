@@ -97,7 +97,7 @@ TCellTrackerImpl::TCellTrackerImpl(
 void TCellTrackerImpl::UpdateDynamicConfig()
 {
     YT_LOG_DEBUG("Updating dynamic config");
-    auto result = WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/@config/tablet_manager"));
+    auto result = WaitFor(Bootstrap_->GetClient()->GetNode("//sys/@config/tablet_manager"));
     if (!result.IsOK()) {
         YT_LOG_ERROR(result, "Failed update dynamic config");
         return;
@@ -120,7 +120,7 @@ void TCellTrackerImpl::ScanCells()
     UpdateDynamicConfig();
 
     TCellTrackerServiceProxy proxy(Bootstrap_
-        ->GetMasterClient()
+        ->GetClient()
         ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
     auto req = proxy.GetClusterState();

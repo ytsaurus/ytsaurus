@@ -94,7 +94,7 @@ private:
     void RegisterInstance()
     {
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
         auto batchReq = proxy.ExecuteBatch();
         auto path = "//sys/cell_balancers/instances/" + ToYPathLiteral(GetDefaultAddress(Bootstrap_->GetLocalAddresses()));

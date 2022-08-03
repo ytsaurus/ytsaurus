@@ -78,7 +78,7 @@ public:
         Sleep(TDuration::Max());
     }
 
-    const NNative::IClientPtr& GetMasterClient() const override
+    const NNative::IClientPtr& GetClient() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

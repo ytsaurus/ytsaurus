@@ -32,7 +32,7 @@ public:
 
     const NControllerAgent::TAgentId& GetAgentId() const;
     const TControllerAgentBootstrapConfigPtr& GetConfig() const;
-    const NApi::NNative::IClientPtr& GetMasterClient() const;
+    const NApi::NNative::IClientPtr& GetClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker() const;

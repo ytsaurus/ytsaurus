@@ -595,7 +595,7 @@ public:
         , ArchiveBatcher_(New<TNonblockingBatch<TOperationId>>(
             Config_->ArchiveBatchSize,
             Config_->ArchiveBatchTimeout))
-        , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
+        , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     {
         Profiler.AddFuncGauge("/remove_pending", MakeStrong(this), [this] {

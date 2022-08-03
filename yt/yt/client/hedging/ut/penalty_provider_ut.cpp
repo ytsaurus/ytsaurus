@@ -55,12 +55,12 @@ TEST(TLagPenaltyProviderTest, UpdateExternalPenaltyWhenReplicaHasLag)
     ui32 maxLagInSeconds = 10;
     TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster, maxLagInSeconds);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture(replicasResult)));
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@tablet_count", _))
+    EXPECT_CALL(*client, GetNode(path + "/@tablet_count", _))
         .WillRepeatedly(Return(MakeFuture(tabletCountResult)));
 
     std::vector<NApi::TTabletInfo> tabletInfos(1);
@@ -69,10 +69,10 @@ TEST(TLagPenaltyProviderTest, UpdateExternalPenaltyWhenReplicaHasLag)
     replicaTabletsInfo.ReplicaId = NTabletClient::TTableReplicaId::FromString("575f-131-40502c5-201b420f");
     replicaTabletsInfo.LastReplicationTimestamp = NTransactionClient::TimestampFromUnixTime(TInstant::Now().Seconds() - 2 * maxLagInSeconds);
 
-    EXPECT_CALL(*masterClient, GetTabletInfos(path, _, _))
+    EXPECT_CALL(*client, GetTabletInfos(path, _, _))
         .WillRepeatedly(Return(MakeFuture(tabletInfos)));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(2 * CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), NProfiling::DurationToCpuDuration(TDuration::MilliSeconds(config.GetLagPenalty())));
@@ -88,12 +88,12 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenReplicaHasNoLag)
 
     TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture(replicasResult)));
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@tablet_count", _))
+    EXPECT_CALL(*client, GetNode(path + "/@tablet_count", _))
         .WillRepeatedly(Return(MakeFuture(tabletCountResult)));
 
     std::vector<NApi::TTabletInfo> tabletInfos(1);
@@ -102,10 +102,10 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenReplicaHasNoLag)
     replicaTabletsInfo.ReplicaId = NTabletClient::TTableReplicaId::FromString("575f-131-40502c5-201b420f");
     replicaTabletsInfo.LastReplicationTimestamp = NTransactionClient::TimestampFromUnixTime(TInstant::Now().Seconds());
 
-    EXPECT_CALL(*masterClient, GetTabletInfos(path, _, _))
+    EXPECT_CALL(*client, GetTabletInfos(path, _, _))
         .WillRepeatedly(Return(MakeFuture(tabletInfos)));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(2 * CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
@@ -118,12 +118,12 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetReplicaIdFailed)
 
     NClient::NHedging::NRpc::TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture<NYson::TYsonString>(TError("Failure"))));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(2 * CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
@@ -138,15 +138,15 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsCountFailed)
 
     TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture(replicasResult)));
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@tablet_count", _))
+    EXPECT_CALL(*client, GetNode(path + "/@tablet_count", _))
         .WillRepeatedly(Return(MakeFuture<NYson::TYsonString>(TError("Failure"))));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(2 * CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
@@ -163,18 +163,18 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsInfoFailed)
     NClient::NHedging::NRpc::TReplicaionLagPenaltyProviderConfig config =
         GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture(replicasResult)));
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@tablet_count", _))
+    EXPECT_CALL(*client, GetNode(path + "/@tablet_count", _))
         .WillRepeatedly(Return(MakeFuture(tabletCountResult)));
 
-    EXPECT_CALL(*masterClient, GetTabletInfos(path, _, _))
+    EXPECT_CALL(*client, GetTabletInfos(path, _, _))
         .WillRepeatedly(Return(MakeFuture<std::vector<NApi::TTabletInfo>>(TError("Failure"))));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(2 * CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
@@ -192,12 +192,12 @@ TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError)
     auto config =
         GenerateReplicaionLagPenaltyProviderConfig(path, cluster, maxLagInSeconds, true, 2 * CheckPeriod);
 
-    auto masterClient = New<TStrictMockClient>();
+    auto client = New<TStrictMockClient>();
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@replicas", _))
+    EXPECT_CALL(*client, GetNode(path + "/@replicas", _))
         .WillRepeatedly(Return(MakeFuture(replicasResult)));
 
-    EXPECT_CALL(*masterClient, GetNode(path + "/@tablet_count", _))
+    EXPECT_CALL(*client, GetNode(path + "/@tablet_count", _))
         .WillOnce(Return(MakeFuture(tabletCountResult)))
         .WillRepeatedly(Return(MakeFuture<NYson::TYsonString>(TError("Failure"))));
 
@@ -207,10 +207,10 @@ TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError)
     replicaTabletsInfo.ReplicaId = NTabletClient::TTableReplicaId::FromString("575f-131-40502c5-201b420f");
     replicaTabletsInfo.LastReplicationTimestamp = NTransactionClient::TimestampFromUnixTime(TInstant::Now().Seconds() - 2 * maxLagInSeconds);
 
-    EXPECT_CALL(*masterClient, GetTabletInfos(path, _, _))
+    EXPECT_CALL(*client, GetTabletInfos(path, _, _))
         .WillRepeatedly(Return(MakeFuture(tabletInfos)));
 
-    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, masterClient);
+    auto PenaltyProviderPtr = CreateReplicaionLagPenaltyProvider(config, client);
     Sleep(CheckPeriod);
 
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), NProfiling::DurationToCpuDuration(TDuration::MilliSeconds(config.GetLagPenalty())));

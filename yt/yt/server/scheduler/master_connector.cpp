@@ -104,7 +104,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
@@ -169,7 +169,7 @@ public:
     int GetYsonNestingLevelLimit() const
     {
         return Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetNativeConnection()
             ->GetConfig()
             ->CypressWriteYsonNestingLevelLimit;
@@ -398,7 +398,7 @@ public:
         batchReq->AddRequest(req);
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -450,7 +450,7 @@ public:
         batchReq->AddRequest(req);
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -501,7 +501,7 @@ public:
                 chunkId,
                 "input_context"
             };
-            auto client = Bootstrap_->GetMasterClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
+            auto client = Bootstrap_->GetClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
             SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
@@ -806,7 +806,7 @@ private:
         {
             TObjectServiceProxy proxy(Owner_
                 ->Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
             auto req = TCypressYPathProxy::Get("//sys/@config/enable_safe_mode");
@@ -824,7 +824,7 @@ private:
         {
             TObjectServiceProxy proxy(Owner_
                 ->Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
             auto batchReq = proxy.ExecuteBatch();
             auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
@@ -866,8 +866,8 @@ private:
             attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses_)));
             options.Attributes = std::move(attributes);
 
-            auto client = Owner_->Bootstrap_->GetMasterClient();
-            auto transactionOrError = WaitFor(Owner_->Bootstrap_->GetMasterClient()->StartTransaction(
+            auto client = Owner_->Bootstrap_->GetClient();
+            auto transactionOrError = WaitFor(Owner_->Bootstrap_->GetClient()->StartTransaction(
                 ETransactionType::Master,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting lock transaction");
@@ -918,7 +918,7 @@ private:
             YT_LOG_INFO("Sync cluster directory started");
             WaitFor(Owner_
                 ->Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
                 ->Sync(/* force */ true))
@@ -931,7 +931,7 @@ private:
             YT_LOG_INFO("Sync medium directory started");
             WaitFor(Owner_
                 ->Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetMediumDirectorySynchronizer()
                 ->NextSync(/* force */ true))
@@ -1383,7 +1383,7 @@ private:
                 return nullptr;
             }
             try {
-                auto client = Bootstrap_->GetRemoteMasterClient(CellTagFromId(transactionId));
+                auto client = Bootstrap_->GetRemoteClient(CellTagFromId(transactionId));
 
                 TTransactionAttachOptions options;
                 options.PingPeriod = Config_->OperationTransactionPingPeriod;
@@ -1629,7 +1629,7 @@ private:
         int subbatchSize = 100)
     {
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch(subbatchSize);
         YT_VERIFY(LockTransaction_);
@@ -1922,7 +1922,7 @@ private:
             try {
                 watcherLockTransaction = StartWatcherLockTransaction(watcher);
                 LockNodeWithWait(
-                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetClient(),
                     watcherLockTransaction,
                     watcher.LockOptions->LockPath,
                     watcher.LockOptions->CheckBackoff,
@@ -2032,7 +2032,7 @@ private:
         }
 
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
         req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
@@ -2056,7 +2056,7 @@ private:
 
         YT_VERIFY(LockTransaction_);
         TObjectServiceProxy proxy(Bootstrap_
-            ->GetMasterClient()
+            ->GetClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
         req->set_value(ConvertToYsonStringNestingLimited(timeout.MilliSeconds()).ToString());

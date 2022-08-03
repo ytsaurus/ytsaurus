@@ -33,7 +33,7 @@ std::vector<TSharedRef> TSnapshotDownloader::Run()
 {
     YT_LOG_INFO("Starting downloading snapshot");
 
-    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetClient();
 
     TFileReaderOptions options;
     options.Config = Config_->SnapshotReader;

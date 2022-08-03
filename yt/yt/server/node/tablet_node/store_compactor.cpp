@@ -184,7 +184,7 @@ protected:
             std::move(chunkWriterFactory),
             StoreWriterConfig_,
             StoreWriterOptions_,
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
@@ -237,7 +237,7 @@ private:
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
             /*parentChunkListId*/ {},
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /*trafficMeter*/ nullptr,
@@ -252,11 +252,11 @@ private:
         }
 
         auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetCellDirectory()
                 ->GetDescriptorOrThrow(TabletSnapshot_->CellId),
@@ -291,7 +291,7 @@ private:
             .ThrowOnError();
 
         if (TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
-            const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+            const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
             auto registerReplicas = [&] (TChunkId chunkId, const auto& writtenReplicas) {
                 // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
                 TChunkReplicaWithMediumList replicas;
@@ -1320,7 +1320,7 @@ private:
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId);
         transactionOptions.ReplicateToMasterCellTags = TCellTagList();
-        auto transactionFuture = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+        auto transactionFuture = Bootstrap_->GetClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             transactionOptions);
         return WaitFor(transactionFuture)
@@ -1514,7 +1514,7 @@ private:
             }
 
             auto timestampProvider = Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
@@ -1880,7 +1880,7 @@ private:
             }
 
             auto timestampProvider = Bootstrap_
-                ->GetMasterClient()
+                ->GetClient()
                 ->GetNativeConnection()
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())

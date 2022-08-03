@@ -11,7 +11,7 @@ using namespace NDynamicConfig;
 
 TDynamicConfigManager::TDynamicConfigManager(
     const TQueueAgentServerConfigPtr& queueAgentConfig,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     IInvokerPtr invoker)
     : TDynamicConfigManagerBase<TQueueAgentServerDynamicConfig>(
         TDynamicConfigManagerOptions{
@@ -19,7 +19,7 @@ TDynamicConfigManager::TDynamicConfigManager(
             .Name = "QueueAgent",
         },
         queueAgentConfig->DynamicConfigManager,
-        std::move(masterClient),
+        std::move(client),
         std::move(invoker))
 { }
 

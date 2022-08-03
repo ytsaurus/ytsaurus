@@ -485,7 +485,7 @@ void TOperationControllerImpl::OnJobFinished(
     if (ShouldSkipJobEvent(job)) {
         return;
     }
-    
+
     TFinishedJobSummary eventSummary{
         .OperationId = OperationId_,
         .Id = job->GetId(),
@@ -683,7 +683,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto nodeId = context->GetNodeDescriptor().Id;
-    auto cellTag = Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+    auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     auto jobId = GenerateJobId(cellTag, nodeId);
 
     const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();

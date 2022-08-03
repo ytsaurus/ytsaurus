@@ -111,16 +111,16 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         return;
     }
 
-    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& client = Bootstrap_->GetClient();
 
     TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     const auto& jobController = Bootstrap_->GetJobController();
-    const auto& masterConnection = client->GetNativeConnection();
+    const auto& connection = client->GetNativeConnection();
     YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
-        masterConnection->GetPrimaryMasterCellTag(),
+        connection->GetPrimaryMasterCellTag(),
         /*jobTrackerAddress*/ "",
         EObjectType::SchedulerJob,
         req))

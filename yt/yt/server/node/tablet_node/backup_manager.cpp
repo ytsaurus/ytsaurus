@@ -580,7 +580,7 @@ private:
     std::vector<TTimestamp> GenerateTimestamps(const std::vector<std::optional<TClusterTag>>& clockClusterTags)
     {
         std::vector<TFuture<TTimestamp>> asyncTimestamps;
-        const auto& localConnection = Bootstrap_->GetMasterConnection();
+        const auto& localConnection = Bootstrap_->GetConnection();
         const auto& clusterDirectory = localConnection->GetClusterDirectory();
 
         for (auto clusterTag : clockClusterTags) {

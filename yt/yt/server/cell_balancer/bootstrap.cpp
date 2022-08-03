@@ -93,7 +93,7 @@ public:
         Sleep(TDuration::Max());
     }
 
-    const NApi::NNative::IClientPtr& GetMasterClient() override
+    const NApi::NNative::IClientPtr& GetClient() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

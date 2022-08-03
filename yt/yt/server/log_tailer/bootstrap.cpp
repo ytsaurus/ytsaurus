@@ -77,7 +77,7 @@ const TLogTailerConfigPtr& TBootstrap::GetConfig()
     return Config_->LogTailer;
 }
 
-const IClientPtr& TBootstrap::GetMasterClient() const
+const IClientPtr& TBootstrap::GetClient() const
 {
     return Client_;
 }

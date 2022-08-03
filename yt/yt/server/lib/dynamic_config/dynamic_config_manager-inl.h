@@ -25,11 +25,11 @@ template <typename TConfig>
 TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
     TDynamicConfigManagerOptions options,
     TDynamicConfigManagerConfigPtr config,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     IInvokerPtr invoker)
     : Options_(std::move(options))
     , Config_(std::move(config))
-    , MasterClient_(std::move(masterClient))
+    , Client_(std::move(client))
     , Invoker_(std::move(invoker))
     , UpdateExecutor_(New<NConcurrency::TPeriodicExecutor>(
         Invoker_,
@@ -161,7 +161,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     NApi::TGetNodeOptions getOptions;
     getOptions.ReadFrom = Options_.ReadFrom;
-    auto configOrError = NConcurrency::WaitFor(MasterClient_->GetNode(Options_.ConfigPath, getOptions));
+    auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));
     if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
         YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
             Options_.ConfigPath);

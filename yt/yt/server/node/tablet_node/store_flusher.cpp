@@ -359,7 +359,7 @@ private:
             transactionOptions.Attributes = std::move(transactionAttributes);
             transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
             transactionOptions.ReplicateToMasterCellTags = {};
-            auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+            auto asyncTransaction = Bootstrap_->GetClient()->StartNativeTransaction(
                 NTransactionClient::ETransactionType::Master,
                 transactionOptions);
             auto transaction = WaitFor(asyncTransaction)

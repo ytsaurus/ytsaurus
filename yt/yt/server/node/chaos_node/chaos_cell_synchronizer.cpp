@@ -83,7 +83,7 @@ private:
     {
         YT_LOG_DEBUG("Chaos cell synchronizer requesting cells from master");
 
-        const auto& connection = Bootstrap_->GetMasterConnection();
+        const auto& connection = Bootstrap_->GetConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
 
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);

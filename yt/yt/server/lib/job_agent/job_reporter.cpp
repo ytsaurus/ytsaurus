@@ -375,10 +375,10 @@ class TJobReporter::TImpl
 public:
     TImpl(
         TJobReporterConfigPtr reporterConfig,
-        const NApi::NNative::IConnectionPtr& masterConnection,
+        const NApi::NNative::IConnectionPtr& connection,
         std::optional<TString> localAddress)
-        : Client_(
-            masterConnection->CreateNativeClient(TClientOptions::FromUser(reporterConfig->User)))
+        : Client_(connection->CreateNativeClient(
+            TClientOptions::FromUser(reporterConfig->User)))
         , Config_(std::move(reporterConfig))
         , LocalAddress_(std::move(localAddress))
         , JobHandler_(
@@ -535,16 +535,15 @@ private:
 
 TJobReporter::TJobReporter(
     TJobReporterConfigPtr reporterConfig,
-    const NApi::NNative::IConnectionPtr& masterConnection,
+    const NApi::NNative::IConnectionPtr& connection,
     std::optional<TString> localAddress)
     : Impl_(
         reporterConfig->Enabled
-            ? New<TImpl>(std::move(reporterConfig), masterConnection, std::move(localAddress))
+            ? New<TImpl>(std::move(reporterConfig), connection, std::move(localAddress))
             : nullptr)
 { }
 
-TJobReporter::~TJobReporter()
-{ }
+TJobReporter::~TJobReporter() = default;
 
 void TJobReporter::HandleJobReport(TJobReport&& jobReport)
 {

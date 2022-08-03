@@ -438,7 +438,7 @@ private:
                 store->SetState(EHunkStoreState::Allocated);
 
                 auto writer = CreateJournalHunkChunkWriter(
-                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetClient(),
                     sessionId,
                     tablet->StoreWriterOptions(),
                     tablet->StoreWriterConfig(),

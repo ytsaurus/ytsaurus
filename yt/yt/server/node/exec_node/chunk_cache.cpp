@@ -950,7 +950,7 @@ private:
             PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
 
             auto chunkReaderHost = New<TChunkReaderHost>(
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
@@ -1097,7 +1097,7 @@ private:
             readerOptions->EnableP2P = true;
 
             auto chunkReaderHost = New<TChunkReaderHost>(
-                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetClient(),
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
@@ -1174,7 +1174,7 @@ private:
         readerOptions->EnableP2P = true;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
@@ -1306,7 +1306,7 @@ private:
         }
 
         auto chunkReaderHost = New<TChunkReaderHost>(
-            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetClient(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,

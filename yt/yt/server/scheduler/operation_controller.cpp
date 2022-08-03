@@ -61,7 +61,7 @@ void FromProto(
         FromProto(
             &result->Transactions,
             resultProto.transaction_ids(),
-            std::bind(&TBootstrap::GetRemoteMasterClient, bootstrap, _1),
+            std::bind(&TBootstrap::GetRemoteClient, bootstrap, _1),
             operationTransactionPingPeriod);
     } catch (const std::exception& ex) {
         YT_LOG_INFO(ex, "Failed to attach operation transactions", operationId);
