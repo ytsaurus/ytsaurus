@@ -1930,6 +1930,12 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();
+
+    registrar.Parameter("offloading_pool_tree", &TThis::OffloadingPoolTree)
+        .Default();
+
+    registrar.Parameter("offloading_pool", &TThis::OffloadingPool)
+        .Default();
 }
 
 void TPoolConfig::Validate(const TString& poolName)

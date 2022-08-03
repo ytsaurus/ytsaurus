@@ -89,7 +89,7 @@ struct IFairShareTree
 
     //! Updates accumulated resources usage information. Update current resource usages in snapshot.
     virtual void UpdateResourceUsages() = 0;
-    
+
     // Extracts accumulated usage for operation.
     virtual TResourceVolume ExtractAccumulatedUsageForLogging(TOperationId operationId) = 0;
 
@@ -103,7 +103,7 @@ struct IFairShareTree
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
-    
+
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool HasRunningOperation(TOperationId operationId) const = 0;
     virtual int GetOperationCount() const = 0;
@@ -139,6 +139,7 @@ struct IFairShareTree
     virtual void TryRunAllPendingOperations() = 0;
 
     virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const = 0;
+    virtual std::optional<std::pair<TString, TString>> FindOffloadingPoolTreeAndPoolFor(const TString& poolName) const = 0;
 
     virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
     virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;

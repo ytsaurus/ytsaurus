@@ -265,6 +265,10 @@ public:
 
     THashMap<TString, TString> MeteringTags;
 
+    std::optional<TString> OffloadingPool;
+
+    std::optional<TString> OffloadingPoolTree;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

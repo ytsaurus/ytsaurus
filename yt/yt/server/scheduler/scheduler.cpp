@@ -669,7 +669,7 @@ public:
             GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParameters = New<TOperationRuntimeParameters>();
-        InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
+        InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type, operationId);
 
         auto operation = New<TOperation>(
             operationId,
@@ -1830,7 +1830,8 @@ private:
         const TOperationSpecBasePtr& spec,
         const TSerializableAccessControlList& baseAcl,
         const TString& user,
-        EOperationType operationType)
+        EOperationType operationType,
+        TOperationId operationId)
     {
         runtimeParameters->Acl = baseAcl;
         runtimeParameters->Acl.Entries.insert(
@@ -1850,7 +1851,7 @@ private:
 
         runtimeParameters->ControllerAgentTag = spec->ControllerAgentTag;
 
-        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, operationType);
+        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, operationType, operationId);
     }
 
     TOperationRuntimeParametersPtr UpdateRuntimeParameters(

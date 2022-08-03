@@ -267,7 +267,8 @@ struct ISchedulerStrategy
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
         const TString& user,
-        EOperationType operationType) = 0;
+        EOperationType operationType,
+        TOperationId operationId) = 0;
 
     //! Apply |update| to |origin|, changing |origin|.
     //! NOTE: |origin| can not be |nullptr|.

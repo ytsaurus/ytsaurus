@@ -584,7 +584,8 @@ public:
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
         const TString& user,
-        EOperationType operationType) override
+        EOperationType operationType,
+        TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -603,7 +604,34 @@ public:
             }
             treeParams->Tentative = poolTreeDescription.Tentative;
             treeParams->Probing = poolTreeDescription.Probing;
-            YT_VERIFY(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(poolTreeDescription.Name, std::move(treeParams)).second);
+            EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, poolTreeDescription.Name, std::move(treeParams));
+        }
+
+        for (const auto& [treeName, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
+            auto maybeFindResult = GetTree(treeName)->FindOffloadingPoolTreeAndPoolFor(options->Pool.GetPool());
+            if (maybeFindResult) {
+                auto [offloadingPoolTreeName, offloadingPoolName] = *maybeFindResult;
+                if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
+                    YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+                        offloadingPoolTreeName,
+                        offloadingPoolName,
+                        operationId);
+                } else {
+                    auto tree = FindTree(offloadingPoolTreeName);
+                    if (!tree) {
+                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree doesn't exist (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+                            offloadingPoolTreeName,
+                            offloadingPoolName,
+                            operationId);
+                    } else {
+                        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+                        treeParams->Weight = spec->Weight;
+                        treeParams->Pool = tree->CreatePoolName(offloadingPoolName, user);
+                        treeParams->ResourceLimits = spec->ResourceLimits;
+                        EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, offloadingPoolTreeName, std::move(treeParams));
+                    }
+                }
+            }
         }
     }
 
