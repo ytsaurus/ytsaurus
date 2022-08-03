@@ -152,7 +152,7 @@ protected:
     static void CheckReads(IUnbufferedFileChangelogPtr changelog)
     {
         auto totalRecordCount = changelog->GetRecordCount();
-        for (int start = 0; start <= totalRecordCount; ++start) {
+        for (int start = 0; start <= totalRecordCount + 1; ++start) {
             for (int end = start; end <= 2 * totalRecordCount + 1; ++end) {
                 CheckRead(changelog, start, end - start);
             }

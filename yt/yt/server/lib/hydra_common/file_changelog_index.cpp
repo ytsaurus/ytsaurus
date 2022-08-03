@@ -220,13 +220,15 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordRange(int recordIndex) const
 {
     auto guard = ReaderGuard(ChunkListLock_);
 
+    YT_VERIFY(recordIndex < GetRecordCount());
+
     return {
         GetRecordOffset(recordIndex),
         GetRecordOffset(recordIndex + 1)
     };
 }
 
-std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
+std::optional<std::pair<i64, i64>> TFileChangelogIndex::FindRecordsRange(
     int firstRecordIndex,
     int maxRecords,
     i64 maxBytes) const
@@ -238,8 +240,8 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
     YT_VERIFY(firstRecordIndex >= 0);
     YT_VERIFY(recordCount == 0 || DataFileLength_ >= 0);
 
-    if (firstRecordIndex > recordCount) {
-        return {-1, -1};
+    if (firstRecordIndex >= recordCount) {
+        return std::nullopt;
     }
 
     auto startOffset = GetRecordOffset(firstRecordIndex);
@@ -255,7 +257,7 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
             break;
         }
     }
-    return {startOffset, endOffset};
+    return std::make_pair(startOffset, endOffset);
 }
 
 void TFileChangelogIndex::AppendRecord(int recordIndex, std::pair<i64, i64> range)
