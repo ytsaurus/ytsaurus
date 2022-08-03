@@ -40,3 +40,8 @@ class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
             },
         },
     })
+
+    # TODO(gritukan, levysotsky): Drop me!
+    @authors("levysotsky")
+    def test_several_intermediate_schemas_trivial_mapper(self):
+        pass
