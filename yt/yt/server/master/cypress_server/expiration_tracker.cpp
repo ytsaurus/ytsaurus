@@ -259,8 +259,6 @@ void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode)
         auto touchTime = trunkNode->GetTouchTime();
         YT_VERIFY(touchTime);
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
-        YT_VERIFY(expirationTimeout);
-
         auto it = shard->ExpirationMap.emplace(touchTime + expirationTimeout, trunkNode);
         trunkNode->SetExpirationTimeoutIterator(it);
     }
