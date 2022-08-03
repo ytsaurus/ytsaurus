@@ -38,6 +38,30 @@ void TYtPoller::Watch(IYtPollerItemPtr item)
     HasData_.Signal();
 }
 
+
+void TYtPoller::Stop()
+{
+    {
+        auto g = Guard(Lock_);
+        if (!IsRunning_) {
+            return;
+        }
+        IsRunning_ = false;
+        HasData_.Signal();
+    }
+    WaiterThread_.Join();
+}
+
+void TYtPoller::DiscardQueuedItems()
+{
+    for (auto& item : Pending_) {
+        item->OnItemDiscarded();
+    }
+    for (auto& item : InProgress_) {
+        item->OnItemDiscarded();
+    }
+}
+
 void TYtPoller::WatchLoop()
 {
     TInstant nextRequest = TInstant::Zero();
@@ -49,6 +73,7 @@ void TYtPoller::WatchLoop()
             }
 
             if (!IsRunning_) {
+                DiscardQueuedItems();
                 return;
             }
 
@@ -95,16 +120,6 @@ void* TYtPoller::WatchLoopProc(void* data)
 {
     static_cast<TYtPoller*>(data)->WatchLoop();
     return nullptr;
-}
-
-void TYtPoller::Stop()
-{
-    {
-        auto g = Guard(Lock_);
-        IsRunning_ = false;
-        HasData_.Signal();
-    }
-    WaiterThread_.Join();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

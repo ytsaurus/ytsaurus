@@ -538,6 +538,17 @@ public:
     virtual void ResumeOperation(
         const TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
+
+    ///
+    /// @brief Synchronously terminates all client's background activities
+    ///
+    /// e.g. no callbacks will be executed after the function is completed
+    ///
+    /// @note It is safe to call Shutdown multiple times
+    ///
+    /// @note @ref NYT::TApiUsageError will be thrown if any client's method is called after shutdown
+    ///
+    virtual void Shutdown() = 0;
 };
 
 

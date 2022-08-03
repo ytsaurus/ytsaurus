@@ -880,6 +880,8 @@ ITransactionPtr TClient::AttachTransaction(
     const TTransactionId& transactionId,
     const TAttachTransactionOptions& options)
 {
+    CheckShutdown();
+
     return MakeIntrusive<TTransaction>(this, Auth_, transactionId, options);
 }
 
@@ -887,6 +889,8 @@ void TClient::MountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "mount_table");
     SetTabletParams(header, path, options);
     if (options.CellId_) {
@@ -900,6 +904,8 @@ void TClient::UnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "unmount_table");
     SetTabletParams(header, path, options);
     header.AddParameter("force", options.Force_);
@@ -910,6 +916,8 @@ void TClient::RemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "remount_table");
     SetTabletParams(header, path, options);
     RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
@@ -919,6 +927,7 @@ void TClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
+    CheckShutdown();
     NRawClient::FreezeTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, options);
 }
 
@@ -926,6 +935,7 @@ void TClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
+    CheckShutdown();
     NRawClient::UnfreezeTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, options);
 }
 
@@ -934,6 +944,8 @@ void TClient::ReshardTable(
     const TVector<TKey>& keys,
     const TReshardTableOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("pivot_keys", BuildYsonNodeFluently().List(keys));
@@ -945,6 +957,8 @@ void TClient::ReshardTable(
     i64 tabletCount,
     const TReshardTableOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "reshard_table");
     SetTabletParams(header, path, options);
     header.AddParameter("tablet_count", tabletCount);
@@ -956,6 +970,8 @@ void TClient::InsertRows(
     const TNode::TListType& rows,
     const TInsertRowsOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("PUT", "insert_rows");
     header.SetInputFormat(TFormat::YsonBinary());
     // TODO: use corresponding raw request
@@ -972,6 +988,7 @@ void TClient::DeleteRows(
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options)
 {
+    CheckShutdown();
     return NRawClient::DeleteRows(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, keys, options);
 }
 
@@ -981,6 +998,8 @@ void TClient::TrimRows(
     i64 rowCount,
     const TTrimRowsOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("POST", "trim_rows");
     header.AddParameter("trimmed_row_count", rowCount);
     header.AddParameter("tablet_index", tabletIndex);
@@ -997,6 +1016,8 @@ TNode::TListType TClient::LookupRows(
     const TNode::TListType& keys,
     const TLookupRowsOptions& options)
 {
+    CheckShutdown();
+
     Y_UNUSED(options);
     THttpHeader header("PUT", "lookup_rows");
     header.AddPath(AddPathPrefix(path));
@@ -1027,6 +1048,8 @@ TNode::TListType TClient::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)
 {
+    CheckShutdown();
+
     THttpHeader header("GET", "select_rows");
     header.SetInputFormat(TFormat::YsonBinary());
     header.SetOutputFormat(TFormat::YsonBinary());
@@ -1056,11 +1079,13 @@ TNode::TListType TClient::SelectRows(
 
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
 {
+    CheckShutdown();
     NRawClient::AlterTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId, options);
 }
 
 ui64 TClient::GenerateTimestamp()
 {
+    CheckShutdown();
     THttpHeader header("GET", "generate_timestamp");
     TRequestConfig config;
     config.IsHeavy = true;
@@ -1070,6 +1095,8 @@ ui64 TClient::GenerateTimestamp()
 
 TAuthorizationInfo TClient::WhoAmI()
 {
+    CheckShutdown();
+
     THttpHeader header("GET", "auth/whoami", /* isApi = */ false);
     auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header);
     TAuthorizationInfo result;
@@ -1086,12 +1113,14 @@ TOperationAttributes TClient::GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
 TListOperationsResult TClient::ListOperations(
     const TListOperationsOptions& options)
 {
+    CheckShutdown();
     return NRawClient::ListOperations(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, options);
 }
 
@@ -1099,6 +1128,7 @@ void TClient::UpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)
 {
+    CheckShutdown();
     return NRawClient::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
@@ -1107,6 +1137,7 @@ TJobAttributes TClient::GetJob(
     const TJobId& jobId,
     const TGetJobOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, jobId, options);
 }
 
@@ -1114,6 +1145,7 @@ TListJobsResult TClient::ListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options)
 {
+    CheckShutdown();
     return NRawClient::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
@@ -1121,6 +1153,7 @@ IFileReaderPtr TClient::GetJobInput(
     const TJobId& jobId,
     const TGetJobInputOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetJobInput(Auth_, jobId, options);
 }
 
@@ -1129,6 +1162,7 @@ IFileReaderPtr TClient::GetJobFailContext(
     const TJobId& jobId,
     const TGetJobFailContextOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetJobFailContext(Auth_, operationId, jobId, options);
 }
 
@@ -1137,6 +1171,7 @@ IFileReaderPtr TClient::GetJobStderr(
     const TJobId& jobId,
     const TGetJobStderrOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetJobStderr(Auth_, operationId, jobId, options);
 }
 
@@ -1144,6 +1179,7 @@ TNode::TListType TClient::SkyShareTable(
     const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options)
 {
+    CheckShutdown();
     return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePaths, options);
 }
 
@@ -1153,6 +1189,7 @@ TCheckPermissionResponse TClient::CheckPermission(
     const TYPath& path,
     const TCheckPermissionOptions& options)
 {
+    CheckShutdown();
     return NRawClient::CheckPermission(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, user, permission, path, options);
 }
 
@@ -1161,6 +1198,7 @@ TVector<TTabletInfo> TClient::GetTabletInfos(
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options)
 {
+    CheckShutdown();
     return NRawClient::GetTabletInfos(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, tabletIndexes, options);
 }
 
@@ -1169,6 +1207,7 @@ void TClient::SuspendOperation(
     const TOperationId& operationId,
     const TSuspendOperationOptions& options)
 {
+    CheckShutdown();
     NRawClient::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
@@ -1176,6 +1215,7 @@ void TClient::ResumeOperation(
     const TOperationId& operationId,
     const TResumeOperationOptions& options)
 {
+    CheckShutdown();
     NRawClient::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, operationId, options);
 }
 
@@ -1189,6 +1229,15 @@ TYtPoller& TClient::GetYtPoller()
         YtPoller_ = MakeHolder<TYtPoller>(Auth_, ClientRetryPolicy_);
     }
     return *YtPoller_;
+}
+
+void TClient::Shutdown()
+{
+    auto g = Guard(YtPollerLock_);
+    
+    if (!Shutdown_.exchange(true) && YtPoller_) {
+        YtPoller_->Stop();
+    }
 }
 
 TClientPtr TClient::GetParentClientImpl()
@@ -1208,6 +1257,13 @@ void TClient::SetTabletParams(
     }
     if (options.LastTabletIndex_) {
         header.AddParameter("last_tablet_index", *options.LastTabletIndex_);
+    }
+}
+
+void TClient::CheckShutdown() const
+{
+    if (Shutdown_) {
+        ythrow TApiUsageError() << "Call client's methods after shutdown";
     }
 }
 

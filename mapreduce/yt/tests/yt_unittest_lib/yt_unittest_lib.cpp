@@ -208,6 +208,11 @@ IClientPtr TTestFixture::GetClient() const
     return Client_;
 }
 
+IClientPtr TTestFixture::CreateClient(const TCreateClientOptions& options) const
+{
+    return CreateTestClient("", options);
+}
+
 IClientPtr TTestFixture::CreateClientForUser(const TString& user, TCreateClientOptions options)
 {
     TString token = CreateGuidAsString();

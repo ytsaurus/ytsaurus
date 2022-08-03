@@ -101,6 +101,7 @@ namespace NTesting {
         MOCK_METHOD(TCheckPermissionResponse, CheckPermission, (const TString&, EPermission, const TYPath&, const TCheckPermissionOptions&), (override));
 
         MOCK_METHOD(IClientPtr, GetParentClient, (), (override));
+        MOCK_METHOD(void, Shutdown, (), (override));
 
         MOCK_METHOD(TNodeId, CreateTable, (const TYPath&, const ::google::protobuf::Descriptor&, const TSortColumns&, const TCreateOptions&), ());
     };

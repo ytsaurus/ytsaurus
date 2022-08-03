@@ -98,7 +98,14 @@ public:
     explicit TTestFixture(const TCreateClientOptions& options = {});
     ~TTestFixture();
 
+    // Return precreated client.
     IClientPtr GetClient() const;
+
+    // Return newly created client. Useful for cases: 
+    //  - when we want to have multiple clients objects;
+    //  - when we want to control to control destruction of client object;
+    IClientPtr CreateClient(const TCreateClientOptions& options = {}) const;
+
     IClientPtr CreateClientForUser(const TString& user, TCreateClientOptions options = {});
     TYPath GetWorkingDir() const;
 
