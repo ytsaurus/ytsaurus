@@ -287,9 +287,9 @@ private:
 
                 // Signaling master that store preload is not completed yet
                 // (actually it did not even started).
-                if (IsPeerHealthy(static_cast<NHydra::EPeerState>(protoSlotInfo->peer_state())) && !snapshotsReady) {
+                if (IsPeerHealthy(FromProto<NHydra::EPeerState>(protoSlotInfo->peer_state())) && !snapshotsReady) {
                     notReadyCellIds.insert(occupant->GetCellId());
-                    static const int PreloadPendingStoreSentinel = 1;
+                    constexpr int PreloadPendingStoreSentinel = 1;
                     protoSlotInfo->set_preload_pending_store_count(PreloadPendingStoreSentinel);
                 }
             }

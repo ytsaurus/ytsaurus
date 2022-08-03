@@ -527,7 +527,7 @@ private:
 
     ITransactionSupervisorPtr TransactionSupervisor_;
 
-    std::atomic<bool> IsTabletEpochActive_;
+    std::atomic<bool> TabletEpochActive_;
 
     NRpc::IServicePtr TabletService_;
 
@@ -548,17 +548,19 @@ private:
 
     void OnTabletsEpochStarted()
     {
-        IsTabletEpochActive_ = true;
+        TabletEpochActive_.store(true);
     }
 
     void OnTabletsEpochStopped()
     {
-        IsTabletEpochActive_ = false;
+        TabletEpochActive_.store(false);
     }
 
     virtual bool IsTabletEpochActive() const override
     {
-        return IsTabletEpochActive_;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return TabletEpochActive_.load();
     }
 
     NLogging::TLogger GetLogger() const
