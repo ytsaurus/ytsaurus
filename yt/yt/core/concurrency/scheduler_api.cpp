@@ -118,7 +118,7 @@ public:
             TSourceLocation("", 0)
 #endif
         )
-        , Id_(id)
+        , FiberId_(id)
     { }
 
     bool IsCanceled() const
@@ -154,11 +154,11 @@ public:
 
         if (future) {
             YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
-                Id_);
+                FiberId_);
             future.Cancel(error);
         } else {
             YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
-                Id_);
+                FiberId_);
         }
     }
 
@@ -179,17 +179,18 @@ public:
         return state->Run(error);
     }
 
-    TFiberId GetId() const
+    TFiberId GetFiberId() const
     {
-        return Id_;
+        return FiberId_;
     }
 
 private:
-    std::atomic<bool> Canceled_ = {false};
+    const TFiberId FiberId_;
+
+    std::atomic<bool> Canceled_ = false;
     NThreading::TSpinLock Lock_;
     TError CancelationError_;
     TFuture<void> Future_;
-    TFiberId Id_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCanceler)
@@ -228,7 +229,7 @@ protected:
     ~TBaseSwitchHandler()
     {
         YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
-        YT_VERIFY(FsdHolder_ == nullptr);
+        YT_VERIFY(!FsdHolder_);
         YT_VERIFY(FiberId_ == InvalidFiberId);
         YT_VERIFY(PropagatingStorage_.IsNull());
     }
@@ -355,7 +356,7 @@ private:
     }
 };
 
-thread_local TSwitchHandler* TSwitchHandler::This_ = nullptr;
+thread_local TSwitchHandler* TSwitchHandler::This_;
 
 TSwitchHandler* GetSwitchHandler()
 {
@@ -364,13 +365,14 @@ TSwitchHandler* GetSwitchHandler()
 
 TCancelerPtr& GetCanceler()
 {
-    YT_VERIFY(GetSwitchHandler());
-    return GetSwitchHandler()->Canceler_;
+    auto* switchHandler = GetSwitchHandler();
+    YT_VERIFY(switchHandler);
+    return switchHandler->Canceler_;
 }
 
 void PushContextHandler(std::function<void()> out, std::function<void()> in)
 {
-    if (auto switchHandler = GetSwitchHandler()) {
+    if (auto* switchHandler = GetSwitchHandler()) {
         switchHandler->UserHandlers_.push_back({std::move(out), std::move(in)});
     }
 }
@@ -393,10 +395,10 @@ void RunInFiberContext(TClosure callback)
 
     // Enable fiber local storage.
     NDetail::TFsdHolder fsdHolder;
-    auto oldFsd = NDetail::SetCurrentFsdHolder(&fsdHolder);
-    YT_VERIFY(oldFsd == nullptr);
-    auto finally = Finally([&] {
-        auto oldFsd = NDetail::SetCurrentFsdHolder(nullptr);
+    auto* oldFsd = NDetail::SetCurrentFsdHolder(&fsdHolder);
+    YT_VERIFY(!oldFsd);
+    auto fsdGuard = Finally([&] {
+        auto* oldFsd = NDetail::SetCurrentFsdHolder(nullptr);
         YT_VERIFY(oldFsd == &fsdHolder);
 
         YT_VERIFY(GetCurrentFiberId() == fiberId);
@@ -414,7 +416,7 @@ void RunInFiberContext(TClosure callback)
 class TResumeGuard
 {
 public:
-    explicit TResumeGuard(TFiberPtr fiber, TCancelerPtr canceler)
+    TResumeGuard(TFiberPtr fiber, TCancelerPtr canceler)
         : Fiber_(std::move(fiber))
         , Canceler_(std::move(canceler))
     { }
@@ -439,7 +441,7 @@ public:
     ~TResumeGuard()
     {
         if (Fiber_) {
-            YT_LOG_TRACE("Unwinding fiber (TargetFiberId: %llx)", Canceler_->GetId());
+            YT_LOG_TRACE("Unwinding fiber (TargetFiberId: %llx)", Canceler_->GetFiberId());
 
             Canceler_->Run(TError("Fiber resumer is lost"));
             Canceler_.Reset();
@@ -474,7 +476,6 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     GetCurrentFiberCanceler();
 
     auto canceler = GetCanceler();
-
     if (canceler->IsCanceled()) {
         future.Cancel(canceler->GetCancelationError());
     }
@@ -501,7 +502,7 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
                 canceler = std::move(canceler)
             ] (const TError&) mutable {
                 YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
-                    canceler->GetId());
+                    canceler->GetFiberId());
 
                 invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(TResumeGuard{std::move(fiber), std::move(canceler)}));
             }));

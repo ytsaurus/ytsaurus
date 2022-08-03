@@ -10,7 +10,7 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-[[nodiscard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
+[[nodiscard]] TErrorOr<T> WaitFor(const TFuture<T>& future, IInvokerPtr invoker)
 {
     YT_ASSERT(future);
     YT_ASSERT(invoker);
@@ -38,7 +38,7 @@ inline void Yield()
 
 inline void SwitchTo(IInvokerPtr invoker)
 {
-    WaitUntilSet(VoidFuture, invoker);
+    WaitUntilSet(VoidFuture, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

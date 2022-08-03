@@ -5,9 +5,14 @@
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 // Forward declaration
 IInvokerPtr GetCurrentInvoker();
-} //namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 
 namespace NYT::NConcurrency {
 
@@ -57,22 +62,29 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Blocks the current fiber until #future is set.
+//! The fiber is resceduled to #invoker.
 void WaitUntilSet(
     TFuture<void> future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
+//! Blocks the current fiber until #future is set and returns the resulting value.
+//! The fiber is resceduled via #invoker.
 template <class T>
 [[nodiscard]] TErrorOr<T> WaitFor(
-    TFuture<T> future,
+    const TFuture<T>& future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
+//! Similar to #WaitFor but extracts the value from #future via |GetUnique|.
 template <class T>
 [[nodiscard]] TErrorOr<T> WaitForUnique(
     const TFuture<T>& future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
+//! Reschedules the current fiber via the current invoker.
 void Yield();
 
+//! Reschedules the current fiber via #invoker.
 void SwitchTo(IInvokerPtr invoker);
 
 //! Returns |true| if there is enough remaining stack space.
