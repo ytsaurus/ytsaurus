@@ -462,6 +462,8 @@ public:
         const TOperationId& operationId,
         const TResumeOperationOptions& options) override;
 
+    void Shutdown() override;
+
     // Helper methods
     TYtPoller& GetYtPoller();
 
@@ -475,6 +477,9 @@ private:
         const TYPath& path,
         const TOptions& options);
 
+    void CheckShutdown() const;
+
+    std::atomic<bool> Shutdown_ = false; 
     TMutex YtPollerLock_;
     THolder<TYtPoller> YtPoller_;
 };

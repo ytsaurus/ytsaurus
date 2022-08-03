@@ -34,6 +34,10 @@ public:
     // Should return PollContinue if poller should continue polling this item.
     // Should return PollBreak if poller should stop polling this item.
     virtual EStatus OnRequestExecuted() = 0;
+
+    virtual void OnItemDiscarded()
+    { }
+
 };
 using IYtPollerItemPtr = ::TIntrusivePtr<IYtPollerItem>;
 
@@ -48,10 +52,13 @@ public:
 
     void Watch(IYtPollerItemPtr item);
 
+    void Stop();
+
 private:
+    void DiscardQueuedItems();
+
     void WatchLoop();
     static void* WatchLoopProc(void*);
-    void Stop();
 
 private:
     struct TItem;

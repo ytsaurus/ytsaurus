@@ -53,6 +53,11 @@ public:
         return PollContinue;
     }
 
+    void OnItemDiscarded() override
+    {
+        Acquired_.SetException(std::make_exception_ptr(yexception() << "Operation cancelled"));
+    }
+
 private:
     const TString LockStateYPath_;
     NThreading::TPromise<void> Acquired_;
