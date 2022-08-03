@@ -2110,6 +2110,23 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     @flaky(max_runs=3)
+    def test_expiration_timeout_zero(self):
+        # Very small - including zero timeouts - should be handled normally.
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 0})
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 10})
+        create("table", "//tmp/t3")
+        set("//tmp/t3/@expiration_timeout", 0)
+        create("table", "//tmp/t4")
+        set("//tmp/t4/@expiration_timeout", 10)
+        # Accessing a node may affect its lifetime. Hence no waiting here.
+        time.sleep(1.5)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+        assert not exists("//tmp/t3")
+        assert not exists("//tmp/t4")
+
+    @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create(
             "table",
