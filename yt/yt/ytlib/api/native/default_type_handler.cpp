@@ -68,7 +68,7 @@ public:
         Client_->SetSuppressAccessTracking(req, options);
         Client_->SetCachingHeader(req, options);
         if (options.Attributes) {
-            ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+            ToProto(req->mutable_attributes(), options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
@@ -101,7 +101,7 @@ public:
         Client_->SetSuppressAccessTracking(req, options);
         Client_->SetCachingHeader(req, options);
         if (options.Attributes) {
-            ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+            ToProto(req->mutable_attributes(), options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);

@@ -83,7 +83,7 @@ private:
 
         void DoWriteAttributesFragment(
             NYson::IAsyncYsonConsumer* /*consumer*/,
-            const std::optional<std::vector<TString>>& /*attributeKeys*/,
+            const TAttributeFilter& /*attributeFilter*/,
             bool /*stable*/) override
         {
             YT_ABORT();

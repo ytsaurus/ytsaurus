@@ -34,9 +34,9 @@ bool YPathExists(
 TYsonString YPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys = {})
+    const TAttributeFilter& attributeFilter = {})
 {
-    return AsyncYPathGet(service, path, attributeKeys)
+    return AsyncYPathGet(service, path, attributeFilter)
         .Get()
         .ValueOrThrow();
 }

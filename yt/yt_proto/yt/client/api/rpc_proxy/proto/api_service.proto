@@ -236,12 +236,16 @@ enum EColumnarStatisticsFetcherMode
     CSFM_FALLBACK = 2;
 }
 
-// XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
-// Only sandello@ knows why we need this.
-message TAttributeKeys
+// COMPAT(max42).
+// A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
+// It is different in that universal filter is encoded via all = true
+// rather than absence of filter at all.
+// Modern clients serialize attribute filters using TAttributeFilter, so
+// hopefully in a couple of years we will be able to drop support of it...
+message TLegacyAttributeKeys
 {
     optional bool all = 1;
-    repeated string columns = 2;
+    repeated string keys = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -922,7 +926,10 @@ message TReqGetNode
 {
     required string path = 1; // YPath
 
-    optional TAttributeKeys attributes = 2;
+    // COMPAT(max42): see comment around TLegacyAttributeKeys.
+    optional TLegacyAttributeKeys legacy_attributes = 2;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 4;
+
     optional int64 max_size = 3;
 
     optional TTransactionalOptions transactional_options = 100;
@@ -944,7 +951,10 @@ message TReqListNode
 {
     required string path = 1; // YPath
 
-    optional TAttributeKeys attributes = 2;
+    // COMPAT(max42): see comment around TLegacyAttributeKeys.
+    optional TLegacyAttributeKeys legacy_attributes = 2;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 4;
+
     optional int64 max_size = 3;
 
     optional TTransactionalOptions transactional_options = 100;
@@ -1698,8 +1708,12 @@ message TReqGetOperation
         NYT.NProto.TGuid operation_id = 1;
         string operation_alias = 4;
     }
-    // TODO(kiselyovp) change this to TAttributeKeys
-    repeated string attributes = 2;
+
+    // COMPAT(max42): see comment around TLegacyAttributeKeys with the only
+    // difference that attributes were serialized as repeated string historically.
+    repeated string legacy_attributes = 2;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 6;
+
     optional bool include_runtime = 3 [default = false];
     optional int64 maximum_cypress_progress_age = 5; // TDuration
 
@@ -1732,7 +1746,9 @@ message TReqListOperations
     optional bool include_counters = 13 [default = true];
     optional uint64 limit = 14 [default = 100];
 
-    optional TAttributeKeys attributes = 15;
+    // COMPAT(max42): see comment around TLegacyAttributeKeys.
+    optional TLegacyAttributeKeys legacy_attributes = 15;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 20;
 
     optional bool enable_ui_mode = 16 [default = false];
 
@@ -1804,7 +1820,9 @@ message TReqGetJob
     }
     required NYT.NProto.TGuid job_id = 2;
 
-    optional TAttributeKeys attributes = 3;
+    // COMPAT(max42): see comment around TLegacyAttributeKeys.
+    optional TLegacyAttributeKeys legacy_attributes = 3;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 5;
 }
 
 message TRspGetJob

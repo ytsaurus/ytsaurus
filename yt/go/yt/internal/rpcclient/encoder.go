@@ -183,8 +183,10 @@ func (e *Encoder) GetNode(
 	}
 
 	req := &rpc_proxy.TReqGetNode{
-		Path:                              ptr.String(path.YPath().String()),
-		Attributes:                        convertAttributeKeys(opts.Attributes),
+		Path: ptr.String(path.YPath().String()),
+		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+		LegacyAttributes:                  convertLegacyAttributeKeys(opts.Attributes),
+		Attributes:                        convertAttributeFilter(opts.Attributes),
 		MaxSize:                           opts.MaxSize,
 		TransactionalOptions:              convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:               convertPrerequisiteOptions(opts.PrerequisiteOptions),
@@ -299,8 +301,10 @@ func (e *Encoder) ListNode(
 	}
 
 	req := &rpc_proxy.TReqListNode{
-		Path:                              ptr.String(path.YPath().String()),
-		Attributes:                        convertAttributeKeys(opts.Attributes),
+		Path: ptr.String(path.YPath().String()),
+		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+		LegacyAttributes:                  convertLegacyAttributeKeys(opts.Attributes),
+		Attributes:                        convertAttributeFilter(opts.Attributes),
 		MaxSize:                           opts.MaxSize,
 		TransactionalOptions:              convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:               convertPrerequisiteOptions(opts.PrerequisiteOptions),
@@ -1445,7 +1449,9 @@ func (e *Encoder) GetOperation(
 		OperationIdOrAlias: &rpc_proxy.TReqGetOperation_OperationId{
 			OperationId: convertGUID(guid.GUID(opID)),
 		},
-		Attributes:                opts.Attributes,
+		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+		LegacyAttributes:          opts.Attributes,
+		Attributes:                convertAttributeFilter(opts.Attributes),
 		IncludeRuntime:            opts.IncludeRuntime,
 		MaximumCypressProgressAge: nil, // todo
 		MasterReadOptions:         convertMasterReadOptions(opts.MasterReadOptions),

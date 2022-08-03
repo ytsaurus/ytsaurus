@@ -2,7 +2,9 @@
 
 #include "ypath_service.h"
 
-#include <yt/yt/core/yson/consumer.h>
+#include "attribute_filter.h"
+
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NYTree {
 
@@ -12,14 +14,14 @@ void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt,
+    const TAttributeFilter& attributeFilter = {},
     bool skipEntityMapChildren = false);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt,
+    const TAttributeFilter& attributeFilter = {},
     bool skipEntityMapChildren = false);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,6 +57,7 @@
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/attribute_filter.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -688,7 +689,7 @@ struct TGetNodeOptions
 {
     // NB(eshcherbin): Used in profiling Orchid.
     NYTree::IAttributeDictionaryPtr Options;
-    std::optional<std::vector<TString>> Attributes;
+    NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
 };
 
@@ -728,7 +729,7 @@ struct TListNodeOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
-    std::optional<std::vector<TString>> Attributes;
+    NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
 };
 
@@ -993,7 +994,7 @@ void Serialize(const TMultiTablePartition& partitions, NYson::IYsonConsumer* con
 
 struct TMultiTablePartitions
 {
-    std::vector<TMultiTablePartition> Partitions; 
+    std::vector<TMultiTablePartition> Partitions;
 };
 
 void Serialize(const TMultiTablePartitions& partitions, NYson::IYsonConsumer* consumer);

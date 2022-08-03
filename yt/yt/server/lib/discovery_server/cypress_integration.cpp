@@ -57,11 +57,11 @@ private:
     {
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-        auto attributeKeys = request->has_attributes()
-            ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-            : std::nullopt;
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
 
-        response->set_value(GroupTree_->List(path, attributeKeys).ToString());
+        response->set_value(GroupTree_->List(path, attributeFilter).ToString());
 
         context->Reply();
     }
@@ -70,11 +70,11 @@ private:
     {
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-        auto attributeKeys = request->has_attributes()
-            ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-            : std::nullopt;
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
 
-        response->set_value(GroupTree_->Get(path, attributeKeys).ToString());
+        response->set_value(GroupTree_->Get(path, attributeFilter).ToString());
 
         context->Reply();
     }

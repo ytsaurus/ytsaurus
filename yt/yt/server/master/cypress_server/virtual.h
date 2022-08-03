@@ -79,7 +79,7 @@ private:
     {
         IInvokerPtr Invoker;
         i64 Limit = -1;
-        std::optional<std::vector<TString>> AttributeKeys;
+        NYTree::TAttributeFilter AttributeFilter;
         bool Incomplete = false;
         std::vector<TFetchItem> Items;
     };
@@ -88,7 +88,7 @@ private:
 
     TFuture<TFetchItemsSessionPtr> FetchItems(
         i64 limit,
-        const std::optional<std::vector<TString>>& attributeKeys);
+        const NYTree::TAttributeFilter& attributeFilter);
 
     TFuture<void> FetchItemsFromLocal(const TFetchItemsSessionPtr& session);
     TFuture<void> FetchItemsFromRemote(const TFetchItemsSessionPtr& session, NObjectClient::TCellTag cellTag);
@@ -96,7 +96,7 @@ private:
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromLocal();
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromRemote(NObjectClient::TCellTag cellTag);
 
-    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const std::optional<std::vector<TString>>& attributeKeys);
+    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

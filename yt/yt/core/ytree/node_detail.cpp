@@ -1,6 +1,7 @@
 #include "node_detail.h"
 #include "tree_visitor.h"
 #include "exception_helpers.h"
+#include "attribute_filter.h"
 
 #include <yt/yt/core/misc/singleton.h>
 
@@ -39,16 +40,18 @@ void TNodeBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     // TODO(babenko): make use of limit
     auto limit = request->has_limit()
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+        limit,
+        attributeFilter);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -58,7 +61,7 @@ void TNodeBase::GetSelf(
         this,
         &writer,
         false,
-        attributeKeys);
+        attributeFilter);
 
     writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
@@ -307,15 +310,17 @@ void TMapNodeMixin::ListSelf(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     auto limit = request->has_limit()
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+        limit,
+        attributeFilter);
 
     TAsyncYsonWriter writer;
 
@@ -332,7 +337,7 @@ void TMapNodeMixin::ListSelf(
     writer.OnBeginList();
     for (const auto& [key, child] : children) {
         writer.OnListItem();
-        child->WriteAttributes(&writer, attributeKeys, false);
+        child->WriteAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
         if (limit && ++counter >= *limit) {
             break;

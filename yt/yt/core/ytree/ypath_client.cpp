@@ -432,11 +432,11 @@ void ExecuteVerb(
 TFuture<TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
     auto request = TYPathProxy::Get(path);
-    if (attributeKeys) {
-        ToProto(request->mutable_attributes()->mutable_keys(), *attributeKeys);
+    if (attributeFilter) {
+        ToProto(request->mutable_attributes(), attributeFilter);
     }
     return ExecuteVerb(service, request)
         .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
@@ -456,9 +456,9 @@ TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
-    auto future = AsyncYPathGet(service, path, attributeKeys);
+    auto future = AsyncYPathGet(service, path, attributeFilter);
     auto optionalResult = future.TryGetUnique();
     YT_VERIFY(optionalResult);
     return optionalResult->ValueOrThrow();

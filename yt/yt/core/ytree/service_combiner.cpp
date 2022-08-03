@@ -157,7 +157,7 @@ private:
             auto innerRequest = TYPathProxy::Get(TYPath());
             innerRequest->set_limit(limit);
             if (request->has_attributes()) {
-                innerRequest->mutable_attributes()->mutable_keys()->CopyFrom(request->attributes().keys());
+                innerRequest->mutable_attributes()->CopyFrom(request->attributes());
             }
             if (request->has_options()) {
                 innerRequest->mutable_options()->CopyFrom(request->options());
@@ -226,7 +226,7 @@ private:
             auto innerRequest = TYPathProxy::List(TYPath());
             innerRequest->set_limit(limit);
             if (request->has_attributes()) {
-                innerRequest->mutable_attributes()->mutable_keys()->CopyFrom(request->attributes().keys());
+                innerRequest->mutable_attributes()->CopyFrom(request->attributes());
             }
             auto asyncInnerResult = ExecuteVerb(service, innerRequest)
                 .Apply(BIND([&] (TYPathProxy::TRspListPtr response) {

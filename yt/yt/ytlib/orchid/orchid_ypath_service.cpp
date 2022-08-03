@@ -83,7 +83,7 @@ public:
 
     void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const std::optional<std::vector<TString>>& /*attributeKeys*/,
+        const TAttributeFilter& /*attributeFilter*/,
         bool /*stable*/) override
     {
         YT_ABORT();

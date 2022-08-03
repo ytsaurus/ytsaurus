@@ -687,7 +687,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
         auto sampleMemberNode = ConvertToNode(SyncYPathGet(
             ypathService,
             "/sample_group1/@members/sample_member1",
-            std::nullopt));
+            TAttributeFilter()));
 
         ASSERT_EQ(sampleMemberNode->GetType(), ENodeType::Entity);
 

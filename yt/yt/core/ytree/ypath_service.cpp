@@ -686,7 +686,7 @@ bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
 void TCachedYPathService::RebuildCache()
 {
     try {
-        auto asyncYson = AsyncYPathGet(UnderlyingService_, /* path */ TYPath(), /* attributeKeys */ std::nullopt);
+        auto asyncYson = AsyncYPathGet(UnderlyingService_, /* path */ TYPath(), TAttributeFilter());
 
         auto yson = WaitFor(asyncYson)
             .ValueOrThrow();
@@ -773,24 +773,22 @@ IYPathServicePtr IYPathService::WithPermissionValidator(TCallback<void(const TSt
 
 void IYPathService::WriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     bool stable)
 {
-    if (!attributeKeys && ShouldHideAttributes() ||
-        attributeKeys && attributeKeys->empty())
-    {
+    if (!attributeFilter && ShouldHideAttributes()) {
         return;
     }
-    DoWriteAttributesFragment(consumer, attributeKeys, stable);
+    DoWriteAttributesFragment(consumer, attributeFilter, stable);
 }
 
 void IYPathService::WriteAttributes(
     IAsyncYsonConsumer* consumer,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     bool stable)
 {
     TAttributeFragmentConsumer attributesConsumer(consumer);
-    WriteAttributesFragment(&attributesConsumer, attributeKeys, stable);
+    WriteAttributesFragment(&attributesConsumer, attributeFilter, stable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

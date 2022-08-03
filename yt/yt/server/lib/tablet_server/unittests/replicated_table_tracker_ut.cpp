@@ -473,7 +473,7 @@ public:
     {
         EXPECT_CALL(*client, GetNode(tablePath, _))
             .WillRepeatedly(Invoke([=] (const NYPath::TYPath& /*path*/, const TGetNodeOptions& options) {
-                EXPECT_EQ(options.Attributes, std::nullopt);
+                EXPECT_FALSE(options.Attributes);
                 return MakeFuture(TYsonString());
             }));
     }
@@ -600,7 +600,7 @@ TFuture<TYsonString> ReturnSerializedPreloadStateFuture(
     const TGetNodeOptions& options)
 {
     if (options.Attributes) {
-        EXPECT_EQ(*options.Attributes, std::vector<TString>({"preload_state"}));
+        EXPECT_EQ(options.Attributes.Keys, std::vector<TString>{"preload_state"});
         return MakeFuture(
             BuildYsonStringFluently()
                 .BeginAttributes()

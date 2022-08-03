@@ -104,12 +104,20 @@ func convertAttributes(attrs map[string]interface{}) (*ytree.TAttributeDictionar
 	return ret, nil
 }
 
-func convertAttributeKeys(keys []string) *rpc_proxy.TAttributeKeys {
+func convertLegacyAttributeKeys(keys []string) *rpc_proxy.TLegacyAttributeKeys {
 	if keys == nil {
-		return &rpc_proxy.TAttributeKeys{All: ptr.Bool(true)}
+		return &rpc_proxy.TLegacyAttributeKeys{All: ptr.Bool(true)}
 	}
 
-	return &rpc_proxy.TAttributeKeys{Columns: keys}
+	return &rpc_proxy.TLegacyAttributeKeys{Keys: keys}
+}
+
+func convertAttributeFilter(keys []string) *ytree.TAttributeFilter {
+	if keys == nil {
+		return nil
+	}
+
+	return &ytree.TAttributeFilter{Keys: keys}
 }
 
 func convertTransactionOptions(opts *yt.TransactionOptions) *rpc_proxy.TTransactionalOptions {

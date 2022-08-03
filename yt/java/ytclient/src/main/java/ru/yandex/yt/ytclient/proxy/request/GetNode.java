@@ -3,7 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.yt.rpcproxy.TAttributeKeys;
+import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
@@ -28,7 +28,8 @@ public class GetNode extends GetLikeReq<GetNode> implements HighLevelRequest<TRe
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
         if (attributes != null) {
-            builder.body().setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
+            // TODO(max42): switch to modern "attributes" field.
+            builder.body().setLegacyAttributes(attributes.writeTo(TLegacyAttributeKeys.newBuilder()));
         }
         if (maxSize != null) {
             builder.body().setMaxSize(maxSize);

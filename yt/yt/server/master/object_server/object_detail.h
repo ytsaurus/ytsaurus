@@ -47,7 +47,7 @@ public:
     void Invoke(const NRpc::IServiceContextPtr& context) override;
     void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const NYTree::TAttributeFilter& attributeFilter,
         bool stable) override;
 
     // This method is made public for orchid nodes, which obtain their manifests

@@ -186,7 +186,7 @@ class TestGrpcProxy(YTEnvSetup):
         def check_cell():
             cell = self._get_node(
                 path="//sys/tablet_cells/" + cell_id,
-                attributes={"columns": ["id", "health", "peers"]},
+                attributes={"keys": ["id", "health", "peers"]},
             )
             if cell.attributes["health"] != "good":
                 return False

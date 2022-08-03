@@ -141,31 +141,29 @@ TString GetNodePath(const TGroupNodePtr& node)
 
 void BuildMemberAttributesFragment(
     const TMemberPtr& member,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentMap fluent)
 {
     auto reader = member->CreateReader();
     auto* attributes = reader.GetAttributes();
 
-    auto contains = [&] (const TString& attribute) {
-        return !attributeKeys || std::find(attributeKeys->begin(), attributeKeys->end(), attribute) != attributeKeys->end();
-    };
+    attributeFilter.ValidateKeysOnly("discovery");
 
-    if (contains(PriorityAttribute)) {
+    if (attributeFilter.AdmitsKeySlow(PriorityAttribute)) {
         fluent.Item(PriorityAttribute).Value(member->GetPriority());
     }
-    if (contains(RevisionAttribute)) {
+    if (attributeFilter.AdmitsKeySlow(RevisionAttribute)) {
         fluent.Item(RevisionAttribute).Value(reader.GetRevision());
     }
-    if (contains(LastHeartbeatTimeAttribute)) {
+    if (attributeFilter.AdmitsKeySlow(LastHeartbeatTimeAttribute)) {
         fluent.Item(LastHeartbeatTimeAttribute).Value(member->GetLastHeartbeatTime());
     }
-    if (contains(LastAttributesUpdateTimeAttribute)) {
+    if (attributeFilter.AdmitsKeySlow(LastAttributesUpdateTimeAttribute)) {
         fluent.Item(LastAttributesUpdateTimeAttribute).Value(member->GetLastAttributesUpdateTime());
     }
     // User attributes.
     for (auto [attributeKey, attributeValue] : attributes->ListPairs()) {
-        if (contains(attributeKey)) {
+        if (attributeFilter.AdmitsKeySlow(attributeKey)) {
             fluent.Item(std::move(attributeKey)).Value(std::move(attributeValue));
         }
     }
@@ -173,7 +171,7 @@ void BuildMemberAttributesFragment(
 
 void BuildMemberAttributesAsMap(
     const TMemberPtr& member,
-    const std::optional<std::vector<TString>>& /* attributeKeys */,
+    const TAttributeFilter& /* attributeKeys */,
     TFluentAny fluent)
 {
     auto reader = member->CreateReader();
@@ -191,15 +189,15 @@ void BuildMemberAttributesAsMap(
 
 void BuildMember(
     const TMemberPtr& member,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentAny fluent)
 {
-    if (attributeKeys && attributeKeys->empty()) {
+    if (!attributeFilter || attributeFilter.IsEmpty()) {
         fluent.Entity();
     } else {
         fluent
             .BeginAttributes()
-                .Do(BIND(BuildMemberAttributesFragment, std::cref(member), std::cref(attributeKeys)))
+                .Do(BIND(BuildMemberAttributesFragment, std::cref(member), std::cref(attributeFilter)))
             .EndAttributes()
             .Entity();
     }
@@ -207,46 +205,42 @@ void BuildMember(
 
 void BuildGroupMembers(
     const TGroupPtr& group,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentAny fluent)
 {
     fluent.DoMapFor(group->ListMembers(), [&] (TFluentMap fluent, const auto& member) {
-        fluent.Item(member->GetId()).Do(BIND(BuildMember, std::cref(member), std::cref(attributeKeys)));
+        fluent.Item(member->GetId()).Do(BIND(BuildMember, std::cref(member), std::cref(attributeFilter)));
     });
 }
 
 void BuildGroupNodeAttributesFragment(
     const TGroupNodePtr& node,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentMap fluent)
 {
-    auto contains = [&] (const TString& attribute) {
-        return !attributeKeys || std::find(attributeKeys->begin(), attributeKeys->end(), attribute) != attributeKeys->end();
-    };
-
-    if (contains(EInternedAttributeKey::Type.Unintern())) {
+    if (attributeFilter.AdmitsKeySlow(EInternedAttributeKey::Type.Unintern())) {
         fluent = fluent.Item(EInternedAttributeKey::Type.Unintern()).Value(GetNodeType(node));
     }
-    if (contains(EInternedAttributeKey::ChildCount.Unintern())) {
+    if (attributeFilter.AdmitsKeySlow(EInternedAttributeKey::ChildCount.Unintern())) {
         fluent = fluent.Item(EInternedAttributeKey::ChildCount.Unintern()).Value(GetNodeCount(node));
     }
 
     const auto& group = node->GetGroup();
     if (group) {
-        if (contains(EInternedAttributeKey::MemberCount.Unintern())) {
+        if (attributeFilter.AdmitsKeySlow(EInternedAttributeKey::MemberCount.Unintern())) {
             fluent = fluent.Item(EInternedAttributeKey::MemberCount.Unintern()).Value(group->GetMemberCount());
         }
-        if (contains(EInternedAttributeKey::Members.Unintern())) {
+        if (attributeFilter.AdmitsKeySlow(EInternedAttributeKey::Members.Unintern())) {
             fluent = fluent
                 .Item(EInternedAttributeKey::Members.Unintern())
-                .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeKeys)));
+                .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeFilter)));
         }
     }
 }
 
 void BuildGroupNodeAttributesAsMap(
     const TGroupNodePtr& node,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentAny fluent)
 {
     const auto& group = node->GetGroup();
@@ -258,29 +252,29 @@ void BuildGroupNodeAttributesAsMap(
                 fluent
                     .Item(EInternedAttributeKey::MemberCount.Unintern()).Value((group->GetMemberCount()))
                     .Item(EInternedAttributeKey::Members.Unintern())
-                        .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeKeys)));
+                        .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeFilter)));
             })
         .EndMap();
 }
 
 void BuildGroupNode(
     const TGroupNodePtr& node,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     TFluentAny fluent)
 {
-    if (attributeKeys && attributeKeys->empty()) {
+    if (attributeFilter.IsEmpty()) {
         fluent.DoMapFor(node->GetChildren(), [&] (TFluentMap fluent, const auto& child) {
             const auto& [key, childNode] = child;
-            fluent.Item(key).Do(BIND(BuildGroupNode, std::cref(childNode), std::cref(attributeKeys)));
+            fluent.Item(key).Do(BIND(BuildGroupNode, std::cref(childNode), std::cref(attributeFilter)));
         });
     } else {
         fluent
             .BeginAttributes()
-                .Do(BIND(BuildGroupNodeAttributesFragment, std::cref(node), std::cref(attributeKeys)))
+                .Do(BIND(BuildGroupNodeAttributesFragment, std::cref(node), std::cref(attributeFilter)))
             .EndAttributes()
             .DoMapFor(node->GetChildren(), [&] (TFluentMap fluent, const auto& child) {
                 const auto& [key, childNode] = child;
-                fluent.Item(key).Do(BIND(BuildGroupNode, std::cref(childNode), std::cref(attributeKeys)));
+                fluent.Item(key).Do(BIND(BuildGroupNode, std::cref(childNode), std::cref(attributeFilter)));
             });
     }
 }
@@ -289,18 +283,18 @@ void BuildGroupNode(
 
 TYsonString DoListGroupNode(
     const TGroupNodePtr& node,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
     return BuildYsonStringFluently()
         .DoListFor(node->GetChildren(), [&] (TFluentList fluent, const auto& child) {
             const auto& [key, childNode] = child;
-            if (attributeKeys && attributeKeys->empty()) {
+            if (attributeFilter.IsEmpty()) {
                 fluent.Item().Value(key);
             } else {
                 fluent
                     .Item()
                     .BeginAttributes()
-                        .Do(BIND(BuildGroupNodeAttributesFragment, std::cref(childNode), std::cref(attributeKeys)))
+                        .Do(BIND(BuildGroupNodeAttributesFragment, std::cref(childNode), std::cref(attributeFilter)))
                     .EndAttributes()
                     .Value(key);
             }
@@ -309,7 +303,7 @@ TYsonString DoListGroupNode(
 
 TYsonString DoListGroupNodeAttributes(
     const TGroupNodePtr& node,
-    const std::optional<std::vector<TString>>& /* attributeKyes */)
+    const TAttributeFilter& /*attributeFilter*/)
 {
     return BuildYsonStringFluently()
         .BeginList()
@@ -325,17 +319,17 @@ TYsonString DoListGroupNodeAttributes(
 
 TYsonString DoListMembers(
     const TGroupPtr& group,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
     return BuildYsonStringFluently()
         .DoListFor(group->ListMembers(), [&] (TFluentList fluent, const auto& member) {
-            if (attributeKeys && attributeKeys->empty()) {
+            if (attributeFilter.IsEmpty()) {
                 fluent.Item().Value(member->GetId());
             } else {
                 fluent
                     .Item()
                     .BeginAttributes()
-                        .Do(BIND(BuildMemberAttributesFragment, std::cref(member), std::cref(attributeKeys)))
+                        .Do(BIND(BuildMemberAttributesFragment, std::cref(member), std::cref(attributeFilter)))
                     .EndAttributes()
                     .Value(member->GetId());
             }
@@ -344,7 +338,7 @@ TYsonString DoListMembers(
 
 TYsonString DoListMemberAttributes(
     const TMemberPtr& member,
-    const std::optional<std::vector<TString>>& /* attributeKeys */)
+    const TAttributeFilter& /*attributeFilter*/)
 {
     auto reader = member->CreateReader();
     auto* attributes = reader.GetAttributes();
@@ -362,31 +356,31 @@ TYsonString DoListMemberAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString DoGetGroupNode(const TGroupNodePtr& node, const std::optional<std::vector<TString>>& attributeKeys)
+TYsonString DoGetGroupNode(const TGroupNodePtr& node, const TAttributeFilter& attributeFilter)
 {
-    return BuildYsonStringFluently().Do(BIND(BuildGroupNode, std::cref(node), std::cref(attributeKeys)));
+    return BuildYsonStringFluently().Do(BIND(BuildGroupNode, std::cref(node), std::cref(attributeFilter)));
 }
 
-TYsonString DoGetGroupNodeAttributes(const TGroupNodePtr& node, const std::optional<std::vector<TString>>& attributeKeys)
+TYsonString DoGetGroupNodeAttributes(const TGroupNodePtr& node, const TAttributeFilter& attributeFilter)
 {
-    return BuildYsonStringFluently().Do(BIND(BuildGroupNodeAttributesAsMap, std::cref(node), std::cref(attributeKeys)));
+    return BuildYsonStringFluently().Do(BIND(BuildGroupNodeAttributesAsMap, std::cref(node), std::cref(attributeFilter)));
 }
 
-TYsonString DoGetGroupMembers(const TGroupPtr& group, const std::optional<std::vector<TString>>& attributeKeys)
+TYsonString DoGetGroupMembers(const TGroupPtr& group, const TAttributeFilter& attributeFilter)
 {
     return BuildYsonStringFluently()
-        .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeKeys)));
+        .Do(BIND(BuildGroupMembers, std::cref(group), std::cref(attributeFilter)));
 }
 
-TYsonString DoGetMember(const TMemberPtr& member, const std::optional<std::vector<TString>>& attributeKeys)
+TYsonString DoGetMember(const TMemberPtr& member, const TAttributeFilter& attributeFilter)
 {
     return BuildYsonStringFluently()
-        .Do(BIND(BuildMember, std::cref(member), std::cref(attributeKeys)));
+        .Do(BIND(BuildMember, std::cref(member), std::cref(attributeFilter)));
 }
 
-TYsonString DoGetMemberAttributes(const TMemberPtr& member, const std::optional<std::vector<TString>>& attributeKeys)
+TYsonString DoGetMemberAttributes(const TMemberPtr& member, const TAttributeFilter& attributeFilter)
 {
-    return BuildYsonStringFluently().Do(BIND(BuildMemberAttributesAsMap, std::cref(member), std::cref(attributeKeys)));
+    return BuildYsonStringFluently().Do(BIND(BuildMemberAttributesAsMap, std::cref(member), std::cref(attributeFilter)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -411,7 +405,7 @@ public:
         YT_VERIFY(IdToNode_.emplace("", Root_).second);
     }
 
-    TYsonString List(const TYPath& path, const std::optional<std::vector<TString>>& attributeKeys)
+    TYsonString List(const TYPath& path, const TAttributeFilter& attributeFilter)
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -419,7 +413,7 @@ public:
 
         // list /group_id
         if (unresolvedPath.empty()) {
-            return DoListGroupNode(node, attributeKeys);
+            return DoListGroupNode(node, attributeFilter);
         }
 
         NYPath::TTokenizer tokenizer(unresolvedPath);
@@ -430,7 +424,7 @@ public:
 
         // list /group_id/@
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoListGroupNodeAttributes(node, attributeKeys);
+            return DoListGroupNodeAttributes(node, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -466,7 +460,7 @@ public:
 
         // list /group_id/@members
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoListMembers(group, attributeKeys);
+            return DoListMembers(group, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -495,7 +489,7 @@ public:
 
         // list /group_id/@members/member_id/@
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoListMemberAttributes(member, attributeKeys);
+            return DoListMemberAttributes(member, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -523,7 +517,7 @@ public:
         return ConvertToYsonString(SyncYPathList(ConvertToNode(userAttributeYson), TYPath(tokenizer.GetInput())));
     }
 
-    TYsonString Get(const TYPath& path, const std::optional<std::vector<TString>>& attributeKeys)
+    TYsonString Get(const TYPath& path, const TAttributeFilter& attributeFilter)
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -531,7 +525,7 @@ public:
 
         // get /group_id
         if (unresolvedPath.empty()) {
-            return DoGetGroupNode(node, attributeKeys);
+            return DoGetGroupNode(node, attributeFilter);
         }
 
         NYPath::TTokenizer tokenizer(unresolvedPath);
@@ -542,7 +536,7 @@ public:
 
         // get /group_id/@
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoGetGroupNodeAttributes(node, attributeKeys);
+            return DoGetGroupNodeAttributes(node, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -592,7 +586,7 @@ public:
 
         // get /group_id/@members
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoGetGroupMembers(group, attributeKeys);
+            return DoGetGroupMembers(group, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -614,7 +608,7 @@ public:
 
         // get /group_id/@members/member_id
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoGetMember(member, attributeKeys);
+            return DoGetMember(member, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -625,7 +619,7 @@ public:
 
         // get /group_id/@members/member_id/@
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-            return DoGetMemberAttributes(member, attributeKeys);
+            return DoGetMemberAttributes(member, attributeFilter);
         }
 
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -961,14 +955,14 @@ TGroupTree::TGroupTree(
 
 TGroupTree::~TGroupTree() = default;
 
-NYson::TYsonString TGroupTree::List(const TYPath& path, const std::optional<std::vector<TString>>& attributeKeys)
+NYson::TYsonString TGroupTree::List(const TYPath& path, const TAttributeFilter& attributeFilter)
 {
-    return Impl_->List(path, attributeKeys);
+    return Impl_->List(path, attributeFilter);
 }
 
-NYson::TYsonString TGroupTree::Get(const TYPath& path, const std::optional<std::vector<TString>>& attributeKeys)
+NYson::TYsonString TGroupTree::Get(const TYPath& path, const TAttributeFilter& attributeFilter)
 {
-    return Impl_->Get(path, attributeKeys);
+    return Impl_->Get(path, attributeFilter);
 }
 
 bool TGroupTree::Exists(const TYPath& path)

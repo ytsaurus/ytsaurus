@@ -260,13 +260,15 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
 void TObjectProxyBase::DoWriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     bool stable)
 {
     const auto& customAttributes = Attributes();
 
-    if (attributeKeys) {
-        for (const auto& key : *attributeKeys) {
+    attributeFilter.ValidateKeysOnly("object");
+
+    if (attributeFilter) {
+        for (const auto& key : attributeFilter.Keys) {
             TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
             auto value = customAttributes.FindYson(key);
@@ -998,10 +1000,13 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
 
-    if (request->has_attributes()) {
-        auto attributeKeys = std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()));
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    if (attributeFilter) {
         TAsyncYsonWriter writer;
-        WriteAttributes(&writer, attributeKeys, false);
+        WriteAttributes(&writer, attributeFilter, false);
         writer.OnEntity();
 
         writer.Finish()

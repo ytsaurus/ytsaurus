@@ -168,11 +168,6 @@ void FromProto(
     NTableClient::TColumnarStatistics* statistics,
     const NProto::TColumnarStatistics& protoStatistics);
 
-template <class TStringContainer>
-void ToProto(
-    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
-    const std::optional<TStringContainer>& attributes);
-
 NProto::EOperationType ConvertOperationTypeToProto(
     NScheduler::EOperationType operationType);
 

@@ -189,7 +189,7 @@ TEST_F(TTreeBuilderTest, SkipEntityMapChildren)
         builder->OnEndMap();
     auto root = builder->EndTree();
 
-    VisitTree(root, &Mock, false, std::nullopt, true);
+    VisitTree(root, &Mock, false, TAttributeFilter(), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

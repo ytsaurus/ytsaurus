@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "ypath_service.h"
+#include "attribute_filter.h"
 
 #include <yt/yt/core/misc/property.h>
 
@@ -234,13 +235,13 @@ TString SyncYPathGetKey(
 TFuture<NYson::TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
+    const TAttributeFilter& attributeFilter = {});
 
 //! Executes |Get| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
+    const TAttributeFilter& attributeFilter = {});
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(
