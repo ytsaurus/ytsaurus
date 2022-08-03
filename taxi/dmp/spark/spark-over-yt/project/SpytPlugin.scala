@@ -43,6 +43,8 @@ object SpytPlugin extends AutoPlugin {
     val spytPublishClient = taskKey[Unit]("Publish spyt client")
     val spytPublishSparkFork = taskKey[Unit]("Publish spyt client & cluster")
 
+    val spytPublishLibraries = taskKey[Unit]("Publish spyt libraries")
+
     val spytMvnInstallSparkFork = taskKey[Unit]("Publish spyt client & cluster")
     val spytMvnDeploySparkFork = taskKey[Unit]("Publish spyt client & cluster")
 
