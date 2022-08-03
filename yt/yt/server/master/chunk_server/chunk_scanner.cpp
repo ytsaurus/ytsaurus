@@ -29,10 +29,10 @@ void TChunkScanner::Start(int shardIndex, TGlobalChunkScanDescriptor descriptor)
     YT_VERIFY(!globalScanShard.Iterator);
     YT_VERIFY(globalScanShard.ChunkCount == 0);
 
-    ScheduleGlobalScan(shardIndex, descriptor);
-
     YT_VERIFY(!ActiveShardIndices_[shardIndex]);
     ActiveShardIndices_.set(shardIndex);
+
+    ScheduleGlobalScan(shardIndex, descriptor);
 
     YT_LOG_INFO("Chunk scanner started for shard (ShardIndex: %v)",
         shardIndex);
