@@ -1749,7 +1749,8 @@ void TObjectManager::HydraExecuteLeader(
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
+        auto sanitizedErrorResponse = SanitizeWithCurrentHydraContext(errorResponse);
+        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(sanitizedErrorResponse));
 
         YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
@@ -1785,7 +1786,12 @@ void TObjectManager::HydraExecuteLeader(
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
-        responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
+        const auto& error = rpcContext->GetError();
+        if (error.IsOK()) {
+            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
+        } else {
+            responseKeeper->EndRequest(mutationId, SanitizeWithCurrentHydraContext(error));
+        }
     }
 }
 
