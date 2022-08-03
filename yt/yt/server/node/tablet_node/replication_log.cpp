@@ -274,10 +274,7 @@ public:
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
             auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid, onMissingRow);
-            if (!timestampMid) {
-                rowIndexLo = rowIndexMid;
-            }
-            if (*timestampMid <= startReplicationTimestamp) {
+            if (!timestampMid || *timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
                 rowIndexHi = rowIndexMid;
