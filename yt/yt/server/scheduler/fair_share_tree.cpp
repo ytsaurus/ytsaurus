@@ -675,6 +675,21 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
+    std::optional<std::pair<TString, TString>> FindOffloadingPoolTreeAndPoolFor(const TString& poolName) const override
+    {
+        const auto& pool = FindPool(poolName);
+        if (!pool) {
+            return std::nullopt;
+        }
+
+        const auto& config = pool->GetConfig();
+        if (config->OffloadingPoolTree && config->OffloadingPool) {
+            return std::make_pair(*config->OffloadingPoolTree, *config->OffloadingPool);
+        }
+
+        return std::nullopt;
+    }
+
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode, bool forceUpdate) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);

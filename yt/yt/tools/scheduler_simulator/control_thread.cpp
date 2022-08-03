@@ -226,7 +226,8 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
         runtimeParameters,
         NYTree::ConvertTo<TOperationSpecBasePtr>(description.Spec),
         description.AuthenticatedUser,
-        description.Type);
+        description.Type,
+        event.OperationId);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
 
     auto operationController = CreateSimulatorOperationController(operation.Get(), &description,

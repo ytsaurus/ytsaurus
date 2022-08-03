@@ -1785,3 +1785,24 @@ class TestMultiTreeOperations(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics_v2")
         check_count(statistics, "default", 2)
         check_count(statistics, "other", 1)
+
+    @authors("renadeen")
+    def test_offloading_pool(self):
+        create_pool("primary_pool", pool_tree="default")
+        set("//sys/pools/primary_pool/@offloading_pool_tree", "offload_tree")
+        set("//sys/pools/primary_pool/@offloading_pool", "offload_pool")
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "primary_pool"}, job_count=3)
+        wait(lambda: op.get_job_count("running") == 3)
+
+        op_pool_trees_path = (
+            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
+        )
+        wait(lambda: exists(op_pool_trees_path + "offload_tree/pool"))
+        wait(lambda: get(op_pool_trees_path + "offload_tree/pool", "offload_pool"))
+
+        release_breakpoint()
+        op.track()
