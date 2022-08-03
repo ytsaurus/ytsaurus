@@ -819,5 +819,5 @@ def wait(predicate, error_message=None, iter=None, sleep_backoff=None, timeout=N
         error_message = error_message()
     if error_message is None:
         error_message = "Wait failed"
-    error_message += " (timeout = {0})".format(iter * sleep_backoff)
+    error_message += " (timeout = {0})".format(timeout if timeout is not None else iter * sleep_backoff)
     raise WaitFailed(error_message)
