@@ -1,0 +1,5 @@
+*.log
+data
+core*
+config.yson
+query.sql
