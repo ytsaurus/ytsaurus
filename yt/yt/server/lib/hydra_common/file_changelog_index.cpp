@@ -239,9 +239,7 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
     YT_VERIFY(recordCount == 0 || DataFileLength_ >= 0);
 
     if (firstRecordIndex > recordCount) {
-        THROW_ERROR_EXCEPTION("Changelog does not contain requested record")
-            << TErrorAttribute("record_index", firstRecordIndex)
-            << TErrorAttribute("record_count", recordCount);
+        return {-1, -1};
     }
 
     auto startOffset = GetRecordOffset(firstRecordIndex);

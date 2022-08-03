@@ -750,10 +750,6 @@ private:
                 maxBytes);
 
             auto range = Index_->GetRecordsRange(firstRecordIndex, maxRecords, maxBytes);
-            if (range.first == -1 || range.second == -1) {
-                return {};
-            }
-
             auto result = DoReadAndParseRange<TRecordHeader>(
                 range,
                 firstRecordIndex,
