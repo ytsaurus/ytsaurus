@@ -1019,7 +1019,9 @@ private:
         return req->Invoke()
             .Apply(
                 BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
-                    .AsyncVia(GuardedAutomatonInvoker_))
+                    .AsyncViaGuarded(
+                        GuardedAutomatonInvoker_,
+                        TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped")))
             .WithTimeout(Config_->SyncTimeout)
             // NB: Many subscribers are typically waiting for the sync to complete.
             // Make sure the promise is set in a large thread pool.
