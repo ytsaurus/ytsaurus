@@ -67,6 +67,18 @@ TEST(TYPathResolver, GetString)
     EXPECT_NULL(TryGetString("{key3=2;key4=\"s\"}", "/key2"));
 }
 
+TEST(TYPathResolver, GetAny)
+{
+    EXPECT_VALUE("\1\2s", TryGetAny("{key3=2;key4=\"s\"}", "/key4"));
+    EXPECT_VALUE("\2\4", TryGetAny("{key3=2;key4=\"s\"}", "/key3"));
+    EXPECT_VALUE("{\1\2a=\2\n;\1\2b=[\1\nhello;\2\xF2\x14]}", TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key5"));
+    EXPECT_VALUE("[\1\nhello;\2\xF2\x14]", TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key5/b"));
+    EXPECT_VALUE("\2\xF2\x14", TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key5/b/1"));
+    EXPECT_NULL(TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key5/b/2"));
+    EXPECT_NULL(TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key5/c/1"));
+    EXPECT_NULL(TryGetAny("{key3=2;key5={a=5;b=[\"hello\"; 1337]};key4=\"s\"}", "/key6/b/1"));
+}
+
 TEST(TYPathResolver, Attribute)
 {
     EXPECT_VALUE("x", TryGetString("{key=1;value=x;}", "/value"));
@@ -93,6 +105,12 @@ TEST(TYPathResolver, InvalidYson)
 {
     EXPECT_THROW(TryGetInt64("{key3=2;key4=5", "/k"), std::exception);
     EXPECT_THROW(TryGetInt64("{key3=2key4=5}", "/k"), std::exception);
+    EXPECT_THROW(TryGetAny("{key3=2;key4=5", "/k"), std::exception);
+    EXPECT_THROW(TryGetAny("{key3=2key4=5}", "/k"), std::exception);
+    EXPECT_THROW(TryGetAny("", "/key"), std::exception);
+    EXPECT_THROW(TryGetAny(">", "/key"), std::exception);
+    EXPECT_THROW(TryGetAny("}", "/key"), std::exception);
+    EXPECT_THROW(TryGetAny("]", "/key"), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

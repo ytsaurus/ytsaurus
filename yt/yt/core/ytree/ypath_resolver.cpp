@@ -2,321 +2,220 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/yt/core/yson/forwarding_consumer.h>
-#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/misc/error.h>
+
+#include <util/stream/mem.h>
 
 namespace NYT::NYTree {
 
 using NYPath::ETokenType;
 using NYPath::TTokenizer;
 
-using NYson::IYsonConsumer;
-using NYson::TForwardingYsonConsumer;
 using NYson::EYsonType;
-using NYson::TStatelessYsonParser;
+using NYson::EYsonItemType;
+using NYson::TYsonPullParser;
+using NYson::TYsonPullParserCursor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpectedItem,
-    (Initial)
-    (BeginMap)
-    (Key)
+    (BeginMapOrList)
     (BeginAttribute)
-    (ListItem)
     (Value)
 );
 
-struct TNullLiteralValue
-{ };
+using TResult = std::variant<bool, i64, ui64, double, TString>;
 
-class TYPathResolver
-    : public TForwardingYsonConsumer
+bool ParseListUntilIndex(TYsonPullParserCursor* cursor, int targetIndex)
 {
-public:
-    TYPathResolver(const TYPath& path, bool isAny)
-        : Tokenizer_(path)
-        , IsAny_(isAny)
-        , Parser_(this)
-    {
-        if (isAny) {
-            ResultWriter_ = std::make_unique<NYson::TBufferedBinaryYsonWriter>(&ResultStream_);
+    YT_VERIFY((*cursor)->GetType() == EYsonItemType::BeginList);
+    cursor->Next();
+    int index = 0;
+    while ((*cursor)->GetType() != EYsonItemType::EndList) {
+        if (index == targetIndex) {
+            return true;
         }
-
-        NextToken();
+        ++index;
+        cursor->SkipComplexValue();
     }
+    return false;
+}
 
-    void OnMyStringScalar(TStringBuf value) override
-    {
-        OnStringValue(value);
+bool ParseMapOrAttributesUntilKey(TYsonPullParserCursor* cursor, TStringBuf key)
+{
+    auto endType = EYsonItemType::EndMap;
+    if ((*cursor)->GetType() != EYsonItemType::BeginMap) {
+        YT_VERIFY((*cursor)->GetType() == EYsonItemType::BeginAttributes);
+        endType = EYsonItemType::EndAttributes;
     }
-
-    void OnMyInt64Scalar(i64 value) override
-    {
-        OnValue(value);
+    cursor->Next();
+    while ((*cursor)->GetType() != endType) {
+        YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
+        if ((*cursor)->UncheckedAsString() == key) {
+            cursor->Next();
+            return true;
+        }
+        cursor->Next();
+        cursor->SkipComplexValue();
     }
+    return false;
+}
 
-    void OnMyUint64Scalar(ui64 value) override
-    {
-        OnValue(value);
+TResult ParseValue(TYsonPullParserCursor* cursor)
+{
+    switch ((*cursor)->GetType()) {
+        case EYsonItemType::BooleanValue:
+            return (*cursor)->UncheckedAsBoolean();
+        case EYsonItemType::Int64Value:
+            return (*cursor)->UncheckedAsInt64();
+        case EYsonItemType::Uint64Value:
+            return (*cursor)->UncheckedAsUint64();
+        case EYsonItemType::DoubleValue:
+            return (*cursor)->UncheckedAsDouble();
+        case EYsonItemType::StringValue:
+            return TString((*cursor)->UncheckedAsString());
+        default:
+            YT_ABORT();
     }
+}
 
-    void OnMyDoubleScalar(double value) override
+TString ParseAnyValue(TYsonPullParserCursor* cursor)
+{
+    TStringStream stream;
     {
-        OnValue(value);
+        NYson::TCheckedInDebugYsonTokenWriter writer(&stream);
+        cursor->TransferComplexValue(&writer);
+        writer.Flush();
     }
+    return std::move(stream.Str());
+}
 
-    void OnMyBooleanScalar(bool value) override
-    {
-        OnValue(value);
-    }
+[[noreturn]] void ThrowUnexpectedToken(const TTokenizer& tokenizer)
+{
+    THROW_ERROR_EXCEPTION(
+        "Unexpected YPath token %Qv while parsing %Qv",
+        tokenizer.GetToken(),
+        tokenizer.GetInput());
+}
 
-    void OnMyEntity() override
-    { }
+std::pair<EExpectedItem, std::optional<TString>> NextToken(TTokenizer* tokenizer)
+{
+    switch (tokenizer->Advance()) {
+        case ETokenType::EndOfStream:
+            return {EExpectedItem::Value, std::nullopt};
 
-    void OnMyBeginList() override
-    {
-        if (CurrentDepth_++ == PathDepth_) {
-            switch (Expected_) {
-                case EExpectedItem::BeginMap:
-                    Expected_ = EExpectedItem::ListItem;
-                    CurrentListIndex_ = 0;
-                    try {
-                        ListIndex_ = FromString<int>(Literal_);
-                    } catch (const TBadCastException&) {
-                        Parser_.Stop();
-                        return;
-                    }
-                    ++PathDepth_;
-                    break;
-
-                case EExpectedItem::ListItem:
-                case EExpectedItem::Key:
-                    break;
-
-                default:
-                    Parser_.Stop();
-                    break;
+        case ETokenType::Slash: {
+            auto type = tokenizer->Advance();
+            auto expected = EExpectedItem::BeginMapOrList;
+            if (type == ETokenType::At) {
+                type = tokenizer->Advance();
+                expected = EExpectedItem::BeginAttribute;
             }
-        }
-    }
-
-    void OnMyListItem() override
-    {
-        if (CurrentDepth_ == PathDepth_) {
-            if (Expected_ != EExpectedItem::ListItem) {
-                Parser_.Stop();
-                return;
+            if (type != ETokenType::Literal) {
+                ThrowUnexpectedToken(*tokenizer);
             }
-            if (CurrentListIndex_ == ListIndex_) {
-                NextToken();
-            } else if (CurrentListIndex_ > ListIndex_) {
-                Parser_.Stop();
-                return;
+            return {expected, tokenizer->GetLiteralValue()};
+        }
+
+        default:
+            ThrowUnexpectedToken(*tokenizer);
+    }
+}
+
+std::optional<TResult> TryParseImpl(TStringBuf yson, const TYPath& path, bool isAny)
+{
+    TTokenizer tokenizer(path);
+    TMemoryInput input(yson);
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+
+    while (true) {
+        auto [expected, literal] = NextToken(&tokenizer);
+        if (expected == EExpectedItem::Value && isAny) {
+            return {ParseAnyValue(&cursor)};
+        }
+        if (cursor->GetType() == EYsonItemType::BeginAttributes && expected != EExpectedItem::BeginAttribute) {
+            cursor.SkipAttributes();
+        }
+        switch (cursor->GetType()) {
+            case EYsonItemType::BeginAttributes: {
+                if (expected != EExpectedItem::BeginAttribute) {
+                    return std::nullopt;
+                }
+                Y_VERIFY(literal.has_value());
+                if (!ParseMapOrAttributesUntilKey(&cursor, *literal)) {
+                    return std::nullopt;
+                }
+                break;
             }
-            ++CurrentListIndex_;
-        }
-    }
-
-    void OnMyEndList() override
-    {
-        OnDecDepth();
-    }
-
-    void OnMyBeginMap() override
-    {
-        if (CurrentDepth_++ == PathDepth_) {
-            switch (Expected_) {
-                case EExpectedItem::BeginMap:
-                    ++PathDepth_;
-                    Expected_ = EExpectedItem::Key;
-                    break;
-
-                case EExpectedItem::ListItem:
-                case EExpectedItem::Key:
-                    break;
-
-                default:
-                    Parser_.Stop();
-                    break;
+            case EYsonItemType::BeginMap: {
+                if (expected != EExpectedItem::BeginMapOrList) {
+                    return std::nullopt;
+                }
+                Y_VERIFY(literal.has_value());
+                if (!ParseMapOrAttributesUntilKey(&cursor, *literal)) {
+                    return std::nullopt;
+                }
+                break;
             }
-        }
-    }
-
-    void OnMyKeyedItem(TStringBuf key) override
-    {
-        if (CurrentDepth_ == PathDepth_) {
-            if (Expected_ != EExpectedItem::Key) {
-                Parser_.Stop();
-                return;
+            case EYsonItemType::BeginList: {
+                if (expected != EExpectedItem::BeginMapOrList) {
+                    return std::nullopt;
+                }
+                Y_VERIFY(literal.has_value());
+                int index;
+                if (!TryFromString(*literal, index)) {
+                    return std::nullopt;
+                }
+                if (!ParseListUntilIndex(&cursor, index)) {
+                    return std::nullopt;
+                }
+                break;
             }
-            if (Literal_ == key) {
-                NextToken();
-            }
+            case EYsonItemType::EntityValue:
+                return std::nullopt;
+
+            case EYsonItemType::BooleanValue:
+            case EYsonItemType::Int64Value:
+            case EYsonItemType::Uint64Value:
+            case EYsonItemType::DoubleValue:
+            case EYsonItemType::StringValue:
+                if (expected != EExpectedItem::Value) {
+                    return std::nullopt;
+                }
+                return ParseValue(&cursor);
+            case EYsonItemType::EndOfStream:
+            case EYsonItemType::EndMap:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::EndList:
+                YT_ABORT();
         }
     }
+}
 
-    void OnMyEndMap() override
-    {
-        OnDecDepth();
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    void OnMyBeginAttributes() override
-    {
-        if (CurrentDepth_++ == PathDepth_) {
-            switch (Expected_) {
-                case EExpectedItem::BeginAttribute:
-                    ++PathDepth_;
-                    Expected_ = EExpectedItem::Key;
-                    break;
-
-                case EExpectedItem::BeginMap:
-                case EExpectedItem::Key:
-                case EExpectedItem::ListItem:
-                case EExpectedItem::Value:
-                    break;
-
-                default:
-                    Parser_.Stop();
-                    break;
-            }
-        }
-    }
-
-    void OnMyEndAttributes() override
-    {
-        OnDecDepth();
-    }
-
-    void OnMyRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
-    { }
-
-    void Parse(TStringBuf input)
-    {
-        Parser_.Parse(input);
-    }
-
-    typedef std::variant<TNullLiteralValue, bool, i64, ui64, double, TString> TResult;
-
-    DEFINE_BYREF_RO_PROPERTY(TResult, Result, std::in_place_type_t<TNullLiteralValue>());
-
-private:
-    TTokenizer Tokenizer_;
-    const bool IsAny_ = false;
-
-    EExpectedItem Expected_ = EExpectedItem::Initial;
-    TString Literal_;
-    int ListIndex_ = 0;
-    int CurrentListIndex_ = 0;
-    int CurrentDepth_ = 0;
-    int PathDepth_ = 0;
-
-    TStringStream ResultStream_;
-    std::unique_ptr<NYson::IFlushableYsonConsumer> ResultWriter_;
-
-    TStatelessYsonParser Parser_;
-
-    void OnDecDepth()
-    {
-        if (--CurrentDepth_ < PathDepth_) {
-            Parser_.Stop();
-        }
-    }
-
-    template <typename T>
-    void OnValue(const T& t)
-    {
-        if (CurrentDepth_ == PathDepth_ && Expected_ == EExpectedItem::Value) {
-            Result_ = t;
-            Parser_.Stop();
-        }
-    }
-
-    void OnStringValue(TStringBuf t)
-    {
-        if (CurrentDepth_ == PathDepth_ && Expected_ == EExpectedItem::Value) {
-            Result_ = TString(t);
-            Parser_.Stop();
-        }
-    }
-
-    void OnForwardingFinished()
-    { }
-
-    void NextToken()
-    {
-        Expected_ = EExpectedItem::Initial;
-        while (true) {
-            ETokenType type = Tokenizer_.Advance();
-            switch (type) {
-                case ETokenType::EndOfStream:
-                    if (Expected_ != EExpectedItem::Initial) {
-                        THROW_ERROR_EXCEPTION(
-                            "Unexpected YPath ending while parsing %Qv",
-                            Tokenizer_.GetPrefix());
-                    }
-
-                    if (IsAny_) {
-                        Forward(ResultWriter_.get(), [this] {
-                            ResultWriter_->Flush();
-                            Result_ = ResultStream_.Str();
-                            Parser_.Stop();
-                        });
-                    } else {
-                        Expected_ = EExpectedItem::Value;
-                    }
-                    return;
-
-                case ETokenType::Slash:
-                    if (Expected_ != EExpectedItem::Initial) {
-                        UnexpectedToken();
-                    }
-                    Expected_ = EExpectedItem::BeginMap;
-                    break;
-
-                case ETokenType::At:
-                    if (Expected_ != EExpectedItem::BeginMap) {
-                        UnexpectedToken();
-                    }
-                    Expected_ = EExpectedItem::BeginAttribute;
-                    break;
-
-                case ETokenType::Literal:
-                    if (Expected_ != EExpectedItem::BeginMap && Expected_ != EExpectedItem::BeginAttribute) {
-                        UnexpectedToken();
-                    }
-                    Literal_ = Tokenizer_.GetLiteralValue();
-                    return;
-
-                default:
-                    UnexpectedToken();
-            }
-        }
-    }
-
-    void UnexpectedToken()
-    {
-        THROW_ERROR_EXCEPTION(
-            "Unexpected YPath token %Qv while parsing %Qv",
-            Tokenizer_.GetToken(),
-            Tokenizer_.GetInput());
-    }
-};
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 std::optional<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = false)
 {
-    TYPathResolver resolver(ypath, isAny);
-    resolver.Parse(yson);
-
-    if (const auto* value = std::get_if<T>(&resolver.Result())) {
+    auto result = NDetail::TryParseImpl(yson, ypath, isAny);
+    if (!result.has_value()) {
+        return std::nullopt;
+    }
+    if (const auto* value = std::get_if<T>(&*result)) {
         return *value;
     }
-
     return {};
 }
 
