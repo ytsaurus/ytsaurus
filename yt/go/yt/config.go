@@ -30,7 +30,7 @@ type Config struct {
 	// In that case, provided host is used for all requests and proxy discovery is disabled.
 	Proxy string
 
-	// RPCProxy pins addres of YT RPC proxy.
+	// RPCProxy pins address of YT RPC proxy.
 	//
 	// If set, proxy discovery is disabled and provided value is used for all requests.
 	//
