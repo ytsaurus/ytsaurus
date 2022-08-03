@@ -1790,7 +1790,7 @@ void TObjectManager::HydraExecuteLeader(
         if (error.IsOK()) {
             responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
         } else {
-            responseKeeper->EndRequest(mutationId, SanitizeWithCurrentHydraContext(error));
+            responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(SanitizeWithCurrentHydraContext(error)));
         }
     }
 }
