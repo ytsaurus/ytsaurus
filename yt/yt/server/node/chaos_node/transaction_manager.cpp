@@ -390,7 +390,14 @@ private:
         // Recreate leases for all active transactions.
         for (auto [transactionId, transaction] : TransactionMap_) {
             auto state = transaction->GetPersistentState();
-            YT_VERIFY(state == transaction->GetTransientState());
+
+            YT_LOG_FATAL_IF(state != transaction->GetTransientState(),
+                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestatmp: %llx)",
+                transactionId,
+                state,
+                transaction->GetTransientState(),
+                transaction->GetStartTimestamp());
+
             if (state == ETransactionState::Active ||
                 state == ETransactionState::PersistentCommitPrepared)
             {
@@ -409,7 +416,10 @@ private:
 
         LeaseTracker_->Stop();
 
+        // Reset all transiently prepared persistent transactions back into active state.
+        // Clear all lease flags.
         for (auto [transactionId, transaction] : TransactionMap_) {
+            transaction->SetPersistentState(transaction->GetPersistentState());
             transaction->SetHasLease(false);
         }
     }
