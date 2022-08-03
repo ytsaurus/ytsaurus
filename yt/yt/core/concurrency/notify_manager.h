@@ -17,9 +17,13 @@ class TNotifyManager
 public:
     explicit TNotifyManager(TIntrusivePtr<NThreading::TEventCount> eventCount);
 
-    TCpuInstant ResetMinEnqueuedAt();
+    TCpuInstant GetMinEnqueuedAt() const;
 
-    void NotifyFromInvoke(TCpuInstant cpuInstant, bool updateEnqueuedAt, int threadCount);
+    TCpuInstant UpdateMinEnqueuedAt(TCpuInstant newMinEnqueuedAt);
+
+    void ResetMinEnqueuedAtIfEqual(TCpuInstant expected);
+
+    void NotifyFromInvoke(TCpuInstant cpuInstant);
 
     // Must be called after DoCancelWait.
     void NotifyAfterFetch(TCpuInstant cpuInstant, TCpuInstant newMinEnqueuedAt);
@@ -32,17 +36,23 @@ public:
 
     virtual int GetQueueSize() const = 0;
 
-    std::atomic<int> WaitingThreads = 0;
+    int GetWaiters();
+    void IncrementWaiters();
+    void DecrementWaiters();
 
 private:
     const TIntrusivePtr<NThreading::TEventCount> EventCount_;
 
     std::atomic<bool> NotifyLock_ = false;
     // LockedInstant is used for debug and check purpose.
-    std::atomic<TCpuInstant> LockedInstant_;
+    std::atomic<TCpuInstant> LockedInstant_ = 0;
     std::atomic<bool> PollingWaiterLock_ = false;
 
-    std::atomic<TCpuInstant> MinEnqueuedAt_ = std::numeric_limits<TCpuInstant>::max();
+    std::atomic<TCpuInstant> MinEnqueuedAt_ = 0;
+
+#ifndef NDEBUG
+    std::atomic<int> WaitingThreads_ = 0;
+#endif
 
     // Returns true if was locked.
     bool UnlockNotifies();

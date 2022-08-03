@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/actions/invoker_detail.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/ypath/token.h>
 
 namespace NYT::NConcurrency {
@@ -43,12 +45,15 @@ public:
             return {};
         }
 
-        ++WaitingThreads;
+        IncrementWaiters();
+        auto finally = Finally([this] {
+            DecrementWaiters();
+        });
 
         while (true) {
             auto cookie = GetEventCount()->PrepareWait();
 
-            auto minEnqueuedAt = ResetMinEnqueuedAt();
+            auto minEnqueuedAt = GetMinEnqueuedAt();
             auto callback = TMpmcInvokerQueue::BeginExecute(action);
 
             if (callback || isStopping()) {
@@ -56,16 +61,18 @@ public:
 
                 if (callback) {
                     YT_ASSERT(action->EnqueuedAt > 0);
-                    minEnqueuedAt = action->EnqueuedAt;
+
+                    // Increment minEnqueuedAt to prevent minEnqueuedAt to be resetted.
+                    minEnqueuedAt = std::max(minEnqueuedAt + 1, action->EnqueuedAt);
+
+                    auto cpuInstant = GetCpuInstant();
+                    NotifyAfterFetch(cpuInstant, minEnqueuedAt);
                 }
-
-                auto cpuInstant = GetCpuInstant();
-                NotifyAfterFetch(cpuInstant, minEnqueuedAt);
-
-                --WaitingThreads;
 
                 return callback;
             }
+
+            ResetMinEnqueuedAtIfEqual(minEnqueuedAt);
 
             Wait(cookie, isStopping);
             TMpmcInvokerQueue::EndExecute(action);
@@ -79,8 +86,7 @@ public:
             /*profilingTag*/ 0,
             /*profilerTag*/ nullptr);
 
-        auto threadCount = ThreadCount_.load();
-        NotifyFromInvoke(cpuInstant, true, threadCount);
+        NotifyFromInvoke(cpuInstant);
     }
 
     void Configure(int threadCount)
