@@ -512,7 +512,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
 
         // Make a copy, transaction may die.
         auto identity = transaction->AuthenticationIdentity();
@@ -533,14 +533,30 @@ public:
         transaction->SetPersistentState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
-        RunAbortTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        if (transaction->GetTransient()) {
+            YT_LOG_ALERT_UNLESS(transaction->Actions().empty(),
+                "Transient transaction has actions during abort "
+                "(TransactionId: %v, ActionCount: %v)",
+                transaction->GetId(),
+                transaction->Actions().size());
+        } else {
+            RunAbortTransactionActions(transaction, options);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Transaction aborted (TransactionId: %v, Force: %v, Transient: %v)",
             transactionId,
-            options.Force);
+            options.Force,
+            transaction->GetTransient());
 
         FinishTransaction(transaction);
-        PersistentTransactionMap_.Remove(transactionId);
+
+        if (transaction->GetTransient()) {
+            TransientTransactionMap_.Remove(transactionId);
+        } else {
+            PersistentTransactionMap_.Remove(transactionId);
+        }
     }
 
     void PingTransaction(TTransactionId transactionId, bool pingAncestors)

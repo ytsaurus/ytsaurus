@@ -300,9 +300,7 @@ public:
 
         AbortLocklessRows(transaction);
         AbortLockedRows(transaction);
-
-        auto transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
-        YT_VERIFY(transientWriteState->PrelockedRows.empty());
+        AbortPrelockedRows(transaction);
 
         OnTransactionFinished(transaction);
     }
