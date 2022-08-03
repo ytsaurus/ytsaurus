@@ -210,12 +210,14 @@ TSolomonExporter::TSolomonExporter(
     if (config->ReportRestart) {
         TProfiler profiler{registry, ""};
 
-        profiler.AddFuncGauge(
-            "/server/restarted_5min_ago",
-            MakeStrong(this),
-            [this] {
-                return (TInstant::Now() - StartTime_ < TDuration::Minutes(5)) ? 1.0 : 0.0;
-            });
+        for (auto window : {1, 5, 30}) {
+            profiler
+                .WithRequiredTag("window", ToString(window) + "min")
+                .AddFuncGauge("/server/restarted", MakeStrong(this), [this, window] {
+                    return (TInstant::Now() - StartTime_ < TDuration::Minutes(window)) ? 1.0 : 0.0;
+                });
+        }
+
     }
 }
 
