@@ -63,13 +63,15 @@ public:
 
     //! Returns the range of data file containing the requested record
     //! (including header and padding).
+    //! Fails if changelog does not contain the requested record.
     /*
      *  \note
      *  Thread affinity: any
      */
     std::pair<i64, i64> GetRecordRange(int recordIndex) const;
 
-    //! Returns the range of data file containing the requested records
+    //! Returns the range of data file containing the requested records or
+    //! |std::nullopt| if changelog does not contain any of the records requested.
     /*!
      *  \param maxBytes
      *  Limits the length of the range (including record headers and padding).
@@ -77,7 +79,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    std::pair<i64, i64> GetRecordsRange(
+    std::optional<std::pair<i64, i64>> FindRecordsRange(
         int firstRecordIndex,
         int maxRecords,
         i64 maxBytes) const;

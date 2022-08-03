@@ -127,18 +127,19 @@ TEST_P(TFileChangelogIndexTest, Append)
     index->Close();
 }
 
-TEST_P(TFileChangelogIndexTest, GetRecordsRange)
+TEST_P(TFileChangelogIndexTest, FindRecordsRange)
 {
     auto index = CreateIndex();
     EXPECT_EQ(EFileChangelogIndexOpenResult::MissingCreated, index->Open());
 
     AppendRecords(index);
 
-    EXPECT_EQ(std::make_pair(static_cast<i64>(1333), static_cast<i64>(1333)), index->GetRecordsRange(/*firstRecordIndex*/ 10, /*maxRecords*/ 100, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(333), static_cast<i64>(333)), index->GetRecordsRange(/*firstRecordIndex*/ 0, /*maxRecords*/ 0, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->GetRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 1, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(633)), index->GetRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->GetRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1));
+    EXPECT_EQ(std::nullopt, index->FindRecordsRange(/*firstRecordIndex*/ 10, /*maxRecords*/ 100, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::make_pair(static_cast<i64>(333), static_cast<i64>(333)), index->FindRecordsRange(/*firstRecordIndex*/ 0, /*maxRecords*/ 0, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 1, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(633)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1));
+    EXPECT_EQ(std::nullopt, index->FindRecordsRange(/*firstRecordIndex*/ 1e9, /*maxRecords*/ 2, /*maxBytes*/ 1));
 
     index->Close();
 }

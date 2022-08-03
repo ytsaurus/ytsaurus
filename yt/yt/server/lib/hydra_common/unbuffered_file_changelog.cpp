@@ -749,9 +749,12 @@ private:
                 maxRecords,
                 maxBytes);
 
-            auto range = Index_->GetRecordsRange(firstRecordIndex, maxRecords, maxBytes);
+            auto optionalRange = Index_->FindRecordsRange(firstRecordIndex, maxRecords, maxBytes);
+            if (!optionalRange) {
+                return {};
+            }
             auto result = DoReadAndParseRange<TRecordHeader>(
-                range,
+                *optionalRange,
                 firstRecordIndex,
                 /*throwError*/ true);
 
