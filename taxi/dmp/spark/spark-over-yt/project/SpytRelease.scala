@@ -17,6 +17,7 @@ object SpytRelease {
     setYtProxies,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
+    ReleaseStep(releaseStepTask(spytPublishLibraries)),
     commitReleaseClientVersion,
     setNextClientVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),

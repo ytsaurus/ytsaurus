@@ -251,7 +251,14 @@ lazy val root = (project in file("."))
       `spark-fork` / pythonBuildAndUpload
     ).value,
     spytMvnInstallSparkFork := (`spark-fork` / sparkMvnInstall).value,
-    spytMvnDeploySparkFork := (`spark-fork` / sparkMvnDeploy).value
+    spytMvnDeploySparkFork := (`spark-fork` / sparkMvnDeploy).value,
+    spytPublishLibraries := Def.sequential(
+      `data-source` / publish,
+      `spark-submit` / publish,
+      `submit-client` / publish,
+      `file-system` / publish,
+      `yt-wrapper` / publish
+    ).value
   )
 
 
