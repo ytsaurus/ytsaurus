@@ -314,7 +314,12 @@ public:
         }
 
         if (enableBatching) {
-            return GetOrCreateSyncBatcher(cellId)->Run();
+            auto batcher = GetOrCreateSyncBatcher(cellId);
+            if (batcher) {
+                return batcher->Run();
+            } else {
+                return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
+            }
         } else {
             return DoSyncWithCore(cellId).ToImmediatelyCancelable();
         }
@@ -342,6 +347,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellToIdToSyncBatcherLock_);
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToSyncBatcher_;
+    bool SyncBatchersInitialized_ = false;
 
     TPeriodicExecutorPtr ReadOnlyCheckExecutor_;
 
@@ -795,12 +801,19 @@ private:
             mailbox->GetCellId());
     }
 
+    void InitSyncBatchers()
+    {
+        auto guard = WriterGuard(CellToIdToSyncBatcherLock_);
+        SyncBatchersInitialized_ = true;
+    }
+
     void CancelSyncBatchers(const TError& error)
     {
         decltype(CellToIdToSyncBatcher_) cellToIdToBatcher;
         {
             auto guard = WriterGuard(CellToIdToSyncBatcherLock_);
             std::swap(cellToIdToBatcher, CellToIdToSyncBatcher_);
+            SyncBatchersInitialized_ = false;
         }
 
         for (const auto& [cellId, batcher] : cellToIdToBatcher) {
@@ -850,6 +863,8 @@ private:
 
     void ReconnectMailboxes()
     {
+        InitSyncBatchers();
+
         for (auto [id, mailbox] : MailboxMap_) {
             YT_VERIFY(!mailbox->GetConnected());
             SendPeriodicPing(mailbox);
@@ -958,8 +973,12 @@ private:
 
         {
             auto writerGuard = WriterGuard(CellToIdToSyncBatcherLock_);
-            auto it = CellToIdToSyncBatcher_.emplace(cellId, std::move(batcher)).first;
-            return it->second;
+            if (SyncBatchersInitialized_) {
+                auto it = CellToIdToSyncBatcher_.emplace(cellId, std::move(batcher)).first;
+                return it->second;
+            } else {
+                return nullptr;
+            }
         }
     }
 
