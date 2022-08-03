@@ -174,7 +174,7 @@ std::vector<TString> TNameTable::GetNames() const
 void FormatValue(TStringBuilderBase* builder, const TNameTable& nameTable, TStringBuf /*spec*/)
 {
     builder->AppendChar('{');
-    bool first = false;
+    bool first = true;
     for (const auto& name : nameTable.GetNames()) {
         if (first) {
             first = false;
