@@ -514,6 +514,13 @@ TNode TTableSchema::ToNode() const
     return result;
 }
 
+TTableSchema TTableSchema::FromNode(const TNode& node)
+{
+    TTableSchema schema;
+    Deserialize(schema, node);
+    return schema;
+}
+
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 {
     return

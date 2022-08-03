@@ -525,6 +525,9 @@ public:
     /// Get yson description of table schema
     TNode ToNode() const;
 
+    /// Parse schema from yson node
+    static NYT::TTableSchema FromNode(const TNode& node);
+
     friend void Deserialize(TTableSchema& tableSchema, const TNode& node);
 };
 
