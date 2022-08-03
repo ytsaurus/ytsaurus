@@ -47,10 +47,9 @@ TEST(TDiscoveryTest, Simple)
     auto MockClient = New<TStrictMockClient>();
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {};
+    std::vector<TString> keys = {"lock_count"};
     NApi::TListNodeOptions options;
     options.Attributes = keys;
-    options.Attributes->push_back("lock_count");
 
     NYson::TYsonString listRet(TStringBuf("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]"));
 

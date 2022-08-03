@@ -109,7 +109,7 @@ void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 
 void TYPathServiceBase::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /*consumer*/,
-    const std::optional<std::vector<TString>>& /*attributeKeys*/,
+    const TAttributeFilter& /*attributeFilter*/,
     bool /*stable*/)
 { }
 
@@ -497,12 +497,12 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
         return wholeYson;
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
-    return SyncYPathGet(node, path, std::nullopt);
+    return SyncYPathGet(node, path, TAttributeFilter());
 }
 
 TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
     const TYPath& path,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -515,8 +515,8 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
 
         writer.OnBeginMap();
 
-        if (attributeKeys) {
-            WriteAttributesFragment(&writer, attributeKeys, /*stable*/false);
+        if (attributeFilter) {
+            WriteAttributesFragment(&writer, attributeFilter, /*stable*/false);
         } else {
             if (builtinAttributeProvider) {
                 std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
@@ -581,11 +581,11 @@ void TSupportsAttributes::GetAttribute(
 {
     context->SetRequestInfo();
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
-    DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
+    DoGetAttribute(path, attributeFilter).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
             context->Reply(ysonOrError);
             return;
@@ -1534,10 +1534,10 @@ public:
 
     void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable) override
     {
-        UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);
+        UnderlyingService_->WriteAttributesFragment(consumer, attributeFilter, stable);
     }
 
     bool ShouldHideAttributes() override

@@ -1137,27 +1137,6 @@ void FromProto(
     statistics->LegacyChunkDataWeight = protoStatistics.legacy_chunk_data_weight();
 }
 
-template <class TStringContainer>
-void ToProto(
-    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
-    const std::optional<TStringContainer>& attributes)
-{
-    if (attributes) {
-        protoAttributes->set_all(false);
-        NYT::ToProto(protoAttributes->mutable_columns(), *attributes);
-    } else {
-        protoAttributes->set_all(true);
-    }
-}
-
-// Instantiate templates.
-template void ToProto(
-    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
-    const std::optional<std::vector<TString>>& attributes);
-template void ToProto(
-    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
-    const std::optional<THashSet<TString>>& attributes);
-
 ////////////////////////////////////////////////////////////////////////////////
 // ENUMS
 ////////////////////////////////////////////////////////////////////////////////

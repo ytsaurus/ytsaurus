@@ -52,12 +52,14 @@ public:
 
     void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable) override
     {
         if (!HasAttributes()) {
             return;
         }
+
+        attributeFilter.ValidateKeysOnly("ephemeral node");
 
         const auto& attributes = Attributes();
 
@@ -69,12 +71,12 @@ public:
         }
 
         THashSet<TString> matchingKeys;
-        if (attributeKeys) {
-            matchingKeys = THashSet<TString>(attributeKeys->begin(), attributeKeys->end());
+        if (attributeFilter) {
+            matchingKeys = THashSet<TString>(attributeFilter.Keys.begin(), attributeFilter.Keys.end());
         }
 
         for (const auto& [key, value] : pairs) {
-            if (!attributeKeys || matchingKeys.find(key) != matchingKeys.end()) {
+            if (!attributeFilter || matchingKeys.find(key) != matchingKeys.end()) {
                 consumer->OnKeyedItem(key);
                 consumer->OnRaw(value);
             }

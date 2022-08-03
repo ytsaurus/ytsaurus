@@ -25,11 +25,11 @@ public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
         bool stable,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool skipEntityMapChildren)
         : Consumer(consumer)
         , Stable_(stable)
-        , AttributeKeys(attributeKeys)
+        , AttributeFilter_(attributeFilter)
         , SkipEntityMapChildren(skipEntityMapChildren)
     { }
 
@@ -41,12 +41,12 @@ public:
 private:
     IAsyncYsonConsumer* const Consumer;
     const bool Stable_;
-    const std::optional<std::vector<TString>> AttributeKeys;
+    const TAttributeFilter AttributeFilter_;
     const bool SkipEntityMapChildren;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->WriteAttributes(Consumer, AttributeKeys, Stable_);
+        node->WriteAttributes(Consumer, AttributeFilter_, Stable_);
 
         static const TString opaqueAttributeName("opaque");
         if (!isRoot &&
@@ -157,7 +157,7 @@ void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     bool skipEntityMapChildren)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
@@ -165,7 +165,7 @@ void VisitTree(
         std::move(root),
         &adapter,
         stable,
-        attributeKeys,
+        attributeFilter,
         skipEntityMapChildren);
 }
 
@@ -173,13 +173,13 @@ void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys,
+    const TAttributeFilter& attributeFilter,
     bool skipEntityMapChildren)
 {
     TTreeVisitor treeVisitor(
         consumer,
         stable,
-        attributeKeys,
+        attributeFilter,
         skipEntityMapChildren);
     treeVisitor.Visit(root);
 }

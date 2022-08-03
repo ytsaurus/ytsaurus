@@ -66,17 +66,19 @@ void TVirtualMapBase::GetSelf(
 {
     YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? NYT::FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
-        attributeKeys,
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
         limit);
+
+    attributeFilter.ValidateKeysOnly("virtual map");
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -92,23 +94,23 @@ void TVirtualMapBase::GetSelf(
             writer.OnBooleanScalar(true);
         }
         if (OwningNode_) {
-            OwningNode_->WriteAttributesFragment(&writer, attributeKeys, false);
+            OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
         }
         writer.OnEndAttributes();
     }
 
     writer.OnBeginMap();
 
-    if (attributeKeys && !attributeKeys->empty()) {
+    if (attributeFilter) {
         for (const auto& key : keys) {
             auto service = FindItemService(key);
             if (service) {
                 writer.OnKeyedItem(key);
                 if (Opaque_) {
-                    service->WriteAttributes(&writer, attributeKeys, false);
+                    service->WriteAttributes(&writer, attributeFilter, false);
                     writer.OnEntity();
                 } else {
-                    auto asyncResult = AsyncYPathGet(service, "", attributeKeys);
+                    auto asyncResult = AsyncYPathGet(service, "", attributeFilter);
                     writer.OnRaw(asyncResult);
                 }
             }
@@ -145,17 +147,19 @@ void TVirtualMapBase::ListSelf(
     TRspList* response,
     const TCtxListPtr& context)
 {
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
-        attributeKeys,
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
         limit);
+
+    attributeFilter.ValidateKeysOnly("virtual map");
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -170,12 +174,12 @@ void TVirtualMapBase::ListSelf(
     }
 
     writer.OnBeginList();
-    if (attributeKeys && !attributeKeys->empty()) {
+    if (attributeFilter) {
         for (const auto& key : keys) {
             auto service = FindItemService(key);
             if (service) {
                 writer.OnListItem();
-                service->WriteAttributes(&writer, attributeKeys, false);
+                service->WriteAttributes(&writer, attributeFilter, false);
                 writer.OnStringScalar(key);
             }
         }
@@ -417,7 +421,7 @@ public:
 
     void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const std::optional<std::vector<TString>>& /*attributeKeys*/,
+        const TAttributeFilter& /*attributeFilter*/,
         bool /*stable*/) override
     { }
 
@@ -486,17 +490,19 @@ void TVirtualListBase::GetSelf(
 {
     YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
-        attributeKeys,
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
         limit);
+
+    attributeFilter.ValidateKeysOnly("virtual list");
 
     i64 size = GetSize();
 
@@ -513,12 +519,12 @@ void TVirtualListBase::GetSelf(
 
     writer.OnBeginList();
 
-    if (attributeKeys && !attributeKeys->empty()) {
+    if (attributeFilter) {
         for (int index = 0; index < limit && index < size; ++index) {
             auto service = FindItemService(index);
             writer.OnListItem();
             if (service) {
-                service->WriteAttributes(&writer, attributeKeys, false);
+                service->WriteAttributes(&writer, attributeFilter, false);
                 if (Opaque_) {
                     writer.OnEntity();
                 } else {

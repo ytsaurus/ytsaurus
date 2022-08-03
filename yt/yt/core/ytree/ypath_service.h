@@ -69,14 +69,14 @@ struct IYPathService
      */
     void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable);
 
     //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
     //! If WriteAttributesFragment writes nothing then this method also does nothing.
     void WriteAttributes(
         NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable);
 
     //! Manages strategy of writing attributes if attribute keys are null.
@@ -143,7 +143,7 @@ protected:
     //! It always write requested attributes and call ShouldHideAttributes.
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable) = 0;
 
 };

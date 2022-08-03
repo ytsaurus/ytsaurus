@@ -144,7 +144,7 @@ message TRspEndCopy
 
 message TReqEnumerate
 {
-    optional NYT.NYTree.NProto.TAttributeKeys attributes = 1;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 1;
     required int64 limit = 2;
 }
 

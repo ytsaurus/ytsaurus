@@ -11,9 +11,11 @@ namespace NYT::NYTree {
 namespace NProto {
 
 class TAttributeDictionary;
-class TAttributeKeys;
+class TAttributeFilter;
 
 } // namespace NProto
+
+struct TAttributeFilter;
 
 class TYsonSerializableLite;
 class TYsonSerializable;

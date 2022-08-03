@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.rpcproxy.TAttributeKeys;
+import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqListNode;
@@ -31,7 +31,8 @@ public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<T
     public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
         if (attributes != null) {
-            builder.body().setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
+            // TODO(max42): switch to modern "attributes" field.
+            builder.body().setLegacyAttributes(attributes.writeTo(TLegacyAttributeKeys.newBuilder()));
         }
         if (maxSize != null) {
             builder.body().setMaxSize(maxSize);

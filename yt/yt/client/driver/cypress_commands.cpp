@@ -115,8 +115,10 @@ void TRemoveCommand::DoExecute(ICommandContextPtr context)
 TListCommand::TListCommand()
 {
     RegisterParameter("path", Path);
+    // NB: default value is an empty filter in contrast to GetCommand, for which it is the universal filter.
+    // Refer to YT-5543 for details.
     RegisterParameter("attributes", Options.Attributes)
-        .Default(std::vector<TString>());
+        .Default(TAttributeFilter({}, {}));
     // TODO(babenko): rename to "limit"
     RegisterParameter("max_size", Options.MaxSize)
         .Optional();

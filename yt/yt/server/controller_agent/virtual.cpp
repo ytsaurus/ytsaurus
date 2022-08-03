@@ -25,6 +25,8 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVirtualStaticTable::TVirtualStaticTable(const THashSet<NChunkClient::TInputChunkPtr>& chunks, TNodeDirectoryPtr nodeDirectory)
@@ -174,9 +176,9 @@ void TVirtualStaticTable::GetSelf(
     TAsyncYsonWriter writer;
 
     if (request->has_attributes()) {
-        auto keys = NYT::FromProto<std::vector<TString>>(request->attributes().keys());
         writer.OnBeginAttributes();
-        DoWriteAttributesFragment(&writer, std::make_optional(keys), false /* stable */);
+        auto attributeFilter = FromProto<TAttributeFilter>(request->attributes());
+        DoWriteAttributesFragment(&writer, attributeFilter, false /*stable*/);
         writer.OnEndAttributes();
     }
     writer.OnEntity();
@@ -194,15 +196,16 @@ void TVirtualStaticTable::GetSelf(
 
 void TVirtualStaticTable::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* consumer,
-    const std::optional<std::vector<TString>>& attributeKeys,
-    bool /* stable */)
+    const TAttributeFilter& attributeFilter,
+    bool /*stable*/)
 {
-    if (!attributeKeys) {
+    if (!attributeFilter) {
         return;
     }
+    attributeFilter.ValidateKeysOnly("virtual static table");
     auto builtinAttributeKeys = GetBuiltinAttributeKeys();
     BuildYsonMapFragmentFluently(consumer)
-        .DoFor(*attributeKeys, [&] (TFluentMap fluent, const TString& key) {
+        .DoFor(attributeFilter.Keys, [&] (TFluentMap fluent, const TString& key) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
             if (builtinAttributeKeys.contains(internedKey)) {
                 fluent

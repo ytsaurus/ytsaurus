@@ -61,7 +61,7 @@ TString ConvertToYsonTextStringStable(const INodePtr& node)
 {
     TStringStream out;
     TYsonWriter writer(&out, EYsonFormat::Text);
-    VisitTree(node, &writer, true, std::nullopt);
+    VisitTree(node, &writer, true, TAttributeFilter());
     writer.Flush();
     return out.Str();
 }
@@ -2308,7 +2308,7 @@ TEST(TSkiffWriter, TestSkippedFields)
         writer->Close()
             .Get()
             .ThrowOnError();
-        
+
         TStringInput resultInput(result);
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
@@ -2331,7 +2331,7 @@ TEST(TSkiffWriter, TestSkippedFields)
         ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
         checkedSkiffParser.ValidateFinished();
     }
-    
+
 }
 
 TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
@@ -2367,7 +2367,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         writer->Close()
             .Get()
             .ThrowOnError();
-        
+
         TStringInput resultInput(result);
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
@@ -2382,7 +2382,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
         checkedSkiffParser.ValidateFinished();
     }
-    
+
 }
 
 TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
@@ -2451,7 +2451,7 @@ TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
     // end
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
-    
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -75,7 +75,7 @@ public:
     TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable) override;
     bool ShouldHideAttributes() override;
 
@@ -267,7 +267,7 @@ private:
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoGetAttribute(
         const TYPath& path,
-        const std::optional<std::vector<TString>>& attributeKeys);
+        const TAttributeFilter& attributeFilter);
 
     static bool DoExistsAttributeFragment(
         TStringBuf key,

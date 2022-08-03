@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TAttributeKeys;
+import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 
 @NonNullApi
 @NonNullFields
@@ -38,11 +38,11 @@ public class ColumnFilter {
         return this;
     }
 
-    public TAttributeKeys.Builder writeTo(TAttributeKeys.Builder builder) {
+    public TLegacyAttributeKeys.Builder writeTo(TLegacyAttributeKeys.Builder builder) {
         if (columns == null) {
             builder.setAll(true);
         } else {
-            builder.addAllColumns(columns);
+            builder.addAllKeys(columns);
         }
         return builder;
     }

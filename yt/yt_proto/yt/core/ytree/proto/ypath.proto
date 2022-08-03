@@ -3,7 +3,6 @@ package NYT.NYTree.NProto;
 import "yt_proto/yt/core/rpc/proto/rpc.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TYPathHeaderExt
@@ -49,14 +48,10 @@ message TCachingHeaderExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TAttributeKeys
-{
-    repeated string keys = 1;
-}
-
 message TReqGet
 {
-    optional TAttributeKeys attributes = 1;
+    // TODO(max42): rename attributes -> attribute_filter
+    optional TAttributeFilter attributes = 1;
     optional int64 limit = 2;
     optional bool ignore_opaque = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary options = 4;
@@ -104,7 +99,7 @@ message TRspRemove
 
 message TReqList
 {
-    optional TAttributeKeys attributes = 1;
+    optional TAttributeFilter attributes = 1;
     optional int64 limit = 2;
 }
 

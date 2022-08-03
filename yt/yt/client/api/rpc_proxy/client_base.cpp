@@ -32,6 +32,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/ytree/attribute_filter.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,7 +216,14 @@ TFuture<TYsonString> TClientBase::GetNode(
 
     req->set_path(path);
 
-    ToProto(req->mutable_attributes(), options.Attributes);
+    // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+    if (options.Attributes) {
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys);
+        ToProto(req->mutable_attributes(), options.Attributes);
+    } else {
+        req->mutable_legacy_attributes()->set_all(true);
+    }
+
     if (options.MaxSize) {
         req->set_max_size(*options.MaxSize);
     }
@@ -243,7 +252,14 @@ TFuture<TYsonString> TClientBase::ListNode(
 
     req->set_path(path);
 
-    ToProto(req->mutable_attributes(), options.Attributes);
+    // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+    if (options.Attributes) {
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys);
+        ToProto(req->mutable_attributes(), options.Attributes);
+    } else {
+        req->mutable_legacy_attributes()->set_all(true);
+    }
+
     if (options.MaxSize) {
         req->set_max_size(*options.MaxSize);
     }
@@ -983,7 +999,7 @@ TFuture<TPullRowsResult> TClientBase::PullRows(
             }
             InsertOrCrash(result.EndReplicationRowIndexes, std::make_pair(tabletId, rowIndex));
         }
-       
+
         result.Rowset = DeserializeRowset(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()),

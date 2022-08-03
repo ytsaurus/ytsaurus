@@ -124,20 +124,20 @@ void TVirtualMulticellMapBase::GetSelf(
 {
     YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
     // NB: Must deal with owning node's attributes here due to thread affinity issues.
-    auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeKeys);
+    auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
 
-    FetchItems(limit, attributeKeys)
+    FetchItems(limit, attributeFilter)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
@@ -195,17 +195,17 @@ void TVirtualMulticellMapBase::ListSelf(
     TRspList* response,
     const TCtxListPtr& context)
 {
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
-    FetchItems(limit, attributeKeys)
+    FetchItems(limit, attributeFilter)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
@@ -369,12 +369,12 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
 
 TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBase::FetchItems(
     i64 limit,
-    const std::optional<std::vector<TString>>& attributeKeys)
+    const TAttributeFilter& attributeFilter)
 {
     auto session = New<TFetchItemsSession>();
     session->Invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
     session->Limit = limit;
-    session->AttributeKeys = attributeKeys;
+    session->AttributeFilter = attributeFilter;
 
     std::vector<TFuture<void>> asyncResults{
         FetchItemsFromLocal(session)
@@ -407,10 +407,10 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
             continue;
         }
         aliveKeys.push_back(key);
-        if (session->AttributeKeys && !session->AttributeKeys->empty()) {
+        if (session->AttributeFilter && !session->AttributeFilter.IsEmpty()) {
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
-            proxy->WriteAttributesFragment(&writer, session->AttributeKeys, false);
+            proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
             asyncAttributes.emplace_back(writer.Finish());
         } else {
             static const auto EmptyYson = MakeFuture(TYsonString());
@@ -455,8 +455,8 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
     req->set_limit(session->Limit);
-    if (session->AttributeKeys) {
-        ToProto(req->mutable_attributes()->mutable_keys(), *session->AttributeKeys);
+    if (session->AttributeFilter) {
+        ToProto(req->mutable_attributes(), session->AttributeFilter);
     }
     batchReq->AddRequest(req, "enumerate");
 
@@ -490,11 +490,11 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
         }).AsyncVia(session->Invoker));
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const std::optional<std::vector<TString>>& attributeKeys)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter& attributeFilter)
 {
     TAsyncYsonWriter writer(EYsonType::MapFragment);
     if (OwningNode_) {
-        OwningNode_->WriteAttributesFragment(&writer, attributeKeys, false);
+        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
     }
     return writer.Finish();
 }
@@ -511,13 +511,13 @@ bool TVirtualMulticellMapBase::NeedSuppressTransactionCoordinatorSync() const
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     i64 limit = request->limit();
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
     auto keys = GetKeys(limit);
 
@@ -531,7 +531,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             protoItem->set_key(ToString(key));
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
-            proxy->WriteAttributesFragment(&writer, attributeKeys, false);
+            proxy->WriteAttributesFragment(&writer, attributeFilter, false);
             asyncValues.push_back(writer.Finish());
         }
     }

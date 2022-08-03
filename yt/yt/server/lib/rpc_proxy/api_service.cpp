@@ -237,29 +237,6 @@ void FromProto(
     }
 }
 
-void FromProto(
-    std::optional<std::vector<TString>>* attributes,
-    const NApi::NRpcProxy::NProto::TAttributeKeys& protoAttributes)
-{
-    if (protoAttributes.all()) {
-        attributes->reset();
-    } else {
-        *attributes = NYT::FromProto<std::vector<TString>>(protoAttributes.columns());
-    }
-}
-
-void FromProto(
-    std::optional<THashSet<TString>>* attributes,
-    const NApi::NRpcProxy::NProto::TAttributeKeys& protoAttributes)
-{
-    if (protoAttributes.all()) {
-        attributes->reset();
-    } else {
-        attributes->emplace();
-        NYT::CheckedHashSetFromProto(&(**attributes), protoAttributes.columns());
-    }
-}
-
 template <class TRequest>
 void SetMutatingOptions(
     TMutatingOptions* options,
@@ -1453,6 +1430,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
         if (request->has_attributes()) {
             FromProto(&options.Attributes, request->attributes());
+        } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
+            // COMPAT(max42): remove when no clients older than Aug22 are there.
+            options.Attributes = TAttributeFilter(FromProto<std::vector<TString>>(request->legacy_attributes().keys()));
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
@@ -1473,8 +1453,9 @@ private:
             options.Options = NYTree::FromProto(request->options());
         }
 
-        context->SetRequestInfo("Path: %v",
-            path);
+        context->SetRequestInfo("Path: %v, AttributeFilter: %v",
+            path,
+            options.Attributes);
 
         ExecuteCall(
             context,
@@ -1497,6 +1478,9 @@ private:
         SetTimeoutOptions(&options, context.Get());
         if (request->has_attributes()) {
             FromProto(&options.Attributes, request->attributes());
+        } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
+            // COMPAT(max42): remove when no clients older than Aug22 are there.
+            options.Attributes = TAttributeFilter(FromProto<std::vector<TString>>(request->legacy_attributes().keys()));
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
@@ -1514,8 +1498,9 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
-        context->SetRequestInfo("Path: %v",
-            path);
+        context->SetRequestInfo("Path: %v, AttributeFilter: %v",
+            path,
+            options.Attributes);
 
         ExecuteCall(
             context,
@@ -2516,18 +2501,23 @@ private:
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
         }
-        if (request->attributes_size() != 0) {
+        if (request->has_attributes()) {
             options.Attributes.emplace();
-            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes());
+            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes().keys());
+        } else if (request->legacy_attributes_size() != 0) {
+            // COMPAT(max42): remove when no clients older than Aug22 are there.
+            options.Attributes.emplace();
+            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->legacy_attributes());
         }
         options.IncludeRuntime = request->include_runtime();
         if (request->has_maximum_cypress_progress_age()) {
             options.MaximumCypressProgressAge = FromProto<TDuration>(request->maximum_cypress_progress_age());
         }
 
-        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
+        context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v, Attributes: %v",
             operationIdOrAlias,
-            options.IncludeRuntime);
+            options.IncludeRuntime,
+            options.Attributes);
 
         ExecuteCall(
             context,
@@ -2597,13 +2587,18 @@ private:
         options.Limit = request->limit();
 
         if (request->has_attributes()) {
-            FromProto(&options.Attributes, request->attributes());
+            options.Attributes.emplace();
+            FromProto(&(*options.Attributes), request->attributes().keys());
+        } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
+            // COMPAT(max42): remove when no clients older than Aug22 are there.
+            options.Attributes.emplace();
+            FromProto(&(*options.Attributes), request->legacy_attributes().keys());
         }
 
         options.EnableUIMode = request->enable_ui_mode();
 
         context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
-            "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
+            "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v, Attributes: %v",
             options.IncludeArchive,
             options.FromTime,
             options.ToTime,
@@ -2612,7 +2607,8 @@ private:
             ConvertToYsonString(options.AccessFilter, EYsonFormat::Text),
             options.StateFilter,
             options.TypeFilter,
-            options.SubstrFilter);
+            options.SubstrFilter,
+            options.Attributes);
 
         ExecuteCall(
             context,
@@ -2868,12 +2864,18 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         if (request->has_attributes()) {
-            FromProto(&options.Attributes, request->attributes());
+            options.Attributes.emplace();
+            FromProto(&(*options.Attributes), request->attributes().keys());
+        } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
+            // COMPAT(max42): remove when no clients older than Aug22 are there.
+            options.Attributes.emplace();
+            FromProto(&(*options.Attributes), request->legacy_attributes().keys());
         }
 
-        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Attributes: %v",
             operationIdOrAlias,
-            jobId);
+            jobId,
+            options.Attributes);
 
         ExecuteCall(
             context,

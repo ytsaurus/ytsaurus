@@ -917,11 +917,11 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             ICypressManagerPtr cypressManager,
             ISecurityManagerPtr securityManager,
             TTransaction* transaction,
-            std::optional<std::vector<TString>> attributeKeys)
+            TAttributeFilter attributeFilter)
             : CypressManager_(std::move(cypressManager))
             , SecurityManager_(std::move(securityManager))
             , Transaction_(transaction)
-            , AttributeKeys_(std::move(attributeKeys))
+            , AttributeFilter_(std::move(attributeFilter))
         { }
 
         void Run(TCypressNode* root)
@@ -938,7 +938,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         const ICypressManagerPtr CypressManager_;
         const ISecurityManagerPtr SecurityManager_;
         TTransaction* const Transaction_;
-        const std::optional<std::vector<TString>> AttributeKeys_;
+        const TAttributeFilter AttributeFilter_;
 
         TAsyncYsonWriter Writer_;
 
@@ -951,7 +951,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             }
 
             auto proxy = CypressManager_->GetNodeProxy(trunkChild, Transaction_);
-            proxy->WriteAttributes(&Writer_, AttributeKeys_, false);
+            proxy->WriteAttributes(&Writer_, AttributeFilter_, false);
 
             if (trunkParent && trunkChild->GetOpaque()) {
                 Writer_.OnEntity();
@@ -1027,17 +1027,17 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         }
     };
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     // TODO(babenko): make use of limit
     auto limit = request->has_limit()
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
-        attributeKeys,
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
         limit);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -1046,7 +1046,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         Bootstrap_->GetCypressManager(),
         Bootstrap_->GetSecurityManager(),
         Transaction_,
-        std::move(attributeKeys));
+        std::move(attributeFilter));
     visitor.Run(TrunkNode_);
     visitor.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
@@ -2939,16 +2939,16 @@ void TMapNodeProxy::ListSelf(
         GetPath(),
         Transaction_);
 
-    auto attributeKeys = request->has_attributes()
-        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : std::nullopt;
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
 
     auto limit = request->has_limit()
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
-        attributeKeys,
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
         limit);
 
     TAsyncYsonWriter writer;
@@ -2978,7 +2978,7 @@ void TMapNodeProxy::ListSelf(
 
         if (CheckItemReadPermissions(TrunkNode_, trunkChild, securityManager)) {
             auto proxy = cypressManager->GetNodeProxy(trunkChild, Transaction_);
-            proxy->WriteAttributes(&writer, attributeKeys, false);
+            proxy->WriteAttributes(&writer, attributeFilter, false);
         }
 
         writer.OnStringScalar(key);

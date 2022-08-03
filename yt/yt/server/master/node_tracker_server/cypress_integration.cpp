@@ -79,10 +79,10 @@ public:
 
     void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const TAttributeFilter& attributeFilter,
         bool stable) override
     {
-        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
+        GetTargetProxy()->WriteAttributesFragment(consumer, attributeFilter, stable);
     }
 
 private:

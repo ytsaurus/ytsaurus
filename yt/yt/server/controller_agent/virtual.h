@@ -42,7 +42,7 @@ public:
 
     void DoWriteAttributesFragment(
         NYT::NYson::IAsyncYsonConsumer* consumer,
-        const std::optional<std::vector<TString>>& attributeKeys,
+        const NYTree::TAttributeFilter& attributeFilter,
         bool stable) override;
 
 private:

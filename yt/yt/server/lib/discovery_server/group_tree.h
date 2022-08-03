@@ -13,8 +13,8 @@ public:
     explicit TGroupTree(NLogging::TLogger logger);
     ~TGroupTree();
 
-    NYson::TYsonString List(const NYPath::TYPath& path, const std::optional<std::vector<TString>>& attributeKeys);
-    NYson::TYsonString Get(const NYPath::TYPath& path, const std::optional<std::vector<TString>>& attributeKeys);
+    NYson::TYsonString List(const NYPath::TYPath& path, const NYTree::TAttributeFilter& attributeFilter);
+    NYson::TYsonString Get(const NYPath::TYPath& path, const NYTree::TAttributeFilter& attributeFilter);
     bool Exists(const NYPath::TYPath& path);
 
     TGroupPtr FindGroup(const NYPath::TYPath& path);

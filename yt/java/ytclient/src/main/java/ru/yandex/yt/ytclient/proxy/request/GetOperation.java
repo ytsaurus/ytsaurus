@@ -50,7 +50,8 @@ public class GetOperation extends RequestBase<GetOperation> implements HighLevel
     public void writeTo(RpcClientRequestBuilder<TReqGetOperation.Builder, ?> requestBuilder) {
         TReqGetOperation.Builder builder = requestBuilder.body()
                 .setOperationId(RpcUtil.toProto(guid))
-                .addAllAttributes(attributes)
+                // TODO(max42): switch to modern "attributes" field.
+                .addAllLegacyAttributes(attributes)
                 .setIncludeRuntime(includeRuntime);
 
         if (masterReadOptions != null) {

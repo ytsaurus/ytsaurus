@@ -982,9 +982,12 @@ TFuture<TOperation> TClient::GetOperation(
     NScheduler::ToProto(req, operationIdOrAlias);
 
     ToProto(req->mutable_master_read_options(), options);
+    // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
     if (options.Attributes) {
-        NYT::ToProto(req->mutable_attributes(), *options.Attributes);
+        ToProto(req->mutable_legacy_attributes(), *options.Attributes);
+        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
     }
+
     req->set_include_runtime(options.IncludeRuntime);
     req->set_maximum_cypress_progress_age(ToProto<i64>(options.MaximumCypressProgressAge));
 
@@ -1153,7 +1156,13 @@ TFuture<TListOperationsResult> TClient::ListOperations(
     req->set_include_counters(options.IncludeCounters);
     req->set_limit(options.Limit);
 
-    ToProto(req->mutable_attributes(), options.Attributes);
+    // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+    if (options.Attributes) {
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), *options.Attributes);
+        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+    } else {
+        req->mutable_legacy_attributes()->set_all(true);
+    }
 
     req->set_enable_ui_mode(options.EnableUIMode);
 
@@ -1236,7 +1245,13 @@ TFuture<TYsonString> TClient::GetJob(
     NScheduler::ToProto(req, operationIdOrAlias);
     ToProto(req->mutable_job_id(), jobId);
 
-    ToProto(req->mutable_attributes(), options.Attributes);
+    // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+    if (options.Attributes) {
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), *options.Attributes);
+        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+    } else {
+        req->mutable_legacy_attributes()->set_all(true);
+    }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobPtr& rsp) {
         return TYsonString(rsp->info());
