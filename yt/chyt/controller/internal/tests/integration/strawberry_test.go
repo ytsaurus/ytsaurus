@@ -12,6 +12,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/sleep"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
+	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
@@ -32,13 +33,22 @@ func createAgent(env *yttest.Env, stage string) *strawberry.Agent {
 	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
 
 	config := &strawberry.Config{
-		Root:                  root,
+		Root:                  helpers.StrawberryRoot,
 		PassPeriod:            yson.Duration(time.Millisecond * 500),
 		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
 		Stage:                 stage,
 	}
 
-	agent := strawberry.NewAgent("test", env.YT, l, sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil), config)
+	agent := strawberry.NewAgent(
+		"test",
+		env.YT,
+		l,
+		sleep.NewController(l.WithName("strawberry"),
+			env.YT,
+			helpers.StrawberryRoot,
+			"test",
+			nil),
+		config)
 
 	return agent
 }
@@ -47,9 +57,9 @@ func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 	env, cancel := yttest.NewEnv(t)
 	t.Cleanup(cancel)
 
-	err := env.YT.RemoveNode(env.Ctx, root, &yt.RemoveNodeOptions{Force: true, Recursive: true})
+	err := env.YT.RemoveNode(env.Ctx, helpers.StrawberryRoot, &yt.RemoveNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, root, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
 
 	abortAll(t, env)
@@ -61,11 +71,11 @@ func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 
 func createStrawberryOp(t *testing.T, env *yttest.Env, alias string) {
 	env.L.Debug("creating node", log.String("alias", alias))
-	_, err := env.YT.CreateNode(env.Ctx, root.Child(alias), yt.NodeMap, nil)
+	_, err := env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias), yt.NodeMap, nil)
 	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, root.Child(alias).Child("access"), yt.NodeMap, nil)
+	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access"), yt.NodeMap, nil)
 	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, root.Child(alias).Child("speclet"), yt.NodeDocument, &yt.CreateNodeOptions{
+	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("speclet"), yt.NodeDocument, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"value": map[string]interface{}{
 				"active":                    true,
@@ -82,7 +92,7 @@ func removeNode(t *testing.T, env *yttest.Env, alias string) {
 	env.L.Debug("removing node", log.String("alias", alias))
 	err := env.YT.RemoveNode(
 		env.Ctx,
-		root.Child(alias),
+		helpers.StrawberryRoot.Child(alias),
 		&yt.RemoveNodeOptions{
 			Recursive: true,
 		})
@@ -113,7 +123,7 @@ func getOpletState(t *testing.T, env *yttest.Env, alias string) opletState {
 		"strawberry_persistent_state", "strawberry_info_state", "revision", "value",
 	}
 
-	err := env.YT.GetNode(env.Ctx, root.Child(alias), &node, &yt.GetNodeOptions{Attributes: attributes})
+	err := env.YT.GetNode(env.Ctx, helpers.StrawberryRoot.Child(alias), &node, &yt.GetNodeOptions{Attributes: attributes})
 	require.NoError(t, err)
 
 	return opletState{
@@ -127,23 +137,23 @@ func getOpletState(t *testing.T, env *yttest.Env, alias string) opletState {
 
 func setAttr(t *testing.T, env *yttest.Env, alias string, attr string, value interface{}) {
 	env.L.Debug("setting attribute", log.String("attr", alias+"/@"+attr))
-	err := env.YT.SetNode(env.Ctx, root.Child(alias).Attr(attr), value, nil)
+	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Attr(attr), value, nil)
 	require.NoError(t, err)
 }
 
 func setSpecletOption(t *testing.T, env *yttest.Env, alias string, option string, value interface{}) {
 	env.L.Debug("setting speclet option", log.String("alias", alias), log.String("option", option), log.Any("value", value))
-	err := env.YT.SetNode(env.Ctx, root.Child(alias).Child("speclet").Child(option), value, nil)
+	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("speclet").Child(option), value, nil)
 	require.NoError(t, err)
 }
 
 func setACL(t *testing.T, env *yttest.Env, alias string, acl []yt.ACE) {
-	err := env.YT.SetNode(env.Ctx, root.Child(alias).Child("access").Attr("acl"), acl, nil)
+	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access").Attr("acl"), acl, nil)
 	require.NoError(t, err)
 	// TODO(dakovalkov): Changing ACL does not change the revision now.
 	// We set user attribute now to force changing the revision.
 	// Remove it after https://st.yandex-team.ru/YT-16169.
-	err = env.YT.SetNode(env.Ctx, root.Child(alias).Child("access").Attr("_idm_integration"), true, nil)
+	err = env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access").Attr("_idm_integration"), true, nil)
 	require.NoError(t, err)
 }
 

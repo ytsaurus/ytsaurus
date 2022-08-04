@@ -154,7 +154,7 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     @authors("max42")
     @pytest.mark.parametrize("bin_args", [("yt/python/yt/clickhouse/bin/py2/chyt", ""),
                                           ("yt/python/yt/wrapper/bin/yt_make/yt", "clickhouse")])
-    def test_cli(self, bin_args):
+    def test_cli_simple(self, bin_args):
         yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"},
                                                              {"name": "b", "type": "string"}]})
         yt.write_table("//tmp/t", [{"a": 1, "b": "foo"},

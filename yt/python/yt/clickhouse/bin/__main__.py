@@ -190,7 +190,7 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "trace", "prefix", "proxy", "config", "params"):
+    for key in ("func", "trace", "prefix", "proxy", "config", "params", "last_parser"):
         if key in func_args:
             func_args.pop(key)
 

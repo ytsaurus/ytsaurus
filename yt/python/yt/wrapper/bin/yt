@@ -18,6 +18,7 @@ from yt.wrapper.spec_builders import (
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
     VanillaSpecBuilder)
 import yt.wrapper.cli_impl as cli_impl
+import yt.wrapper.clickhouse_ctl as chyt_ctl
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
 import yt.wrapper.completers as completers
@@ -38,7 +39,7 @@ import fnmatch
 import shlex
 import signal
 import time
-from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
+from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter, SUPPRESS
 from datetime import datetime
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
@@ -66,8 +67,7 @@ Transaction commands:
     start-tx, commit-tx, abort-tx, ping-tx,
     lock, unlock
 ACL (permission) commands:
-    check-permission, add-member, remove-member,
-    acl, acl show, acl request
+    check-permission, add-member, remove-member
 Operation tools:
     shuffle, transform
 Diagnostics:
@@ -225,7 +225,7 @@ class ParseMemoryLimit(Action):
             values = yt.common.MB * int(values)
         setattr(namespace, self.dest, values)
 
-def add_argument(parser, name, help, description, aliases=[], **kwargs):
+def add_argument(parser, name, help=None, description=None, aliases=[], **kwargs):
     if description:
         if help:
             if help.endswith("."):
@@ -248,7 +248,8 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
                               help=help,
                               description=description,
                               nargs="?",
-                              action=DoNotReplaceAction, **kwargs)
+                              action=DoNotReplaceAction,
+                              **kwargs)
     # Optional argument
     if dest is not None:
         kwargs["dest"] = dest
@@ -1861,6 +1862,133 @@ def add_clickhouse_execute_parser(add_parser):
                         default="TabSeparated")
     parser.add_argument("--setting", action="append", help="Add ClickHouse setting to query in format <key>=<value>.")
 
+def clickhouse_ctl_handler(**kwards):
+    address = kwards.pop("address")
+    command_name = kwards.pop("command_name")
+    parser = kwards.pop("parser")
+    proxy_choises = kwards.pop("proxy_choises")
+    cluster_proxy = yt.config["proxy"]["url"]
+    params = kwards
+    # We pass command arguments as strings, so backend should parse them by itself.
+    unparsed = True
+
+    if cluster_proxy not in proxy_choises:
+        address = chyt_ctl.get_full_ctl_address(address)
+        msg = "bad cluster proxy choice: {}\n".format(cluster_proxy)
+        msg += "controller {} serves only following clusters: {}\n".format(address, proxy_choises)
+        msg += "set up proper cluster proxy via --proxy option or via YT_PROXY env variable"
+        parser.error(msg)
+
+    try:
+        while True:
+            response = chyt_ctl.make_request(
+                command_name=command_name,
+                params=params,
+                address=address,
+                cluster_proxy=cluster_proxy,
+                unparsed=unparsed)
+
+            if "to_print" in response:
+                print(response["to_print"])
+            elif "result" in response:
+                print(yson.dumps(response["result"], yson_format="pretty").decode("utf-8"))
+
+            if "wait_ready" in response:
+                command_name = response["wait_ready"]["command_name"]
+                params = response["wait_ready"]["params"]
+                unparsed = False
+                time.sleep(response["wait_ready"]["backoff"])
+            else:
+                break
+    except Exception as e:
+        msg = "failed to execute the command in controller service\n"
+        msg += str(e)
+        parser.error(msg)
+
+    if "error" in response:
+        exit(2)
+
+def add_clickhouse_ctl_parser(add_parser):
+    address_parser = ArgumentParser(add_help=False)
+    address_parser.add_argument("--address", help="сontroller service address")
+    # "help" option should not be handled before we fetch and register all available commands.
+    # We will add it manually later.
+    parser = add_parser("ctl", add_help=False, pythonic_help="CHYT clique controller", parents=[address_parser])
+    # Create "subparsers" immediately to show the semantic that "command" argument is expected.
+    # Otherwise argcomplete goes crazy. Nevertheless, "subparsers" are empty before calling "register_commands".
+    subparsers = parser.add_subparsers(metavar="command", **SUBPARSER_KWARGS)
+    add_cmd_subparser = add_subparser(subparsers, params_argument=False)
+
+    def register_commands(address):
+        try:
+            api_structure = chyt_ctl.describe_api(address)
+        except Exception as e:
+            msg = "failed to fetch available commands from controller service\n"
+            msg += str(e)
+            parser.error(msg)
+
+        parser.add_argument("-h", "--help", action="help", default=SUPPRESS,
+                help="show this help message and exit")
+
+        parser.set_defaults(proxy_choises=api_structure["clusters"])
+
+        for command in api_structure["commands"]:
+            subparser = add_cmd_subparser(
+                command["name"].replace("_", "-"),
+                clickhouse_ctl_handler,
+                pythonic_help=command.get("description"))
+            subparser.set_defaults(command_name=command["name"], parser=subparser)
+
+            for param in command.get("parameters", []):
+                required = param.get("required", False)
+                env_variable = param.get("env_variable")
+                # Parameter is passed as a positional argument if it is required and can not be set implicitly via an env variable.
+                as_positional_argument = required and not env_variable
+                name = param["name"]
+                aliases = [("-" if len(a) == 1 else "--") + a.replace("_", "-") for a in param.get("aliases", [])]
+                description = param.get("description")
+
+                default_value = None
+                if env_variable:
+                    # We add prefix "CHYT_" for all ctl-related env variables to prevent stealing
+                    # sensitive env variables if controller is compromised.
+                    default_value = os.getenv("CHYT_" + env_variable)
+                    description_ext = "default value can be set via CHYT_{} env variable".format(env_variable)
+
+                    if default_value is not None:
+                        description_ext += " (current value: \"{}\")".format(default_value)
+                        # If there is a default value, the parameter is not required anymore.
+                        required = False
+
+                    if description:
+                        description += "; " + description_ext
+                    else:
+                        description = description_ext
+
+                if as_positional_argument:
+                    add_argument(
+                        subparser,
+                        name,
+                        description=description)
+                else:
+                    add_argument(
+                        subparser,
+                        "--" + name.replace("_", "-"),
+                        action=param.get("action"),
+                        description=description,
+                        required=required,
+                        aliases=aliases,
+                        default=default_value)
+
+    # We replace original "parse_known_args" with our implementation, which fetches and registers available commands before parsing.
+    do_parse_known_args = parser.parse_known_args
+    def parse_known_args(*args, **kwargs):
+        parsed_address, unparsed = address_parser.parse_known_args(*args, **kwargs)
+        register_commands(parsed_address.address)
+        return do_parse_known_args(*args, **kwargs)
+
+    parser.parse_known_args = parse_known_args
+
 def add_clickhouse_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
 
@@ -1869,6 +1997,7 @@ def add_clickhouse_parser(root_subparsers):
     add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
     add_clickhouse_start_clique_parser(add_clickhouse_subparser)
     add_clickhouse_execute_parser(add_clickhouse_subparser)
+    add_clickhouse_ctl_parser(add_clickhouse_subparser)
 
 @copy_docstring_from(yt.start_spark_cluster)
 def start_spark_cluster_handler(*args, **kwargs):
@@ -2191,7 +2320,14 @@ def main():
 
     yt.config["default_value_of_raw_option"] = True
 
-    args = parser.parse_args(unparsed)
+    args, unrecognized = parser.parse_known_args(unparsed)
+
+    if unrecognized:
+        msg = "unrecognized arguments: {}".format(' '.join(unrecognized))
+        if hasattr(args, "last_parser"):
+            args.last_parser.error(msg)
+        else:
+            parser.error(msg)
 
     func_args = dict(vars(args))
 
@@ -2200,7 +2336,8 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config",
+        "master_cell_id", "params", "last_parser"):
         if key in func_args:
             func_args.pop(key)
 
