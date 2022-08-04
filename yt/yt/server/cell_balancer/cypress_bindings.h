@@ -9,8 +9,6 @@
 
 namespace NYT::NCellBalancer {
 
-using namespace NTabletClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
@@ -49,9 +47,10 @@ inline static const TString PeerStateLeading = "leading";
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TDerived>
-struct TYsonStructAttributes
+class TYsonStructAttributes
     : public NYTree::TYsonStruct
 {
+public:
     static std::vector<TString> GetAttributes()
     {
         return Attributes_;
@@ -166,7 +165,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellInfo)
 struct TBundleInfo
     : public TYsonStructAttributes<TBundleInfo>
 {
-    ETabletCellHealth Health;
+    NTabletClient::ETabletCellHealth Health;
     TString Zone;
     TString NodeTagFilter;
 
@@ -193,7 +192,7 @@ struct TZoneInfo
     TString YPCluster;
     TString NannyService;
 
-    int MaxTabletNodesCount;
+    int MaxTabletNodeCount;
 
     TBundleConfigPtr SpareTargetConfig;
     double DisruptedThresholdFactor;

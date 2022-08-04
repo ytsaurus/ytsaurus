@@ -25,10 +25,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellBalancerLogger;
-static const TString TabletCellBundlesPath("//sys/tablet_cell_bundles");
-static const TString TabletNodesPath("//sys/tablet_nodes");
-static const TString TabletCellsPath("//sys/tablet_cells");
+static const auto& Logger = BundleController;
+static const TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
+static const TYPath TabletNodesPath("//sys/tablet_nodes");
+static const TYPath TabletCellsPath("//sys/tablet_cells");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,9 +40,9 @@ public:
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , Profiler("/bundle_controller")
-        , SuccessfulScanBundlesCounter_(Profiler.Counter("/successful_scan_bundles_count"))
-        , FailedScanBundlesCounter_(Profiler.Counter("/failed_scan_bundles_count"))
-        , AlarmsCounter_(Profiler.Counter("/scan_bundles_alarms_count"))
+        , SuccessfulScanBundleCounter_(Profiler.Counter("/successful_scan_bundles_count"))
+        , FailedScanBundleCounter_(Profiler.Counter("/failed_scan_bundles_count"))
+        , AlarmCounter_(Profiler.Counter("/scan_bundles_alarms_count"))
     { }
 
     void Start() override
@@ -69,11 +69,11 @@ private:
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     const TProfiler Profiler;
-    TCounter SuccessfulScanBundlesCounter_;
-    TCounter FailedScanBundlesCounter_;
-    TCounter AlarmsCounter_;
+    TCounter SuccessfulScanBundleCounter_;
+    TCounter FailedScanBundleCounter_;
+    TCounter AlarmCounter_;
 
-    void ScanBundles()
+    void ScanBundles() const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -85,18 +85,18 @@ private:
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
                 DoScanBundles();
-                SuccessfulScanBundlesCounter_.Increment();
+                SuccessfulScanBundleCounter_.Increment();
             }
-        } catch (TErrorException& ex) {
+        } catch (const TErrorException& ex) {
             YT_LOG_ERROR(ex, "Scanning bundles failed");
-            FailedScanBundlesCounter_.Increment();
+            FailedScanBundleCounter_.Increment();
         }
     }
 
-    std::vector<TString> GetAliveAllocationsId(const TSchedulerInputState& context)
+    static std::vector<TString> GetAliveAllocationsId(const TSchedulerInputState& inputState)
     {
         std::vector<TString> result;
-        for (const auto& [_, bundleState] : context.States) {
+        for (const auto& [_, bundleState] : inputState.BundleStates) {
             for (const auto& [allocId, _] : bundleState->Allocations) {
                 result.push_back(allocId);
             }
@@ -105,10 +105,10 @@ private:
         return result;
     }
 
-    std::vector<TString> GetAliveDeallocationsId(const TSchedulerInputState& context)
+    static std::vector<TString> GetAliveDeallocationsId(const TSchedulerInputState& inputState)
     {
         std::vector<TString> result;
-        for (const auto& [_, bundleState] : context.States) {
+        for (const auto& [_, bundleState] : inputState.BundleStates) {
             for (const auto& [deallocId, _] : bundleState->Deallocations) {
                 result.push_back(deallocId);
             }
@@ -117,48 +117,49 @@ private:
         return result;
     }
 
-    void DoScanBundles()
+    void DoScanBundles() const
     {
-        YT_LOG_DEBUG("Starting scan bundles");
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        ITransactionPtr transaction = CreateTransaction();
-        auto context = GetInputState(transaction);
-        TSchedulerMutatingContext mutations;
+        YT_LOG_DEBUG("Bundles scan started");
 
-        ScheduleBundles(context, &mutations);
+        auto transaction = CreateTransaction();
+        auto inputState = GetInputState(transaction);
+        TSchedulerMutations mutations;
+
+        ScheduleBundles(inputState, &mutations);
         Mutate(transaction, mutations);
 
-        transaction->Commit();
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
     }
 
-    inline static const TString  NODE_ATTRIBUTE_BUNDLE_CONTROLLER_ANNOTATIONS = "bundle_controller_annotations";
-    inline static const TString  NODE_ATTRIBUTE_USER_TAGS = "user_tags";
-    inline static const TString  NODE_ATTRIBUTE_DECOMMISSIONED = "decommissioned";
+    inline static const TString  NodeAttributeBundleControllerAnnotations = "bundle_controller_annotations";
+    inline static const TString  NodeAttributeUserTags = "user_tags";
+    inline static const TString  NodeAttributeDecommissioned = "decommissioned";
 
-    void Mutate(const ITransactionPtr& transaction, const TSchedulerMutatingContext& mutations)
+    void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
-        SetNodeAttributes(transaction, NODE_ATTRIBUTE_BUNDLE_CONTROLLER_ANNOTATIONS, mutations.ChangeNodeAnnotations);
-        SetNodeAttributes(transaction, NODE_ATTRIBUTE_USER_TAGS, mutations.ChangedNodeUserTags);
-        SetNodeAttributes(transaction, NODE_ATTRIBUTE_DECOMMISSIONED, mutations.ChangedDecommissionedFlag);
+        SetNodeAttributes(transaction, NodeAttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
+        SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
+        SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
 
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
         // TODO(capone212): Fire alarms.
-        if (!mutations.AlertsToFire.empty()) {
-            AlarmsCounter_.Increment(mutations.AlertsToFire.size());
-        }
+        AlarmCounter_.Increment(mutations.AlertsToFire.size());
     }
 
-    ITransactionPtr CreateTransaction()
+    ITransactionPtr CreateTransaction() const
     {
         TTransactionStartOptions transactionOptions;
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", "BundleController ScanBundles");
+        attributes->Set("title", "Bundle Controller bundles scan");
         transactionOptions.Attributes = std::move(attributes);
         transactionOptions.Timeout = Config_->BundleScanTransactionTimeout;
 
@@ -168,31 +169,33 @@ private:
             .ValueOrThrow();
     }
 
-    TSchedulerInputState GetInputState(const ITransactionPtr& transaction)
+    TSchedulerInputState GetInputState(const ITransactionPtr& transaction) const
     {
-        TSchedulerInputState context{
+        TSchedulerInputState inputState{
             .Config = Config_,
         };
 
-        context.Zones = CypressGet<TZoneInfo>(transaction, GetZonesPath());
-        context.Bundles = CypressGet<TBundleInfo>(transaction, TabletCellBundlesPath);
-        context.States = CypressGet<TBundleControllerState>(transaction, GetBundlesStatePath());
-        context.TabletNodes = CypressGet<TTabletNodeInfo>(transaction, TabletNodesPath);
-        context.TabletCells = CypressGet<TTabletCellInfo>(transaction, TabletCellsPath);
+        inputState.Zones = CypressGet<TZoneInfo>(transaction, GetZonesPath());
+        inputState.Bundles = CypressGet<TBundleInfo>(transaction, TabletCellBundlesPath);
+        inputState.BundleStates = CypressGet<TBundleControllerState>(transaction, GetBundlesStatePath());
+        inputState.TabletNodes = CypressGet<TTabletNodeInfo>(transaction, TabletNodesPath);
+        inputState.TabletCells = CypressGet<TTabletCellInfo>(transaction, TabletCellsPath);
 
-        context.AllocationRequests = LoadHulkRequests<TAllocationRequest>(transaction,
+        inputState.AllocationRequests = LoadHulkRequests<TAllocationRequest>(
+            transaction,
             {Config_->HulkAllocationsPath, Config_->HulkAllocationsHistoryPath},
-            GetAliveAllocationsId(context));
+            GetAliveAllocationsId(inputState));
 
-        context.DeallocationRequests = LoadHulkRequests<TDeallocationRequest>(transaction,
+        inputState.DeallocationRequests = LoadHulkRequests<TDeallocationRequest>(
+            transaction,
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
-            GetAliveDeallocationsId(context));
+            GetAliveDeallocationsId(inputState));
 
-        return context;
+        return inputState;
     }
 
     template <typename TEntryInfo>
-    static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TString& path)
+    static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TYPath& path)
     {
         TListNodeOptions options;
         options.Attributes = TEntryInfo::GetAttributes();
@@ -203,6 +206,12 @@ private:
 
         TIndexedEntries<TEntryInfo> result;
         for (const auto& entry : entryList->GetChildren()) {
+            if (entry->GetType() != ENodeType::String) {
+                THROW_ERROR_EXCEPTION("Unexpected entry type")
+                    << TErrorAttribute("parent_path", path)
+                    << TErrorAttribute("expected_type", ENodeType::String)
+                    << TErrorAttribute("actual_type", entry->GetType());
+            }
             const auto& name = entry->AsString()->GetValue();
             result[name] = ConvertTo<TIntrusivePtr<TEntryInfo>>(&entry->Attributes());
         }
@@ -211,9 +220,9 @@ private:
     }
 
     template <typename TEntryInfo>
-    void CypressSet(
+    static void CypressSet(
         const ITransactionPtr& transaction,
-        const TString& basePath,
+        const TYPath& basePath,
         const TIndexedEntries<TEntryInfo>& entries)
     {
         for (const auto& [name, entry] : entries) {
@@ -222,13 +231,13 @@ private:
     }
 
     template <typename TEntryInfoPtr>
-    void CypressSet(
+    static void CypressSet(
         const ITransactionPtr& transaction,
-        const TString& basePath,
+        const TYPath& basePath,
         const TString& name,
         const TEntryInfoPtr& entry)
     {
-        auto path = Format("%v/%v", basePath, name);
+        auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(name));
 
         TCreateNodeOptions createOptions;
         createOptions.IgnoreExisting = true;
@@ -245,13 +254,13 @@ private:
     }
 
     template <typename TEntryInfo>
-    void CreateHulkRequests(
+    static void CreateHulkRequests(
         const ITransactionPtr& transaction,
-        const TString& basePath,
+        const TYPath& basePath,
         const TIndexedEntries<TEntryInfo>& requests)
     {
         for (const auto& [requestId, requestBody] : requests) {
-            auto path = Format("%v/%v", basePath, requestId);
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
 
             TCreateNodeOptions createOptions;
             createOptions.Attributes = CreateEphemeralAttributes();
@@ -263,12 +272,16 @@ private:
     }
 
     template <typename TAttribute>
-    void SetNodeAttributes(
+    static void SetNodeAttributes(
         const ITransactionPtr& transaction,
         const TString& attributeName,
-        const THashMap<TString, TAttribute>& attributes) {
+        const THashMap<TString, TAttribute>& attributes)
+    {
         for (const auto& [nodeId, attribute] : attributes) {
-            auto path = Format("%v/%v/@%v", TabletNodesPath, nodeId, attributeName);
+            auto path = Format("%v/%v/@%v",
+                TabletNodesPath,
+                NYPath::ToYPathLiteral(nodeId),
+                NYPath::ToYPathLiteral(attributeName));
 
             TSetNodeOptions setOptions;
             WaitFor(transaction->SetNode(path, ConvertToYsonString(attribute), setOptions))
@@ -277,9 +290,9 @@ private:
     }
 
     template <typename TEntryInfo>
-    TIndexedEntries<TEntryInfo> LoadHulkRequests(
+    static TIndexedEntries<TEntryInfo> LoadHulkRequests(
         const ITransactionPtr& transaction,
-        const std::vector<TString>& basePaths,
+        const std::vector<TYPath>& basePaths,
         const std::vector<TString>& requests)
     {
         TIndexedEntries<TEntryInfo> results;
@@ -295,13 +308,14 @@ private:
     }
 
     template <typename TEntryInfoPtr>
-    TEntryInfoPtr LoadHulkRequest(
+    static TEntryInfoPtr LoadHulkRequest(
         const ITransactionPtr& transaction,
-        const std::vector<TString>& basePaths,
+        const std::vector<TYPath>& basePaths,
         const TString& id)
     {
         for (const auto& basePath: basePaths) {
-            auto path = basePath + "/" + id;
+            auto path = Format("%v/%v", basePath,  NYPath::ToYPathLiteral(id));
+
             if (!WaitFor(transaction->NodeExists(path)).ValueOrThrow()) {
                 continue;
             }
@@ -315,41 +329,47 @@ private:
         return {};
     }
 
-    void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<TString, int>& cellsToCreate) {
-        for (auto& [bundleName, cellsCount] : cellsToCreate) {
+    static void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<TString, int>& cellsToCreate)
+    {
+        for (const auto& [bundleName, cellCount] : cellsToCreate) {
             TCreateObjectOptions createOptions;
             createOptions.Attributes = CreateEphemeralAttributes();
             createOptions.Attributes->Set("tablet_cell_bundle", bundleName);
 
-            for (int index = 0; index < cellsCount; ++index) {
+            for (int index = 0; index < cellCount; ++index) {
                 WaitFor(transaction->CreateObject(EObjectType::TabletCell, createOptions))
                     .ThrowOnError();
             }
         }
     }
 
-    void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TString>& cellsToRemove) {
+    static void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TString>& cellsToRemove)
+    {
         for (const auto& cellId : cellsToRemove) {
             WaitFor(transaction->RemoveNode(Format("%v/%v", TabletCellsPath, cellId)))
                 .ThrowOnError();
         }
     }
 
-    bool IsLeader()
+    bool IsLeader() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetElectionManager()->IsLeader();
     }
 
-    TYPath GetZonesPath()
+    TYPath GetZonesPath() const
     {
-        return Config_->RootPath + "/zones";
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Format("%v/zones", Config_->RootPath);
     }
 
-    TYPath GetBundlesStatePath()
+    TYPath GetBundlesStatePath() const
     {
-        return Config_->RootPath + "/bundles_state";
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Format("%v/bundles_state", Config_->RootPath);
     }
 };
 
