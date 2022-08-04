@@ -86,9 +86,11 @@ import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
+import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TableReq;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
@@ -742,6 +744,22 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getMeta())
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> suspendOperation(SuspendOperation req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.SUSPEND_OPERATION.createRequestBuilder(rpcOptions)),
+                response -> null
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> resumeOperation(ResumeOperation req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.RESUME_OPERATION.createRequestBuilder(rpcOptions)),
+                response -> null
         );
     }
 
