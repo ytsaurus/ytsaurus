@@ -209,7 +209,7 @@ class TTableReaderBase
     : public TThrRefBase
 {
 public:
-    using TRowType = T;
+    using TRowType = typename TRowTraits<T>::TRowType;
     using IReaderImpl = typename TRowTraits<T>::IReaderImpl;
 
     explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)

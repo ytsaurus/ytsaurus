@@ -16,6 +16,7 @@ using namespace NYT::NTesting;
     UNIT_TEST(SimpleYson); \
     UNIT_TEST(SimpleSkiff); \
     UNIT_TEST(SimpleProtobuf); \
+    UNIT_TEST(SimpleSkiffRow); \
     UNIT_TEST(SimpleYaMR); \
     UNIT_TEST(EmptyTable); \
     UNIT_TEST(SmallTable); \
@@ -48,6 +49,88 @@ struct TActualRow<TOwningYaMRRow>
     using TActual = TYaMRRow;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestSkiffRow
+{
+    ui64 Num = 0;
+    TString Str;
+    std::optional<double> PointNum;
+
+    TTestSkiffRow() = default;
+
+    TTestSkiffRow(ui64 num, const TString& str, const std::optional<double>& pointNum)
+        : Num(num)
+        , Str(str)
+        , PointNum(pointNum)
+    { }
+
+    bool operator==(const TTestSkiffRow& other) const
+    {
+        return Num == other.Num && Str == other.Str && PointNum == other.PointNum;
+    }
+};
+
+IOutputStream& operator<<(IOutputStream& ss, const TTestSkiffRow& row)
+{
+    ss << "{ Num: " << row.Num
+        << ", Str: '" << row.Str
+        << "', PointNum: " << (row.PointNum ? std::to_string(*row.PointNum) : "nullopt") << " }";
+    return ss;
+}
+
+template <>
+struct TIsSkiffRow<TTestSkiffRow>
+    : std::true_type
+{ };
+
+class TTestSkiffRowParser
+    : public ISkiffRowParser
+{
+public:
+    TTestSkiffRowParser(TTestSkiffRow* row)
+        : Row_(row)
+    { }
+
+    virtual ~TTestSkiffRowParser() override = default;
+
+    virtual void Parse(NSkiff::TCheckedInDebugSkiffParser* parser) override {
+        Row_->Num = parser->ParseUint64();
+        Row_->Str = parser->ParseString32();
+
+        auto tag = parser->ParseVariant8Tag();
+        if (tag == 1) {
+            Row_->PointNum = parser->ParseDouble();
+        } else {
+            Row_->PointNum = std::nullopt;
+            Y_ENSURE(tag == 0, "tag value must be equal 0 or 1");
+        }
+    }
+
+private:
+    TTestSkiffRow* Row_;
+};
+
+template <>
+ISkiffRowParserPtr NYT::CreateSkiffParser<TTestSkiffRow>(TTestSkiffRow* row)
+{
+    return ::MakeIntrusive<TTestSkiffRowParser>(row);
+}
+
+template <>
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>()
+{
+    return NSkiff::CreateTupleSchema({
+        NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Uint64)->SetName("num"),
+        NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::String32)->SetName("str"),
+        NSkiff::CreateVariant8Schema({
+            CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
+            CreateSimpleTypeSchema(NSkiff::EWireType::Double)})
+        ->SetName("pointNum")});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <bool Ordered>
 class TParallelReaderTest
     : public TTestBase
@@ -61,6 +144,29 @@ public:
     void SimpleSkiff()
     {
         TestNodeReader(ENodeReaderFormat::Skiff);
+    }
+
+    void SimpleSkiffRow()
+    {
+        TVector<TNode> rows;
+        constexpr size_t rowCount = 100;
+        rows.reserve(rowCount);
+        TVector<TTestSkiffRow> expectedRows;
+        expectedRows.reserve(rowCount);
+        for (size_t i = 0; i != rowCount; ++i) {
+            rows.push_back(TNode()("num", i)("str", ToString(i * i)));
+            expectedRows.push_back(TTestSkiffRow(i, ToString(i * i), std::nullopt));
+        }
+        
+        TestReader(
+            "table",
+            rows,
+            expectedRows,
+            {{0, rowCount}},
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .ThreadCount(10)
+                .BufferedRowCountLimit(20));
     }
 
     void SimpleProtobuf()
@@ -383,10 +489,10 @@ private:
 
     // paths must be suffixes of actual path
     // (actual path is built by prepending working dir path).
-    template <typename T>
+    template <typename U, typename T>
     void TestReader(
         TVector<TRichYPath> paths,
-        const TVector<TVector<T>>& rows,
+        const TVector<TVector<U>>& rows,
         const TVector<TVector<T>>& expectedRows,
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
@@ -436,15 +542,15 @@ private:
         UNIT_ASSERT_EQUAL(resultIt, result.end());
     }
 
-    template <typename T>
+    template <typename U, typename T>
     void TestReader(
         const TRichYPath& paths,
-        const TVector<T>& rows,
+        const TVector<U>& rows,
         const TVector<T>& expectedRows,
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
-        TestReader<T>(TVector<TRichYPath>{paths}, TVector<TVector<T>>{rows}, TVector<TVector<T>>{expectedRows}, ranges, options);
+        TestReader<U, T>(TVector<TRichYPath>{paths}, TVector<TVector<U>>{rows}, TVector<TVector<T>>{expectedRows}, ranges, options);
     }
 
     void TestRanges(int tableCount)

@@ -62,16 +62,20 @@ struct TParallelTableReaderOptions
     FLUENT_FIELD_DEFAULT(size_t, BufferedRowCountLimit, 1'000'000'000);
 };
 
+template <typename T>
+struct TParallelRow
+{ };
+
 /// @brief Create parallel reader of several tables.
 template <typename TRow>
-TTableReaderPtr<TRow> CreateParallelTableReader(
+auto CreateParallelTableReader(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
     const TParallelTableReaderOptions& options = TParallelTableReaderOptions{});
 
 /// @brief Create parallel reader of a table.
 template <typename TRow>
-TTableReaderPtr<TRow> CreateParallelTableReader(
+auto CreateParallelTableReader(
     const IClientBasePtr& client,
     const TRichYPath& path,
     const TParallelTableReaderOptions& options = TParallelTableReaderOptions{});
