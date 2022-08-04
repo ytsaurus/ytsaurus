@@ -47,14 +47,7 @@ TTcpBusServerConfig::TTcpBusServerConfig()
         .Default(50000);
     RegisterParameter("networks", Networks)
         .Default({});
-    RegisterParameter("default_network", DefaultNetwork)
-        .Default(DefaultNetworkName);
 
-    RegisterPostprocessor([&] {
-        if (DefaultNetwork && !Networks.contains(*DefaultNetwork) && *DefaultNetwork != DefaultNetworkName) {
-            THROW_ERROR_EXCEPTION("Default network %Qv is not present in network list", DefaultNetwork);
-        }
-    });
 }
 
 TTcpBusServerConfigPtr TTcpBusServerConfig::CreateTcp(int port)

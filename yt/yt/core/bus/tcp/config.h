@@ -70,8 +70,6 @@ public:
     std::optional<TString> UnixDomainSocketPath;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
-    //! "Default" network is considered when checking if the network is under heavy load.
-    std::optional<TString> DefaultNetwork;
 
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
