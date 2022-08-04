@@ -54,45 +54,45 @@ public:
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
         std::vector<IInvokerPtr> feasibleInvokers)
-        : Config(std::move(config))
-        , Host(host)
-        , FeasibleInvokers(std::move(feasibleInvokers))
+        : Config_(std::move(config))
+        , Host_(host)
+        , FeasibleInvokers_(std::move(feasibleInvokers))
         , Logger(StrategyLogger)
     {
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetFairShareProfilingInvoker(),
+            Host_->GetFairShareProfilingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
-            Config->FairShareProfilingPeriod);
+            Config_->FairShareProfilingPeriod);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
+            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
-            Config->FairShareUpdatePeriod);
+            Config_->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetFairShareLoggingInvoker(),
+            Host_->GetFairShareLoggingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
-            Config->FairShareLogPeriod);
+            Config_->FairShareLogPeriod);
 
         AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetFairShareLoggingInvoker(),
+            Host_->GetFairShareLoggingInvoker(),
             BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
-            Config->AccumulatedUsageLogPeriod);
+            Config_->AccumulatedUsageLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
+            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
-            Config->MinNeededResourcesUpdatePeriod);
+            Config_->MinNeededResourcesUpdatePeriod);
 
         ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::Metering),
+            Host_->GetControlInvoker(EControlQueue::Metering),
             BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
-            Config->ResourceMeteringPeriod);
+            Config_->ResourceMeteringPeriod);
 
         ResourceUsageUpdateExecutor_ = New<TPeriodicExecutor>(
-            Host->GetFairShareUpdateInvoker(),
+            Host_->GetFairShareUpdateInvoker(),
             BIND(&TFairShareStrategy::OnUpdateResourceUsages, MakeWeak(this)),
-            Config->ResourceUsageSnapshotUpdatePeriod);
+            Config_->ResourceUsageSnapshotUpdatePeriod);
     }
 
     void OnUpdateResourceUsages()
@@ -111,7 +111,7 @@ public:
 
     void OnMasterConnected() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         FairShareProfilingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
@@ -124,7 +124,7 @@ public:
 
     void OnMasterDisconnected() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         FairShareProfilingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
@@ -157,7 +157,7 @@ public:
 
     void OnMinNeededJobResourcesUpdate()
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_LOG_INFO("Starting min needed job resources update");
 
@@ -178,7 +178,7 @@ public:
 
     void OnLogAccumulatedUsage()
     {
-        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
+        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -217,7 +217,7 @@ public:
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(unknownTreeIds->empty());
 
@@ -230,7 +230,7 @@ public:
         for (const auto& treeId : *unknownTreeIds) {
             treeIdToPoolNameMap.erase(treeId);
         }
-        auto state = New<TFairShareStrategyOperationState>(operation, Config, Host->GetNodeShardInvokers().size());
+        auto state = New<TFairShareStrategyOperationState>(operation, Config_, Host_->GetNodeShardInvokers().size());
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
@@ -257,7 +257,7 @@ public:
 
     void UnregisterOperation(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operation->GetId());
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
@@ -269,7 +269,7 @@ public:
 
     void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operationId);
 
@@ -291,7 +291,7 @@ public:
 
     void DisableOperation(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationId = operation->GetId();
         const auto& state = GetOperationState(operationId);
@@ -307,7 +307,7 @@ public:
 
     void UpdatePoolTrees(const INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<TOperationId> orphanedOperationIds;
         std::vector<TOperationId> changedOperationIds;
@@ -395,7 +395,7 @@ public:
                     << std::move(errors);
             } else {
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
-                    Host->LogEventFluently(&SchedulerEventLogger, ELogEventType::PoolsInfo)
+                    Host_->LogEventFluently(&SchedulerEventLogger, ELogEventType::PoolsInfo)
                         .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
                             const auto& treeId = value.first;
                             const auto& tree = value.second;
@@ -418,7 +418,7 @@ public:
 
     TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<TError> errors;
         for (const auto& [_, tree] : IdToTree_) {
@@ -438,7 +438,7 @@ public:
             }
         }
 
-        Host->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, result);
+        Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, result);
         return result;
     }
 
@@ -449,7 +449,7 @@ public:
 
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!FindOperationState(operationId)) {
             return;
@@ -460,7 +460,7 @@ public:
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!FindOperationState(operationId)) {
             return;
@@ -471,7 +471,7 @@ public:
 
     std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<std::pair<TOperationId, TError>> result;
         for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
@@ -487,10 +487,10 @@ public:
                 const auto& treeName = treePoolPair.first;
                 auto error = GetTree(treeName)->CheckOperationIsHung(
                     operationId,
-                    Config->OperationHangupSafeTimeout,
-                    Config->OperationHangupMinScheduleJobAttempts,
-                    Config->OperationHangupDeactivationReasons,
-                    Config->OperationHangupDueToLimitingAncestorSafeTimeout);
+                    Config_->OperationHangupSafeTimeout,
+                    Config_->OperationHangupMinScheduleJobAttempts,
+                    Config_->OperationHangupDeactivationReasons,
+                    Config_->OperationHangupDueToLimitingAncestorSafeTimeout);
                 if (error.IsOK()) {
                     hasNonHungTree = true;
                     break;
@@ -508,30 +508,30 @@ public:
 
     void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        Config = config;
+        Config_ = config;
 
         for (const auto& [treeId, tree] : IdToTree_) {
-            tree->UpdateControllerConfig(Config);
+            tree->UpdateControllerConfig(Config_);
         }
 
         for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
-            operationState->UpdateConfig(Config);
+            operationState->UpdateConfig(Config_);
         }
 
-        FairShareProfilingExecutor_->SetPeriod(Config->FairShareProfilingPeriod);
-        FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
-        FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
-        AccumulatedUsageLoggingExecutor_->SetPeriod(Config->AccumulatedUsageLogPeriod);
-        MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
-        ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
-        ResourceUsageUpdateExecutor_->SetPeriod(Config->ResourceUsageSnapshotUpdatePeriod);
+        FairShareProfilingExecutor_->SetPeriod(Config_->FairShareProfilingPeriod);
+        FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
+        FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
+        AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
+        MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
+        ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
+        ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
     }
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& operationState = GetOperationState(operation->GetId());
         const auto& pools = operationState->TreeIdToPoolNameMap();
@@ -558,7 +558,7 @@ public:
 
     void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto state = GetOperationState(operation->GetId());
         const auto runtimeParameters = operation->GetRuntimeParameters();
@@ -587,7 +587,7 @@ public:
         EOperationType operationType,
         TOperationId operationId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
@@ -665,7 +665,7 @@ public:
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operation->GetId());
 
@@ -706,14 +706,14 @@ public:
 
     void BuildOrchid(TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
         for (const auto& [treeId, poolTree] : IdToTree_) {
             descriptorsPerPoolTree.emplace(treeId, std::vector<TExecNodeDescriptor>{});
         }
 
-        auto descriptors = Host->CalculateExecNodeDescriptors(TSchedulingTagFilter());
+        auto descriptors = Host_->CalculateExecNodeDescriptors(TSchedulingTagFilter());
         for (const auto& idDescriptorPair : *descriptors) {
             const auto& descriptor = idDescriptorPair.second;
             if (!descriptor.Online) {
@@ -757,7 +757,7 @@ public:
 
     void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -795,7 +795,7 @@ public:
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pools = GetOperationPools(runtimeParameters);
 
@@ -817,7 +817,7 @@ public:
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pools = GetOperationPools(runtimeParameters);
 
@@ -829,7 +829,7 @@ public:
 
     void OnFairShareProfilingAt(TInstant /*now*/) override
     {
-        VERIFY_INVOKER_AFFINITY(Host->GetFairShareProfilingInvoker());
+        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareProfilingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -842,7 +842,7 @@ public:
     // NB: This function is public for testing purposes.
     void OnFairShareUpdateAt(TInstant now) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_LOG_INFO("Starting fair share update");
 
@@ -864,11 +864,11 @@ public:
 
         auto resultsOrError = WaitFor(AllSucceeded(futures));
         if (!resultsOrError.IsOK()) {
-            Host->Disconnect(resultsOrError);
+            Host_->Disconnect(resultsOrError);
             return;
         }
 
-        if (auto delay = Config->StrategyTestingOptions->DelayInsideFairShareUpdate) {
+        if (auto delay = Config_->StrategyTestingOptions->DelayInsideFairShareUpdate) {
             TDelayedExecutor::WaitForDuration(*delay);
         }
 
@@ -897,19 +897,19 @@ public:
         if (!errors.empty()) {
             auto error = TError("Found pool configuration issues during fair share update")
                 << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, error);
+            Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, error);
         } else {
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
+            Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
-        Host->InvokeStoringStrategyState(BuildStrategyState());
+        Host_->InvokeStoringStrategyState(BuildStrategyState());
 
         YT_LOG_INFO("Fair share successfully updated");
     }
 
     void OnFairShareEssentialLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
+        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -921,7 +921,7 @@ public:
 
     void OnFairShareLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
+        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1017,7 +1017,7 @@ public:
 
     void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         THashMap<TString, std::vector<TJobPtr>> jobsByTreeId;
 
@@ -1064,7 +1064,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TFairShareStrategy::DoRegisterOrUpdateNode, MakeStrong(this))
-            .AsyncVia(Host->GetControlInvoker(EControlQueue::NodeTracker))
+            .AsyncVia(Host_->GetControlInvoker(EControlQueue::NodeTracker))
             .Run(nodeId, nodeAddress, tags);
     }
 
@@ -1072,7 +1072,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Host->GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
+        Host_->GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
             BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
                 // NOTE: If node is unregistered from node shard before it becomes online
                 // then its id can be missing in the map.
@@ -1096,7 +1096,7 @@ public:
 
     const THashMap<TString, THashSet<TNodeId>>& GetNodeIdsPerTree() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return NodeIdsPerTree_;
     }
@@ -1197,7 +1197,7 @@ public:
 
     TError InitOperationSchedulingSegment(TOperationId operationId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto state = GetOperationState(operationId);
 
@@ -1224,7 +1224,7 @@ public:
 
     TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TStrategySchedulingSegmentsState result;
         for (const auto& [treeId, tree] : IdToTree_) {
@@ -1236,7 +1236,7 @@ public:
 
     THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> result;
         for (const auto& [treeId, tree] : IdToTree_) {
@@ -1251,7 +1251,7 @@ public:
 
     void ScanPendingOperations() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& [_, tree] : IdToTree_) {
             tree->TryRunAllPendingOperations();
@@ -1260,7 +1260,7 @@ public:
 
     TFuture<void> GetFullFairShareUpdateFinished() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return FairShareUpdateExecutor_->GetExecutedEvent();
     }
@@ -1293,12 +1293,12 @@ private:
     class TPoolTreeService;
     friend class TPoolTreeService;
 
-    TFairShareStrategyConfigPtr Config;
-    ISchedulerStrategyHost* const Host;
+    TFairShareStrategyConfigPtr Config_;
+    ISchedulerStrategyHost* const Host_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    const std::vector<IInvokerPtr> FeasibleInvokers;
+    const std::vector<IInvokerPtr> FeasibleInvokers_;
 
     mutable NLogging::TLogger Logger;
 
@@ -1360,7 +1360,7 @@ private:
         if (spec->TentativePoolTrees) {
             tentativePoolTrees = *spec->TentativePoolTrees;
         } else if (spec->UseDefaultTentativePoolTrees) {
-            tentativePoolTrees = Config->DefaultTentativePoolTrees;
+            tentativePoolTrees = Config_->DefaultTentativePoolTrees;
         }
 
         if (!tentativePoolTrees.empty() && (!spec->PoolTrees || spec->PoolTrees->empty())) {
@@ -1400,7 +1400,7 @@ private:
                 auto nonTentativeOperationTypesInTree = tree->GetConfig()->NonTentativeOperationTypes;
                 const auto& noTentativePoolOperationTypes = nonTentativeOperationTypesInTree
                     ? *nonTentativeOperationTypesInTree
-                    : Config->OperationsWithoutTentativePoolTrees;
+                    : Config_->OperationsWithoutTentativePoolTrees;
                 if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
                         .Name = treeId,
@@ -1544,7 +1544,7 @@ private:
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
         auto state = GetOperationState(operationId);
-        Host->MarkOperationAsRunningInStrategy(operationId);
+        Host_->MarkOperationAsRunningInStrategy(operationId);
 
         if (state->GetEnabled()) {
             tree->EnableOperation(state);
@@ -1579,7 +1579,7 @@ private:
 
         std::vector<TPoolTreesTemplateConfigInfoView> matchedTemplateConfigs;
 
-        for (const auto& [name, value] : Config->TemplatePoolTreeConfigMap) {
+        for (const auto& [name, value] : Config_->TemplatePoolTreeConfigMap) {
             if (value->Filter && NRe2::TRe2::FullMatch(treeId.data(), *value->Filter)) {
                 matchedTemplateConfigs.push_back({name, value.Get()});
             }
@@ -1665,7 +1665,7 @@ private:
                 continue;
             }
 
-            auto tree = CreateFairShareTree(treeConfig, Config, Host, FeasibleInvokers, treeId);
+            auto tree = CreateFairShareTree(treeConfig, Config_, Host_, FeasibleInvokers_, treeId);
             tree->SubscribeOperationRunning(BIND_NO_PROPAGATE(
                 &TFairShareStrategy::OnOperationRunningInTree,
                 Unretained(this),
@@ -1806,7 +1806,7 @@ private:
     {
         for (auto operationId : operationIds) {
             if (OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end()) {
-                Host->AbortOperation(
+                Host_->AbortOperation(
                     operationId,
                     TError("No suitable fair-share trees to schedule operation"));
             }
@@ -1816,7 +1816,7 @@ private:
     void FlushOperationNodes(const std::vector<TOperationId>& operationIds)
     {
         for (auto operationId : operationIds) {
-            Host->FlushOperationNode(operationId);
+            Host_->FlushOperationNode(operationId);
         }
     }
 
@@ -1825,7 +1825,7 @@ private:
         const TString& nodeAddress,
         const TBooleanFormulaTags& tags)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<TString> treeIds;
         for (const auto& [treeId, tree] : IdToTree_) {
@@ -1896,7 +1896,7 @@ private:
         const THashSet<TString> treeIdsToAdd,
         const THashSet<TString> treeIdsToRemove)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& treeId : treeIdsToAdd) {
             EmplaceOrCrash(NodeIdsPerTree_, treeId, THashSet<TNodeId>{});
@@ -1935,7 +1935,7 @@ private:
         TNodeId nodeId,
         const std::optional<TString>& newTreeId)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto it = NodeIdToDescriptor_.find(nodeId);
         YT_VERIFY(it != NodeIdToDescriptor_.end());
@@ -1960,13 +1960,13 @@ private:
 
         currentDescriptor.TreeId = newTreeId;
 
-        Host->AbortJobsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
+        Host_->AbortJobsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
     {
         if (NodeIdsWithoutTree_.empty()) {
-            Host->SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
+            Host_->SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
             return;
         }
 
@@ -1983,7 +1983,7 @@ private:
             nodeAddresses.push_back(GetOrCrash(NodeIdToDescriptor_, nodeId).Address);
         }
 
-        Host->SetSchedulerAlert(
+        Host_->SetSchedulerAlert(
             ESchedulerAlertType::NodesWithoutPoolTree,
             TError("Found nodes that do not match any pool tree")
                 << TErrorAttribute("node_addresses", nodeAddresses)
@@ -2005,7 +2005,7 @@ private:
             .Item("user_to_ephemeral_pools").Do(BIND(&IFairShareTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("config").Value(tree->GetConfig())
             .Item("resource_limits").Value(resourceLimits)
-            .Item("resource_usage").Value(Host->GetResourceUsage(tree->GetNodesFilter()))
+            .Item("resource_usage").Value(Host_->GetResourceUsage(tree->GetNodesFilter()))
             .Item("node_count").Value(descriptors.size())
             .Item("node_addresses").BeginList()
                 .DoFor(descriptors, [&] (TFluentList fluent, const auto& descriptor) {
@@ -2021,7 +2021,7 @@ private:
 
     virtual void DoBuildResourceMeteringAt(TInstant now)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TMeteringMap newStatistics;
 
@@ -2046,7 +2046,7 @@ private:
                         value.BurstGuaranteeResources(),
                         value.AllocatedResources(),
                         value.AccumulatedResourceUsage());
-                    Host->LogResourceMetering(
+                    Host_->LogResourceMetering(
                         key,
                         delta,
                         customMeteringTags,
@@ -2054,7 +2054,7 @@ private:
                         LastMeteringStatisticsUpdateTime_,
                         now);
                 } else {
-                    Host->LogResourceMetering(
+                    Host_->LogResourceMetering(
                         key,
                         value,
                         customMeteringTags,
@@ -2070,7 +2070,7 @@ private:
         MeteringStatistics_.swap(newStatistics);
 
         try {
-            WaitFor(Host->UpdateLastMeteringLogTime(now))
+            WaitFor(Host_->UpdateLastMeteringLogTime(now))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to update last metering log time");
@@ -2104,13 +2104,13 @@ private:
     private:
         i64 GetSize() const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
             return std::ssize(Strategy_->IdToTree_);
         }
 
         std::vector<TString> GetKeys(const i64 limit) const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
             if (limit == 0) {
                 return {};
@@ -2130,7 +2130,7 @@ private:
 
         IYPathServicePtr FindItemService(const TStringBuf treeId) const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
             const auto treeIterator = Strategy_->IdToTree_.find(treeId);
             if (treeIterator == std::cend(Strategy_->IdToTree_)) {
