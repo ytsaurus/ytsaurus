@@ -35,7 +35,7 @@ Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(vo
     return emptyTags;
 }
 
-Y_WEAK void StartAllocationTagsCleanupThread(const TDuration& /*cleanupInterval*/)
+Y_WEAK void StartAllocationTagsCleanupThread(TDuration /*cleanupInterval*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -584,7 +584,7 @@ class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
         replicas = set(map(str, replicas))
         new_replicas = set(map(str, get("#{0}/@stored_replicas".format(chunk_id))))
 
-        has_repaired_replica = True
+        has_repaired_replica = False
         for node_id in range(self.NUM_NODES):
             address = self.get_node_address(node_id)
             if address in new_replicas and address not in replicas:

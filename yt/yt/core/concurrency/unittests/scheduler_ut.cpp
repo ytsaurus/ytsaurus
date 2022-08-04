@@ -1007,7 +1007,7 @@ TEST_W(TSchedulerTest, TraceDisableSendBaggage)
     parentContext->PackBaggage(parentBaggage);
     auto parentBaggageString = ConvertToYsonString(parentBaggage);
 
-    TTracingConfigPtr originalConfig = GetTracingConfig();
+    auto originalConfig = GetTracingConfig();
     auto guard = Finally([&] {
         SetTracingConfig(originalConfig);
     });
