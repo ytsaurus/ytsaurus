@@ -1,21 +1,31 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
+@NonNullApi
+@NonNullFields
 public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest<TReqAlterTable.Builder> {
+    @Nullable
     private YTreeNode schemaNode;
+    @Nullable
     private Boolean dynamic;
+    @Nullable
     private GUID upstreamReplicaId;
+    @Nullable
     private TransactionalOptions transactionalOptions;
 
     public AlterTable(YPath path) {
@@ -88,11 +98,10 @@ public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         super.writeArgumentsLogString(sb);
         if (schemaNode != null) {
-            sb.append("Schema: ").append(schemaNode.toString()).append("; ");
+            sb.append("Schema: ").append(schemaNode).append("; ");
         }
         if (dynamic != null) {
             sb.append("Dynamic: ").append(dynamic).append("; ");
-
         }
     }
 
@@ -100,5 +109,15 @@ public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest
     @Override
     protected AlterTable self() {
         return this;
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder.key("path").apply(YPath.simple(getPath())::toTree)
+                .when(dynamic != null, x -> x.key("dynamic").value(dynamic))
+                .when(schemaNode != null, x -> x.key("schema").value(schemaNode))
+                .when(
+                        upstreamReplicaId != null,
+                        x -> x.key("upstream_replica_id").value(upstreamReplicaId.toString())
+                );
     }
 }
