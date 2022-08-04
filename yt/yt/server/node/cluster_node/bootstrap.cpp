@@ -489,29 +489,6 @@ public:
             : GetIths<0>(Config_->Addresses);
     }
 
-    std::optional<TString> GetDefaultNetworkName() const override
-    {
-        return Config_->BusServer->DefaultNetwork;
-    }
-
-    TString GetDefaultLocalAddressOrThrow() const override
-    {
-        auto addressMap = GetLocalAddresses(
-            Config_->Addresses,
-            Config_->RpcPort);
-        auto defaultNetwork = GetDefaultNetworkName();
-
-        if (!defaultNetwork) {
-            THROW_ERROR_EXCEPTION("Default network is not configured");
-        }
-
-        if (!addressMap.contains(*defaultNetwork)) {
-            THROW_ERROR_EXCEPTION("Address for the default network is not configured");
-        }
-
-        return addressMap[*defaultNetwork];
-    }
-
     const NHttp::IServerPtr& GetHttpServer() const override
     {
         return HttpServer_;
@@ -1518,16 +1495,6 @@ const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const
 TNetworkPreferenceList TBootstrapBase::GetLocalNetworks() const
 {
     return Bootstrap_->GetLocalNetworks();
-}
-
-std::optional<TString> TBootstrapBase::GetDefaultNetworkName() const
-{
-    return Bootstrap_->GetDefaultNetworkName();
-}
-
-TString TBootstrapBase::GetDefaultLocalAddressOrThrow() const
-{
-    return Bootstrap_->GetDefaultLocalAddressOrThrow();
 }
 
 const NHttp::IServerPtr& TBootstrapBase::GetHttpServer() const

@@ -114,8 +114,6 @@ struct IBootstrapBase
 
     // Network stuff.
     virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
-    virtual std::optional<TString> GetDefaultNetworkName() const = 0;
-    virtual TString GetDefaultLocalAddressOrThrow() const = 0;
 
     // Servers.
     virtual const NHttp::IServerPtr& GetHttpServer() const = 0;
@@ -260,8 +258,6 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
 
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
-    std::optional<TString> GetDefaultNetworkName() const override;
-    TString GetDefaultLocalAddressOrThrow() const override;
 
     const NHttp::IServerPtr& GetHttpServer() const override;
     const NRpc::IServerPtr& GetRpcServer() const override;
