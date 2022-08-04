@@ -654,6 +654,8 @@ private:
     i64 CurrentSeqNum_ = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //
 // Base class for table reader using several threads to read the table in parallel.
 // Readers are produced by the passed factory.
@@ -786,6 +788,35 @@ public:
     }
 };
 
+template <typename TRow>
+class IParallelRowReaderImpl
+    : public IReaderImplBase
+{
+public:
+    virtual const TRow& GetRow() const = 0;
+    virtual void MoveRow(TRow* row) = 0;
+};
+
+template <typename TRow>
+class TParallelTableReader<TParallelRow<TRow>>
+    : public TParallelTableReaderBase<IParallelRowReaderImpl<TRow>, TRow>
+{
+public:
+    using TParallelTableReaderBase<IParallelRowReaderImpl<TRow>, TRow>::TParallelTableReaderBase;
+
+    const TRow& GetRow() const
+    {
+        return *(this->CurrentBufferIt_);
+    }
+
+    void MoveRow(TRow* row)
+    {
+        *row = std::move(*(this->CurrentBufferIt_));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
@@ -892,8 +923,25 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TRowTraits<TParallelRow<T>>
+{
+    using TRowType = T;
+    using IReaderImpl = NDetail::IParallelRowReaderImpl<T>;
+};
+
+template <typename T>
+class TTableReader<TParallelRow<T>>
+    : public NDetail::TSimpleTableReader<TParallelRow<T>>
+{
+    using NDetail::TSimpleTableReader<TParallelRow<T>>::TSimpleTableReader;
+};
+
 template <typename TRow>
-TTableReaderPtr<TRow> CreateParallelTableReader(
+using TParallelTableReaderPtr = TTableReaderPtr<TParallelRow<TRow>>;
+
+template <typename TRow>
+auto CreateParallelTableReader(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
     const TParallelTableReaderOptions& options)
@@ -903,12 +951,17 @@ TTableReaderPtr<TRow> CreateParallelTableReader(
         paths,
         TParallelReaderRowProcessor<TRow>{},
         options);
-    return ::MakeIntrusive<TTableReader<TRow>>(
-        ::MakeIntrusive<NDetail::TParallelTableReader<TRow>>(std::move(readManager)));
-}
+    if constexpr (TIsSkiffRow<TRow>::value) {
+        return ::MakeIntrusive<TTableReader<TParallelRow<TRow>>>(
+            ::MakeIntrusive<NDetail::TParallelTableReader<TParallelRow<TRow>>>(std::move(readManager)));
+    } else {
+        return ::MakeIntrusive<TTableReader<TRow>>(
+            ::MakeIntrusive<NDetail::TParallelTableReader<TRow>>(std::move(readManager)));
+    }
+} 
 
 template <typename TRow>
-TTableReaderPtr<TRow> CreateParallelTableReader(
+auto CreateParallelTableReader(
     const IClientBasePtr& client,
     const TRichYPath& path,
     const TParallelTableReaderOptions& options)
