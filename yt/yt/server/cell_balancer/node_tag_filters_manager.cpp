@@ -5,7 +5,7 @@ namespace NYT::NCellBalancer {
 
 ///////////////////////////////////////////////////////////////
 
-static const auto Logger = CellBalancerLogger.WithTag("FilterTagManager");
+static const auto& Logger = BundleController;
 
 ///////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ std::vector<TString> GetBundlesByTag(
 TSpareNodesInfo GetSpareNodesInfo(
     const TString& zoneName,
     const TSchedulerInputState& input,
-    TSchedulerMutatingContext* mutations)
+    TSchedulerMutations* mutations)
 {
     auto spareBundle = GetSpareBundleName(zoneName);
     auto spareNodesIt = input.BundleNodes.find(spareBundle);
@@ -67,7 +67,7 @@ TSpareNodesInfo GetSpareNodesInfo(
         }
 
         if (std::ssize(assignedBundlesNames) > 1) {
-            YT_LOG_WARNING("Spare node is assigned to the multiple bundles. (Node: %v, Bundles: %v)",
+            YT_LOG_WARNING("Spare node is assigned to the multiple bundles (Node: %v, Bundles: %v)",
                 spareNodeName,
                 assignedBundlesNames);
 
@@ -99,7 +99,7 @@ void TryReleaseSpareNodes(
     const TSchedulerInputState& input,
     int slotsToRelease,
     TSpareNodesInfo& spareNodesInfo,
-    TSchedulerMutatingContext* mutations)
+    TSchedulerMutations* mutations)
 {
     auto usingSpareNodes = spareNodesInfo.UsedByBundle[bundleName];
     auto it = usingSpareNodes.begin();
@@ -127,7 +127,7 @@ void TryAssignSpareNodes(
     const TSchedulerInputState& input,
     int slotsToAdd,
     TSpareNodesInfo& spareNodesInfo,
-    TSchedulerMutatingContext* mutations)
+    TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
@@ -138,8 +138,8 @@ void TryAssignSpareNodes(
         auto nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
         YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v)",
-                bundleName,
-                nodeName);
+            bundleName,
+            nodeName);
 
         mutations->ChangedDecommissionedFlag[nodeName] = false;
         auto userTags = nodeInfo->UserTags;
@@ -158,25 +158,25 @@ void SetNodeTagFilter(
     const std::vector<TString>& bundleNodes,
     const TSchedulerInputState& input,
     TSpareNodesInfo& spareNodesInfo,
-    TSchedulerMutatingContext* mutations)
+    TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
     const TString& nodeTagFilter = bundleInfo->NodeTagFilter;
 
     if (nodeTagFilter.empty()) {
-        YT_LOG_WARNING("Bundle does not have node_tag_filter attribute. (Bundle: %v)",
+        YT_LOG_WARNING("Bundle does not have node_tag_filter attribute (Bundle: %v)",
             bundleName);
 
         mutations->AlertsToFire.push_back({
             .Id = "bundle_with_no_tag_filter",
-            .Description = Format("Bundle %v does not have node_tag_filter attribute set",
+            .Description = Format("Bundle %Qv does not have node_tag_filter attribute set",
                 bundleName),
         });
         return;
     }
 
-    int actualSlotsCount = 0;
+    int actualSlotCount = 0;
     for (const auto& nodeName : aliveNodes) {
         // Ensure bundle nodes has node tag filter set.
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -186,44 +186,44 @@ void SetNodeTagFilter(
             mutations->ChangedNodeUserTags[nodeName] = std::move(tags);
         }
 
-        actualSlotsCount += std::ssize(nodeInfo->TabletSlots);
+        actualSlotCount += std::ssize(nodeInfo->TabletSlots);
     }
 
-    int requiredSlotsCount = 0;
+    int requiredSlotCount = 0;
     for (const auto& cellId : bundleInfo->TabletCellIds) {
         auto it = input.TabletCells.find(cellId);
         if (it != input.TabletCells.end()) {
             for (const auto& peer : it->second->Peers) {
                 auto nodeIt = input.TabletNodes.find(peer->Address);
                 if (nodeIt == input.TabletNodes.end() || !nodeIt->second->Decommissioned) {
-                    ++requiredSlotsCount;
+                    ++requiredSlotCount;
                 }
             }
         }
     }
 
-    auto getSpareSlotsCount = [&input, bundleName] (auto& sparesByBundle) {
-        int usedSpareSlotsCount = 0;
+    auto getSpareSlotCount = [&input, bundleName] (auto& sparesByBundle) {
+        int usedSpareSlotCount = 0;
         auto it = sparesByBundle.find(bundleName);
         if (it != sparesByBundle.end()) {
             for (const auto& nodeName : it->second) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-                usedSpareSlotsCount += std::ssize(nodeInfo->TabletSlots);
+                usedSpareSlotCount += std::ssize(nodeInfo->TabletSlots);
             }
         }
-        return usedSpareSlotsCount;
+        return usedSpareSlotCount;
     };
 
-    int usedSpareSlotsCount = getSpareSlotsCount(spareNodesInfo.UsedByBundle);
+    int usedSpareSlotCount = getSpareSlotCount(spareNodesInfo.UsedByBundle);
 
-    int slotsBallance = usedSpareSlotsCount  + actualSlotsCount - requiredSlotsCount;
+    int slotsBallance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;
 
-    YT_LOG_DEBUG("Bundle slot ballance (Bundle: %v, SlotsBallance: %v, SpareSlotsCount: %v, BundleSlotsCount: %v, RequiredSlotsCount: %v)",
+    YT_LOG_DEBUG("Checking tablet cell slots for bundle (Bundle: %v, SlotsBallance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
         bundleName,
         slotsBallance,
-        usedSpareSlotsCount,
-        actualSlotsCount,
-        requiredSlotsCount);
+        usedSpareSlotCount,
+        actualSlotCount,
+        requiredSlotCount);
 
     if (slotsBallance > 0) {
         TryReleaseSpareNodes(bundleName, input, slotsBallance, spareNodesInfo, mutations);
@@ -248,7 +248,7 @@ bool AllTabletSlotsAreEmpty(const TTabletNodeInfoPtr& nodeInfo)
 void CleanupSpareNodes(
     const TSchedulerInputState& input,
     const TSpareNodesInfo& spareNodes,
-    TSchedulerMutatingContext* mutations)
+    TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, nodes] : spareNodes.DecommissionedByBundle) {
         const auto& nodeTagFilter = GetOrCrash(input.Bundles, bundleName)->NodeTagFilter;
@@ -259,7 +259,7 @@ void CleanupSpareNodes(
                 continue;
             }
 
-            YT_LOG_INFO("Clean up released spare node (Bundle: %v, NodeName: %v)",
+            YT_LOG_INFO("Cleaning up released spare node (Bundle: %v, NodeName: %v)",
                 bundleName,
                 nodeName);
 
@@ -272,7 +272,7 @@ void CleanupSpareNodes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutatingContext* mutations)
+void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     THashMap<TString, TSpareNodesInfo> zoneToSpareNodes;
 

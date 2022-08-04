@@ -12,7 +12,7 @@ struct TSchedulerInputState
 
     TIndexedEntries<TZoneInfo> Zones;
     TIndexedEntries<TBundleInfo> Bundles;
-    TIndexedEntries<TBundleControllerState> States;
+    TIndexedEntries<TBundleControllerState> BundleStates;
     TIndexedEntries<TTabletNodeInfo> TabletNodes;
     TIndexedEntries<TTabletCellInfo> TabletCells;
 
@@ -38,7 +38,7 @@ struct TAlert
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerMutatingContext
+struct TSchedulerMutations
 {
     TIndexedEntries<TAllocationRequest> NewAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
@@ -60,13 +60,13 @@ struct TSchedulerMutatingContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutatingContext* mutations);
+void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetSpareBundleName(const TString& zoneName);
 
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutatingContext* mutations);
+void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
 THashSet<TString> GetAliveNodes(
     const TString& bundleName,

@@ -467,13 +467,13 @@ class TestNodeDynamicConfig(YTEnvSetup):
     @authors("capone212")
     @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
     def test_bundle_dynamic_config(self, config_node):
-        nodeWithTagNodeA, _ = self._init_zero_slot_nodes(config_node)
+        node_with_tag_NodeA, _ = self._init_zero_slot_nodes(config_node)
 
         def get_orchid_memory_limits(category):
             return get("//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-                        .format(nodeWithTagNodeA, category))
+                        .format(node_with_tag_NodeA, category))
 
-        bundleDynamicConfig = {
+        bundle_dynamic_config = {
             "nodeA": {
                 "config_annotation": "nodeA",
                 "cpu_limits": {
@@ -497,7 +497,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             },
         }
 
-        set("//sys/tablet_cell_bundles/@config", bundleDynamicConfig)
+        set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
 
         ConfigPatch = namedtuple("ConfigPatch", ["slot_count", "tablet_static", "tablet_dynamic"])
         patches = [
@@ -510,11 +510,11 @@ class TestNodeDynamicConfig(YTEnvSetup):
         ]
 
         for patch in patches:
-            bundleDynamicConfig["nodeA"]["cpu_limits"]["write_thread_pool_size"] = patch.slot_count
-            bundleDynamicConfig["nodeA"]["memory_limits"]["tablet_static"]["value"] = patch.tablet_static
-            bundleDynamicConfig["nodeA"]["memory_limits"]["tablet_dynamic"]["value"] = patch.tablet_dynamic
+            bundle_dynamic_config["nodeA"]["cpu_limits"]["write_thread_pool_size"] = patch.slot_count
+            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_static"]["value"] = patch.tablet_static
+            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_dynamic"]["value"] = patch.tablet_dynamic
 
-            set("//sys/tablet_cell_bundles/@config", bundleDynamicConfig)
+            set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
             wait(lambda: self._healthy_cell_count() == min(5, patch.slot_count))
             self._check_tablet_nodes_rct()
             wait(lambda: get_orchid_memory_limits("tablet_static") == patch.tablet_static)

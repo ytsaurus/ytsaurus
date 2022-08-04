@@ -104,7 +104,7 @@ void TZoneInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "yp_cluster", &TThis::YPCluster)
         .Default();
 
-    RegisterAttribute(registrar, "max_tablet_nodes_count", &TThis::MaxTabletNodesCount)
+    RegisterAttribute(registrar, "max_tablet_node_count", &TThis::MaxTabletNodeCount)
         .Default(10);
 
     RegisterAttribute(registrar, "nanny_service", &TThis::NannyService)

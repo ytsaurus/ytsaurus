@@ -18,13 +18,14 @@ struct IBootstrap;
 DECLARE_REFCOUNTED_CLASS(IMasterConnector)
 DECLARE_REFCOUNTED_CLASS(ICellTracker)
 DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
-DECLARE_REFCOUNTED_CLASS(IBundleController)
+DECLARE_REFCOUNTED_STRUCT(IBundleController)
 
 DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger CellBalancerLogger("CellBalancer");
+inline const NLogging::TLogger BundleController("BundleController");
 inline const NProfiling::TProfiler CellBalancerProfiler("/cell_balancer");
 
 ////////////////////////////////////////////////////////////////////////////////

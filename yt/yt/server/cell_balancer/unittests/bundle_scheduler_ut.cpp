@@ -5,10 +5,8 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+namespace NYT::NCellBalancer {
 namespace {
-
-using namespace NYT;
-using namespace NYT::NCellBalancer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +54,7 @@ TSchedulerInputState GenerateSimpleInputContext(int requestedTabletNodeCount, in
     return input;
 }
 
-void VerifyAllocationRequests(const TSchedulerMutatingContext& mutations, int expectedCount)
+void VerifyAllocationRequests(const TSchedulerMutations& mutations, int expectedCount)
 {
     EXPECT_EQ(expectedCount, std::ssize(mutations.NewAllocations));
 
@@ -73,7 +71,7 @@ void VerifyAllocationRequests(const TSchedulerMutatingContext& mutations, int ex
 }
 
 void VerifyDeallocationRequests(
-    const TSchedulerMutatingContext& mutations,
+    const TSchedulerMutations& mutations,
     TBundleControllerStatePtr& bundleState,
     int expectedCount)
 {
@@ -94,20 +92,20 @@ void VerifyDeallocationRequests(
 }
 
 THashSet<TString> GenerateNodesForBundle(
-    TSchedulerInputState& context,
+    TSchedulerInputState& inputState,
     const TString& bundleName,
-    int nodesCount,
+    int nodeCount,
     bool setFilterTag = false,
-    int slotsCount = 5)
+    int slotCount = 5)
 {
     THashSet<TString> result;
 
-    for (int index = 0; index < nodesCount; ++index) {
-        int nodeIndex = std::ssize(context.TabletNodes);
+    for (int index = 0; index < nodeCount; ++index) {
+        int nodeIndex = std::ssize(inputState.TabletNodes);
         auto nodeId = Format("seneca-ayt-%v-%v-aa-tab-node-%v.search.yandex.net",
             nodeIndex,
             bundleName,
-            context.Config->Cluster);
+            inputState.Config->Cluster);
         auto nodeInfo = New<TTabletNodeInfo>();
         nodeInfo->Banned = false;
         nodeInfo->Decommissioned = false;
@@ -118,33 +116,33 @@ THashSet<TString> GenerateNodesForBundle(
         nodeInfo->Annotations->YPCluster = "pre-pre";
         nodeInfo->Annotations->AllocatedForBundle = bundleName;
 
-        for (int index = 0; index < slotsCount; ++index) {
+        for (int index = 0; index < slotCount; ++index) {
             nodeInfo->TabletSlots.push_back(New<TTabletSlot>());
         }
 
         if (setFilterTag) {
-            nodeInfo->UserTags.insert(GetOrCrash(context.Bundles, bundleName)->NodeTagFilter);
+            nodeInfo->UserTags.insert(GetOrCrash(inputState.Bundles, bundleName)->NodeTagFilter);
         }
 
-        context.TabletNodes[nodeId] = nodeInfo;
+        inputState.TabletNodes[nodeId] = nodeInfo;
         result.insert(nodeId);
     }
 
     return result;
 }
 
-void SetTabletSlotsState(TSchedulerInputState& context, const TString& nodeName, const TString& state)
+void SetTabletSlotsState(TSchedulerInputState& inputState, const TString& nodeName, const TString& state)
 {
-    const auto& nodeInfo = GetOrCrash(context.TabletNodes, nodeName);
+    const auto& nodeInfo = GetOrCrash(inputState.TabletNodes, nodeName);
 
     for (const auto& slot : nodeInfo->TabletSlots) {
         slot->State = state;
     }
 }
 
-void GenerateAllocationsForBundle(TSchedulerInputState& context, const TString& bundleName, int count)
+void GenerateAllocationsForBundle(TSchedulerInputState& inputState, const TString& bundleName, int count)
 {
-    auto& state = context.States[bundleName];
+    auto& state = inputState.BundleStates[bundleName];
     if (!state) {
         state = New<TBundleControllerState>();
     }
@@ -153,46 +151,46 @@ void GenerateAllocationsForBundle(TSchedulerInputState& context, const TString& 
         auto requestId = Format("alloc-%v", state->Allocations.size());
         state->Allocations[requestId] = New<TAllocationRequestState>();
         state->Allocations[requestId]->CreationTime = TInstant::Now();
-        context.AllocationRequests[requestId] = New<TAllocationRequest>();
-        auto& spec = context.AllocationRequests[requestId]->Spec;
+        inputState.AllocationRequests[requestId] = New<TAllocationRequest>();
+        auto& spec = inputState.AllocationRequests[requestId]->Spec;
         spec->NannyService = "nanny-bunny";
         spec->YPCluster = "pre-pre";
     }
 }
 
 void GenerateTabletCellsForBundle(
-    TSchedulerInputState& context,
+    TSchedulerInputState& inputState,
     const TString& bundleName,
-    int cellsCount,
-    int peersCount = 1)
+    int cellCount,
+    int peerCount = 1)
 {
-    auto bundleInfo = GetOrCrash(context.Bundles, bundleName);
+    auto bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
 
-    for (int index = 0; index < cellsCount; ++index) {
+    for (int index = 0; index < cellCount; ++index) {
         auto cellId = Format("tablet-cell-%v-%v", bundleName, bundleInfo->TabletCellIds.size());
         auto cellInfo = New<TTabletCellInfo>();
         cellInfo->TabletCount = 2;
         cellInfo->TabletCellBundle = bundleName;
-        cellInfo->Peers.resize(peersCount, New<TTabletCellPeer>());
+        cellInfo->Peers.resize(peerCount, New<TTabletCellPeer>());
         bundleInfo->TabletCellIds.push_back(cellId);
-        context.TabletCells[cellId] = cellInfo;
+        inputState.TabletCells[cellId] = cellInfo;
     }
 }
 
 void GenerateDeallocationsForBundle(
-    TSchedulerInputState& context, 
+    TSchedulerInputState& inputState, 
     const TString& bundleName,
     const std::vector<TString>& nodeNames)
 {
-    auto& state = context.States[bundleName];
+    auto& state = inputState.BundleStates[bundleName];
     if (!state) {
         state = New<TBundleControllerState>();
     }
 
     for (const auto& nodeName : nodeNames) {
-        const auto& nodeInfo = GetOrCrash(context.TabletNodes, nodeName);
+        const auto& nodeInfo = GetOrCrash(inputState.TabletNodes, nodeName);
         nodeInfo->Decommissioned = true;
-        SetTabletSlotsState(context, nodeName, TabletSlotStateEmpty);
+        SetTabletSlotsState(inputState, nodeName, TabletSlotStateEmpty);
 
         auto requestId = Format("dealloc-%v", state->Allocations.size());
 
@@ -203,8 +201,8 @@ void GenerateDeallocationsForBundle(
         deallocationState->HulkRequestCreated = true;
 
 
-        context.DeallocationRequests[requestId] = New<TDeallocationRequest>();
-        auto& spec = context.DeallocationRequests[requestId]->Spec;
+        inputState.DeallocationRequests[requestId] = New<TDeallocationRequest>();
+        auto& spec = inputState.DeallocationRequests[requestId]->Spec;
         spec->YPCluster = "pre-pre";
         spec->PodId = "random_pod_id";
     }
@@ -223,7 +221,7 @@ void SetNodeAnnotations(const TString& nodeId, const TString& bundleName, const 
 TEST(TBundleSchedulerTest, AllocationCreated)
 {
     auto input = GenerateSimpleInputContext(5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 1);
     GenerateAllocationsForBundle(input, "default-bundle", 1);
@@ -258,13 +256,13 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     // Check Setting node attributes
     {
-        TSchedulerMutatingContext mutations;
+        TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         VerifyAllocationRequests(mutations, 0);
-        EXPECT_EQ(1, std::ssize(input.States["default-bundle"]->Allocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->Allocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
@@ -277,7 +275,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     }
 
     // Schedule one more time with annotation tags set
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
@@ -290,7 +288,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(2);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateAllocationsForBundle(input, "default-bundle", 1);
@@ -316,7 +314,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
 {
     auto input = GenerateSimpleInputContext(2);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateAllocationsForBundle(input, "default-bundle", 1);
@@ -334,19 +332,19 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyAllocationRequests(mutations, 0);
-    EXPECT_EQ(1, std::ssize(input.States["default-bundle"]->Allocations));
+    EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->Allocations));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 {
     auto input = GenerateSimpleInputContext(2);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateAllocationsForBundle(input, "default-bundle", 1);
 
     {
-        auto& allocState = input.States["default-bundle"]->Allocations.begin()->second;
+        auto& allocState = input.BundleStates["default-bundle"]->Allocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -374,11 +372,11 @@ TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
     auto nodes = GenerateNodesForBundle(input, "default-bundle", 5);
     GenerateDeallocationsForBundle(input, "default-bundle", { *nodes.begin()});
 
-    for (auto& [nodeId, _] : input.TabletNodes) {
+    for (const auto& [nodeId, _] : input.TabletNodes) {
         SetNodeAnnotations(nodeId, "default-bundle", input);
     }
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     ScheduleBundles(input, &mutations);
 
@@ -399,7 +397,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         SetNodeAnnotations(nodeId, "default-bundle", input);
     }
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     ScheduleBundles(input, &mutations);
 
@@ -408,8 +406,8 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->Deallocations));
 
-    input.States = mutations.ChangedStates;
-    mutations = TSchedulerMutatingContext{};
+    input.BundleStates = mutations.ChangedStates;
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
@@ -424,8 +422,8 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         SetTabletSlotsState(input, nodeName, PeerStateLeading);
     }
 
-    input.States = mutations.ChangedStates;
-    mutations = TSchedulerMutatingContext{};
+    input.BundleStates = mutations.ChangedStates;
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     // Node are decommissioned but tablet slots have to be empty.
@@ -436,8 +434,8 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         SetTabletSlotsState(input, nodeName, TabletSlotStateEmpty);
     }
 
-    input.States = mutations.ChangedStates;
-    mutations = TSchedulerMutatingContext{};
+    input.BundleStates = mutations.ChangedStates;
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     // Hulk deallocation requests are finally created.
@@ -449,7 +447,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
 TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(1);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateDeallocationsForBundle(input, "default-bundle", { *bundleNodes.begin()});
@@ -487,13 +485,13 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
 
     // Check Setting node attributes
     {
-        TSchedulerMutatingContext mutations;
+        TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-        EXPECT_EQ(1, std::ssize(input.States["default-bundle"]->Deallocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->Deallocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
@@ -506,7 +504,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
     }
 
     // Schedule one more time with annotation tags set
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
@@ -519,7 +517,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
 TEST(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
 {
     auto input = GenerateSimpleInputContext(1);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
     const TString nodeId = *bundleNodes.begin();
@@ -527,7 +525,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
     GenerateDeallocationsForBundle(input, "default-bundle", {nodeId});
 
     {
-        auto& allocState = input.States["default-bundle"]->Deallocations.begin()->second;
+        auto& allocState = input.BundleStates["default-bundle"]->Deallocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -543,7 +541,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
 TEST(TBundleSchedulerTest, CreateNewCellsCreation)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 3);
@@ -562,7 +560,7 @@ TEST(TBundleSchedulerTest, CreateNewCellsCreation)
 TEST(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreate)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 10);
@@ -579,7 +577,7 @@ TEST(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreate)
 TEST(TBundleSchedulerTest, CreateNewCellsRemove)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 13);
@@ -596,7 +594,7 @@ TEST(TBundleSchedulerTest, CreateNewCellsRemove)
 TEST(TBundleSchedulerTest, PeekRightCellToRemove)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 11);
@@ -621,7 +619,7 @@ TEST(TBundleSchedulerTest, TestSpareNodesAllocate)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     ScheduleBundles(input, &mutations);
 
@@ -640,7 +638,7 @@ TEST(TBundleSchedulerTest, TestSpareNodesDeallocate)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 2;
     GenerateNodesForBundle(input, "spare", 3);
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     ScheduleBundles(input, &mutations);
 
@@ -653,11 +651,11 @@ TEST(TBundleSchedulerTest, TestSpareNodesDeallocate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckEmptyAlerts(const TSchedulerMutatingContext& mutations)
+void CheckEmptyAlerts(const TSchedulerMutations& mutations)
 {
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
 
-    for (auto& alert : mutations.AlertsToFire) {
+    for (const auto& alert : mutations.AlertsToFire) {
         EXPECT_EQ("", alert.Id);
         EXPECT_EQ("", alert.Description);
     }
@@ -674,7 +672,7 @@ TEST(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 10);
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
@@ -692,7 +690,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     GenerateNodesForBundle(input, "default-bundle", 2);
     GenerateTabletCellsForBundle(input, "default-bundle", 10);
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -704,7 +702,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
         input.TabletNodes[nodeName]->UserTags = tags;
     }
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -716,20 +714,20 @@ TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
 TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 {
     const bool SetNodeFilterTag = true; 
-    const int SlotsCount = 5;
+    const int SlotCount = 5;
 
-    auto input = GenerateSimpleInputContext(2, SlotsCount);
+    auto input = GenerateSimpleInputContext(2, SlotCount);
     input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
 
-    GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotsCount);
+    GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotCount);
     GenerateTabletCellsForBundle(input, "default-bundle", 15);
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    auto spareNodes = GenerateNodesForBundle(input, "spare", 3, false, SlotsCount);
+    auto spareNodes = GenerateNodesForBundle(input, "spare", 3, false, SlotCount);
 
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -756,7 +754,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
         SetTabletSlotsState(input, spareNode, PeerStateLeading);
     }
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -764,9 +762,9 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
 
     // Add new node to bundle
-    auto newNodes = GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotsCount);
+    auto newNodes = GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotCount);
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -782,7 +780,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
         spareNodeToRelease = nodeName;
     }
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -792,7 +790,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     // Populate slots with cell peers.
     SetTabletSlotsState(input, spareNodeToRelease, TabletSlotStateEmpty);
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -805,7 +803,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
         input.TabletNodes[nodeName]->UserTags = tags;
     }
 
-    mutations = TSchedulerMutatingContext{};
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
@@ -816,7 +814,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 TEST(TBundleSchedulerTest, CheckDisruptedState)
 {
     auto input = GenerateSimpleInputContext(5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
@@ -838,14 +836,14 @@ TEST(TBundleSchedulerTest, CheckDisruptedState)
 TEST(TBundleSchedulerTest, CheckAllocationLimit)
 {
     auto input = GenerateSimpleInputContext(5);
-    TSchedulerMutatingContext mutations;
+    TSchedulerMutations mutations;
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
     GenerateNodesForBundle(input, "spare", 3);
     GenerateNodesForBundle(input, "default-bundle", 4);
 
-    zoneInfo->MaxTabletNodesCount = 5;
+    zoneInfo->MaxTabletNodeCount = 5;
 
     ScheduleBundles(input, &mutations);
 
@@ -857,4 +855,5 @@ TEST(TBundleSchedulerTest, CheckAllocationLimit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // of namespace
+} // namespace
+} // NYT::NCellBalancer
