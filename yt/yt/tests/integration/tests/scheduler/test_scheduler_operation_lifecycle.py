@@ -425,6 +425,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
+    @pytest.mark.timeout(120)
     @authors("ignat")
     @flaky(max_runs=3)
     def test_fifo_by_pending_job_count(self):
@@ -450,7 +451,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             ops.append(
                 map(
                     track=False,
-                    command="sleep 2.0; cat >/dev/null",
+                    command="sleep 1.0; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1},
@@ -461,7 +462,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for index, op in enumerate(ops):
             assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index", default=-1) == 2 - index
 
-        for op in ops:
+        for op in reversed(ops):
             op.track()
 
         finish_times = [get(op.get_path() + "/@finish_time") for op in ops]
