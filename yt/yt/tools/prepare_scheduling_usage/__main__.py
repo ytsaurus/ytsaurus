@@ -3,6 +3,7 @@ from yt.wrapper.schema import (
     OtherColumns,
 )
 
+from yt.wrapper.default_config import get_config_from_env
 from yt.wrapper.common import date_string_to_timestamp
 from yt.wrapper.schema import YsonBytes, TableSchema
 from yt.wrapper.prepare_operation import TypedJob
@@ -402,7 +403,7 @@ def main():
         assert args.input_path
         assert args.output_path
 
-        client = yt.YtClient(args.cluster)
+        client = yt.YtClient(args.cluster, config=get_config_from_env())
 
         if args.mode == "table":
             if client.get(args.output_path + "/@type") == "map_node":
