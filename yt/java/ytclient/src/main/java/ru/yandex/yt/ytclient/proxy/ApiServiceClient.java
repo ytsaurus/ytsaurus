@@ -37,7 +37,9 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
+import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
@@ -223,6 +225,10 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
+
+    CompletableFuture<Void> suspendOperation(SuspendOperation req);
+
+    CompletableFuture<Void> resumeOperation(ResumeOperation req);
 
     CompletableFuture<YTreeNode> getJob(GetJob req);
 

@@ -44,10 +44,12 @@ import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
+import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
+import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
@@ -90,10 +92,12 @@ import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
+import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
+import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TRspUnmountTable;
@@ -219,6 +223,12 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqGetOperation.Builder, TRspGetOperation> GET_OPERATION =
             apiServiceMethod("GetOperation", TReqGetOperation::newBuilder, TRspGetOperation.parser());
+
+    public static final RpcMethodDescriptor<TReqSuspendOperation.Builder, TRspSuspendOperation> SUSPEND_OPERATION =
+            apiServiceMethod("SuspendOperation", TReqSuspendOperation::newBuilder, TRspSuspendOperation.parser());
+
+    public static final RpcMethodDescriptor<TReqResumeOperation.Builder, TRspResumeOperation> RESUME_OPERATION =
+            apiServiceMethod("ResumeOperation", TReqResumeOperation::newBuilder, TRspResumeOperation.parser());
 
     public static final RpcMethodDescriptor<TReqUpdateOperationParameters.Builder, TRspUpdateOperationParameters>
             UPDATE_OPERATION_PARAMETERS = apiServiceMethod("UpdateOperationParameters",
