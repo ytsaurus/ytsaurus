@@ -209,6 +209,8 @@ void TChunkWriterOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("validate_column_count", &TThis::ValidateColumnCount)
         .Default(false);
+    registrar.Parameter("validate_any_is_valid_yson", &TThis::ValidateAnyIsValidYson)
+        .Default(false);
     registrar.Parameter("validate_unique_keys", &TThis::ValidateUniqueKeys)
         .Default(false);
     registrar.Parameter("explode_on_validation_error", &TThis::ExplodeOnValidationError)
@@ -264,12 +266,13 @@ void TChunkWriterOptions::Register(TRegistrar registrar)
     });
 }
 
-void TChunkWriterOptions::EnableValidationOptions()
+void TChunkWriterOptions::EnableValidationOptions(bool validateAnyIsValidYson)
 {
     ValidateDuplicateIds = true;
     ValidateRowWeight = true;
     ValidateKeyWeight = true;
     ValidateColumnCount = true;
+    ValidateAnyIsValidYson = validateAnyIsValidYson;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

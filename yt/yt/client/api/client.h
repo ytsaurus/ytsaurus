@@ -955,6 +955,8 @@ struct TTableReaderOptions
 struct TTableWriterOptions
     : public TTransactionalOptions
 {
+    bool ValidateAnyIsValidYson = false;
+    
     NTableClient::TTableWriterConfigPtr Config;
 };
 

@@ -264,6 +264,19 @@ inline constexpr bool IsValueType(EValueType type)
         type == EValueType::Any;
 }
 
+inline constexpr bool IsAnyColumnCompatibleType(EValueType type)
+{
+    return
+        type == EValueType::Null ||
+        type == EValueType::Int64 ||
+        type == EValueType::Uint64 ||
+        type == EValueType::Double ||
+        type == EValueType::Boolean ||
+        type == EValueType::String ||
+        type == EValueType::Any ||
+        type == EValueType::Composite;
+}
+
 inline constexpr bool IsSentinelType(EValueType type)
 {
     return type == EValueType::Min || type == EValueType::Max;

@@ -218,6 +218,7 @@ public:
     bool ValidateUniqueKeys;
     bool ExplodeOnValidationError;
     bool ValidateColumnCount;
+    bool ValidateAnyIsValidYson;
     bool EvaluateComputedColumns;
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
@@ -231,7 +232,7 @@ public:
     //! Maximum number of heavy columns in approximate statistics.
     int MaxHeavyColumns;
 
-    void EnableValidationOptions();
+    void EnableValidationOptions(bool validateAnyIsValidYson = false);
 
     REGISTER_YSON_STRUCT(TChunkWriterOptions);
 

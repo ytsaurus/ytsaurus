@@ -1116,7 +1116,12 @@ protected:
             // And we can check types and check that all required fields are set.
             for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
                 const auto& column = Schema_->Columns()[i];
-                ValidateValueType(mutableRow[i], column, /*typeAnyAcceptsAllValues*/ true);
+                ValidateValueType(
+                    mutableRow[i],
+                    column,
+                    /*typeAnyAcceptsAllValues*/ true,
+                    /*isRequired*/ false,
+                    Options_->ValidateAnyIsValidYson);
             }
 
             ValidateColumnCount(columnCount);
