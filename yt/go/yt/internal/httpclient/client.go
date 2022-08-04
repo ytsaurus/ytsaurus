@@ -114,6 +114,12 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 		return nil, xerrors.New("proxy list is empty")
 	}
 
+	if c.config.UseTVMOnlyEndpoint {
+		for i, proxy := range proxies {
+			proxies[i] = net.JoinHostPort(proxy, fmt.Sprint(yt.TVMOnlyHTTPProxyPort))
+		}
+	}
+
 	return proxies, nil
 }
 
@@ -244,7 +250,7 @@ func (c *httpClient) requestCredentials(ctx context.Context) (yt.Credentials, er
 
 func (c *httpClient) logRequest(ctx context.Context, req *http.Request) {
 	ctxlog.Debug(ctx, c.log.Logger(), "sending HTTP request",
-		log.String("proxy", req.URL.Hostname()))
+		log.String("proxy", req.URL.Host))
 }
 
 func (c *httpClient) logResponse(ctx context.Context, rsp *http.Response) {
@@ -650,7 +656,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	}
 
 	client.config = c
-	client.clusterURL = yt.NormalizeProxyURL(proxy)
+	client.clusterURL = yt.NormalizeProxyURL(proxy, c.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort)
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,

@@ -72,6 +72,9 @@ type Config struct {
 	// Assign yttvm.TVMFn(tvm.Client) to this field, if you wish to enable tvm authentication.
 	TVMFn TVMFn
 
+	// UseTVMOnlyEndpoint configures client to use tvm-only endpoints in cluster connection.
+	UseTVMOnlyEndpoint bool
+
 	// Logger overrides default logger, used by the client.
 	//
 	// When Logger is not set, logging behaviour is configured by YT_LOG_LEVEL environment variable.
@@ -237,12 +240,17 @@ func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 	return c.CompressionCodec
 }
 
+const (
+	TVMOnlyHTTPProxyPort = 9026
+	TVMOnlyRPCProxyPort  = 9027
+)
+
 type ClusterURL struct {
 	Address          string
 	DisableDiscovery bool
 }
 
-func NormalizeProxyURL(proxy string) ClusterURL {
+func NormalizeProxyURL(proxy string, tvmOnly bool, tvmOnlyPort int) ClusterURL {
 	const prefix = "http://"
 	const suffix = ".yt.yandex.net"
 
@@ -256,6 +264,11 @@ func NormalizeProxyURL(proxy string) ClusterURL {
 	}
 
 	proxy = strings.TrimPrefix(proxy, prefix)
+
+	if tvmOnly && !strings.Contains(proxy, ":") {
+		proxy = fmt.Sprintf("tvm.%v:%v", proxy, tvmOnlyPort)
+	}
+
 	url.Address = proxy
 	return url
 }
