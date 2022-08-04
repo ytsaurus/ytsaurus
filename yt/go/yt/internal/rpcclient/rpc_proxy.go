@@ -4,15 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/golang/protobuf/proto"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/bus"
+	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
@@ -61,6 +64,19 @@ func (c *client) listRPCProxies() ([]string, error) {
 
 	if len(proxies.Proxies) == 0 {
 		return nil, xerrors.New("rpc proxy list is empty")
+	}
+
+	if c.conf.UseTVMOnlyEndpoint { // todo we should rather return tvm-only port in /discover_proxies response
+		for i, proxy := range proxies.Proxies {
+			host := proxy
+			if strings.Contains(proxy, ":") {
+				host, _, err = net.SplitHostPort(proxy)
+				if err != nil {
+					return nil, err
+				}
+			}
+			proxies.Proxies[i] = fmt.Sprintf("%v:%v", host, yt.TVMOnlyRPCProxyPort)
+		}
 	}
 
 	return proxies.Proxies, nil
