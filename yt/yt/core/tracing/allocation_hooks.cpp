@@ -51,7 +51,7 @@ const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(void* ptr
     return allocationTagsPtr->GetTags();
 }
 
-void StartAllocationTagsCleanupThread(const TDuration& cleanupInterval)
+void StartAllocationTagsCleanupThread(TDuration cleanupInterval)
 {
     std::thread backgroundThread([cleanupInterval] {
         for (;;) {
