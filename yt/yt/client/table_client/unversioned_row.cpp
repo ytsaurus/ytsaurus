@@ -998,9 +998,15 @@ void ValidateValueType(
     const TTableSchema& schema,
     int schemaId,
     bool typeAnyAcceptsAllValues,
-    bool ignoreRequired)
+    bool ignoreRequired,
+    bool validateAnyIsValidYson)
 {
-    ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues, ignoreRequired);
+    ValidateValueType(
+        value,
+        schema.Columns()[schemaId],
+        typeAnyAcceptsAllValues,
+        ignoreRequired,
+        validateAnyIsValidYson);
 }
 
 [[noreturn]] static void ThrowInvalidColumnType(EValueType expected, EValueType actual)
@@ -1067,7 +1073,8 @@ void ValidateValueType(
     const TUnversionedValue& value,
     const TColumnSchema& columnSchema,
     bool typeAnyAcceptsAllValues,
-    bool ignoreRequired)
+    bool ignoreRequired,
+    bool validateAnyIsValidYson)
 {
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
@@ -1097,6 +1104,14 @@ void ValidateValueType(
                 if (columnSchema.IsOfV1Type()) {
                     if (!typeAnyAcceptsAllValues) {
                         ValidateColumnType(EValueType::Any, value);
+                    } else if (!IsAnyColumnCompatibleType(value.Type)) {
+                        THROW_ERROR_EXCEPTION(
+                            NTableClient::EErrorCode::SchemaViolation,
+                            "Cannot write value of type %Qlv into type any column",
+                            value.Type);
+                    }
+                    if (IsAnyOrComposite(value.Type) && validateAnyIsValidYson) {
+                        ValidateAnyValue(value.AsStringBuf());
                     }
                 } else {
                     ValidateColumnType(EValueType::Composite, value);

@@ -14,6 +14,7 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/public.h>
@@ -22,8 +23,11 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -42,6 +46,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -427,6 +432,383 @@ TEST_F(TApiTestBase, TestTvmServiceTicketAuth)
     auto issuedTickets = serviceTicketAuth->GetIssuedServiceTickets();
     EXPECT_GT(issuedTickets.size(), 0U);
     EXPECT_EQ(issuedTickets.front(), SERVICE_TICKET);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClearTmpTestBase
+    : public TApiTestBase
+{
+public:
+    static void TearDownTestCase()
+    {
+        WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
+            .ThrowOnError();
+
+        TApiTestBase::TearDownTestCase();
+    }
+};
+
+TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
+{
+    TRichYPath tablePath("//tmp/test_any_validation");
+
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
+    options.Force = true;
+
+    // Empty yson.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedAnyValue("");
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    }
+
+
+    // Non-empty invalid yson.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedAnyValue("{foo");
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    }
+
+    // Composite value with invalid yson.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedCompositeValue("{foo");
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    }
+
+    // Valid value of another type should not be checked.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedInt64Value(42);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+}
+
+TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
+{
+    TRichYPath tablePath("//tmp/test_any_compatible_types");
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
+    options.Force = true;
+
+    // Null.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedNullValue();
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Int64.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedInt64Value(1);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Uint64.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedUint64Value(1);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Boolean.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedBooleanValue(false);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Double.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedDoubleValue(4.2);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // String.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedStringValue("hello world!");
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Any.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        auto ysonString = ConvertToYsonString(42);
+        TUnversionedValue value = MakeUnversionedAnyValue(ysonString.AsStringBuf());
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Composite.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedCompositeValue("[1; {a=1; b=2}]");
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 1);
+    }
+
+    // Min is not compatible.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedSentinelValue(EValueType::Min);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    }
+
+    // Max is not compatible.
+
+    {
+        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedValue value = MakeUnversionedSentinelValue(EValueType::Max);
+        TUnversionedOwningRow owningRow(&value, &value + 1);
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+                                           .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4366,6 +4366,8 @@ private:
         if (request->has_config()) {
             options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
         }
+        // NB: Input comes directly from user and thus requires additional validation.
+        options.ValidateAnyIsValidYson = true;
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

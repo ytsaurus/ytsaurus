@@ -388,12 +388,14 @@ void ValidateValueType(
     const TTableSchema& schema,
     int schemaId,
     bool typeAnyAcceptsAllValues,
-    bool ignoreRequired = false);
+    bool ignoreRequired = false,
+    bool validateAnyIsValidYson = false);
 void ValidateValueType(
     const TUnversionedValue& value,
     const TColumnSchema& columnSchema,
     bool typeAnyAcceptsAllValues,
-    bool ignoreRequired = false);
+    bool ignoreRequired = false,
+    bool validateAnyIsValidYson = false);
 
 //! Checks that #value is allowed to appear in static tables' data. Throws on failure.
 void ValidateStaticValue(const TUnversionedValue& value);

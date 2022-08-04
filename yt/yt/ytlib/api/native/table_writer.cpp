@@ -23,7 +23,7 @@ TFuture<ITableWriterPtr> CreateTableWriter(
     nameTable->SetEnableColumnNameValidation();
 
     auto writerOptions = New<NTableClient::TTableWriterOptions>();
-    writerOptions->EnableValidationOptions();
+    writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
 
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
