@@ -152,6 +152,11 @@ DEFINE_ENUM(ESchedulingSegmentModuleType,
     (InfinibandCluster)
 );
 
+DEFINE_ENUM(EOperationPreemptionPriorityScope,
+    (OperationOnly)
+    (OperationAndAncestors)
+);
+
 static constexpr int MaxNodeShardCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////

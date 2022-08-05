@@ -196,6 +196,9 @@ struct TScheduleJobsProfilingCounters
     TEnumIndexedVector<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
+
+    NProfiling::TSummary ActiveTreeSize;
+    NProfiling::TSummary ActiveOperationCount;
 };
 
 struct TFairShareScheduleJobResult
@@ -273,7 +276,9 @@ public:
     TFairShareScheduleJobResult ScheduleJob(TSchedulerElement* element, bool ignorePacking);
 
     void CountOperationsByPreemptionPriority();
-    int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
+    int GetOperationWithPreemptionPriorityCount(
+        EOperationPreemptionPriority priority,
+        EOperationPreemptionPriorityScope scope = EOperationPreemptionPriorityScope::OperationAndAncestors) const;
 
     void AnalyzePreemptibleJobs(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
@@ -357,7 +362,8 @@ private:
     TDynamicAttributesListSnapshotPtr DynamicAttributesListSnapshot_;
     TDynamicAttributesList DynamicAttributesList_;
 
-    TEnumIndexedVector<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority_;
+    using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
+    TEnumIndexedVector<EOperationPreemptionPriorityScope, TOperationCountByPreemptionPriority> OperationCountByPreemptionPriority_;
 
     std::vector<bool> CanSchedule_;
 
@@ -402,7 +408,9 @@ private:
         TJobResources* precommittedResources);
     void FinishScheduleJob(TSchedulerOperationElement* element);
 
-    EOperationPreemptionPriority GetOperationPreemptionPriority(const TSchedulerOperationElement* operationElement) const;
+    EOperationPreemptionPriority GetOperationPreemptionPriority(
+        const TSchedulerOperationElement* operationElement,
+        EOperationPreemptionPriorityScope scope = EOperationPreemptionPriorityScope::OperationAndAncestors) const;
 
     void CheckForDeactivation(TSchedulerOperationElement* element, EOperationPreemptionPriority operationPreemptionPriority);
     void ActivateOperation(TSchedulerOperationElement* element);
@@ -626,6 +634,9 @@ private:
     NProfiling::TTimeCounter CumulativeScheduleJobsTime_;
 
     NProfiling::TCounter ScheduleJobsDeadlineReachedCounter_;
+
+    using TSummaryByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, NProfiling::TSummary>;
+    TEnumIndexedVector<EOperationPreemptionPriorityScope, TSummaryByPreemptionPriority> OperationCountByPreemptionPrioritySummary_;
 
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
 

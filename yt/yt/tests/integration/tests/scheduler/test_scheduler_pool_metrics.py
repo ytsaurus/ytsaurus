@@ -7,14 +7,18 @@ from yt_env_setup import (
 from yt_commands import (
     authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
     get, set, exists,
-    create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, abort_job,
-    get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config, update_scheduler_config)
+    create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, vanilla, abort_job,
+    get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config, update_scheduler_config,
+    update_controller_agent_config
+)
 
 from yt_helpers import profiler_factory
 
 from yt.test_helpers import are_almost_equal
 
-from yt_scheduler_helpers import scheduler_orchid_operation_path
+from yt_scheduler_helpers import (
+    scheduler_orchid_operation_path, scheduler_orchid_pool_path
+)
 
 import pytest
 
@@ -655,3 +659,143 @@ class TestPoolMetrics(YTEnvSetup):
 
         # Total and exec times should not differ much.
         assert total_time_counter.get() - exec_time_counter.get() < 3000
+
+    @authors("eshcherbin")
+    def test_operation_count_by_preemption_priority(self):
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_controller_agent_config("safe_scheduler_online_time", 1000000000)
+        update_pool_tree_config(
+            "default",
+            {
+                "preemption_satisfaction_threshold": 0.99,
+                "fair_share_starvation_timeout": 1000,
+                "fair_share_aggressive_starvation_timeout": 1000,
+            })
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        operation_count_by_preemption_priority_summary = profiler.summary("scheduler/operation_count_by_preemption_priority")
+
+        create_pool("pool", wait_for_orchid=False)
+        create_pool("subpool", attributes={"enable_aggressive_starvation": True})
+        # NB(eshcherbin): We use two tasks, so that this operation is still schedulable.
+        op1 = vanilla(
+            spec={
+                "pool": "pool",
+                "tasks": {
+                    "possible": {"job_count": 1, "command": "sleep 1000", "cpu_limit": 1.0},
+                    "impossible": {"job_count": 1, "command": "sleep 1000", "cpu_limit": 10.0},
+                },
+            },
+            track=False
+        )
+        op2 = run_sleeping_vanilla(spec={"pool": "pool", "scheduling_tag_filter": "nonexisting_tag"})
+        op3 = run_sleeping_vanilla(spec={"pool": "subpool", "scheduling_tag_filter": "nonexisting_tag"})
+        wait(lambda: exists(scheduler_orchid_operation_path(op2.id)))
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/starvation_status") == "non_starving")
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/starvation_status") == "starving")
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/starvation_status") == "starving")
+        wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/starvation_status") == "aggressively_starving")
+        wait(lambda: get(scheduler_orchid_pool_path("subpool") + "/starvation_status") == "aggressively_starving")
+
+        for priority in ["none", "regular", "aggressive"]:
+            wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
+                "preemption_priority_scope": "operation_only",
+                "preemption_priority": priority
+            }) == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/lowest_starving_ancestor", default=None) is not None)
+        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
+            "preemption_priority_scope": "operation_and_ancestors",
+            "preemption_priority": "none"
+        }) == 0.0)
+        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
+            "preemption_priority_scope": "operation_and_ancestors",
+            "preemption_priority": "regular"
+        }) == 2.0)
+        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
+            "preemption_priority_scope": "operation_and_ancestors",
+            "preemption_priority": "aggressive"
+        }) == 1.0)
+
+
+##################################################################
+
+
+class TestImproperlyPreemptedResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "running_jobs_update_period": 10,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "operation_hangup_check_period": 1000000000,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 1000000000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {
+                "heartbeat_period": 100,
+                "running_job_sending_backoff": 0,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 6,
+                    "user_slots": 6,
+                },
+            },
+        },
+    }
+
+    @authors("eshcherbin")
+    def test_improperly_preempted_resources(self):
+        update_pool_tree_config(
+            "default",
+            {
+                "preemption_satisfaction_threshold": 0.99,
+                "fair_share_starvation_timeout": 1000,
+                "fair_share_aggressive_starvation_timeout": 1100,
+                "max_unpreemptible_running_job_count": 0,
+                "preemptive_scheduling_backoff": 0,
+            })
+
+        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 3}, "allow_aggressive_preemption": False})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 3}, "enable_aggressive_starvation": True})
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        preempted_cpu_first_counter = \
+            profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "first", "preemption_reason": "aggressive_preemption"})
+        improperly_preempted_cpu_first_counter = \
+            profiler.counter("scheduler/pools/improperly_preempted_job_resources/cpu", {"pool": "first", "preemption_reason": "aggressive_preemption"})
+        improperly_preempted_cpu_second_counter = \
+            profiler.counter("scheduler/pools/improperly_preempted_job_resources/cpu", {"pool": "second"})
+
+        normal_op = run_sleeping_vanilla(job_count=3, spec={"pool": "first"})
+        wait(lambda: get(scheduler_orchid_operation_path(normal_op.id) + "/resource_usage/cpu", default=None) == 3.0)
+
+        starving_op = run_sleeping_vanilla(spec={"pool": "second", "scheduling_tag_filter": "nonexistent_tag"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status", default=None) == "aggressively_starving")
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/starvation_status", default=None) == "aggressively_starving")
+
+        greedy_op = run_sleeping_vanilla(job_count=2, spec={"pool": "second"}, task_patch={"cpu_limit": 2.0})
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(greedy_op.id) + "/detailed_fair_share/total/cpu", default=None), 1.0 / 3.0))
+        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 2.0)
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/starvation_status") == "aggressively_starving")
+
+        set("//sys/pool_trees/default/first/@allow_aggressive_preemption", True)
+        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 4.0)
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/starvation_status") == "non_starving")
+
+        wait(lambda: improperly_preempted_cpu_first_counter.get_delta() == preempted_cpu_first_counter.get_delta() > 0)
+        wait(lambda: improperly_preempted_cpu_second_counter.get_delta() == 0)

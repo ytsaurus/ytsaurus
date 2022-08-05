@@ -524,6 +524,8 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
     , ControllerScheduleJobCount(profiler.Counter("/controller_schedule_job_count"))
     , ControllerScheduleJobTimedOutCount(profiler.Counter("/controller_schedule_job_timed_out_count"))
+    , ActiveTreeSize(profiler.Summary("/active_tree_size"))
+    , ActiveOperationCount(profiler.Summary("/active_operation_count"))
 {
     for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
         ControllerScheduleJobFail[reason] = profiler
@@ -637,19 +639,20 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(TSchedulerElement*
 void TScheduleJobsContext::CountOperationsByPreemptionPriority()
 {
     OperationCountByPreemptionPriority_ = {};
-    for (const auto& [operationId, operationElement] : TreeSnapshot_->EnabledOperationMap()) {
-        if (!operationElement->IsSchedulable() || operationElement->GetStarvationStatus() == EStarvationStatus::NonStarving) {
-            continue;
+    for (const auto& [_, operationElement] : TreeSnapshot_->EnabledOperationMap()) {
+        for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
+            ++OperationCountByPreemptionPriority_[scope][GetOperationPreemptionPriority(operationElement, scope)];
         }
-        ++OperationCountByPreemptionPriority_[GetOperationPreemptionPriority(operationElement)];
     }
 
     SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
 }
 
-int TScheduleJobsContext::GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const
+int TScheduleJobsContext::GetOperationWithPreemptionPriorityCount(
+    EOperationPreemptionPriority priority,
+    EOperationPreemptionPriorityScope scope) const
 {
-    return OperationCountByPreemptionPriority_[priority];
+    return OperationCountByPreemptionPriority_[scope][priority];
 }
 
 void TScheduleJobsContext::AnalyzePreemptibleJobs(
@@ -736,10 +739,13 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
     const TJobPtr& jobStartedUsingPreemption)
 {
     // Collect conditionally preemptible jobs.
+    EOperationPreemptionPriority preemptorOperationLocalPreemptionPriority;
     TJobWithPreemptionInfoSet conditionallyPreemptibleJobs;
     if (jobStartedUsingPreemption) {
         auto* operationElement = TreeSnapshot_->FindEnabledOperationElement(jobStartedUsingPreemption->GetOperationId());
         YT_VERIFY(operationElement);
+
+        preemptorOperationLocalPreemptionPriority = GetOperationPreemptionPriority(operationElement, EOperationPreemptionPriorityScope::OperationOnly);
 
         auto* parent = operationElement->GetParent();
         while (parent) {
@@ -816,11 +822,13 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
             TStringBuilder preemptionReasonBuilder;
             preemptionReasonBuilder.AppendFormat(
                 "Preempted to start job %v of operation %v; "
-                "this job had status %Qlv and level %Qlv, and scheduling stage target priority was %Qlv",
+                "this job had status %Qlv and level %Qlv, preemptor operation local priority was %Qlv, "
+                "and scheduling stage target priority was %Qlv",
                 jobStartedUsingPreemption->GetId(),
                 jobStartedUsingPreemption->GetOperationId(),
                 preemptionStatus,
                 GetJobPreemptionLevel(jobInfo),
+                preemptorOperationLocalPreemptionPriority,
                 targetOperationPreemptionPriority);
             if (forcefullyPreemptibleJobs.contains(job.Get())) {
                 preemptionReasonBuilder.AppendString(
@@ -836,6 +844,9 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
                 .JobId = jobStartedUsingPreemption->GetId(),
                 .OperationId = jobStartedUsingPreemption->GetOperationId(),
             });
+
+            job->SetPreemptedForProperlyStarvingOperation(
+                targetOperationPreemptionPriority == preemptorOperationLocalPreemptionPriority);
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }
@@ -1602,16 +1613,36 @@ void TScheduleJobsContext::FinishScheduleJob(TSchedulerOperationElement* element
 }
 
 EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(
-    const TSchedulerOperationElement* operationElement) const
+    const TSchedulerOperationElement* operationElement,
+    EOperationPreemptionPriorityScope scope) const
 {
+    if (!operationElement->IsSchedulable()) {
+        return EOperationPreemptionPriority::None;
+    }
+
+    bool isEligibleForAggressivePreemption;
+    bool isEligibleForPreemption;
+    switch (scope) {
+        case EOperationPreemptionPriorityScope::OperationOnly:
+            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() == operationElement;
+            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() == operationElement;
+            break;
+        case EOperationPreemptionPriorityScope::OperationAndAncestors:
+            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() != nullptr;
+            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() != nullptr;
+            break;
+        default:
+            YT_ABORT();
+    }
+
     bool isEligibleForSsdPriorityPreemption = SsdPriorityPreemptionEnabled_ &&
         IsEligibleForSsdPriorityPreemption(operationElement->DiskRequestMedia());
-    if (operationElement->GetLowestAggressivelyStarvingAncestor()) {
+    if (isEligibleForAggressivePreemption) {
         return isEligibleForSsdPriorityPreemption
             ? EOperationPreemptionPriority::SsdAggressive
             : EOperationPreemptionPriority::Aggressive;
     }
-    if (operationElement->GetLowestStarvingAncestor()) {
+    if (isEligibleForPreemption) {
         return isEligibleForSsdPriorityPreemption
             ? EOperationPreemptionPriority::SsdRegular
             : EOperationPreemptionPriority::Regular;
@@ -1635,7 +1666,7 @@ void TScheduleJobsContext::CheckForDeactivation(
     }
 
     if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
-        targetOperationPreemptionPriority != GetOperationPreemptionPriority(element))
+        targetOperationPreemptionPriority != GetOperationPreemptionPriority(element, treeConfig->SchedulingPreemptionPriorityScope))
     {
         auto deactivationReason = [&] {
             YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
@@ -1985,6 +2016,9 @@ void TScheduleJobsContext::ProfileStageStatistics()
     if (StageState_->MaxSchedulingIndex >= 0) {
         profilingCounters->MaxSchedulingIndexCounters[SchedulingIndexToProfilingRangeIndex(StageState_->MaxSchedulingIndex)].Increment();
     }
+
+    profilingCounters->ActiveTreeSize.Record(StageState_->ActiveTreeSize);
+    profilingCounters->ActiveOperationCount.Record(StageState_->ActiveOperationCount);
 }
 
 void TScheduleJobsContext::LogStageStatistics()
@@ -2065,6 +2099,16 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , ScheduleJobsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
 {
     InitSchedulingStages();
+
+    for (auto preemptionPriorityScope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
+        for (auto preemptionPriority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
+            auto profilerWithTags = Profiler_
+                .WithRequiredTag("preemption_priority_scope", FormatEnum(preemptionPriorityScope))
+                .WithRequiredTag("preemption_priority", FormatEnum(preemptionPriority));
+            OperationCountByPreemptionPrioritySummary_[preemptionPriorityScope][preemptionPriority] =
+                profilerWithTags.Summary("/operation_count_by_preemption_priority");
+        }
+    }
 }
 
 void TFairShareTreeJobScheduler::ScheduleJobs(
@@ -2146,6 +2190,13 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
     context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (scheduleJobsWithPreemption) {
         context.CountOperationsByPreemptionPriority();
+
+        for (auto priorityScope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
+            for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
+                OperationCountByPreemptionPrioritySummary_[priorityScope][priority].Record(
+                    context.GetOperationWithPreemptionPriorityCount(priority, priorityScope));
+            }
+        }
 
         for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList(&context)) {
             // We allow to schedule at most one job using preemption.

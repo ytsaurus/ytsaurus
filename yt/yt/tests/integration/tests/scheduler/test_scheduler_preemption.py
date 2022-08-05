@@ -643,6 +643,87 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: earlier_job in op1.get_running_jobs())
 
 
+class TestPreemptionPriorityScope(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "running_jobs_update_period": 10,
+            "fair_share_update_period": 100,
+            "operation_hangup_check_period": 1000000000,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 1000000000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {
+                "heartbeat_period": 100,
+                "running_job_sending_backoff": 0,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10,
+                },
+            },
+        },
+    }
+
+    @authors("eshcherbin")
+    def test_preemption_priority_scope(self):
+        update_pool_tree_config(
+            "default",
+            {
+                "preemption_satisfaction_threshold": 0.8,
+                "fair_share_starvation_timeout": 1000,
+                "fair_share_starvation_tolerance": 0.95,
+                "max_unpreemptible_running_job_count": 0,
+                "preemptive_scheduling_backoff": 0,
+                "scheduling_preemption_priority_scope": "operation_only",
+            })
+
+        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 4.9, "user_slots": 5}})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 5.1, "user_slots": 5}})
+
+        normal_op = run_sleeping_vanilla(job_count=5, spec={"pool": "first"})
+        wait(lambda: get(scheduler_orchid_operation_path(normal_op.id) + "/resource_usage/cpu", default=None) == 5.0)
+
+        starving_op = run_sleeping_vanilla(spec={"pool": "second", "scheduling_tag_filter": "nonexistent_tag"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status", default=None) == "starving")
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/starvation_status", default=None) == "starving")
+
+        greedy_op = run_sleeping_vanilla(job_count=3, spec={"pool": "second"}, task_patch={"cpu_limit": 2.0})
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(greedy_op.id) + "/detailed_fair_share/total/cpu", default=None), 0.41))
+        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 4.0)
+
+        time.sleep(3.0)
+        assert get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 4.0
+        assert get(scheduler_orchid_operation_path(greedy_op.id) + "/starvation_status") == "non_starving"
+        assert get(scheduler_orchid_pool_path("second") + "/starvation_status") == "starving"
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        def check():
+            op_count = get(
+                scheduler_orchid_node_path(node) +
+                "/last_preemptive_heartbeat_statistics/operation_count_by_preemption_priority/operation_only"
+            )
+            return op_count["none"] == 2 and op_count["regular"] == 1
+        wait(check)
+
+        update_pool_tree_config_option("default", "scheduling_preemption_priority_scope", "operation_and_ancestors")
+        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 6.0, iter=10)
+
+
 ##################################################################
 
 
@@ -1125,12 +1206,11 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         op_special = run_sleeping_vanilla(spec={"pool": "special_pool"}, job_count=10)
 
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_special.id), 0.4))
-        time.sleep(1.0)
-        wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08), iter=10)
+        wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08))
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_big.id), 0.4))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.32))
 
-    @pytest.mark.skip("This test either is incorrect or simply doesn't work until YT-13715 is resolved")
+    @pytest.mark.skip("This test is almost the same as the previous one. Should we delete it?")
     @authors("eshcherbin")
     def test_allow_aggressive_starvation_preemption_ancestor(self):
         get_fair_share_ratio = lambda op_id: get(
@@ -1172,13 +1252,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_small.id), 0.2))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_small.id), 0.2))
 
-        op_honest_big = run_sleeping_vanilla(
-            spec={
-                "pool": "honest_subpool_big",
-                "scheduling_options_per_pool_tree": {"default": {"enable_detailed_logs": True}},
-            },
-            job_count=20,
-        )
+        op_honest_big = run_sleeping_vanilla(spec={"pool": "honest_subpool_big"}, job_count=20)
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_big.id), 0.6))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.4))
 
@@ -1186,8 +1260,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_special.id), 0.4))
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_big.id), 0.4))
-        time.sleep(1.0)
-        wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08), iter=10)
+        wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.32))
 
 
@@ -1200,6 +1273,8 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
 
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
 

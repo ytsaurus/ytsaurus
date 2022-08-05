@@ -93,6 +93,9 @@ class TJob
     //! Preemptor job id and operation id.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TPreemptedFor>, PreemptedFor);
 
+    //! Preemptor operation was starvation status corresponded to the preemptive scheduling stage type.
+    DEFINE_BYVAL_RW_PROPERTY(bool, PreemptedForProperlyStarvingOperation, false);
+
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
 

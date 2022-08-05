@@ -2254,6 +2254,7 @@ private:
         THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources;
         TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
         TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> improperlyPreemptedJobResources;
 
         for (const auto& job : schedulingContext->StartedJobs()) {
             TOperationId operationId = job->GetOperationId();
@@ -2269,6 +2270,10 @@ private:
             // TODO(eshcherbin): Maybe use some other time statistic.
             // Exec duration does not capture the job preparation time (e.g. downloading artifacts).
             preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
+
+            if (job->GetPreemptedFor() && !job->GetPreemptedForProperlyStarvingOperation()) {
+                improperlyPreemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
+            }
         }
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
@@ -2277,7 +2282,8 @@ private:
             treeSnapshot,
             Passed(std::move(scheduledJobResources)),
             Passed(std::move(preemptedJobResources)),
-            Passed(std::move(preemptedJobResourceTimes))));
+            Passed(std::move(preemptedJobResourceTimes)),
+            Passed(std::move(improperlyPreemptedJobResources))));
     }
 
     TJobResources GetSnapshottedTotalResourceLimits() const override

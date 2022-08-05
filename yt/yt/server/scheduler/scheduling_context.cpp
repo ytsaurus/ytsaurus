@@ -76,13 +76,21 @@ TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statisti
         statistics.MaxNonPreemptiveSchedulingIndex);
 }
 
-TString FormatOperationCountByPreemptionPriorityCompact(const TScheduleJobsStatistics& statistics)
+TString FormatOperationCountByPreemptionPriorityCompact(
+    const TEnumIndexedVector<EOperationPreemptionPriorityScope, TEnumIndexedVector<EOperationPreemptionPriority, int>>& operationsByPriority)
 {
-    return Format("{R: %v, A: %v, SR: %v, SA: %v}",
-        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Regular],
-        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Aggressive],
-        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdRegular],
-        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdAggressive]);
+    auto doFormat = [] (const auto& countByPriority) {
+        return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
+            countByPriority[EOperationPreemptionPriority::None],
+            countByPriority[EOperationPreemptionPriority::Regular],
+            countByPriority[EOperationPreemptionPriority::Aggressive],
+            countByPriority[EOperationPreemptionPriority::SsdRegular],
+            countByPriority[EOperationPreemptionPriority::SsdAggressive]);
+    };
+
+    return Format("{OperationAndAncestors: %v, OperationOnly: %v}",
+        doFormat(operationsByPriority[EOperationPreemptionPriorityScope::OperationAndAncestors]),
+        doFormat(operationsByPriority[EOperationPreemptionPriorityScope::OperationOnly]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
