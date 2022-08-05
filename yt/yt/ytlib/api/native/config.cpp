@@ -267,6 +267,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("sequoia_transaction_timeout", SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
 
+    RegisterParameter("use_followers_for_write_targets_allocation", UseFollowersForWriteTargetsAllocation)
+        .Default(false);
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 

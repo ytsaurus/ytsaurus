@@ -205,6 +205,8 @@ public:
     NYTree::TYPath SequoiaPath;
     TDuration SequoiaTransactionTimeout;
 
+    bool UseFollowersForWriteTargetsAllocation;
+
     TConnectionConfig();
 
     //! Replaces all master addresses with given master cache addresses.
