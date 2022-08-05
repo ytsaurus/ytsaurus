@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, insert_rows, partition_tables, raises_yt_error, sync_create_cells, sync_flush_table, sync_mount_table, write_table)
 
-from yt.yson import to_yson_type
+from yt.yson import dumps, to_yson_type
 
 
 class TestPartitionTablesBase:
@@ -24,7 +24,7 @@ class TestPartitionTablesBase:
             rows = []
             for i in range(rows_per_chunk):
                 row = {"key_0": "{:010d}".format(chunk), "key_1": "{:010d}".format(i), "value": ""}
-                value_weight = row_weight - len(to_yson_type(row))
+                value_weight = row_weight - len(dumps(row, yson_format="binary"))
                 row["value"] = "x" * value_weight
                 rows.append(row)
             if dynamic:
