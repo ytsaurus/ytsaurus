@@ -8,8 +8,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/chaos_client/replication_card_cache.h>
-
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
@@ -70,12 +68,12 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/tablet_client/helpers.h>
-
-#include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
@@ -2513,18 +2511,9 @@ TPullRowsResult TClient::DoPullRows(
             });
         }
     } else {
-        const auto& segments = options.ReplicationProgress.Segments;
-        const auto& upper = options.ReplicationProgress.UpperKey;
-        if (segments.size() != 1 ||
-            segments[0].LowerKey.GetCount() != 1 ||
-            segments[0].LowerKey[0].Type != EValueType::Int64 || 
-            upper.GetCount() != 1 ||
-            upper[0].Type != EValueType::Int64)
-        {
-            THROW_ERROR_EXCEPTION("Invalid replication progress for ordered table")
-                << TErrorAttribute("replication_progress", options.ReplicationProgress);
-        }
+        ValidateOrderedTabletReplicationProgress(options.ReplicationProgress);
 
+        const auto& segments = options.ReplicationProgress.Segments;
         const auto& timestampColumn = schema->GetColumnOrThrow(TimestampColumnName);
         timestampColumnIndex = schema->GetColumnIndex(timestampColumn);
 

@@ -349,6 +349,11 @@ private:
                             progressTimestamp,
                             row,
                             static_cast<TReplicationProgress>(*replicationProgress));
+
+                        THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                            << TErrorAttribute("row_timestamp", rowTimestamp)
+                            << TErrorAttribute("progress_timestamp", progressTimestamp)
+                            << HardErrorAttribute;
                     }
                 }
             } else {
@@ -370,6 +375,11 @@ private:
                             progressTimestamp,
                             row,
                             static_cast<TReplicationProgress>(*replicationProgress));
+
+                        THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                            << TErrorAttribute("row_timestamp", rowTimestamp)
+                            << TErrorAttribute("progress_timestamp", progressTimestamp)
+                            << HardErrorAttribute;
                     }
                 }
             }

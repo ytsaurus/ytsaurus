@@ -2056,6 +2056,30 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
         wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[1:])
 
+    @authors("savrus")
+    def test_ordered_start_replication_row_index(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        data_values = [{"key": i, "value": str(i)} for i in range(3)]
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(3)]
+        insert_rows("//tmp/t", values[:1])
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[:1])
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+        insert_rows("//tmp/t", values[1:2])
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[:2])
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
+        insert_rows("//tmp/t", values[2:3])
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
+
 
 ##################################################################
 

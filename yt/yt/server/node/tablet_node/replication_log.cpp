@@ -254,12 +254,13 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<i64> lowerRowIndex = {},
         TOnMissingRowCallback onMissingRow = [] {}) override
     {
         auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
 
-        auto rowIndexLo = trimmedRowCount;
+        auto rowIndexLo = lowerRowIndex.value_or(trimmedRowCount);
         auto rowIndexHi = totalRowCount;
         if (rowIndexLo == rowIndexHi) {
             onMissingRow();
@@ -299,7 +300,8 @@ public:
             startTimestamp);
 
         if (startTimestamp == NullTimestamp) {
-            YT_LOG_DEBUG("No replication log rows available (TrimmedRowCount: %v, TotalRowCount: %v)",
+            YT_LOG_DEBUG("No replication log rows available (LowerRowIndex: %v, TrimmedRowCount: %v, TotalRowCount: %v)",
+                lowerRowIndex,
                 trimmedRowCount,
                 totalRowCount);
             onMissingRow();

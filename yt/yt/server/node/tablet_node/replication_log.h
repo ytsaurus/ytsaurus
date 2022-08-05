@@ -54,6 +54,7 @@ struct IReplicationLogParser
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        std::optional<i64> lowerRowIndex = {},
         TOnMissingRowCallback onMissingRow = [] {}) = 0;
 };
 
