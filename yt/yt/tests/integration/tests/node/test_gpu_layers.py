@@ -21,7 +21,7 @@ from collections import Counter
 INCREASED_TIMEOUT = 90.0
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestGpuJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -113,7 +113,7 @@ class TestGpuJobSetup(YTEnvSetup):
         assert res == b"SETUP-GPU-OUTPUT\n"
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestSkipGpuJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -181,7 +181,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -287,7 +287,7 @@ class TestGpuLayer(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestGpuLayerUpdate(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -395,7 +395,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
         wait(partial(check_cat, "Marko Saaresto\n"), ignore_exceptions=True)
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestCudaLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -531,7 +531,7 @@ class TestCudaLayer(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestForceCudaLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -640,7 +640,7 @@ class TestForceCudaLayer(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestSetupUser(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1

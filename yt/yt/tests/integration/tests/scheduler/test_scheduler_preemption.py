@@ -355,7 +355,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
-    @authors("mrkastep")
+    @authors("ignat")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")

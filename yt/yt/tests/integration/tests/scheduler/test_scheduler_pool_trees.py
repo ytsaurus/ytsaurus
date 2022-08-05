@@ -1602,7 +1602,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         blocking_op.track()
         op.track()
 
-    @authors("mrkastep")
+    @authors("ignat")
     def test_ignoring_tentative_pool_operation_limit(self):
         nodes = ls("//sys/cluster_nodes")
         for normal_node in nodes[:2]:

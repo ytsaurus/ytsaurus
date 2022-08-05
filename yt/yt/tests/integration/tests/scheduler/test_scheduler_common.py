@@ -2141,7 +2141,7 @@ class TestEventLog(YTEnvSetup):
 
         wait(check)
 
-    @authors("mrkastep")
+    @authors("ignat")
     def test_structured_event_log(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -2455,7 +2455,7 @@ class TestResourceMetering(YTEnvSetup):
                     return False
         return True
 
-    @authors("mrkastep")
+    @authors("ignat")
     def test_resource_metering_log(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -2568,7 +2568,7 @@ class TestResourceMetering(YTEnvSetup):
 
         wait(check_structured)
 
-    @authors("mrkastep")
+    @authors("ignat")
     def test_metering_tags(self):
         set("//sys/pool_trees/default/@config/metering_tags", {"my_tag": "my_value"})
         wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
