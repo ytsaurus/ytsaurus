@@ -90,6 +90,8 @@ TTask::TTask(ITaskHostPtr taskHost)
 
 void TTask::Initialize()
 {
+    Logger.AddTag("Task: %v", GetTitle());
+
     SetupCallbacks();
 
     if (IsSimpleTask()) {
@@ -101,7 +103,6 @@ void TTask::Initialize()
 
 void TTask::Prepare()
 {
-    Logger.AddTag("Task: %v", GetTitle());
     const auto& spec = TaskHost_->GetSpec();
     TentativeTreeEligibility_ = TTentativeTreeEligibility(spec->TentativePoolTrees, spec->TentativeTreeEligibility, Logger);
 
