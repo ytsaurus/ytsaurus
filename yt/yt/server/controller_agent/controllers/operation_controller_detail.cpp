@@ -1780,9 +1780,9 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 
     bool sortedOutputAutoMergeRequired = false;
 
-    auto standardStreamDescriptors = GetStandardStreamDescriptors();
+    const auto standardStreamDescriptors = GetStandardStreamDescriptors();
 
-    std::vector<TStreamDescriptor> streamDescriptors;
+    std::vector<TStreamDescriptorPtr> streamDescriptors;
     streamDescriptors.reserve(OutputTables_.size());
     for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         const auto& outputTable = OutputTables_[index];
@@ -1790,11 +1790,11 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
             if (outputTable->TableUploadOptions.TableSchema->IsSorted()) {
                 sortedOutputAutoMergeRequired = true;
             } else {
-                auto streamDescriptor = standardStreamDescriptors[index];
+                auto streamDescriptor = standardStreamDescriptors[index]->Clone();
                 // Auto-merge jobs produce single output, so we override the table
                 // index in writer options with 0.
-                streamDescriptor.TableWriterOptions = CloneYsonSerializable(streamDescriptor.TableWriterOptions);
-                streamDescriptor.TableWriterOptions->TableIndex = 0;
+                streamDescriptor->TableWriterOptions = CloneYsonSerializable(streamDescriptor->TableWriterOptions);
+                streamDescriptor->TableWriterOptions->TableIndex = 0;
                 streamDescriptors.push_back(std::move(streamDescriptor));
                 AutoMergeEnabled_[index] = true;
             }
@@ -1887,7 +1887,7 @@ IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
     return orchid;
 }
 
-std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
+std::vector<TStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeStreamDescriptors()
 {
     auto streamDescriptors = GetStandardStreamDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
@@ -1901,18 +1901,19 @@ std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescr
     int autoMergeTaskTableIndex = 0;
     for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
         if (AutoMergeEnabled_[index]) {
-            streamDescriptors[index].DestinationPool = AutoMergeTask_->GetChunkPoolInput();
-            streamDescriptors[index].ChunkMapping = AutoMergeTask_->GetChunkMapping();
-            streamDescriptors[index].ImmediatelyUnstageChunkLists = true;
-            streamDescriptors[index].RequiresRecoveryInfo = true;
-            streamDescriptors[index].IsFinalOutput = false;
+            streamDescriptors[index] = streamDescriptors[index]->Clone();
+            streamDescriptors[index]->DestinationPool = AutoMergeTask_->GetChunkPoolInput();
+            streamDescriptors[index]->ChunkMapping = AutoMergeTask_->GetChunkMapping();
+            streamDescriptors[index]->ImmediatelyUnstageChunkLists = true;
+            streamDescriptors[index]->RequiresRecoveryInfo = true;
+            streamDescriptors[index]->IsFinalOutput = false;
             // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
             // and output edges. The underlying operation must not build an output edge, as it doesn't know
             // whether the resulting vertex is shallow_auto_merge or auto_merge.
-            streamDescriptors[index].TargetDescriptor = TDataFlowGraph::TVertexDescriptor();
-            streamDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
+            streamDescriptors[index]->TargetDescriptor = TDataFlowGraph::TVertexDescriptor();
+            streamDescriptors[index]->PartitionTag = autoMergeTaskTableIndex++;
             if (intermediateDataAccount) {
-                streamDescriptors[index].TableWriterOptions->Account = *intermediateDataAccount;
+                streamDescriptors[index]->TableWriterOptions->Account = *intermediateDataAccount;
             }
         }
     }
@@ -4959,7 +4960,7 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-const std::vector<TStreamDescriptor>& TOperationControllerBase::GetStandardStreamDescriptors() const
+const std::vector<TStreamDescriptorPtr>& TOperationControllerBase::GetStandardStreamDescriptors() const
 {
     return StandardStreamDescriptors_;
 }
@@ -4968,12 +4969,12 @@ void TOperationControllerBase::InitializeStandardStreamDescriptors()
 {
     StandardStreamDescriptors_.resize(OutputTables_.size());
     for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-        StandardStreamDescriptors_[index] = OutputTables_[index]->GetStreamDescriptorTemplate(index);
-        StandardStreamDescriptors_[index].DestinationPool = GetSink();
-        StandardStreamDescriptors_[index].IsFinalOutput = true;
-        StandardStreamDescriptors_[index].LivePreviewIndex = index;
-        StandardStreamDescriptors_[index].TargetDescriptor = TDataFlowGraph::SinkDescriptor;
-        StandardStreamDescriptors_[index].PartitionTag = index;
+        StandardStreamDescriptors_[index] = OutputTables_[index]->GetStreamDescriptorTemplate(index)->Clone();
+        StandardStreamDescriptors_[index]->DestinationPool = GetSink();
+        StandardStreamDescriptors_[index]->IsFinalOutput = true;
+        StandardStreamDescriptors_[index]->LivePreviewIndex = index;
+        StandardStreamDescriptors_[index]->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+        StandardStreamDescriptors_[index]->PartitionTag = index;
     }
 }
 
@@ -9595,12 +9596,12 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     return options;
 }
 
-TStreamDescriptor TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
+TStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
 {
-    TStreamDescriptor descriptor;
-    descriptor.CellTags = IntermediateOutputCellTagList;
-    descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
-    descriptor.TableWriterConfig = BuildYsonStringFluently()
+    auto descriptor = New<TStreamDescriptor>();
+    descriptor->CellTags = IntermediateOutputCellTagList;
+    descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();
+    descriptor->TableWriterConfig = BuildYsonStringFluently()
         .BeginMap()
             .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
             .Item("min_upload_replication_factor").Value(1)
@@ -9612,7 +9613,7 @@ TStreamDescriptor TOperationControllerBase::GetIntermediateStreamDescriptorTempl
             })
         .EndMap();
 
-    descriptor.RequiresRecoveryInfo = true;
+    descriptor->RequiresRecoveryInfo = true;
     return descriptor;
 }
 

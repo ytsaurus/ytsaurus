@@ -701,7 +701,7 @@ protected:
     bool TryInitAutoMerge(int outputChunkCountEstimate);
 
     //! Return stream descriptors adjusted accroding to existing auto-merge tasks.
-    std::vector<TStreamDescriptor> GetAutoMergeStreamDescriptors();
+    std::vector<TStreamDescriptorPtr> GetAutoMergeStreamDescriptors();
 
     void FillPrepareResult(TOperationControllerPrepareResult* result);
 
@@ -976,10 +976,10 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const override;
+    const std::vector<TStreamDescriptorPtr>& GetStandardStreamDescriptors() const override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
-    TStreamDescriptor GetIntermediateStreamDescriptorTemplate() const;
+    TStreamDescriptorPtr GetIntermediateStreamDescriptorTemplate() const;
 
     const TDataFlowGraphPtr& GetDataFlowGraph() const override;
 
@@ -1156,7 +1156,7 @@ private:
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
-    std::vector<TStreamDescriptor> StandardStreamDescriptors_;
+    std::vector<TStreamDescriptorPtr> StandardStreamDescriptors_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;

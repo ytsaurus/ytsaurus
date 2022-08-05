@@ -525,7 +525,7 @@ protected:
 
         TPartitionTask(
             TSortControllerBase* controller,
-            std::vector<TStreamDescriptor> streamDescriptors,
+            std::vector<TStreamDescriptorPtr> streamDescriptors,
             int level)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
@@ -680,7 +680,7 @@ protected:
         }
 
         void PropagatePartitions(
-            const std::vector<TStreamDescriptor>& streamDescriptors,
+            const std::vector<TStreamDescriptorPtr>& streamDescriptors,
             const TChunkStripeListPtr& inputStripeList,
             std::vector<TChunkStripePtr>* outputStripes) override
         {
@@ -1005,7 +1005,7 @@ protected:
         //! For persistence only.
         TSortTaskBase() = default;
 
-        TSortTaskBase(TSortControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors, bool isFinalSort)
+        TSortTaskBase(TSortControllerBase* controller, std::vector<TStreamDescriptorPtr> streamDescriptors, bool isFinalSort)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
             , IsFinalSort_(isFinalSort)
@@ -1064,7 +1064,7 @@ protected:
             TError error,
             IChunkPoolInput::TCookie cookie,
             const TChunkStripePtr& stripe,
-            const TStreamDescriptor& descriptor) override
+            const TStreamDescriptorPtr& descriptor) override
         {
             if (IsFinalSort_) {
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
@@ -1073,8 +1073,8 @@ protected:
             Controller_->SortedMergeTask->AbortAllActiveJoblets(error, *stripe->PartitionTag);
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
             // Let's live like this a bit, and then maybe move it inside pool.
-            descriptor.DestinationPool->Reset(cookie, stripe, descriptor.ChunkMapping);
-            descriptor.ChunkMapping->Reset(cookie, stripe);
+            descriptor->DestinationPool->Reset(cookie, stripe, descriptor->ChunkMapping);
+            descriptor->ChunkMapping->Reset(cookie, stripe);
         }
 
         TJobSplitterConfigPtr GetJobSplitterConfig() const override
@@ -1245,7 +1245,7 @@ protected:
 
         TSortTask(
             TSortControllerBase* controller,
-            std::vector<TStreamDescriptor> streamDescriptors,
+            std::vector<TStreamDescriptorPtr> streamDescriptors,
             bool isFinalSort)
             : TSortTaskBase(controller, std::move(streamDescriptors), isFinalSort)
             , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
@@ -1428,7 +1428,7 @@ protected:
         //! For persistence only.
         TSimpleSortTask() = default;
 
-        TSimpleSortTask(TSortControllerBase* controller, TPartition* partition, std::vector<TStreamDescriptor> streamDescriptors)
+        TSimpleSortTask(TSortControllerBase* controller, TPartition* partition, std::vector<TStreamDescriptorPtr> streamDescriptors)
             : TSortTaskBase(controller, std::move(streamDescriptors), /*isFinalSort=*/true)
             , Partition_(partition)
         {
@@ -1522,7 +1522,7 @@ protected:
 
         TSortedMergeTask(
             TSortControllerBase* controller,
-            std::vector<TStreamDescriptor> streamDescriptors,
+            std::vector<TStreamDescriptorPtr> streamDescriptors,
             bool enableKeyGuarantee)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
@@ -1840,7 +1840,7 @@ protected:
 
         TUnorderedMergeTask(
             TSortControllerBase* controller,
-            std::vector<TStreamDescriptor> streamDescriptors)
+            std::vector<TStreamDescriptorPtr> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
             , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
@@ -2880,20 +2880,20 @@ protected:
         InitIntermediateSchemas();
     }
 
-    virtual const std::vector<TStreamDescriptor>& GetFinalStreamDescriptors() const
+    virtual const std::vector<TStreamDescriptorPtr>& GetFinalStreamDescriptors() const
     {
         return GetStandardStreamDescriptors();
     }
 
-    virtual std::vector<TStreamDescriptor> GetSortedMergeStreamDescriptors() const
+    virtual std::vector<TStreamDescriptorPtr> GetSortedMergeStreamDescriptors() const
     {
-        auto streamDescriptor = GetIntermediateStreamDescriptorTemplate();
+        auto streamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
 
-        streamDescriptor.DestinationPool = SortedMergeTask->GetChunkPoolInput();
-        streamDescriptor.ChunkMapping = SortedMergeTask->GetChunkMapping();
-        streamDescriptor.TableUploadOptions.TableSchema = IntermediateChunkSchema_;
-        streamDescriptor.RequiresRecoveryInfo = true;
-        streamDescriptor.TargetDescriptor = SortedMergeTask->GetVertexDescriptor();
+        streamDescriptor->DestinationPool = SortedMergeTask->GetChunkPoolInput();
+        streamDescriptor->ChunkMapping = SortedMergeTask->GetChunkMapping();
+        streamDescriptor->TableUploadOptions.TableSchema = IntermediateChunkSchema_;
+        streamDescriptor->RequiresRecoveryInfo = true;
+        streamDescriptor->TargetDescriptor = SortedMergeTask->GetVertexDescriptor();
 
         return {streamDescriptor};
     }
@@ -3283,15 +3283,15 @@ private:
 
         PartitionTasks.resize(PartitionTreeDepth);
         for (int partitionTaskLevel = PartitionTreeDepth - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
-            TStreamDescriptor shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate();
-            shuffleStreamDescriptor.DestinationPool = ShuffleMultiChunkPoolInputs[partitionTaskLevel];
-            shuffleStreamDescriptor.ChunkMapping = ShuffleMultiInputChunkMappings[partitionTaskLevel];
-            shuffleStreamDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
-            shuffleStreamDescriptor.TableUploadOptions.TableSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
+            auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
+            shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs[partitionTaskLevel];
+            shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings[partitionTaskLevel];
+            shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
+            shuffleStreamDescriptor->TableUploadOptions.TableSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
             if (partitionTaskLevel != PartitionTreeDepth - 1) {
-                shuffleStreamDescriptor.TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
+                shuffleStreamDescriptor->TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
             }
-            PartitionTasks[partitionTaskLevel] = New<TPartitionTask>(this, std::vector<TStreamDescriptor>{shuffleStreamDescriptor}, partitionTaskLevel);
+            PartitionTasks[partitionTaskLevel] = New<TPartitionTask>(this, std::vector<TStreamDescriptorPtr>{shuffleStreamDescriptor}, partitionTaskLevel);
         }
 
         for (int partitionTaskLevel = 0; partitionTaskLevel < PartitionTreeDepth; ++partitionTaskLevel) {
@@ -3859,18 +3859,20 @@ public:
     {
         const auto& streamDescriptors = GetStandardStreamDescriptors();
 
-        MapperSinkEdges_ = std::vector<TStreamDescriptor>(
+        MapperSinkEdges_ = std::vector<TStreamDescriptorPtr>(
             streamDescriptors.begin(),
             streamDescriptors.begin() + Spec->MapperOutputTableCount);
         for (int index = 0; index < std::ssize(MapperSinkEdges_); ++index) {
-            MapperSinkEdges_[index].TableWriterOptions->TableIndex = index + 1;
+            MapperSinkEdges_[index] = MapperSinkEdges_[index]->Clone();
+            MapperSinkEdges_[index]->TableWriterOptions->TableIndex = index + 1;
         }
 
-        ReducerSinkEdges_ = std::vector<TStreamDescriptor>(
+        ReducerSinkEdges_ = std::vector<TStreamDescriptorPtr>(
             streamDescriptors.begin() + Spec->MapperOutputTableCount,
             streamDescriptors.end());
         for (int index = 0; index < std::ssize(ReducerSinkEdges_); ++index) {
-            ReducerSinkEdges_[index].TableWriterOptions->TableIndex = index;
+            ReducerSinkEdges_[index] = ReducerSinkEdges_[index]->Clone();
+            ReducerSinkEdges_[index]->TableWriterOptions->TableIndex = index;
         }
     }
 
@@ -3906,8 +3908,8 @@ private:
 
     // Mapper stream descriptors are for the data that is written from mappers directly to the first
     // `Spec->MapperOutputTableCount` output tables skipping the shuffle and reduce phases.
-    std::vector<TStreamDescriptor> MapperSinkEdges_;
-    std::vector<TStreamDescriptor> ReducerSinkEdges_;
+    std::vector<TStreamDescriptorPtr> MapperSinkEdges_;
+    std::vector<TStreamDescriptorPtr> ReducerSinkEdges_;
 
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserFile> ReduceCombinerFiles;
@@ -4198,16 +4200,16 @@ private:
 
         PartitionTasks.resize(PartitionTreeDepth);
         for (int partitionTaskLevel = PartitionTreeDepth - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
-            std::vector<TStreamDescriptor> partitionStreamDescriptors;
+            std::vector<TStreamDescriptorPtr> partitionStreamDescriptors;
             // Primary stream descriptor for shuffled output of the mapper.
-            TStreamDescriptor shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate();
-            shuffleStreamDescriptor.DestinationPool = ShuffleMultiChunkPoolInputs[partitionTaskLevel];
-            shuffleStreamDescriptor.ChunkMapping = ShuffleMultiInputChunkMappings[partitionTaskLevel];
-            shuffleStreamDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
-            shuffleStreamDescriptor.TableUploadOptions.TableSchema = IntermediateChunkSchema_;
-            shuffleStreamDescriptor.StreamSchemas = IntermediateStreamSchemas_;
+            auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
+            shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs[partitionTaskLevel];
+            shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings[partitionTaskLevel];
+            shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
+            shuffleStreamDescriptor->TableUploadOptions.TableSchema = IntermediateChunkSchema_;
+            shuffleStreamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
             if (partitionTaskLevel != PartitionTreeDepth - 1) {
-                shuffleStreamDescriptor.TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
+                shuffleStreamDescriptor->TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
             }
             partitionStreamDescriptors.emplace_back(std::move(shuffleStreamDescriptor));
 
@@ -4287,7 +4289,7 @@ private:
         return Spec->Reducer;
     }
 
-    const std::vector<TStreamDescriptor>& GetFinalStreamDescriptors() const override
+    const std::vector<TStreamDescriptorPtr>& GetFinalStreamDescriptors() const override
     {
         return ReducerSinkEdges_;
     }
@@ -4365,8 +4367,7 @@ private:
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
-
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);

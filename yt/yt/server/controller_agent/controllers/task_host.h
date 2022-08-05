@@ -122,7 +122,7 @@ struct ITaskHost
 
     void Persist(const TPersistenceContext& context) override = 0;
 
-    virtual const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const = 0;
+    virtual const std::vector<TStreamDescriptorPtr>& GetStandardStreamDescriptors() const = 0;
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
 

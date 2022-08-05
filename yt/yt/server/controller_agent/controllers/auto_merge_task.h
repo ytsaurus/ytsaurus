@@ -75,7 +75,7 @@ public:
         i64 chunkSizeThreshold,
         i64 dataWeightPerJob,
         i64 maxDataWeightPerJob,
-        std::vector<TStreamDescriptor> streamDescriptors);
+        std::vector<TStreamDescriptorPtr> streamDescriptors);
 
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;

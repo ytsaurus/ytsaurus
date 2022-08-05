@@ -87,21 +87,21 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableIndex);
 }
 
-TStreamDescriptor TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
+TStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
 {
-    TStreamDescriptor descriptor;
-    descriptor.TableUploadOptions = TableUploadOptions;
-    descriptor.TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
-    descriptor.TableWriterOptions->TableIndex = tableIndex;
-    descriptor.TableWriterConfig = WriterConfig;
-    descriptor.Timestamp = Timestamp;
+    auto descriptor = New<TStreamDescriptor>();
+    descriptor->TableUploadOptions = TableUploadOptions;
+    descriptor->TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
+    descriptor->TableWriterOptions->TableIndex = tableIndex;
+    descriptor->TableWriterConfig = WriterConfig;
+    descriptor->Timestamp = Timestamp;
     // Output tables never lose data (hopefully), so we do not need to store
     // recovery info for chunks that get there.
-    descriptor.RequiresRecoveryInfo = false;
-    descriptor.CellTags = {ExternalCellTag};
-    descriptor.ImmediatelyUnstageChunkLists = false;
-    descriptor.IsOutputTableDynamic = Dynamic;
-    descriptor.PartitionTag = TableIndex;
+    descriptor->RequiresRecoveryInfo = false;
+    descriptor->CellTags = {ExternalCellTag};
+    descriptor->ImmediatelyUnstageChunkLists = false;
+    descriptor->IsOutputTableDynamic = Dynamic;
+    descriptor->PartitionTag = TableIndex;
 
     return descriptor;
 }

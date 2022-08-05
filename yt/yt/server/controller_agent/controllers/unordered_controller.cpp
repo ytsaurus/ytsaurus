@@ -69,7 +69,7 @@ public:
             : Controller_(nullptr)
         { }
 
-        TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors)
+        TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TStreamDescriptorPtr> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
         {

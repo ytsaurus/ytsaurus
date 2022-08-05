@@ -65,7 +65,7 @@ TTask::TTask()
     , CachedTotalJobCount_(-1)
 { }
 
-TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors)
+TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptorPtr> streamDescriptors)
     : Logger(taskHost->GetLogger())
     , TaskHost_(taskHost.Get())
     , StreamDescriptors_(std::move(streamDescriptors))
@@ -636,8 +636,8 @@ void TTask::ScheduleJob(
     SetStreamDescriptors(joblet);
 
     for (const auto& streamDescriptor : joblet->StreamDescriptors) {
-        int cellTagIndex = RandomNumber<size_t>() % streamDescriptor.CellTags.size();
-        auto cellTag = streamDescriptor.CellTags[cellTagIndex];
+        int cellTagIndex = RandomNumber<size_t>() % streamDescriptor->CellTags.size();
+        auto cellTag = streamDescriptor->CellTags[cellTagIndex];
         joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(cellTag));
     }
 
@@ -740,13 +740,13 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
 }
 
 void TTask::PropagatePartitions(
-    const std::vector<TStreamDescriptor>& streamDescriptors,
+    const std::vector<TStreamDescriptorPtr>& streamDescriptors,
     const TChunkStripeListPtr& /*inputStripeList*/,
     std::vector<TChunkStripePtr>* outputStripes)
 {
     YT_VERIFY(outputStripes->size() == streamDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < std::ssize(*outputStripes); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex].PartitionTag;
+        (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex]->PartitionTag;
     }
 }
 
@@ -820,6 +820,7 @@ void TTask::Persist(const TPersistenceContext& context)
     >(context, LostJobCookieMap);
 
     Persist(context, StreamDescriptors_);
+
     Persist(context, InputVertex_);
 
     Persist(context, TentativeTreeEligibility_);
@@ -871,7 +872,7 @@ void TTask::DoUpdateOutputEdgesForJob(
     const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics)
 {
     for (int index = 0; index < std::ssize(StreamDescriptors_); ++index) {
-        const auto& targetVertex = StreamDescriptors_[index].TargetDescriptor;
+        const auto& targetVertex = StreamDescriptors_[index]->TargetDescriptor;
         // If target vertex is unknown it is derived class' responsibility to update statistics.
         if (!targetVertex.empty()) {
             TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
@@ -944,7 +945,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
-            if (joblet->ChunkListIds[index] && StreamDescriptors_[index].ImmediatelyUnstageChunkLists) {
+            if (joblet->ChunkListIds[index] && StreamDescriptors_[index]->ImmediatelyUnstageChunkLists) {
                 this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
@@ -1160,7 +1161,7 @@ void TTask::OnStripeRegistrationFailed(
     TError error,
     IChunkPoolInput::TCookie /* cookie */,
     const TChunkStripePtr& /* stripe */,
-    const TStreamDescriptor& /* streamDescriptor */)
+    const TStreamDescriptorPtr& /* streamDescriptor */)
 {
     // NB: This method can be called during processing OnJob* event,
     // aborting all joblets are unsafe in this situation.
@@ -1405,18 +1406,18 @@ void TTask::AddOutputTableSpecs(
     for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
         const auto& streamDescriptor = streamDescriptors[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor.TableWriterOptions).ToString());
-        if (streamDescriptor.TableWriterConfig) {
-            outputSpec->set_table_writer_config(streamDescriptor.TableWriterConfig.ToString());
+        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor->TableWriterOptions).ToString());
+        if (streamDescriptor->TableWriterConfig) {
+            outputSpec->set_table_writer_config(streamDescriptor->TableWriterConfig.ToString());
         }
-        const auto& outputTableSchema = streamDescriptor.TableUploadOptions.TableSchema;
+        const auto& outputTableSchema = streamDescriptor->TableUploadOptions.TableSchema;
         outputSpec->set_table_schema(GetOrCacheSerializedSchema(outputTableSchema));
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
-        if (streamDescriptor.Timestamp) {
-            outputSpec->set_timestamp(*streamDescriptor.Timestamp);
+        if (streamDescriptor->Timestamp) {
+            outputSpec->set_timestamp(*streamDescriptor->Timestamp);
         }
-        outputSpec->set_dynamic(streamDescriptor.IsOutputTableDynamic);
-        for (const auto& streamSchema : streamDescriptor.StreamSchemas) {
+        outputSpec->set_dynamic(streamDescriptor->IsOutputTableDynamic);
+        for (const auto& streamSchema : streamDescriptor->StreamSchemas) {
             outputSpec->add_stream_schemas(GetOrCacheSerializedSchema(streamSchema));
         }
     }
@@ -1659,7 +1660,7 @@ void TTask::RegisterOutput(
             for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
-                    streamDescriptor.LivePreviewIndex,
+                    streamDescriptor->LivePreviewIndex,
                     dataSlice->GetSingleUnversionedChunk());
             }
 
@@ -1700,7 +1701,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
 
 void TTask::RegisterStripe(
     TChunkStripePtr stripe,
-    const TStreamDescriptor& streamDescriptor,
+    const TStreamDescriptorPtr& streamDescriptor,
     TJobletPtr joblet,
     TChunkStripeKey key,
     bool processEmptyStripes)
@@ -1713,11 +1714,11 @@ void TTask::RegisterStripe(
         return;
     }
 
-    const auto& destinationPool = streamDescriptor.DestinationPool;
-    if (streamDescriptor.RequiresRecoveryInfo) {
+    const auto& destinationPool = streamDescriptor->DestinationPool;
+    if (streamDescriptor->RequiresRecoveryInfo) {
         YT_VERIFY(joblet);
 
-        const auto& chunkMapping = streamDescriptor.ChunkMapping;
+        const auto& chunkMapping = streamDescriptor->ChunkMapping;
         YT_VERIFY(chunkMapping);
 
         YT_LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
@@ -1726,7 +1727,7 @@ void TTask::RegisterStripe(
             joblet->JobType);
 
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
-        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, streamDescriptor.DestinationPool));
+        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, streamDescriptor->DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
             // NB: if job is not restarted, we should not add its output for the
             // second time to the destination pools that did not trigger the replay.
@@ -1840,7 +1841,7 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < std::ssize(chunkTreeIds); ++tableIndex) {
         stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
-        if (StreamDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
+        if (StreamDescriptors_[tableIndex]->TableWriterOptions->ReturnBoundaryKeys) {
             // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
             if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
                 !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&

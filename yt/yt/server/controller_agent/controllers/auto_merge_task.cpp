@@ -139,7 +139,7 @@ TAutoMergeTask::TAutoMergeTask(
     i64 chunkSizeThreshold,
     i64 dataWeightPerJob,
     i64 maxDataWeightPerJob,
-    std::vector<TStreamDescriptor> streamDescriptors)
+    std::vector<TStreamDescriptorPtr> streamDescriptors)
     : TTask(taskHost, std::move(streamDescriptors))
     , FakeProgressCounters_{New<TProgressCounter>(), New<TProgressCounter>()}
     , EnableShallowMerge_(taskHost->GetSpec()->AutoMerge->EnableShallowMerge)
@@ -455,7 +455,7 @@ void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 
 int TAutoMergeTask::GetTableIndex(int poolIndex) const
 {
-    return *StreamDescriptors_[poolIndex].PartitionTag;
+    return *StreamDescriptors_[poolIndex]->PartitionTag;
 }
 
 TJobSplitterConfigPtr TAutoMergeTask::GetJobSplitterConfig() const

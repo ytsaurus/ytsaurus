@@ -145,7 +145,7 @@ public:
 
     std::optional<TDuration> JobSpeculationTimeout;
 
-    std::vector<TStreamDescriptor> StreamDescriptors;
+    std::vector<TStreamDescriptorPtr> StreamDescriptors;
 
     // These fields are used only to build job spec and thus transient.
     std::optional<TString> UserJobMonitoringDescriptor;

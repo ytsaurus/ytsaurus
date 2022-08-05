@@ -77,9 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStreamDescriptor
+struct TStreamDescriptorBase
 {
-    TStreamDescriptor() = default;
+    TStreamDescriptorBase() = default;
 
     // Keep fields below in sync with operator =.
     NChunkPools::IPersistentChunkPoolInputPtr DestinationPool;
@@ -109,8 +109,21 @@ struct TStreamDescriptor
 
     std::optional<int> PartitionTag;
 
+};
+
+struct TStreamDescriptor
+    : public TRefCounted
+    , public TStreamDescriptorBase
+{
+    TStreamDescriptor(TStreamDescriptorBase base);
+    TStreamDescriptor() = default;
+
+    TStreamDescriptorPtr Clone() const;
+
     void Persist(const TPersistenceContext& context);
 };
+
+DEFINE_REFCOUNTED_TYPE(TStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,18 +22,18 @@ using namespace NYson;
 
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TStreamDescriptor& streamDescriptor,
+    const TStreamDescriptorPtr& streamDescriptor,
     const TRowBufferPtr& rowBuffer)
 {
     YT_VERIFY(!boundaryKeys.empty());
     YT_VERIFY(boundaryKeys.sorted());
-    YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
+    YT_VERIFY(!streamDescriptor->TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
     auto trimAndCaptureKey = [&] (const TLegacyOwningKey& key) {
-        int limit = streamDescriptor.TableUploadOptions.TableSchema->GetKeyColumnCount();
+        int limit = streamDescriptor->TableUploadOptions.TableSchema->GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-            YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys);
+            YT_VERIFY(!streamDescriptor->TableWriterOptions->ValidateUniqueKeys);
             return TKey::FromRowUnchecked(rowBuffer->CaptureRow(MakeRange(key.Begin(), limit)), limit);
         } else {
             return TKey::FromRowUnchecked(rowBuffer->CaptureRow(MakeRange(key.Begin(), key.GetCount())), key.GetCount());
