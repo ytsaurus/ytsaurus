@@ -529,16 +529,21 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
 {
     const auto& Logger = logger;
 
+    const auto& config = client->GetNativeConnection()->GetConfig();
+    auto useFollowers = config->UseFollowersForWriteTargetsAllocation;
+
     YT_LOG_DEBUG("Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, "
-        "PreferredHostName: %v, ForbiddenAddresses: %v)",
+        "PreferredHostName: %v, ForbiddenAddresses: %v, UseFollowers: %v)",
         sessionId,
         desiredTargetCount,
         minTargetCount,
         preferredHostName,
-        forbiddenAddresses);
+        forbiddenAddresses,
+        useFollowers);
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(sessionId.ChunkId));
+    auto channelKind = useFollowers ? EMasterChannelKind::Follower : EMasterChannelKind::Leader;
+    auto channel = client->GetMasterChannelOrThrow(channelKind, CellTagFromId(sessionId.ChunkId));
     TChunkServiceProxy proxy(channel);
 
     auto batchReq = proxy.AllocateWriteTargets();
