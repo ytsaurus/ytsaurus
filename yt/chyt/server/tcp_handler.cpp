@@ -74,6 +74,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
                 header->QueryId,
                 std::move(traceContext),
                 /* dataLensRequestId */ std::nullopt,
+                /* yqlOperationId */ std::nullopt,
                 header);
         }
 

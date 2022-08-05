@@ -76,6 +76,7 @@ public:
     EInterface Interface;
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
+    std::optional<TString> YqlOperationId;
 
 
     // Fields for a statistics reporter.
@@ -101,6 +102,7 @@ public:
         TQueryId queryId,
         NTracing::TTraceContextPtr traceContext,
         std::optional<TString> dataLensRequestId,
+        std::optional<TString> yqlOperationId,
         const TSecondaryQueryHeaderPtr& secondaryQueryHeader);
 
     ~TQueryContext();
@@ -180,6 +182,7 @@ void SetupHostContext(
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId = std::nullopt,
+    std::optional<TString> yqlOperationId = std::nullopt,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader = nullptr);
 
 TQueryContext* GetQueryContext(DB::ContextPtr context);

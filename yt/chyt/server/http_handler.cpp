@@ -82,7 +82,7 @@ public:
 
         // For HTTP queries (which are always initial) query id is same as trace id.
         context->getClientInfo().current_query_id = context->getClientInfo().initial_query_id = ToString(QueryId_);
-        SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_);
+        SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_, YqlOperationId_);
     }
 
     void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
@@ -120,6 +120,7 @@ private:
     TTraceContextPtr TraceContext_;
     std::optional<TString> DataLensRequestId_;
     TQueryId QueryId_;
+    std::optional<TString> YqlOperationId_;
 
     //! If span is present in query headers, parse it and setup trace context which is its child.
     //! Otherwise, generate our own trace id (aka query id) and maybe generate root trace context
@@ -134,6 +135,12 @@ private:
         if (maybeDataLensRequestId.starts_with("dl.")) {
             YT_LOG_INFO("Request contains DataLens request id (RequestId: %v)", maybeDataLensRequestId);
             DataLensRequestId_ = TString(maybeDataLensRequestId);
+        }
+
+        auto maybeYqlOperationId = request.get("X-YQL-Operation-Id", "");
+        if (!maybeYqlOperationId.empty()) {
+            YT_LOG_INFO("Request contains YQL operation id (OperationId: %v)", maybeYqlOperationId);
+            YqlOperationId_ = TString(maybeYqlOperationId);
         }
 
         TSpanContext parentSpan;

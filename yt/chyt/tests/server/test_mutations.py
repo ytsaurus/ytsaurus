@@ -347,6 +347,19 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("create table \"//tmp/t3\"(b String) engine YtTable('{schema=[{name=a;type=int64}]}')")
             assert get("//tmp/t3/@schema/0/name") == "b"
 
+    @authors("gudqeit")
+    def test_create_table_with_yql_operation_id(self):
+        headers = {
+            "X-YQL-Operation-Id": "6151ee26d2b70ca7f86498ef"
+        }
+
+        with Clique(1) as clique:
+            clique.make_query(
+                'create table "//tmp/t"(i64 Int64) engine YtTable()',
+                headers=headers
+            )
+            assert get("//tmp/t/@_yql_op_id") == "6151ee26d2b70ca7f86498ef"
+
     @authors("max42")
     def test_create_table_as_select(self):
         create(

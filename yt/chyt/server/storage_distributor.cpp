@@ -1353,6 +1353,11 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
             "column list should consist of the only column named `_`)");
     };
 
+    if (queryContext->YqlOperationId) {
+        YT_LOG_DEBUG("Adding YQL operation id to attributes (OperationId: %v)", *queryContext->YqlOperationId);
+        attributes->Set("_yql_op_id", queryContext->YqlOperationId);
+    }
+
     YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
 
     auto schema = attributes->Get<TTableSchemaPtr>("schema");
