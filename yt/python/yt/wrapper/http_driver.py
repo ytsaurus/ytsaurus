@@ -1,7 +1,7 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
-from .common import (require, get_version, total_seconds, forbidden_inside_job, get_started_by_short,
+from .common import (require, get_user_agent, total_seconds, forbidden_inside_job, get_started_by_short,
                      generate_uuid, hide_secure_vault, hide_auth_headers)
 from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      create_http_response_error)
@@ -18,8 +18,6 @@ from yt.packages.requests.auth import AuthBase
 import random
 from copy import deepcopy
 from datetime import datetime
-
-import os
 
 
 def dump_params(obj, header_format):
@@ -204,10 +202,6 @@ def make_request(command_name,
         url = url_pattern.format(proxy=get_proxy_url(client=client), api=api_path, command=command_name)
 
     # prepare params, format and headers
-    user_agent = "Python wrapper " + get_version()
-    if "_ARGCOMPLETE" in os.environ:
-        user_agent += " [argcomplete mode]"
-
     header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
         raise YtError("Incorrect headers format: " + str(header_format))
@@ -224,7 +218,7 @@ def make_request(command_name,
         else:
             accept_encoding = "gzip, identity"
 
-    headers = {"User-Agent": user_agent,
+    headers = {"User-Agent": get_user_agent(),
                "Accept-Encoding": accept_encoding,
                "X-Started-By": dump_params(get_started_by_short(), header_format)}
 
