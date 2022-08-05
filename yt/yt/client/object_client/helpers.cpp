@@ -30,7 +30,9 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::Journal ||
         type == EObjectType::ChunkMap ||
         type == EObjectType::LostChunkMap ||
+        type == EObjectType::LostVitalChunkMap ||
         type == EObjectType::PrecariousChunkMap ||
+        type == EObjectType::PrecariousVitalChunkMap ||
         type == EObjectType::OverreplicatedChunkMap ||
         type == EObjectType::UnderreplicatedChunkMap ||
         type == EObjectType::DataMissingChunkMap ||
@@ -40,6 +42,18 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::UnsafelyPlacedChunkMap ||
         type == EObjectType::InconsistentlyPlacedChunkMap ||
         type == EObjectType::ForeignChunkMap ||
+        type == EObjectType::LocalLostChunkMap ||
+        type == EObjectType::LocalLostVitalChunkMap ||
+        type == EObjectType::LocalPrecariousChunkMap ||
+        type == EObjectType::LocalPrecariousVitalChunkMap ||
+        type == EObjectType::LocalOverreplicatedChunkMap ||
+        type == EObjectType::LocalUnderreplicatedChunkMap ||
+        type == EObjectType::LocalDataMissingChunkMap ||
+        type == EObjectType::LocalParityMissingChunkMap ||
+        type == EObjectType::LocalOldestPartMissingChunkMap ||
+        type == EObjectType::LocalQuorumMissingChunkMap ||
+        type == EObjectType::LocalUnsafelyPlacedChunkMap ||
+        type == EObjectType::LocalInconsistentlyPlacedChunkMap ||
         type == EObjectType::RackMap ||
         type == EObjectType::DataCenterMap ||
         type == EObjectType::HostMap ||
@@ -57,8 +71,6 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::TabletNodeMap ||
         type == EObjectType::ChaosNodeMap ||
         type == EObjectType::Orchid ||
-        type == EObjectType::LostVitalChunkMap ||
-        type == EObjectType::PrecariousVitalChunkMap ||
         type == EObjectType::AccountMap ||
         type == EObjectType::UserMap ||
         type == EObjectType::GroupMap ||

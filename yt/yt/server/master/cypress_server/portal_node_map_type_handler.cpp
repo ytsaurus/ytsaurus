@@ -38,7 +38,7 @@ private:
 
     const THashMap<TNodeId, TNode*>* const Nodes_;
 
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         std::vector<TObjectId> result;
         result.reserve(std::min<i64>(sizeLimit, Nodes_->size()));
@@ -52,7 +52,7 @@ private:
             }
             result.push_back(id);
         }
-        return result;
+        return MakeFuture(std::move(result));
     }
 
     bool IsValid(TObject* /*object*/) const override
@@ -60,9 +60,9 @@ private:
         return true;
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
-        return Nodes_->size();
+        return MakeFuture<i64>(Nodes_->size());
     }
 
     TYPath GetWellKnownPath() const override

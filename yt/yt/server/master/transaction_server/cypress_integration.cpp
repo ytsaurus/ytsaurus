@@ -38,9 +38,9 @@ private:
         return static_cast<const T*>(this)->Transactions();
     }
 
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
-        return ToObjectIds(Transactions(), sizeLimit);
+        return MakeFuture(ToObjectIds(Transactions(), sizeLimit));
     }
 
     bool IsValid(TObject* object) const override
@@ -53,9 +53,9 @@ private:
         return false;
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
-        return Transactions().size();
+        return MakeFuture<i64>(Transactions().size());
     }
 
     NYPath::TYPath GetWellKnownPath() const override

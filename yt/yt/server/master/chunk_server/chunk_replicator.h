@@ -88,6 +88,7 @@ public:
     void TouchChunk(TChunk* chunk);
 
     TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(TChunk* chunk);
 
     void ScheduleJobs(
         TNode* node,
@@ -105,6 +106,8 @@ public:
     bool ShouldProcessChunk(TChunk* chunk);
 
     TJobEpoch GetJobEpoch(TChunk* chunk) const;
+
+    bool IsDurabilityRequired(TChunk* chunk) const;
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
@@ -293,7 +296,7 @@ private:
     //!   - replication factors are capped by medium-specific bounds;
     //!   - additional entries may be introduced if the chunk has replicas
     //!     stored on a medium it's not supposed to have replicas on.
-    TChunkReplication GetChunkAggregatedReplication(const TChunk* chunk);
+    TChunkReplication GetChunkAggregatedReplication(const TChunk* chunk) const;
 
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
@@ -327,7 +330,7 @@ private:
 
     void TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob);
 
-    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+    TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const;
 
     const std::unique_ptr<TChunkScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;

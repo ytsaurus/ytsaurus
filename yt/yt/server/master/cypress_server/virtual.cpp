@@ -330,7 +330,10 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 {
-    return MakeFuture(std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), GetSize()));
+    return GetSize()
+        .Apply(BIND([=, this_ = MakeStrong(this)] (i64 size) {
+            return std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size);
+        }));
 }
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
@@ -387,47 +390,49 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
         }
     }
 
-    return AllSucceeded(asyncResults).Apply(BIND([=] () {
+    return AllSucceeded(asyncResults).Apply(BIND([=] {
         return session;
     }));
 }
 
 TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSessionPtr& session)
 {
-    auto keys = GetKeys(session->Limit);
-    session->Incomplete |= (std::ssize(keys) == session->Limit);
+    return GetKeys(session->Limit)
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
+            session->Incomplete |= (std::ssize(keys) == session->Limit);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
 
-    std::vector<TFuture<TYsonString>> asyncAttributes;
-    std::vector<TObjectId> aliveKeys;
-    for (const auto& key : keys) {
-        auto* object = objectManager->FindObject(key);
-        if (!IsObjectAlive(object)) {
-            continue;
-        }
-        aliveKeys.push_back(key);
-        if (session->AttributeFilter && !session->AttributeFilter.IsEmpty()) {
-            TAsyncYsonWriter writer(EYsonType::MapFragment);
-            auto proxy = objectManager->GetProxy(object, nullptr);
-            proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
-            asyncAttributes.emplace_back(writer.Finish());
-        } else {
-            static const auto EmptyYson = MakeFuture(TYsonString());
-            asyncAttributes.push_back(EmptyYson);
-        }
-    }
-
-    return AllSucceeded(asyncAttributes)
-        .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
-            YT_VERIFY(aliveKeys.size() == attributes.size());
-            for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
-                if (std::ssize(session->Items) >= session->Limit) {
-                    break;
+            std::vector<TFuture<TYsonString>> asyncAttributes;
+            std::vector<TObjectId> aliveKeys;
+            for (const auto& key : keys) {
+                auto* object = objectManager->FindObject(key);
+                if (!IsObjectAlive(object)) {
+                    continue;
                 }
-                session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
+                aliveKeys.push_back(key);
+                if (session->AttributeFilter && !session->AttributeFilter.IsEmpty()) {
+                    TAsyncYsonWriter writer(EYsonType::MapFragment);
+                    auto proxy = objectManager->GetProxy(object, nullptr);
+                    proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
+                    asyncAttributes.emplace_back(writer.Finish());
+                } else {
+                    static const auto EmptyYson = MakeFuture(TYsonString());
+                    asyncAttributes.push_back(EmptyYson);
+                }
             }
-        }).AsyncVia(session->Invoker));
+
+            return AllSucceeded(asyncAttributes)
+                .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
+                    YT_VERIFY(aliveKeys.size() == attributes.size());
+                    for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
+                        if (std::ssize(session->Items) >= session->Limit) {
+                            break;
+                        }
+                        session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
+                    }
+                }).AsyncVia(session->Invoker));
+        }).AsyncVia(GetCurrentInvoker()));
 }
 
 TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSessionPtr& session, TCellTag cellTag)
@@ -519,46 +524,53 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
     context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
-    auto keys = GetKeys(limit);
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-
-    std::vector<TFuture<TYsonString>> asyncValues;
-    for (const auto& key : keys) {
-        auto* object = objectManager->FindObject(key);
-        if (IsObjectAlive(object)) {
-            auto* protoItem = response->add_items();
-            protoItem->set_key(ToString(key));
-            TAsyncYsonWriter writer(EYsonType::MapFragment);
-            auto proxy = objectManager->GetProxy(object, nullptr);
-            proxy->WriteAttributesFragment(&writer, attributeFilter, false);
-            asyncValues.push_back(writer.Finish());
-        }
-    }
-
-    response->set_incomplete(response->items_size() == limit);
-
-    AllSucceeded(asyncValues)
-        .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
-            if (!valuesOrError.IsOK()) {
-                context->Reply(valuesOrError);
+    GetKeys(limit)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectId>>& keysOrError) {
+            if (!keysOrError.IsOK()) {
+                context->Reply(keysOrError);
                 return;
             }
 
-            const auto& values = valuesOrError.Value();
-            YT_VERIFY(response->items_size() == std::ssize(values));
-            for (int index = 0; index < response->items_size(); ++index) {
-                const auto& value = values[index];
-                if (!value.AsStringBuf().empty()) {
-                    response->mutable_items(index)->set_attributes(value.ToString());
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            std::vector<TFuture<TYsonString>> asyncValues;
+            const auto& keys = keysOrError.Value();
+            for (const auto& key : keys) {
+                auto* object = objectManager->FindObject(key);
+                if (IsObjectAlive(object)) {
+                    auto* protoItem = response->add_items();
+                    protoItem->set_key(ToString(key));
+                    TAsyncYsonWriter writer(EYsonType::MapFragment);
+                    auto proxy = objectManager->GetProxy(object, nullptr);
+                    proxy->WriteAttributesFragment(&writer, attributeFilter, false);
+                    asyncValues.push_back(writer.Finish());
                 }
             }
 
-            context->SetResponseInfo("Count: %v, Incomplete: %v",
-                response->items_size(),
-                response->incomplete());
-            context->Reply();
-        }));
+            response->set_incomplete(response->items_size() == limit);
+
+            AllSucceeded(asyncValues)
+                .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
+                    if (!valuesOrError.IsOK()) {
+                        context->Reply(valuesOrError);
+                        return;
+                    }
+
+                    const auto& values = valuesOrError.Value();
+                    YT_VERIFY(response->items_size() == std::ssize(values));
+                    for (int index = 0; index < response->items_size(); ++index) {
+                        const auto& value = values[index];
+                        if (!value.AsStringBuf().empty()) {
+                            response->mutable_items(index)->set_attributes(value.ToString());
+                        }
+                    }
+
+                    context->SetResponseInfo("Count: %v, Incomplete: %v",
+                        response->items_size(),
+                        response->incomplete());
+                    context->Reply();
+                }));
+        }).Via(GetCurrentInvoker()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

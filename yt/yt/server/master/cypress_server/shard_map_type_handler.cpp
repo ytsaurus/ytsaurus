@@ -23,10 +23,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return ToObjectIds(GetValues(cypressManager->Shards(), sizeLimit));
+        return MakeFuture(ToObjectIds(GetValues(cypressManager->Shards(), sizeLimit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -34,10 +34,10 @@ private:
         return object->GetType() == EObjectType::CypressShard;
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->Shards().GetSize();
+        return MakeFuture<i64>(cypressManager->Shards().GetSize());
     }
 
     NYPath::TYPath GetWellKnownPath() const override

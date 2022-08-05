@@ -314,6 +314,8 @@ struct IChunkManager
     virtual NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* chunk) = 0;
     virtual NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) = 0;
 
+    virtual std::vector<NRpc::IChannelPtr> GetChunkReplicatorChannels() = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

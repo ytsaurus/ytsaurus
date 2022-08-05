@@ -258,8 +258,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         if available:
             set_ban_for_parts([0, 1, 4], True)
             time.sleep(1)
-            wait(lambda: len(ls("//sys/data_missing_chunks")) == 0)
-            wait(lambda: len(ls("//sys/parity_missing_chunks")) == 0)
+            wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
+            wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
             assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         else:
             set_ban_for_parts([0, 1, 2, 8], True)

@@ -483,6 +483,11 @@ TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(TChunk* chunk)
     return result;
 }
 
+ECrossMediumChunkStatus TChunkReplicator::ComputeCrossMediumChunkStatus(TChunk* chunk)
+{
+    return ComputeChunkStatistics(chunk).Status;
+}
+
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(const TChunk* chunk)
 {
     auto result = chunk->IsErasure()
@@ -1898,7 +1903,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk);
 
-    auto durabilityRequired = false;
+    auto durabilityRequired = IsDurabilityRequired(chunk);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -1917,13 +1922,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         if (statistics.Status == EChunkStatus::None) {
             continue;
         }
-
-        auto replicationFactor = entry.Policy().GetReplicationFactor();
-        auto durabilityRequiredOnMedium =
-            replication.GetVital() &&
-            (chunk->IsErasure() || replicationFactor > 1) &&
-            !medium->GetTransient();
-        durabilityRequired = durabilityRequired || durabilityRequiredOnMedium;
 
         if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
             OverreplicatedChunks_.insert(chunk);
@@ -2205,7 +2203,7 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndexes replica)
     return node->GetDecommissioned();
 }
 
-TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk)
+TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
@@ -2379,6 +2377,29 @@ bool TChunkReplicator::ShouldProcessChunk(TChunk* chunk)
 TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
 {
     return JobEpochs_[chunk->GetShardIndex()];
+}
+
+bool TChunkReplicator::IsDurabilityRequired(TChunk* chunk) const
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto durabilityRequired = false;
+
+    auto replication = GetChunkAggregatedReplication(chunk);
+    for (auto entry : replication) {
+        auto mediumIndex = entry.GetMediumIndex();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        YT_VERIFY(IsObjectAlive(medium));
+
+        auto replicationFactor = entry.Policy().GetReplicationFactor();
+        auto durabilityRequiredOnMedium =
+            replication.GetVital() &&
+            (chunk->IsErasure() || replicationFactor > 1) &&
+            !medium->GetTransient();
+        durabilityRequired |= durabilityRequiredOnMedium;
+    }
+
+    return durabilityRequired;
 }
 
 void TChunkReplicator::OnCheckEnabled()
@@ -3035,7 +3056,7 @@ const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRequisitionUpdat
     return chunk->IsJournal() ? JournalRequisitionUpdateScanner_ : BlobRequisitionUpdateScanner_;
 }
 
-TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()
+TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry() const
 {
     return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
 }

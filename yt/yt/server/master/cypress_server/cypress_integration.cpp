@@ -24,9 +24,9 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
-        return NYT::GetKeys(Locks(), sizeLimit);
+        return MakeFuture(NYT::GetKeys(Locks(), sizeLimit));
     }
 
     bool IsValid(TObject* object) const override
@@ -39,9 +39,9 @@ private:
         return false;
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
-        return Locks().size();
+        return MakeFuture<i64>(Locks().size());
     }
 
     NYPath::TYPath GetWellKnownPath() const override
