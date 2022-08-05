@@ -525,7 +525,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             return list(yson.load(fin, "list_fragment"))
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
         super(TestSchedulerSimulatorWithRemoteEventLog, self)._set_scheduler_simulator_config_params(

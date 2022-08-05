@@ -314,7 +314,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
             wait(lambda: get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
 
-@authors("mrkastep")
+@authors("ignat")
 class TestJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
