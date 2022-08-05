@@ -21,12 +21,36 @@ template <class T>
 }
 
 template <class T>
+[[nodiscard]] TErrorOr<T> WaitForFast(const TFuture<T>& future)
+{
+    YT_ASSERT(future);
+
+    if (!future.IsSet()) {
+        WaitUntilSet(future.AsVoid(), GetCurrentInvoker());
+    }
+
+    return future.Get();
+}
+
+template <class T>
 [[nodiscard]] TErrorOr<T> WaitForUnique(const TFuture<T>& future, IInvokerPtr invoker)
 {
     YT_ASSERT(future);
     YT_ASSERT(invoker);
 
     WaitUntilSet(future.AsVoid(), std::move(invoker));
+
+    return future.GetUnique();
+}
+
+template <class T>
+[[nodiscard]] TErrorOr<T> WaitForUniqueFast(const TFuture<T>& future)
+{
+    YT_ASSERT(future);
+
+    if (!future.IsSet()) {
+        WaitUntilSet(future.AsVoid(), GetCurrentInvoker());
+    }
 
     return future.GetUnique();
 }
