@@ -5256,14 +5256,19 @@ private:
 
     NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* /*chunk*/) override
     {
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        return cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader);
+        return GetChunkReplicatorChannels().front();
     }
 
     NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override
     {
         return FindChunkReplicatorChannel(chunk);
+    }
+
+    std::vector<NRpc::IChannelPtr> GetChunkReplicatorChannels() override
+    {
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        return {cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader)};
     }
 
     std::vector<TError> GetAlerts() const

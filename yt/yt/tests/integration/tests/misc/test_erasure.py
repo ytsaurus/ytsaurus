@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists, update_nodes_dynamic_config, get_applied_node_dynamic_config,
+    remove, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
@@ -528,12 +528,12 @@ class TestErasure(TestErasureBase):
         assert part_loss_time > now
         assert part_loss_time < now + timedelta(seconds=30.0)
 
-        assert exists("//sys/oldest_part_missing_chunks/" + chunk_id)
+        assert chunk_id in ls("//sys/oldest_part_missing_chunks")
 
         set_node_banned(str(replicas[0]), False)
         wait(lambda: get("#" + chunk_id + "/@part_loss_time") == None) # noqa
 
-        assert not exists("//sys/oldest_part_missing_chunks/" + chunk_id)
+        assert chunk_id not in ls("//sys/oldest_part_missing_chunks")
 
     @authors("gritukan")
     def test_chunk_availability_policy(self):

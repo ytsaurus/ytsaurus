@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistentResponseKeeper)                                     (2104))  // aleksandra-zh
     ((HunkStorage)                                                  (2105))  // gritukan
     ((RemoveCellRoles)                                              (2106))  // aleksandra-zh
+    ((ShardedChunkMaps)                                             (2107))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

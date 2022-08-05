@@ -27,10 +27,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         const auto& tableManager = Bootstrap_->GetTableManager();
-        return NYT::GetKeys(tableManager->MasterTableSchemas(), sizeLimit);
+        return MakeFuture(NYT::GetKeys(tableManager->MasterTableSchemas(), sizeLimit));
     }
 
     bool IsValid(TObject* object) const override
@@ -38,10 +38,10 @@ private:
         return IsObjectAlive(object);
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
         const auto& tableManager = Bootstrap_->GetTableManager();
-        return tableManager->MasterTableSchemas().GetSize();
+        return MakeFuture<i64>(tableManager->MasterTableSchemas().GetSize());
     }
 
     NYPath::TYPath GetWellKnownPath() const override

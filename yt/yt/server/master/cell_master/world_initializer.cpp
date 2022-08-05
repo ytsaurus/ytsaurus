@@ -540,6 +540,66 @@ private:
                 EObjectType::ForeignChunkMap);
 
             ScheduleCreateNode(
+                "//sys/local_lost_chunks",
+                transactionId,
+                EObjectType::LocalLostChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_lost_vital_chunks",
+                transactionId,
+                EObjectType::LocalLostVitalChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_precarious_chunks",
+                transactionId,
+                EObjectType::LocalPrecariousChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_precarious_vital_chunks",
+                transactionId,
+                EObjectType::LocalPrecariousVitalChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_overreplicated_chunks",
+                transactionId,
+                EObjectType::LocalOverreplicatedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_underreplicated_chunks",
+                transactionId,
+                EObjectType::LocalUnderreplicatedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_data_missing_chunks",
+                transactionId,
+                EObjectType::LocalDataMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_parity_missing_chunks",
+                transactionId,
+                EObjectType::LocalParityMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_oldest_part_missing_chunks",
+                transactionId,
+                EObjectType::LocalOldestPartMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_quorum_missing_chunks",
+                transactionId,
+                EObjectType::LocalQuorumMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_unsafely_placed_chunks",
+                transactionId,
+                EObjectType::LocalUnsafelyPlacedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_inconsistently_placed_chunks",
+                transactionId,
+                EObjectType::LocalInconsistentlyPlacedChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/chunk_views",
                 transactionId,
                 EObjectType::ChunkViewMap);

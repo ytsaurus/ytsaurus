@@ -31,10 +31,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
+        return MakeFuture(ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -42,10 +42,10 @@ private:
         return IsTabletType(object->GetType());
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return tabletManager->Tablets().GetSize();
+        return MakeFuture<i64>(tabletManager->Tablets().GetSize());
     }
 
     bool NeedSuppressUpstreamSync() const override
@@ -82,10 +82,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit));
+        return MakeFuture(ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -93,10 +93,10 @@ private:
         return object->GetType() == EObjectType::TabletAction;
     }
 
-    i64 GetSize() const override
+    TFuture<i64> GetSize() const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return tabletManager->TabletActions().GetSize();
+        return MakeFuture<i64>(tabletManager->TabletActions().GetSize());
     }
 
     bool NeedSuppressUpstreamSync() const override

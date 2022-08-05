@@ -38,8 +38,8 @@ protected:
         NCellMaster::TBootstrap* bootstrap,
         NYTree::INodePtr owningNode);
 
-    virtual std::vector<NObjectClient::TObjectId> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
-    virtual i64 GetSize() const = 0;
+    virtual TFuture<std::vector<NObjectClient::TObjectId>> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
+    virtual TFuture<i64> GetSize() const = 0;
     virtual bool IsValid(NObjectServer::TObject* object) const = 0;
     virtual NYPath::TYPath GetWellKnownPath() const = 0;
 
