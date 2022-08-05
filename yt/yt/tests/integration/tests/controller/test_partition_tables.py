@@ -6,7 +6,11 @@ from yt_commands import (
 from yt.yson import dumps, to_yson_type
 
 
-class TestPartitionTablesBase:
+class TestPartitionTablesBase(YTEnvSetup):
+    def setup_method(self, method):
+        super(TestPartitionTablesBase, self).setup_method(method)
+        sync_create_cells(1)
+
     @staticmethod
     def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False):
         schema = [
@@ -14,8 +18,6 @@ class TestPartitionTablesBase:
             {"name": "key_1", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string"},
         ]
-        if dynamic:
-            sync_create_cells(1)
         create("table", table, attributes={"schema": schema, "replication_factor": 1, "dynamic": dynamic})
         if dynamic:
             sync_mount_table(table)
@@ -36,7 +38,7 @@ class TestPartitionTablesBase:
         return get(f"{table}/@data_weight")
 
 
-class TestPartitionTablesCommand(YTEnvSetup, TestPartitionTablesBase):
+class TestPartitionTablesCommand(TestPartitionTablesBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
