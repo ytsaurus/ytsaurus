@@ -43,7 +43,8 @@ public:
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
         const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas);
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedJobResourcesDeltas);
 
 private:
     const NProfiling::TProfiler Profiler_;
@@ -95,6 +96,7 @@ private:
     THashMap<std::optional<EJobSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
+    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
 

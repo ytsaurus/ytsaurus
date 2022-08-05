@@ -384,6 +384,8 @@ public:
 
     TTreeTestingOptionsPtr TestingOptions;
 
+    EOperationPreemptionPriorityScope SchedulingPreemptionPriorityScope;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

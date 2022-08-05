@@ -705,7 +705,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.SsdPriorityPreemptionEnabled,
             statistics.SsdPriorityPreemptionMedia,
             FormatScheduleJobAttemptsCompact(statistics),
-            FormatOperationCountByPreemptionPriorityCompact(statistics));
+            FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
     } else {
         ProcessScheduledAndPreemptedJobs(
             schedulingContext,

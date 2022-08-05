@@ -445,6 +445,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
+    registrar.Parameter("scheduling_preemption_priority_scope", &TThis::SchedulingPreemptionPriorityScope)
+        .Default(EOperationPreemptionPriorityScope::OperationAndAncestors);
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
