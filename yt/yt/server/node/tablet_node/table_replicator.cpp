@@ -346,6 +346,7 @@ private:
                         tabletSnapshot,
                         replicaSnapshot->StartReplicationTimestamp,
                         chunkReadOptions,
+                        /*lowerRowIndex*/ std::nullopt,
                         [] {
                             THROW_ERROR_EXCEPTION("No replication log rows are available")
                                 << HardErrorAttribute;

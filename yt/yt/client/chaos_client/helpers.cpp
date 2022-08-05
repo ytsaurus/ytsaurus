@@ -1,4 +1,5 @@
 #include "public.h"
+#include "replication_card_serialization.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -7,6 +8,7 @@
 namespace NYT::NChaosClient {
 
 using namespace NObjectClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +44,21 @@ TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstr
     return TypeFromId(upstreamReplicaId) == EObjectType::ChaosTableReplica
         ? ReplicationCardIdFromReplicaId(upstreamReplicaId)
         : TReplicationCardId();
+}
+
+void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress)
+{
+    const auto& segments = progress.Segments;
+    const auto& upper = progress.UpperKey;
+    if (segments.size() != 1 ||
+        segments[0].LowerKey.GetCount() != 1 ||
+        segments[0].LowerKey[0].Type != EValueType::Int64 || 
+        upper.GetCount() != 1 ||
+        upper[0].Type != EValueType::Int64)
+    {
+        THROW_ERROR_EXCEPTION("Invalid replication progress for ordered table")
+            << TErrorAttribute("replication_progress", progress);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -782,12 +783,11 @@ private:
                     trimmedRowCount,
                     totalRowCount);
 
-                auto startRowIndex = startReplicationRowIndex
-                    ? startReplicationRowIndex
-                    : logParser->ComputeStartRowIndex(
-                        tabletSnapshot,
-                        GetReplicationProgressMinTimestamp(progress),
-                        chunkReadOptions);
+                auto startRowIndex = logParser->ComputeStartRowIndex(
+                    tabletSnapshot,
+                    GetReplicationProgressMinTimestamp(progress),
+                    chunkReadOptions,
+                    startReplicationRowIndex);
 
                 if (startRowIndex) {
                     auto currentRowIndex = *startRowIndex;
@@ -1512,6 +1512,8 @@ private:
             lower = MakeRowBound(*currentRowIndex);
             upper = MakeRowBound(std::numeric_limits<i64>::max());
         } else {
+            ValidateOrderedTabletReplicationProgress(progress);
+
             if (!logParser->GetTimestampColumnId()) {
                 THROW_ERROR_EXCEPTION("Invalid table schema: %Qlv column is absent",
                     TimestampColumnName);
@@ -1597,6 +1599,13 @@ private:
                     replicationRow = replicationLogRow.ToTypeErasedRow();
                     timestamp = replicationLogRow[timestampColumnIndex].Data.Uint64;
                     rowDataWeight = GetDataWeight(TUnversionedRow(replicationRow));
+
+                    // Check that row has greater timestamp than progress.
+                    if (timestamp <= progress.Segments[0].Timestamp) {
+                        ++*currentRowIndex;
+                        ++discardedByProgress;
+                        continue;
+                    }
                 }
 
                 if (timestamp != prevTimestamp) {

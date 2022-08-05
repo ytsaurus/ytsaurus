@@ -11,6 +11,8 @@ TReplicaId MakeReplicaId(TReplicationCardId replicationCardId, TReplicaIdIndex i
 TReplicationCardId ReplicationCardIdFromReplicaId(TReplicaId replicaId);
 TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstreamReplicaId);
 
+void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient
