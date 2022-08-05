@@ -69,7 +69,7 @@ public:
 public:
     //! For persistence only.
     TTask();
-    TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors);
+    TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptorPtr> streamDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
     //! This method is called on task object creation (both at clean creation and at revival).
@@ -160,7 +160,7 @@ public:
         TError error,
         NChunkPools::IChunkPoolInput::TCookie cookie,
         const NChunkPools::TChunkStripePtr& stripe,
-        const TStreamDescriptor& streamDescriptor);
+        const TStreamDescriptorPtr& streamDescriptor);
 
     void CheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
     void DoCheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
@@ -217,7 +217,7 @@ public:
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
     virtual void PropagatePartitions(
-        const std::vector<TStreamDescriptor>& streamDescriptors,
+        const std::vector<TStreamDescriptorPtr>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
 
@@ -242,7 +242,10 @@ protected:
     ITaskHost* TaskHost_;
 
     //! Outgoing data stream descriptors.
-    std::vector<TStreamDescriptor> StreamDescriptors_;
+    std::vector<TStreamDescriptorPtr> StreamDescriptors_;
+
+    //! Incoming data stream schemas.
+    std::vector<NTableClient::TTableSchemaPtr> InputStreamSchemas_;
 
     //! Increments each time a new job in this task is scheduled.
     TIdGenerator TaskJobIndexGenerator_;
@@ -308,7 +311,7 @@ protected:
     // Send stripe to the next chunk pool.
     void RegisterStripe(
         NChunkPools::TChunkStripePtr chunkStripe,
-        const TStreamDescriptor& streamDescriptor,
+        const TStreamDescriptorPtr& streamDescriptor,
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
         bool processEmptyStripes = false);

@@ -41,6 +41,15 @@ DECLARE_REFCOUNTED_CLASS(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStreamDescriptor::TStreamDescriptor(TStreamDescriptorBase base)
+    : TStreamDescriptorBase(std::move(base))
+{ }
+
+TStreamDescriptorPtr TStreamDescriptor::Clone() const
+{
+    return New<TStreamDescriptor>(static_cast<const TStreamDescriptorBase&>(*this));
+}
+
 void TStreamDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

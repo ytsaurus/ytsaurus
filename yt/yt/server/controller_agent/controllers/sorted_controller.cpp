@@ -126,7 +126,7 @@ protected:
             : Controller_(nullptr)
         { }
 
-        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors)
+        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TStreamDescriptorPtr> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
             , Options_(controller->GetSortedChunkPoolOptions())

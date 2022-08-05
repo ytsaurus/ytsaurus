@@ -37,7 +37,7 @@ public:
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
         TString name,
-        std::vector<TStreamDescriptor> streamDescriptors)
+        std::vector<TStreamDescriptorPtr> streamDescriptors)
         : TTask(std::move(taskHost), std::move(streamDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
@@ -230,12 +230,13 @@ public:
         ValidateOperationLimits();
 
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
-            std::vector<TStreamDescriptor> streamDescriptors;
+            std::vector<TStreamDescriptorPtr> streamDescriptors;
             int taskIndex = Tasks.size();
             for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
-                streamDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index));
-                streamDescriptors.back().DestinationPool = GetSink();
-                streamDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+                auto streamDescriptor = TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index)->Clone();
+                streamDescriptor->DestinationPool = GetSink();
+                streamDescriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+                streamDescriptors.push_back(std::move(streamDescriptor));
             }
             auto task = New<TVanillaTask>(this, taskSpec, taskName, std::move(streamDescriptors));
             RegisterTask(task);
