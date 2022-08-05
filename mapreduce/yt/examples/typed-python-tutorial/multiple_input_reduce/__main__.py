@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import getpass
+import typing
 
 import yt.wrapper
 import yt.wrapper.schema as schema
+from yt.wrapper.schema import RowIterator, Variant
 
 
 @yt.wrapper.yt_dataclass
@@ -20,16 +22,11 @@ class IsRobotRow:
 
 
 class FilterRobotsReducer(yt.wrapper.TypedJob):
-    # Чтобы не запутаться, можно завести именованные константы для индексов таблиц.
-    STAFF_TABLE_INDEX = 0
-    IS_ROBOT_TABLE_INDEX = 1
-
-    def prepare_operation(self, context, preparer):
-        preparer.input(self.STAFF_TABLE_INDEX, type=StaffRow).input(self.IS_ROBOT_TABLE_INDEX, type=IsRobotRow).output(
-            0, type=StaffRow
-        )
-
-    def __call__(self, input_row_iterator):
+    # Для указания типов нескольких строк используется специальный тип yt.wrapper.schema.Variant,
+    # параметризуемый списком типов строк таблиц.
+    # Порядок типов внутри варианта должен совпадать с порядком соответсвующих входных (или выходных) таблиц.
+    # Если все таблицы имеют один и тот же тип строк, можно обойтись без варианта.
+    def __call__(self, input_row_iterator: RowIterator[Variant[StaffRow, IsRobotRow]]) -> typing.Iterable[StaffRow]:
         login_row = None
         is_robot = False
         # Для того чтобы обращаться к свойствам строк таблиц (например, из какой таблицы пришла строка),

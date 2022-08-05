@@ -3,8 +3,10 @@
 import getpass
 import sys
 import json
+import typing
 
 import yt.wrapper
+from yt.wrapper.schema import RowIterator, Context
 
 
 @yt.wrapper.yt_dataclass
@@ -29,10 +31,7 @@ class SumRow:
 # (например, индекс текущей строки и входной таблицы)
 @yt.wrapper.with_context
 class MapperWithContext(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.inputs([0, 1], type=Row).output(0, type=IndexRow)
-
-    def __call__(self, row, context):
+    def __call__(self, row: Row, context: Context) -> typing.Iterable[IndexRow]:
         table_index = context.get_table_index()
         row_index = context.get_row_index()
         yield IndexRow(x=row.x, table_index=table_index, row_index=row_index)
@@ -42,10 +41,7 @@ class MapperWithContext(yt.wrapper.TypedJob):
 # то есть принимает на вход итератор строк, а не одну строку.
 @yt.wrapper.aggregator
 class MapperAggregator(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=Row).output(0, type=SumRow)
-
-    def __call__(self, rows):
+    def __call__(self, rows: RowIterator[Row]) -> typing.Iterable[SumRow]:
         sum = 0
         for row in rows:
             sum += row.x
@@ -55,10 +51,7 @@ class MapperAggregator(yt.wrapper.TypedJob):
 # Для редьюсера есть аналогичный декоратор.
 @yt.wrapper.reduce_aggregator
 class ReduceAggregator(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=Row).output(0, type=SumRow)
-
-    def __call__(self, row_groups):
+    def __call__(self, row_groups: typing.Iterable[RowIterator[Row]]) -> typing.Iterable[SumRow]:
         sum = 0
         for rows in row_groups:
             for row in rows:

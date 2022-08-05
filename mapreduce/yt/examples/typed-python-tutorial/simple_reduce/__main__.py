@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import getpass
+import typing
 
 import yt.wrapper
+from yt.wrapper.schema import RowIterator
 
 
 @yt.wrapper.yt_dataclass
@@ -18,14 +20,11 @@ class CountRow:
 
 
 class CountNamesReducer(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=StaffRow).output(0, type=CountRow)
-
     # Метод __call__ Reducer-а принимает на вход
     # итератор по всем записям входной таблицы с данным ключом.
     # На выходе он должна вернуть (как и __call__ у Mapper-а) все записи,
     # которые мы хотим записать в выходные таблицы.
-    def __call__(self, input_row_iterator):
+    def __call__(self, input_row_iterator: RowIterator[StaffRow]) -> typing.Iterable[CountRow]:
         count = 0
         for input_row in input_row_iterator:
             name = input_row.name

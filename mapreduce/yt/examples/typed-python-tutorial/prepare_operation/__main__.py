@@ -2,7 +2,6 @@
 
 import yt.wrapper
 from yt.wrapper import schema
-from yt.wrapper.schema import RowIterator, Context, OutputRow, Variant
 
 import getpass
 import typing
@@ -35,9 +34,13 @@ class NamedClicks:
 
 @yt.wrapper.with_context
 class Mapper(yt.wrapper.TypedJob):
-    def __call__(self, row: Variant[User, Activity], context: Context) \
-            -> typing.Iterable[OutputRow[Variant[User, Click]]]:
+    # В методе prepare_operation указываются входные и выходные типы строк.
+    def prepare_operation(self, context, preparer):
+        # Вместо обычных констант лучше использовать именованные,
+        # но для краткости напишем так.
+        preparer.input(0, type=User).input(1, type=Activity).output(0, type=User).output(1, type=Click)
 
+    def __call__(self, row, context):
         if context.get_table_index() == 0:
             yield yt.wrapper.OutputRow(row, table_index=0)
         else:
@@ -56,7 +59,15 @@ class Mapper(yt.wrapper.TypedJob):
 
 
 class Reducer(yt.wrapper.TypedJob):
-    def __call__(self, rows: RowIterator[Variant[User, Click]]) -> typing.Iterable[NamedClicks]:
+    def prepare_operation(self, context, preparer):
+        # В объекте context лежит информация о количестве входных и выходных потоков,
+        # их схемы и пути к таблицам.
+        assert context.get_input_count() == 2
+        assert context.get_output_count() == 1
+
+        preparer.input(0, type=User).input(1, type=Click).output(0, type=NamedClicks)
+
+    def __call__(self, rows):
         urls = []
         user_row = None
         for row, ctx in rows.with_context():

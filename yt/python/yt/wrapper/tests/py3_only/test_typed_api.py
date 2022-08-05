@@ -16,13 +16,11 @@ from yt.wrapper.schema import (
     YsonBytes,
     OtherColumns,
     RowIterator,
+    Context,
     Variant,
 )
 
-from yt.wrapper.prepare_operation import (
-    TypedJob,
-    OperationPreparationContext,
-)
+from yt.wrapper.prepare_operation import TypedJob
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -1151,7 +1149,7 @@ class TestTypedApi(object):
 
     @yt.with_context
     class ContextedIdentityMapper(TypedJob):
-        def __call__(self, input_row: TheRow, context: OperationPreparationContext) -> typing.Iterator[TheRow]:
+        def __call__(self, input_row: TheRow, context: Context) -> typing.Iterator[TheRow]:
             yield input_row
 
     class ReturnOutputRowIdentityMapper(TypedJob):
@@ -1236,10 +1234,22 @@ class TestTypedApi(object):
                 -> typing.Iterable[OutputRow[Variant[AnotherRow, TheRow]]]:
             yield OutputRow(TheRow())
 
+    @yt.reduce_aggregator
+    class ReduceAggregator(TypedJob):
+        def __call__(self, row_groups: typing.Iterable[RowIterator[TheRow]]) \
+                -> typing.Iterable[AnotherRow]:
+            sum = 0
+            for rows in row_groups:
+                for row in rows:
+                    sum += row.int32_field
+            yield AnotherRow(int32_field=0, uint64_field=sum)
+
     @authors("aleexfi")
     @pytest.mark.parametrize("config", [
+        TestConfig(SimpleIdentityMapper, inputs=[TheRow, TheRow], outputs=[TheRow, TheRow, TheRow]),
         TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, TheRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),
         TestConfig(MultipleTypesIdentityReducer, inputs=[TheRow, AnotherRow], outputs=[AnotherRow, TheRow]),
+        TestConfig(ReduceAggregator, inputs=[TheRow], outputs=[AnotherRow]),
     ])
     def test_multiple_tables_schema_inferring_from_type_hints(self, config):
         def create_tables(table_path_prefix, tables_row_type_list):
@@ -1266,6 +1276,7 @@ class TestTypedApi(object):
 
     @authors("aleexfi")
     @pytest.mark.parametrize("config", [
+        TestConfig(SimpleIdentityMapper, inputs=[TheRow, AnotherRow], outputs=[TheRow]),
         TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, AnotherRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),
         TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow, TheRow], outputs=[TheRow, AnotherRow, AnotherRow]),
         TestConfig(SameInputTypesIdentityReducer, inputs=[TheRow], outputs=[AnotherRow, AnotherRow, AnotherRow]),

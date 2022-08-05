@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import getpass
+import typing
 
 import yt.wrapper
-
+from yt.wrapper.schema import RowIterator
 
 #
 # Для того чтобы запустить операцию mapreduce, нам нужны обычные маппер и редьюсер
@@ -25,20 +26,14 @@ class CountRow:
 
 
 class NormalizeNameMapper(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, StaffRow).output(0, StaffRow)
-
-    def __call__(self, row):
+    def __call__(self, row: StaffRow) -> typing.Iterable[StaffRow]:
         normalized_name = row.name.lower()
         row.name = normalized_name
         yield row
 
 
 class CountNamesReducer(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, StaffRow).output(0, CountRow)
-
-    def __call__(self, rows):
+    def __call__(self, rows: RowIterator[StaffRow]) -> typing.Iterable[CountRow]:
         count = 0
         for input_row in rows:
             name = input_row.name
