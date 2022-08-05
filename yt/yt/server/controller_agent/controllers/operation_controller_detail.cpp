@@ -4385,7 +4385,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
-    task->Prepare();
     task->Initialize();
     task->Prepare();
     task->RegisterCounters(TotalJobCounter_);
