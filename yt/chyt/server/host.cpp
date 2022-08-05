@@ -102,6 +102,7 @@ static const std::vector<TString> DiscoveryAttributes{
     "http_port",
     "pid",
     "job_cookie",
+    "start_time",
 };
 
 static const TString SysClickHouse = "//sys/clickhouse";
@@ -664,6 +665,7 @@ private:
             {"http_port", ConvertToNode(Ports_.Http)},
             {"pid", ConvertToNode(getpid())},
             {"job_cookie", ConvertToNode(InstanceCookie_)},
+            {"start_time", ConvertToNode(TInstant::Now())},
         });
 
         WaitFor(Discovery_->Enter(ToString(Config_->InstanceId), attributes))

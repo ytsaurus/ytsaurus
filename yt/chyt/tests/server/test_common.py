@@ -739,6 +739,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             for node in responses[0]:
                 assert "host" in node and "rpc_port" in node and "monitoring_port" in node
                 assert "tcp_port" in node and "http_port" in node and "job_id" in node
+                assert "start_time" in node and node["start_time"].startswith("20")
             assert responses[0] == responses[1]
             assert responses[1] == responses[2]
 
