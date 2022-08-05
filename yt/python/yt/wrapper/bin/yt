@@ -2336,8 +2336,20 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config",
-        "master_cell_id", "params", "last_parser"):
+    processed_keys = [
+        "func",
+        "tx",
+        "trace",
+        "ping_ancestor_txs",
+        "prefix",
+        "proxy",
+        "config",
+        "master_cell_id",
+        "params",
+        "last_parser",
+    ]
+
+    for key in processed_keys:
         if key in func_args:
             func_args.pop(key)
 

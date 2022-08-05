@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from . import yson
-from .common import generate_uuid, get_version, YtError, get_binary_std_stream
+from .common import generate_uuid, get_user_agent, YtError, get_binary_std_stream
 from .errors import YtResponseError
 from .config import get_backend_type
 from .driver import get_api_version
@@ -104,7 +104,7 @@ class JobShell(object):
         headers = HTTPHeaders()
         if self.token:
             headers["Authorization"] = "OAuth " + self.token
-        headers["User-Agent"] = "Python wrapper " + get_version()
+        headers["User-Agent"] = get_user_agent()
         headers["X-YT-Header-Format"] = "<format=text>yson"
         headers["X-YT-Output-Format"] = "yson"
 

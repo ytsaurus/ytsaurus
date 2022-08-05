@@ -333,6 +333,13 @@ def get_platform():
         return None
 
 
+def get_user_agent():
+    user_agent = "Python wrapper " + get_version()
+    if "_ARGCOMPLETE" in os.environ:
+        user_agent += " [argcomplete mode]"
+    return user_agent
+
+
 def get_user_info():
     try:
         return {"user": getpass.getuser()}
