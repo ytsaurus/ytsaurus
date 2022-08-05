@@ -25,6 +25,7 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,6 +185,29 @@ void TBlockFetcher::DoFinishBlock(const TBlockInfo& blockInfo)
     }
 }
 
+void TBlockFetcher::DoSetBlock(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, TBlock block)
+{
+    // Note that the last call to OnReaderFinished_ happens-before the end of the last FetchBlock(),
+    // so call DoFinishBlock() before setting the promise. Otherwise, we can set the promise from
+    // background fetch loop and then switch to the fiber calling the last FinishBlock(), leading to
+    // violation of this guarantee.
+    DoFinishBlock(blockInfo);
+    GetBlockPromise(windowSlot).Set(std::move(block));
+}
+
+void TBlockFetcher::DoSetError(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, const TError& error)
+{
+    // Do the same as in DoSetBlock(). See the comment above.
+    DoFinishBlock(blockInfo);
+    GetBlockPromise(windowSlot).Set(error);
+}
+
+void TBlockFetcher::SetTraceContextForReader(int readerIndex, TTraceContextPtr traceContext)
+{
+    YT_VERIFY(readerIndex < std::ssize(Chunks_));
+    Chunks_[readerIndex].TraceContext.emplace(std::move(traceContext));
+}
+
 bool TBlockFetcher::HasMoreBlocks() const
 {
     return TotalRemainingFetches_ > 0;
@@ -245,8 +269,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             cachedBlock = TBlock(TSharedRef(ref, std::move(windowSlot.MemoryUsageGuard)));
 
             DoStartBlock(BlockInfos_[windowIndex]);
-            blockPromise.Set(std::move(cachedBlock));
-            DoFinishBlock(BlockInfos_[windowIndex]);
+            DoSetBlock(BlockInfos_[windowIndex], windowSlot, std::move(cachedBlock));
         } else {
             TBlockDescriptor blockDescriptor{
                 .ReaderIndex = readerIndex,
@@ -349,8 +372,7 @@ void TBlockFetcher::DecompressBlocks(
             ref,
             std::move(windowSlot.MemoryUsageGuard));
 
-        GetBlockPromise(windowSlot).Set(TBlock(std::move(uncompressedBlock)));
-        DoFinishBlock(blockInfo);
+        DoSetBlock(blockInfo, windowSlot, TBlock(std::move(uncompressedBlock)));
         if (windowSlot.RemainingFetches == 0) {
             windowIndexesToRelease.push_back(windowIndex);
         }
@@ -428,8 +450,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     std::move(windowSlot.MemoryUsageGuard)));
 
                 DoStartBlock(blockInfo);
-                GetBlockPromise(windowSlot).Set(std::move(cachedBlock));
-                DoFinishBlock(blockInfo);
+                DoSetBlock(blockInfo, windowSlot, std::move(cachedBlock));
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
                 windowIndexes.push_back(FirstUnfetchedWindowIndex_);
@@ -469,8 +490,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, const TError& error)
 {
     for (auto index : windowIndexes) {
-        GetBlockPromise(Window_[index]).Set(error);
-        DoFinishBlock(BlockInfos_[index]);
+        DoSetError(BlockInfos_[index], Window_[index], error);
     }
 }
 
@@ -523,7 +543,9 @@ void TBlockFetcher::RequestBlocks(
         readerIndexToWindowIndices[readerIndex].push_back(windowIndexes[index]);
     }
 
-    for (auto& [readerIndex, blockIndices] : readerIndexToBlockIndices) {
+    for (auto& indexPair : readerIndexToBlockIndices) {
+        auto readerIndex = indexPair.first;
+        auto blockIndices = std::move(indexPair.second);
         const auto& chunkReader = Chunks_[readerIndex].Reader;
 
         YT_LOG_DEBUG("Requesting block group (ChunkId: %v, Blocks: %v, UncompressedSize: %v)",
@@ -531,10 +553,17 @@ void TBlockFetcher::RequestBlocks(
             MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3),
             uncompressedSize);
 
-        auto future = chunkReader->ReadBlocks(
-            ChunkReadOptions_,
-            blockIndices,
-            static_cast<i64>(uncompressedSize * CompressionRatio_));
+        auto future = [&] {
+            std::optional<TTraceContextGuard> maybeGuard;
+            if (Chunks_[readerIndex].TraceContext.has_value()) {
+                maybeGuard.emplace(*Chunks_[readerIndex].TraceContext);
+            }
+
+            return chunkReader->ReadBlocks(
+                ChunkReadOptions_,
+                blockIndices,
+                static_cast<i64>(uncompressedSize * CompressionRatio_));
+        }();
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
         YT_VERIFY(readerIndexToWindowIndices[readerIndex].size() == blockIndices.size());

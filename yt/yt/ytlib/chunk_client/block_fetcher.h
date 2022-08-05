@@ -85,7 +85,13 @@ public:
     TCodecDuration GetDecompressionTime() const;
 
     //! Signals that block fetcher finished reading from the reader with given index.
+    //! It is guaranteed that the last call to OnReaderFinished happens-before the end
+    //! of the last FetchBlock.
     DEFINE_SIGNAL(void(int), OnReaderFinished);
+
+    //! Indicates that reads for the reader with given index be done under the given trace
+    //! context. Must be called before fetching is started.
+    void SetTraceContextForReader(int readerIndex, NTracing::TTraceContextPtr traceContext);
 
 private:
     const TBlockFetcherConfigPtr Config_;
@@ -104,6 +110,7 @@ private:
         IChunkReaderPtr Reader;
         THashMap<int, int> BlockIndexToWindowIndex;
         std::atomic<i64> RemainingBlockCount = 0;
+        std::optional<NTracing::TTraceContextPtr> TraceContext;
     };
 
     std::vector<TChunkState> Chunks_;
@@ -174,6 +181,9 @@ private:
 
     void DoStartBlock(const TBlockInfo& blockInfo);
     void DoFinishBlock(const TBlockInfo& blockInfo);
+
+    void DoSetBlock(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, TBlock block);
+    void DoSetError(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
