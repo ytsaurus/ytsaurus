@@ -600,18 +600,6 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         6);
 
     options.ColumnFilter = TColumnFilter({0, 1, 2, 4, 5});
-    options.RetentionConfig->MinDataVersions = 2;
-    options.RetentionConfig->MaxDataVersions = 2;
-
-    actual = executeLookup();
-    expected = ToString(BuildVersionedRow(
-        "<id=0> 30; <id=1> 30; <id=2> 30;",
-        "<id=3;ts=4> 4",
-        {6},
-        {2, 5}
-    ));
-    EXPECT_EQ(expected, actual);
-
     options.RetentionConfig->MinDataVersions = 1;
     options.RetentionConfig->MaxDataVersions = 1;
 
