@@ -399,6 +399,19 @@ def _infer_table_schemas(job, context, preparer):
 
         return list(typing.get_args(variant))
 
+    def get_tables_types(tp, expected_type_count, table_type):
+        type_list = extract_type_list(tp)
+        if len(type_list) != expected_type_count:
+            # if the user has specified only one row type,
+            # consider that all tables have the same row type
+            if len(type_list) == 1:
+                type_list *= expected_type_count
+            else:
+                raise TypeError("Wrong number of {} types {}, {} expected".format(
+                    table_type, len(type_list), expected_type_count))
+
+        return type_list
+
     type_hints = typing.get_type_hints(job.__call__)
     if len(type_hints) < 2:
         raise TypeError("`job.__call__` has wrong number of annotations. At least 2 expected")
@@ -409,29 +422,27 @@ def _infer_table_schemas(job, context, preparer):
     argument_type = next(iter(type_hints.values()))
     return_type = type_hints["return"]
 
+    iterable = [typing.get_origin(tp) for tp in [typing.Generator, typing.Iterator, typing.Iterable]]
+    if typing.get_origin(argument_type) in iterable:
+        args = typing.get_args(argument_type)
+        if not args:
+            raise TypeError("Argument annotation `Iterable` must be parametrized")
+        argument_type = args[0]
+
     if typing.get_origin(argument_type) is RowIterator:
         args = typing.get_args(argument_type)
         if len(args) != 1:
-            raise TypeError("Argument expected to be annotated as RowIterator[T]")
+            raise TypeError("Argument annotation `RowIterator` must be parametrized")
         argument_type = args[0]
 
-    input_tables_types = extract_type_list(argument_type)
-    if len(input_tables_types) != context.get_input_count():
-        raise TypeError("Wrong number of input types {}, {} expected".format(
-            len(input_tables_types), context.get_input_count()))
-
+    input_tables_types = get_tables_types(argument_type, context.get_input_count(), "input")
     for i, tp in enumerate(input_tables_types):
         preparer.input(i, type=tp)
 
-    iterable = [typing.get_origin(tp) for tp in [typing.Generator, typing.Iterator, typing.Iterable]]
     if typing.get_origin(return_type) not in iterable or not typing.get_args(return_type):
         raise TypeError("Return type expected to be annotated as Generator[T]")
 
     iterable_item_type = extract_row_type(typing.get_args(return_type)[0])
-    output_tables_types = extract_type_list(iterable_item_type)
-    if len(output_tables_types) != context.get_output_count():
-        raise TypeError("Wrong number of output types {}, {} expected".format(
-            len(output_tables_types), context.get_output_count()))
-
+    output_tables_types = get_tables_types(iterable_item_type, context.get_output_count(), "output")
     for i, tp in enumerate(output_tables_types):
         preparer.output(i, type=tp)

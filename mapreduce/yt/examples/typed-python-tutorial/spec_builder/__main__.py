@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import getpass
+import typing
 
 import yt.wrapper
+from yt.wrapper.schema import RowIterator
 from yt.wrapper.spec_builders import (
     MapperSpecBuilder,
     MapSpecBuilder,
@@ -23,10 +25,7 @@ class SumRow:
 
 
 class Reducer(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=ValueRow).output(0, type=SumRow)
-
-    def __call__(self, rows):
+    def __call__(self, rows: RowIterator[ValueRow]) -> typing.Iterable[SumRow]:
         key = None
         s = 0
         for row in rows:

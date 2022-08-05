@@ -2,8 +2,10 @@
 
 import yt.wrapper
 import yt.wrapper.schema as schema
+from yt.wrapper.schema import RowIterator, OutputRow
 
 import getpass
+import typing
 
 
 @yt.wrapper.yt_dataclass
@@ -25,11 +27,9 @@ class RowIndexRow:
 
 @yt.wrapper.aggregator
 class Mapper(yt.wrapper.TypedJob):
-    # Типы входных и выходных строк можно задавать сразу для нескольких таблиц.
-    def prepare_operation(self, context, preparer):
-        preparer.inputs([0, 1, 2], type=ValueRow).outputs([0, 1], type=SumRow)
+    def __call__(self, rows: RowIterator[ValueRow]) \
+            -> typing.Iterable[OutputRow[SumRow]]:
 
-    def __call__(self, rows):
         sum = 0
         for row, context in rows.with_context():
             # Номер входной таблицы хранится в context-е.
@@ -43,15 +43,12 @@ class Mapper(yt.wrapper.TypedJob):
 
             # Для указания номера выходной таблицы нужно использовать
             # класс OutputRow.
-            yield yt.wrapper.OutputRow(output_row, table_index=output_table_index)
+            yield OutputRow(output_row, table_index=output_table_index)
 
 
 class Reducer(yt.wrapper.TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=ValueRow).output(0, type=RowIndexRow)
-
     # Пример получения row_index в reducer с помощью context.
-    def __call__(self, rows):
+    def __call__(self, rows: RowIterator[ValueRow]) -> typing.Iterable[RowIndexRow]:
         for row, context in rows.with_context():
             yield RowIndexRow(row_index=context.get_row_index())
 

@@ -175,6 +175,17 @@ class RowIteratorProtocol(typing.Iterable[YtDataclassType]):
         pass
 
 
+class ContextProtocol(typing.Protocol):
+    def get_table_index():
+        pass
+
+    def get_row_index():
+        pass
+
+    def get_range_index():
+        pass
+
+
 if is_schema_module_available():
     Int8 = create_annotated_type(int, ti.Int8)
     Int16 = create_annotated_type(int, ti.Int16)

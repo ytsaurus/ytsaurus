@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import getpass
+import typing
 
 import yt.wrapper
 
@@ -20,14 +21,12 @@ class EmailRow:
 
 # Любой класс джоба (в том числе Mapper) -- это наследник TypedJob.
 class ComputeEmailsMapper(yt.wrapper.TypedJob):
-    # В методе prepare_operation указываются входные и выходные типы строк.
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=StaffRow).output(0, type=EmailRow)
-
     # На вход __call__ получает одну строку входной таблицы (типа StaffRow),
     # а вернуть (yield-ом) она должна те строки,
     # которые мы хотим записать в выходную табицу (типа EmailRow).
-    def __call__(self, input_row):
+    # Тайпинги нужны API для выведения типов входных и выходных строк.
+    # По-другому эти типы можно указать переопределив метод prepare_operation
+    def __call__(self, input_row: StaffRow) -> typing.Iterable[EmailRow]:
         yield EmailRow(
             name=input_row.name,
             email=input_row.login + "@yandex-team.ru",
