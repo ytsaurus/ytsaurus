@@ -52,8 +52,7 @@ private:
     void RequestVersionedDataSlices(
         const std::vector<NChunkClient::TInputChunkPtr>& inputChunks,
         int tableIndex,
-        const NTableClient::TTableSchemaPtr& schema,
-        const NChunkClient::TChunkSliceFetcherConfigPtr& chunkSliceFetcherConfig);
+        const NTableClient::TTableSchemaPtr& schema);
     void FetchVersionedDataSlices();
     void AddUnversionedDataSlices(const std::vector<NChunkClient::TInputChunkPtr>& inputChunks,
         int tableIndex,
