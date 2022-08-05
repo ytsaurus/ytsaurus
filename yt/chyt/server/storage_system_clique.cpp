@@ -5,6 +5,7 @@
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
+#include <DataTypes/DataTypeDateTime64.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataStreams/OneBlockInputStream.h>
@@ -66,6 +67,7 @@ public:
             res_columns[6]->insert(attributes->Get<i64>("pid"));
             res_columns[7]->insert(name == ToString(InstanceId_));
             res_columns[8]->insert(attributes->Get<ui64>("job_cookie"));
+            res_columns[9]->insert(static_cast<DB::Decimal64>(attributes->Get<TInstant>("start_time").MicroSeconds()));
         }
 
         auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
@@ -86,6 +88,7 @@ private:
             {"pid", std::make_shared<DB::DataTypeInt32>()},
             {"self", std::make_shared<DB::DataTypeUInt8>()},
             {"job_cookie", std::make_shared<DB::DataTypeUInt32>()},
+            {"start_time", std::make_shared<DB::DataTypeDateTime64>(6)},
         });
     }
 };
