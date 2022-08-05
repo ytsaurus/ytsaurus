@@ -1,9 +1,13 @@
 #include "bundle_scheduler.h"
 #include "config.h"
 
+#include <library/cpp/yt/yson_string/public.h>
+
 #include <compare>
 
 namespace NYT::NCellBalancer {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,7 +283,7 @@ std::vector<TString> PeekNodesToDeallocate(
 int GetTargetCellCount(const TBundleInfoPtr& bundleInfo)
 {
     const auto& targetConfig = bundleInfo->TargetConfig;
-    return targetConfig->TabletNodeCount * targetConfig->CpuCategoryLimits->WriteThreadPoolSize;
+    return targetConfig->TabletNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize;
 }
 
 void InitNewDeallocations(
@@ -929,12 +933,46 @@ void ManageNodesAndCells(TSchedulerInputState& input, TSchedulerMutations* mutat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    TBundlesDynamicConfig freshConfig;
+
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController || !bundleInfo->EnableTabletNodeDynamicConfig) {
+            continue;
+        }
+
+        if (bundleInfo->NodeTagFilter.empty()) {
+            YT_LOG_WARNING("Bundle has empty node tag filter (BundleName: %v)", bundleName);
+            continue;
+        }
+
+        auto bundleConfig = New<TBundleDynamicConfig>();
+        bundleConfig->CpuLimits = bundleInfo->TargetConfig->CpuLimits;
+        bundleConfig->MemoryLimits = bundleInfo->TargetConfig->MemoryLimits;
+
+        freshConfig[bundleInfo->NodeTagFilter] = NYTree::CloneYsonSerializable(bundleConfig);
+    }
+
+    if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(freshConfig), ConvertTo<NYTree::IMapNodePtr>(input.DynamicConfig))) {
+        return;
+    }
+
+    YT_LOG_INFO("Bundles dynamic config has changed (Config: %Qv)",
+        ConvertToYsonString(freshConfig, EYsonFormat::Text));
+
+    mutations->DynamicConfig = freshConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     input.ZoneNodes = MapZonesToTabletNodes(input);
     input.BundleNodes = MapBundlesToTabletNodes(input);
     input.PodIdToNodeName = MapPodIdToNodeName(input);
 
+    ManageBundlesDynamicConfig(input, mutations);
     ManageNodesAndCells(input, mutations);
     ManageNodeTagFilters(input, mutations);
 }

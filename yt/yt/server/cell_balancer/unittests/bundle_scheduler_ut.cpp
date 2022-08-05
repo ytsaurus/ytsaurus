@@ -3,6 +3,8 @@
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
 
+#include <yt/yt/core/ytree/yson_serializable.h>
+
 #include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NCellBalancer {
@@ -48,7 +50,7 @@ TSchedulerInputState GenerateSimpleInputContext(int requestedTabletNodeCount, in
         config->TabletNodeResourceGuarantee = New<TInstanceResources>();
         config->TabletNodeResourceGuarantee->VCpu = 9999;
         config->TabletNodeResourceGuarantee->Memory = 88_GB;
-        config->CpuCategoryLimits->WriteThreadPoolSize = writeThreadCount;
+        config->CpuLimits->WriteThreadPoolSize = writeThreadCount;
     }
 
     return input;
@@ -851,6 +853,64 @@ TEST(TBundleSchedulerTest, CheckAllocationLimit)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+}
+
+TEST(TBundleSchedulerTest, CheckDynamicConfig)
+{
+    auto input = GenerateSimpleInputContext(5, 5);
+    input.Bundles["default-bundle"]->EnableTabletNodeDynamicConfig = true;
+
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    GenerateNodesForBundle(input, "spare", 3);
+    GenerateNodesForBundle(input, "default-bundle", 5);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    // Check that new dynamic config is set for bundles.
+    EXPECT_TRUE(mutations.DynamicConfig);
+
+    input.DynamicConfig = *mutations.DynamicConfig;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Dynamic config did not change.
+    EXPECT_FALSE(mutations.DynamicConfig);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    input.Bundles["default-bundle"]->TargetConfig->CpuLimits->WriteThreadPoolSize = 212;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Dynamic config is changed.
+    EXPECT_TRUE(mutations.DynamicConfig);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFooBarStruct
+    : public TYsonStructAttributes<TFooBarStruct>
+{
+    TString Foo;
+    int Bar;
+
+    REGISTER_YSON_STRUCT(TFooBarStruct);
+
+    static void Register(TRegistrar registrar)
+    {
+        RegisterAttribute(registrar, "foo", &TThis::Foo)
+            .Default();
+        RegisterAttribute(registrar, "bar", &TThis::Bar)
+            .Default(0);
+    }
+};
+
+TEST(TBundleSchedulerTest, CheckCypressBindings)
+{
+    EXPECT_EQ(TFooBarStruct::GetAttributes().size(), 2u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

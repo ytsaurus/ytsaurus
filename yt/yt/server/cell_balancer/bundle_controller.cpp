@@ -27,6 +27,7 @@ using namespace NYson;
 
 static const auto& Logger = BundleController;
 static const TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
+static const TYPath TabletCellBundlesDynamicConfigPath("//sys/tablet_cell_bundles/@config");
 static const TYPath TabletNodesPath("//sys/tablet_nodes");
 static const TYPath TabletCellsPath("//sys/tablet_cells");
 
@@ -43,6 +44,20 @@ public:
         , SuccessfulScanBundleCounter_(Profiler.Counter("/successful_scan_bundles_count"))
         , FailedScanBundleCounter_(Profiler.Counter("/failed_scan_bundles_count"))
         , AlarmCounter_(Profiler.Counter("/scan_bundles_alarms_count"))
+        , DynamicConfigUpdateCounter_(Profiler.Counter("/dynamic_config_update_counter"))
+        , NodeAllocationCounter_(Profiler.Counter("/node_allocation_counter"))
+        , NodeDeallocationCounter_(Profiler.Counter("/node_deallocation_counter"))
+        , CellCreationCounter_(Profiler.Counter("/cell_creation_counter"))
+        , CellRemovalCounter_(Profiler.Counter("/cell_removal_counter"))
+        , ChangedNodeUserTagCounter_(Profiler.Counter("/changed_node_user_tag_counter"))
+        , ChangedDecommissionedFlagCounter_(Profiler.Counter("/changed_decommissioned_flag_counter"))
+        , ChangedChangeNodeAnnotationCounter_(Profiler.Counter("/changed_change_node_annotation_counter"))
+        , InflightNodeAllocationCount_(Profiler.Gauge("/inflight_node_allocations_count"))
+        , InflightNodeDeallocationCount_(Profiler.Gauge("/inflight_node_deallocations_count"))
+        , InflightCellRemovalCount_(Profiler.Gauge("/inflight_cell_removal_count"))
+        , NodeAllocationRequestAge_(Profiler.TimeGauge("/node_allocation_request_age"))
+        , NodeDeallocationRequestAge_(Profiler.TimeGauge("/node_deallocation_request_age"))
+        , RemovingCellsAge_(Profiler.TimeGauge("/removing_cells_age"))
     { }
 
     void Start() override
@@ -72,6 +87,24 @@ private:
     TCounter SuccessfulScanBundleCounter_;
     TCounter FailedScanBundleCounter_;
     TCounter AlarmCounter_;
+
+    TCounter DynamicConfigUpdateCounter_;
+    TCounter NodeAllocationCounter_;
+    TCounter NodeDeallocationCounter_;
+    TCounter CellCreationCounter_;
+    TCounter CellRemovalCounter_;
+
+    TCounter ChangedNodeUserTagCounter_;
+    TCounter ChangedDecommissionedFlagCounter_;
+    TCounter ChangedChangeNodeAnnotationCounter_;
+
+    TGauge InflightNodeAllocationCount_;
+    TGauge InflightNodeDeallocationCount_;
+    TGauge InflightCellRemovalCount_;
+
+    TTimeGauge NodeAllocationRequestAge_;
+    TTimeGauge NodeDeallocationRequestAge_;
+    TTimeGauge RemovingCellsAge_;
 
     void ScanBundles() const
     {
@@ -140,6 +173,8 @@ private:
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
@@ -151,8 +186,49 @@ private:
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
+        if (mutations.DynamicConfig) {
+            DynamicConfigUpdateCounter_.Increment();
+            SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
+        }
+
         // TODO(capone212): Fire alarms.
+
         AlarmCounter_.Increment(mutations.AlertsToFire.size());
+        NodeAllocationCounter_.Increment(mutations.NewAllocations.size());
+        NodeDeallocationCounter_.Increment(mutations.NewDeallocations.size());
+        CellCreationCounter_.Increment(mutations.CellsToCreate.size());
+        CellRemovalCounter_.Increment(mutations.CellsToRemove.size());
+        ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
+        ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
+        ChangedChangeNodeAnnotationCounter_.Increment(mutations.ChangeNodeAnnotations.size());
+
+        int nodeAllocationCount = 0;
+        int nodeDeallocationCount = 0;
+        int removingCellCount = 0;
+        auto now = TInstant::Now();
+
+        // TODO(capone212): think about per-bundle sensors.
+        for (const auto& [_, state] : mutations.ChangedStates) {
+            nodeAllocationCount += state->Allocations.size();
+            nodeDeallocationCount += state->Deallocations.size();
+            removingCellCount += state->RemovingCells.size();
+
+            for (const auto& [_, allocation] : state->Allocations) {
+                NodeAllocationRequestAge_.Update(now - allocation->CreationTime);
+            }
+
+            for (const auto& [_, deallocation] : state->Deallocations) {
+                NodeDeallocationRequestAge_.Update(now - deallocation->CreationTime);
+            }
+
+            for (const auto& [_, removingCell] : state->RemovingCells) {
+                RemovingCellsAge_.Update(now - removingCell->RemovedTime);
+            }
+        }
+
+        InflightNodeAllocationCount_.Update(nodeAllocationCount);
+        InflightNodeDeallocationCount_.Update(nodeDeallocationCount);
+        InflightCellRemovalCount_.Update(removingCellCount);
     }
 
     ITransactionPtr CreateTransaction() const
@@ -190,6 +266,19 @@ private:
             transaction,
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
             GetAliveDeallocationsId(inputState));
+
+        inputState.DynamicConfig = GetBundlesDynamicConfig(transaction);
+
+        YT_LOG_DEBUG("Bundle Controller input state loaded "
+            "(ZoneCount: %v, BundleCount: %v, BundleStatesCount: %v, TabletNodesCount %v, TabletCellsCount: %v, "
+            "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v)",
+            inputState.Zones.size(),
+            inputState.Bundles.size(),
+            inputState.BundleStates.size(),
+            inputState.TabletNodes.size(),
+            inputState.TabletCells.size(),
+            inputState.AllocationRequests.size(),
+            inputState.DeallocationRequests.size());
 
         return inputState;
     }
@@ -349,6 +438,30 @@ private:
             WaitFor(transaction->RemoveNode(Format("%v/%v", TabletCellsPath, cellId)))
                 .ThrowOnError();
         }
+    }
+
+    static void SetBundlesDynamicConfig(
+        const ITransactionPtr& transaction,
+        const TBundlesDynamicConfig& config)
+    {
+        TSetNodeOptions setOptions;
+        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config), setOptions))
+            .ThrowOnError();
+    }
+
+    static TBundlesDynamicConfig GetBundlesDynamicConfig(const ITransactionPtr& transaction)
+    {
+        bool exists = WaitFor(transaction->NodeExists(TabletCellBundlesDynamicConfigPath))
+            .ValueOrThrow();
+
+        if (!exists) {
+            return {};
+        }
+
+        auto yson = WaitFor(transaction->GetNode(TabletCellBundlesDynamicConfigPath))
+            .ValueOrThrow();
+
+        return ConvertTo<TBundlesDynamicConfig>(yson);
     }
 
     bool IsLeader() const

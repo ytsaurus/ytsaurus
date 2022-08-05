@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -15,7 +17,7 @@ DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
-DECLARE_REFCOUNTED_STRUCT(TCpuCategoryLimits)
+DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
 DECLARE_REFCOUNTED_STRUCT(TZoneInfo)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestSpec)
@@ -31,6 +33,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCellStatus)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
+DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -53,7 +56,11 @@ class TYsonStructAttributes
 public:
     static std::vector<TString> GetAttributes()
     {
-        return Attributes_;
+        // Making sure attributes are registered.
+        // YSON struct registration takes place in constructor.
+        static auto holder = New<TDerived>();
+
+        return holder->Attributes_;
     }
 
     template <typename TRegistrar, typename TValue>
@@ -69,17 +76,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuCategoryLimits
+struct TCpuLimits
     : public NYTree::TYsonStruct
 {
     int WriteThreadPoolSize;
 
-    REGISTER_YSON_STRUCT(TCpuCategoryLimits);
+    REGISTER_YSON_STRUCT(TCpuLimits);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCpuCategoryLimits)
+DEFINE_REFCOUNTED_TYPE(TCpuLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +110,8 @@ struct TBundleConfig
 {
     int TabletNodeCount;
     TInstanceResourcesPtr TabletNodeResourceGuarantee;
-    TCpuCategoryLimitsPtr CpuCategoryLimits;
+    TCpuLimitsPtr CpuLimits;
+    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -172,6 +180,7 @@ struct TBundleInfo
     bool EnableBundleController;
     bool EnableTabletCellManagement;
     bool EnableNodeTagFilterManagement;
+    bool EnableTabletNodeDynamicConfig;
 
     TBundleConfigPtr TargetConfig;
     TBundleConfigPtr ActualConfig;
@@ -429,6 +438,22 @@ struct TTabletNodeInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletNodeInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    TCpuLimitsPtr CpuLimits;
+
+    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
+
+    REGISTER_YSON_STRUCT(TBundleDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

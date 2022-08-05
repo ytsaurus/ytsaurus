@@ -6,6 +6,8 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TBundlesDynamicConfig = THashMap<TString, TBundleDynamicConfigPtr>;
+
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
@@ -26,6 +28,8 @@ struct TSchedulerInputState
 
     using TZoneToNodesMap = THashMap<TString, std::vector<TString>>;
     TZoneToNodesMap ZoneNodes;
+
+    TBundlesDynamicConfig DynamicConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +60,8 @@ struct TSchedulerMutations
     THashMap<TString, int> CellsToCreate;
 
     std::vector<TAlert> AlertsToFire;
+
+    std::optional<TBundlesDynamicConfig> DynamicConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
