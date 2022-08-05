@@ -767,7 +767,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
         .InRange(1.0, 10.0)
         .Default(std::nullopt);
-    registrar.Parameter("ignore_resource_overdraft_memory_reserve_multiplier_from_spec", &TThis::UseResourceOverdraftMemoryReserveMultiplierFromSpec)
+    registrar.Parameter("use_resource_overdraft_memory_reserve_multiplier_from_spec", &TThis::UseResourceOverdraftMemoryReserveMultiplierFromSpec)
         .Default(false);
 
     registrar.Parameter("iops_threshold", &TThis::IopsThreshold)
