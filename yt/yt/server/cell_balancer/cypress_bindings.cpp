@@ -1,10 +1,12 @@
 #include "cypress_bindings.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCpuCategoryLimits::Register(TRegistrar registrar)
+void TCpuLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
         .GreaterThan(0)
@@ -43,8 +45,10 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("tablet_node_resource_guarantee", &TThis::TabletNodeResourceGuarantee)
         .DefaultNew();
-    registrar.Parameter("cpu_category_limits", &TThis::CpuCategoryLimits)
+    registrar.Parameter("cpu_limits", &TThis::CpuLimits)
         .DefaultNew();
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .Default();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -90,6 +94,8 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
         .Default(false);
     RegisterAttribute(registrar, "enable_node_tag_filter_management", &TThis::EnableNodeTagFilterManagement)
+        .Default(false);
+    RegisterAttribute(registrar, "enable_tablet_node_dynamic_config", &TThis::EnableTabletNodeDynamicConfig)
         .Default(false);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
@@ -249,6 +255,15 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
         .DefaultNew();
     RegisterAttribute(registrar, "tablet_slots", &TThis::TabletSlots)
+        .Default();
+}
+
+void TBundleDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_limits", &TThis::CpuLimits)
+        .DefaultNew();
+
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .Default();
 }
 
