@@ -1979,6 +1979,20 @@ class TestChaos(ChaosTestBase):
             sync_mount_table("//tmp/t")
 
     @authors("savrus")
+    def test_invalid_replication_log_table(self):
+        with raises_yt_error("Table of type \"replication_log_table\" must be dynamic"):
+            create("replication_log_table", "//tmp/r")
+
+        with raises_yt_error("Could not create unsorted replication log table"):
+            attributes = {
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"}],
+            }
+            create("replication_log_table", "//tmp/r", attributes=attributes)
+
+    @authors("savrus")
     def test_ordered_chaos_table_trim(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 

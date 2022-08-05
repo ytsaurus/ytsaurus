@@ -166,6 +166,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             ValidateNoRenamedColumns(*effectiveTableSchema);
         }
     }
+    if (type == EObjectType::ReplicationLogTable) {
+        if (!effectiveTableSchema || !effectiveTableSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Could not create unsorted replication log table");
+        }
+    }
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");
     auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TLegacyOwningKey>>("pivot_keys");
