@@ -5,6 +5,7 @@
 #include "config.h"
 #include "data_type_boolean.h"
 #include "dictionary_source.h"
+#include "functions_version.h"
 #include "health_checker.h"
 #include "invoker_liveness_checker.h"
 #include "memory_watchdog.h"
@@ -805,6 +806,7 @@ private:
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
         RegisterDataTypeBoolean();
+        RegisterFunctionsVersion();
     }
 };
 
