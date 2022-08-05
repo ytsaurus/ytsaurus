@@ -69,11 +69,18 @@ void WaitUntilSet(
     IInvokerPtr invoker = GetCurrentInvoker());
 
 //! Blocks the current fiber until #future is set and returns the resulting value.
-//! The fiber is resceduled via #invoker.
+//! The fiber is rescheduled to #invoker.
 template <class T>
 [[nodiscard]] TErrorOr<T> WaitFor(
     const TFuture<T>& future,
     IInvokerPtr invoker = GetCurrentInvoker());
+
+//! Similar to #WaitFor but if #future is already set then the fiber
+//! is not rescheduled. If not, the fiber is rescheduled via
+//! the current invoker.
+template <class T>
+[[nodiscard]] TErrorOr<T> WaitForFast(
+    const TFuture<T>& future);
 
 //! Similar to #WaitFor but extracts the value from #future via |GetUnique|.
 template <class T>
@@ -81,10 +88,15 @@ template <class T>
     const TFuture<T>& future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
-//! Reschedules the current fiber via the current invoker.
+//! From the authors of #WaitForUnique and #WaitForFast.
+template <class T>
+[[nodiscard]] TErrorOr<T> WaitForUniqueFast(
+    const TFuture<T>& future);
+
+//! Reschedules the current fiber to the current invoker.
 void Yield();
 
-//! Reschedules the current fiber via #invoker.
+//! Reschedules the current fiber to #invoker.
 void SwitchTo(IInvokerPtr invoker);
 
 //! Returns |true| if there is enough remaining stack space.

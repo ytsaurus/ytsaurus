@@ -1035,6 +1035,31 @@ TEST_W(TSchedulerTest, TraceDisableSendBaggage)
     }
 }
 
+TEST_W(TSchedulerTest, WaitForFast1)
+{
+    auto future = MakeFuture<int>(123);
+    TContextSwitchGuard guard(
+        [] { EXPECT_FALSE(true);},
+        nullptr);
+    auto value = WaitForFast(future)
+        .ValueOrThrow();
+    EXPECT_EQ(123, value);
+}
+
+TEST_W(TSchedulerTest, WaitForFast2)
+{
+    auto future = TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100))
+        .Apply(BIND([] { return 123; }));
+    auto switched = std::make_shared<bool>();
+    TContextSwitchGuard guard(
+        [=] { *switched = true;},
+        nullptr);
+    auto value = WaitForFast(future)
+        .ValueOrThrow();
+    EXPECT_EQ(123, value);
+    EXPECT_TRUE(*switched);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSuspendableInvokerTest
