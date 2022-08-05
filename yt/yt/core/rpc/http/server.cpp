@@ -341,6 +341,12 @@ private:
             rpcHeader->set_user_agent(*userAgent);
         }
 
+        static const TString UserTagHeaderName("X-YT-User-Tag");
+        auto userTag = httpHeaders->Find(UserTagHeaderName);
+        if (userTag) {
+            rpcHeader->set_user_tag(*userTag);
+        }
+
         return {};
     }
 };

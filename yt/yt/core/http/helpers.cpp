@@ -182,6 +182,7 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Response-Code",
     "X-YT-Response-Message",
     "X-YT-Trace-Id",
+    "X-YT-User-Tag",
 });
 
 bool MaybeHandleCors(
