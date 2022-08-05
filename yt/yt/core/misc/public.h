@@ -88,6 +88,9 @@ class TStringBuilder;
 struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
+struct IDigest;
+struct IPersistentDigest;
+
 DECLARE_REFCOUNTED_CLASS(TSlruCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 
@@ -96,8 +99,6 @@ DECLARE_REFCOUNTED_CLASS(TAsyncExpiringCacheConfig)
 
 DECLARE_REFCOUNTED_CLASS(TLogDigestConfig)
 DECLARE_REFCOUNTED_CLASS(THistogramDigestConfig)
-DECLARE_REFCOUNTED_STRUCT(IDigest)
-DECLARE_REFCOUNTED_STRUCT(IPersistentDigest)
 
 DECLARE_REFCOUNTED_CLASS(THistoricUsageConfig)
 
