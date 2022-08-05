@@ -101,7 +101,7 @@ void TMultiTablePartitioner::CollectInput()
         YT_LOG_DEBUG("Fetching chunks (Path: %v)", path);
 
         if (dynamic && schema->IsSorted()) {
-            RequestVersionedDataSlices(inputChunks, tableIndex, schema, New<TChunkSliceFetcherConfig>());
+            RequestVersionedDataSlices(inputChunks, tableIndex, schema);
         } else {
             AddUnversionedDataSlices(inputChunks, tableIndex, schema);
         }
@@ -215,15 +215,14 @@ void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr da
 void TMultiTablePartitioner::RequestVersionedDataSlices(
     const std::vector<TInputChunkPtr>& inputChunks,
     int tableIndex,
-    const TTableSchemaPtr& schema,
-    const TChunkSliceFetcherConfigPtr& chunkSliceFetcherConfig)
+    const TTableSchemaPtr& schema)
 {
     YT_LOG_DEBUG("Fetching versioned data slices (TableIndex: %v, ChunkCount: %v)",
         tableIndex,
         inputChunks.size());
 
     auto fetcher = CreateChunkSliceFetcher(
-        chunkSliceFetcherConfig,
+        Options_.ChunkSliceFetcherConfig,
         Client_->GetNativeConnection()->GetNodeDirectory(),
         GetCurrentInvoker(),
         IFetcherChunkScraperPtr(),

@@ -464,6 +464,7 @@ void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
 {
     Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
     Options.FetcherConfig = context->GetConfig()->Fetcher;
+    Options.ChunkSliceFetcherConfig = New<TChunkSliceFetcherConfig>();
 
     Options.PartitionMode = PartitionMode;
     Options.DataWeightPerPartition = DataWeightPerPartition;
