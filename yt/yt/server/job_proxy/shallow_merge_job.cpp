@@ -5,8 +5,10 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -40,10 +42,13 @@ using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NTableClient::NProto;
 using namespace NTracing;
+using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
+
+constexpr auto ShallowMergeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,8 +148,8 @@ public:
     TStatistics GetStatistics() const override
     {
         TStatistics result;
-        result.AddSample("/data/input", InputDataStatistics_);
-        result.AddSample("/data/output/" + NYPath::ToYPathLiteral(0), OutputDataStatistics_);
+        result.AddSample("/data/input", InputDataStatistics_.Load());
+        result.AddSample("/data/output/" + NYPath::ToYPathLiteral(0), OutputDataStatistics_.Load());
         DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
         return result;
     }
@@ -184,8 +189,9 @@ private:
     i64 ProcessedBlocksSize_ = 0;
 
     std::vector<TChunkId> FailedChunkIds_;
-    TDataStatistics InputDataStatistics_;
-    TDataStatistics OutputDataStatistics_;
+
+    TAtomicObject<TDataStatistics> InputDataStatistics_;
+    TAtomicObject<TDataStatistics> OutputDataStatistics_;
 
     std::vector<TTraceContextPtr> InputTraceContexts_;
     std::vector<TTraceContextFinishGuard> InputFinishGuards_;
@@ -331,22 +337,6 @@ private:
         }
     }
 
-    void DoWriteBlocks(const std::vector<TBlock>& blocks)
-    {
-        if (!Writer_->WriteBlocks(blocks)) {
-            WaitFor(Writer_->GetReadyEvent())
-                .ThrowOnError();
-        }
-
-        i64 blocksSize = 0;
-        for (const auto& block : blocks) {
-            blocksSize += block.Size();
-        }
-        InputDataStatistics_.set_compressed_data_size(InputDataStatistics_.compressed_data_size() + blocksSize);
-        OutputDataStatistics_.set_compressed_data_size(OutputDataStatistics_.compressed_data_size() + blocksSize);
-        ProcessedBlocksSize_ += blocksSize;
-    }
-
     std::vector<i64> GetBlockSizes(const TInputChunkState& chunkState) const
     {
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkState.Meta->extensions());
@@ -357,77 +347,6 @@ private:
         }
         YT_VERIFY(ssize(blockSizes) == chunkState.BlockCount);
         return blockSizes;
-    }
-
-    int CalculateBlockCountToRead(
-        const TInputChunkState& chunkState,
-        const std::vector<i64>& blockSizes,
-        int firstBlockIndex)
-    {
-        int lastBlockIndex = firstBlockIndex;
-        i64 sizeToRead = 0;
-        i64 bufferSize = ReaderConfig_->WindowSize;
-
-        while (lastBlockIndex < chunkState.BlockCount && sizeToRead + blockSizes[lastBlockIndex] <= bufferSize) {
-            sizeToRead += blockSizes[lastBlockIndex];
-            ++lastBlockIndex;
-        }
-
-        int blockCountToRead = lastBlockIndex - firstBlockIndex;
-
-        // This can happen if we encounter a block which is bigger than the specified buffer size.
-        // In this case at least one block should be read.
-        if (blockCountToRead == 0) {
-            YT_VERIFY(firstBlockIndex < chunkState.BlockCount);
-            blockCountToRead = 1;
-        }
-
-        return blockCountToRead;
-    }
-
-    void MergeInputChunk(const TInputChunkState& chunkState)
-    {
-        YT_LOG_DEBUG("Merging input chunk (ChunkId: %v)", chunkState.ChunkId);
-
-        TCurrentTraceContextGuard outputGuard(OutputTraceContext_);
-
-        auto blockSizes = GetBlockSizes(chunkState);
-        int chunkBlockCount = chunkState.BlockCount;
-        int currentBlockCount = 0;
-        while (currentBlockCount < chunkBlockCount) {
-            std::vector<TBlock> blocks;
-            try {
-                TCurrentTraceContextGuard inputGuard(InputTraceContexts_[chunkState.InputSpecIndex]);
-                std::vector<int> blockIndices(CalculateBlockCountToRead(chunkState, blockSizes, currentBlockCount));
-                std::iota(blockIndices.begin(), blockIndices.end(), currentBlockCount);
-                auto asyncBlocks = chunkState.Reader->ReadBlocks(
-                    ChunkReadOptions_,
-                    blockIndices);
-                blocks = WaitFor(asyncBlocks)
-                    .ValueOrThrow();
-            } catch (const std::exception& ex) {
-                FailedChunkIds_.push_back(chunkState.ChunkId);
-                throw;
-            }
-
-            YT_VERIFY(!blocks.empty());
-            DoWriteBlocks(blocks);
-            currentBlockCount += ssize(blocks);
-        }
-
-        InputDataStatistics_.set_chunk_count(InputDataStatistics_.chunk_count() + 1);
-
-        // NB. CompressedDataSize is updated in DoWriteBlocks, so don't update it here.
-
-        InputDataStatistics_.set_uncompressed_data_size(
-            InputDataStatistics_.uncompressed_data_size() + chunkState.UncompressedDataSize);
-        InputDataStatistics_.set_row_count(InputDataStatistics_.row_count() + chunkState.RowCount);
-        InputDataStatistics_.set_data_weight(InputDataStatistics_.data_weight() + chunkState.DataWeight);
-
-        OutputDataStatistics_.set_uncompressed_data_size(
-            OutputDataStatistics_.uncompressed_data_size() + chunkState.UncompressedDataSize);
-        OutputDataStatistics_.set_row_count(OutputDataStatistics_.row_count() + chunkState.RowCount);
-        OutputDataStatistics_.set_data_weight(OutputDataStatistics_.data_weight() + chunkState.DataWeight);
     }
 
     void AbsorbMetas()
@@ -446,24 +365,142 @@ private:
         }
     }
 
+    void OnChunkReadFinished(int chunkIndex)
+    {
+        const auto& chunkState = InputChunkStates_[chunkIndex];
+
+        // NB. CompressedDataSize is updated in UpdateCompressedDataSize, so don't update it here.
+
+        InputDataStatistics_.Transform([&] (auto& statistics) {
+            statistics.set_chunk_count(statistics.chunk_count() + 1);
+
+            statistics.set_uncompressed_data_size(statistics.uncompressed_data_size() + chunkState.UncompressedDataSize);
+            statistics.set_row_count(statistics.row_count() + chunkState.RowCount);
+            statistics.set_data_weight(statistics.data_weight() + chunkState.DataWeight);
+        });
+
+        OutputDataStatistics_.Transform([&] (auto& statistics) {
+            statistics.set_uncompressed_data_size(statistics.uncompressed_data_size() + chunkState.UncompressedDataSize);
+            statistics.set_row_count(statistics.row_count() + chunkState.RowCount);
+            statistics.set_data_weight(statistics.data_weight() + chunkState.DataWeight);
+        });
+    }
+
+    i64 CalculateTotalBlockCount() const
+    {
+        i64 result = 0;
+        for (const auto& state : InputChunkStates_) {
+            result += state.BlockCount;
+        }
+        return result;
+    }
+
+    void UpdateCompressedDataSize(const TBlockFetcherPtr& blockFetcher)
+    {
+        InputDataStatistics_.Transform([&] (auto& statistics) {
+            statistics.set_compressed_data_size(blockFetcher->GetCompressedDataSize());
+        });
+
+        OutputDataStatistics_.Transform([&] (auto& statistics) {
+            statistics.set_compressed_data_size(blockFetcher->GetCompressedDataSize());
+        });
+    }
+
+    TBlockFetcherPtr CreateBlockFetcher()
+    {
+        // NB(gepardo): The blocks may be compressed, and block fetcher usually performs decompression.
+        // However, we want to obtain compressed blocks here as-is. So, we tell the block fetcher that
+        // blocks are uncompressed, effectively disabling decompression.
+
+        std::vector<TBlockFetcher::TBlockInfo> blockInfos;
+        std::vector<IChunkReaderPtr> chunkReaders;
+        chunkReaders.reserve(InputChunkStates_.size());
+        blockInfos.reserve(CalculateTotalBlockCount());
+
+        for (int chunkIndex = 0; chunkIndex < std::ssize(InputChunkStates_); ++chunkIndex) {
+            auto& state = InputChunkStates_[chunkIndex];
+            chunkReaders.push_back(state.Reader);
+            auto blockSizes = GetBlockSizes(state);
+            for (int blockIndex = 0; blockIndex < state.BlockCount; ++blockIndex) {
+                blockInfos.push_back(TBlockFetcher::TBlockInfo{
+                    .ReaderIndex = chunkIndex,
+                    .BlockIndex = blockIndex,
+                    .UncompressedDataSize = blockSizes[blockIndex],
+                });
+            }
+        }
+
+        auto memoryManager = New<TChunkReaderMemoryManager>(
+            TChunkReaderMemoryManagerOptions(ReaderConfig_->WindowSize));
+
+        auto statisticsInvoker = CreateSerializedInvoker(GetCurrentInvoker());
+
+        auto blockFetcher = New<TBlockFetcher>(
+            ReaderConfig_,
+            std::move(blockInfos),
+            std::move(memoryManager),
+            std::move(chunkReaders),
+            /*blockCache*/ GetNullBlockCache(),
+            /*compressionCodec*/ ECodec::None,
+            /*compressionRatio*/ 1.0,
+            ChunkReadOptions_);
+
+        blockFetcher->SubscribeOnReaderFinished(
+            BIND(&TShallowMergeJob::OnChunkReadFinished, MakeWeak(this))
+                .Via(statisticsInvoker));
+        for (int chunkIndex = 0; chunkIndex < std::ssize(InputChunkStates_); ++chunkIndex) {
+            blockFetcher->SetTraceContextForReader(
+                chunkIndex,
+                InputTraceContexts_[InputChunkStates_[chunkIndex].InputSpecIndex]);
+        };
+
+        blockFetcher->Start();
+        return blockFetcher;
+    }
+
     void MergeInputChunks()
     {
         TCurrentTraceContextGuard outputGuard(OutputTraceContext_);
 
         WaitFor(Writer_->Open())
             .ThrowOnError();
-        for (const auto& chunkState : InputChunkStates_) {
-            try {
-                MergeInputChunk(chunkState);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to process chunk")
-                    << ex
-                    << TErrorAttribute("chunk_id", chunkState.ChunkId);
+
+        auto blockFetcher = CreateBlockFetcher();
+        auto statisticsUpdater = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TShallowMergeJob::UpdateCompressedDataSize, MakeWeak(this), blockFetcher),
+            ShallowMergeStatisticsUpdatePeriod);
+        auto finally = Finally([&] {
+            UpdateCompressedDataSize(blockFetcher);
+        });
+
+        for (int chunkIndex = 0; chunkIndex < std::ssize(InputChunkStates_); ++chunkIndex) {
+            const auto& chunkState = InputChunkStates_[chunkIndex];
+            for (int blockIndex = 0; blockIndex < chunkState.BlockCount; ++blockIndex) {
+                try {
+                    auto block = WaitForUniqueFast(blockFetcher->FetchBlock(chunkIndex, blockIndex))
+                        .ValueOrThrow();
+
+                    if (!Writer_->WriteBlock(block)) {
+                        WaitFor(Writer_->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+                    ProcessedBlocksSize_ += block.Size();
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Failed to process block")
+                        << ex
+                        << TErrorAttribute("input_chunk_id", chunkState.ChunkId)
+                        << TErrorAttribute("input_block_index", blockIndex);
+                }
             }
         }
+
         WaitFor(Writer_->Close())
             .ThrowOnError();
-        OutputDataStatistics_.set_chunk_count(1);
+
+        OutputDataStatistics_.Transform([] (auto& statistics) {
+            statistics.set_chunk_count(1);
+        });
     }
 
     TChunkSpec GetOutputChunkSpec() const
