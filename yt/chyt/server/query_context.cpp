@@ -55,6 +55,7 @@ TQueryContext::TQueryContext(
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
+    std::optional<TString> yqlOperationId,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
     : Logger(QueryLogger)
     , User(TString(context->getClientInfo().initial_user))
@@ -63,6 +64,7 @@ TQueryContext::TQueryContext(
     , QueryKind(static_cast<EQueryKind>(context->getClientInfo().query_kind))
     , Host(host)
     , DataLensRequestId(std::move(dataLensRequestId))
+    , YqlOperationId(std::move(yqlOperationId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
 {
     Logger.AddTag("QueryId: %v", QueryId);
@@ -374,6 +376,7 @@ void SetupHostContext(THost* host,
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
+    std::optional<TString> yqlOperationId,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
 {
     YT_VERIFY(traceContext);
@@ -384,6 +387,7 @@ void SetupHostContext(THost* host,
         queryId,
         std::move(traceContext),
         std::move(dataLensRequestId),
+        std::move(yqlOperationId),
         secondaryQueryHeader);
 
     WaitFor(BIND(
