@@ -69,10 +69,8 @@ private:
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
-    TFuture<void> DoAcquireBlockMemory(int startBlockIndex,
-        const std::vector<NChunkClient::TBlock>& blocks,
-        bool enableCaching);
-    TFuture<void> DoPerformPutBlocks(int startBlockIndex,
+    TFuture<void> DoPerformPutBlocks(
+        int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
         bool enableCaching);
