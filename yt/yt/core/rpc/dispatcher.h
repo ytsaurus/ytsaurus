@@ -24,10 +24,8 @@ public:
 
     void Configure(const TDispatcherConfigPtr& config);
 
-    NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId);
-
-    // Register network names under unique ids.
-    TNetworkId GetNetworkId(const TString& networkName);
+    //! Returns the TOS level configured for a band.
+    NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band);
 
     //! Returns the invoker for the single thread used to dispatch light callbacks
     //! (e.g. discovery or request cancelation).

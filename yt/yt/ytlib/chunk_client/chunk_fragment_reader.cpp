@@ -180,8 +180,8 @@ private:
                 nodeId);
         }
 
-        auto address = descriptor->FindAddress(Networks_);
-        if (!address) {
+        auto optionalAddress = descriptor->FindAddress(Networks_);
+        if (!optionalAddress) {
             return TError(
                 NNodeTrackerClient::EErrorCode::NoSuchNetwork,
                 "Cannot find any of %v addresses for seed %v",
@@ -189,18 +189,14 @@ private:
                 descriptor->GetDefaultAddress());
         }
 
-        TAddressWithNetwork addressWithNetwork;
-        try {
-            addressWithNetwork = descriptor->GetAddressWithNetworkOrThrow(Networks_);
-        } catch (const std::exception& ex) {
-            return TError(ex);
-        }
-
+        auto& address = *optionalAddress;
         const auto& channelFactory = Client_->GetChannelFactory();
+        auto channel = channelFactory->CreateChannel(address);
+
         return New<TPeerInfo>(TPeerInfo{
             .NodeId = nodeId,
-            .Address = addressWithNetwork,
-            .Channel = channelFactory->CreateChannel(addressWithNetwork)
+            .Address = std::move(address),
+            .Channel = std::move(channel)
         });
     }
 
@@ -442,7 +438,7 @@ private:
                     peerInfo->Address);
                 Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                     probingInfo.NodeId,
-                    peerInfo->Address.Address,
+                    peerInfo->Address,
                     /*suspicious*/ false,
                     suspicionMarkTime);
             }
@@ -640,7 +636,7 @@ private:
                 peerInfo->Address);
             Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 probingInfo.NodeId,
-                peerInfo->Address.Address,
+                peerInfo->Address,
                 /*suspicious*/ true,
                 std::nullopt);
         }
@@ -1329,7 +1325,7 @@ private:
                 peerInfo->Address);
             Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peerInfo->NodeId,
-                peerInfo->Address.Address,
+                peerInfo->Address,
                 /*suspicious*/ true,
                 std::nullopt);
         }

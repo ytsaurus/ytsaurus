@@ -33,27 +33,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs)
-{
-    return lhs.Address == rhs.Address && lhs.Network == rhs.Network;
-}
-
-TString ToString(const TAddressWithNetwork& addressWithNetwork)
-{
-    return Format("%v/%v", addressWithNetwork.Address, addressWithNetwork.Network);
-}
-
-void Serialize(const TAddressWithNetwork& addressWithNetwork, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("address").Value(addressWithNetwork.Address)
-            .Item("network").Value(addressWithNetwork.Network)
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsRetriableError(const TError& error)
 {
     if (IsChannelFailureError(error)) {
@@ -139,12 +118,6 @@ public:
         , Timeout_(timeout)
     { }
 
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
-        return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
-    }
-
     IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
@@ -219,12 +192,6 @@ public:
         , AuthenticationIdentity_(identity)
     { }
 
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
-        return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
-    }
-
     IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
@@ -292,15 +259,9 @@ public:
     TRealmChannelFactory(
         IChannelFactoryPtr underlyingFactory,
         TRealmId realmId)
-        : UnderlyingFactory_(underlyingFactory)
+        : UnderlyingFactory_(std::move(underlyingFactory))
         , RealmId_(realmId)
     { }
-
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
-        return CreateRealmChannel(underlyingChannel, RealmId_);
-    }
 
     IChannelPtr CreateChannel(const TString& address) override
     {
@@ -311,7 +272,6 @@ public:
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
     const TRealmId RealmId_;
-
 };
 
 IChannelFactoryPtr CreateRealmChannelFactory(
@@ -647,15 +607,3 @@ std::optional<TError> TryEnrichClientRequestErrorWithFeatureName(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
-
-////////////////////////////////////////////////////////////////////////////////
-
-size_t THash<NYT::NRpc::TAddressWithNetwork>::operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const
-{
-    size_t hash = 0;
-    NYT::HashCombine(hash, addressWithNetwork.Address);
-    NYT::HashCombine(hash, addressWithNetwork.Network);
-    return hash;
-}
-
-/////////////////////////////////////////////////////////////////////////////

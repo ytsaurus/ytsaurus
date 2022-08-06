@@ -116,9 +116,6 @@ extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
 
-using TNetworkId = int;
-constexpr TNetworkId DefaultNetworkId = 0;
-
 constexpr int TypicalMessagePartCount = 8;
 
 using TFeatureIdFormatter = const std::function<const TStringBuf*(int featureId)>*;

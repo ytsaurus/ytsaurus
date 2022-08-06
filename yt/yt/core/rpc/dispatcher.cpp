@@ -9,8 +9,6 @@
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-
 namespace NYT::NRpc {
 
 using namespace NConcurrency;
@@ -26,13 +24,7 @@ public:
         : CompressionPoolInvoker_(BIND([this] {
             return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
         }))
-    {
-        NetworkNames_.push_back(DefaultNetworkName);
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            auto& bandDescriptor = BandToDescriptor_[band];
-            bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
-        }
-    }
+    { }
 
     void Configure(const TDispatcherConfigPtr& config)
     {
@@ -40,66 +32,17 @@ public:
         CompressionPool_->Configure(config->CompressionPoolSize);
         FairShareCompressionPool_->Configure(config->CompressionPoolSize);
 
-        {
-            auto guard = WriterGuard(SpinLock_);
-
-            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-                const auto& bandConfig = config->MultiplexingBands[band];
-                if (!bandConfig) {
-                    continue;
-                }
-                for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
-                    auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                    if (it == NetworkNames_.end()) {
-                        NetworkNames_.push_back(networkName);
-                    }
-                }
-            }
-
-            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-                const auto& bandConfig = config->MultiplexingBands[band];
-                auto& bandDescriptor = BandToDescriptor_[band];
-                bandDescriptor.DefaultTosLevel = bandConfig ? bandConfig->TosLevel : DefaultTosLevel;
-                bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
-
-                // Possible overwrite values for default network, filled in ctor.
-                for (int networkId = 0; networkId < std::ssize(NetworkNames_); ++networkId) {
-                    bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
-                }
-
-                if (!bandConfig) {
-                    continue;
-                }
-
-                for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
-                    auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                    YT_VERIFY(it != NetworkNames_.end());
-                    auto id = std::distance(NetworkNames_.begin(), it);
-                    bandDescriptor.NetworkIdToTosLevel[id] = tosLevel;
-                }
-            }
+        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+            const auto& bandConfig = config->MultiplexingBands[band];
+            auto& bandDescriptor = BandToDescriptor_[band];
+            bandDescriptor.TosLevel.store(bandConfig ? bandConfig->TosLevel : DefaultTosLevel);
         }
     }
 
-    TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId)
+    TTosLevel GetTosLevelForBand(EMultiplexingBand band)
     {
-        auto guard = ReaderGuard(SpinLock_);
         const auto& bandDescriptor = BandToDescriptor_[band];
-        return bandDescriptor.NetworkIdToTosLevel[networkId];
-    }
-
-    TNetworkId GetNetworkId(const TString& networkName)
-    {
-        {
-            auto guard = ReaderGuard(SpinLock_);
-            auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-            if (it != NetworkNames_.end()) {
-                return std::distance(NetworkNames_.begin(), it);
-            }
-        }
-
-        auto guard = WriterGuard(SpinLock_);
-        return DoRegisterNetwork(networkName);
+        return bandDescriptor.TosLevel.load(std::memory_order::relaxed);
     }
 
     const IInvokerPtr& GetLightInvoker()
@@ -140,8 +83,7 @@ public:
 private:
     struct TBandDescriptor
     {
-        TCompactVector<TTosLevel, 8> NetworkIdToTosLevel;
-        TTosLevel DefaultTosLevel = NYT::NBus::DefaultTosLevel;
+        std::atomic<TTosLevel> TosLevel = DefaultTosLevel;
     };
 
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
@@ -151,35 +93,15 @@ private:
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
-    // Using linear search in vector since number of networks is very small.
-    TCompactVector<TString, 8> NetworkNames_;
-
     TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
-
-    TNetworkId DoRegisterNetwork(const TString& networkName)
-    {
-        auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-        if (it != NetworkNames_.end()) {
-            return std::distance(NetworkNames_.begin(), it);
-        }
-
-        TNetworkId id = NetworkNames_.size();
-        NetworkNames_.push_back(networkName);
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            auto& bandDescriptor = BandToDescriptor_[band];
-            bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
-        }
-        return id;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
-    : Impl_(new TImpl())
+    : Impl_(std::make_unique<TImpl>())
 { }
 
 TDispatcher::~TDispatcher() = default;
@@ -194,14 +116,9 @@ void TDispatcher::Configure(const TDispatcherConfigPtr& config)
     Impl_->Configure(config);
 }
 
-TTosLevel TDispatcher::GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId)
+TTosLevel TDispatcher::GetTosLevelForBand(EMultiplexingBand band)
 {
-    return Impl_->GetTosLevelForBand(band, networkId);
-}
-
-TNetworkId TDispatcher::GetNetworkId(const TString& networkName)
-{
-    return Impl_->GetNetworkId(networkName);
+    return Impl_->GetTosLevelForBand(band);
 }
 
 const IInvokerPtr& TDispatcher::GetLightInvoker()

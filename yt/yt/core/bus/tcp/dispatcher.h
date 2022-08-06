@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/net/public.h>
+
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +62,9 @@ public:
 
     //! Returns true if networking is disabled.
     bool IsNetworkingDisabled();
+
+    //! Returns the network name for a given #address.
+    const TString& GetNetworkNameForAddress(const NNet::TNetworkAddress& address);
 
 private:
     TTcpDispatcher();

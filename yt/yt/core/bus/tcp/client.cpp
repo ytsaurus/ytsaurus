@@ -152,13 +152,6 @@ public:
         return *EndpointAttributes_;
     }
 
-    const TString& GetNetworkName() const override
-    {
-        return Config_->NetworkName
-            ? Config_->NetworkName.value()
-            : DefaultNetworkName;
-    }
-
     IBusPtr CreateBus(IMessageHandlerPtr handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -180,12 +173,11 @@ public:
         auto connection = New<TTcpConnection>(
             Config_,
             EConnectionType::Client,
-            GetNetworkName(),
             id,
             INVALID_SOCKET,
             EndpointDescription_,
             *endpointAttributes,
-            TNetworkAddress{},
+            TNetworkAddress(),
             Config_->Address,
             Config_->UnixDomainSocketPath,
             std::move(handler),

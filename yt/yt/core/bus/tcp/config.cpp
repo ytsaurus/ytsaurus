@@ -12,7 +12,10 @@ TTcpDispatcherConfig::TTcpDispatcherConfig()
         .Default(8);
 
     RegisterParameter("network_bandwidth", NetworkBandwidth)
-        .Default(std::nullopt);
+        .Default();
+
+    RegisterParameter("networks", Networks)
+        .Default();
 }
 
 TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
@@ -20,6 +23,7 @@ TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
 {
     auto mergedConfig = New<TTcpDispatcherConfig>();
     mergedConfig->ThreadPoolSize = dynamicConfig->ThreadPoolSize.value_or(ThreadPoolSize);
+    mergedConfig->Networks = dynamicConfig->Networks.value_or(Networks);
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -31,6 +35,12 @@ TTcpDispatcherDynamicConfig::TTcpDispatcherDynamicConfig()
     RegisterParameter("thread_pool_size", ThreadPoolSize)
         .Optional()
         .GreaterThan(0);
+
+    RegisterParameter("network_bandwidth", NetworkBandwidth)
+        .Default();
+
+    RegisterParameter("networks", Networks)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,9 +55,6 @@ TTcpBusServerConfig::TTcpBusServerConfig()
         .Default(8192);
     RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
         .Default(50000);
-    RegisterParameter("networks", Networks)
-        .Default({});
-
 }
 
 TTcpBusServerConfigPtr TTcpBusServerConfig::CreateTcp(int port)
@@ -90,8 +97,6 @@ TTcpBusClientConfig::TTcpBusClientConfig()
 {
     RegisterParameter("address", Address)
         .Default();
-    RegisterParameter("network_name", NetworkName)
-        .Default();
     RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
         .Default();
 
@@ -106,14 +111,6 @@ TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address)
 {
     auto config = New<TTcpBusClientConfig>();
     config->Address = address;
-    return config;
-}
-
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address, const TString& network)
-{
-    auto config = New<TTcpBusClientConfig>();
-    config->Address = address;
-    config->NetworkName = network;
     return config;
 }
 

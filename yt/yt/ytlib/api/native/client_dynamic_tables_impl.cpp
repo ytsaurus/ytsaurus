@@ -982,7 +982,7 @@ TRowset TClient::DoLookupRowsOnce(
     const auto& networks = Connection_->GetNetworks();
 
     std::vector<std::vector<TCellId>> cellIdsByChannels;
-    THashMap<NRpc::TAddressWithNetwork, int> channelIndexByAddress;
+    THashMap<TString, int> channelIndexByAddress;
 
     for (auto [cellId, cellIndex] : cellIdToBatchIndex) {
         auto descriptor = cellDirectory->GetDescriptorOrThrow(cellId);
@@ -995,7 +995,7 @@ TRowset TClient::DoLookupRowsOnce(
             continue;
         }
 
-        auto address = descriptor.Peers[0].GetAddressWithNetworkOrThrow(networks);
+        const auto& address = descriptor.Peers[0].GetAddressOrThrow(networks);
         auto emplaced = channelIndexByAddress.emplace(
             address,
             cellIdsByChannels.size());

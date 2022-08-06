@@ -92,7 +92,6 @@ void TTcpConnection::TPacket::EnableCancel(TTcpConnectionPtr connection)
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     EConnectionType connectionType,
-    const TString& networkName,
     TConnectionId id,
     int socket,
     const TString& endpointDescription,
@@ -116,7 +115,6 @@ TTcpConnection::TTcpConnection(
         Id_,
         EndpointDescription_))
     , LoggingTag_(Format("ConnectionId: %v", Id_))
-    , NetworkName_(networkName)
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
     , Decoder_(Logger, Config_->VerifyChecksums)
@@ -200,9 +198,8 @@ void TTcpConnection::Start()
             auto guard = Guard(Lock_);
             YT_VERIFY(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
-            SetupNetwork(NetworkName_);
+            SetupNetwork(EndpointNetworkAddress_);
             Open();
-
             guard.Release();
             ReadyPromise_.TrySet();
             break;
@@ -336,31 +333,27 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
     }
 
     TNetworkAddress address(result.Value(), Port_);
-
-    YT_LOG_DEBUG("Connection network address resolved (Address: %v)",
-        address);
-
     OnAddressResolved(address);
+
+    YT_LOG_DEBUG("Connection network address resolved (Address: %v, NetworkName: %v)",
+        address,
+        NetworkName_);
 }
 
-void TTcpConnection::OnAddressResolved(
-    const TNetworkAddress& address)
+void TTcpConnection::OnAddressResolved(const TNetworkAddress& address)
 {
     State_ = EState::Opening;
-    SetupNetwork(NetworkName_);
+    SetupNetwork(address);
     ConnectSocket(address);
 }
 
-void TTcpConnection::SetupNetwork(const TString& networkName)
+void TTcpConnection::SetupNetwork(const TNetworkAddress& address)
 {
-    YT_VERIFY(!Counters_);
-
-    YT_LOG_DEBUG("Using %Qv network", networkName);
-
-    Counters_ = TTcpDispatcher::TImpl::Get()->GetCounters(networkName);
+    NetworkName_ = TTcpDispatcher::TImpl::Get()->GetNetworkNameForAddress(address);
+    Counters_ = TTcpDispatcher::TImpl::Get()->GetCounters(NetworkName_);
 
     // Suppress checksum generation for local traffic.
-    if (networkName == LocalNetworkName) {
+    if (NetworkName_ == LocalNetworkName) {
         GenerateChecksums_ = false;
     }
 }

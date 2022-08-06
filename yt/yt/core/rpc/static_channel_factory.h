@@ -13,13 +13,10 @@ class TStaticChannelFactory
 {
 public:
     TStaticChannelFactoryPtr Add(const TString& address, IChannelPtr channel);
-
     IChannelPtr CreateChannel(const TString& address) override;
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override;
 
 private:
     THashMap<TString, IChannelPtr> ChannelMap;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TStaticChannelFactory)

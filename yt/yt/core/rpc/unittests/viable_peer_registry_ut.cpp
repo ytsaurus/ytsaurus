@@ -103,11 +103,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     IClientRequestControlPtr Send(
         IClientRequestPtr /*request*/,
         IClientResponseHandlerPtr /*responseHandler*/,
@@ -141,11 +136,6 @@ public:
     IChannelPtr CreateChannel(const TString& address) override
     {
         return New<TFakeChannel>(address, &ChannelRegistry_);
-    }
-
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        return CreateChannel(addressWithNetwork.Address);
     }
 
     const THashSet<TString>& GetChannelRegistry() const

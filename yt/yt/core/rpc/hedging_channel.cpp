@@ -355,11 +355,6 @@ public:
         return *EndpointAttributes_;
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        return PrimaryChannel_->GetNetworkId();
-    }
-
     IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

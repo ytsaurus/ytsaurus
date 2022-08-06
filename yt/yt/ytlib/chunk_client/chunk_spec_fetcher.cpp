@@ -404,13 +404,10 @@ void TTabletChunkSpecFetcher::AddSorted(
                 cellDescriptor,
                 NHydra::EPeerKind::Leader);
 
-            auto address = primaryPeerDescriptor.GetAddressWithNetworkOrThrow(
-                connection->GetNetworks());
-
+            const auto& address = primaryPeerDescriptor.GetAddressOrThrow(connection->GetNetworks());
             auto& state = NodeAddressToState_[address];
-
             state.Subrequests.emplace_back(std::move(*subrequest));
-            state.Tablets.emplace_back(std::move(tablet));
+            state.Tablets.push_back(std::move(tablet));
         }
     }
 }
@@ -464,7 +461,7 @@ void TTabletChunkSpecFetcher::DoFetch()
     }
 }
 
-void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address)
+void TTabletChunkSpecFetcher::DoFetchFromNode(const TString& address)
 {
     auto& state = NodeAddressToState_[address];
 

@@ -24,19 +24,13 @@ public:
 
     IChannelPtr CreateChannel(const TAddressMap& addresses) override
     {
-        const auto& addressWithNetwork = GetAddressWithNetworkOrThrow(addresses, Networks_);
-
-        return CreateChannel(addressWithNetwork);
+        const auto& address = GetAddressOrThrow(addresses, Networks_);
+        return CreateChannel(address);
     }
 
     IChannelPtr CreateChannel(const TString& address) override
     {
         return ChannelFactory_->CreateChannel(address);
-    }
-
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        return ChannelFactory_->CreateChannel(addressWithNetwork);
     }
 
 private:

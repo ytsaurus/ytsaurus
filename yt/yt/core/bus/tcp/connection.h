@@ -54,7 +54,6 @@ public:
     TTcpConnection(
         TTcpBusConfigPtr config,
         EConnectionType connectionType,
-        const TString& networkName,
         TConnectionId id,
         SOCKET socket,
         const TString& endpointDescription,
@@ -235,7 +234,7 @@ private:
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
     void OnAddressResolved(const NNet::TNetworkAddress& address);
-    void SetupNetwork(const TString& networkName);
+    void SetupNetwork(const NNet::TNetworkAddress& address);
 
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);

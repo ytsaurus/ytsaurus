@@ -96,13 +96,6 @@ public:
         ExpirationExecutor_->Start();
     }
 
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        return DoCreateChannel(
-            addressWithNetwork.Address,
-            [&] { return UnderlyingFactory_->CreateChannel(addressWithNetwork); });
-    }
-
     IChannelPtr CreateChannel(const TString& address) override
     {
         return DoCreateChannel(

@@ -57,17 +57,6 @@ public:
         if (Config_->UnixDomainSocketPath) {
             Logger.AddTag("UnixDomainSocketPath: %v", *Config_->UnixDomainSocketPath);
         }
-
-        for (const auto& network : Config_->Networks) {
-            for (const auto& prefix : network.second) {
-                Networks_.emplace_back(prefix, network.first);
-            }
-        }
-
-        // Putting more specific networks first in match order.
-        std::sort(Networks_.begin(), Networks_.end(), [] (auto&& lhs, auto&& rhs) {
-            return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
-        });
     }
 
     ~TTcpBusServerBase()
@@ -138,8 +127,6 @@ protected:
 
     NLogging::TLogger Logger = BusLogger;
 
-    std::vector<std::pair<TIP6Network, TString>> Networks_;
-
     virtual void CreateServerSocket() = 0;
 
     virtual void InitClientSocket(SOCKET clientSocket) = 0;
@@ -201,11 +188,11 @@ protected:
                 CloseSocket(clientSocket);
             };
 
-            auto clientNetwork = GetNetworkNameForAddress(clientAddress);
-
             auto connectionId = TConnectionId::Create();
 
-            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(clientNetwork)->ServerConnections.load();
+            const auto& dispatcher = TTcpDispatcher::TImpl::Get();
+            auto clientNetwork = dispatcher->GetNetworkNameForAddress(clientAddress);
+            auto connectionCount = dispatcher->GetCounters(clientNetwork)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             auto formattedClientAddress = ToString(clientAddress, NNet::TNetworkAddressFormatOptions{.IncludePort = false});
             if (connectionCount >= connectionLimit) {
@@ -239,7 +226,6 @@ protected:
             auto connection = New<TTcpConnection>(
                 Config_,
                 EConnectionType::Server,
-                clientNetwork,
                 connectionId,
                 clientSocket,
                 endpointDescription,
@@ -299,41 +285,13 @@ protected:
             Poller_->Unarm(ServerSocket_, this);
         }
     }
-
-    const TString& GetNetworkNameForAddress(const TNetworkAddress& address)
-    {
-        if (address.IsUnix()) {
-            return LocalNetworkName;
-        }
-
-        if (!address.IsIP6()) {
-            return DefaultNetworkName;
-        }
-
-        auto ip6Address = address.ToIP6Address();
-        for (const auto& network : Networks_) {
-            if (network.first.Contains(ip6Address)) {
-                return network.second;
-            }
-        }
-
-        return DefaultNetworkName;
-    }
 };
 
 class TRemoteTcpBusServer
     : public TTcpBusServerBase
 {
 public:
-    TRemoteTcpBusServer(
-        TTcpBusServerConfigPtr config,
-        IPollerPtr poller,
-        IMessageHandlerPtr handler)
-        : TTcpBusServerBase(
-            std::move(config),
-            std::move(poller),
-            std::move(handler))
-    { }
+    using TTcpBusServerBase::TTcpBusServerBase;
 
 private:
     void CreateServerSocket() override

@@ -49,7 +49,6 @@ public:
     const TString& GetDefaultAddress() const;
 
     const TString& GetAddressOrThrow(const TNetworkPreferenceList& networks) const;
-    NRpc::TAddressWithNetwork GetAddressWithNetworkOrThrow(const TNetworkPreferenceList& networks) const;
 
     std::optional<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
@@ -99,7 +98,6 @@ TString ToString(const TNodeDescriptor& descriptor);
 const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
-NRpc::TAddressWithNetwork GetAddressWithNetworkOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 std::optional<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 

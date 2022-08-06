@@ -732,13 +732,13 @@ private:
         }
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
-        auto nodeDescriptor = nodeDirectory->GetDescriptor(target);
-        auto addressWithNetwork = nodeDescriptor.GetAddressWithNetworkOrThrow(Networks_);
-        YT_LOG_DEBUG("Starting write session (Address: %v)", addressWithNetwork);
+        const auto& nodeDescriptor = nodeDirectory->GetDescriptor(target);
+        const auto& address = nodeDescriptor.GetAddressOrThrow(Networks_);
+        YT_LOG_DEBUG("Starting write session (Address: %v)", address);
 
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
-            Client_->GetChannelFactory()->CreateChannel(addressWithNetwork),
+            Client_->GetChannelFactory()->CreateChannel(address),
             BIND([] (const TError& error) {
                 return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
@@ -758,10 +758,10 @@ private:
         if (!rspOrError.IsOK()) {
             UnregisterCandidateNode(channel);
             if (Config_->BanFailedNodes) {
-                BannedNodeAddresses_.push_back(addressWithNetwork.Address);
+                BannedNodeAddresses_.push_back(address);
             }
             YT_LOG_WARNING(rspOrError, "Failed to start write session (Address: %v)",
-                addressWithNetwork);
+                address);
             return;
         }
 
@@ -770,7 +770,7 @@ private:
             ? FromProto<TChunkLocationUuid>(rsp->location_uuid())
             : InvalidChunkLocationUuid;
 
-        YT_LOG_DEBUG("Write session started (Address: %v)", addressWithNetwork);
+        YT_LOG_DEBUG("Write session started (Address: %v)", address);
 
         auto node = New<TNode>(
             Nodes_.size(),

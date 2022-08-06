@@ -14,7 +14,6 @@ public:
 
     const TString& GetEndpointDescription() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
-    TNetworkId GetNetworkId() const override;
 
     IClientRequestControlPtr Send(
         IClientRequestPtr request,

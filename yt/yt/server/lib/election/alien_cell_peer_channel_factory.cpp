@@ -51,31 +51,21 @@ public:
             << TErrorAttribute("endpoint", EndpointDescription_))
     { }
 
-    //! Cf. IChannel::GetEndpointDescription.
     const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    //! Cf. IChannel::GetEndpointAttributes.
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        return DefaultNetworkId;
-    }
-
-    //! Returns the actual channel to be used for sending to service with
-    //! a given #serviceName.
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         return GetChannel();
     }
 
-    //! Terminates the cached channels, if any.
     void Terminate(const TError& /*error*/) override
     { }
 

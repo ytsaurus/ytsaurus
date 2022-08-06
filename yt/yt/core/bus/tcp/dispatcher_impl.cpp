@@ -123,6 +123,30 @@ bool TTcpDispatcher::TImpl::IsNetworkingDisabled()
     return NetworkingDisabled_.load();
 }
 
+const TString& TTcpDispatcher::TImpl::GetNetworkNameForAddress(const TNetworkAddress& address)
+{
+    if (address.IsUnix()) {
+        return LocalNetworkName;
+    }
+
+    if (!address.IsIP6()) {
+        return DefaultNetworkName;
+    }
+
+    auto ip6Address = address.ToIP6Address();
+
+    {
+        auto guard = ReaderGuard(NetworksLock_);
+        for (const auto& [networkAddress, networkName] : Networks_) {
+            if (networkAddress.Contains(ip6Address)) {
+                return networkName;
+            }
+        }
+    }
+
+    return DefaultNetworkName;
+}
+
 void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const
 {
     if (Y_UNLIKELY(NetworkingDisabled_.load())) {
@@ -145,11 +169,31 @@ IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 
 void TTcpDispatcher::TImpl::Configure(const TTcpDispatcherConfigPtr& config)
 {
-    auto guard = WriterGuard(PollerLock_);
-    Config_ = config;
+    {
+        auto guard = WriterGuard(PollerLock_);
 
-    if (XferPoller_) {
-        XferPoller_->Reconfigure(Config_->ThreadPoolSize);
+        Config_ = config;
+
+        if (XferPoller_) {
+            XferPoller_->Reconfigure(Config_->ThreadPoolSize);
+        }
+    }
+
+    {
+        auto guard = WriterGuard(NetworksLock_);
+
+        Networks_.clear();
+
+        for (const auto& [networkName, networkAddresses] : config->Networks) {
+            for (const auto& prefix : networkAddresses) {
+                Networks_.emplace_back(prefix, networkName);
+            }
+        }
+
+        // Put more specific networks first in match order.
+        std::sort(Networks_.begin(), Networks_.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
+        });
     }
 }
 
@@ -175,7 +219,7 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 
 void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
 {
-    NetworkStatistics_.IterateReadOnly([writer] (const auto& name, const auto& statistics) {
+    NetworkStatistics_.IterateReadOnly([&] (const auto& name, const auto& statistics) {
         auto counters = statistics.Counters->ToStatistics();
         TWithTagGuard tagGuard(writer, "network", name);
         writer->AddCounter("/in_bytes", counters.InBytes);
@@ -195,8 +239,15 @@ void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
         writer->AddCounter("/decoder_errors", counters.DecoderErrors);
     });
 
-    if (Config_->NetworkBandwidth) {
-        writer->AddGauge("/network_bandwidth_limit", *Config_->NetworkBandwidth);
+
+    TTcpDispatcherConfigPtr config;
+    {
+        auto guard = ReaderGuard(PollerLock_);
+        config = Config_;
+    }
+
+    if (config->NetworkBandwidth) {
+        writer->AddGauge("/network_bandwidth_limit", *config->NetworkBandwidth);
     }
 }
 

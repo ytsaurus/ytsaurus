@@ -419,7 +419,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     // Visit all tablets and group tablet subrequests by nodes.
     using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
-    THashMap<TAddressWithNetwork, std::vector<TSubrequest>> subrequestsByAddress;
+    THashMap<TString, std::vector<TSubrequest>> addressToSubrequests;
 
     const auto& connection = client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();
@@ -453,9 +453,8 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
             cellDescriptor,
             NHydra::EPeerKind::Leader);
-        auto address = primaryPeerDescriptor.GetAddressWithNetworkOrThrow(
-            connection->GetNetworks());
-        subrequestsByAddress[address].push_back(std::move(subrequest));
+        const auto& address = primaryPeerDescriptor.GetAddressOrThrow(connection->GetNetworks());
+        addressToSubrequests[address].push_back(std::move(subrequest));
     }
 
     // Send requests to nodes.
@@ -463,7 +462,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     std::vector<TFuture<TQueryServiceProxy::TRspFetchTabletStoresPtr>> asyncRspsOrErrors;
 
-    for (const auto& [address, subrequests] : subrequestsByAddress) {
+    for (const auto& [address, subrequests] : addressToSubrequests) {
         auto channel = connection->GetChannelFactory()->CreateChannel(address);
         TQueryServiceProxy proxy(channel);
         auto req = proxy.FetchTabletStores();
@@ -482,7 +481,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     // Read responses and collect chunk specs.
     std::vector<NProto::TChunkSpec> chunkSpecs;
-    auto requestIt = subrequestsByAddress.begin();
+    auto requestIt = addressToSubrequests.begin();
     for (const auto& rsp : rspsOrErrors) {
         const auto& subrequests = requestIt++->second;
 

@@ -625,8 +625,8 @@ private:
                 NRpc::IChannelPtr channel;
 
                 try {
-                    channel = channelFactory->CreateChannel(
-                        nodeDescriptor->GetAddressWithNetworkOrThrow(Bootstrap_->GetLocalNetworks()));
+                    const auto& address = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
+                    channel = channelFactory->CreateChannel(address);
                 } catch (const std::exception& ex) {
                     YT_LOG_WARNING(ex, "Failed to create channel to node (Address: %v)",
                         nodeDescriptor->GetDefaultAddress());

@@ -23,10 +23,6 @@ struct IBusClient
     //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
-    //! Returns the bus' network name.
-    //! Typically used for proper selection of ToS level.
-    virtual const TString& GetNetworkName() const = 0;
-
     //! Creates a new bus.
     /*!
      *  The bus will point to the address supplied during construction.
