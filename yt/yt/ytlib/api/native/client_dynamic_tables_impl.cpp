@@ -803,7 +803,6 @@ TRowset TClient::DoLookupRowsOnce(
         (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
     {
         auto pickInSyncReplicas = [&] {
-            TTableReplicaInfoPtrList inSyncReplicas;
             if (tableInfo->ReplicationCardId) {
                 auto replicationCard = GetSyncReplicationCard(tableInfo);
                 auto replicaIds = GetChaosTableInSyncReplicas(
@@ -819,6 +818,7 @@ TRowset TClient::DoLookupRowsOnce(
                     options.Timestamp,
                     *replicationCard);
 
+                TTableReplicaInfoPtrList inSyncReplicas;
                 for (auto replicaId : replicaIds) {
                     const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);
                     auto replicaInfo = New<TTableReplicaInfo>();
@@ -828,6 +828,7 @@ TRowset TClient::DoLookupRowsOnce(
                     replicaInfo->Mode = replica.Mode;
                     inSyncReplicas.push_back(std::move(replicaInfo));
                 }
+                return inSyncReplicas;
             } else {
                 auto inSyncReplicasFuture = PickInSyncReplicas(
                     Connection_,
@@ -835,14 +836,9 @@ TRowset TClient::DoLookupRowsOnce(
                     options,
                     sortedKeys);
 
-                if (auto inSyncReplicasOrError = inSyncReplicasFuture.TryGet()) {
-                    inSyncReplicas = inSyncReplicasOrError->ValueOrThrow();
-                } else {
-                    inSyncReplicas = WaitFor(inSyncReplicasFuture)
-                        .ValueOrThrow();
-                }
+                return WaitForFast(inSyncReplicasFuture)
+                    .ValueOrThrow();
             }
-            return inSyncReplicas;
         };
 
         auto inSyncReplicas = pickInSyncReplicas();
@@ -2691,7 +2687,7 @@ TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& ta
         }
 
         auto futureReplicationCard = replicationCardCache->GetReplicationCard(key);
-        auto replicationCardOrError = WaitFor(futureReplicationCard);
+        auto replicationCardOrError = WaitForFast(futureReplicationCard);
 
         if (!replicationCardOrError.IsOK()) {
             YT_LOG_DEBUG(replicationCardOrError, "Failed to get replication card from cache (ReplicationCardId: %v)",
@@ -2754,7 +2750,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .CardId = replicationCardId,
             .FetchOptions = static_cast<const TReplicationCardFetchOptions&>(options)
         });
-        return WaitFor(replicationCardFuture)
+        return WaitForFast(replicationCardFuture)
             .ValueOrThrow();
     }
 
