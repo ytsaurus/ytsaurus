@@ -27,6 +27,7 @@ from abc import ABCMeta, abstractmethod
 from codecs import getwriter
 import copy
 import struct
+import sys
 try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
@@ -690,9 +691,11 @@ class YsonFormat(Format):
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
+        require_yson_bindings_by_default = sys.platform != 'win32'
+
         self.require_yson_bindings = get_value(
             require_yson_bindings,
-            self.attributes.get("require_yson_bindings", True))
+            self.attributes.get("require_yson_bindings", require_yson_bindings_by_default))
         if lazy:
             self.require_yson_bindings = True
         if "require_yson_bindings" in self.attributes:
