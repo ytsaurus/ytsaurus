@@ -447,16 +447,6 @@ TFuture<void> TBlobSession::DoPutBlocks(
         return VoidFuture;
     }
 
-    return DoAcquireBlockMemory(startBlockIndex, blocks, enableCaching);
-}
-
-TFuture<void> TBlobSession::DoAcquireBlockMemory(
-    int startBlockIndex,
-    const std::vector<TBlock>& blocks,
-    bool enableCaching)
-{
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-
     // Make all acquisitions in advance to ensure that this error is retriable.
     auto memoryTracker = Bootstrap_
         ->GetMemoryUsageTracker()
@@ -475,21 +465,21 @@ TFuture<void> TBlobSession::DoAcquireBlockMemory(
 
     // Work around possible livelock. We might consume all memory allocated for blob sessions. That would block
     // all other PutBlock requests.
-    std::vector<TFuture<void>> precedingBlockReceived;
+    std::vector<TFuture<void>> precedingBlockReceivedFutures;
     for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {
-        auto& slot = GetSlot(precedingBlockIndex);
+        const auto& slot = GetSlot(precedingBlockIndex);
         if (slot.State == EBlobSessionSlotState::Empty) {
-            precedingBlockReceived.push_back(slot.ReceivedPromise.ToFuture().ToUncancelable());
+            precedingBlockReceivedFutures.push_back(slot.ReceivedPromise.ToFuture().ToUncancelable());
         }
     }
 
-    if (precedingBlockReceived.empty()) {
+    if (precedingBlockReceivedFutures.empty()) {
         return DoPerformPutBlocks(startBlockIndex, blocks, std::move(memoryTrackerGuards), enableCaching);
     }
 
-    return AllSucceeded(precedingBlockReceived)
+    return AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
-        .Apply(BIND([config=Config_] (const TError& error) {
+        .Apply(BIND([config = Config_] (const TError& error) {
             if (error.GetCode() == NYT::EErrorCode::Timeout) {
                 return TError(
                     NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -499,7 +489,8 @@ TFuture<void> TBlobSession::DoAcquireBlockMemory(
 
             return error;
         }))
-        .Apply(BIND(&TBlobSession::DoPerformPutBlocks, MakeStrong(this), startBlockIndex, blocks, Passed(std::move(memoryTrackerGuards)), enableCaching).AsyncVia(SessionInvoker_));
+        .Apply(BIND(&TBlobSession::DoPerformPutBlocks, MakeStrong(this), startBlockIndex, blocks, Passed(std::move(memoryTrackerGuards)), enableCaching)
+            .AsyncVia(SessionInvoker_));
 }
 
 TFuture<void> TBlobSession::DoPerformPutBlocks(
@@ -509,6 +500,9 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
     bool enableCaching)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    // Run the validation again since the context could have been switched since the last check.
+    ValidateActive();
 
     const auto& blockCache = Bootstrap_->GetBlockCache();
 
@@ -520,9 +514,9 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
         ValidateBlockIsInWindow(blockIndex);
 
         if (!Location_->HasEnoughSpace(block.Size())) {
-            return MakeFuture(TError(
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoLocationAvailable,
-                "No enough space left on location"));
+                "No enough space left on location");
         }
 
         auto& slot = GetSlot(blockIndex);
@@ -532,11 +526,11 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
                 continue;
             }
 
-            return MakeFuture(TError(
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::BlockContentMismatch,
                 "Block %v with a different content already received",
                 blockId)
-                << TErrorAttribute("window_start", WindowStartBlockIndex_));
+                << TErrorAttribute("window_start", WindowStartBlockIndex_);
         }
 
         ++BlockCount_;
