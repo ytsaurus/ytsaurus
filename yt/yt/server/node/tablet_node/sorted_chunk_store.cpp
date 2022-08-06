@@ -321,18 +321,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions,
             /*workloadCategory*/ std::nullopt);
     }
-    
-    
+
     auto backendReaders = GetBackendReaders(workloadCategory);
     auto chunkReader = backendReaders.ChunkReader;
-    
+
     if (chunkReadOptions.BlockTracker) {
         chunkReader = CreateBlockTrackingChunkReader(
             chunkReader,
             chunkReadOptions.BlockTracker,
             chunkReadOptions.MemoryCategory);
     }
-    
+
     auto chunkState = PrepareChunkState(
         std::move(chunkReader),
         chunkReadOptions,

@@ -401,7 +401,10 @@ private:
 
             rows.push_back(Lookup(Keys_[KeyIndex_++]));
 
-            ++rowCount;
+            if (rows.back()) {
+                ++rowCount;
+            }
+
             dataWeight += GetDataWeight(rows.back());
         }
 
