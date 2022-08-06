@@ -1114,8 +1114,6 @@ private:
         TMutationId mutationId,
         bool force)
     {
-        YT_VERIFY(!HasMutationContext());
-
         auto* abort = FindAbort(transactionId);
         if (abort) {
             // NB: Even Response Keeper cannot protect us from this.
@@ -1233,6 +1231,13 @@ private:
             }
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
+
+            // COMPAT(gritukan)
+            auto* mutationContext = GetCurrentMutationContext();
+            if (mutationContext->Request().Reign >= 13 && IsLeader()) {
+                // Best effort, fire-and-forget.
+                AbortTransaction(transactionId, /*force*/ true);
+            }
             return;
         }
 
@@ -2288,12 +2293,13 @@ private:
             version == 10 || // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
             version == 11 || // ifsmirnov: YT-15025: MaxAllowedCommitTimestamp
             version == 12 || // gritukan: YT-16858: Coordinator prepare mode.
+            version == 13 || // gritukan: Abort failed simple transactions.
             false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 12;
+        return 13;
     }
 
 

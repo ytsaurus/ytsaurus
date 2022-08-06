@@ -47,6 +47,7 @@ DEFINE_ENUM(ETabletReign,
     ((DoNotLockUnmountingTablet)          (100510)) // gritukan
     ((SavePreparedReplicatorTxs)          (100511)) // ifsmirnov
     ((DoNotWriteToUnmountedTablet)        (100512)) // gritukan
+    ((SometimesWriteToUnmountedTablet)    (100513)) // gritukan
     // 22.3 starts here.
     ((TabletWriteManager)                 (100600)) // gritukan
     ((HunkTablets)                        (100601)) // gritukan

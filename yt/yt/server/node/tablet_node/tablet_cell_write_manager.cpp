@@ -416,6 +416,7 @@ private:
 
         auto* mutationContext = GetCurrentMutationContext();
         if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
+            mutationContext->Request().Reign < ToUnderlying(ETabletReign::SometimesWriteToUnmountedTablet) &&
             tablet->GetPersistentState() != ETabletState::Mounted)
         {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
@@ -542,6 +543,7 @@ private:
 
         auto* mutationContext = GetCurrentMutationContext();
         if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
+            mutationContext->Request().Reign < ToUnderlying(ETabletReign::SometimesWriteToUnmountedTablet) &&
             tablet->GetPersistentState() != ETabletState::Mounted)
         {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
