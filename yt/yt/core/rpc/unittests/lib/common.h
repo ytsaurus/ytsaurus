@@ -161,10 +161,9 @@ template <bool ForceTcp>
 class TRpcOverBusImpl
 {
 public:
-    static IChannelPtr CreateChannel(const TString& address, const TString& /* serverAddress */)
+    static IChannelPtr CreateChannel(const TString& address, const TString& /*serverAddress*/)
     {
-        TString network = ForceTcp ? TString("non-local") : NYT::NBus::DefaultNetworkName;
-        auto client = CreateTcpBusClient(NYT::NBus::TTcpBusClientConfig::CreateTcp(address, network));
+        auto client = CreateTcpBusClient(NYT::NBus::TTcpBusClientConfig::CreateTcp(address));
         return NRpc::NBus::CreateBusChannel(client);
     }
 

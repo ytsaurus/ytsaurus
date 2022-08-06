@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -19,6 +20,8 @@ public:
     //! Used for profiling export and alerts.
     std::optional<i64> NetworkBandwidth;
 
+    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
+
     TTcpDispatcherConfig();
     TTcpDispatcherConfigPtr ApplyDynamic(const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const;
 };
@@ -32,6 +35,10 @@ class TTcpDispatcherDynamicConfig
 {
 public:
     std::optional<int> ThreadPoolSize;
+
+    std::optional<i64> NetworkBandwidth;
+
+    std::optional<THashMap<TString, std::vector<NNet::TIP6Network>>> Networks;
 
     TTcpDispatcherDynamicConfig();
 };
@@ -71,8 +78,6 @@ public:
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
 
-    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
-
     TTcpBusServerConfig();
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
@@ -88,13 +93,11 @@ class TTcpBusClientConfig
 {
 public:
     std::optional<TString> Address;
-    std::optional<TString> NetworkName;
     std::optional<TString> UnixDomainSocketPath;
 
     TTcpBusClientConfig();
 
     static TTcpBusClientConfigPtr CreateTcp(const TString& address);
-    static TTcpBusClientConfigPtr CreateTcp(const TString& address, const TString& network);
     static TTcpBusClientConfigPtr CreateUnixDomain(const TString& socketPath);
 };
 

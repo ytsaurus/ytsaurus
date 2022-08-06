@@ -61,12 +61,6 @@ public:
         return *EndpointAttributes;
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        static auto localNetworkId = TDispatcher::Get()->GetNetworkId(LocalNetworkName);
-        return localNetworkId;
-    }
-
     IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

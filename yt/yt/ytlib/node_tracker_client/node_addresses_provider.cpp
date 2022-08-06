@@ -90,11 +90,6 @@ public:
         return GetChannel()->GetEndpointAttributes();
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        return GetChannel()->GetNetworkId();
-    }
-
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
     {
         EnsureStarted();

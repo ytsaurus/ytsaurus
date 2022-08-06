@@ -152,7 +152,7 @@ private:
         std::vector<NTabletClient::TTabletId> MissingTabletIds;
     };
 
-    THashMap<NRpc::TAddressWithNetwork, TNodeState> NodeAddressToState_;
+    THashMap<TString, TNodeState> NodeAddressToState_;
 
     void AddSorted(
         const NTabletClient::TTableMountInfo& tableMountInfo,
@@ -160,7 +160,7 @@ private:
         const std::vector<TReadRange>& ranges);
 
     void DoFetch();
-    void DoFetchFromNode(const NRpc::TAddressWithNetwork& address);
+    void DoFetchFromNode(const TString& address);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletChunkSpecFetcher)

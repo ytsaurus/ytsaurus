@@ -325,9 +325,8 @@ protected:
                 THROW_ERROR_EXCEPTION("No such address %v", descriptor->GetDefaultAddress());
             }
 
-            auto addressWithNetwork = descriptor->GetAddressWithNetworkOrThrow(Networks_);
             const auto& channelFactory = Client_->GetChannelFactory();
-            auto channel = channelFactory->CreateChannel(addressWithNetwork);
+            auto channel = channelFactory->CreateChannel(*address);
             TQueryServiceProxy proxy(channel);
 
             auto req = proxy.ReadDynamicStore();

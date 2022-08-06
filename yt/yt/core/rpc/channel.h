@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include "protocol_version.h"
-#include "helpers.h"
 
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/signal.h>
@@ -11,8 +10,6 @@
 #include <yt/yt/core/bus/client.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/compression/public.h>
 
@@ -102,8 +99,6 @@ struct IChannel
     //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
-    virtual TNetworkId GetNetworkId() const = 0;
-
     //! Sends a request via the channel.
     /*!
      *  \param request A request to send.
@@ -138,7 +133,6 @@ struct IChannelFactory
     : public virtual TRefCounted
 {
     virtual IChannelPtr CreateChannel(const TString& address) = 0;
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChannelFactory)

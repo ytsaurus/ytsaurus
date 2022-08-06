@@ -21,11 +21,6 @@ IChannelPtr TStaticChannelFactory::CreateChannel(const TString& address)
     return it->second;
 }
 
-IChannelPtr TStaticChannelFactory::CreateChannel(const TAddressWithNetwork& addressWithNetwork)
-{
-    return CreateChannel(addressWithNetwork.Address);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc

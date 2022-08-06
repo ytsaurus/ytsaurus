@@ -14,6 +14,7 @@
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/fork_aware_rw_spin_lock.h>
 
 #include <atomic>
 
@@ -33,6 +34,11 @@ public:
     static const TIntrusivePtr<TImpl>& Get();
 
     const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
+
+    void DisableNetworking();
+    bool IsNetworkingDisabled();
+
+    const TString& GetNetworkNameForAddress(const NNet::TNetworkAddress& address);
 
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
@@ -58,9 +64,6 @@ private:
         bool isXfer,
         const TString& threadNamePrefix);
 
-    void DisableNetworking();
-    bool IsNetworkingDisabled();
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
     NConcurrency::IPollerPtr AcceptorPoller_;
@@ -82,6 +85,9 @@ private:
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 
     std::atomic<bool> NetworkingDisabled_ = false;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TForkAwareReaderWriterSpinLock, NetworksLock_);
+    std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

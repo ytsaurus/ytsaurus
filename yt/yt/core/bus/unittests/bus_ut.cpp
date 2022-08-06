@@ -248,7 +248,7 @@ TEST_F(TBusTest, TerminateBeforeAccept)
     NNet::BindSocket(serverSocket, NNet::TNetworkAddress::CreateIPv6Loopback(Port));
     NNet::ListenSocket(serverSocket, 0);
 
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address, "non-local"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
 
     auto terminated = NewPromise<void>();
@@ -284,7 +284,7 @@ TEST_F(TBusTest, Failed)
 TEST_F(TBusTest, BlackHole)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto config = TTcpBusClientConfig::CreateTcp(Address, "non-local");
+    auto config = TTcpBusClientConfig::CreateTcp(Address);
 
     config->ReadStallTimeout = TDuration::Seconds(1);
 

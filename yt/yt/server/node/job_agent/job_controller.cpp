@@ -337,7 +337,7 @@ private:
 
     TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
         const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
-    TErrorOr<TAddressWithNetwork> TryParseControllerAgentAddress(
+    TErrorOr<TString> TryParseControllerAgentAddress(
         const NNodeTrackerClient::NProto::TAddressMap& proto) const;
 
     TDuration GetTotalConfirmationPeriod() const;
@@ -1439,7 +1439,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJo
             YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                 operationId,
                 jobId,
-                agentDescriptor.Address.Address);
+                agentDescriptor.Address);
             groupedStartInfos[std::move(agentDescriptor)].push_back(startInfo);
         } else {
             YT_LOG_DEBUG(agentDescriptorOrError, "Job spec cannot be requested (OperationId: %v, JobId: %v)",
@@ -1803,27 +1803,25 @@ TErrorOr<TControllerAgentDescriptor> TJobController::TImpl::TryParseControllerAg
 {
     const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
 
-    auto addressWithNetworkOrError = TryParseControllerAgentAddress(proto.addresses());
-
-    if (!addressWithNetworkOrError.IsOK()) {
-        return TError{std::move(addressWithNetworkOrError)};
+    auto addressOrError = TryParseControllerAgentAddress(proto.addresses());
+    if (!addressOrError.IsOK()) {
+        return TError{std::move(addressOrError)};
     }
 
-    return TControllerAgentDescriptor{std::move(addressWithNetworkOrError.Value()), incarnationId};
+    return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};
 }
 
-TErrorOr<TAddressWithNetwork> TJobController::TImpl::TryParseControllerAgentAddress(
+TErrorOr<TString> TJobController::TImpl::TryParseControllerAgentAddress(
     const NNodeTrackerClient::NProto::TAddressMap& proto) const
 {
     const auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
-
-    TAddressWithNetwork addressWithNetwork;
     try {
-        return GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
+        return GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
     } catch (const std::exception& ex) {
         return TError{
             "No suitable controller agent address exists (SpecServiceAddresses: %v)",
-            GetValues(addresses)} << TError{ex};
+            GetValues(addresses)}
+            << TError{ex};
     }
 }
 

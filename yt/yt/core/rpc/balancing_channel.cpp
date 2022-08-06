@@ -199,13 +199,6 @@ public:
         return *EndpointAttributes_;
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        // NB(psushin): Assume that balanced channels always use default network.
-        // This is important for setting ToS level.
-        return DefaultNetworkId;
-    }
-
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override
     {
         if (Config_->Addresses && Config_->Addresses->size() == 1) {

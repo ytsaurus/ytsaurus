@@ -432,7 +432,7 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
     const auto& cellDirectory = Connection_->GetCellDirectory();
     const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, NHydra::EPeerKind::Leader);
-    return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(Connection_->GetNetworks()));
+    return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
 }
 
 IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)

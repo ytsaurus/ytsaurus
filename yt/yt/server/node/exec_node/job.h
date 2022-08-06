@@ -18,11 +18,10 @@ namespace NYT::NExecNode {
 
 struct TControllerAgentDescriptor
 {
-    NRpc::TAddressWithNetwork Address;
+    TString Address;
     NScheduler::TIncarnationId IncarnationId;
 
     bool operator==(const TControllerAgentDescriptor& other) const noexcept;
-
     bool operator!=(const TControllerAgentDescriptor& other) const noexcept;
 
     bool Empty() const noexcept;

@@ -78,11 +78,6 @@ public:
         return *EndpointAttributes_;
     }
 
-    TNetworkId GetNetworkId() const override
-    {
-        return DefaultNetworkId;
-    }
-
     IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
@@ -620,11 +615,6 @@ public:
         auto config = New<TChannelConfig>();
         config->Address = address;
         return CreateGrpcChannel(config);
-    }
-
-    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-    {
-        return CreateChannel(addressWithNetwork.Address);
     }
 };
 

@@ -1301,11 +1301,6 @@ TEST(TCachingChannelFactoryTest, IdleChannels)
             return CreateLocalChannel(Server_);
         }
 
-        IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
-        {
-            return CreateChannel(addressWithNetwork.Address);
-        }
-
     private:
         const IServerPtr Server_ = CreateLocalServer();
     };

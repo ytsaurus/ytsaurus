@@ -34,7 +34,7 @@ struct INodeManagerHost
         TJobId jobId,
         const TString& user) = 0;
 
-    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const NRpc::TAddressWithNetwork& addressWithNetwork) = 0;
+    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
 
     virtual int GetOperationArchiveVersion() const = 0;
 };
