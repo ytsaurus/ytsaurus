@@ -563,7 +563,8 @@ protected:
     {
         auto throttlerFuture = throttler->Throttle(count);
         SetSessionFuture(throttlerFuture);
-        auto throttleResult = WaitFor(throttlerFuture);
+
+        auto throttleResult = WaitForFast(throttlerFuture);
         if (!throttleResult.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::ReaderThrottlingFailed,
@@ -572,6 +573,7 @@ protected:
             OnSessionFailed(true, error);
             return false;
         }
+
         return true;
     }
 
@@ -1033,12 +1035,14 @@ protected:
         if (count <= 0) {
             return {};
         }
+
         if (candidates.size() <= 1) {
             return {candidates.begin(), candidates.end()};
         }
 
         auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(peerAndProbeResultsOrError.IsOK());
+
         return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
     }
 
@@ -2078,7 +2082,7 @@ private:
         for (const auto& block : blocks) {
             cachedBlockFutures.push_back(block.Cookie->GetBlockFuture());
         }
-        auto cachedBlocks = WaitFor(AllSet(cachedBlockFutures))
+        auto cachedBlocks = WaitForFast(AllSet(cachedBlockFutures))
             .ValueOrThrow();
         YT_VERIFY(cachedBlocks.size() == blocks.size());
 
