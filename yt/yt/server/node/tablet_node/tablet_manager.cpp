@@ -3984,13 +3984,16 @@ private:
 
     i64 LockTablet(TTablet* tablet) override
     {
-        // NB: Lock acquired after tablet unmount start will not prevent
-        // tablet from being unmounted, so such locks are forbidden.
-        YT_LOG_ALERT_IF(IsInUnmountWorkflow(tablet->GetState()),
-            "Attempted to lock tablet during unmount workflow "
+        // After lock barrier is does not make any sense to lock tablet, since
+        // lock will not prevent tablet from being unmounted or frozen,
+        // so such locks are forbidden.
+        auto state = tablet->GetPersistentState();
+        auto lockAllowed = !(state > ETabletState::UnmountWaitingForLocks && state <= ETabletState::UnmountLast);
+        YT_LOG_ALERT_UNLESS(lockAllowed,
+            "Tablet was locked in unexpected state "
             "(TabletId: %v, TabletState: %v, LockCount: %v)",
             tablet->GetId(),
-            tablet->GetState(),
+            state,
             tablet->GetTabletLockCount());
 
         return tablet->Lock();

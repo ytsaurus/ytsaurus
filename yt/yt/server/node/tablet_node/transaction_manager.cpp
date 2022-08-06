@@ -426,7 +426,17 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        if (transaction->GetTransient()) {
+            YT_LOG_ALERT("Attempted to commit transient transaction, reporting error "
+                "(TransactionId: %v, State: %v)",
+                transactionId,
+                transaction->GetTransientState());
+
+            // Will throw NoSuchTransaction error.
+            Y_UNUSED(GetPersistentTransactionOrThrow(transactionId));
+            YT_ABORT();
+        }
 
         if (transaction->CommitSignature() == FinalTransactionSignature) {
             DoCommitTransaction(transaction, options);
@@ -478,6 +488,13 @@ public:
             options.CommitTimestampClusterTag,
             transaction->GetPrepareTimestamp(),
             /*canThrow*/ false);
+
+        YT_LOG_ALERT_UNLESS(transaction->PersistentPrepareSignature() == FinalTransactionSignature,
+            "Transaction signature is incomplete during commit "
+            "(TransactionId: %v, PrepareSignature: %x, ExpectedSignature: %x)",
+            transaction->GetId(),
+            transaction->PersistentPrepareSignature(),
+            FinalTransactionSignature);
 
         transaction->SetCommitTimestamp(options.CommitTimestamp);
         transaction->SetCommitTimestampClusterTag(options.CommitTimestampClusterTag);
