@@ -251,13 +251,14 @@ public:
                     CompareRows(
                         rows.back().BeginKeys(), rows.back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
+
+                ++rowCount;
                 if (hasHunkColumns) {
                     GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
                 }
             }
 
             rows.push_back(row);
-            ++rowCount;
             dataWeight += GetDataWeight(row);
 
             if (!BlockReader_->NextRow()) {
