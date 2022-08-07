@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/threading/public.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -19,24 +21,27 @@ public:
     TSpscQueue();
     ~TSpscQueue();
 
-    void Push(T&& element);
+    Y_FORCE_INLINE void Push(T&& element);
 
-    T* Front() const;
-    void Pop();
+    Y_FORCE_INLINE T* Front() const;
+    Y_FORCE_INLINE void Pop();
 
-    bool IsEmpty() const;
+    Y_FORCE_INLINE bool IsEmpty() const;
 
 private:
-    static constexpr size_t BufferSize = 128;
-
     struct TNode;
 
-    std::atomic<size_t> Count_ = 0;
+    static constexpr size_t BufferSize = 128;
 
     mutable TNode* Head_;
     TNode* Tail_;
     size_t Offset_ = 0;
     mutable size_t CachedCount_ = 0;
+
+    // Avoid false sharing.
+    char Padding[NThreading::CacheLineSize - 4 * sizeof(void*)];
+
+    std::atomic<size_t> Count_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

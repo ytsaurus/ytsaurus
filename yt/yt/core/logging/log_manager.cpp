@@ -1149,7 +1149,7 @@ private:
 
         ScheduledOutOfBand_.store(false);
 
-        auto instant = GetCpuInstant();
+        auto currentInstant = GetCpuInstant();
 
         RegisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
             InsertOrCrash(LocalQueues_, item);
@@ -1197,20 +1197,40 @@ private:
         }
 
         if (!heap.empty()) {
-            MakeHeap(heap.begin(), heap.end());
-
-            // TODO(lukyan): Get next minimum instant and pop from top queue in loop.
             // NB: Messages are not totally ordered beacause of race around high/low watermark check.
-            while (true) {
-                auto& queue = heap.front();
-                auto* event = queue.Front();
-                if (!event || GetEventInstant(*event) >= instant) {
-                    break;
+
+            MakeHeap(heap.begin(), heap.end());
+            ExtractHeap(heap.begin(), heap.end());
+            THeapItem topItem = heap.back();
+            heap.pop_back();
+
+            while (!heap.empty()) {
+                // Increment front instant by one to avoid live lock when there are two queueus
+                // with equal front instants.
+                auto nextInstant = heap.front().GetInstant() < currentInstant
+                    ? heap.front().GetInstant() + 1
+                    : currentInstant;
+
+                // TODO(lukyan): Use exponential search to determine last element.
+                // Use batch extraction from queue.
+                while (topItem.GetInstant() < nextInstant) {
+                    TimeOrderedBuffer_.emplace_back(std::move(*topItem.Front()));
+                    topItem.Pop();
                 }
 
-                TimeOrderedBuffer_.emplace_back(std::move(*event));
-                queue.Pop();
-                AdjustHeapFront(heap.begin(), heap.end());
+                std::swap(topItem, heap.front());
+
+                if (heap.front().GetInstant() < currentInstant) {
+                    AdjustHeapFront(heap.begin(), heap.end());
+                } else {
+                    ExtractHeap(heap.begin(), heap.end());
+                    heap.pop_back();
+                }
+            }
+
+            while (topItem.GetInstant() < currentInstant) {
+                TimeOrderedBuffer_.emplace_back(std::move(*topItem.Front()));
+                topItem.Pop();
             }
         }
 
@@ -1229,7 +1249,7 @@ private:
         // NB: Messages from global queue are not sorted
         std::vector<TLoggerQueueItem> nextEvents;
         while (GlobalQueue_.DequeueAll(true, [&] (TLoggerQueueItem& event) {
-            if (GetEventInstant(event) < instant) {
+            if (GetEventInstant(event) < currentInstant) {
                 TimeOrderedBuffer_.emplace_back(std::move(event));
             } else {
                 nextEvents.push_back(std::move(event));
