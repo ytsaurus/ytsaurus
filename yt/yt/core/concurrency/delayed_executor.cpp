@@ -6,47 +6,12 @@
 
 #include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/proc.h>
 
 #include <util/datetime/base.h>
-
-#include <util/system/compiler.h>
-
-#if defined(_linux_) && !defined(_bionic_)
-#define USE_TIMERFD
-#elif defined(_darwin_)
-#define USE_KQUEUE
-#else
-#define USE_SLEEP
-#endif
-
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-
-#include "notification_handle.h"
-
-#endif
-
-#if defined(USE_TIMERFD)
-
-#include <util/network/pollerimpl.h>
-
-#include <sys/timerfd.h>
-
-#elif defined(USE_KQUEUE)
-
-#include <sys/types.h>
-#include <sys/event.h>
-#include <sys/time.h>
-
-#endif
 
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#if defined(USE_SLEEP)
-static constexpr auto SleepQuantum = TDuration::MilliSeconds(10);
-#endif
 
 static constexpr auto CoalescingInterval = TDuration::MicroSeconds(100);
 static constexpr auto LateWarningThreshold = TDuration::Seconds(1);
@@ -175,10 +140,6 @@ public:
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline, std::move(invoker));
         PollerThread_->EnqueueSubmission(entry);
 
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-        PollerThread_->ScheduleImmediateWakeup();
-#endif
-
         if (!PollerThread_->Start()) {
             if (auto callback = TakeCallback(entry)) {
                 callback(/*aborted*/ true);
@@ -211,50 +172,12 @@ private:
             : TThread(
                 "DelayedPoller",
                 /*shutdownPriority*/ 200)
-#if defined(USE_TIMERFD)
-            , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK))
-#elif defined(USE_KQUEUE)
-            , KQueueFD_(kqueue())
-#endif
-        {
-#if defined(USE_TIMERFD)
-            YT_VERIFY(TimerFD_ >= 0);
-            Poller_.Set(&TimerFD_, TimerFD_, CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
-            Poller_.Set(&WakeupHandle_, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
-#elif defined(USE_KQUEUE)
-            YT_VERIFY(KQueueFD_ >= 0);
-            struct kevent event {
-                .ident = static_cast<uintptr_t>(WakeupHandle_.GetFD()),
-                .filter = EVFILT_READ,
-                .flags = EV_ADD | EV_ENABLE,
-                .fflags = 0,
-                .data = static_cast<intptr_t>(0),
-                .udata = nullptr,
-            };
-            auto result = HandleEintr(
-                kevent,
-                KQueueFD_,
-                /*changelist*/ &event,
-                /*nchanges*/ 1,
-                /*eventlist*/ nullptr,
-                /*nevents*/ 0,
-                /*timeout*/ nullptr);
-            YT_VERIFY(result >= 0);
-#endif
-        }
-
-        ~TPollerThread()
-        {
-#if defined(USE_TIMERFD)
-            YT_VERIFY(close(TimerFD_) == 0);
-#elif defined(USE_KQUEUE)
-            YT_VERIFY(close(KQueueFD_) == 0);
-#endif
-        }
+        { }
 
         void EnqueueSubmission(TDelayedExecutorEntryPtr entry)
         {
             SubmitQueue_.Enqueue(std::move(entry));
+            EventCount_->NotifyOne();
         }
 
         void EnqueueCancelation(TDelayedExecutorEntryPtr entry)
@@ -262,43 +185,15 @@ private:
             CancelQueue_.Enqueue(std::move(entry));
         }
 
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-        void ScheduleImmediateWakeup()
-        {
-            if (WakeupScheduled_.load(std::memory_order_relaxed)) {
-                return;
-            }
-            if (!WakeupScheduled_.exchange(true)) {
-                WakeupHandle_.Raise();
-            }
-        }
-#endif
-
     private:
+        const TIntrusivePtr<NThreading::TEventCount> EventCount_ = New<NThreading::TEventCount>();
+
         //! Only touched from DelayedPoller thread.
         std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
 
         //! Enqueued from any thread, dequeued from DelayedPoller thread.
         TRelaxedMpscQueue<TDelayedExecutorEntryPtr> SubmitQueue_;
         TRelaxedMpscQueue<TDelayedExecutorEntryPtr> CancelQueue_;
-
-#if defined(USE_TIMERFD)
-        struct TMutexLocking
-        {
-            using TMyMutex = TMutex;
-        };
-        TPollerImpl<TMutexLocking> Poller_;
-        int TimerFD_ = -1;
-#elif defined(USE_KQUEUE)
-        int KQueueFD_ = -1;
-#endif
-
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-        TNotificationHandle WakeupHandle_;
-        std::atomic<bool> WakeupScheduled_ = false;
-#endif
-
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
         TActionQueuePtr DelayedQueue_;
         IInvokerPtr DelayedInvoker_;
 
@@ -318,21 +213,26 @@ private:
 
         void StopPrologue() override
         {
-#if defined(USE_TIMERFD)
-            ScheduleImmediateWakeup();
-#endif
+            EventCount_->NotifyOne();
         }
 
         void ThreadMain() override
         {
-            // Run the main loop.
-            while (!IsStopping()) {
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-                RunPoll();
-#else
-                Sleep(SleepQuantum);
-#endif
-                PollerThreadStep();
+            while (true) {
+                auto cookie = EventCount_->PrepareWait();
+
+                ProcessQueues();
+
+                if (IsStopping()) {
+                    break;
+                }
+
+                auto now = GetInstant();
+
+                auto deadline = !ScheduledEntries_.empty()
+                    ? std::max((*ScheduledEntries_.begin())->Deadline, now + CoalescingInterval)
+                    : TInstant::Max();
+                EventCount_->Wait(cookie, deadline);
             }
 
             // Perform graceful shutdown.
@@ -366,96 +266,6 @@ private:
             // Gracefully (sic!) shut the Delayed Executor thread down
             // to ensure invocation of the callbacks scheduled above.
             DelayedQueue_->Shutdown(/*graceful*/ true);
-        }
-
-#if defined(USE_TIMERFD)
-        void ScheduleDelayedWakeup(TDuration delay)
-        {
-            itimerspec timerValue;
-            timerValue.it_value.tv_sec = delay.Seconds();
-            timerValue.it_value.tv_nsec = delay.NanoSecondsOfSecond();
-            timerValue.it_interval.tv_sec = 0;
-            timerValue.it_interval.tv_nsec = 0;
-            YT_VERIFY(timerfd_settime(TimerFD_, 0, &timerValue, &timerValue) == 0);
-        }
-#elif defined(USE_KQUEUE)
-        void ScheduleDelayedWakeup(TDuration delay)
-        {
-            struct kevent event {
-                .ident = static_cast<uintptr_t>(-1),
-                .filter = EVFILT_TIMER,
-                .flags = EV_ADD | EV_ENABLE | EV_ONESHOT,
-                .fflags = 0,
-                .data = static_cast<intptr_t>(delay.MilliSeconds()),
-                .udata = nullptr,
-            };
-            auto result = HandleEintr(
-                kevent,
-                KQueueFD_,
-                /*changelist*/ &event,
-                /*nchanges*/ 1,
-                /*eventlist*/ nullptr,
-                /*nevents*/ 0,
-                /*timeout*/ nullptr);
-            YT_VERIFY(result >= 0);
-        }
-#endif
-
-#if defined(USE_TIMERFD)
-        void RunPoll()
-        {
-            std::array<decltype(Poller_)::TEvent, 2> events;
-            int eventCount = Poller_.Wait(events.data(), events.size(), std::numeric_limits<int>::max());
-            for (int index = 0; index < eventCount; ++index) {
-                const auto& event = events[index];
-                auto* cookie = Poller_.ExtractEvent(&event);
-                if (cookie == &TimerFD_) {
-                    uint64_t value;
-                    YT_VERIFY(HandleEintr(read, TimerFD_, &value, sizeof(value)) == sizeof(value));
-                } else if (cookie == &WakeupHandle_) {
-                    WakeupHandle_.Clear();
-                } else {
-                    YT_ABORT();
-                }
-            }
-            WakeupScheduled_.store(false);
-        }
-#elif defined(USE_KQUEUE)
-        void RunPoll()
-        {
-            std::array<struct kevent, 2> events;
-            int eventCount = HandleEintr(
-                kevent,
-                KQueueFD_,
-                /*changelist*/ nullptr,
-                /*nchanges*/ 0,
-                /*eventlist*/ events.data(),
-                /*nevents*/ events.size(),
-                /*timeout*/ nullptr);
-            for (int index = 0; index < eventCount; ++index) {
-                const auto& event = events[index];
-                if (event.ident == static_cast<uintptr_t>(-1)) {
-                    // Delayed wakeup.
-                } else if (event.ident == static_cast<uintptr_t>(WakeupHandle_.GetFD())) {
-                    WakeupHandle_.Clear();
-                } else {
-                    YT_ABORT();
-                }
-            }
-            WakeupScheduled_.store(false);
-        }
-#endif
-
-        void PollerThreadStep()
-        {
-            ProcessQueues();
-#if defined(USE_TIMERFD) || defined(USE_KQUEUE)
-            if (!ScheduledEntries_.empty()) {
-                auto deadline = (*ScheduledEntries_.begin())->Deadline;
-                auto delay = std::max(CoalescingInterval, deadline - GetInstant());
-                ScheduleDelayedWakeup(delay);
-            }
-#endif
         }
 
         void ProcessQueues()
