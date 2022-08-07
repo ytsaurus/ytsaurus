@@ -142,7 +142,7 @@ public:
         }
         yajl_set_memory_limit(YajlHandle_.get(), Config_->MemoryLimit);
 
-        Buffer_ = TSharedMutableRef::Allocate<TJsonParserBufferTag>(Config_->BufferSize, false);
+        Buffer_ = TSharedMutableRef::Allocate<TJsonParserBufferTag>(Config_->BufferSize, {.InitializeStorage = false});
     }
 
     void Read(TStringBuf data)

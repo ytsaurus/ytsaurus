@@ -459,7 +459,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
         adjustVariableSize(other.BeginValues()[index]);
     }
 
-    Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, false);
+    Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, {.InitializeStorage = false});
 
     ::memcpy(GetMutableHeader(), other.GetHeader(), fixedSize);
 

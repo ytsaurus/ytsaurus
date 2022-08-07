@@ -30,7 +30,7 @@ size_t TBlobOutput::DoNext(void** ptr)
         }
     }
     auto previousSize = Blob_.Size();
-    Blob_.Resize(Blob_.Capacity(), /* initializeStorage */ false);
+    Blob_.Resize(Blob_.Capacity(), /*initializeStorage*/ false);
     *ptr = Blob_.Begin() + previousSize;
     return Blob_.Size() - previousSize;
 }

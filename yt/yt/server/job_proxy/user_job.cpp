@@ -1110,9 +1110,9 @@ private:
             bool throwOnFailure = UserJobSpec_.check_input_fully_consumed();
 
             try {
-                auto buffer = TSharedMutableRef::Allocate(1, false);
+                auto buffer = TSharedMutableRef::Allocate(1, {.InitializeStorage = false});
                 auto future = reader->Read(buffer);
-                TErrorOr<size_t> result = WaitFor(future);
+                auto result = WaitFor(future);
                 if (!result.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
                         << TErrorAttribute("fd", jobDescriptor)
@@ -1123,7 +1123,7 @@ private:
                     THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                         << TErrorAttribute("fd", jobDescriptor);
                 }
-            } catch (...) {
+            } catch (const std::exception& ex) {
                 reader->Abort();
                 NotFullyConsumed_.store(true);
                 if (throwOnFailure) {

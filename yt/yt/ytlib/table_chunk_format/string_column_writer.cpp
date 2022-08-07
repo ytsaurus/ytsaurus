@@ -137,7 +137,7 @@ protected:
 
     void DumpDictionaryValues(TSegmentInfo* segmentInfo)
     {
-        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, false);
+        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
         std::vector<ui32> dictionaryOffsets;
         dictionaryOffsets.reserve(Dictionary_.size());
@@ -443,7 +443,7 @@ private:
 
     void DumpDirectRleData(TSegmentInfo* segmentInfo)
     {
-        auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, false);
+        auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, {.InitializeStorage = false});
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());
 
@@ -484,7 +484,7 @@ private:
 
     void DumpDictionaryRleData(TSegmentInfo* segmentInfo)
     {
-        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, false);
+        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());

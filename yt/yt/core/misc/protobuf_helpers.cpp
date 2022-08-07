@@ -64,7 +64,7 @@ TSharedRef SerializeProtoToRef(
     bool partial)
 {
     auto size = CheckedCastToI32(message.ByteSizeLong());
-    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
+    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, {.InitializeStorage = false});
     SerializeProtoToRefImpl(message, partial, data);
     return data;
 }
@@ -125,7 +125,7 @@ TSharedRef SerializeProtoToRefWithEnvelope(
         fixedHeader.EnvelopeSize +
         fixedHeader.MessageSize;
 
-    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
+    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, {.InitializeStorage = false});
 
     char* targetFixedHeader = data.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
@@ -487,7 +487,7 @@ TString DumpProto(::google::protobuf::Message& message)
 void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
 {
     size_t size = TSizeSerializer::LoadSuspended(context);
-    auto data = TSharedMutableRef::Allocate(size, false);
+    auto data = TSharedMutableRef::Allocate(size, {.InitializeStorage = false});
 
     SERIALIZATION_DUMP_SUSPEND(context) {
         TRangeSerializer::Load(context, data);

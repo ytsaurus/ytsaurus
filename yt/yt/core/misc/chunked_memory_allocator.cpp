@@ -42,10 +42,10 @@ TSharedMutableRef TChunkedMemoryAllocator::AllocateAlignedSlow(i64 size, int ali
 TSharedMutableRef TChunkedMemoryAllocator::AllocateSlowCore(i64 size)
 {
     if (size > MaxSmallBlockSize_) {
-        return TSharedMutableRef::Allocate(size, false, TagCookie_);
+        return TSharedMutableRef::Allocate(size, {.InitializeStorage = false}, TagCookie_);
     }
 
-    Chunk_ = TSharedMutableRef::Allocate(ChunkSize_, false, TagCookie_);
+    Chunk_ = TSharedMutableRef::Allocate(ChunkSize_, {.InitializeStorage = false}, TagCookie_);
     FreeZoneBegin_ = Chunk_.Begin();
     FreeZoneEnd_ = Chunk_.End();
 

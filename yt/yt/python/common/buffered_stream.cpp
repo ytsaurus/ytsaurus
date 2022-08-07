@@ -6,7 +6,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 TBufferedStream::TBufferedStream(size_t capacity)
-    : Data_(TSharedMutableRef::Allocate(capacity, false))
+    : Data_(TSharedMutableRef::Allocate(capacity, {.InitializeStorage = false}))
     , Begin_(Data_.Begin())
     , Capacity_(capacity)
     , AllowReadPromise_(NewPromise<void>())
@@ -145,7 +145,7 @@ void TBufferedStream::Reallocate(size_t len)
 {
     YT_VERIFY(len >= Size_);
 
-    auto newData = TSharedMutableRef::Allocate(len, false);
+    auto newData = TSharedMutableRef::Allocate(len, {.InitializeStorage = false});
     Move(newData.Begin());
     std::swap(Data_, newData);
 }

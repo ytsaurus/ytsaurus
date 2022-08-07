@@ -1,6 +1,7 @@
 #include "read_request_combiner.h"
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NIO {
@@ -8,10 +9,6 @@ namespace NYT::NIO {
 using namespace NYTAlloc;
 
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const bool DontInitializeMemory = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,7 +108,7 @@ public:
         handles.reserve(collapsedRequestCount);
 
         {
-            TSharedMutableRef buffer = TSharedMutableRef::AllocatePageAligned(totalSize, DontInitializeMemory, tagCookie);
+            auto buffer = TSharedMutableRef::AllocatePageAligned(totalSize, {.InitializeStorage = false}, tagCookie);
 
             OutputRefs_.resize(ioRequests.size());
 
@@ -232,9 +229,9 @@ public:
             handles.push_back(requests[index].Handle);
 
             auto& ioRequest = ioRequests.back();
-            TSharedMutableRef buffer = TSharedMutableRef::AllocatePageAligned(ioRequest.Size, DontInitializeMemory, tagCookie);
+            auto buffer = TSharedMutableRef::AllocatePageAligned(ioRequest.Size, {.InitializeStorage = false}, tagCookie);
             ioRequest.ResultBuffer = buffer;
-            OutputRefs_.push_back(std::move(buffer.Slice(offsetDiff, offsetDiff + requests[index].Size)));
+            OutputRefs_.push_back(buffer.Slice(offsetDiff, offsetDiff + requests[index].Size));
         }
 
         return {

@@ -48,7 +48,6 @@ using namespace NYTAlloc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto DefaultPageSize = 4_KB;
-static const bool DontInitializeMemory = false;
 
 #ifdef _linux_
 
@@ -1023,8 +1022,6 @@ private:
         TRefCountedTypeCookie tagCookie,
         bool useDedicatedAllocations)
     {
-        std::vector<TSharedMutableRef> results;
-        results.reserve(requests.size());
         bool shouldBeAligned = std::any_of(
             requests.begin(),
             requests.end(),
@@ -1032,12 +1029,21 @@ private:
                 return request.Handle->IsOpenForDirectIO();
             });
 
+        auto allocate = [&] (size_t size) {
+            TSharedMutableRefAllocateOptions options{
+                .InitializeStorage = false
+            };
+            return shouldBeAligned
+                ? TSharedMutableRef::AllocatePageAligned(size, options, tagCookie)
+                : TSharedMutableRef::Allocate(size, options, tagCookie);
+        };
+
+        std::vector<TSharedMutableRef> results;
+        results.reserve(requests.size());
+
         if (useDedicatedAllocations) {
             for (const auto& request : requests) {
-                auto buffer = shouldBeAligned
-                    ? TSharedMutableRef::AllocatePageAligned(request.Size, DontInitializeMemory, tagCookie)
-                    : TSharedMutableRef::Allocate(request.Size, DontInitializeMemory, tagCookie);
-                results.push_back(buffer);
+                results.push_back(allocate(request.Size));
             }
             return results;
         }
@@ -1050,10 +1056,7 @@ private:
                 : request.Size;
         }
 
-        auto buffer = shouldBeAligned
-            ? TSharedMutableRef::AllocatePageAligned(totalSize, DontInitializeMemory, tagCookie)
-            : TSharedMutableRef::Allocate(totalSize, DontInitializeMemory, tagCookie);
-
+        auto buffer = allocate(totalSize);
         i64 offset = 0;
         for (const auto& request : requests) {
             results.push_back(buffer.Slice(offset, offset + request.Size));

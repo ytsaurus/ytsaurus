@@ -45,7 +45,7 @@ TEST(TPipeTest, PrematureEOF)
 
 TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
 {
-    auto buffer = TSharedMutableRef::Allocate(1024 * 1024, false);
+    auto buffer = TSharedMutableRef::Allocate(1_MB, {.InitializeStorage = false});
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)  {
