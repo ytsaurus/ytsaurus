@@ -92,24 +92,14 @@ public:
         IVersionedReaderPtr underlyingReader,
         int skipBefore,
         int skipAfter)
-        : CurrentReaderIndex_(0)
-        , FakeRowsRead_(0)
-        , UnderlyingReader_(underlyingReader.Get())
-    {
-        if (skipBefore > 0) {
-            Readers_.push_back(CreateEmptyVersionedReader(skipBefore));
-        }
-        Readers_.push_back(std::move(underlyingReader));
-        if (skipAfter > 0) {
-            Readers_.push_back(CreateEmptyVersionedReader(skipAfter));
-        }
-    }
+        : UnderlyingReader_(std::move(underlyingReader))
+        , SkipBefore_(skipBefore)
+        , SkipAfter_(skipAfter)
+    { }
 
     TDataStatistics GetDataStatistics() const override
     {
-        auto statistics = UnderlyingReader_->GetDataStatistics();
-        statistics.set_row_count(statistics.row_count() + FakeRowsRead_);
-        return statistics;
+        return UnderlyingReader_->GetDataStatistics();
     }
 
     TCodecStatistics GetDecompressionStatistics() const override
@@ -119,19 +109,20 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_VERIFY(CurrentReaderIndex_ == 0);
-        for (auto& reader : Readers_) {
-            reader->Open();
-        }
-        return Readers_[CurrentReaderIndex_]->GetReadyEvent();
+        return UnderlyingReader_->Open();
     }
 
     TFuture<void> GetReadyEvent() const override
     {
-        if (CurrentReaderIndex_ == std::ssize(Readers_)) {
+        if (SkipBefore_ > 0) {
             return VoidFuture;
         }
-        return Readers_[CurrentReaderIndex_]->GetReadyEvent();
+
+        if (!SkippingAfter_) {
+            return UnderlyingReader_->GetReadyEvent();
+        }
+
+        return VoidFuture;
     }
 
     bool IsFetchingCompleted() const override
@@ -146,27 +137,44 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (CurrentReaderIndex_ == std::ssize(Readers_)) {
-            return nullptr;
+        if (SkipBefore_ > 0) {
+            return MakeSentinelRowset(options.MaxRowsPerRead, &SkipBefore_);
         }
 
-        if (auto batch = Readers_[CurrentReaderIndex_]->Read(options)) {
-            if (Readers_[CurrentReaderIndex_].Get() != UnderlyingReader_) {
-                FakeRowsRead_ += batch->GetRowCount();
+        if (!SkippingAfter_) {
+            if (auto result = UnderlyingReader_->Read(options)) {
+                return result;
             }
-            return batch;
-        } else {
-            ++CurrentReaderIndex_;
-            return CreateEmptyVersionedRowBatch();
+            SkippingAfter_ = true;
         }
+
+        if (SkipAfter_ > 0) {
+            return MakeSentinelRowset(options.MaxRowsPerRead, &SkipAfter_);
+        }
+
+        return nullptr;
     }
 
 private:
-    TCompactVector<IVersionedReaderPtr, 3> Readers_;
-    int CurrentReaderIndex_;
-    int FakeRowsRead_;
+    const IVersionedReaderPtr UnderlyingReader_;
+    
+    int SkipBefore_;
+    int SkipAfter_;
+    bool SkippingAfter_ = false;
 
-    IVersionedReader* UnderlyingReader_;
+    static IVersionedRowBatchPtr MakeSentinelRowset(i64 maxRowsPerRead, int* counter)
+    {
+        std::vector<TVersionedRow> rows;
+        int rowCount = std::min<i64>(maxRowsPerRead, *counter);
+        rows.reserve(rowCount);
+        for (int index = 0; index < rowCount; ++index) {
+            rows.push_back(TVersionedRow());
+        }
+
+        *counter -= rowCount;
+
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows)));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
