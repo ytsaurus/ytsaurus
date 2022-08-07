@@ -100,7 +100,7 @@ private:
         auto copyingReader = CreateCopyingAdapter(reader);
 
         struct TSnapshotBlockTag { };
-        auto buffer = TSharedMutableRef::Allocate<TSnapshotBlockTag>(length, /* initializeStorage */ false);
+        auto buffer = TSharedMutableRef::Allocate<TSnapshotBlockTag>(length, {.InitializeStorage = false});
 
         auto bytesRead = WaitFor(copyingReader->Read(buffer))
             .ValueOrThrow();

@@ -936,7 +936,7 @@ TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<i
     int nullCount = nullPaddingWidth ? std::max<int>(0, *nullPaddingWidth - static_cast<int>(valueCount)) : 0;
 
     size_t fixedSize = GetUnversionedRowByteSize(valueCount + nullCount);
-    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, {.InitializeStorage = false});
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
     header->Count = static_cast<i32>(valueCount + nullCount);
@@ -1576,7 +1576,7 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
             }
         }
     }
-    auto buffer = TSharedMutableRef::Allocate(bufferSize, false, tagCookie);
+    auto buffer = TSharedMutableRef::Allocate(bufferSize, {.InitializeStorage = false}, tagCookie);
 
     char* alignedPtr = buffer.Begin();
     auto allocateAligned = [&] (size_t size) {
@@ -1912,7 +1912,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     int count = std::distance(begin, end);
 
     size_t fixedSize = GetUnversionedRowByteSize(count);
-    RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
+    RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, {.InitializeStorage = false});
     auto* header = GetHeader();
 
     header->Count = count;

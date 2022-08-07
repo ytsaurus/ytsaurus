@@ -160,7 +160,7 @@ static void GenericBlockCompress(
 
             currentPosition += sizeof(TBlockHeader);
             currentPosition += header.CompressedSize;
-            sink->Resize(currentPosition, /* initializeStorage */ false);
+            sink->Resize(currentPosition, /*initializeStorage*/ false);
 
             inputSize -= uncompressedSize;
             inputOffset += uncompressedSize;
@@ -223,7 +223,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
 
         size_t oldSize = sink->Size();
         size_t newSize = oldSize + blockHeader.UncompressedSize;
-        sink->Resize(newSize, /* initializeStorage */ false);
+        sink->Resize(newSize, /*initializeStorage*/ false);
 
         size_t inputSize;
         const char* input = source->Peek(&inputSize);
@@ -235,7 +235,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
 
         if (!hasCompleteBlock) {
             // Slow-path; coalesce input into a single slice.
-            inputBuffer.Resize(blockHeader.CompressedSize, /* initializeStorage */ false);
+            inputBuffer.Resize(blockHeader.CompressedSize, /*initializeStorage*/ false);
             Read(source, inputBuffer.Begin(), inputBuffer.Size());
             input = inputBuffer.Begin();
         }

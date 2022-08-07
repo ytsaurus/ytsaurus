@@ -131,7 +131,7 @@ TEST_F(TPortoProcessTest, StdOut)
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
 
-    auto buffer = TSharedMutableRef::Allocate(4096, false);
+    auto buffer = TSharedMutableRef::Allocate(4_KB, {.InitializeStorage = false});
     auto future = outStream->Read(buffer);
     TErrorOr<size_t> result = WaitFor(future);
     size_t sz = result.ValueOrThrow();

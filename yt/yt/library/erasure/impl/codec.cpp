@@ -34,7 +34,7 @@ struct TCodecTraits
 
     static TMutableBlobType AllocateBlob(size_t size)
     {
-        return TMutableBlobType::Allocate<TJerasureBlobTag>(size, false);
+        return TMutableBlobType::Allocate<TJerasureBlobTag>(size, {.InitializeStorage = false});
     }
 
     static TBufferType AllocateBuffer(size_t size)

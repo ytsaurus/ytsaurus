@@ -173,7 +173,7 @@ void TFileChangelogIndex::Create()
     auto handle = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | CreateAlways}))
         .ValueOrThrow();
 
-    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(sizeof(TChangelogIndexHeader), /*intializeStorage*/ false);
+    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(sizeof(TChangelogIndexHeader), {.InitializeStorage = false});
 
     auto* header = reinterpret_cast<TChangelogIndexHeader*>(buffer.Begin());
     header->Signature = TChangelogIndexHeader::ExpectedSignature;
@@ -289,7 +289,7 @@ void TFileChangelogIndex::AsyncFlush()
     }
 
     auto size = sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * flushRecordCount;
-    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(size, /*intializeStorage*/ false);
+    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(size, {.InitializeStorage = false});
 
     auto* current = buffer.Begin();
     auto* header = reinterpret_cast<TChangelogIndexSegmentHeader*>(current);
@@ -358,7 +358,7 @@ void TFileChangelogIndex::Clear()
 TFileChangelogIndex::TChunk TFileChangelogIndex::AllocateChunk()
 {
     auto size = sizeof(TRecord) * RecordsPerChunk;
-    auto buffer = TSharedMutableRef::Allocate(size, /*initializeStorage*/ false);
+    auto buffer = TSharedMutableRef::Allocate(size, {.InitializeStorage = false});
     auto holder = MakeCompositeHolder(buffer);
     auto chunk = TChunk(reinterpret_cast<TRecord*>(buffer.Begin()), RecordsPerChunk, std::move(holder));
     std::uninitialized_default_construct(chunk.Begin(), chunk.End());

@@ -368,7 +368,7 @@ TSharedRef TStreamReader::ExtractPrefix(size_t length)
 
 void TStreamReader::ReadNextBlock()
 {
-    auto block = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
+    auto block = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, {.InitializeStorage = false});
     NextBlockSize_ = Stream_->Load(block.Begin(), block.Size());
     NextBlock_ = block;
     if (NextBlockSize_ == 0) {

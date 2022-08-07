@@ -92,7 +92,7 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
 {
     ui64 outputSize;
     ReadPod(source, outputSize);
-    output->Resize(outputSize, /* initializeStorage */ false);
+    output->Resize(outputSize, /*initializeStorage*/ false);
 
     TBrotliStreamSourceIn sourceAdaptor(source);
 

@@ -253,7 +253,7 @@ TMessageWithAttachments ByteBufferToMessageWithAttachments(
 
     auto data = TSharedMutableRef::Allocate<TMessageTag>(
         totalMessageSize,
-        /* initializeStorage */ false);
+        {.InitializeStorage = false});
 
     char* targetFixedHeader = data.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
@@ -278,7 +278,7 @@ TMessageWithAttachments ByteBufferToMessageWithAttachments(
 
     auto attachmentsData = TSharedMutableRef::Allocate<TMessageTag>(
         attachmentsSize,
-        /* initializeStorage */ false);
+        {.InitializeStorage = false});
 
     char* attachmentsBuffer = attachmentsData.Begin();
 

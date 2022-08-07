@@ -678,7 +678,7 @@ private:
         std::vector<TSharedRef> changelogRecords;
         changelogRecords.reserve(multiplexedRecords.size());
 
-        auto multiplexedData = TSharedMutableRef::Allocate<TMultiplexedRecordTag>(totalSize, false);
+        auto multiplexedData = TSharedMutableRef::Allocate<TMultiplexedRecordTag>(totalSize, {.InitializeStorage = false});
         char* currentDataPtr = multiplexedData.Begin();
 
         for (const auto& multiplexedRecord : multiplexedRecords) {

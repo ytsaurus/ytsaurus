@@ -22,7 +22,7 @@ TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::TRowsIteratorBase(
     const TString& formatName)
     : TBase::PythonClass(self, args, kwargs)
     , FormatName_(formatName)
-    , Buffer_(TRowsIteratorBufferTag(), BufferSize, /* initializeStorage */ false)
+    , Buffer_(TRowsIteratorBufferTag(), BufferSize, /*initializeStorage*/ false)
 { }
 
 template <class TIteratorClass, class TConsumer, class TParser>

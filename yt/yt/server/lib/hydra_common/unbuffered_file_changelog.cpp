@@ -605,9 +605,7 @@ private:
 
         auto header = MakeChangelogHeader<TFileHeader>();
 
-        auto buffer = TSharedMutableRef::AllocatePageAligned<TUnbufferedFileChangelogHeaderTag>(
-            header.FirstRecordOffset,
-            /*initializeStorage*/ true);
+        auto buffer = TSharedMutableRef::AllocatePageAligned<TUnbufferedFileChangelogHeaderTag>(header.FirstRecordOffset);
         TMemoryOutput output(buffer.Begin(), buffer.Size());
 
         WritePod(output, header);
@@ -1025,7 +1023,7 @@ private:
 
         auto wipeBuffer = TSharedMutableRef::AllocatePageAligned<TUnbufferedFileChangelogWipeTag>(
             WipeBufferSize,
-            /*initializeStorage*/ false);
+            {.InitializeStorage = false});
         std::fill(wipeBuffer.Begin(), wipeBuffer.End(), 0xff);
 
         auto currentOffset = range.first;

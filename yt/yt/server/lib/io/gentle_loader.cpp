@@ -155,7 +155,7 @@ class TRandomWriter
 public:
     struct TStopGuard
     {
-        explicit TStopGuard(TRandomWriterPtr writer) : 
+        explicit TStopGuard(TRandomWriterPtr writer) :
             Writer(std::move(writer))
         { }
 
@@ -360,7 +360,7 @@ private:
 
     static TSharedMutableRef MakeRandomBuffer(i32 size)
     {
-        auto data = TSharedMutableRef::AllocatePageAligned(size, false);
+        auto data = TSharedMutableRef::AllocatePageAligned(size, {.InitializeStorage = false});
         for (int index = 0; index < size; ++index) {
             data[index] = RandomNumber<ui8>();
         }

@@ -25,7 +25,7 @@ void TPoolAllocator::AllocateChunk()
 
     auto chunk = TSharedMutableRef::Allocate(
         chunkSize,
-        /*initializeStorage*/false,
+        {.InitializeStorage = false},
         Cookie_);
     Chunks_.push_back(chunk);
 

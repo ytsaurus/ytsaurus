@@ -38,7 +38,7 @@ TSharedRef SerializeMutationRecord(
         recordHeader.DataSize;
 
     struct TMutationRecordTag { };
-    auto recordData = TSharedMutableRef::Allocate<TMutationRecordTag>(recordSize, false);
+    auto recordData = TSharedMutableRef::Allocate<TMutationRecordTag>(recordSize, {.InitializeStorage = false});
     YT_ASSERT(recordData.Size() >= recordSize);
 
     std::copy(

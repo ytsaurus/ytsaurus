@@ -227,7 +227,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             struct TMetaBufferTag
             { };
 
-            auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, false);
+            auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
             ::memcpy(buffer.Begin(), &header, sizeof(header));
             ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 

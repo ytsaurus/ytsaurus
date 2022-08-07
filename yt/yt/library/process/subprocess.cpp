@@ -53,7 +53,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
 
     auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
         TBlob output;
-        auto buffer = TSharedMutableRef::Allocate(PipeBlockSize, false);
+        auto buffer = TSharedMutableRef::Allocate(PipeBlockSize, {.InitializeStorage = false});
         while (true) {
             auto size = WaitFor(stream->Read(buffer))
                 .ValueOrThrow();
@@ -120,7 +120,7 @@ TString TSubprocess::GetCommandLine() const
 {
     return Process_->GetCommandLine();
 }
-    
+
 TProcessBasePtr TSubprocess::GetProcess() const
 {
     return Process_;

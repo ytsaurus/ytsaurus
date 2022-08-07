@@ -126,7 +126,7 @@ TSharedRef PackRefs(const T& parts)
     }
 
     struct TPackedRefsTag { };
-    auto result = TSharedMutableRef::Allocate<TPackedRefsTag>(size, false);
+    auto result = TSharedMutableRef::Allocate<TPackedRefsTag>(size, {.InitializeStorage = false});
     TMemoryOutput output(result.Begin(), result.Size());
 
     WritePod(output, static_cast<i32>(parts.size()));
@@ -148,7 +148,7 @@ template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts)
 {
     size_t size = GetByteSize(parts);
-    auto mergedRef = TSharedMutableRef::Allocate<TTag>(size, false);
+    auto mergedRef = TSharedMutableRef::Allocate<TTag>(size, {.InitializeStorage = false});
     MergeRefsToRef(parts, mergedRef);
     return mergedRef;
 }
@@ -645,7 +645,7 @@ struct TSharedRefSerializer
     static void Load(C& context, TSharedRef& value, TTag)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
+        auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, {.InitializeStorage = false});
 
         auto* input = context.GetInput();
         ReadRef(*input, mutableValue);

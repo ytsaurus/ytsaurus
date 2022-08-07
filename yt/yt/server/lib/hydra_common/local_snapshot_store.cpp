@@ -138,7 +138,7 @@ private:
                     Header_.CompressedLength);
             }
 
-            auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, /* initializeStorage */ false);
+            auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, {.InitializeStorage = false});
             ReadRefPadded(input, serializedMeta);
             DeserializeProto(&Meta_, serializedMeta);
 
@@ -158,7 +158,7 @@ private:
 
     TSharedRef DoRead()
     {
-        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, /* initializeStorage */ false);
+        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, {.InitializeStorage = false});
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
@@ -720,7 +720,7 @@ private:
 
     TSharedRef DoRead()
     {
-        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, false);
+        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, {.InitializeStorage = false});
         size_t length = FileInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }

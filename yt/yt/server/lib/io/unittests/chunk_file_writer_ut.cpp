@@ -71,7 +71,7 @@ protected:
 
     TBlock MakeRandomBlock(ssize_t size)
     {
-        auto data = TSharedMutableRef::Allocate(size, false);
+        auto data = TSharedMutableRef::Allocate(size, {.InitializeStorage = false});
         for (int i = 0; i < size; ++i) {
             data[i] = RandomNumber<ui8>();
         }
@@ -80,7 +80,7 @@ protected:
 
     void CheckBlock(TFile& file, const TBlock& block)
     {
-        auto data = TSharedMutableRef::Allocate(block.Data.Size(), false);
+        auto data = TSharedMutableRef::Allocate(block.Data.Size(), {.InitializeStorage = false});
         file.Load(data.Begin(), data.Size());
         EXPECT_EQ(0, ::memcmp(block.Data.Begin(), data.Begin(), data.Size()));
     }

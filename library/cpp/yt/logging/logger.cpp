@@ -49,14 +49,14 @@ void TMessageStringBuilder::DoPreallocate(size_t newCapacity)
         }
 
         if (Y_UNLIKELY(cache->ChunkOffset + newCapacity > cache->Chunk.Size())) {
-            cache->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
+            cache->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, {.InitializeStorage = false});
             cache->ChunkOffset = 0;
         }
 
         Buffer_ = cache->Chunk.Slice(cache->ChunkOffset, cache->ChunkOffset + newCapacity);
         cache->ChunkOffset += newCapacity;
     } else {
-        Buffer_ = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
+        Buffer_ = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, {.InitializeStorage = false});
         newCapacity = newChunkSize;
     }
     if (oldLength > 0) {

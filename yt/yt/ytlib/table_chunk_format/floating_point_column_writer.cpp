@@ -19,7 +19,7 @@ namespace {
 template <typename T>
 TSharedRef SerializeFloatingPointVector(const std::vector<T>& values)
 {
-    auto data = TSharedMutableRef::Allocate<TSegmentWriterTag>(values.size() * sizeof(T) + sizeof(ui64), false);
+    auto data = TSharedMutableRef::Allocate<TSegmentWriterTag>(values.size() * sizeof(T) + sizeof(ui64), {.InitializeStorage = false});
     *reinterpret_cast<ui64*>(data.Begin()) = static_cast<ui64>(values.size());
     std::memcpy(
         data.Begin() + sizeof(ui64),

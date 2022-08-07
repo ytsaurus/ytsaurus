@@ -46,7 +46,7 @@ std::tuple<TSharedRef, TMutableRef> SerializeRowStreamBlockEnvelope(
     }
 
     struct TSerializedRowStreamBlockTag { };
-    auto block = TSharedMutableRef::Allocate<TSerializedRowStreamBlockTag>(totalSize, false);
+    auto block = TSharedMutableRef::Allocate<TSerializedRowStreamBlockTag>(totalSize, {.InitializeStorage = false});
 
     char* current = block.Begin();
 

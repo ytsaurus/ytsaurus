@@ -186,7 +186,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, false);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize, {.InitializeStorage = false});
 
     while (true) {
         auto length = WaitFor(input->Read(buffer))

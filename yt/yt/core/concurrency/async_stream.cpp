@@ -437,7 +437,7 @@ public:
         { };
 
         auto promise = NewPromise<TSharedRef>();
-        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
+        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, {.InitializeStorage = false});
 
         DoRead(promise, std::move(block), 0);
 
@@ -690,7 +690,7 @@ public:
     TFuture<void> Write(const TSharedRef& buffer) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
-        auto block = TSharedMutableRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
+        auto block = TSharedMutableRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), {.InitializeStorage = false});
         ::memcpy(block.Begin(), buffer.Begin(), buffer.Size());
         return UnderlyingStream_->Write(block);
     }
@@ -833,7 +833,7 @@ public:
         YT_VERIFY(UnderlyingStream_);
         YT_VERIFY(WindowSize_ > 0);
 
-        Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
+        Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, {.InitializeStorage = false});
     }
 
     TFuture<TSharedRef> Read() override
@@ -910,7 +910,7 @@ private:
         if (bytes != 0) {
             if (PrefetchedSize_ == 0) {
                 Prefetched_ = Buffer_;
-                Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
+                Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, {.InitializeStorage = false});
             } else {
                 ::memcpy(Prefetched_.Begin() + PrefetchedSize_, Buffer_.Begin(), bytes);
             }

@@ -298,7 +298,7 @@ void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 
     struct TWriteBufferTag { };
 
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(context->GetConfig()->WriteBufferSize, false);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(context->GetConfig()->WriteBufferSize, {.InitializeStorage = false});
 
     auto input = context->Request().InputStream;
 
