@@ -860,7 +860,10 @@ bool TTcpConnection::OnPacketReceived() noexcept
         case EPacketType::Message:
             return OnMessagePacketReceived();
         default:
-            YT_ABORT();
+            YT_LOG_ERROR("Packet of unknown type received, ignored (PacketId: %v, PacketType: %v)",
+                Decoder_.GetPacketId(),
+                Decoder_.GetPacketType());
+            break;
     }
 }
 
@@ -1188,7 +1191,6 @@ void TTcpConnection::OnPacketSent()
         default:
             YT_ABORT();
     }
-
 
     UpdatePendingOut(-1, -packet->PacketSize);
     Counters_->OutPackets.fetch_add(1, std::memory_order_relaxed);

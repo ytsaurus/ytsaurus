@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,14 +86,16 @@ size_t TPacketDecoder::GetPacketSize() const
 bool TPacketDecoder::EndFixedHeaderPhase()
 {
     if (FixedHeader_.Signature != PacketSignature) {
-        YT_LOG_ERROR("Packet header signature mismatch: expected %X, actual %X",
+        YT_LOG_ERROR("Packet header signature mismatch (PacketId: %v, ExpectedSignature: %X, ActualSignature: %X)",
+            FixedHeader_.PacketId,
             PacketSignature,
             FixedHeader_.Signature);
         return false;
     }
 
     if (FixedHeader_.PartCount > MaxMessagePartCount) {
-        YT_LOG_ERROR("Invalid part count %v",
+        YT_LOG_ERROR("Invalid packet part count (PacketId: %v, PartCount: %v)",
+            FixedHeader_.PacketId,
             FixedHeader_.PartCount);
         return false;
     }
@@ -101,27 +105,21 @@ bool TPacketDecoder::EndFixedHeaderPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetFixedChecksum();
             if (expectedChecksum != actualChecksum) {
-                YT_LOG_ERROR("Fixed packet header checksum mismatch");
+                YT_LOG_ERROR("Fixed packet header checksum mismatch (PacketId: %v)",
+                    FixedHeader_.PacketId);
                 return false;
             }
         }
     }
 
-    switch (FixedHeader_.Type) {
-        case EPacketType::Message:
-            AllocateVariableHeader();
-            BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
-            return true;
-
-        case EPacketType::Ack:
-            SetFinished();
-            return true;
-
-        default:
-            YT_LOG_ERROR("Invalid packet type %v",
-                FixedHeader_.Type);
-            return false;
+    if (IsVariablePacket()) {
+        AllocateVariableHeader();
+        BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
+    } else {
+        SetFinished();
     }
+
+    return true;
 }
 
 bool TPacketDecoder::EndVariableHeaderPhase()
@@ -131,7 +129,8 @@ bool TPacketDecoder::EndVariableHeaderPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetVariableChecksum();
             if (expectedChecksum != actualChecksum) {
-                YT_LOG_ERROR("Variable packet header checksum mismatch");
+                YT_LOG_ERROR("Variable packet header checksum mismatch (PacketId: %v)",
+                    FixedHeader_.PacketId);
                 return false;
             }
         }
@@ -140,9 +139,10 @@ bool TPacketDecoder::EndVariableHeaderPhase()
     for (int index = 0; index < static_cast<int>(FixedHeader_.PartCount); ++index) {
         ui32 partSize = PartSizes_[index];
         if (partSize != NullPacketPartSize && partSize > MaxMessagePartSize) {
-            YT_LOG_ERROR("Invalid size %v of part %v",
-                partSize,
-                index);
+            YT_LOG_ERROR("Invalid packet part size (PacketId: %v, PartIndex: %v, PartSize: %v)",
+                FixedHeader_.PacketId,
+                index,
+                partSize);
             return false;
         }
     }
@@ -158,7 +158,8 @@ bool TPacketDecoder::EndMessagePartPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetChecksum(Parts_[PartIndex_]);
             if (expectedChecksum != actualChecksum) {
-                YT_LOG_ERROR("Packet part checksum mismatch");
+                YT_LOG_ERROR("Packet part checksum mismatch (PacketId: %v)",
+                    FixedHeader_.PacketId);
                 return false;
             }
         }
@@ -206,19 +207,11 @@ size_t TPacketEncoder::GetPacketSize(
     size_t payloadSize)
 {
     size_t size = sizeof (TPacketHeader);
-    switch (type) {
-        case EPacketType::Ack:
-            break;
-
-        case EPacketType::Message:
-            size +=
-                message.Size() * (sizeof (ui32) + sizeof (ui64)) +
-                sizeof (ui64) +
-                payloadSize;
-            break;
-
-        default:
-            YT_ABORT();
+    if (type == EPacketType::Message || !message.Empty()) {
+        size +=
+            message.Size() * (sizeof (ui32) + sizeof (ui64)) +
+            sizeof (ui64) +
+            payloadSize;
     }
     return size;
 }
@@ -240,9 +233,9 @@ bool TPacketEncoder::Start(
     FixedHeader_.PartCount = Message_.Size();
     FixedHeader_.Checksum = generateChecksums ? GetFixedChecksum() : NullChecksum;
 
-    AllocateVariableHeader();
+    if (IsVariablePacket()) {
+        AllocateVariableHeader();
 
-    if (type == EPacketType::Message) {
         for (int index = 0; index < static_cast<int>(Message_.Size()); ++index) {
             const auto& part = Message_[index];
             if (part) {
@@ -276,18 +269,12 @@ void TPacketEncoder::NextFragment()
 
 bool TPacketEncoder::EndFixedHeaderPhase()
 {
-    switch (FixedHeader_.Type) {
-        case EPacketType::Message:
-            BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
-            return true;
-
-        case EPacketType::Ack:
-            SetFinished();
-            return true;
-
-        default:
-            YT_ABORT();
+    if (IsVariablePacket()) {
+        BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
+    } else {
+        SetFinished();
     }
+    return true;
 }
 
 bool TPacketEncoder::EndVariableHeaderPhase()

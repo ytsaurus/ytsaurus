@@ -83,6 +83,7 @@ protected:
     int PartIndex_ = -1;
     TSharedRefArray Message_;
 
+    bool IsVariablePacket() const;
     void AllocateVariableHeader();
     TChecksum GetFixedChecksum();
     TChecksum GetVariableChecksum();
