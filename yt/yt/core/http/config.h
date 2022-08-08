@@ -70,6 +70,7 @@ class TClientConfig
     : public THttpIOConfig
 {
 public:
+    int MaxIdleConnections;
     NNet::TDialerConfigPtr Dialer;
 
     TClientConfig();

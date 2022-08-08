@@ -57,6 +57,8 @@ TServerConfig::TServerConfig()
 
 TClientConfig::TClientConfig()
 {
+    RegisterParameter("max_idle_connections", MaxIdleConnections)
+        .Default(0);
     RegisterParameter("dialer", Dialer)
         .DefaultNew();
 }
@@ -74,5 +76,6 @@ TCorsConfig::TCorsConfig()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NHttp

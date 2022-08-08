@@ -1,4 +1,5 @@
 #include "client.h"
+#include "connection_pool.h"
 #include "http.h"
 #include "config.h"
 #include "stream.h"
@@ -27,8 +28,9 @@ public:
         const IDialerPtr& dialer,
         const IInvokerPtr& invoker)
         : Config_(config)
-        , Dialer_(dialer)
         , Invoker_(invoker)
+        , Dialer_(dialer)
+        , ConnectionPool_(New<TConnectionPool>(dialer, config, invoker))
     { }
 
     TFuture<IResponsePtr> Get(
@@ -64,8 +66,9 @@ public:
 
 private:
     const TClientConfigPtr Config_;
-    const IDialerPtr Dialer_;
     const IInvokerPtr Invoker_;
+    IDialerPtr Dialer_;
+    TConnectionPoolPtr ConnectionPool_;
 
     static int GetDefaultPort(const TUrlRef& parsedUrl)
     {
@@ -94,20 +97,44 @@ private:
     }
 
     std::pair<THttpOutputPtr, THttpInputPtr> OpenHttp(const TNetworkAddress& address)
-    {
-        auto conn = WaitFor(Dialer_->Dial(address)).ValueOrThrow();
-        auto input = New<THttpInput>(
-            conn,
-            address,
-            Invoker_,
-            EMessageType::Response,
-            Config_);
-        auto output = New<THttpOutput>(
-            conn,
-            EMessageType::Request,
-            Config_);
+    {    
+        // TODO(aleexfi): Enable connection pool by default
+        if (Config_->MaxIdleConnections == 0) {
+            auto conn = WaitFor(Dialer_->Dial(address)).ValueOrThrow();
 
-        return std::make_pair(std::move(output), std::move(input));
+            auto input = New<THttpInput>(
+                conn,
+                address,
+                Invoker_,
+                EMessageType::Response,
+                Config_);
+
+            auto output = New<THttpOutput>(
+                conn,
+                EMessageType::Request,
+                Config_);
+
+            return std::make_pair(std::move(output), std::move(input));
+        } else {
+            auto conn = ConnectionPool_->Connect(address);
+
+            auto reuseSharedState = New<NDetail::TReusableConnectionState>(conn, ConnectionPool_);
+
+            auto input = New<NDetail::TConnectionReuseWrapper<THttpInput>>(
+                conn,
+                address,
+                Invoker_,
+                EMessageType::Response,
+                Config_);
+            input->SetReusableState(reuseSharedState);
+
+            auto output = New<NDetail::TConnectionReuseWrapper<THttpOutput>>(
+                conn,
+                EMessageType::Request,
+                Config_);
+            output->SetReusableState(reuseSharedState);
+            return std::make_pair(std::move(output), std::move(input));
+        }
     }
 
     TString SanitizeUrl(const TString& url)

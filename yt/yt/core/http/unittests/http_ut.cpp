@@ -8,6 +8,7 @@
 #include <yt/yt/core/http/stream.h>
 #include <yt/yt/core/http/config.h>
 #include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/connection_pool.h>
 
 #include <yt/yt/core/https/server.h>
 #include <yt/yt/core/https/client.h>
@@ -17,6 +18,7 @@
 #include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/dialer.h>
 #include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/mock/dialer.h>
 
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -1160,6 +1162,105 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
             response->Reset();
         }
     }
+}
+
+TEST_P(THttpServerTest, ReuseConnections)
+{
+    if (GetParam()) {
+        // This test is not TLS-specific.
+        return;
+    }
+
+    Server->AddHandler("/echo", New<TEchoHttpHandler>());
+    Server->Start();
+
+    auto dialer = NNet::CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
+    auto dialerMock = New<TDialerMock>(dialer);
+    auto clientConfig = New<NHttp::TClientConfig>();
+    clientConfig->MaxIdleConnections = 2;
+    auto client = CreateClient(clientConfig, dialerMock, Poller->GetInvoker());
+
+    EXPECT_CALL(*dialerMock, Dial).Times(2);
+
+    auto reqBody = TSharedMutableRef::Allocate(1024);
+
+    for (int i = 0; i < 5; ++i) {
+        std::fill(reqBody.Begin(), reqBody.End(), i);
+
+        auto rsp1 = WaitFor(client->Post(TestUrl + "/echo", reqBody)).ValueOrThrow();
+        auto rsp2 = WaitFor(client->Post(TestUrl + "/echo", reqBody)).ValueOrThrow();
+        ASSERT_EQ(EStatusCode::OK, rsp1->GetStatusCode());
+        ASSERT_EQ(EStatusCode::OK, rsp2->GetStatusCode());
+
+        auto rsp1Body = ReadAll(rsp1);
+        auto rsp2Body = ReadAll(rsp2);
+        ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rsp1Body);
+        ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rsp2Body);
+    }
+}
+
+TEST_P(THttpServerTest, DropConnectionsByTimeout)
+{
+    if (GetParam()) {
+        // This test is not TLS-specific.
+        return;
+    }
+
+    Server->AddHandler("/echo", New<TEchoHttpHandler>());
+    Server->Start();
+
+    auto dialer = NNet::CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
+    auto dialerMock = New<TDialerMock>(dialer);
+    auto clientConfig = New<NHttp::TClientConfig>();
+    clientConfig->MaxIdleConnections = 1;
+    clientConfig->ConnectionIdleTimeout = TDuration::MilliSeconds(300);
+    auto client = CreateClient(clientConfig, dialerMock, Poller->GetInvoker());
+
+    auto reqBody = TSharedMutableRef::Allocate(1024);
+
+    for (int i = 0; i < 5; ++i) {
+        if (i > 0) {
+            Sleep(TDuration::MilliSeconds(300));
+        }
+
+        std::fill(reqBody.Begin(), reqBody.End(), i);
+
+        EXPECT_CALL(*dialerMock, Dial);
+        auto rsp = WaitFor(client->Post(TestUrl + "/echo", reqBody)).ValueOrThrow();
+        ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
+
+        auto rspBody = ReadAll(rsp);
+        ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rspBody);
+    }
+}
+
+
+TEST_P(THttpServerTest, ConnectionsDropRoutine)
+{
+    if (GetParam()) {
+        // This test is not TLS-specific.
+        return;
+    }
+
+    Server->AddHandler("/echo", New<TEchoHttpHandler>());
+    Server->Start();
+
+    auto dialer = NNet::CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
+    auto dialerMock = New<TDialerMock>(dialer);
+    auto clientConfig = New<NHttp::TClientConfig>();
+    clientConfig->MaxIdleConnections = 1;
+    clientConfig->ConnectionIdleTimeout = TDuration::MilliSeconds(100);
+    
+    auto pool = New<TConnectionPool>(dialerMock, clientConfig, Poller->GetInvoker());
+
+    auto url = ParseUrl(TestUrl + "/echo");
+    auto address = TNetworkAddress::CreateIPv6Loopback(*url.Port);
+    pool->Release(WaitFor(dialer->Dial(address)).ValueOrThrow());
+
+    Sleep(TDuration::MilliSeconds(220));
+
+    EXPECT_CALL(*dialerMock, Dial).WillOnce(testing::Return(MakeFuture<IConnectionPtr>(nullptr)));
+    pool->Connect(address);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
