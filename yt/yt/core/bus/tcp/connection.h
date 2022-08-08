@@ -258,7 +258,7 @@ private:
         EPacketFlags flags,
         int checksummedPartCount,
         TPacketId packetId,
-        TSharedRefArray message = TSharedRefArray(),
+        TSharedRefArray message = {},
         size_t payloadSize = 0);
 
     void OnSocketWrite();

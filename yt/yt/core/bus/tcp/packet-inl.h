@@ -28,6 +28,12 @@ bool TPacketTranscoderBase<TDerived>::IsFinished() const
 }
 
 template <class TDerived>
+bool TPacketTranscoderBase<TDerived>::IsVariablePacket() const
+{
+    return FixedHeader_.Type == EPacketType::Message || FixedHeader_.PartCount > 0;
+}
+
+template <class TDerived>
 void TPacketTranscoderBase<TDerived>::AllocateVariableHeader()
 {
     VariableHeaderSize_ =
