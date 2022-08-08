@@ -512,6 +512,7 @@ template <class TKey, class TValue, class THash>
 void TSimpleLruCache<TKey, TValue, THash>::Clear()
 {
     ItemMap_.clear();
+    LruList_.clear();
     CurrentWeight_ = 0;
 }
 
@@ -531,6 +532,130 @@ void TSimpleLruCache<TKey, TValue, THash>::UpdateLruList(typename TItemMap::iter
     LruList_.push_front(mapIt);
     mapIt->second.LruListIterator = LruList_.begin();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash> 
+TMultiLruCache<TKey, TValue, THash>::TMultiLruCache(size_t maxWeight)
+    : MaxWeight_(maxWeight)
+{ }
+
+template <class TKey, class TValue, class THash> 
+size_t TMultiLruCache<TKey, TValue, THash>::GetSize() const
+{
+    return LruList_.size();
+}
+
+template <class TKey, class TValue, class THash> 
+const TValue& TMultiLruCache<TKey, TValue, THash>::Get(const TKey& key)
+{
+    auto* value = Find(key);
+    YT_VERIFY(value != nullptr);
+    return *value;
+}
+
+template <class TKey, class TValue, class THash> 
+TValue* TMultiLruCache<TKey, TValue, THash>::Find(const TKey& key)
+{
+    auto it = ItemMap_.find(key);
+    if (it == ItemMap_.end()) {
+        return nullptr;
+    }
+
+    auto item = std::move(it->second.back());
+    it->second.pop_back();
+    it->second.push_front(std::move(item));
+    
+    UpdateLruList(it->second.begin());
+    return &(it->second.front().Value);
+
+}
+
+template <class TKey, class TValue, class THash> 
+TValue* TMultiLruCache<TKey, TValue, THash>::Insert(const TKey& key, TValue value, size_t weight)
+{
+    YT_VERIFY(weight <= MaxWeight_);
+
+    while (GetSize() > 0 && CurrentWeight_ + weight > MaxWeight_) {
+        Pop();
+    }
+
+    CurrentWeight_ += weight;
+
+    auto mapIt = ItemMap_.emplace(key, std::deque<TItem>()).first;
+    mapIt->second.emplace_front(std::move(value), weight);
+    mapIt->second.front().LruListIterator = LruList_.insert(LruList_.begin(), mapIt);
+    return &(mapIt->second.front().Value);
+}
+
+template <class TKey, class TValue, class THash> 
+std::optional<TValue> TMultiLruCache<TKey, TValue, THash>::Extract(const TKey& key)
+{
+    auto mapIt = ItemMap_.find(key);
+    if (mapIt == ItemMap_.end()) {
+        return std::nullopt;
+    }
+
+    auto item = std::move(mapIt->second.back());
+    CurrentWeight_ -= item.Weight;
+
+    mapIt->second.pop_back();
+    if (mapIt->second.empty()) {
+        ItemMap_.erase(mapIt);
+    }
+
+    auto lruListIt = item.LruListIterator;
+    LruList_.erase(lruListIt);
+
+    return std::move(item.Value);
+}
+
+template <class TKey, class TValue, class THash> 
+TValue TMultiLruCache<TKey, TValue, THash>::Pop()
+{
+    auto listIt = std::prev(LruList_.end());
+    auto mapIt = *listIt;
+    
+    YT_VERIFY(!mapIt->second.empty());
+    YT_VERIFY(mapIt->second.back().LruListIterator == listIt);
+
+    auto item = std::move(mapIt->second.back());
+    CurrentWeight_ -= item.Weight;
+
+    mapIt->second.pop_back();
+    if (mapIt->second.empty()) {
+        ItemMap_.erase(mapIt);
+    }
+
+    LruList_.erase(listIt);
+
+    return std::move(item.Value);
+}
+
+template <class TKey, class TValue, class THash>
+void TMultiLruCache<TKey, TValue, THash>::Clear()
+{
+    ItemMap_.clear();
+    LruList_.clear();
+    CurrentWeight_ = 0;
+}
+
+template <class TKey, class TValue, class THash>
+TMultiLruCache<TKey, TValue, THash>::TItem::TItem(TValue value, size_t weight)
+    : Value(std::move(value))
+    , Weight(weight)
+{ }
+
+
+template <class TKey, class TValue, class THash>
+void TMultiLruCache<TKey, TValue, THash>::UpdateLruList(typename std::deque<TItem>::iterator dequeIt)
+{
+    auto mapIt = *dequeIt->LruListIterator;
+    LruList_.erase(dequeIt->LruListIterator);
+    LruList_.push_front(std::move(mapIt));
+    dequeIt->LruListIterator = LruList_.begin();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
