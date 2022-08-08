@@ -809,7 +809,7 @@ private:
             YT_LOG_DEBUG("Ping failed (Address: %v)",
                 node->Descriptor.GetDefaultAddress());
 
-            if (rspOrError.FindMatching(NYT::NChunkClient::EErrorCode::NoSuchSession)) {
+            if (rspOrError.FindMatching(NYT::NChunkClient::EErrorCode::NoSuchSession) && !node->Closing) {
                 OnNodeFailed(node, rspOrError);
             }
 
