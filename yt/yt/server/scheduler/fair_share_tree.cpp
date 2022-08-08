@@ -675,19 +675,14 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
-    std::optional<std::pair<TString, TString>> FindOffloadingPoolTreeAndPoolFor(const TString& poolName) const override
+    TOffloadingSettings GetOffloadingSettingsFor(const TString& poolName) const override
     {
         const auto& pool = FindPool(poolName);
         if (!pool) {
-            return std::nullopt;
+            return {};
         }
 
-        const auto& config = pool->GetConfig();
-        if (config->OffloadingPoolTree && config->OffloadingPool) {
-            return std::make_pair(*config->OffloadingPoolTree, *config->OffloadingPool);
-        }
-
-        return std::nullopt;
+        return pool->GetConfig()->OffloadingSettings;
     }
 
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode, bool forceUpdate) override

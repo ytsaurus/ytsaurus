@@ -306,8 +306,7 @@
     XX(NodeTagFilter, node_tag_filter) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
-    XX(OffloadingPool, offloading_pool) \
-    XX(OffloadingPoolTree, offloading_pool_tree) \
+    XX(OffloadingSettings, offloading_settings) \
     XX(Online, online) \
     XX(OnlineNodeCount, online_node_count) \
     XX(Opaque, opaque) \
