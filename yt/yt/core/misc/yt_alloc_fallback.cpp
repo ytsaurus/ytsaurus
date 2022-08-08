@@ -29,12 +29,6 @@ Y_WEAK void Free(void* ptr)
     ::free(ptr);
 }
 
-Y_WEAK void FreeNonNull(void* ptr)
-{
-    YT_ASSERT(ptr);
-    ::free(ptr);
-}
-
 Y_WEAK size_t GetAllocationSize(const void* /*ptr*/)
 {
     return 0;

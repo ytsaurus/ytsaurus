@@ -165,7 +165,7 @@ protected:
     {
         // No virtual call when T is final.
         ptr->~T();
-        NYTAlloc::FreeNonNull(ptr);
+        ::free(ptr);
     }
 };
 
