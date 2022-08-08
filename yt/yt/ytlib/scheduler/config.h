@@ -1032,6 +1032,8 @@ public:
     double UserJobMemoryDigestLowerBound;
     std::optional<double> ResourceOverdraftMemoryReserveMultiplier;
 
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
     bool IgnoreMemoryReserveFactorLessThanOne;
 
     bool IncludeMemoryMappedFiles;

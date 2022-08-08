@@ -780,6 +780,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
         .InRange(1.0, 10.0)
         .Default(std::nullopt);
+    registrar.Parameter("job_proxy_memory_digest", &TThis::JobProxyMemoryDigest)
+        .DefaultCtor([] {
+            auto config = New<TLogDigestConfig>();
+            config->LowerBound = 0.5;
+            config->UpperBound = 2.0;
+            config->DefaultValue = 1.0;
+            return config;
+        });
     registrar.Parameter("include_memory_mapped_files", &TThis::IncludeMemoryMappedFiles)
         .Default(true);
     registrar.Parameter("use_yamr_descriptors", &TThis::UseYamrDescriptors)
