@@ -141,7 +141,7 @@ void TMultiTablePartitioner::BuildPartitions()
         Partitions_.Partitions.emplace_back(TMultiTablePartition{CombineDataSlices(DataSourceDirectory_, slicesByTable)});
     }
 
-    YT_LOG_INFO( "Partitions built (PartitionCount: %v)", Partitions_.Partitions.size());
+    YT_LOG_INFO("Partitions built (PartitionCount: %v)", Partitions_.Partitions.size());
 }
 
 bool TMultiTablePartitioner::IsDataSourcesReady()
