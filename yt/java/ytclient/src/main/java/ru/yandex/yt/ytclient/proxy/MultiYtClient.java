@@ -263,6 +263,11 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
             this.preferredAllowance = preferredAllowance;
             return this;
         }
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
     }
 }
 

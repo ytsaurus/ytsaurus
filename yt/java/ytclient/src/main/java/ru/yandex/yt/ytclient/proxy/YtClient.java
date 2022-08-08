@@ -57,8 +57,6 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  *      YtClient becomes unable to send requests and receive responses.
  */
 public class YtClient extends CompoundClientImpl implements BaseYtClient {
-    private static final Object KEY = new Object();
-
     private final BusConnector busConnector;
     private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;
@@ -448,7 +446,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
 
     @NonNullApi
     @NonNullFields
-    public static class BaseBuilder<T extends BaseBuilder<T>> {
+    public abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable RpcCredentials credentials;
         RpcCompression compression = new RpcCompression();
         RpcOptions options = new RpcOptions();
@@ -462,7 +460,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          */
         public T setRpcCredentials(RpcCredentials rpcCredentials) {
             this.credentials = rpcCredentials;
-            return (T) this;
+            return self();
         }
 
         /**
@@ -473,7 +471,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          */
         public T setRpcCompression(RpcCompression rpcCompression) {
             this.compression = rpcCompression;
-            return (T) this;
+            return self();
         }
 
         /**
@@ -481,8 +479,10 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          */
         public T setRpcOptions(RpcOptions rpcOptions) {
             this.options = rpcOptions;
-            return (T) this;
+            return self();
         }
+
+        protected abstract T self();
     }
 
     @NonNullFields
@@ -492,7 +492,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         boolean isBusConnectorOwner = true;
         @Nullable String preferredClusterName;
         @Nullable String proxyRole;
-        @Nullable List<YtCluster> clusters = new ArrayList<>();
+        List<YtCluster> clusters = new ArrayList<>();
 
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
@@ -574,7 +574,6 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         /**
          * Set heavy executor for YT client. This is used for deserialization of lookup/select response.
          * By default, ForkJoinPool.commonPool().
-         * @param heavyExecutor
          * @return self
          */
         public Builder setHeavyExecutor(Executor heavyExecutor) {
@@ -659,6 +658,11 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
 
         Builder disableValidation() {
             enableValidation = false;
+            return this;
+        }
+
+        @Override
+        protected Builder self() {
             return this;
         }
     }
