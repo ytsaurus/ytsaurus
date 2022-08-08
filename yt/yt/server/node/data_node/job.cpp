@@ -5,6 +5,7 @@
 #include "chunk.h"
 #include "chunk_store.h"
 #include "config.h"
+#include "job_detail.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "location.h"
@@ -125,477 +126,434 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterJobBase
-    : public IJob
+TMasterJobBase::TMasterJobBase(
+    NJobTrackerClient::TJobId jobId,
+    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    TString jobTrackerAddress,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    TDataNodeConfigPtr config,
+    IBootstrap* bootstrap)
+    : JobId_(jobId)
+    , JobSpec_(jobSpec)
+    , JobTrackerAddress_(std::move(jobTrackerAddress))
+    , Config_(config)
+    , StartTime_(TInstant::Now())
+    , Bootstrap_(bootstrap)
+    , NodeDirectory_(Bootstrap_->GetNodeDirectory())
+    , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
+        JobId_,
+        GetType()))
+    , ResourceLimits_(resourceLimits)
 {
-public:
-    DEFINE_SIGNAL_OVERRIDE(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), PortsReleased);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
-
-public:
-    TMasterJobBase(
-        TJobId jobId,
-        const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
-        TDataNodeConfigPtr config,
-        IBootstrap* bootstrap)
-        : JobId_(jobId)
-        , JobSpec_(jobSpec)
-        , JobTrackerAddress_(std::move(jobTrackerAddress))
-        , Config_(config)
-        , StartTime_(TInstant::Now())
-        , Bootstrap_(bootstrap)
-        , NodeDirectory_(Bootstrap_->GetNodeDirectory())
-        , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
-            JobId_,
-            GetType()))
-        , ResourceLimits_(resourceLimits)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-    }
-
-    void Start() override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_VERIFY(!std::exchange(Started_, true));
-
-        JobState_ = EJobState::Running;
-        JobPhase_ = EJobPhase::Running;
-        JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetJobInvoker())
-            .Run();
-    }
-
-    bool IsStarted() const noexcept override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return Started_;
-    }
-
-    void Abort(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        switch (JobState_) {
-            case EJobState::Waiting:
-                SetAborted(error);
-                return;
-
-            case EJobState::Running:
-                JobFuture_.Cancel(error);
-                SetAborted(error);
-                return;
-
-            default:
-                return;
-        }
-    }
-
-    TJobId GetId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobId_;
-    }
-
-    TOperationId GetOperationId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return {};
-    }
-
-    EJobType GetType() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return CheckedEnumCast<EJobType>(JobSpec_.type());
-    }
-
-    bool IsUrgent() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return GetSpec().urgent();
-    }
-
-    const TJobSpec& GetSpec() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobSpec_;
-    }
-
-    int GetPortCount() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return 0;
-    }
-
-    EJobState GetState() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return JobState_;
-    }
-
-    EJobPhase GetPhase() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return JobPhase_;
-    }
-
-    int GetSlotIndex() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return -1;
-    }
-
-    const TString& GetJobTrackerAddress() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return JobTrackerAddress_;
-    }
-
-    TNodeResources GetResourceUsage() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return ResourceLimits_;
-    }
-
-    bool IsGpuRequested() const override
-    {
-        return false;
-    }
-
-    std::vector<int> GetPorts() const override
-    {
-        YT_ABORT();
-    }
-
-    void SetPorts(const std::vector<int>&) override
-    {
-        YT_ABORT();
-    }
-
-    void SetResourceUsage(const TNodeResources& /*newUsage*/) override
-    {
-        YT_ABORT();
-    }
-
-    bool ResourceUsageOverdrafted() const override
-    {
-        return false;
-    }
-
-    TJobResult GetResult() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return Result_;
-    }
-
-    void SetResult(const TJobResult& /*result*/) override
-    {
-        YT_ABORT();
-    }
-
-    double GetProgress() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return Progress_;
-    }
-
-    void SetProgress(double value) override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        Progress_ = value;
-    }
-
-    i64 GetStderrSize() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return JobStderrSize_;
-    }
-
-    void SetStderrSize(i64 value) override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        JobStderrSize_ = value;
-    }
-
-    void SetStderr(const TString& /*value*/) override
-    {
-        YT_ABORT();
-    }
-
-    void SetFailContext(const TString& /*value*/) override
-    {
-        YT_ABORT();
-    }
-
-    void SetProfile(const TJobProfile& /*value*/) override
-    {
-        YT_ABORT();
-    }
-
-    void SetCoreInfos(TCoreInfos /*value*/) override
-    {
-        YT_ABORT();
-    }
-
-    const TChunkCacheStatistics& GetChunkCacheStatistics() const override
-    {
-        const static TChunkCacheStatistics EmptyChunkCacheStatistics;
-        return EmptyChunkCacheStatistics;
-    }
-
-    TYsonString GetStatistics() const override
-    {
-        return TYsonString();
-    }
-
-    void SetStatistics(const TYsonString& /*statistics*/) override
-    {
-        YT_ABORT();
-    }
-
-    void BuildOrchid(NYTree::TFluentMap /*fluent*/) const override
-    { }
-
-    TInstant GetStartTime() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return StartTime_;
-    }
-
-    NJobAgent::TTimeStatistics GetTimeStatistics() const override
-    {
-        return NJobAgent::TTimeStatistics{};
-    }
-
-    TInstant GetStatisticsLastSendTime() const override
-    {
-        YT_ABORT();
-    }
-
-    void ResetStatisticsLastSendTime() override
-    {
-        YT_ABORT();
-    }
-
-    std::vector<TChunkId> DumpInputContext() override
-    {
-        THROW_ERROR_EXCEPTION("Input context dumping is not supported");
-    }
-
-    std::optional<TString> GetStderr() override
-    {
-        THROW_ERROR_EXCEPTION("Getting stderr is not supported");
-    }
-
-    std::optional<TString> GetFailContext() override
-    {
-        THROW_ERROR_EXCEPTION("Getting fail context is not supported");
-    }
-
-    TPollJobShellResponse PollJobShell(
-        const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
-        const TYsonString& /*parameters*/) override
-    {
-        THROW_ERROR_EXCEPTION("Job shell is not supported");
-    }
-
-    void OnJobProxySpawned() override
-    {
-        YT_ABORT();
-    }
-
-    void PrepareArtifact(
-        const TString& /*artifactName*/,
-        const TString& /*pipePath*/) override
-    {
-        YT_ABORT();
-    }
-
-    void OnArtifactPreparationFailed(
-        const TString& /*artifactName*/,
-        const TString& /*artifactPath*/,
-        const TError& /*error*/) override
-    {
-        YT_ABORT();
-    }
-
-    void OnArtifactsPrepared() override
-    {
-        YT_ABORT();
-    }
-
-    void OnJobPrepared() override
-    {
-        YT_ABORT();
-    }
-
-    void HandleJobReport(TNodeJobReport&&) override
-    {
-        YT_ABORT();
-    }
-
-    void ReportSpec() override
-    {
-        YT_ABORT();
-    }
-
-    void ReportStderr() override
-    {
-        YT_ABORT();
-    }
-
-    void ReportFailContext() override
-    {
-        YT_ABORT();
-    }
-
-    void ReportProfile() override
-    {
-        YT_ABORT();
-    }
-
-    bool GetStored() const override
-    {
-        return false;
-    }
-
-protected:
-    const TJobId JobId_;
-    const TJobSpec JobSpec_;
-    const TString JobTrackerAddress_;
-    const TDataNodeConfigPtr Config_;
-    const TInstant StartTime_;
-    IBootstrap* const Bootstrap_;
-    const TNodeDirectoryPtr NodeDirectory_;
-
-    NLogging::TLogger Logger;
-
-    TNodeResources ResourceLimits_;
-
-    EJobState JobState_ = EJobState::Waiting;
-    EJobPhase JobPhase_ = EJobPhase::Created;
-
-    double Progress_ = 0.0;
-    ui64 JobStderrSize_ = 0;
-
-    TString Stderr_;
-
-    TFuture<void> JobFuture_;
-
-    TJobResult Result_;
-
-    bool Started_ = false;
-
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
-    virtual void DoRun() = 0;
-
-    void GuardedRun()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
-        TCurrentTraceContextGuard guard(context);
-        auto baggage = context->UnpackOrCreateBaggage();
-        AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(GetId()));
-        AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(GetType()));
-        context->PackBaggage(std::move(baggage));
-
-        try {
-            JobPrepared_.Fire();
-            WaitFor(BIND(&TMasterJobBase::DoRun, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetMasterJobInvoker())
-                .Run())
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            SetFailed(ex);
+    VERIFY_THREAD_AFFINITY(JobThread);
+}
+
+void TMasterJobBase::Start()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(!std::exchange(Started_, true));
+
+    JobState_ = EJobState::Running;
+    JobPhase_ = EJobPhase::Running;
+    JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run();
+}
+
+bool TMasterJobBase::IsStarted() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+    
+    return Started_;
+}
+
+void TMasterJobBase::Abort(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    switch (JobState_) {
+        case EJobState::Waiting:
+            SetAborted(error);
             return;
-        }
-        SetCompleted();
-    }
 
-    void SetCompleted()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_LOG_INFO("Job completed");
-        Progress_ = 1.0;
-        DoSetFinished(EJobState::Completed, TError());
-    }
-
-    void SetFailed(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_LOG_ERROR(error, "Job failed");
-        DoSetFinished(EJobState::Failed, error);
-    }
-
-    void SetAborted(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_LOG_INFO(error, "Job aborted");
-        DoSetFinished(EJobState::Aborted, error);
-    }
-
-    IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
-        return chunkStore->FindChunk(chunkId, mediumIndex);
-    }
-
-    IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
-        return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
-    }
-
-private:
-    void DoSetFinished(EJobState finalState, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting) {
+        case EJobState::Running:
+            JobFuture_.Cancel(error);
+            SetAborted(error);
             return;
-        }
 
-        JobPhase_ = EJobPhase::Finished;
-        JobState_ = finalState;
-        JobFinished_.Fire();
-        ToProto(Result_.mutable_error(), error);
-        auto deltaResources = ZeroNodeResources() - ResourceLimits_;
-        ResourceLimits_ = ZeroNodeResources();
-        JobFuture_.Reset();
-        ResourcesUpdated_.Fire(deltaResources);
+        default:
+            return;
     }
-};
+}
+
+TJobId TMasterJobBase::GetId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return JobId_;
+}
+
+TOperationId TMasterJobBase::GetOperationId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return {};
+}
+
+EJobType TMasterJobBase::GetType() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return CheckedEnumCast<EJobType>(JobSpec_.type());
+}
+
+bool TMasterJobBase::IsUrgent() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetSpec().urgent();
+}
+
+const TJobSpec& TMasterJobBase::GetSpec() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return JobSpec_;
+}
+
+const TString& TMasterJobBase::GetJobTrackerAddress() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobTrackerAddress_;
+}
+
+int TMasterJobBase::GetPortCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return 0;
+}
+
+EJobState TMasterJobBase::GetState() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobState_;
+}
+
+EJobPhase TMasterJobBase::GetPhase() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobPhase_;
+}
+
+int TMasterJobBase::GetSlotIndex() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return -1;
+}
+
+TNodeResources TMasterJobBase::GetResourceUsage() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return ResourceLimits_;
+}
+
+bool TMasterJobBase::IsGpuRequested() const
+{
+    return false;
+}
+
+std::vector<int> TMasterJobBase::GetPorts() const
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::SetPorts(const std::vector<int>&)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::SetResourceUsage(const TNodeResources& /*newUsage*/)
+{
+    YT_ABORT();
+}
+
+bool TMasterJobBase::ResourceUsageOverdrafted() const
+{
+    return false;
+}
+
+TJobResult TMasterJobBase::GetResult() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return Result_;
+}
+
+void TMasterJobBase::SetResult(const TJobResult& /*result*/)
+{
+    YT_ABORT();
+}
+
+double TMasterJobBase::GetProgress() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return Progress_;
+}
+
+void TMasterJobBase::SetProgress(double value)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Progress_ = value;
+}
+
+i64 TMasterJobBase::GetStderrSize() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobStderrSize_;
+}
+
+void TMasterJobBase::SetStderrSize(i64 value)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    JobStderrSize_ = value;
+}
+
+void TMasterJobBase::SetStderr(const TString& /*value*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::SetFailContext(const TString& /*value*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::SetProfile(const TJobProfile& /*value*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::SetCoreInfos(TCoreInfos /*value*/)
+{
+    YT_ABORT();
+}
+
+const TChunkCacheStatistics& TMasterJobBase::GetChunkCacheStatistics() const
+{
+    const static TChunkCacheStatistics EmptyChunkCacheStatistics;
+    return EmptyChunkCacheStatistics;
+}
+
+TYsonString TMasterJobBase::GetStatistics() const
+{
+    return TYsonString();
+}
+
+void TMasterJobBase::SetStatistics(const TYsonString& /*statistics*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::BuildOrchid(NYTree::TFluentMap /*fluent*/) const
+{ }
+
+TInstant TMasterJobBase::GetStartTime() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StartTime_;
+}
+
+NJobAgent::TTimeStatistics TMasterJobBase::GetTimeStatistics() const
+{
+    return NJobAgent::TTimeStatistics{};
+}
+
+TInstant TMasterJobBase::GetStatisticsLastSendTime() const
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::ResetStatisticsLastSendTime()
+{
+    YT_ABORT();
+}
+
+std::vector<TChunkId> TMasterJobBase::DumpInputContext()
+{
+    THROW_ERROR_EXCEPTION("Input context dumping is not supported");
+}
+
+std::optional<TString> TMasterJobBase::GetStderr()
+{
+    THROW_ERROR_EXCEPTION("Getting stderr is not supported");
+}
+
+std::optional<TString> TMasterJobBase::GetFailContext()
+{
+    THROW_ERROR_EXCEPTION("Getting fail context is not supported");
+}
+
+TPollJobShellResponse TMasterJobBase::PollJobShell(
+    const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
+    const TYsonString& /*parameters*/)
+{
+    THROW_ERROR_EXCEPTION("Job shell is not supported");
+}
+
+void TMasterJobBase::OnJobProxySpawned()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::PrepareArtifact(
+    const TString& /*artifactName*/,
+    const TString& /*pipePath*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::OnArtifactPreparationFailed(
+    const TString& /*artifactName*/,
+    const TString& /*artifactPath*/,
+    const TError& /*error*/)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::OnArtifactsPrepared()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::OnJobPrepared()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::HandleJobReport(TNodeJobReport&&)
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::ReportSpec()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::ReportStderr()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::ReportFailContext()
+{
+    YT_ABORT();
+}
+
+void TMasterJobBase::ReportProfile()
+{
+    YT_ABORT();
+}
+
+bool TMasterJobBase::GetStored() const
+{
+    return false;
+}
+
+void TMasterJobBase::GuardedRun()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
+    TCurrentTraceContextGuard guard(context);
+    auto baggage = context->UnpackOrCreateBaggage();
+    AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(GetId()));
+    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(GetType()));
+    context->PackBaggage(std::move(baggage));
+
+    try {
+        JobPrepared_.Fire();
+        WaitFor(BIND(&TMasterJobBase::DoRun, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run())
+            .ThrowOnError();
+    } catch (const std::exception& ex) {
+        SetFailed(ex);
+        return;
+    }
+    SetCompleted();
+}
+
+void TMasterJobBase::SetCompleted()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_LOG_INFO("Job completed");
+    Progress_ = 1.0;
+    DoSetFinished(EJobState::Completed, TError());
+}
+
+void TMasterJobBase::SetFailed(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_LOG_ERROR(error, "Job failed");
+    DoSetFinished(EJobState::Failed, error);
+}
+
+void TMasterJobBase::SetAborted(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_LOG_INFO(error, "Job aborted");
+    DoSetFinished(EJobState::Aborted, error);
+}
+
+IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, int mediumIndex)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->FindChunk(chunkId, mediumIndex);
+}
+
+IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
+}
+
+void TMasterJobBase::DoSetFinished(EJobState finalState, const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting) {
+        return;
+    }
+
+    JobPhase_ = EJobPhase::Finished;
+    JobState_ = finalState;
+    JobFinished_.Fire();
+    ToProto(Result_.mutable_error(), error);
+    auto deltaResources = ZeroNodeResources() - ResourceLimits_;
+    ResourceLimits_ = ZeroNodeResources();
+    JobFuture_.Reset();
+    ResourcesUpdated_.Fire(deltaResources);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
