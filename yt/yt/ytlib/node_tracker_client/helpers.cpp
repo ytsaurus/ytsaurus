@@ -7,7 +7,7 @@
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <limits>
 
@@ -383,17 +383,19 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
 }
 
 class TSerializableNodeResourceLimitsOverrides
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonStructLite
 {
 public:
     #define XX(name, Name) std::optional<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    TSerializableNodeResourceLimitsOverrides()
+    REGISTER_YSON_STRUCT(TSerializableNodeResourceLimitsOverrides);
+
+    static void Register(TRegistrar registrar)
     {
         #define XX(name, Name) \
-            RegisterParameter(#name, Name) \
+            registrar.Parameter(#name, &TThis::Name) \
                 .GreaterThanOrEqual(0) \
                 .Optional();
         ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)

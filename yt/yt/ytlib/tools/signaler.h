@@ -2,19 +2,21 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSignalerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     std::vector<int> Pids;
     TString SignalName;
 
-    TSignalerConfig();
+    REGISTER_YSON_STRUCT(TSignalerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignalerConfig)

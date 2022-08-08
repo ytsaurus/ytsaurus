@@ -4,31 +4,31 @@ namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectorySynchronizerConfig::TClusterDirectorySynchronizerConfig()
+void TClusterDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
         .Alias("success_expiration_time")
         .Default(TDuration::Seconds(15));
-    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectorySynchronizerConfig::TCellDirectorySynchronizerConfig()
+void TCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("sync_period_splay", SyncPeriodSplay)
+    registrar.Parameter("sync_period_splay", &TThis::SyncPeriodSplay)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("sync_rpc_timeout", SyncRpcTimeout)
+    registrar.Parameter("sync_rpc_timeout", &TThis::SyncRpcTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("sync_cells_with_secondary_masters", SyncCellsWithSecondaryMasters)
+    registrar.Parameter("sync_cells_with_secondary_masters", &TThis::SyncCellsWithSecondaryMasters)
         .Default(true);
 }
 

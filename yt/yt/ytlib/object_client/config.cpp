@@ -74,29 +74,29 @@ void TCachingObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReqExecuteBatchWithRetriesConfig::TReqExecuteBatchWithRetriesConfig()
+void TReqExecuteBatchWithRetriesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("base_backoff", StartBackoff)
+    registrar.Parameter("base_backoff", &TThis::StartBackoff)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_backoff", MaxBackoff)
+    registrar.Parameter("max_backoff", &TThis::MaxBackoff)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("backoff_multiplier", BackoffMultiplier)
+    registrar.Parameter("backoff_multiplier", &TThis::BackoffMultiplier)
         .GreaterThanOrEqual(1)
         .Default(2);
-    RegisterParameter("retry_count", RetryCount)
+    registrar.Parameter("retry_count", &TThis::RetryCount)
         .GreaterThanOrEqual(0)
         .Default(5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbcConfig::TAbcConfig() {
-    RegisterParameter("id", Id)
+void TAbcConfig::Register(TRegistrar registrar) {
+    registrar.Parameter("id", &TThis::Id)
         .GreaterThan(0);
-    RegisterParameter("name", Name)
+    registrar.Parameter("name", &TThis::Name)
         .Default()
         .NonEmpty();
-    RegisterParameter("slug", Slug)
+    registrar.Parameter("slug", &TThis::Slug)
         .NonEmpty();
 }
 

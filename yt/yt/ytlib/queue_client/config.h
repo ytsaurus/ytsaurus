@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NQueueClient {
 
@@ -25,12 +25,14 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentStageChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentConnectionConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TQueueAgentStageChannelConfigPtr> Stages;
 
-    TQueueAgentConnectionConfig();
+    REGISTER_YSON_STRUCT(TQueueAgentConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentConnectionConfig)
