@@ -21,11 +21,10 @@ void TPoolAllocator::AllocateChunk()
     auto fullBlockSize = alignedHeaderSize + alignedBlockSize;
 
     auto blocksPerChunk = Max<size_t>(ChunkSize_ / fullBlockSize, 1);
-    auto chunkSize = NYTAlloc::GetAllocationSize(blocksPerChunk * fullBlockSize);
-
+    auto chunkSize = blocksPerChunk * fullBlockSize;
     auto chunk = TSharedMutableRef::Allocate(
         chunkSize,
-        {.InitializeStorage = false},
+        {.InitializeStorage = false, .ExtendToUsableSize = true},
         Cookie_);
     Chunks_.push_back(chunk);
 
