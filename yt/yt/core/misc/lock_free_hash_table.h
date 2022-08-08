@@ -33,13 +33,13 @@ public:
             : Entry_(entry)
         { }
 
-        explicit operator bool ()
+        explicit operator bool () const
         {
             return Entry_;
         }
 
         // TODO(lukyan): Implement Get returns hazard ptr.
-        TValuePtr Get()
+        TValuePtr Get() const
         {
             if (!Entry_) {
                 return nullptr;
