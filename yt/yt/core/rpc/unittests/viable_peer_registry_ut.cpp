@@ -210,6 +210,19 @@ TEST_P(TParametrizedViablePeerRegistryTest, Simple)
     EXPECT_THAT(channelFactory->GetChannelRegistry(), UnorderedElementsAreArray(AddressesFromChannels(viablePeerRegistry->GetActiveChannels())));
 }
 
+TEST_P(TParametrizedViablePeerRegistryTest, RotateOnlyActivePeer)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 1);
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
+
+    auto rotatedPeer = viablePeerRegistry->MaybeRotateRandomPeer();
+    EXPECT_TRUE(rotatedPeer);
+    EXPECT_EQ(*rotatedPeer, "a");
+}
+
 TEST_P(TParametrizedViablePeerRegistryTest, UnregisterFromBacklog)
 {
     auto channelFactory = New<TFakeChannelFactory>();
@@ -416,6 +429,93 @@ TEST(TPreferLocalViablePeerRegistryTest, Simple)
         auto channel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
         EXPECT_EQ(channel->GetEndpointDescription(), "a.man.yp-c.yandex.net");
     }
+}
+
+TEST(TPreferLocalViablePeerRegistryTest, RegistrationEvictsLesserPeers)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("c.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("d.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("e.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("f.man.yp-c.yandex.net"));
+
+    EXPECT_THAT(
+        channelFactory->GetChannelRegistry(),
+        UnorderedElementsAre("a.man.yp-c.yandex.net", "e.man.yp-c.yandex.net", "f.man.yp-c.yandex.net"));
+
+    EXPECT_FALSE(viablePeerRegistry->MaybeRotateRandomPeer());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("g.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->MaybeRotateRandomPeer());
+    EXPECT_THAT(channelFactory->GetChannelRegistry(), Contains("g.man.yp-c.yandex.net"));
+}
+
+TEST(TPreferLocalViablePeerRegistryTest, PeerRotationRespectsPriority)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("c.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("d.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("e.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("f.man.yp-c.yandex.net"));
+
+    EXPECT_FALSE(viablePeerRegistry->MaybeRotateRandomPeer());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("g.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->MaybeRotateRandomPeer());
+    EXPECT_THAT(channelFactory->GetChannelRegistry(), Contains("g.man.yp-c.yandex.net"));
+}
+
+TEST(TPreferLocalViablePeerRegistryTest, FillFromBacklogRespectsPriority)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("c.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("d.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("e.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("f.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("g.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("h.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("i.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("j.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("k.man.yp-c.yandex.net"));
+
+    EXPECT_THAT(
+        channelFactory->GetChannelRegistry(),
+        UnorderedElementsAre("a.man.yp-c.yandex.net", "e.man.yp-c.yandex.net", "f.man.yp-c.yandex.net"));
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("a.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("e.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("f.man.yp-c.yandex.net"));
+
+    EXPECT_THAT(
+        channelFactory->GetChannelRegistry(),
+        UnorderedElementsAre("h.man.yp-c.yandex.net", "j.man.yp-c.yandex.net", "k.man.yp-c.yandex.net"));
 }
 
 TEST(TPreferLocalViablePeerRegistryTest, DoNotCrashIfNoLocalPeers)

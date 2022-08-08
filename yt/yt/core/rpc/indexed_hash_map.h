@@ -70,6 +70,13 @@ public:
         return Data_[index];
     }
 
+    const std::pair<TKey, TValue>& GetRandomElement() const
+    {
+        YT_VERIFY(Size() > 0);
+
+        return (*this)[RandomNumber<size_t>(Size())];
+    }
+
     int Size() const
     {
         return Data_.size();

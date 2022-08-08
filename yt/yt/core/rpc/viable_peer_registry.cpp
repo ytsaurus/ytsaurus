@@ -43,37 +43,20 @@ public:
 
     bool UnregisterPeer(const TString& address) override
     {
-        // Check if the peer is in the backlog.
-        if (auto backlogPeerIt = BacklogPeers_.find(address); backlogPeerIt != BacklogPeers_.end()) {
-            BacklogPeers_.Erase(address);
+        // Check if the peer is in the backlog and erase it if so.
+        if (EraseBacklogPeer(address)) {
             YT_LOG_DEBUG("Unregistered backlog peer (Address: %v)", address);
             return true;
         }
 
-        auto activePeerIt = ActivePeerToPriority_.find(address);
-
-        if (activePeerIt == ActivePeerToPriority_.end()) {
-            return false;
+        // Check if the peer is active and erase it if so.
+        if (EraseActivePeer(address)) {
+            YT_LOG_DEBUG("Unregistered active peer (Address: %v)", address);
+            ActivateBacklogPeers();
+            return true;
         }
 
-        GeneratePeerHashes(address, [&] (size_t hash) {
-            HashToActiveChannel_.erase(std::make_pair(hash, address));
-        });
-
-        auto activePeersForPriorityIt = PriorityToActivePeers_.find(activePeerIt->second);
-        YT_VERIFY(activePeersForPriorityIt != PriorityToActivePeers_.end());
-        activePeersForPriorityIt->second.Erase(address);
-        if (activePeersForPriorityIt->second.Size() == 0) {
-            PriorityToActivePeers_.erase(activePeersForPriorityIt);
-        }
-
-        ActivePeerToPriority_.Erase(address);
-
-        YT_LOG_DEBUG("Unregistered active peer (Address: %v)", address);
-
-        ActivateBacklogPeers();
-
-        return true;
+        return false;
     }
 
     std::vector<IChannelPtr> GetActiveChannels() const override
@@ -98,14 +81,32 @@ public:
 
     std::optional<TString> MaybeRotateRandomPeer() override
     {
-        if (BacklogPeers_.Size() > 0 && ActivePeerToPriority_.Size() > 0) {
-            auto addressToEvict = ActivePeerToPriority_[RandomNumber<size_t>(ActivePeerToPriority_.Size())];
-            YT_LOG_DEBUG("Moving random viable peer to backlog (Address: %v)", addressToEvict.first);
+        if (!BacklogPeerToPriority_.empty() && ActivePeerToPriority_.Size() > 0) {
+            auto lastActivePriority = PriorityToActivePeers_.rbegin()->first;
+            auto firstBacklogPriority = PriorityToBacklogPeers_.begin()->first;
+
+            YT_LOG_DEBUG(
+                "Trying to rotate random active peer (LastActivePriority: %v, FirstBacklogPriority: %v)",
+                lastActivePriority,
+                firstBacklogPriority);
+
+            if (lastActivePriority < firstBacklogPriority) {
+                return {};
+            }
+
+            // Invariant lastActivePriority <= firstBacklogPriority should hold.
+            YT_VERIFY(lastActivePriority == firstBacklogPriority);
+
+            const auto& activePeers = PriorityToActivePeers_.rbegin()->second;
+            auto addressToEvict = activePeers.GetRandomElement().first;
+
+            YT_LOG_DEBUG("Moving random viable peer to backlog (Address: %v)", addressToEvict);
             // This call will automatically activate a random peer from the backlog.
-            UnregisterPeer(addressToEvict.first);
+            UnregisterPeer(addressToEvict);
             // The rotated peer will end up in the backlog after this call.
-            RegisterPeerWithPriority(addressToEvict.first, addressToEvict.second);
-            return addressToEvict.first;
+            RegisterPeerWithPriority(addressToEvict, lastActivePriority);
+
+            return addressToEvict;
         }
         return {};
     }
@@ -227,6 +228,9 @@ private:
     // Information for non-active peers which go over the max peer count limit.
     TIndexedHashMap<TString, int> BacklogPeers_;
 
+    THashMap<TString, int> BacklogPeerToPriority_;
+    std::map<int, TIndexedHashMap<TString, std::monostate>> PriorityToBacklogPeers_;
+
     const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
 
     //! Returns true if a new peer was successfully registered and false if it already existed.
@@ -241,35 +245,46 @@ private:
         } else {
             // Peer is new, we need to check that we won't be adding more than MaxPeerCount active peers.
             if (ActivePeerToPriority_.Size() >= Config_->MaxPeerCount) {
-                // Add peer to backlog.
-
                 // Check for an existing backlog entry for this peer.
-                if (auto backlogPeerIt = BacklogPeers_.find(address); backlogPeerIt != BacklogPeers_.end()) {
+                if (auto backlogPeerIt = BacklogPeerToPriority_.find(address); backlogPeerIt != BacklogPeerToPriority_.end()) {
                     // Peers should have a fixed priority.
                     YT_VERIFY(backlogPeerIt->second == priority);
                     return false;
                 } else {
+                    // MaxPeerCount is required to be positive.
+                    YT_VERIFY(!PriorityToActivePeers_.empty());
+                    auto lastActivePeerPriority = PriorityToActivePeers_.rbegin()->first;
                     YT_LOG_DEBUG(
-                        "Viable peer added to backlog (Address: %v, Priority: %v)",
-                        address,
+                        "Comparing priorities with active peers (LargestActivePeerPriority: %v, CurrentPeerPriority: %v)",
+                        lastActivePeerPriority,
                         priority);
-                    BacklogPeers_.Set(address, priority);
-                    return true;
+
+                    if (priority < lastActivePeerPriority) {
+                        // If an active peer with lower priority than the one being added exists,
+                        // we move it to the backlog.
+
+                        auto activePeerAddressToEvict = PriorityToActivePeers_.rbegin()->second.GetRandomElement().first;
+                        EraseActivePeer(activePeerAddressToEvict);
+                        AddBacklogPeer(activePeerAddressToEvict, lastActivePeerPriority);
+                        YT_LOG_DEBUG(
+                            "Active peer evicted to backlog (Address: %v, Priority: %v, ReplacingAddress: %v)",
+                            activePeerAddressToEvict,
+                            lastActivePeerPriority,
+                            address);
+                        // We don't return here, since we still need to add our actual peer to the set of active peers.
+                    } else {
+                        AddBacklogPeer(address, priority);
+                        YT_LOG_DEBUG(
+                            "Viable peer added to backlog (Address: %v, Priority: %v)",
+                            address,
+                            priority);
+                        return true;
+                    }
                 }
             }
         }
 
-        ActivePeerToPriority_.Set(address, priority);
-
-        auto channel = CreateChannel_(address);
-
-        // Save the created channel for the given address for sticky requests.
-        GeneratePeerHashes(address, [&] (size_t hash) {
-            HashToActiveChannel_[std::make_pair(hash, address)] = channel;
-        });
-
-        // Save the channel for the given address at its priority.
-        PriorityToActivePeers_[priority].Set(address, channel);
+        AddActivePeer(address, priority);
 
         YT_LOG_DEBUG(
             "Activated viable peer (Address: %v, Priority: %v)",
@@ -290,12 +305,82 @@ private:
 
     void ActivateBacklogPeers()
     {
-        while (BacklogPeers_.Size() > 0 && ActivePeerToPriority_.Size() < Config_->MaxPeerCount) {
-            const auto& randomBacklogPeer = BacklogPeers_[RandomNumber<size_t>(BacklogPeers_.Size())];
-            RegisterPeerWithPriority(randomBacklogPeer.first, randomBacklogPeer.second);
-            YT_LOG_DEBUG("Activated peer from backlog (Address: %v)", randomBacklogPeer.first);
-            BacklogPeers_.Erase(randomBacklogPeer.first);
+        while (!BacklogPeerToPriority_.empty() && ActivePeerToPriority_.Size() < Config_->MaxPeerCount) {
+            auto& [priority, backlogPeers] = *PriorityToBacklogPeers_.begin();
+            auto randomBacklogPeer = backlogPeers.GetRandomElement();
+
+            // Peer will definitely be activated, since the number of active peers is less than MaxPeerCount.
+            RegisterPeerWithPriority(randomBacklogPeer.first, priority);
+            YT_LOG_DEBUG("Activated peer from backlog (Address: %v, Priority: %v)", randomBacklogPeer.first, priority);
+
+            // Until this moment the newly activated peer is still present in the backlog.
+            EraseBacklogPeer(randomBacklogPeer.first);
         }
+    }
+
+    void AddActivePeer(const TString& address, int priority)
+    {
+        ActivePeerToPriority_.Set(address, priority);
+
+        auto channel = CreateChannel_(address);
+
+        // Save the created channel for the given address for sticky requests.
+        GeneratePeerHashes(address, [&] (size_t hash) {
+            HashToActiveChannel_[std::make_pair(hash, address)] = channel;
+        });
+
+        // Save the channel for the given address at its priority.
+        PriorityToActivePeers_[priority].Set(address, channel);
+    }
+
+    void AddBacklogPeer(const TString& address, int priority)
+    {
+        BacklogPeerToPriority_[address] = priority;
+        PriorityToBacklogPeers_[priority].Set(address, {});
+    }
+
+    bool EraseActivePeer(const TString& address)
+    {
+        auto activePeerIt = ActivePeerToPriority_.find(address);
+
+        if (activePeerIt == ActivePeerToPriority_.end()) {
+            return false;
+        }
+
+        GeneratePeerHashes(address, [&] (size_t hash) {
+            HashToActiveChannel_.erase(std::make_pair(hash, address));
+        });
+
+        auto activePeersForPriorityIt = PriorityToActivePeers_.find(activePeerIt->second);
+        YT_VERIFY(activePeersForPriorityIt != PriorityToActivePeers_.end());
+        activePeersForPriorityIt->second.Erase(address);
+        if (activePeersForPriorityIt->second.Size() == 0) {
+            PriorityToActivePeers_.erase(activePeersForPriorityIt);
+        }
+
+        ActivePeerToPriority_.Erase(address);
+
+        return true;
+    }
+
+    bool EraseBacklogPeer(const TString& address)
+    {
+        auto backlogPeerIt = BacklogPeerToPriority_.find(address);
+
+        if (backlogPeerIt == BacklogPeerToPriority_.end()) {
+            return false;
+        }
+
+        auto backlogPeersForPriorityIt = PriorityToBacklogPeers_.find(backlogPeerIt->second);
+        YT_VERIFY(backlogPeersForPriorityIt != PriorityToBacklogPeers_.end());
+        backlogPeersForPriorityIt->second.Erase(address);
+        if (backlogPeersForPriorityIt->second.Size() == 0) {
+            PriorityToBacklogPeers_.erase(backlogPeersForPriorityIt);
+        }
+
+        BacklogPeerToPriority_.erase(backlogPeerIt);
+
+        return true;
     }
 };
 
