@@ -1242,7 +1242,11 @@ IDigest* TTask::GetUserJobMemoryDigest() const
 IDigest* TTask::GetJobProxyMemoryDigest() const
 {
     if (!JobProxyMemoryDigest_) {
-        JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->GetSpec()->JobProxyMemoryDigest);
+        if (const auto& userJobSpec = GetUserJobSpec(); userJobSpec && userJobSpec->JobProxyMemoryDigest) {
+            JobProxyMemoryDigest_ = CreateLogDigest(userJobSpec->JobProxyMemoryDigest);
+        } else {
+            JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->GetSpec()->JobProxyMemoryDigest);
+        }
     }
 
     return JobProxyMemoryDigest_.get();
