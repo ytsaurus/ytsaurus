@@ -102,28 +102,28 @@ bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellConfig::TCellConfig()
+void TCellConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId);
+    registrar.Parameter("cell_id", &TThis::CellId);
     // TODO(babenko): rename to peers?
-    RegisterParameter("addresses", Peers);
+    registrar.Parameter("addresses", &TThis::Peers);
 
-    RegisterPostprocessor([&] () {
-        auto type = TypeFromId(CellId);
+    registrar.Postprocessor([] (TThis* config) {
+        auto type = TypeFromId(config->CellId);
         if (type != EObjectType::MasterCell && type != EObjectType::TabletCell) {
             THROW_ERROR_EXCEPTION("Cell id %v has invalid type %Qlv",
-                CellId,
+                config->CellId,
                 type);
         }
 
-        auto cellTag = CellTagFromId(CellId);
+        auto cellTag = CellTagFromId(config->CellId);
         if (cellTag < MinValidCellTag || cellTag > MaxValidCellTag) {
             THROW_ERROR_EXCEPTION("Cell id %v has invalid cell tag",
-                CellId);
+                config->CellId);
         }
 
         int votingPeerCount = 0;
-        for (const auto& peer : Peers) {
+        for (const auto& peer : config->Peers) {
             if (peer.Voting) {
                 ++votingPeerCount;
             }

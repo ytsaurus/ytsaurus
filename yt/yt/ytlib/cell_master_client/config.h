@@ -4,16 +4,16 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCellMasterClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectoryConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster;
@@ -22,7 +22,9 @@ public:
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
-    TCellDirectoryConfig();
+    REGISTER_YSON_STRUCT(TCellDirectoryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
@@ -30,7 +32,7 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between subsequent directory updates.
@@ -44,7 +46,9 @@ public:
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
-    TCellDirectorySynchronizerConfig();
+    REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)

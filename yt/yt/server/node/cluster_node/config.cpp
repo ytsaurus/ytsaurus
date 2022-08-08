@@ -196,13 +196,13 @@ void TDynamicConfigManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterNodeConnectionConfig::TClusterNodeConnectionConfig()
+void TClusterNodeConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TThis* config) {
         // Provide a lower channel cache TTL to reduce the total number
         // of inter-cluster connections. This also gets propagated to job proxy config
         // and helps decreasing memory footprint.
-        IdleChannelTtl = TDuration::Seconds(60);
+        config->IdleChannelTtl = TDuration::Seconds(60);
     });
 }
 

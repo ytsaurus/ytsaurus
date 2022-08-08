@@ -16,13 +16,13 @@ bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
     return it != SupportedCGroups.end();
 }
 
-TCGroupConfig::TCGroupConfig()
+void TCGroupConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("supported_cgroups", SupportedCGroups)
+    registrar.Parameter("supported_cgroups", &TThis::SupportedCGroups)
         .Default();
 
-    RegisterPostprocessor([&] () {
-        for (const auto& type : SupportedCGroups) {
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& type : config->SupportedCGroups) {
             if (!IsValidCGroupType(type)) {
                 THROW_ERROR_EXCEPTION("Invalid cgroup type %Qv", type);
             }

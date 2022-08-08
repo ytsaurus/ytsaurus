@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     EConnectionType ConnectionType;
@@ -54,7 +54,9 @@ public:
     TTableMountCacheConfigPtr TableMountCache;
     NChaosClient::TReplicationCardCacheConfigPtr ReplicationCardCache;
 
-    TConnectionConfig();
+    REGISTER_YSON_STRUCT(TConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

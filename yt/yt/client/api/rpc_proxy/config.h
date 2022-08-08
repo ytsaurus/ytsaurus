@@ -4,11 +4,11 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/library/re2/re2.h>
+#include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
@@ -62,7 +62,9 @@ public:
 
     i64 ModifyRowsBatchCapacity;
 
-    TConnectionConfig();
+    REGISTER_YSON_STRUCT(TConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

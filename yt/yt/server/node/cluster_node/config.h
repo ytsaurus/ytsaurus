@@ -212,7 +212,9 @@ class TClusterNodeConnectionConfig
     : public NApi::NNative::TConnectionConfig
 {
 public:
-    TClusterNodeConnectionConfig();
+    REGISTER_YSON_STRUCT(TClusterNodeConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterNodeConnectionConfig)

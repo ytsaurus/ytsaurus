@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -68,12 +68,14 @@ DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<int> ChunkReaderPoolSize;
 
-    TDispatcherDynamicConfig();
+    REGISTER_YSON_STRUCT(TDispatcherDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
@@ -81,15 +83,17 @@ DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     static constexpr int DefaultChunkReaderPoolSize = 8;
     int ChunkReaderPoolSize;
 
-    TDispatcherConfig();
-
     TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
+
+    REGISTER_YSON_STRUCT(TDispatcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
@@ -213,13 +217,15 @@ DEFINE_REFCOUNTED_TYPE(TBlockCacheDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkScraperConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerRequest;
 
-    TChunkScraperConfig();
+    REGISTER_YSON_STRUCT(TChunkScraperConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
@@ -227,13 +233,15 @@ DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTeleporterConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Maximum number of chunks to export/import per request.
     int MaxTeleportChunksPerRequest;
 
-    TChunkTeleporterConfig();
+    REGISTER_YSON_STRUCT(TChunkTeleporterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
@@ -241,13 +249,15 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMediumDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
-    TMediumDirectorySynchronizerConfig();
+    REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)

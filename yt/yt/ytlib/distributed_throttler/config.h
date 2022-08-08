@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/ytlib/discovery_client/public.h>
 
@@ -19,7 +19,7 @@ DEFINE_ENUM(EDistributedThrottlerMode,
 );
 
 class TDistributedThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;
@@ -39,7 +39,9 @@ public:
     int HeartbeatThrottlerCountLimit;
     int SkipUnusedThrottlersCountLimit;
 
-    TDistributedThrottlerConfig();
+    REGISTER_YSON_STRUCT(TDistributedThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerConfig)

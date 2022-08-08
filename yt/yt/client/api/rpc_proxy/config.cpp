@@ -1,95 +1,103 @@
 #include "config.h"
 
+#include <yt/yt/core/bus/tcp/config.h>
+
+#include <yt/yt/core/http/config.h>
+
+#include <yt/yt/core/rpc/config.h>
+
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionConfig::TConnectionConfig()
+void TConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cluster_url", ClusterUrl)
+    registrar.Parameter("cluster_url", &TThis::ClusterUrl)
         .Default();
-    RegisterParameter("proxy_role", ProxyRole)
+    registrar.Parameter("proxy_role", &TThis::ProxyRole)
         .Optional();
-    RegisterParameter("proxy_addresses", ProxyAddresses)
+    registrar.Parameter("proxy_addresses", &TThis::ProxyAddresses)
         .Alias("addresses")
         .Optional();
-    RegisterParameter("proxy_endpoints", ProxyEndpoints)
+    registrar.Parameter("proxy_endpoints", &TThis::ProxyEndpoints)
         .Optional();
-    RegisterParameter("proxy_host_order", ProxyHostOrder)
+    registrar.Parameter("proxy_host_order", &TThis::ProxyHostOrder)
         .Optional();
 
-    RegisterParameter("dynamic_channel_pool", DynamicChannelPool)
+    registrar.Parameter("dynamic_channel_pool", &TThis::DynamicChannelPool)
         .DefaultNew();
 
-    RegisterParameter("ping_period", PingPeriod)
+    registrar.Parameter("ping_period", &TThis::PingPeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("proxy_list_update_period", ProxyListUpdatePeriod)
+    registrar.Parameter("proxy_list_update_period", &TThis::ProxyListUpdatePeriod)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("proxy_list_retry_period", ProxyListRetryPeriod)
+    registrar.Parameter("proxy_list_retry_period", &TThis::ProxyListRetryPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_proxy_list_retry_period", MaxProxyListRetryPeriod)
+    registrar.Parameter("max_proxy_list_retry_period", &TThis::MaxProxyListRetryPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("max_proxy_list_update_attempts", MaxProxyListUpdateAttempts)
+    registrar.Parameter("max_proxy_list_update_attempts", &TThis::MaxProxyListUpdateAttempts)
         .Default(3);
 
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
+    registrar.Parameter("rpc_acknowledgement_timeout", &TThis::RpcAcknowledgementTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("timestamp_provider_latest_timestamp_update_period", TimestampProviderLatestTimestampUpdatePeriod)
+    registrar.Parameter("timestamp_provider_latest_timestamp_update_period", &TThis::TimestampProviderLatestTimestampUpdatePeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
+    registrar.Parameter("default_transaction_timeout", &TThis::DefaultTransactionTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("default_lookup_rows_timeout", DefaultLookupRowsTimeout)
+    registrar.Parameter("default_lookup_rows_timeout", &TThis::DefaultLookupRowsTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
+    registrar.Parameter("default_select_rows_timeout", &TThis::DefaultSelectRowsTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("default_total_streaming_timeout", DefaultTotalStreamingTimeout)
+    registrar.Parameter("default_total_streaming_timeout", &TThis::DefaultTotalStreamingTimeout)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("default_streaming_stall_timeout", DefaultStreamingStallTimeout)
+    registrar.Parameter("default_streaming_stall_timeout", &TThis::DefaultStreamingStallTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("default_ping_period", DefaultPingPeriod)
+    registrar.Parameter("default_ping_period", &TThis::DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
-    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+    registrar.Parameter("idle_channel_ttl", &TThis::IdleChannelTtl)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("http_client", HttpClient)
+    registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
 
-    RegisterParameter("request_codec", RequestCodec)
+    registrar.Parameter("request_codec", &TThis::RequestCodec)
         .Default(NCompression::ECodec::None);
-    RegisterParameter("response_codec", ResponseCodec)
+    registrar.Parameter("response_codec", &TThis::ResponseCodec)
         .Default(NCompression::ECodec::None);
     // COMPAT(kiselyovp): legacy RPC codecs
-    RegisterParameter("enable_legacy_rpc_codecs", EnableLegacyRpcCodecs)
+    registrar.Parameter("enable_legacy_rpc_codecs", &TThis::EnableLegacyRpcCodecs)
         .Default(true);
 
-    RegisterParameter("enable_retries", EnableRetries)
+    registrar.Parameter("enable_retries", &TThis::EnableRetries)
         .Default(false);
-    RegisterParameter("retrying_channel", RetryingChannel)
+    registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultNew();
 
-    RegisterParameter("modify_rows_batch_capacity", ModifyRowsBatchCapacity)
+    registrar.Parameter("modify_rows_batch_capacity", &TThis::ModifyRowsBatchCapacity)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    RegisterPreprocessor([&] {
-        DynamicChannelPool->MaxPeerCount = 100;
+    registrar.Preprocessor([] (TThis* config) {
+        config->DynamicChannelPool->MaxPeerCount = 100;
     });
 
-    RegisterPostprocessor([&] {
-        if (!ProxyEndpoints && !ClusterUrl && !ProxyAddresses) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->ProxyEndpoints && !config->ClusterUrl && !config->ProxyAddresses) {
             THROW_ERROR_EXCEPTION("Either \"endpoints\" or \"cluster_url\" or \"proxy_addresses\" must be specified");
         }
-        if (ProxyEndpoints && ProxyRole) {
+        if (config->ProxyEndpoints && config->ProxyRole) {
             THROW_ERROR_EXCEPTION("\"proxy_role\" is not supported by Service Discovery");
         }
-        if (ProxyAddresses && ProxyAddresses->empty()) {
+        if (config->ProxyAddresses && config->ProxyAddresses->empty()) {
             THROW_ERROR_EXCEPTION("\"proxy_addresses\" must not be empty");
         }
     });
