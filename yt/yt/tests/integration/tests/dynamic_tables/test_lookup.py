@@ -1112,20 +1112,43 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         }
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_hunks": True
+        }
+    }
+
+    def create_simple_table(self, path, hunks, **kwargs):
+        value_column_schema = {"name": "value", "type": "string"}
+        if hunks:
+            value_column_schema["max_inline_hunk_size"] = 12
+
+        create_dynamic_table(
+            path,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                value_column_schema],
+            **kwargs)
+
     @authors("lukyan")
-    def test_lookup_cache(self):
+    @pytest.mark.parametrize("hunks", [False, True])
+    def test_lookup_cache(self, hunks):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
+
+        self.create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(0, 1000, 2)]
+        rows = [{"key": i, "value": make_value(i)} for i in range(0, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
         for step in range(1, 5):
-            expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2 * step)]
+            expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2 * step)]
             actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2 * step)], use_lookup_cache=True)
             assert_items_equal(actual, expected)
 
@@ -1137,7 +1160,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert get(path) == 51
 
         # Modify some rows.
-        rows = [{"key": i, "value": str(i + 1)} for i in range(100, 200, 2)]
+        rows = [{"key": i, "value": make_value(i + 1)} for i in range(100, 200, 2)]
         insert_rows("//tmp/t", rows)
 
         # Check lookup result.
@@ -1162,9 +1185,14 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/lookup_rows_cache/used".format(node)) == 0)
 
     @authors("lukyan")
-    def test_lookup_cache_options(self):
+    @pytest.mark.parametrize("hunks", [False, True])
+    def test_lookup_cache_options(self, hunks):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
+
+        self.create_simple_table("//tmp/t", hunks)
 
         sync_mount_table("//tmp/t")
 
@@ -1213,27 +1241,32 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert get(path) == 102
 
     @authors("lukyan")
-    def test_lookup_cache_flush(self):
+    @pytest.mark.parametrize("hunks", [False, True])
+    def test_lookup_cache_flush(self, hunks):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
+
+        self.create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(0, 300, 2)]
+        rows = [{"key": i, "value": make_value(i)} for i in range(0, 300, 2)]
         insert_rows("//tmp/t", rows)
 
-        expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
         # Insert rows again to increase last store timestamp.
-        rows = [{"key": i, "value": str(2 * i)} for i in range(0, 300, 4)]
+        rows = [{"key": i, "value": make_value(2 * i)} for i in range(0, 300, 4)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
         # Lookup again. Check that rows are in cache.
-        expected = [{"key": i, "value": str(2 * i if i % 4 == 0 else i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": make_value(2 * i if i % 4 == 0 else i)} for i in range(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
@@ -1246,8 +1279,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     @pytest.mark.timeout(150)
-    def test_lookup_cache_stress(self):
+    @pytest.mark.parametrize("hunks", [False, True])
+    def test_lookup_cache_stress(self, hunks):
         sync_create_cells(1)
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
 
         create_dynamic_table(
             "//tmp/t",
@@ -1257,8 +1294,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 {"name": "a", "type": "int64"},
                 {"name": "b", "type": "int64"},
                 {"name": "c", "type": "int64"},
-                {"name": "s", "type": "string"},
-                {"name": "t", "type": "string"}],
+                {"name": "s", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
+                {"name": "t", "type": "string", "max_inline_hunk_size": 12 if hunks else None}],
             lookup_cache_rows_per_tablet=100)
 
         sync_mount_table("//tmp/t")
@@ -1274,7 +1311,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 "k": decorate_key(k),
                 "v": wave * count + k,
                 choice(["a", "b", "c"]): randint(1, 10000),
-                choice(["s", "t"]): str(randint(1, 10000))}
+                choice(["s", "t"]): make_value(randint(1, 10000))}
                 for k in sample(list(range(1, count)), 200)]
             insert_rows("//tmp/t", rows, update=True)
             print_debug("Insert rows ", rows)
@@ -1299,8 +1336,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     @pytest.mark.timeout(150)
-    def test_lookup_cache_stress2(self):
+    @pytest.mark.parametrize("hunks", [False, True])
+    def test_lookup_cache_stress2(self, hunks):
         sync_create_cells(1)
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
 
         create_dynamic_table(
             "//tmp/t",
@@ -1311,8 +1352,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 {"name": "a", "type": "int64"},
                 {"name": "b", "type": "int64"},
                 {"name": "c", "type": "int64"},
-                {"name": "s", "type": "string"},
-                {"name": "t", "type": "string"},
+                {"name": "s", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
+                {"name": "t", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
                 {"name": "md5", "type": "string"}],
             lookup_cache_rows_per_tablet=100)
 
@@ -1348,7 +1389,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 "v": k,
                 "i": wave,
                 choice(["a", "b", "c"]): randint(1, 10000),
-                choice(["s", "t"]): str(randint(1, 10000))}
+                choice(["s", "t"]): make_value(randint(1, 10000))}
                 for k in sample(list(range(1, count)), 200)]
 
             for row in rows:
