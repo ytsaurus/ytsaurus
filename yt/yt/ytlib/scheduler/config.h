@@ -128,6 +128,30 @@ DEFINE_REFCOUNTED_TYPE(TPoolPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOffloadingPoolSettingsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Pool;
+
+    std::optional<double> Weight;
+
+    bool Tentative;
+
+    TJobResourcesConfigPtr ResourceLimits;
+
+    REGISTER_YSON_STRUCT(TOffloadingPoolSettingsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_TYPE(TOffloadingPoolSettingsConfig)
+DEFINE_REFCOUNTED_TYPE(TOffloadingPoolSettingsConfig)
+
+using TOffloadingSettings = THashMap<TString, TOffloadingPoolSettingsConfigPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulableConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -265,9 +289,7 @@ public:
 
     THashMap<TString, TString> MeteringTags;
 
-    std::optional<TString> OffloadingPool;
-
-    std::optional<TString> OffloadingPoolTree;
+    TOffloadingSettings OffloadingSettings;
 
     void Validate(const TString& poolName);
 

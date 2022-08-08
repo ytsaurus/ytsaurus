@@ -1931,10 +1931,7 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();
 
-    registrar.Parameter("offloading_pool_tree", &TThis::OffloadingPoolTree)
-        .Default();
-
-    registrar.Parameter("offloading_pool", &TThis::OffloadingPool)
+    registrar.Parameter("offloading_settings", &TThis::OffloadingSettings)
         .Default();
 }
 
@@ -2298,6 +2295,24 @@ void TJobCpuMonitorConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_cpu_limit", &TThis::MinCpuLimit)
         .InRange(0, 1)
         .Default(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOffloadingPoolSettingsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pool", &TThis::Pool)
+        .NonEmpty();
+
+    registrar.Parameter("weight", &TThis::Weight)
+        .Optional()
+        .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+
+    registrar.Parameter("tentative", &TThis::Tentative)
+        .Default(false);
+
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

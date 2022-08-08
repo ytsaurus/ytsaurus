@@ -1787,10 +1787,14 @@ class TestMultiTreeOperations(YTEnvSetup):
         check_count(statistics, "other", 1)
 
     @authors("renadeen")
-    def test_offloading_pool(self):
+    def test_offloading_pool_simple(self):
         create_pool("primary_pool", pool_tree="default")
-        set("//sys/pools/primary_pool/@offloading_pool_tree", "offload_tree")
-        set("//sys/pools/primary_pool/@offloading_pool", "offload_pool")
+        set("//sys/pools/primary_pool/@offloading_settings", {
+            "offload_tree": {
+                "pool": "offload_pool",
+                "weight": 0.5,
+            }
+        })
 
         create_custom_pool_tree_with_one_node("offload_tree")
         create_pool("offload_pool", pool_tree="offload_tree")
@@ -1798,11 +1802,26 @@ class TestMultiTreeOperations(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "primary_pool"}, job_count=3)
         wait(lambda: op.get_job_count("running") == 3)
 
-        op_pool_trees_path = (
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
-        )
-        wait(lambda: exists(op_pool_trees_path + "offload_tree/pool"))
-        wait(lambda: get(op_pool_trees_path + "offload_tree/pool", "offload_pool"))
+        op_pool_trees_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: exists(op_pool_trees_path + "/pool"))
+        wait(lambda: get(op_pool_trees_path + "/pool", "offload_pool"))
+        wait(lambda: get(op_pool_trees_path + "/weight", 0.5))
 
         release_breakpoint()
         op.track()
+
+    @authors("renadeen")
+    def test_pool_with_offloading_settings_cannot_have_children(self):
+        create_pool("my_pool")
+        set("//sys/pools/my_pool/@offloading_settings", {
+            "offload_tree": {"pool": "offload_pool"}
+        })
+        with pytest.raises(YtError):
+            create_pool("child", parent_name="my_pool")
+
+        remove("//sys/pools/my_pool/@offloading_settings")
+        create_pool("child", parent_name="my_pool")
+        with pytest.raises(YtError):
+            set("//sys/pools/my_pool/@offloading_settings", {
+                "offload_tree": {"pool": "offload_pool"}
+            })
