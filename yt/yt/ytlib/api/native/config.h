@@ -207,11 +207,13 @@ public:
 
     bool UseFollowersForWriteTargetsAllocation;
 
-    TConnectionConfig();
-
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.
     void OverrideMasterAddresses(const std::vector<TString>& addresses);
+
+    REGISTER_YSON_STRUCT(TConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

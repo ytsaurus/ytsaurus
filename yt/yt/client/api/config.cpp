@@ -18,15 +18,15 @@ void TTableMountCacheConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionConfig::TConnectionConfig()
+void TConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("connection_type", ConnectionType)
+    registrar.Parameter("connection_type", &TThis::ConnectionType)
         .Default(EConnectionType::Native);
-    RegisterParameter("cluster_name", ClusterName)
+    registrar.Parameter("cluster_name", &TThis::ClusterName)
         .Default();
-    RegisterParameter("table_mount_cache", TableMountCache)
+    registrar.Parameter("table_mount_cache", &TThis::TableMountCache)
         .DefaultNew();
-    RegisterParameter("replication_card_cache", ReplicationCardCache)
+    registrar.Parameter("replication_card_cache", &TThis::ReplicationCardCache)
         .Optional();
 }
 

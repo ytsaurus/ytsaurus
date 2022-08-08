@@ -12,27 +12,27 @@ using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TCellDirectoryConfig::TCellDirectoryConfig()
+void TCellDirectoryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("primary_master", PrimaryMaster)
+    registrar.Parameter("primary_master", &TThis::PrimaryMaster)
         .Default();
-    RegisterParameter("secondary_masters", SecondaryMasters)
+    registrar.Parameter("secondary_masters", &TThis::SecondaryMasters)
         .Default();
-    RegisterParameter("master_cache", MasterCache)
+    registrar.Parameter("master_cache", &TThis::MasterCache)
         .Default();
 
-    RegisterParameter("caching_object_service", CachingObjectService)
+    registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        CachingObjectService->RateLimit = 1000000; // effective infinity
+    registrar.Preprocessor([] (TThis* config) {
+        config->CachingObjectService->RateLimit = 1000000; // effective infinity
     });
-    RegisterPostprocessor([&] {
-        if (PrimaryMaster) {
-            auto cellId = PrimaryMaster->CellId;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->PrimaryMaster) {
+            auto cellId = config->PrimaryMaster->CellId;
             auto primaryCellTag = CellTagFromId(cellId);
             THashSet<TCellTag> cellTags = {primaryCellTag};
-            for (const auto& cellConfig : SecondaryMasters) {
+            for (const auto& cellConfig : config->SecondaryMasters) {
                 if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
                     THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",
                         cellConfig->CellId);
@@ -49,16 +49,16 @@ TCellDirectoryConfig::TCellDirectoryConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectorySynchronizerConfig::TCellDirectorySynchronizerConfig()
+void TCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Minutes(60));
-    RegisterParameter("retry_period", RetryPeriod)
+    registrar.Parameter("retry_period", &TThis::RetryPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
         .Alias("success_expiraton_time")
         .Default(TDuration::Minutes(20));
-    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
 }

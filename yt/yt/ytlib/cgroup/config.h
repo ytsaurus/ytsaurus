@@ -2,21 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCGroupConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::vector<TString> SupportedCGroups;
 
-    TCGroupConfig();
-
     bool IsCGroupSupported(const TString& cgroupType) const;
+
+    REGISTER_YSON_STRUCT(TCGroupConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

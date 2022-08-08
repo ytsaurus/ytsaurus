@@ -47,7 +47,9 @@ class TIntermediateChunkScraperConfig
 public:
     TDuration RestartTimeout;
 
-    TIntermediateChunkScraperConfig();
+    REGISTER_YSON_STRUCT(TIntermediateChunkScraperConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)

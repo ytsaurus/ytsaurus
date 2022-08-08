@@ -8,9 +8,9 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
+void TIntermediateChunkScraperConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("restart_timeout", RestartTimeout)
+    registrar.Parameter("restart_timeout", &TThis::RestartTimeout)
         .Default(TDuration::Seconds(10));
 }
 

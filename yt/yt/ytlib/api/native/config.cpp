@@ -64,221 +64,221 @@ void TClockServersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionConfig::TConnectionConfig()
+void TConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("networks", Networks)
+    registrar.Parameter("networks", &TThis::Networks)
         .Default();
-    RegisterParameter("timestamp_provider", TimestampProvider)
+    registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .Default();
-    RegisterParameter("cell_directory", CellDirectory)
+    registrar.Parameter("cell_directory", &TThis::CellDirectory)
         .DefaultNew();
-    RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+    registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("chaos_cell_directory_synchronizer", ChaosCellDirectorySynchronizer)
+    registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("clock_servers", ClockServers)
+    registrar.Parameter("clock_servers", &TThis::ClockServers)
         .Default();
-    RegisterParameter("master_cell_directory_synchronizer", MasterCellDirectorySynchronizer)
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("scheduler", Scheduler)
+    registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
-    RegisterParameter("queue_agent", QueueAgent)
+    registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
-    RegisterParameter("transaction_manager", TransactionManager)
+    registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
-    RegisterParameter("clock_manager", ClockManager)
+    registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
-    RegisterParameter("block_cache", BlockCache)
+    registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
-    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+    registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultNew();
-    RegisterParameter("chunk_replica_cache", ChunkReplicaCache)
+    registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCache)
         .DefaultNew();
-    RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+    registrar.Parameter("cluster_directory_synchronizer", &TThis::ClusterDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("medium_directory_synchronizer", MediumDirectorySynchronizer)
+    registrar.Parameter("medium_directory_synchronizer", &TThis::MediumDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
+    registrar.Parameter("node_directory_synchronizer", &TThis::NodeDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+    registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
 
-    RegisterParameter("query_evaluator", QueryEvaluator)
+    registrar.Parameter("query_evaluator", &TThis::QueryEvaluator)
         .DefaultNew();
-    RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
+    registrar.Parameter("default_select_rows_timeout", &TThis::DefaultSelectRowsTimeout)
         // COMPAT(babenko)
         .Alias("query_timeout")
         .Default(TDuration::Seconds(60));
-    RegisterParameter("select_rows_response_codec", SelectRowsResponseCodec)
+    registrar.Parameter("select_rows_response_codec", &TThis::SelectRowsResponseCodec)
         // COMPAT(babenko)
         .Alias("query_response_codec")
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
+    registrar.Parameter("default_input_row_limit", &TThis::DefaultInputRowLimit)
         .GreaterThan(0)
         .Default(1000000);
-    RegisterParameter("default_output_row_limit", DefaultOutputRowLimit)
+    registrar.Parameter("default_output_row_limit", &TThis::DefaultOutputRowLimit)
         .GreaterThan(0)
         .Default(1000000);
 
-    RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
+    registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
         .DefaultNew();
 
-    RegisterParameter("write_rows_timeout", WriteRowsTimeout)
+    registrar.Parameter("write_rows_timeout", &TThis::WriteRowsTimeout)
         // COMPAT(babenko)
         .Alias("write_timeout")
         .Default(TDuration::Seconds(60));
-    RegisterParameter("write_rows_request_codec", WriteRowsRequestCodec)
+    registrar.Parameter("write_rows_request_codec", &TThis::WriteRowsRequestCodec)
         // COMPAT(babenko)
         .Alias("write_request_codec")
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("max_rows_per_write_request", MaxRowsPerWriteRequest)
+    registrar.Parameter("max_rows_per_write_request", &TThis::MaxRowsPerWriteRequest)
         .GreaterThan(0)
         .Default(1000);
-    RegisterParameter("max_data_weight_per_write_request", MaxDataWeightPerWriteRequest)
+    registrar.Parameter("max_data_weight_per_write_request", &TThis::MaxDataWeightPerWriteRequest)
         .GreaterThan(0)
         .Default(64_MB);
-    RegisterParameter("max_rows_per_transaction", MaxRowsPerTransaction)
+    registrar.Parameter("max_rows_per_transaction", &TThis::MaxRowsPerTransaction)
         .GreaterThan(0)
         .Default(100000);
 
-    RegisterParameter("default_lookup_rows_timeout", DefaultLookupRowsTimeout)
+    registrar.Parameter("default_lookup_rows_timeout", &TThis::DefaultLookupRowsTimeout)
         // COMPAT(babenko)
         .Alias("lookup_timeout")
         .Default(TDuration::Seconds(60));
-    RegisterParameter("lookup_rows_request_codec", LookupRowsRequestCodec)
+    registrar.Parameter("lookup_rows_request_codec", &TThis::LookupRowsRequestCodec)
         .Alias("lookup_request_codec")
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("lookup_rows_response_codec", LookupRowsResponseCodec)
+    registrar.Parameter("lookup_rows_response_codec", &TThis::LookupRowsResponseCodec)
         .Alias("lookup_response_codec")
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("max_rows_per_lookup_request", MaxRowsPerLookupRequest)
+    registrar.Parameter("max_rows_per_lookup_request", &TThis::MaxRowsPerLookupRequest)
         .Alias("max_rows_per_read_request")
         .GreaterThan(0)
         .Default(1000);
 
-    RegisterParameter("default_get_tablet_errors_limit", DefaultGetTabletErrorsLimit)
+    registrar.Parameter("default_get_tablet_errors_limit", &TThis::DefaultGetTabletErrorsLimit)
         .Default(5)
         .GreaterThan(0);
 
-    RegisterParameter("udf_registry_path", UdfRegistryPath)
+    registrar.Parameter("udf_registry_path", &TThis::UdfRegistryPath)
         .Default("//tmp/udfs");
-    RegisterParameter("function_registry_cache", FunctionRegistryCache)
+    registrar.Parameter("function_registry_cache", &TThis::FunctionRegistryCache)
         .DefaultNew();
-    RegisterParameter("function_impl_cache", FunctionImplCache)
+    registrar.Parameter("function_impl_cache", &TThis::FunctionImplCache)
         .DefaultNew();
 
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(4);
 
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
-    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+    registrar.Parameter("idle_channel_ttl", &TThis::IdleChannelTtl)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("default_get_in_sync_replicas_timeout", DefaultGetInSyncReplicasTimeout)
+    registrar.Parameter("default_get_in_sync_replicas_timeout", &TThis::DefaultGetInSyncReplicasTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("default_get_tablet_infos_timeout", DefaultGetTabletInfosTimeout)
+    registrar.Parameter("default_get_tablet_infos_timeout", &TThis::DefaultGetTabletInfosTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("default_trim_table_timeout", DefaultTrimTableTimeout)
+    registrar.Parameter("default_trim_table_timeout", &TThis::DefaultTrimTableTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("default_get_operation_retry_interval", DefaultGetOperationRetryInterval)
+    registrar.Parameter("default_get_operation_retry_interval", &TThis::DefaultGetOperationRetryInterval)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("default_get_operation_timeout", DefaultGetOperationTimeout)
+    registrar.Parameter("default_get_operation_timeout", &TThis::DefaultGetOperationTimeout)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("default_list_jobs_timeout", DefaultListJobsTimeout)
+    registrar.Parameter("default_list_jobs_timeout", &TThis::DefaultListJobsTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("default_get_job_timeout", DefaultGetJobTimeout)
+    registrar.Parameter("default_get_job_timeout", &TThis::DefaultGetJobTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
+    registrar.Parameter("default_list_operations_timeout", &TThis::DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("default_pull_rows_timeout", DefaultPullRowsTimeout)
+    registrar.Parameter("default_pull_rows_timeout", &TThis::DefaultPullRowsTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("default_sync_alien_cells_timeout", DefaultSyncAlienCellsTimeout)
+    registrar.Parameter("default_sync_alien_cells_timeout", &TThis::DefaultSyncAlienCellsTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("default_chaos_node_serivce_timeout", DefaultChaosNodeServiceTimeout)
+    registrar.Parameter("default_chaos_node_serivce_timeout", &TThis::DefaultChaosNodeServiceTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("cypress_write_yson_nesting_level_limit", CypressWriteYsonNestingLevelLimit)
+    registrar.Parameter("cypress_write_yson_nesting_level_limit", &TThis::CypressWriteYsonNestingLevelLimit)
         .Default(NYson::OriginalNestingLevelLimit)
         .LessThanOrEqual(NYson::NewNestingLevelLimit);
 
-    RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+    registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)
         .Default(TDuration::Seconds(45));
 
-    RegisterParameter("default_cache_sticky_group_size", DefaultCacheStickyGroupSize)
+    registrar.Parameter("default_cache_sticky_group_size", &TThis::DefaultCacheStickyGroupSize)
         .Alias("cache_sticky_group_size_override")
         .Default(1);
-    RegisterParameter("enable_dynamic_cache_sticky_group_size", EnableDynamicCacheStickyGroupSize)
+    registrar.Parameter("enable_dynamic_cache_sticky_group_size", &TThis::EnableDynamicCacheStickyGroupSize)
         .Default(false);
 
-    RegisterParameter("max_request_window_size", MaxRequestWindowSize)
+    registrar.Parameter("max_request_window_size", &TThis::MaxRequestWindowSize)
         .GreaterThan(0)
         .Default(65536);
 
-    RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
+    registrar.Parameter("upload_transaction_timeout", &TThis::UploadTransactionTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("hive_sync_rpc_timeout", HiveSyncRpcTimeout)
+    registrar.Parameter("hive_sync_rpc_timeout", &TThis::HiveSyncRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("connection_name", ConnectionName)
+    registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
         .Default("default");
 
-    RegisterParameter("permission_cache", PermissionCache)
+    registrar.Parameter("permission_cache", &TThis::PermissionCache)
         .DefaultNew();
 
-    RegisterParameter("job_shell_descriptor_cache", JobShellDescriptorCache)
+    registrar.Parameter("job_shell_descriptor_cache", &TThis::JobShellDescriptorCache)
         .Alias("job_node_descriptor_cache")
         .DefaultNew();
 
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .Default(100'000)
         .GreaterThan(0);
 
-    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+    registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .Default(10'000)
         .GreaterThan(0);
 
-    RegisterParameter("nested_input_transaction_timeout", NestedInputTransactionTimeout)
+    registrar.Parameter("nested_input_transaction_timeout", &TThis::NestedInputTransactionTimeout)
         .Default(TDuration::Minutes(10));
-    RegisterParameter("nested_input_transaction_ping_period", NestedInputTransactionPingPeriod)
+    registrar.Parameter("nested_input_transaction_ping_period", &TThis::NestedInputTransactionPingPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("cluster_liveness_check_timeout", ClusterLivenessCheckTimeout)
+    registrar.Parameter("cluster_liveness_check_timeout", &TThis::ClusterLivenessCheckTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("chunk_fetch_retries", ChunkFetchRetries)
+    registrar.Parameter("chunk_fetch_retries", &TThis::ChunkFetchRetries)
         .DefaultNew();
 
-    RegisterParameter("enable_networking", EnableNetworking)
+    registrar.Parameter("enable_networking", &TThis::EnableNetworking)
         .Default(true);
 
-    RegisterParameter("sync_replica_cache", SyncReplicaCache)
+    registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
 
-    RegisterParameter("chaos_cell_channel", ChaosCellChannel)
+    registrar.Parameter("chaos_cell_channel", &TThis::ChaosCellChannel)
         .DefaultNew();
 
-    RegisterParameter("hydra_admin_channel", HydraAdminChannel)
+    registrar.Parameter("hydra_admin_channel", &TThis::HydraAdminChannel)
         .DefaultNew();
 
-    RegisterParameter("sequoia_path", SequoiaPath)
+    registrar.Parameter("sequoia_path", &TThis::SequoiaPath)
         .Default("//sys/sequoia");
-    RegisterParameter("sequoia_transaction_timeout", SequoiaTransactionTimeout)
+    registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("use_followers_for_write_targets_allocation", UseFollowersForWriteTargetsAllocation)
+    registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
         .Default(false);
 
-    RegisterPreprocessor([&] {
-        FunctionImplCache->Capacity = 100;
+    registrar.Preprocessor([] (TThis* config) {
+        config->FunctionImplCache->Capacity = 100;
 
-        JobShellDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
-        JobShellDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
-        JobShellDescriptorCache->RefreshTime = TDuration::Minutes(1);
+        config->JobShellDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
+        config->JobShellDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        config->JobShellDescriptorCache->RefreshTime = TDuration::Minutes(1);
 
-        SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
-        SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
+        config->SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        config->SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
     });
 }
 

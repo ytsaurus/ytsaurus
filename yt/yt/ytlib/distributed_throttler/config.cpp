@@ -8,35 +8,35 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDistributedThrottlerConfig::TDistributedThrottlerConfig()
+void TDistributedThrottlerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("member_client", MemberClient)
+    registrar.Parameter("member_client", &TThis::MemberClient)
         .DefaultNew();
-    RegisterParameter("discovery_client", DiscoveryClient)
+    registrar.Parameter("discovery_client", &TThis::DiscoveryClient)
         .DefaultNew();
 
-    RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
+    registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("limit_update_period", LimitUpdatePeriod)
+    registrar.Parameter("limit_update_period", &TThis::LimitUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("leader_update_period", LeaderUpdatePeriod)
+    registrar.Parameter("leader_update_period", &TThis::LeaderUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("throttler_expiration_time", ThrottlerExpirationTime)
+    registrar.Parameter("throttler_expiration_time", &TThis::ThrottlerExpirationTime)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TThis::Mode)
         .Default(EDistributedThrottlerMode::Adaptive);
-    RegisterParameter("extra_limit_ratio", ExtraLimitRatio)
+    registrar.Parameter("extra_limit_ratio", &TThis::ExtraLimitRatio)
         .Default(0.1);
-    RegisterParameter("ema_alpha", EmaAlpha)
+    registrar.Parameter("ema_alpha", &TThis::EmaAlpha)
         .Default(0.1);
 
-    RegisterParameter("heartbeat_throttler_count_limit", HeartbeatThrottlerCountLimit)
+    registrar.Parameter("heartbeat_throttler_count_limit", &TThis::HeartbeatThrottlerCountLimit)
         .Default(100);
-    
-    RegisterParameter("skip_unused_throttlers_count_limit", SkipUnusedThrottlersCountLimit)
+
+    registrar.Parameter("skip_unused_throttlers_count_limit", &TThis::SkipUnusedThrottlersCountLimit)
         .Default(50);
 }
 

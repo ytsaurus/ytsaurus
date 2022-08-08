@@ -27,17 +27,17 @@ void TRemoteWriterOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDispatcherDynamicConfig::TDispatcherDynamicConfig()
+void TDispatcherDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
+    registrar.Parameter("chunk_reader_pool_size", &TThis::ChunkReaderPoolSize)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDispatcherConfig::TDispatcherConfig()
+void TDispatcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
+    registrar.Parameter("chunk_reader_pool_size", &TThis::ChunkReaderPoolSize)
         .Default(DefaultChunkReaderPoolSize);
 }
 
@@ -119,9 +119,9 @@ void TBlockCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkScraperConfig::TChunkScraperConfig()
+void TChunkScraperConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_chunks_per_request", MaxChunksPerRequest)
+    registrar.Parameter("max_chunks_per_request", &TThis::MaxChunksPerRequest)
         .Default(10000)
         .GreaterThan(0)
         .LessThan(100000);
@@ -129,18 +129,18 @@ TChunkScraperConfig::TChunkScraperConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkTeleporterConfig::TChunkTeleporterConfig()
+void TChunkTeleporterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
+    registrar.Parameter("max_teleport_chunks_per_request", &TThis::MaxTeleportChunksPerRequest)
         .GreaterThan(0)
         .Default(5000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumDirectorySynchronizerConfig::TMediumDirectorySynchronizerConfig()
+void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(60));
 }
 

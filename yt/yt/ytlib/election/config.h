@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NElection {
 
@@ -30,7 +30,7 @@ bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Cell id; an arbitrary random object id of |Cell| type.
@@ -40,11 +40,13 @@ public:
     //! Some could be Null to indicate that the peer is temporarily missing.
     std::vector<TCellPeerConfig> Peers;
 
-    TCellConfig();
-
     void ValidateAllPeersPresent();
 
     int CountVotingPeers() const;
+
+    REGISTER_YSON_STRUCT(TCellConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellConfig)
