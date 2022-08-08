@@ -22,7 +22,7 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent directory updates.
@@ -32,7 +32,9 @@ public:
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
-    TClusterDirectorySynchronizerConfig();
+    REGISTER_YSON_STRUCT(TClusterDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
@@ -40,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent directory updates.
@@ -56,7 +58,9 @@ public:
     //! will be sent to some secondary master.
     bool SyncCellsWithSecondaryMasters;
 
-    TCellDirectorySynchronizerConfig();
+    REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)

@@ -237,4 +237,90 @@ TString TReadProcessSmapsTool::operator()(int pid) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMountTmpfsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("user_id", &TThis::UserId)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSpawnShellConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("command", &TThis::Command)
+        .Default(std::nullopt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUmountConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("detach", &TThis::Detach);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSetThreadPriorityConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("thread_id", &TThis::ThreadId);
+    registrar.Parameter("priority", &TThis::Priority);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TFSQuotaConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_space_limit", &TThis::DiskSpaceLimit)
+        .GreaterThanOrEqual(0)
+        .Default();
+    registrar.Parameter("inode_limit", &TThis::InodeLimit)
+        .GreaterThanOrEqual(0)
+        .Default();
+    registrar.Parameter("user_id", &TThis::UserId)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("path", &TThis::Path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChownChmodConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .NonEmpty();
+    registrar.Parameter("user_id", &TThis::UserId)
+        .Default();
+    registrar.Parameter("permissions", &TThis::Permissions)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGetDirectorySizesAsRootConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("paths", &TThis::Paths)
+        .Default();
+    registrar.Parameter("ignore_unavailable_files", &TThis::IgnoreUnavailableFiles)
+        .Default(true);
+    registrar.Parameter("deduplicate_by_inodes", &TThis::DeduplicateByINodes)
+        .Default(false);
+    registrar.Parameter("check_device_id", &TThis::CheckDeviceId)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCopyDirectoryContentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("source", &TThis::Source)
+        .NonEmpty();
+    registrar.Parameter("destination", &TThis::Destination)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

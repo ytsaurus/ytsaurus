@@ -13,11 +13,11 @@ using namespace NConcurrency;
 
 // NB: Moving this into the header will break tool registration as the linker
 // will optimize it out.
-TSignalerConfig::TSignalerConfig()
+void TSignalerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("pids", Pids)
+    registrar.Parameter("pids", &TThis::Pids)
         .Default();
-    RegisterParameter("signal_name", SignalName)
+    registrar.Parameter("signal_name", &TThis::SignalName)
         .NonEmpty();
 }
 

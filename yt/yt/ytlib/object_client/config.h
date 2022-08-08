@@ -99,7 +99,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReqExecuteBatchWithRetriesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration StartBackoff;
@@ -107,7 +107,9 @@ public:
     double BackoffMultiplier;
     int RetryCount;
 
-    TReqExecuteBatchWithRetriesConfig();
+    REGISTER_YSON_STRUCT(TReqExecuteBatchWithRetriesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
@@ -115,14 +117,16 @@ DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAbcConfig
-    : virtual public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int Id;
     std::optional<TString> Name;
     TString Slug;
 
-    TAbcConfig();
+    REGISTER_YSON_STRUCT(TAbcConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAbcConfig)

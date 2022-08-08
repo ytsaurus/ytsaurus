@@ -4,9 +4,9 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueueAgentConnectionConfig::TQueueAgentConnectionConfig()
+void TQueueAgentConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("stages", Stages)
+    registrar.Parameter("stages", &TThis::Stages)
         .Default();
 }
 

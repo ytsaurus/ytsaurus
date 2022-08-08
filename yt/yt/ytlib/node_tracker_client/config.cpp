@@ -4,15 +4,15 @@ namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeDirectorySynchronizerConfig::TNodeDirectorySynchronizerConfig()
+void TNodeDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Minutes(2));
 
-    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
         .Alias("success_expiration_time")
         .Default(TDuration::Minutes(2));
-    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Minutes(2));
 }

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTools {
 
@@ -37,21 +37,16 @@ struct TCreateDirectoryAsRootTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMountTmpfsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Path;
     int UserId;
     i64 Size;
 
-    TMountTmpfsConfig()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("user_id", UserId)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("size", Size)
-            .GreaterThanOrEqual(0);
-    }
+    REGISTER_YSON_STRUCT(TMountTmpfsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig)
@@ -66,16 +61,14 @@ struct TMountTmpfsAsRootTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSpawnShellConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TString> Command;
 
-    TSpawnShellConfig()
-    {
-        RegisterParameter("command", Command)
-            .Default(std::nullopt);
-    }
+    REGISTER_YSON_STRUCT(TSpawnShellConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpawnShellConfig)
@@ -90,17 +83,15 @@ struct TSpawnShellTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUmountConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Path;
     bool Detach;
 
-    TUmountConfig()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("detach", Detach);
-    }
+    REGISTER_YSON_STRUCT(TUmountConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUmountConfig)
@@ -115,17 +106,15 @@ struct TUmountAsRootTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSetThreadPriorityConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int ThreadId;
     int Priority;
 
-    TSetThreadPriorityConfig()
-    {
-        RegisterParameter("thread_id", ThreadId);
-        RegisterParameter("priority", Priority);
-    }
+    REGISTER_YSON_STRUCT(TSetThreadPriorityConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSetThreadPriorityConfig)
@@ -140,7 +129,7 @@ struct TSetThreadPriorityAsRootTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFSQuotaConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<i64> DiskSpaceLimit;
@@ -148,18 +137,9 @@ public:
     int UserId;
     TString Path;
 
-    TFSQuotaConfig()
-    {
-        RegisterParameter("disk_space_limit", DiskSpaceLimit)
-            .GreaterThanOrEqual(0)
-            .Default();
-        RegisterParameter("inode_limit", InodeLimit)
-            .GreaterThanOrEqual(0)
-            .Default();
-        RegisterParameter("user_id", UserId)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("path", Path);
-    }
+    REGISTER_YSON_STRUCT(TFSQuotaConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFSQuotaConfig)
@@ -172,22 +152,16 @@ struct TFSQuotaTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChownChmodConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Path;
     std::optional<uid_t> UserId;
     std::optional<int> Permissions;
 
-    TChownChmodConfig()
-    {
-        RegisterParameter("path", Path)
-            .NonEmpty();
-        RegisterParameter("user_id", UserId)
-            .Default();
-        RegisterParameter("permissions", Permissions)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TChownChmodConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChownChmodConfig)
@@ -200,7 +174,7 @@ struct TChownChmodTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetDirectorySizesAsRootConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TString> Paths;
@@ -208,17 +182,9 @@ public:
     bool DeduplicateByINodes;
     bool CheckDeviceId;
 
-    TGetDirectorySizesAsRootConfig()
-    {
-        RegisterParameter("paths", Paths)
-            .Default();
-        RegisterParameter("ignore_unavailable_files", IgnoreUnavailableFiles)
-            .Default(true);
-        RegisterParameter("deduplicate_by_inodes", DeduplicateByINodes)
-            .Default(false);
-        RegisterParameter("check_device_id", CheckDeviceId)
-            .Default(false);
-    }
+    REGISTER_YSON_STRUCT(TGetDirectorySizesAsRootConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGetDirectorySizesAsRootConfig)
@@ -231,19 +197,15 @@ struct TGetDirectorySizesAsRootTool
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCopyDirectoryContentConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Source;
     TString Destination;
 
-    TCopyDirectoryContentConfig()
-    {
-        RegisterParameter("source", Source)
-            .NonEmpty();
-        RegisterParameter("destination", Destination)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TCopyDirectoryContentConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCopyDirectoryContentConfig)
