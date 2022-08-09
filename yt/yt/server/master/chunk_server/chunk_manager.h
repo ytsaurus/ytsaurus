@@ -316,6 +316,11 @@ struct IChunkManager
 
     virtual std::vector<NRpc::IChannelPtr> GetChunkReplicatorChannels() = 0;
 
+    //! Returns number of lost vital chunks at current master cell.
+    // NB: This function sums amounts of lost vital chunks from all alive
+    // chunk replicators only and never returns an error.
+    virtual TFuture<i64> GetCellLostVitalChunkCount() = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

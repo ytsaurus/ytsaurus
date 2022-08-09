@@ -128,6 +128,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <util/generic/cast.h>
 
 #include <util/random/random.h>
@@ -143,6 +145,7 @@ using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
+using namespace NYson;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressServer;
@@ -5270,6 +5273,37 @@ private:
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         return {cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader)};
+    }
+
+    TFuture<i64> GetCellLostVitalChunkCount() override
+    {
+        auto channels = GetChunkReplicatorChannels();
+
+        std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
+        responseFutures.reserve(channels.size());
+        for (const auto& channel : channels) {
+            TObjectServiceProxy proxy(channel);
+            auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
+            responseFutures.push_back(proxy.Execute(req));
+        }
+
+        return AllSet(std::move(responseFutures))
+            .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
+                i64 chunkCount = 0;
+                for (const auto& rspOrError : rspOrErrors) {
+                    if (!rspOrError.IsOK()) {
+                        YT_LOG_DEBUG(rspOrError, "Failed to get local lost vital chunk count");
+                        continue;
+                    }
+
+                    const auto& rsp = rspOrError.Value();
+                    auto response = ConvertTo<INodePtr>(TYsonString{rsp->value()});
+                    YT_VERIFY(response->GetType() == ENodeType::Int64);
+                    chunkCount += response->AsInt64()->GetValue();
+                }
+
+                return chunkCount;
+            }));
     }
 
     std::vector<TError> GetAlerts() const
