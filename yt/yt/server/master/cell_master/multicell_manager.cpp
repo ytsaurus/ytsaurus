@@ -1049,8 +1049,9 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         cellStatistics->set_chunk_count(chunkManager->Chunks().GetSize());
 
-        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
-        cellStatistics->set_lost_vital_chunk_count(chunkReplicator->LostVitalChunks().size());
+        auto lostVitalChunkCount = WaitFor(chunkManager->GetCellLostVitalChunkCount())
+            .ValueOrThrow();
+        cellStatistics->set_lost_vital_chunk_count(lostVitalChunkCount);
 
         if (IsPrimaryMaster()) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
