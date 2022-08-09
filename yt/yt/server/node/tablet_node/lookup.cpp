@@ -99,7 +99,7 @@ protected:
     const std::unique_ptr<IWireProtocolWriter> Writer_;
 
     TSchemafulRowMerger Merger_;
-    
+
     TUnversionedAdapter(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
@@ -113,7 +113,6 @@ protected:
             columnFilter,
             tabletSnapshot->ColumnEvaluator,
             timestampRange.RetentionTimestamp)
-        
     { }
 
     void WriteRow(TUnversionedRow row)
@@ -1006,7 +1005,7 @@ private:
     void OnStoreSessionsPrepared();
     void LookupFromStoreSessions(TStoreSessionList* sessions, int activeStoreIndex);
 
-    TSharedRef FinishSession(const std::vector<TSharedRef>& rowset);
+    TSharedRef FinishSession(std::vector<TSharedRef>&& rowset);
 
     void UpdateUnmergedStatistics(const TStoreSessionList& sessions);
 };
@@ -1313,14 +1312,14 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession)->Run();
+                std::move(lookupSession))->Run();
         } else {
             return New<TTabletLookupSession<TRowCachePipeline<TRowAdapter>>>(
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession)->Run();
+                std::move(lookupSession))->Run();
         }
     } else {
         if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
@@ -1329,14 +1328,14 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession)->Run();
+                std::move(lookupSession))->Run();
         } else {
             return New<TTabletLookupSession<TSimplePipeline<TRowAdapter>>>(
                 std::move(tabletSnapshot),
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession)->Run();
+                std::move(lookupSession))->Run();
         }
     }
 }
@@ -1646,10 +1645,10 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::DoRun()
         if (!maybeError->IsOK()) {
             return MakeFuture<TSharedRef>(TError(*maybeError));
         }
-        return MakeFuture(FinishSession(maybeError->Value()));
+        return MakeFuture(FinishSession(std::move(maybeError->Value())));
     }
 
-    return future.Apply(BIND(
+    return future.ApplyUnique(BIND(
         &TTabletLookupSession::FinishSession,
         MakeStrong(this))
         .AsyncVia(GetInvoker()));
@@ -1798,7 +1797,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
 }
 
 template <class TPipeline>
-TSharedRef TTabletLookupSession<TPipeline>::FinishSession(const std::vector<TSharedRef>& rowset)
+TSharedRef TTabletLookupSession<TPipeline>::FinishSession(std::vector<TSharedRef>&& rowset)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
