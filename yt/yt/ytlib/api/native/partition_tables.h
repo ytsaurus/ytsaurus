@@ -4,6 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
 namespace NYT::NApi::NNative {
@@ -22,9 +23,14 @@ public:
     TMultiTablePartitions PartitionTables();
 
 private:
+    struct TInputTable
+    {
+        std::vector<NChunkClient::TInputChunkPtr> Chunks;
+        size_t TableIndex;
+    };
+
     struct TVersionedSliceFetchState
     {
-        std::vector<TFuture<void>> AsyncResults;
         std::vector<NTableClient::IChunkSliceFetcherPtr> TableFetchers;
         std::vector<size_t> TableIndices;
     };
@@ -49,14 +55,10 @@ private:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
         const NChunkPools::TChunkStripeListPtr& chunkStripeList);
     void AddDataSlice(int tableIndex, NChunkClient::TLegacyDataSlicePtr dataSlice);
-    void RequestVersionedDataSlices(
-        const std::vector<NChunkClient::TInputChunkPtr>& inputChunks,
-        int tableIndex,
-        const NTableClient::TTableSchemaPtr& schema);
+    void RequestVersionedDataSlices(const TInputTable& inputTable);
     void FetchVersionedDataSlices();
-    void AddUnversionedDataSlices(const std::vector<NChunkClient::TInputChunkPtr>& inputChunks,
-        int tableIndex,
-        const NTableClient::TTableSchemaPtr& schema);
+    void AddUnversionedDataSlices(const TInputTable& inputTable);
+    NTableClient::TComparator GetComparator(int tableIndex);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

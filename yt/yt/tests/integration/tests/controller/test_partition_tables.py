@@ -12,22 +12,29 @@ class TestPartitionTablesBase(YTEnvSetup):
         sync_create_cells(1)
 
     @staticmethod
-    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False):
+    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False, columnar=False):
         schema = [
             {"name": "key_0", "type": "string", "sort_order": "ascending"},
             {"name": "key_1", "type": "string", "sort_order": "ascending"},
-            {"name": "value", "type": "string"},
+            {"name": "value_0", "type": "string"},
+            {"name": "value_1", "type": "string"},
         ]
-        create("table", table, attributes={"schema": schema, "replication_factor": 1, "dynamic": dynamic})
+        create("table", table, attributes={
+            "schema": schema,
+            "replication_factor": 1,
+            "dynamic": dynamic,
+            "optimize_for": "scan" if columnar else "lookup",
+        })
         if dynamic:
             sync_mount_table(table)
 
         for chunk in range(chunk_count):
             rows = []
             for i in range(rows_per_chunk):
-                row = {"key_0": "{:010d}".format(chunk), "key_1": "{:010d}".format(i), "value": ""}
+                row = {"key_0": "{:010d}".format(chunk), "key_1": "{:010d}".format(i), "value_0": "", "value_1": ""}
                 value_weight = row_weight - len(dumps(row, yson_format="binary"))
-                row["value"] = "x" * value_weight
+                row["value_0"] = "x" * (value_weight // 2)
+                row["value_1"] = "x" * (value_weight - len(row["value_0"]))
                 rows.append(row)
             if dynamic:
                 insert_rows(table, rows)
@@ -65,6 +72,20 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             }
             for lower_limit in range(0, 6000, 2000)
         ]
+
+    @authors("galtsev")
+    def test_unordered_one_table_with_columnar_statistics(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, columnar=True)
+
+        partitions_full = partition_tables([table], data_weight_per_partition=data_weight // 3)
+        partitions_half = partition_tables([table + "{key_0,value_1}"],  data_weight_per_partition=data_weight // 3)
+
+        assert len(partitions_half) > 0
+        assert len(partitions_half) < len(partitions_full)
 
     @authors("galtsev")
     def test_unordered_one_sorted_dynamic_table(self):

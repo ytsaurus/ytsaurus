@@ -13,6 +13,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -74,6 +75,18 @@ void TMultiTablePartitioner::CollectInput()
 
     int totalChunkCount = 0;
 
+    std::vector<TInputTable> inputTables;
+
+    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+        GetCurrentInvoker(),
+        Client_,
+        TColumnarStatisticsFetcher::TOptions{
+            .Config = Options_.FetcherConfig,
+            .NodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(),
+            .EnableEarlyFinish = true,
+            .Logger = Logger,
+        });
+
     for (const auto& [tableIndex, path] : Enumerate(Paths_)) {
         auto transactionId = path.GetTransactionId();
 
@@ -86,8 +99,10 @@ void TMultiTablePartitioner::CollectInput()
             transactionId
                 ? *transactionId
                 : Options_.TransactionId,
-            // TODO(galtsev): use columnar statistics - TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value; see https://a.yandex-team.ru/review/2564596/details#comment-3570985
-            {TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value},
+            {
+                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
+                TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
+            },
             Logger);
 
         YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)",
@@ -98,15 +113,41 @@ void TMultiTablePartitioner::CollectInput()
 
         AddDataSource(tableIndex, schema, dynamic);
 
-        YT_LOG_DEBUG("Fetching chunks (Path: %v)", path);
-
-        if (dynamic && schema->IsSorted()) {
-            RequestVersionedDataSlices(inputChunks, tableIndex, schema);
-        } else {
-            AddUnversionedDataSlices(inputChunks, tableIndex, schema);
+        if (path.GetColumns()) {
+            auto stableColumnNames = MapNamesToStableNames(*schema, *path.GetColumns(), NonexistentColumnName);
+            for (const auto& inputChunk : inputChunks) {
+                columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames);
+            }
         }
 
+        inputTables.emplace_back(TInputTable{std::move(inputChunks), tableIndex});
+
         totalChunkCount += inputChunks.size();
+    }
+
+    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
+        YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
+            columnarStatisticsFetcher->GetChunkCount());
+        WaitFor(columnarStatisticsFetcher->Fetch())
+            .ThrowOnError();
+        YT_LOG_INFO("Columnar statistics fetched");
+        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+    }
+
+    YT_VERIFY(IsDataSourcesReady());
+
+    for (const auto& inputTable : inputTables) {
+        YT_LOG_DEBUG("Fetching chunks (Path: %v)", Paths_[inputTable.TableIndex]);
+
+        const auto& dataSource = DataSourceDirectory_->DataSources()[inputTable.TableIndex];
+        auto dynamic = dataSource.GetType() == EDataSourceType::VersionedTable;
+        auto sorted = dataSource.Schema()->IsSorted();
+
+        if (dynamic && sorted) {
+            RequestVersionedDataSlices(inputTable);
+        } else {
+            AddUnversionedDataSlices(inputTable);
+        }
     }
 
     FetchVersionedDataSlices();
@@ -185,16 +226,13 @@ std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> TMultiTablePartitio
     for (auto chunkStripe : chunkStripeList->Stripes) {
         for (auto dataSlice : chunkStripe->DataSlices) {
             auto tableIndex = dataSlice->GetInputStreamIndex();
+            const auto& comparator = GetComparator(tableIndex);
             for (auto chunkSlice : dataSlice->ChunkSlices) {
                 YT_VERIFY(tableIndex < std::ssize(slicesByTable));
                 auto& dataSliceDescriptor = slicesByTable[tableIndex].emplace_back();
                 auto& chunkSpec = dataSliceDescriptor.ChunkSpecs.emplace_back();
 
-                ToProto(
-                    &chunkSpec,
-                    chunkSlice,
-                    DataSourceDirectory_->DataSources()[tableIndex].Schema()->ToComparator(),
-                    dataSlice->Type);
+                ToProto(&chunkSpec, chunkSlice, comparator, dataSlice->Type);
             }
         }
     }
@@ -212,11 +250,11 @@ void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr da
     ChunkPool_->Add(std::move(chunkStripe));
 }
 
-void TMultiTablePartitioner::RequestVersionedDataSlices(
-    const std::vector<TInputChunkPtr>& inputChunks,
-    int tableIndex,
-    const TTableSchemaPtr& schema)
+void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& inputTable)
 {
+    const auto& [inputChunks, tableIndex] = inputTable;
+    const auto& comparator = GetComparator(tableIndex);
+
     YT_LOG_DEBUG("Fetching versioned data slices (TableIndex: %v, ChunkCount: %v)",
         tableIndex,
         inputChunks.size());
@@ -231,7 +269,6 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(
         Logger);
 
     for (const auto& inputChunk : inputChunks) {
-        auto comparator = schema->ToComparator();
         auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
         InferLimitsFromBoundaryKeys(inputChunkSlice, RowBuffer_);
         auto dataSlice = CreateUnversionedInputDataSlice(inputChunkSlice);
@@ -241,22 +278,29 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(
         fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true);
     }
 
-    FetchState_.AsyncResults.emplace_back(fetcher->Fetch());
     FetchState_.TableFetchers.emplace_back(std::move(fetcher));
     FetchState_.TableIndices.emplace_back(tableIndex);
 }
 
 void TMultiTablePartitioner::FetchVersionedDataSlices()
 {
-    if (FetchState_.AsyncResults.empty()) {
+    YT_VERIFY(IsDataSourcesReady());
+
+    if (FetchState_.TableFetchers.empty()) {
         return;
     }
 
-    WaitFor(AllSucceeded(FetchState_.AsyncResults))
+    std::vector<TFuture<void>> asyncResults;
+    asyncResults.reserve(FetchState_.TableFetchers.size());
+    for (const auto& fetcher : FetchState_.TableFetchers) {
+        asyncResults.emplace_back(fetcher->Fetch());
+    }
+
+    WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
     for (const auto& [fetcher, tableIndex] : Zip(FetchState_.TableFetchers, FetchState_.TableIndices)) {
-        auto comparator = DataSourceDirectory_->DataSources()[tableIndex].Schema()->ToComparator();
+        const auto& comparator = GetComparator(tableIndex);
         auto chunkSliceList = fetcher->GetChunkSlices();
         for (const auto& dataSlice : CombineVersionedChunkSlices(chunkSliceList, comparator)) {
             AddDataSlice(tableIndex, dataSlice);
@@ -264,14 +308,13 @@ void TMultiTablePartitioner::FetchVersionedDataSlices()
     }
 }
 
-void TMultiTablePartitioner::AddUnversionedDataSlices(
-    const std::vector<TInputChunkPtr>& inputChunks,
-    int tableIndex,
-    const TTableSchemaPtr& schema)
+void TMultiTablePartitioner::AddUnversionedDataSlices(const TInputTable& inputTable)
 {
-    for (const auto& inputChunk : inputChunks) {
+    const auto& comparator = GetComparator(inputTable.TableIndex);
+
+    for (const auto& inputChunk : inputTable.Chunks) {
         auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
-        inputChunkSlice->TransformToNew(RowBuffer_, schema->ToComparator().GetLength());
+        inputChunkSlice->TransformToNew(RowBuffer_, comparator.GetLength());
         TLegacyDataSlice::TChunkSliceList inputChunkSliceList;
 
         inputChunkSliceList.emplace_back(std::move(inputChunkSlice));
@@ -280,8 +323,15 @@ void TMultiTablePartitioner::AddUnversionedDataSlices(
             std::move(inputChunkSliceList),
             TInputSliceLimit());
 
-        AddDataSlice(tableIndex, dataSlice);
+        AddDataSlice(inputTable.TableIndex, dataSlice);
     }
+}
+
+TComparator TMultiTablePartitioner::GetComparator(int tableIndex)
+{
+    YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
+
+    return DataSourceDirectory_->DataSources()[tableIndex].Schema()->ToComparator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
