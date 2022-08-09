@@ -20,12 +20,16 @@ import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -191,6 +195,14 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
 
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return (CompletableFuture<TCheckPermissionResult>) callMethod("checkPermission");
+    }
+
+    public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
+        return (CompletableFuture<GetFileFromCacheResult>) callMethod("getFileFromCache");
+    }
+
+    public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
+        return (CompletableFuture<PutFileToCacheResult>) callMethod("putFileToCache");
     }
 
     private CompletableFuture<?> callMethod(String methodName) {
