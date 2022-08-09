@@ -2676,6 +2676,8 @@ private:
 
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
     {
+        YT_VERIFY(HasHydraContext());
+
         if (!chunk->IsBlob() || !chunk->IsConfirmed() || chunk->IsForeign()) {
             return;
         }
@@ -4040,10 +4042,8 @@ private:
             LoadHistogramValues(context, dummy);
             LoadHistogramValues(context, dummy);
             dummy.Reset();
-            NeedRecomputeChunkWeightStatisticsHistogram_ = true;
-        } else {
-            NeedRecomputeChunkWeightStatisticsHistogram_ = true;
         }
+        NeedRecomputeChunkWeightStatisticsHistogram_ = context.GetVersion() < EMasterReign::FixChunkWeightHistograms;
 
         // COMPAT(gritukan)
         NeedCreateHunkChunkLists_ = context.GetVersion() < EMasterReign::ChunkListType;
@@ -4378,6 +4378,7 @@ private:
 
         NeedRecomputeApprovedReplicaCount_ = false;
         NeedCreateHunkChunkLists_ = false;
+        NeedRecomputeChunkWeightStatisticsHistogram_ = false;
     }
 
     void SetZeroState() override
