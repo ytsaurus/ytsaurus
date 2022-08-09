@@ -22,7 +22,7 @@ struct IIOThroughputMeter
         i64 DiskWriteCapacity = 0;
     };
 
-    virtual TIOCapacity GetLocationIOCapacity(TChunkLocationUuid id) const = 0;
+    virtual TIOCapacity GetLocationIOCapacity(TChunkLocationUuid uuid) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOThroughputMeter);

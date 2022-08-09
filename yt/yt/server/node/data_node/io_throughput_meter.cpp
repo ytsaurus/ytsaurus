@@ -31,7 +31,7 @@ class TRandomFileProvider
 public:
     TRandomFileProvider(
         TChunkStorePtr chunkStore,
-        TChunkLocationUuid locationId,
+        TChunkLocationUuid locationUuid,
         i64 minimalFileSize,
         NLogging::TLogger logger)
         : Logger(std::move(logger))
@@ -40,7 +40,7 @@ public:
 
         for (const auto& chunk : chunkStore->GetChunks()) {
             auto location = chunk->GetLocation();
-            if (chunk->IsActive() || chunk->IsRemoveScheduled() || location->GetUuid() != locationId) {
+            if (chunk->IsActive() || chunk->IsRemoveScheduled() || location->GetUuid() != locationUuid) {
                 continue;
             }
             try {
@@ -58,7 +58,7 @@ public:
         }
 
         YT_LOG_DEBUG("Loaded chunks (Location: %v, Count: %v, ElapsedTime: %v)",
-            locationId,
+            locationUuid,
             Chunks_.size(),
             timer.GetElapsedTime());
     }
@@ -433,13 +433,13 @@ public:
         ProbesExecutor_->Start();
     }
 
-    TIOCapacity GetLocationIOCapacity(TChunkLocationUuid id) const override
+    TIOCapacity GetLocationIOCapacity(TChunkLocationUuid uuid) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto it = Locations_.find(id);
+        auto it = Locations_.find(uuid);
         if (it == Locations_.end()) {
-            YT_LOG_WARNING("IO capacity requested for unknown location (LocationUUID: %v)", id);
+            YT_LOG_WARNING("IO capacity requested for unknown location (LocationUUID: %v)", uuid);
             return {};
         }
         auto capacity = it->second->GetMeasured();

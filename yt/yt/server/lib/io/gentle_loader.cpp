@@ -46,7 +46,7 @@ public:
     void OpenNewFiles()
     {
         std::vector<TFuture<TReadFileInfo>> futures;
-        for (int i = 0; i < Config_->ReadersCount; ++i) {
+        for (int i = 0; i < Config_->ReaderCount; ++i) {
             auto file = FileProvider->GetRandomExistingFile();
             if (!file) {
                 continue;
@@ -175,7 +175,7 @@ public:
         , IOEngine_(std::move(engine))
         , Logger(std::move(logger))
         , WriteThreadPool_(New<TThreadPool>(4, "RandomWriter"))
-        , TempFilesDir(NFS::JoinPaths(path, Config_->WritersFolder))
+        , TempFilesDir(NFS::JoinPaths(path, Config_->WriterDirectory))
     {
         if (!NFS::Exists(TempFilesDir)) {
             NFS::MakeDirRecursive(TempFilesDir);
@@ -183,9 +183,9 @@ public:
 
         NFS::CleanTempFiles(TempFilesDir);
         auto invoker = WriteThreadPool_->GetInvoker();
-        WritersQueue_.reserve(Config_->WritersCount);
+        WritersQueue_.reserve(Config_->WriterCount);
 
-        for (int index = 0; index < Config_->WritersCount; ++index) {
+        for (int index = 0; index < Config_->WriterCount; ++index) {
             WritersQueue_.push_back(std::make_shared<TNonblockingQueue<TRequestInfo>>());
             invoker->Invoke(BIND(&TRandomWriter::RunWriter, MakeStrong(this), index));
         }
@@ -209,7 +209,7 @@ public:
     void Stop()
     {
         auto invoker = WriteThreadPool_->GetInvoker();
-        for (auto& queue : WritersQueue_) {
+        for (const auto& queue : WritersQueue_) {
             queue->Enqueue(TRequestInfo{
                 .Stop = true,
             });
@@ -284,7 +284,7 @@ private:
     void OpenNewFile(TWriterInfo& info)
     {
         CloseFile(info);
-        CleanupStaleFiles(info.StaleFiles, Config_->StaleFilesCountPerWriter);
+        CleanupStaleFiles(info.StaleFiles, Config_->StaleFileCountPerWriter);
 
         info.FilePath = NFS::JoinPaths(TempFilesDir, Format("%v%v", ++FileCounter_, NFS::TempFileSuffix));
 
@@ -358,7 +358,7 @@ private:
                 writerIndex);
     }
 
-    static TSharedMutableRef MakeRandomBuffer(i32 size)
+    static TSharedMutableRef MakeRandomBuffer(int size)
     {
         auto data = TSharedMutableRef::AllocatePageAligned(size, {.InitializeStorage = false});
         for (int index = 0; index < size; ++index) {
@@ -552,10 +552,10 @@ private:
             if (std::ssize(Probes_) < Config_->MaxInFlightProbeCount) {
                 Probes_.push_back(RandomReader_->Read(EWorkloadCategory::Idle, Config_->PacketSize));
             } else {
-                YT_LOG_ERROR("Something went wrong: max probe request count reached");
+                YT_LOG_ERROR("Congestion Detector max probe request count reached");
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Congestion detector probes failed");
+            YT_LOG_ERROR(ex, "Congestion Detector probes failed");
         }
     }
 };
@@ -837,11 +837,6 @@ public:
         , Started_(false)
     { }
 
-    ~TGentleLoader()
-    {
-        YT_LOG_DEBUG("Destroyed TGentleLoader");
-    }
-
     virtual void Start(const TRequestSizes& workloadModel) override
     {
         YT_VERIFY(!Started_);
@@ -855,7 +850,7 @@ public:
     {
         YT_VERIFY(Started_);
         Started_ = false;
-        YT_LOG_DEBUG("Signaling Gentle loader to stop");
+        YT_LOG_DEBUG("Signaling Gentle Loader to stop");
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(i64 /*currentWindow*/), Congested);
@@ -884,7 +879,7 @@ private:
             try {
                 DoRun(workloadModel);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Gentle loader run failed");
+                YT_LOG_ERROR(ex, "Gentle Loader run failed");
                 TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
             }
         }
@@ -923,26 +918,26 @@ private:
 
         ImbueWorkloadModel(workloadModel);
 
-        const i32 initialWindow = Config_->InitialWindowSize;
+        const int initialWindow = Config_->InitialWindowSize;
 
         // State variable that limits the amount of data to send to medium.
-        i32 congestionWindow = initialWindow;
+        int congestionWindow = initialWindow;
         auto congestionWindowChanged = TInstant::Now();
 
         // State variable determines whether the slow start or congestion avoidance algorithm
         // is used to control data transmission
-        i32 slowStartThreshold = Config_->InitialSlowStartThreshold
+        int slowStartThreshold = Config_->InitialSlowStartThreshold
             ? Config_->InitialSlowStartThreshold
             : Config_->MaxWindowSize;
 
         TCongestedState lastState;
-        ui64 requestsCounter = 0;
+        i64 requestCounter = 0;
         ResetStatistics();
 
         while (Started_) {
             try {
                 SendRequest(congestionWindow, *randomReader, *randomWriter);
-                ++requestsCounter;
+                ++requestCounter;
 
                 auto state = congestionDetector->GetState();
                 if (state.Epoch == lastState.Epoch) {
@@ -994,12 +989,12 @@ private:
                 }
 
                 YT_LOG_DEBUG("New congestion message received"
-                    " (Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestsCounter: %v)",
+                    " (Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestCounter: %v)",
                     state.Epoch,
                     state.Status,
                     congestionWindow,
                     slowStartThreshold,
-                    requestsCounter);
+                    requestCounter);
 
                 // Signal probing round finished.
                 ProbesRoundFinished_.Fire(prevWindow);
@@ -1013,14 +1008,13 @@ private:
                     ResetStatistics();
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Gentle loader loop failed");
+                YT_LOG_ERROR(ex, "Gentle Loader loop failed");
             }
         }
     }
 
     void WaitAfterCongested(TIntrusivePtr<TCongestionDetector> congestionDetector)
     {
-        YT_LOG_DEBUG("Before waiting for all requests");
         auto wait = WaitFor(AllSet(Results_));
         Y_UNUSED(wait);
 
@@ -1038,7 +1032,7 @@ private:
         }
     }
 
-    void SendRequest(i32 congestionWindow, TRandomReader& reader, TRandomWriter& writer)
+    void SendRequest(int congestionWindow, TRandomReader& reader, TRandomWriter& writer)
     {
         if (std::ssize(Results_) >= Config_->MaxInFlightCount) {
             auto _ = WaitFor(AnySet(Results_, {.CancelInputOnShortcut = false}));
@@ -1178,4 +1172,4 @@ ILoadAdjusterPtr CreateLoadAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NIO
+} // namespace NYT::NIO

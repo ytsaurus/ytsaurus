@@ -263,8 +263,8 @@ public:
         GentleLoaderConfig_->CongestionDetector->ProbeDeadline = TDuration::MilliSeconds(30);
         GentleLoaderConfig_->CongestionDetector->ProbesInterval = TDuration::MilliSeconds(30);
         GentleLoaderConfig_->WaitAfterCongested = TDuration::MilliSeconds(100);
-        GentleLoaderConfig_->WritersCount = 10;
-        GentleLoaderConfig_->ReadersCount = 10;
+        GentleLoaderConfig_->WriterCount = 10;
+        GentleLoaderConfig_->ReaderCount = 10;
 
         IOEngineConfig_ = TIOEngineMockConfig{
             .OpenLatency = TDuration::MilliSeconds(1),
@@ -340,7 +340,7 @@ TEST_F(TGentleLoaderTest, TestErrorHandling)
     IOEngineConfig_.ReadFailingProbability = 5;
     IOEngineConfig_.WriteFailingProbability = 5;
 
-    GentleLoaderConfig_->WritersCount = 20;
+    GentleLoaderConfig_->WriterCount = 20;
 
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);

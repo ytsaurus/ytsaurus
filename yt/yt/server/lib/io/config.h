@@ -61,25 +61,25 @@ struct TCongestionDetectorConfig
     bool ProbesEnabled;
 
     // How many probes to make before making decision.
-    i32 ProbesPerRound;
+    int ProbesPerRound;
 
     // Time between probes;
     TDuration ProbesInterval;
 
     // Probe read size.
-    i32 PacketSize;
+    int PacketSize;
 
     // Probe read request timeout.
     TDuration ProbeDeadline;
 
     // Limiting in-flight probes count to arbitrary large value.
-    i32 MaxInFlightProbeCount;
+    int MaxInFlightProbeCount;
 
     // Failed probes percentages.
-    i32 OverloadThreshold;
+    int OverloadThreshold;
 
     // Failed probes percentages.
-    i32 HeavyOverloadThreshold;
+    int HeavyOverloadThreshold;
 
     // User interactive overload 99p latency.
     TDuration UserRequestOverloadThreshold;
@@ -88,7 +88,7 @@ struct TCongestionDetectorConfig
     TDuration UserRequestHeavyOverloadThreshold;
 
     // Consecutive user failed probes count.
-    i32 UserRequestFailedProbesThreshold;
+    int UserRequestFailedProbesThreshold;
 
     TCongestionDetectorConfig();
 };
@@ -103,10 +103,10 @@ struct TGentleLoaderConfig
     TCongestionDetectorConfigPtr CongestionDetector;
 
     // Read/Write requests sizes.
-    i32 PacketSize;
+    int PacketSize;
 
     // IO request count currently in flight.
-    i32 MaxInFlightCount;
+    int MaxInFlightCount;
 
     // 100 means only reads, 0 - only writes.
     ui8 DefaultReadToWriteRatio;
@@ -119,21 +119,21 @@ struct TGentleLoaderConfig
 
     // Window increments/decrements are done in terms of segments.
     // Measured in packets.
-    i32 SegmentSize;
+    int SegmentSize;
 
     // Sane maximum window value.
-    i32 MaxWindowSize;
+    int MaxWindowSize;
 
     // Each writer corresponds to one open file for write.
-    i32 WritersCount;
+    int WriterCount;
 
     // Each reader corresponds to one open file for read.
-    i32 ReadersCount;
+    int ReaderCount;
 
-    i32 MaxWriteFileSize;
+    int MaxWriteFileSize;
 
     // Subfolder to create temporary files.
-    TString WritersFolder;
+    TString WriterDirectory;
 
     // Cleanup written files after testing finished.
     bool RemoveWrittenFiles;
@@ -143,7 +143,7 @@ struct TGentleLoaderConfig
 
     // Hold this count of written files before remove.
     // Helps to simulate disk space utilization.
-    i32 StaleFilesCountPerWriter;
+    int StaleFileCountPerWriter;
 
     // Don't send load request for this period after congested.
     TDuration WaitAfterCongested;
@@ -154,12 +154,12 @@ struct TGentleLoaderConfig
 
     bool UseDirectIO;
 
-    // Max write rate limmit (mb/s)
+    // Max write rate limit (mb/s)
     i64 MaxWriteRate;
 
     // The followings are very low-level settings (do not use if unsure).
-    i32 InitialWindowSize;
-    i32 InitialSlowStartThreshold;
+    int InitialWindowSize;
+    int InitialSlowStartThreshold;
     TDuration WindowPeriod;
 
     REGISTER_YSON_STRUCT(TGentleLoaderConfig);
