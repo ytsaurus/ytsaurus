@@ -84,12 +84,6 @@ public:
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<NDataNode::TCacheLocationPtr>, Locations);
 
-    //! Raised when a chunk is added to the cache.
-    DECLARE_SIGNAL(void(NDataNode::IChunkPtr), ChunkAdded);
-
-    //! Raised when a chunk is removed from the cache.
-    DECLARE_SIGNAL(void(NDataNode::IChunkPtr), ChunkRemoved);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

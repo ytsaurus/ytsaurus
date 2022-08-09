@@ -468,9 +468,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
-    DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
-    DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
-
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
@@ -791,8 +788,6 @@ private:
             chunk->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnAdded(chunk);
-
-        ChunkAdded_.Fire(chunk);
     }
 
     void OnRemoved(const TCachedBlobChunkPtr& chunk) override
@@ -804,8 +799,6 @@ private:
             chunk->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnRemoved(chunk);
-
-        ChunkRemoved_.Fire(chunk);
     }
 
 
@@ -1227,8 +1220,6 @@ private:
                 producer(output);
             });
             cookie.EndInsert(chunk);
-
-            ChunkAdded_.Fire(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
                 << ex;
@@ -1613,8 +1604,6 @@ std::function<void(IOutputStream*)> TChunkCache::MakeArtifactDownloadProducer(
 }
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkCache, std::vector<TCacheLocationPtr>, Locations, *Impl_);
-DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkAdded, *Impl_);
-DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkRemoved, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
