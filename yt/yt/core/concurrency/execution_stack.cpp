@@ -75,19 +75,25 @@ TExecutionStack::TExecutionStack(size_t size)
         -1,
         0));
 
-    if (Base_ == MAP_FAILED) {
+    auto checkOom = [] {
         if (LastSystemError() == ENOMEM) {
             fprintf(stderr, "Out-of-memory condition detected while allocating execution stack; terminating\n");
             _exit(9);
         }
+    };
+
+    if (Base_ == MAP_FAILED) {
+        checkOom();
         YT_LOG_FATAL(TError::FromSystem(), "Failed to allocate execution stack (Size: %v)", Size_);
     }
 
     if (::mprotect(Base_, guardSize, PROT_NONE) == -1) {
+        checkOom();
         YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack from below (GuardSize: %v)", guardSize);
     }
 
     if (::mprotect(Base_ + guardSize + Size_, guardSize, PROT_NONE) == -1) {
+        checkOom();
         YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack from above (GuardSize: %v)", guardSize);
     }
 
