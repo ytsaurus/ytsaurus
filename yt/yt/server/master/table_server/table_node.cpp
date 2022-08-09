@@ -12,6 +12,12 @@
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
+
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -96,6 +102,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TreatAsConsumer);
     Save(context, IsVitalConsumer);
     Save(context, *MountConfigStorage);
+    Save(context, HunkStorageNode);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(
@@ -191,6 +198,11 @@ void TTableNode::TDynamicTableAttributes::Load(
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BuiltinMountConfig) {
         Load(context, *MountConfigStorage);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {
+        Load(context, HunkStorageNode);
     }
 }
 
@@ -757,6 +769,11 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
         }
     }
 
+    if (DynamicTableAttributes_ && DynamicTableAttributes_->HunkStorageNode) {
+        auto id = GetVersionedId();
+        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds().contains(id));
+    }
+
     // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
     YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
     YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
@@ -773,6 +790,41 @@ TMountConfigStorage* TTableNode::GetMutableMountConfigStorage()
 {
     INITIALIZE_EXTRA_PROPERTY_HOLDER(DynamicTableAttributes);
     return DynamicTableAttributes_->MountConfigStorage.Get();
+}
+
+void TTableNode::ResetHunkStorageNode()
+{
+    if (!DynamicTableAttributes_ || !DynamicTableAttributes_->HunkStorageNode) {
+        return;
+    }
+
+    auto id = GetVersionedId();
+    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+
+    DynamicTableAttributes_->HunkStorageNode.Reset();
+}
+
+void TTableNode::SetHunkStorageNode(THunkStorageNode* node)
+{
+    ResetHunkStorageNode();
+
+    if (!node) {
+        return;
+    }
+
+    INITIALIZE_EXTRA_PROPERTY_HOLDER(DynamicTableAttributes);
+
+    THunkStorageNodePtr hunkStorageNodePtr(node);
+    DynamicTableAttributes_->HunkStorageNode = std::move(hunkStorageNodePtr);
+    auto id = GetVersionedId();
+    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+}
+
+THunkStorageNode* TTableNode::GetHunkStorageNode() const
+{
+    return DynamicTableAttributes_
+        ? DynamicTableAttributes_->HunkStorageNode.Get()
+        : nullptr;
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

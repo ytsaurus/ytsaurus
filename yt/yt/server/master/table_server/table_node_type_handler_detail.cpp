@@ -25,6 +25,7 @@
 
 #include <yt/yt/server/master/cypress_server/config.h>
 
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
@@ -291,6 +292,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         tableManager->UnregisterConsumer(table);
     }
 
+    // TODO(aleksandra-zh, gritukan): consider moving that to Zombify.
+    table->ResetHunkStorageNode();
+
     tableManager->ResetTableSchema(table);
 }
 
@@ -303,6 +307,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     const auto& tableManager = this->Bootstrap_->GetTableManager();
     tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
 
+    branchedNode->SetHunkStorageNode(originatingNode->GetHunkStorageNode());
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
     branchedNode->SetHunkErasureCodec(originatingNode->GetHunkErasureCodec());
@@ -328,6 +333,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
     tableManager->ResetTableSchema(branchedNode);
+
+    originatingNode->SetHunkStorageNode(branchedNode->GetHunkStorageNode());
+    branchedNode->ResetHunkStorageNode();
 
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(branchedNode);
@@ -361,6 +369,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     const auto& tableManager = this->Bootstrap_->GetTableManager();
     tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
 
+    clonedTrunkNode->SetHunkStorageNode(sourceNode->GetHunkStorageNode());
+
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
@@ -386,6 +396,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     // TODO(babenko): support copying dynamic tables
     if (node->IsDynamic()) {
         THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
+    }
+
+    if (auto hunkStorageNode = node->GetHunkStorageNode()) {
+        THROW_ERROR_EXCEPTION("Cannot cross-cell copy a table with hunk storage node %v",
+            hunkStorageNode->GetId());
     }
 
     using NYT::Save;

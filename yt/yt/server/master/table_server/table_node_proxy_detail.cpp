@@ -27,6 +27,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
@@ -369,6 +370,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveMountConfig)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStorageNode)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetRemovable(true)
+        .SetPresent(table->GetHunkStorageNode()));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -904,6 +910,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::HunkStorageNode: {
+            const auto& hunkStorageNode = table->GetHunkStorageNode();
+            if (!hunkStorageNode) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(hunkStorageNode->GetId());
+            return true;
+        }
+
         default:
             break;
     }
@@ -1097,6 +1114,12 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
                     collocation);
             }
 
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkStorageNode: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->ResetHunkStorageNode();
             return true;
         }
 
@@ -1405,6 +1428,31 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::HunkStorageNode: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+
+            auto* lockedTable = LockThisImpl();
+
+            auto path = ConvertTo<TYPath>(value);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            IObjectManager::TResolvePathOptions options;
+            options.FollowPortals = false;
+            auto* node = objectManager->ResolvePathToObject(path, /*transaction*/ nullptr, options);
+            if (node->GetType() != EObjectType::HunkStorage) {
+                THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
+                    EObjectType::HunkStorage,
+                    node->GetType())
+                    << TErrorAttribute("path", path);
+            }
+
+            auto* hunkStorageNode = node->As<THunkStorageNode>();
+            lockedTable->SetHunkStorageNode(hunkStorageNode);
+
+            return true;
+        }
+
         default:
             break;
     }
@@ -1708,6 +1756,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         if (options.Dynamic) {
             ValidateNoTransaction();
+        }
+
+        if (table->IsDynamic() && !dynamic && table->GetHunkStorageNode()) {
+            THROW_ERROR_EXCEPTION("Cannot alter table with a hunk storage node to static");
         }
 
         if (options.Schema && table->IsDynamic()) {

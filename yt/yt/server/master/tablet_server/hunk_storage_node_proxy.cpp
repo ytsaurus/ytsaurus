@@ -34,6 +34,27 @@ public:
 private:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
+    // TODO(aleksandra-zh): inherit that.
+    void ValidateRemoval()
+    {
+        const auto* hunkStorage = GetThisImpl();
+        const auto& usingNodeIds = hunkStorage->UsingNodeIds();
+        if (!usingNodeIds.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot remove a hunk storage that is being used by nodes %Qv",
+                MakeShrunkFormattableView(usingNodeIds, TDefaultFormatter(), 10));
+        }
+    }
+
+    void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override
+    {
+        ValidateRemoval();
+
+        TBase::RemoveSelf(request, response, context);
+    }
+
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ true);
@@ -50,6 +71,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetExternal(isExternal)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsingNodes)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::Sealed);
     }
@@ -100,6 +123,19 @@ private:
                                 .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .EndMap();
                     });
+                return true;
+
+            case EInternedAttributeKey::UsingNodes:
+                BuildYsonFluently(consumer)
+                    .DoListFor(node->UsingNodeIds(), [] (TFluentList fluent, const TVersionedNodeId& versionedId) {
+                        fluent.Item().BeginMap()
+                            .Item("node_id").Value(versionedId.ObjectId)
+                            .DoIf(versionedId.TransactionId != NullTransactionId, [&] (TFluentMap fluent) {
+                                fluent.Item("transaction_id").Value(versionedId.TransactionId);
+                            })
+                        .EndMap();
+                    });
+
                 return true;
 
             default:
