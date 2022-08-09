@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((OrderedChaosTables)                                           (2041))  // savrus
     ((RecomputeCellBundleRefCounters)                               (2042))  // gritukan
     ((BackupVsTabletAction)                                         (2043))  // ifsmirnov
+    ((AlwaysUseNewHeartbeats)                                       (2044))  // gepardo
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

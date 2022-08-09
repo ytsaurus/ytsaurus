@@ -79,7 +79,7 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("use_new_heartbeats", &TThis::UseNewHeartbeats)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("preserve_rack_for_new_host", &TThis::PreserveRackForNewHost)
         .Default(false)
