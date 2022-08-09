@@ -375,11 +375,13 @@ def process_scheduler_log_on_yt(client, input_table, output_table):
 
     client.run_sort(output_table, sort_by=sort_by)
 
-    pools_output_table = output_table + ".pools"
+    dir_name, table_name = yt.ypath_split(output_table)
+    pools_output_table = yt.ypath_join(dir_name, "pools", table_name)
     client.remove(pools_output_table, force=True)
     client.create(
         "table",
         pools_output_table,
+        recursive=True,
         attributes={"schema": [{"name": "pools", "type": "string"}]})
     client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info)}])
 
