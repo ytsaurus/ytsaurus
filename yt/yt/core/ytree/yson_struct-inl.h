@@ -38,12 +38,15 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void CallCtor()
+const std::type_info& CallCtor()
 {
     if constexpr (std::is_convertible<T*, TRefCountedBase*>::value) {
-        New<T>();
+        auto dummy = New<T>();
+        // NB: |New| returns pointer to TRefCountedWrapper<T>.
+        return typeid(*dummy);
     } else {
         T dummy;
+        return typeid(T);
     }
 }
 
@@ -79,8 +82,8 @@ void TYsonStructRegistry::Initialize(TStruct* target)
         CurrentlyInitializingMeta_ = result;
         {
             NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
-            CallCtor<TStruct>();
-            result->FinishInitialization();
+            const std::type_info& typeInfo = CallCtor<TStruct>();
+            result->FinishInitialization(typeInfo);
         }
         CurrentlyInitializingMeta_ = nullptr;
 

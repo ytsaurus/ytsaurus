@@ -437,6 +437,19 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("limit", &TThis::Limit)
+        .Default(10000)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("clean_period", &TThis::CleanPeriod)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+}
+
 void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_monitored_user_jobs_per_operation", &TThis::MaxMonitoredUserJobsPerOperation)
@@ -974,6 +987,23 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
             config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
         }
     });
+}
+
+void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .Default();
+    registrar.Parameter("controller_agent", &TThis::ControllerAgent)
+        .DefaultNew();
+    registrar.Parameter("addresses", &TThis::Addresses)
+        .Default();
+    registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
+        .Default(NYTree::BuildYsonNodeFluently()
+            .BeginMap()
+            .EndMap()
+        ->AsMap());
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

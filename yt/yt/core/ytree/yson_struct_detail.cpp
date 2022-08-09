@@ -94,6 +94,7 @@ void TYsonStructMeta::LoadStruct(
     bool setDefaults,
     const TYPath& path) const
 {
+    YT_VERIFY(*StructType_ == typeid(*target));
     YT_VERIFY(node);
 
     if (setDefaults) {
@@ -149,6 +150,7 @@ void TYsonStructMeta::LoadStruct(
     bool setDefaults,
     const TYPath& path) const
 {
+    YT_VERIFY(*StructType_ == typeid(*target));
     YT_VERIFY(cursor);
 
     if (setDefaults) {
@@ -282,8 +284,10 @@ void TYsonStructMeta::SetUnrecognizedStrategy(EUnrecognizedStrategy strategy)
     MetaUnrecognizedStrategy_ = strategy;
 }
 
-void TYsonStructMeta::FinishInitialization()
+void TYsonStructMeta::FinishInitialization(const std::type_info& structType)
 {
+    StructType_ = &structType;
+
     RegisteredKeys_.reserve(Parameters_.size());
     for (const auto& [name, parameter] : Parameters_) {
         RegisteredKeys_.insert(name);

@@ -397,6 +397,12 @@ DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
 class TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
+public:
+    REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions, 0x28332598);
 };
@@ -408,6 +414,12 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
 class TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
+public:
+    REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions, 0xc71863e6);
 };
@@ -419,6 +431,12 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
 class TSortedMergeOperationOptions
     : public TSimpleOperationOptions
 {
+public:
+    REGISTER_YSON_STRUCT(TSortedMergeOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions, 0x9089b24a);
 };
@@ -430,13 +448,14 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
-
 public:
     REGISTER_YSON_STRUCT(TReduceOperationOptions)
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
@@ -446,6 +465,12 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
+public:
+    REGISTER_YSON_STRUCT(TEraseOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions, 0x73cb9f3b);
 };
@@ -485,6 +510,12 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
 class TSortOperationOptions
     : public TSortOperationOptionsBase
 {
+public:
+    REGISTER_YSON_STRUCT(TSortOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
 };
@@ -496,6 +527,12 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
 class TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 {
+public:
+    REGISTER_YSON_STRUCT(TMapReduceOperationOptions)
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions, 0x91e3968d);
 };
@@ -566,18 +603,7 @@ public:
 
     REGISTER_YSON_STRUCT(TZombieOperationOrchidsConfig)
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("limit", &TThis::Limit)
-            .Default(10000)
-            .GreaterThanOrEqual(0);
-
-        registrar.Parameter("clean_period", &TThis::CleanPeriod)
-            .Default(TDuration::Minutes(1));
-
-        registrar.Parameter("enable", &TThis::Enable)
-            .Default(true);
-    }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TZombieOperationOrchidsConfig, 0xbeadbead);
@@ -1061,22 +1087,7 @@ public:
 
     REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig)
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-            .Default();
-        registrar.Parameter("controller_agent", &TThis::ControllerAgent)
-            .DefaultNew();
-        registrar.Parameter("addresses", &TThis::Addresses)
-            .Default();
-        registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                .EndMap()
-            ->AsMap());
-        registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
-            .Default(false);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)

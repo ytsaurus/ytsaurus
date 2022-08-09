@@ -139,10 +139,12 @@ public:
     void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) override;
     void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy) override;
 
-    void FinishInitialization();
+    void FinishInitialization(const std::type_info& structType);
 
 private:
     friend class TYsonStructRegistry;
+
+    const std::type_info* StructType_;
 
     THashMap<TString, IYsonStructParameterPtr> Parameters_;
     std::vector<std::pair<TString, IYsonStructParameterPtr>> SortedParameters_;
