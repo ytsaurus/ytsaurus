@@ -7,6 +7,8 @@ from yt_commands import (
     lock_hunk_store, unlock_hunk_store,
 )
 
+import pytest
+
 import time
 
 ##################################################################
@@ -237,6 +239,7 @@ class TestHunkStorage(YTEnvSetup):
             unlock_hunk_store("//tmp/h", 0, store_id)
 
     @authors("gritukan")
+    @pytest.mark.xfail(run=False, reason="WIP")
     def test_force_unmount(self):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
