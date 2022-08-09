@@ -137,16 +137,6 @@ public:
         chunkStore->SubscribeChunkMediumChanged(
             BIND(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
                 .Via(controlInvoker));
-
-        if (Bootstrap_->IsExecNode()) {
-            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-            chunkCache->SubscribeChunkAdded(
-                BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
-                    .Via(controlInvoker));
-            chunkCache->SubscribeChunkRemoved(
-                BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
-                    .Via(controlInvoker));
-        }
     }
 
     TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag) override
@@ -167,7 +157,6 @@ public:
         TMediumIntMap chunkCounts;
 
         int storedChunkCount = 0;
-        int cachedChunkCount = 0;
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
             if (CellTagFromId(chunk->GetId()) == cellTag) {
@@ -179,25 +168,9 @@ public:
             }
         };
 
-        auto addCachedChunkInfo = [&] (const IChunkPtr& chunk) {
-            if (!IsArtifactChunkId(chunk->GetId())) {
-                auto info = BuildAddChunkInfo(chunk);
-                *heartbeat.add_chunks() = info;
-                ++chunkCounts[DefaultCacheMediumIndex];
-                ++cachedChunkCount;
-            }
-        };
-
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         for (const auto& chunk : chunkStore->GetChunks()) {
             addStoredChunkInfo(chunk);
-        }
-
-        if (Bootstrap_->IsExecNode()) {
-            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-            for (const auto& chunk : chunkCache->GetChunks()) {
-                addCachedChunkInfo(chunk);
-            }
         }
 
         for (const auto& [mediumIndex, chunkCount] : chunkCounts) {
