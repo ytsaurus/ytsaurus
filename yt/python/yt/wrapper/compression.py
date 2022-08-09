@@ -58,6 +58,9 @@ def get_compressor(codec_name):
 
 
 def has_compressor(codec_name):
+    if codec_name == "br" and codec_name in _CODECS:
+        import brotli
+        return hasattr(brotli.Compressor, "process")
     return codec_name in _CODECS
 
 
