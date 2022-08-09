@@ -27,12 +27,16 @@ import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -412,6 +416,16 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
+    public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
+        return client.getFileFromCache(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
+    public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
+        return client.putFileToCache(req.setTransactionalOptions(transactionalOptions));
     }
 
     /**

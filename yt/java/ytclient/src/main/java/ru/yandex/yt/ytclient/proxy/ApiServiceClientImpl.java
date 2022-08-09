@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -64,6 +65,8 @@ import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
@@ -80,6 +83,8 @@ import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutateNode;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
@@ -794,6 +799,19 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                 response -> response.body().getResult());
     }
 
+    @Override
+    public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_FILE_FROM_CACHE.createRequestBuilder(rpcOptions)),
+                response -> new GetFileFromCacheResult(YPath.simple(response.body().getResult().getPath())));
+    }
+
+    @Override
+    public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PUT_FILE_TO_CACHE.createRequestBuilder(rpcOptions)),
+                response -> new PutFileToCacheResult(YPath.simple(response.body().getResult().getPath())));
+    }
 
     @Override
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,

@@ -25,6 +25,7 @@ import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
+import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
@@ -39,6 +40,7 @@ import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
+import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
@@ -73,6 +75,7 @@ import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
+import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetJob;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
@@ -87,6 +90,7 @@ import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
+import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
@@ -258,6 +262,12 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqWriteFile.Builder, TRspWriteFile> WRITE_FILE =
             apiServiceMethod("WriteFile", TReqWriteFile::newBuilder, TRspWriteFile.parser());
+
+    public static final RpcMethodDescriptor<TReqGetFileFromCache.Builder, TRspGetFileFromCache> GET_FILE_FROM_CACHE =
+            apiServiceMethod("GetFileFromCache", TReqGetFileFromCache::newBuilder, TRspGetFileFromCache.parser());
+
+    public static final RpcMethodDescriptor<TReqPutFileToCache.Builder, TRspPutFileToCache> PUT_FILE_TO_CACHE =
+            apiServiceMethod("PutFileToCache", TReqPutFileToCache::newBuilder, TRspPutFileToCache.parser());
 
     public static final RpcMethodDescriptor<TReqDiscover.Builder, TRspDiscover> DISCOVER =
             apiServiceMethod("Discover", TReqDiscover::newBuilder, TRspDiscover.parser());

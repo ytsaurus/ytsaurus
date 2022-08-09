@@ -14,6 +14,8 @@ import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
@@ -22,6 +24,8 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
+import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -73,6 +77,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<GUID> startOperation(StartOperation req);
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
+
+    CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req);
+
+    CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req);
 
     default CompletableFuture<YTreeNode> getNode(String path) {
         return getNode(path, null);
