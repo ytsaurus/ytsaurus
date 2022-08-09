@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/ypath/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NDynamicConfig {
 
@@ -37,7 +37,7 @@ struct TDynamicConfigManagerOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicConfigManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period of config fetching from Cypress.
@@ -51,7 +51,9 @@ public:
     //! an error.
     bool IgnoreConfigAbsence;
 
-    TDynamicConfigManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicConfigManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

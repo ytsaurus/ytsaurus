@@ -4,17 +4,17 @@ namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryServerConfig::TDiscoveryServerConfig()
+void TDiscoveryServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("server_addresses", ServerAddresses)
+    registrar.Parameter("server_addresses", &TThis::ServerAddresses)
         .NonEmpty();
-    RegisterParameter("gossip_period", GossipPeriod)
+    registrar.Parameter("gossip_period", &TThis::GossipPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("attributes_update_period", AttributesUpdatePeriod)
+    registrar.Parameter("attributes_update_period", &TThis::AttributesUpdatePeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_members_per_gossip", MaxMembersPerGossip)
+    registrar.Parameter("max_members_per_gossip", &TThis::MaxMembersPerGossip)
         .Default(1000);
-    RegisterParameter("gossip_batch_size", GossipBatchSize)
+    registrar.Parameter("gossip_batch_size", &TThis::GossipBatchSize)
         .Default(100);
 }
 

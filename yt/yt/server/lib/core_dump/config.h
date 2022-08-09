@@ -2,16 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
-#include <cmath>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreDumperConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! A path to store the core files.
@@ -21,12 +19,9 @@ public:
     //! Some of the Porto variables like %CORE_PID, %CORE_TID etc are supported, refer to the implementation.
     TString Pattern;
 
-    TCoreDumperConfig()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("pattern", Pattern)
-            .Default("core.%CORE_DATETIME.%CORE_PID.%CORE_SIG.%CORE_THREAD_NAME-%CORE_REASON");
-    }
+    REGISTER_YSON_STRUCT(TCoreDumperConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoreDumperConfig)

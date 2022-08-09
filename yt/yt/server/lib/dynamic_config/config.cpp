@@ -4,13 +4,13 @@ namespace NYT::NDynamicConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicConfigManagerConfig::TDynamicConfigManagerConfig()
+void TDynamicConfigManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+    registrar.Parameter("enable_unrecognized_options_alert", &TThis::EnableUnrecognizedOptionsAlert)
         .Default(false);
-    RegisterParameter("ignore_config_absence", IgnoreConfigAbsence)
+    registrar.Parameter("ignore_config_absence", &TThis::IgnoreConfigAbsence)
         .Default(false);
 }
 

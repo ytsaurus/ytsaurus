@@ -2,36 +2,32 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/public.h>
 
-#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/public.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/config.h>
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
 
-#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellarConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int Size;
     TCellarOccupantConfigPtr Occupant;
 
-    TCellarConfig()
-    {
-        RegisterParameter("size", Size)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("occupant", Occupant)
-            .DefaultNew();
-    }
+    REGISTER_YSON_STRUCT(TCellarConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarConfig)
@@ -39,16 +35,14 @@ DEFINE_REFCOUNTED_TYPE(TCellarConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellarManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<NCellarClient::ECellarType, TCellarConfigPtr> Cellars;
 
-    TCellarManagerConfig()
-    {
-        RegisterParameter("cellars", Cellars)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TCellarManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarManagerConfig)
@@ -56,17 +50,14 @@ DEFINE_REFCOUNTED_TYPE(TCellarManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellarDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<int> Size;
 
-    TCellarDynamicConfig()
-    {
-        RegisterParameter("size", Size)
-            .GreaterThanOrEqual(0)
-            .Optional();
-    }
+    REGISTER_YSON_STRUCT(TCellarDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarDynamicConfig)
@@ -74,16 +65,14 @@ DEFINE_REFCOUNTED_TYPE(TCellarDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellarManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<NCellarClient::ECellarType, TCellarDynamicConfigPtr> Cellars;
 
-    TCellarManagerDynamicConfig()
-    {
-        RegisterParameter("cellars", Cellars)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TCellarManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarManagerDynamicConfig)
@@ -91,7 +80,7 @@ DEFINE_REFCOUNTED_TYPE(TCellarManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellarOccupantConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
@@ -110,25 +99,9 @@ public:
 
     bool UseNewHydra;
 
-    TCellarOccupantConfig()
-    {
-        RegisterParameter("snapshots", Snapshots)
-            .DefaultNew();
-        RegisterParameter("changelogs", Changelogs)
-            .DefaultNew();
-        RegisterParameter("hydra_manager", HydraManager)
-            .DefaultNew();
-        RegisterParameter("election_manager", ElectionManager)
-            .DefaultNew();
-        RegisterParameter("hive_manager", HiveManager)
-            .DefaultNew();
-        RegisterParameter("transaction_supervisor", TransactionSupervisor)
-            .DefaultNew();
-        RegisterParameter("response_keeper", ResponseKeeper)
-            .DefaultNew();
-        RegisterParameter("use_new_hydra", UseNewHydra)
-            .Default(false);
-    }
+    REGISTER_YSON_STRUCT(TCellarOccupantConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellarOccupantConfig)

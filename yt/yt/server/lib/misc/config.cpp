@@ -1,5 +1,19 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/core_dump/config.h>
+
+#include <yt/yt/ytlib/chunk_client/config.h>
+
+#include <yt/yt/core/net/address.h>
+
+#include <yt/yt/core/rpc/config.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
+
+#include <yt/yt/core/logging/config.h>
+
+#include <yt/yt/core/http/config.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT {
@@ -61,32 +75,32 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskHealthCheckerConfig::TDiskHealthCheckerConfig()
+void TDiskHealthCheckerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("check_period", CheckPeriod)
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("test_size", TestSize)
+    registrar.Parameter("test_size", &TThis::TestSize)
         .InRange(0, 1_GB)
         .Default(1_MB);
-    RegisterParameter("timeout", Timeout)
+    registrar.Parameter("timeout", &TThis::Timeout)
         .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFormatConfigBase::TFormatConfigBase()
+void TFormatConfigBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("default_attributes", DefaultAttributes)
+    registrar.Parameter("default_attributes", &TThis::DefaultAttributes)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFormatConfig::TFormatConfig()
+void TFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("user_overrides", UserOverrides)
+    registrar.Parameter("user_overrides", &TThis::UserOverrides)
         .Default();
 }
 
@@ -104,6 +118,16 @@ void TArchiveReporterConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("max_items_in_batch", &TThis::MaxItemsInBatch)
         .Default(1000);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TArchiveHandlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_in_progress_data_size", &TThis::MaxInProgressDataSize)
+        .Default(250_MB);
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,69 +6,69 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIOTrackerConfig::TIOTrackerConfig()
+void TIOTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
-    RegisterParameter("enable_raw", EnableRaw)
+    registrar.Parameter("enable_raw", &TThis::EnableRaw)
         .Default(false);
-    RegisterParameter("enable_aggr", EnableAggr)
+    registrar.Parameter("enable_aggr", &TThis::EnableAggr)
         .Default(true);
-    RegisterParameter("enable_path", EnablePath)
+    registrar.Parameter("enable_path", &TThis::EnablePath)
         .Default(false);
-    RegisterParameter("queue_size_limit", QueueSizeLimit)
+    registrar.Parameter("queue_size_limit", &TThis::QueueSizeLimit)
         .Default(10'000);
-    RegisterParameter("aggregation_size_limit", AggregationSizeLimit)
+    registrar.Parameter("aggregation_size_limit", &TThis::AggregationSizeLimit)
         .Default(1'000'000);
-    RegisterParameter("aggregation_period", AggregationPeriod)
+    registrar.Parameter("aggregation_period", &TThis::AggregationPeriod)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("period_quant", PeriodQuant)
+    registrar.Parameter("period_quant", &TThis::PeriodQuant)
         .Default(TDuration::MilliSeconds(50));
-    RegisterParameter("path_aggregate_tags", PathAggregateTags)
+    registrar.Parameter("path_aggregate_tags", &TThis::PathAggregateTags)
         .Default();
-    RegisterParameter("enable_event_dequeue", EnableEventDequeue)
+    registrar.Parameter("enable_event_dequeue", &TThis::EnableEventDequeue)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCongestionDetectorConfig::TCongestionDetectorConfig()
+void TCongestionDetectorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("probes_enabled", ProbesEnabled)
+    registrar.Parameter("probes_enabled", &TThis::ProbesEnabled)
         .Default(true);
 
-    RegisterParameter("probes_per_round", ProbesPerRound)
+    registrar.Parameter("probes_per_round", &TThis::ProbesPerRound)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("probes_interval", ProbesInterval)
+    registrar.Parameter("probes_interval", &TThis::ProbesInterval)
         .Default(TDuration::MilliSeconds(200));
 
-    RegisterParameter("packet_size", PacketSize)
+    registrar.Parameter("packet_size", &TThis::PacketSize)
         .GreaterThanOrEqual(512)
         .Default(16_KB);
 
-    RegisterParameter("max_in_flight_probe_count", MaxInFlightProbeCount)
+    registrar.Parameter("max_in_flight_probe_count", &TThis::MaxInFlightProbeCount)
         .Default(1000);
 
-    RegisterParameter("probe_deadline", ProbeDeadline)
+    registrar.Parameter("probe_deadline", &TThis::ProbeDeadline)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("overload_threshold", OverloadThreshold)
+    registrar.Parameter("overload_threshold", &TThis::OverloadThreshold)
         .InRange(0, 100)
         .Default(25);
 
-    RegisterParameter("heavy_overload_threshold", HeavyOverloadThreshold)
+    registrar.Parameter("heavy_overload_threshold", &TThis::HeavyOverloadThreshold)
         .InRange(0, 100)
         .Default(50);
 
-    RegisterParameter("user_request_overload_threshold", UserRequestOverloadThreshold)
+    registrar.Parameter("user_request_overload_threshold", &TThis::UserRequestOverloadThreshold)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("user_request_heavy_overload_threshold", UserRequestHeavyOverloadThreshold)
+    registrar.Parameter("user_request_heavy_overload_threshold", &TThis::UserRequestHeavyOverloadThreshold)
         .Default(TDuration::MilliSeconds(200));
 
-    RegisterParameter("user_reques_failed_probes_threshold", UserRequestFailedProbesThreshold)
+    registrar.Parameter("user_reques_failed_probes_threshold", &TThis::UserRequestFailedProbesThreshold)
         .GreaterThan(0)
         .Default(3);
 }

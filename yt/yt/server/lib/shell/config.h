@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TShellParameters
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonStructLite
 {
     // TODO(gritukan): Deprecate ShellId someday;
     std::optional<TShellId> ShellId;
@@ -26,49 +26,15 @@ struct TShellParameters
     std::vector<TString> Environment;
     std::optional<TString> Command;
 
-    TShellParameters()
-    {
-        RegisterParameter("shell_id", ShellId)
-            .Default();
-        RegisterParameter("shell_index", ShellIndex)
-            .Default();
-        RegisterParameter("operation", Operation);
-        RegisterParameter("term", Term)
-            .Default();
-        RegisterParameter("keys", Keys)
-            .Default();
-        RegisterParameter("input_offset", InputOffset)
-            .Default();
-        RegisterParameter("height", Height)
-            .Default(0);
-        RegisterParameter("width", Width)
-            .Default(0);
-        RegisterParameter("inactivity_timeout", InactivityTimeout)
-            .Default(TDuration::Seconds(5 * 60));
-        RegisterParameter("environment", Environment)
-            .Default();
-        RegisterParameter("command", Command)
-            .Default();
+    REGISTER_YSON_STRUCT(TShellParameters);
 
-        RegisterPostprocessor([&] () {
-            if (Operation != EShellOperation::Spawn && !ShellId) {
-                THROW_ERROR_EXCEPTION(
-                    "Malformed request: shell id is not specified for %Qlv operation",
-                    Operation);
-            }
-            if (Operation == EShellOperation::Update && !Keys.empty() && !InputOffset) {
-                THROW_ERROR_EXCEPTION(
-                    "Malformed request: input offset is not specified for %Qlv operation",
-                    Operation);
-            }
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TShellResult
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonStructLite
 {
     // TODO(gritukan): Deprecate ShellId someday.
     TShellId ShellId;
@@ -76,13 +42,9 @@ struct TShellResult
     std::optional<TString> Output;
     std::optional<ui64> ConsumedOffset;
 
-    TShellResult()
-    {
-        RegisterParameter("shell_id", ShellId);
-        RegisterParameter("shell_index", ShellIndex);
-        RegisterParameter("output", Output);
-        RegisterParameter("consumed_offset", ConsumedOffset);
-    }
+    REGISTER_YSON_STRUCT(TShellResult);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
