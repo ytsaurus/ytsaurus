@@ -44,7 +44,12 @@ DEFINE_REFCOUNTED_TYPE(TJobEnvironmentConfig)
 
 class TSimpleJobEnvironmentConfig
     : public TJobEnvironmentConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TSimpleJobEnvironmentConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
 
@@ -71,7 +76,7 @@ public:
 
     //! For testing purposes only.
     bool UseExecFromLayer;
-    
+
     //! Allow mounting /dev/fuse to user job conatiners.
     bool AllowMountFuseDevice;
 
@@ -217,7 +222,12 @@ public:
 
 class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
-{ };
+{
+    REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 
@@ -275,6 +285,11 @@ public:
     TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig);
 
     void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);
+
+    REGISTER_YSON_STRUCT(TSchedulerConnectorConfig);
+
+    static void Register(TRegistrar)
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)

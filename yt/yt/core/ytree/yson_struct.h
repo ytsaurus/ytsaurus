@@ -264,7 +264,7 @@ public: \
   } \
   \
 template <class T> \
-friend void ::NYT::NYTree::CallCtor(); \
+friend const std::type_info& ::NYT::NYTree::CallCtor(); \
  \
 protected: \
 REGISTER_YSON_STRUCT_IMPL(TStruct)
