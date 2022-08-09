@@ -107,11 +107,11 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(5000);
 
-    registrar.Parameter("writers_count", &TThis::WritersCount)
+    registrar.Parameter("writer_count", &TThis::WriterCount)
         .GreaterThan(0)
         .Default(100);
 
-    registrar.Parameter("readers_count", &TThis::ReadersCount)
+    registrar.Parameter("reader_count", &TThis::ReaderCount)
         .GreaterThan(0)
         .Default(100);
 
@@ -119,7 +119,7 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
         .GreaterThan(4_KB)
         .Default(512_MB);
 
-    registrar.Parameter("writers_folder", &TThis::WritersFolder)
+    registrar.Parameter("writers_folder", &TThis::WriterDirectory)
         .NonEmpty()
         .Default("writes_bench");
 
@@ -129,7 +129,7 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
         .Default(false);
 
-    registrar.Parameter("stale_files_count_per_writer", &TThis::StaleFilesCountPerWriter)
+    registrar.Parameter("stale_file_count_per_writer", &TThis::StaleFileCountPerWriter)
         .Default(0);
 
     registrar.Parameter("wait_after_congested", &TThis::WaitAfterCongested)

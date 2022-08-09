@@ -229,7 +229,7 @@ class TestNodeTracker(YTEnvSetup):
                             "enabled": True,
                             "packet_size": 4096,
                             "read_to_write_ratio": 75,
-                            "writers_count": 2,
+                            "writer_count": 2,
                             "max_write_file_size": 1024 * 1024,
                             "wait_after_congested": 100,
                             "segment_size": 5,
