@@ -85,6 +85,7 @@ private:
         bool TreatAsConsumer = false;
         bool IsVitalConsumer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
+        NTabletServer::THunkStorageNodePtr HunkStorageNode;
 
         TDynamicTableAttributes();
 
@@ -207,6 +208,10 @@ public:
 
     const NTabletServer::TMountConfigStorage* FindMountConfigStorage() const;
     NTabletServer::TMountConfigStorage* GetMutableMountConfigStorage();
+
+    void SetHunkStorageNode(NTabletServer::THunkStorageNode* node);
+    void ResetHunkStorageNode();
+    NTabletServer::THunkStorageNode* GetHunkStorageNode() const;
 
 private:
     TMasterTableSchema* Schema_ = nullptr;

@@ -136,6 +136,25 @@ struct TRawVersionedObjectPtrSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStrongVersionedObjectPtrSerializer
+{
+    template <class C, class T>
+    static void Save(C& context, const T& object)
+    {
+        TRawVersionedObjectPtrSerializer::Save(context, object.Get());
+    }
+
+    template <class C, class T>
+    static void Load(C& context, T& object)
+    {
+        typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
+        TRawVersionedObjectPtrSerializer::Load(context, rawObject);
+        object.AssignOnLoad(rawObject);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TInternedYsonStringSerializer
 {
     static inline TEntitySerializationKey UninternedKey = TEntitySerializationKey(-4);
@@ -261,6 +280,19 @@ struct TSerializerTraits<
 {
     using TSerializer = NCellMaster::TStrongNonversionedObjectPtrSerializer;
     using TComparer = NObjectServer::TObjectIdComparer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename std::enable_if_t<
+        std::is_convertible_v<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NCypressServer::TCypressNode*>
+    >
+>
+{
+    using TSerializer = NCellMaster::TStrongVersionedObjectPtrSerializer;
+    using TComparer = NCypressServer::TCypressNodeIdComparer;
 };
 
 template <class T, class C>

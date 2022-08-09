@@ -3,9 +3,15 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
     sync_unmount_table, write_hunks, read_hunks, raises_yt_error,
-    sync_freeze_table, sync_unfreeze_table, copy, move,
-    lock_hunk_store, unlock_hunk_store,
+    sync_freeze_table, sync_unfreeze_table, copy, move, alter_table,
+    lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
+
+from yt.test_helpers import assert_items_equal
+
+from yt_type_helpers import make_schema
+
+from yt.common import YtError
 
 import pytest
 
@@ -30,6 +36,19 @@ class TestHunkStorage(YTEnvSetup):
             "store_rotation_period": 2000,
             "store_removal_grace_period": 4000,
         })
+
+    def _create_ordered_table(self, name, attributes={}):
+        ordered_schema = make_schema(
+            [
+                {"name": "key", "type": "string"},
+                {"name": "value", "type": "string"},
+            ],
+            strict=True,
+        )
+
+        attributes["dynamic"] = True
+        attributes["schema"] = ordered_schema
+        create("table", name, attributes=attributes)
 
     @authors("gritukan")
     def test_create_remove(self):
@@ -256,3 +275,231 @@ class TestHunkStorage(YTEnvSetup):
 
         sync_mount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(chunk_id)))
+
+    @authors("aleksandra-zh")
+    def test_link_hunk_storage_node(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t")
+        table_id = get("//tmp/t/@id")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+
+        with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
+            remove("//tmp/h")
+
+        remove("//tmp/t")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_create_table_with_hunk_storage_node(self):
+        self._create_hunk_storage("//tmp/h")
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"hunk_storage_node": "//tmp/h"})
+
+        self._create_ordered_table("//tmp/t", {"hunk_storage_node": "//tmp/h"})
+        table_id = get("//tmp/t/@id")
+
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+
+        remove("//tmp/t")
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_remove_table_hunk_storage_node(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t")
+        table_id = get("//tmp/t/@id")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+
+        remove("//tmp/t/@hunk_storage_node")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_hunk_storage_node_node_type(self):
+        self._create_ordered_table("//tmp/t1")
+        self._create_ordered_table("//tmp/t2")
+
+        with raises_yt_error("Unexpected node type"):
+            set("//tmp/t1/@hunk_storage_node", "//tmp/t2")
+
+    @authors("aleksandra-zh")
+    def test_alter_table_with_hunk_storage_node(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+
+        with raises_yt_error("Cannot alter table with a hunk storage node to static"):
+            alter_table("//tmp/t", dynamic=False)
+
+    @authors("aleksandra-zh")
+    def test_copy_linked_hunk_storage_node(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t1")
+        table1_id = get("//tmp/t1/@id")
+        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+        copy("//tmp/t1", "//tmp/t2")
+        table2_id = get("//tmp/t2/@id")
+
+        expected_using_nodes = [
+            {"node_id": table1_id},
+            {"node_id": table2_id},
+        ]
+        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+
+        with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
+            remove("//tmp/h")
+
+        remove("//tmp/t1")
+        remove("//tmp/t2")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_linked_hunk_storage_node_tx1(self):
+        self._create_hunk_storage("//tmp/h")
+
+        tx = start_transaction()
+        self._create_ordered_table("//tmp/t1")
+        table1_id = get("//tmp/t1/@id")
+        set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
+
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id, "transaction_id": tx}]
+        commit_transaction(tx)
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id}]
+
+        remove("//tmp/t1")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_linked_hunk_storage_node_tx2(self):
+        self._create_hunk_storage("//tmp/h")
+
+        tx = start_transaction()
+        self._create_ordered_table("//tmp/t1")
+        table1_id = get("//tmp/t1/@id")
+        set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
+
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id, "transaction_id": tx}]
+        abort_transaction(tx)
+        assert get("//tmp/h/@using_nodes") == []
+
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_linked_hunk_storage_node_tx3(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t1")
+        table1_id = get("//tmp/t1/@id")
+        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+
+        tx = start_transaction()
+        lock("//tmp/t1", tx=tx, mode="snapshot")
+        expected_using_nodes = [
+            {"node_id": table1_id},
+            {"node_id": table1_id, "transaction_id": tx},
+        ]
+        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+
+        commit_transaction(tx)
+        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id}]
+
+        remove("//tmp/t1")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+    @authors("aleksandra-zh")
+    def test_copy_linked_hunk_storage_node_tx(self):
+        self._create_hunk_storage("//tmp/h")
+
+        self._create_ordered_table("//tmp/t1")
+        table1_id = get("//tmp/t1/@id")
+        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+
+        tx = start_transaction()
+        copy("//tmp/t1", "//tmp/t2", tx=tx)
+        table2_id = get("//tmp/t2/@id", tx=tx)
+
+        expected_using_nodes = [
+            {"node_id": table1_id},
+            {"node_id": table2_id},
+            {"node_id": table2_id, "transaction_id": tx},
+        ]
+        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+
+        commit_transaction(tx)
+
+        expected_using_nodes = [
+            {"node_id": table1_id},
+            {"node_id": table2_id},
+        ]
+        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+
+        with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
+            remove("//tmp/h")
+
+        remove("//tmp/t1")
+        remove("//tmp/t2")
+
+        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        remove("//tmp/h")
+
+
+class TestHunkStoragePortal(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    USE_DYNAMIC_TABLES = True
+    ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 4
+
+    def _create_hunk_storage(self, name):
+        create("hunk_storage", name, attributes={
+            "store_rotation_period": 2000,
+            "store_removal_grace_period": 4000,
+        })
+
+    def _create_ordered_table(self, name, attributes={}):
+        ordered_schema = make_schema(
+            [
+                {"name": "key", "type": "string"},
+                {"name": "value", "type": "string"},
+            ],
+            strict=True,
+        )
+
+        attributes["dynamic"] = True
+        attributes["schema"] = ordered_schema
+        create("table", name, attributes=attributes)
+
+    @authors("aleksandra-zh")
+    def test_cross_shard_hunk_storage_node_link(self):
+        self._create_ordered_table("//tmp/t1")
+        self._create_hunk_storage("//portals/h1")
+        assert("//portals/h1/@native_cell_tag" != "//tmp/t1/@native_cell_tag")
+
+        with pytest.raises(YtError):
+            set("//tmp/t1/@hunk_storage_node", "//portals/h1")
+
+        self._create_ordered_table("//portals/t2")
+
+        self._create_hunk_storage("//tmp/h2")
+        assert("//tmp/h2/@native_cell_tag" != "//portals/t2/@native_cell_tag")
+
+        with pytest.raises(YtError):
+            set("//portals/t2/@hunk_storage_node", "//tmp/h2")

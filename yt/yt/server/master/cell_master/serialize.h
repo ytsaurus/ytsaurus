@@ -153,6 +153,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunkStorage)                                                  (2105))  // gritukan
     ((RemoveCellRoles)                                              (2106))  // aleksandra-zh
     ((ShardedChunkMaps)                                             (2107))  // gritukan
+    ((LinkHunkStorageNode)                                          (2108))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
