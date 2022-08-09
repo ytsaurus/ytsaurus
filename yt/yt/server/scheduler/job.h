@@ -30,8 +30,6 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
-    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-
     //! The id of operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
 

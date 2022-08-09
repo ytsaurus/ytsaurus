@@ -59,11 +59,10 @@ bool TJob::IsRevived() const
 
 NLogging::TLogger TJob::CreateLogger()
 {
-    return SchedulerLogger.WithTag("JobId: %v, OperationId: %v, Address: %v, Type: %v",
+    return SchedulerLogger.WithTag("JobId: %v, OperationId: %v, Address: %v",
         Id_,
         OperationId_,
-        Node_ ? Node_->GetDefaultAddress() : "<unknown>",
-        Type_);
+        Node_ ? Node_->GetDefaultAddress() : "<unknown>");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
