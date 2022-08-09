@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCypressElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressElectionManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     NYPath::TYPath LockPath;
 
@@ -18,7 +18,9 @@ struct TCypressElectionManagerConfig
     TDuration LockAcquisitionPeriod;
     TDuration LeaderCacheUpdatePeriod;
 
-    TCypressElectionManagerConfig();
+    REGISTER_YSON_STRUCT(TCypressElectionManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressElectionManagerConfig)

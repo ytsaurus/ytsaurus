@@ -10,7 +10,7 @@
 #include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -117,7 +117,7 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIOEngineConfigBase
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int AuxThreadCount;
@@ -140,49 +140,51 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads;
 
-    TIOEngineConfigBase()
+    REGISTER_YSON_STRUCT(TIOEngineConfigBase);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("aux_thread_count", AuxThreadCount)
+        registrar.Parameter("aux_thread_count", &TThis::AuxThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
-        RegisterParameter("fsync_thread_count", FsyncThreadCount)
+        registrar.Parameter("fsync_thread_count", &TThis::FsyncThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
 
-        RegisterParameter("enable_sync", EnableSync)
+        registrar.Parameter("enable_sync", &TThis::EnableSync)
             .Default(true);
 
-        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
+        registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
             .GreaterThanOrEqual(1)
             .Default(256_MB);
-        RegisterParameter("max_bytes_per_write", MaxBytesPerWrite)
+        registrar.Parameter("max_bytes_per_write", &TThis::MaxBytesPerWrite)
             .GreaterThanOrEqual(1)
             .Default(256_MB);
 
-        RegisterParameter("simulated_max_bytes_per_read", SimulatedMaxBytesPerRead)
+        registrar.Parameter("simulated_max_bytes_per_read", &TThis::SimulatedMaxBytesPerRead)
             .Default()
             .GreaterThan(0);
-        RegisterParameter("simulated_max_bytes_per_write", SimulatedMaxBytesPerWrite)
+        registrar.Parameter("simulated_max_bytes_per_write", &TThis::SimulatedMaxBytesPerWrite)
             .Default()
             .GreaterThan(0);
 
-        RegisterParameter("sick_read_time_threshold", SickReadTimeThreshold)
+        registrar.Parameter("sick_read_time_threshold", &TThis::SickReadTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-        RegisterParameter("sick_read_time_window", SickReadTimeWindow)
+        registrar.Parameter("sick_read_time_window", &TThis::SickReadTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-        RegisterParameter("sick_write_time_threshold", SickWriteTimeThreshold)
+        registrar.Parameter("sick_write_time_threshold", &TThis::SickWriteTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-        RegisterParameter("sick_write_time_window", SickWriteTimeWindow)
+        registrar.Parameter("sick_write_time_window", &TThis::SickWriteTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-        RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
+        registrar.Parameter("sickness_expiration_timeout", &TThis::SicknessExpirationTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
 
-        RegisterParameter("use_direct_io_for_reads", UseDirectIOForReads)
+        registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
             .Default(EDirectIOPolicy::Never);
     }
 };
@@ -210,33 +212,35 @@ public:
     double DefaultPoolWeight;
     double UserInteractivePoolWeight;
 
-    TThreadPoolIOEngineConfig()
+    REGISTER_YSON_STRUCT(TThreadPoolIOEngineConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("read_thread_count", ReadThreadCount)
+        registrar.Parameter("read_thread_count", &TThis::ReadThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
-        RegisterParameter("write_thread_count", WriteThreadCount)
+        registrar.Parameter("write_thread_count", &TThis::WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
 
-        RegisterParameter("enable_pwritev", EnablePwritev)
+        registrar.Parameter("enable_pwritev", &TThis::EnablePwritev)
             .Default(true);
-        RegisterParameter("flush_after_write", FlushAfterWrite)
+        registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
             .Default(false);
-        RegisterParameter("async_flush_after_write", AsyncFlushAfterWrite)
+        registrar.Parameter("async_flush_after_write", &TThis::AsyncFlushAfterWrite)
             .Default(false);
 
-        RegisterParameter("desired_request_size", DesiredRequestSize)
+        registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
             .Default(128_KB);
-        RegisterParameter("min_request_size", MinRequestSize)
+        registrar.Parameter("min_request_size", &TThis::MinRequestSize)
             .GreaterThanOrEqual(512)
             .Default(64_KB);
 
-        RegisterParameter("default_pool_weight", DefaultPoolWeight)
+        registrar.Parameter("default_pool_weight", &TThis::DefaultPoolWeight)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("user_interactive_pool_weight", UserInteractivePoolWeight)
+        registrar.Parameter("user_interactive_pool_weight", &TThis::UserInteractivePoolWeight)
             .GreaterThanOrEqual(1)
             .Default(4);
     }
@@ -261,17 +265,19 @@ public:
 
     int DirectIOPageSize;
 
-    TUringIOEngineConfig()
+    REGISTER_YSON_STRUCT(TUringIOEngineConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("uring_thread_count", UringThreadCount)
+        registrar.Parameter("uring_thread_count", &TThis::UringThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
-        RegisterParameter("max_concurrent_requests_per_thread", MaxConcurrentRequestsPerThread)
+        registrar.Parameter("max_concurrent_requests_per_thread", &TThis::MaxConcurrentRequestsPerThread)
             .GreaterThan(0)
             .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
             .Default(22);
 
-        RegisterParameter("direct_io_page_size", DirectIOPageSize)
+        registrar.Parameter("direct_io_page_size", &TThis::DirectIOPageSize)
             .GreaterThan(0)
             .Default(DefaultPageSize);
     }
@@ -693,7 +699,7 @@ protected:
 
     void Reconfigure(const NYTree::INodePtr& node) override
     {
-        auto realConfig = NYTree::UpdateYsonSerializable(StaticConfig_, node);
+        auto realConfig = NYTree::UpdateYsonStruct(StaticConfig_, node);
 
         AuxThreadPool_->Configure(realConfig->AuxThreadCount);
         FsyncThreadPool_->Configure(realConfig->FsyncThreadCount);
@@ -1362,7 +1368,7 @@ private:
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
-        auto config = UpdateYsonSerializable(StaticConfig_, node);
+        auto config = UpdateYsonStruct(StaticConfig_, node);
 
         ThreadPool_.Reconfigure(config);
         Config_.Store(config);
@@ -2446,7 +2452,7 @@ private:
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
-        auto config = UpdateYsonSerializable(StaticConfig_, node);
+        auto config = UpdateYsonStruct(StaticConfig_, node);
 
         ThreadPool_->Configure(config);
     }

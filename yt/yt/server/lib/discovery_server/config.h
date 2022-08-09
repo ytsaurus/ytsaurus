@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryServerConfig
-    : public NYT::NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TString> ServerAddresses;
@@ -18,7 +18,9 @@ public:
     int MaxMembersPerGossip;
     int GossipBatchSize;
 
-    TDiscoveryServerConfig();
+    REGISTER_YSON_STRUCT(TDiscoveryServerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryServerConfig)

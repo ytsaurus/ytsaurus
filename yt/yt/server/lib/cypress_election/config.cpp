@@ -4,18 +4,18 @@ namespace NYT::NCypressElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressElectionManagerConfig::TCypressElectionManagerConfig()
+void TCypressElectionManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("lock_path", LockPath)
+    registrar.Parameter("lock_path", &TThis::LockPath)
         .Default();
 
-    RegisterParameter("transaction_timeout", TransactionTimeout)
+    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("transaction_ping_period", TransactionPingPeriod)
+    registrar.Parameter("transaction_ping_period", &TThis::TransactionPingPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("lock_acquisition_period", LockAcquisitionPeriod)
+    registrar.Parameter("lock_acquisition_period", &TThis::LockAcquisitionPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("leader_cache_update_period", LeaderCacheUpdatePeriod)
+    registrar.Parameter("leader_cache_update_period", &TThis::LeaderCacheUpdatePeriod)
         .Default(TDuration::Seconds(15));
 }
 

@@ -4,15 +4,15 @@ namespace NYT::NChunkPools {
 
 /////////////////////////////////////////////////////////////////////////////
 
-TJobSizeAdjusterConfig::TJobSizeAdjusterConfig()
+void TJobSizeAdjusterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("min_job_time", MinJobTime)
+    registrar.Parameter("min_job_time", &TThis::MinJobTime)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("max_job_time", MaxJobTime)
+    registrar.Parameter("max_job_time", &TThis::MaxJobTime)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
+    registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
         .Default(20.0);
 }
 

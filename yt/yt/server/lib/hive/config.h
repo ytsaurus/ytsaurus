@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class THiveManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent |Ping| requests to remote Hive Manager.
@@ -46,31 +46,9 @@ public:
     //! Maximum time to wait before syncing with another instance.
     TDuration SyncTimeout;
 
-    THiveManagerConfig()
-    {
-        RegisterParameter("ping_period", PingPeriod)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("idle_post_period", IdlePostPeriod)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("post_batching_period", PostBatchingPeriod)
-            .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("ping_rpc_timeout", PingRpcTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("send_rpc_timeout", SendRpcTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("post_rpc_timeout", PostRpcTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("max_messages_per_post", MaxMessagesPerPost)
-            .Default(16384);
-        RegisterParameter("max_bytes_per_post", MaxBytesPerPost)
-            .Default(16_MB);
-        RegisterParameter("cached_channel_timeout", CachedChannelTimeout)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("sync_delay", SyncDelay)
-            .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("sync_timeout", SyncTimeout)
-            .Default(TDuration::Seconds(30));
-    }
+    REGISTER_YSON_STRUCT(THiveManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
@@ -78,17 +56,15 @@ DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent SyncCells requests to the primary Hive Manager.
     TDuration SyncPeriod;
 
-    TCellDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(3));
-    }
+    REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
@@ -96,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration SyncPeriod;
@@ -105,18 +81,9 @@ public:
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
-    TClusterDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(60));
+    REGISTER_YSON_STRUCT(TClusterDirectorySynchronizerConfig);
 
-        RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
-            .Alias("success_expiration_time")
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
-            .Alias("failure_expiration_time")
-            .Default(TDuration::Seconds(15));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)

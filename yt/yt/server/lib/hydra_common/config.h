@@ -88,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLocalSnapshotStoreConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! A path where snapshots are stored.
@@ -97,7 +97,9 @@ public:
     //! Codec used to write snapshots.
     NCompression::ECodec Codec;
 
-    TLocalSnapshotStoreConfig();
+    REGISTER_YSON_STRUCT(TLocalSnapshotStoreConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
@@ -105,13 +107,15 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSnapshotStoreConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NApi::TFileReaderConfigPtr Reader;
     NApi::TFileWriterConfigPtr Writer;
 
-    TRemoteSnapshotStoreConfig();
+    REGISTER_YSON_STRUCT(TRemoteSnapshotStoreConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
@@ -119,14 +123,16 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStoreConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NApi::TJournalReaderConfigPtr Reader;
     NApi::TJournalWriterConfigPtr Writer;
     std::optional<TDuration> LockTransactionTimeout;
 
-    TRemoteChangelogStoreConfig();
+    REGISTER_YSON_STRUCT(TRemoteChangelogStoreConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
@@ -386,13 +392,15 @@ DEFINE_REFCOUNTED_TYPE(TDistributedHydraManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializationDumperConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 LowerLimit;
     i64 UpperLimit;
 
-    TSerializationDumperConfig();
+    REGISTER_YSON_STRUCT(TSerializationDumperConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializationDumperConfig)

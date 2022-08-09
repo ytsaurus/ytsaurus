@@ -59,49 +59,49 @@ void TFileChangelogStoreConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocalSnapshotStoreConfig::TLocalSnapshotStoreConfig()
+void TLocalSnapshotStoreConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("path", Path);
-    RegisterParameter("codec", Codec)
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("codec", &TThis::Codec)
         .Default(NCompression::ECodec::Lz4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteSnapshotStoreConfig::TRemoteSnapshotStoreConfig()
+void TRemoteSnapshotStoreConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reader", Reader)
+    registrar.Parameter("reader", &TThis::Reader)
         .DefaultNew();
-    RegisterParameter("writer", Writer)
+    registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
-        Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletSnapshot;
+    registrar.Preprocessor([] (TThis* config) {
+        config->Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+        config->Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletSnapshot;
 
         //! We want to evenly distribute snapshot load across the cluster.
-        Writer->PreferLocalHost = false;
+        config->Writer->PreferLocalHost = false;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteChangelogStoreConfig::TRemoteChangelogStoreConfig()
+void TRemoteChangelogStoreConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reader", Reader)
+    registrar.Parameter("reader", &TThis::Reader)
         .DefaultNew();
-    RegisterParameter("writer", Writer)
+    registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
-    RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
+    registrar.Parameter("lock_transaction_timeout", &TThis::LockTransactionTimeout)
         .Default();
 
-    RegisterPreprocessor([&] {
-        Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+    registrar.Preprocessor([] (TThis* config) {
+        config->Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
 
-        Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
-        Writer->MaxChunkRowCount = 1'000'000'000;
-        Writer->MaxChunkDataSize = 1_TB;
-        Writer->MaxChunkSessionDuration = TDuration::Hours(24);
+        config->Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
+        config->Writer->MaxChunkRowCount = 1'000'000'000;
+        config->Writer->MaxChunkDataSize = 1_TB;
+        config->Writer->MaxChunkSessionDuration = TDuration::Hours(24);
     });
 }
 
@@ -309,20 +309,20 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializationDumperConfig::TSerializationDumperConfig()
+void TSerializationDumperConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("lower_limit", LowerLimit)
+    registrar.Parameter("lower_limit", &TThis::LowerLimit)
         .GreaterThanOrEqual(0)
         .Default(0);
-    RegisterParameter("upper_limit", UpperLimit)
+    registrar.Parameter("upper_limit", &TThis::UpperLimit)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<i64>::max());
 
-    RegisterPostprocessor([&] () {
-        if (LowerLimit >= UpperLimit) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->LowerLimit >= config->UpperLimit) {
             THROW_ERROR_EXCEPTION("\"upper_limit\" must be greater than \"lower_limit\"")
-                << TErrorAttribute("lower_limit", LowerLimit)
-                << TErrorAttribute("upper_limit", UpperLimit);
+                << TErrorAttribute("lower_limit", config->LowerLimit)
+                << TErrorAttribute("upper_limit", config->UpperLimit);
         }
     });
 }

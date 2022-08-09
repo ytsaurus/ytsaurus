@@ -2,33 +2,27 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/yt/client/formats/config.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManagerDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TAsyncExpiringCacheConfigPtr UserCache;
 
-    TSecurityManagerDynamicConfig()
-    {
-        RegisterParameter("user_cache", UserCache)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TSecurityManagerDynamicConfig);
 
-        RegisterPreprocessor([&] {
-            UserCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
@@ -36,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStructuredLoggingTopicDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Global switch for enabling or disabling particular structured logging topic.
@@ -45,14 +39,9 @@ public:
     //! List of methods for which structured logging is not emitted.
     THashSet<TString> SuppressedMethods;
 
-    TStructuredLoggingTopicDynamicConfig(THashSet<TString> defaultSuppressedMethods = {})
-    {
-        RegisterParameter("enable", Enable)
-            .Default(true);
+    REGISTER_YSON_STRUCT(TStructuredLoggingTopicDynamicConfig);
 
-        RegisterParameter("suppressed_methods", SuppressedMethods)
-            .Default(std::move(defaultSuppressedMethods));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
@@ -60,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TApiServiceConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TSlruCacheConfigPtr ClientCache;
@@ -69,17 +58,9 @@ public:
 
     static constexpr int DefaultClientCacheCapacity = 1000;
 
-    TApiServiceConfig()
-    {
-        RegisterParameter("client_cache", ClientCache)
-            .DefaultNew();
-        RegisterParameter("security_manager", SecurityManager)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TApiServiceConfig);
 
-        RegisterPreprocessor([&] {
-            ClientCache->Capacity = DefaultClientCacheCapacity;
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
@@ -87,7 +68,7 @@ DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TApiServiceDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool VerboseLogging;
@@ -107,31 +88,9 @@ public:
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
-    TApiServiceDynamicConfig()
-    {
-        RegisterParameter("client_cache", ClientCache)
-            .DefaultNew();
-        RegisterParameter("verbose_logging", VerboseLogging)
-            .Default(false);
-        RegisterParameter("enable_modify_rows_request_reordering", EnableModifyRowsRequestReordering)
-            .Default(true);
-        RegisterParameter("force_tracing", ForceTracing)
-            .Default(false);
-        RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
-            .Default(10000);
-        RegisterParameter("read_buffer_data_weight", ReadBufferDataWeight)
-            .Default(16_MB);
-        RegisterParameter("security_manager", SecurityManager)
-            .DefaultNew();
-        RegisterParameter("structured_logging_main_topic", StructuredLoggingMainTopic)
-            .DefaultNew(THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"});
-        RegisterParameter("structured_logging_error_topic", StructuredLoggingErrorTopic)
-            .DefaultNew();
-        RegisterParameter("structured_logging_max_request_byte_size", StructuredLoggingMaxRequestByteSize)
-            .Default(10_KB);
-        RegisterParameter("formats", Formats)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)

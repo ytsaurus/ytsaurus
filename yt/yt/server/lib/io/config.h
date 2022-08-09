@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NIO {
@@ -11,7 +9,7 @@ namespace NYT::NIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIOTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! If set to true, logging of IO events is enabled.
@@ -48,7 +46,9 @@ public:
     //! This option is used only for testing and must be always set to true in production.
     bool EnableEventDequeue;
 
-    TIOTrackerConfig();
+    REGISTER_YSON_STRUCT(TIOTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TIOTrackerConfig)
@@ -56,7 +56,7 @@ DEFINE_REFCOUNTED_TYPE(TIOTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCongestionDetectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     bool ProbesEnabled;
 
@@ -90,7 +90,9 @@ struct TCongestionDetectorConfig
     // Consecutive user failed probes count.
     int UserRequestFailedProbesThreshold;
 
-    TCongestionDetectorConfig();
+    REGISTER_YSON_STRUCT(TCongestionDetectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCongestionDetectorConfig)

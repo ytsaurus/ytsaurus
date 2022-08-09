@@ -2,23 +2,22 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/core_dump/config.h>
+#include <yt/yt/server/lib/core_dump/public.h>
 
-#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/program/config.h>
 
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
-#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/public.h>
 
-#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
@@ -69,7 +68,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskLocationConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskHealthCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent checks.
@@ -81,7 +80,9 @@ public:
     //! Maximum time allowed for execution of a single check.
     TDuration Timeout;
 
-    TDiskHealthCheckerConfig();
+    REGISTER_YSON_STRUCT(TDiskHealthCheckerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
@@ -89,13 +90,15 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFormatConfigBase
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
     NYTree::IMapNodePtr DefaultAttributes;
 
-    TFormatConfigBase();
+    REGISTER_YSON_STRUCT(TFormatConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFormatConfigBase)
@@ -106,7 +109,9 @@ class TFormatConfig
 public:
     THashMap<TString, TFormatConfigBasePtr> UserOverrides;
 
-    TFormatConfig();
+    REGISTER_YSON_STRUCT(TFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFormatConfig)
@@ -137,19 +142,15 @@ DEFINE_REFCOUNTED_TYPE(TArchiveReporterConfig)
 
 //! Part of the ArchiveReporter configuration with unique per-table options.
 class TArchiveHandlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxInProgressDataSize;
     TString Path;
 
-    TArchiveHandlerConfig()
-    {
-        RegisterParameter("max_in_progress_data_size", MaxInProgressDataSize)
-            .Default(250_MB);
-        RegisterParameter("path", Path)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TArchiveHandlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TArchiveHandlerConfig)
