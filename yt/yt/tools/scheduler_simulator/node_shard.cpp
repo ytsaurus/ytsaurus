@@ -380,8 +380,7 @@ NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEvent
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperationId())
         .Item("start_time").Value(job->GetStartTime())
-        .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("job_type").Value(job->GetType());
+        .Item("resource_limits").Value(job->ResourceLimits());
 }
 
 int GetNodeShardId(TNodeId nodeId, int nodeShardCount)
