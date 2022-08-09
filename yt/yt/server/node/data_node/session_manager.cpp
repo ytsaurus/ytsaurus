@@ -48,6 +48,10 @@ TSessionManager::TSessionManager(
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
+
+    DataNodeProfiler.AddFuncGauge("/write_sessions_disabled", MakeStrong(this), [this] {
+        return DisableWriteSessions_.load() ? 1.0 : 0.0;
+    });
 }
 
 void TSessionManager::Initialize()
