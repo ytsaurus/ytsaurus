@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/net/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NPipes {
 
@@ -40,19 +40,18 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNamedPipeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Path;
     int FD = 0;
     bool Write = false;
 
-    TNamedPipeConfig();
+    static TNamedPipeConfigPtr Create(TString path, int fd, bool write);
 
-    TNamedPipeConfig(TString path, int fd, bool write);
+    REGISTER_YSON_STRUCT(TNamedPipeConfig);
 
-private:
-    void Initialize();
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,14 +13,16 @@ namespace NYT::NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAuthCacheConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TDuration CacheTtl;
     TDuration OptimisticCacheTtl;
     TDuration ErrorTtl;
 
-    TAuthCacheConfig();
+    REGISTER_YSON_STRUCT(TAuthCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
@@ -28,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlackboxServiceConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NHttps::TClientConfigPtr HttpClient;
@@ -42,7 +44,9 @@ public:
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
 
-    TBlackboxServiceConfig();
+    REGISTER_YSON_STRUCT(TBlackboxServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxServiceConfig)
@@ -50,7 +54,7 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTvmServiceConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool UseTvmTool;
@@ -75,7 +79,9 @@ public:
     int TvmToolPort = 0;
     TString TvmToolAuthToken;
 
-    TTvmServiceConfig();
+    REGISTER_YSON_STRUCT(TTvmServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTvmServiceConfig)
@@ -83,14 +89,16 @@ DEFINE_REFCOUNTED_TYPE(TTvmServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlackboxTokenAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TString Scope;
     bool EnableScopeCheck;
     bool GetUserTicket;
 
-    TBlackboxTokenAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TBlackboxTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
@@ -98,13 +106,15 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlackboxTicketAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     THashSet<TString> Scopes;
     bool EnableScopeCheck;
 
-    TBlackboxTicketAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TBlackboxTicketAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
@@ -112,12 +122,14 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingTokenAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TAuthCacheConfigPtr Cache;
 
-    TCachingTokenAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TCachingTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
@@ -127,14 +139,19 @@ DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 class TCachingBlackboxTokenAuthenticatorConfig
     : public TBlackboxTokenAuthenticatorConfig
     , public TCachingTokenAuthenticatorConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TCachingBlackboxTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressTokenAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NYPath::TYPath RootPath;
@@ -142,7 +159,9 @@ public:
 
     bool Secure;
 
-    TCypressTokenAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TCypressTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
@@ -152,7 +171,12 @@ DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 class TCachingCypressTokenAuthenticatorConfig
     : public TCachingTokenAuthenticatorConfig
     , public TCypressTokenAuthenticatorConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TCachingCypressTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
@@ -161,7 +185,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
 
 class TBlackboxCookieAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TString Domain;
@@ -171,7 +195,9 @@ public:
 
     bool GetUserTicket;
 
-    TBlackboxCookieAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TBlackboxCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
@@ -179,12 +205,14 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingCookieAuthenticatorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TAuthCacheConfigPtr Cache;
 
-    TCachingCookieAuthenticatorConfig();
+    REGISTER_YSON_STRUCT(TCachingCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
@@ -194,7 +222,12 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 class TCachingBlackboxCookieAuthenticatorConfig
     : public TBlackboxCookieAuthenticatorConfig
     , public TCachingCookieAuthenticatorConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TCachingBlackboxCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 

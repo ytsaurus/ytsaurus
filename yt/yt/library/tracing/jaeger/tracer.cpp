@@ -31,53 +31,53 @@ static NProfiling::TProfiler Profiler{"/tracing"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJaegerTracerDynamicConfig::TJaegerTracerDynamicConfig()
+void TJaegerTracerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("collector_channel_config", CollectorChannelConfig)
+    registrar.Parameter("collector_channel_config", &TThis::CollectorChannelConfig)
         .Optional();
-    RegisterParameter("max_request_size", MaxRequestSize)
+    registrar.Parameter("max_request_size", &TThis::MaxRequestSize)
         .Default();
-    RegisterParameter("max_memory", MaxMemory)
+    registrar.Parameter("max_memory", &TThis::MaxMemory)
         .Default();
-    RegisterParameter("subsampling_rate", SubsamplingRate)
+    registrar.Parameter("subsampling_rate", &TThis::SubsamplingRate)
         .Default();
-    RegisterParameter("flush_period", FlushPeriod)
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJaegerTracerConfig::TJaegerTracerConfig()
+void TJaegerTracerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("collector_channel_config", CollectorChannelConfig)
+    registrar.Parameter("collector_channel_config", &TThis::CollectorChannelConfig)
         .Optional();
 
     // 10K nodes x 128 KB / 15s == 85mb/s
-    RegisterParameter("flush_period", FlushPeriod)
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("stop_timeout", StopTimeout)
+    registrar.Parameter("stop_timeout", &TThis::StopTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("queue_stall_timeout", QueueStallTimeout)
+    registrar.Parameter("queue_stall_timeout", &TThis::QueueStallTimeout)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("max_request_size", MaxRequestSize)
+    registrar.Parameter("max_request_size", &TThis::MaxRequestSize)
         .Default(128_KB)
         .LessThanOrEqual(4_MB);
-    RegisterParameter("max_batch_size", MaxBatchSize)
+    registrar.Parameter("max_batch_size", &TThis::MaxBatchSize)
         .Default(128);
-    RegisterParameter("max_memory", MaxMemory)
+    registrar.Parameter("max_memory", &TThis::MaxMemory)
         .Default(1_GB);
-    RegisterParameter("subsampling_rate", SubsamplingRate)
+    registrar.Parameter("subsampling_rate", &TThis::SubsamplingRate)
         .Default();
-    RegisterParameter("reconnect_period", ReconnectPeriod)
+    registrar.Parameter("reconnect_period", &TThis::ReconnectPeriod)
         .Default(TDuration::Minutes(15));
 
-    RegisterParameter("service_name", ServiceName)
+    registrar.Parameter("service_name", &TThis::ServiceName)
         .Default();
-    RegisterParameter("process_tags", ProcessTags)
+    registrar.Parameter("process_tags", &TThis::ProcessTags)
         .Default();
-    RegisterParameter("enable_pid_tag", EnablePidTag)
+    registrar.Parameter("enable_pid_tag", &TThis::EnablePidTag)
         .Default(false);
 }
 

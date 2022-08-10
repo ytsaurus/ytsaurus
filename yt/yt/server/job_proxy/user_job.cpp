@@ -1048,7 +1048,7 @@ private:
 
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
-            auto pipeConfig = New<TNamedPipeConfig>(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
+            auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
             PipeConfigs_.emplace_back(std::move(pipeConfig));
         }
 
@@ -1084,7 +1084,7 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_, 0666);
-        auto pipeConfig = New<TNamedPipeConfig>(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
+        auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         PipeConfigs_.emplace_back(std::move(pipeConfig));
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
