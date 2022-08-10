@@ -294,7 +294,7 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
             if (!config->MaxIntermediateChunkCount || !config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(
                     "Maximum intermediate chunk count and chunk count per merge job "
-                    "should both be present when using relaxed mode of auto merge");
+                    "should both be present when using manual mode of auto merge");
             }
             if (*config->MaxIntermediateChunkCount < *config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION("Maximum intermediate chunk count cannot be less than chunk count per merge job")
