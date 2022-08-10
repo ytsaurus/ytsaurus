@@ -50,6 +50,9 @@ def extract_job_statistics_for_tree(job_statistics, pool_tree):
 
 
 def extract_statistic(job_statistics, path, aggr="sum", default=None):
+    if job_statistics is None:
+        return default
+
     statistics_by_path = job_statistics
     for part in path.split("/"):
         if default is not None and part not in statistics_by_path:
@@ -417,7 +420,11 @@ def process_scheduler_log_on_yt(client, input_table, output_table):
         .spec({"max_failed_job_count": 1})  # noqa
     client.run_operation(spec)
 
-    client.run_sort(output_table, sort_by=sort_by)
+    spec = yt.SortSpecBuilder()\
+        .input_table_paths([output_table])\
+        .output_table_path(output_table)\
+        .sort_by(sort_by)  # noqa
+    client.run_operation(spec)
 
     dir_name, table_name = yt.ypath_split(output_table)
     pools_output_table = yt.ypath_join(dir_name, "pools", table_name)
@@ -437,8 +444,10 @@ def main():
     parser.add_argument("--temp-dir")
     parser.add_argument("--cluster",
                         help="Cluster to perform processing")
+    parser.add_argument("--pool",
+                        help="Pool")
     parser.add_argument("--filter",
-                        help="Cluster to perform processing")
+                        help="Regexp to match tables to process")
     parser.add_argument("--mode", choices=["local", "table", "dir"], default="table",
                         help="Read data from stdin and process locally (for testing purposes)")
     args = parser.parse_args()
@@ -449,10 +458,12 @@ def main():
         assert args.input_path
         assert args.output_path
 
-        client = yt.YtClient(args.cluster, config=get_config_from_env())
+        config = get_config_from_env()
+        config["pool"] = args.pool
+        client = yt.YtClient(args.cluster, config=config)
 
         if args.mode == "table":
-            if client.get(args.output_path + "/@type") == "map_node":
+            if client.exists(args.output_path) and client.get(args.output_path + "/@type") == "map_node":
                 input_dir_name, input_base_name = yt.ypath_split(args.input_path)
                 output_path = yt.ypath_join(args.output_path, input_base_name)
             else:
