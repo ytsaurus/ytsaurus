@@ -491,7 +491,7 @@ public class YtClientTest {
     public void testPreparedModifyRowsRequest() {
         YPath table = YPath.simple(path + "/table9");
 
-        var schema = TableSchema.builder()
+        var schema = TableSchema.builderWithUniqueKeys()
                 .addKey("key", TiType.string())
                 .addValue("value", TiType.string())
                 .build();

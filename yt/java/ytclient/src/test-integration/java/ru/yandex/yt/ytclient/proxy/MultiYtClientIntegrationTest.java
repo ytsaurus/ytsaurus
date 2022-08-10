@@ -25,7 +25,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class MultiYtClientIntegrationTest {
-    static final TableSchema KEY_VALUE_TABLE_SCHEMA = TableSchema.builder()
+    static final TableSchema KEY_VALUE_TABLE_SCHEMA = TableSchema.builderWithUniqueKeys()
             .addKey("key", TiType.string())
             .addValue("value", TiType.int64())
             .build();

@@ -26,7 +26,7 @@ class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with
   }
 
   it should "createDynTableAndMount" in {
-    val schema = TableSchema.builder()
+    val schema = TableSchema.builderWithUniqueKeys()
       .addKey("mockKey", ColumnValueType.INT64)
       .addValue("mockValue", ColumnValueType.INT64).build()
 
@@ -48,7 +48,7 @@ class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with
   }
 
   it should "count rows" in {
-    val schema = TableSchema.builder()
+    val schema = TableSchema.builderWithUniqueKeys()
       .setUniqueKeys(false)
       .addValue("value", ColumnValueType.INT64).build()
     createDynTableAndMount(tmpPath, schema)
