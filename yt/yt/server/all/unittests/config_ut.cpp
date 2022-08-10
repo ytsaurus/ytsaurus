@@ -11,6 +11,8 @@
 
 #include <library/cpp/testing/common/env.h>
 
+#include <library/cpp/resource/resource.h>
+
 #include <util/folder/path.h>
 
 namespace NYT {
@@ -26,9 +28,7 @@ using namespace NYT::NYson;
 
 TYsonString ReadConfigStr(TStringBuf fileName)
 {
-    auto fullPath = JoinFsPaths(GetWorkPath(), "configs", fileName);
-    TIFStream input(fullPath);
-    return TYsonString(input.ReadAll());
+    return TYsonString(NResource::Find(TString("/configs/") + fileName));
 }
 
 template <typename T>

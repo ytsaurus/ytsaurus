@@ -1,0 +1,98 @@
+{
+    "enable_legacy_live_preview" = %false;
+    "unavailable_chunk_tactics" = "fail";
+    "max_speculative_job_count_per_task" = 3;
+    "output_table_path" = "//home/yabs-cs-sandbox/import/1150604018/BroadMatchBL.bs";
+    "enable_compatible_storage_mode" = %false;
+    "started_by" = {
+        "python_version" = "2.7.16";
+        "hostname" = "linux-ubuntu-12-04-precise";
+        "pid" = 4709;
+        "platform" = "Ubuntu 12.04 (Precise Pangolin)";
+        "command" = [
+            "/place/sandbox-data/tasks/2/0/1150608502/bs_release_yt/cs";
+            "*** REDACTED ***";
+        ];
+        "user" = "root";
+        "wrapper_version" = "r8919229";
+    };
+    "title" = "local_CSCycleApp: BroadMatchBL.bs Canonize";
+    "merge_job_io" = {
+        "table_reader" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+        "table_writer" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+    };
+    "fair_share_starvation_tolerance" = 1.;
+    "input_table_paths" = [
+        "//home/yabs-cs-sandbox/import/1150604018/BroadMatchBL.bs";
+    ];
+    "annotations" = {
+        "basever" = "3368298004";
+        "task_id" = "1150608502";
+        "tags" = [];
+        "servant_name" = "local_CSCycleApp";
+        "actions" = #;
+        "content_system_key" = #;
+    };
+    "fair_share_preemption_timeout" = 0;
+    "ignore_job_failures_at_banned_nodes" = %true;
+    "mapper" = {
+        "tmpfs_size" = 536870912;
+        "memory_limit" = 1073741824;
+    };
+    "min_share_preemption_timeout" = 0;
+    "sort_job_io" = {
+        "table_reader" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+        "table_writer" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+    };
+    "unavailable_chunk_strategy" = "fail";
+    "pool" = "robot-yabs-cs-sb";
+    "ban_nodes_with_failed_jobs" = %true;
+    "owners" = [
+        "yabs-cs";
+    ];
+    "reducer" = {
+        "tmpfs_size" = 536870912;
+        "memory_limit" = 1073741824;
+    };
+    "sort_by" = [
+        "_Base";
+        "_Query";
+        "_Row";
+        "_DataHash";
+    ];
+    "intermediate_compression_codec" = "zstd_1";
+    "partition_job_io" = {
+        "table_reader" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+        "table_writer" = {
+            "workload_descriptor" = {
+                "category" = "user_realtime";
+                "band" = 4096;
+            };
+        };
+    };
+}

@@ -1,0 +1,128 @@
+{
+    "ref_counted_tracker_dump_period" = 15000;
+    "cluster_connection" = {
+        "cell_directory" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+        };
+        "table_mount_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "cell_directory_synchronizer" = {
+            "sync_period" = 500;
+        };
+        "timestamp_provider" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+            "update_period" = 500;
+            "addresses" = [
+                "localhost:25282";
+            ];
+        };
+        "cluster_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "transaction_manager" = {
+            "default_ping_period" = 500;
+        };
+        "secondary_masters" = [];
+        "master_cell_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "job_node_descriptor_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "primary_master" = {
+            "hard_backoff_time" = 100;
+            "addresses" = [
+                "localhost:25282";
+            ];
+            "enable_master_cache_discovery" = %false;
+            "soft_backoff_time" = 100;
+            "cell_id" = "478008c4-ffffffff-259-ffffffff";
+            "retry_attempts" = 100;
+            "rpc_timeout" = 25000;
+            "retry_backoff_time" = 100;
+        };
+        "permission_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+    };
+    "grpc_server" = {
+        "addresses" = [
+            {
+                "address" = "localhost:19750";
+            };
+        ];
+    };
+    "discovery_service" = {
+        "liveness_update_period" = 500;
+        "proxy_update_period" = 500;
+    };
+    "dynamic_config_manager" = {
+        "update_period" = 100;
+    };
+    "enable_authentication" = %false;
+    "solomon_exporter" = {
+        "grid_step" = 1000;
+    };
+    "logging" = {
+        "rules" = [
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "debug";
+                "exclude_categories" = [
+                    "Bus";
+                ];
+                "writers" = [
+                    "debug";
+                ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/rpc-proxy-0.log";
+                "type" = "file";
+            };
+            "debug" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/rpc-proxy-0.debug.log";
+                "type" = "file";
+            };
+        };
+        "abort_on_alert" = %true;
+    };
+    "monitoring_port" = 13574;
+    "address_resolver" = {
+        "localhost_fqdn" = "localhost";
+    };
+    "yt_alloc_dump_period" = 15000;
+    "api_service" = {
+        "security_manager" = {
+            "user_cache" = {
+                "expire_after_successful_update_time" = 0;
+                "expire_after_failed_update_time" = 0;
+                "refresh_time" = 0;
+                "expire_after_access_time" = 0;
+            };
+        };
+    };
+    "rpc_port" = 29188;
+}

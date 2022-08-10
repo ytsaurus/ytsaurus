@@ -1,0 +1,110 @@
+{
+    "ban_nodes_with_failed_jobs" = %true;
+    "tasks" = {
+        "task" = {
+            "job_count" = 1;
+            "job_time_limit" = 192000000;
+            "tmpfs_path" = "nv_tmpfs";
+            "use_porto_memory_tracking" = %true;
+            "file_paths" = [
+                <
+                    "__nv_url" = "https://job-processor.nirvana-deploy.yandex-team.ru/api/resources/nirvana-bundle.tar.gz?version=1.4423&md5=0d6a667a8c53df10368b77f86d8e31ed";
+                    "file_name" = "nv_tmpfs/sys/static/nirvana-bundle.tar.gz";
+                    "executable" = %false;
+                    "__nv_md5" = "0d6a667a8c53df10368b77f86d8e31ed";
+                > "//home/qe/nirvana/production/ytprocessor/sys/nirvana-bundle.tar.gz.0d6a667a8c53df10368b77f86d8e31ed.0";
+                <
+                    "__nv_url" = "https://job-processor.nirvana-deploy.yandex-team.ru/api/resources/job_launcher_native?version=1.4423&md5=b7efab5e88e6b08d267d3f68082b0113";
+                    "file_name" = "nv_tmpfs/sys/static/job_launcher_native";
+                    "executable" = %true;
+                    "__nv_md5" = "b7efab5e88e6b08d267d3f68082b0113";
+                > "//home/qe/nirvana/production/ytprocessor/sys/job_launcher_native.b7efab5e88e6b08d267d3f68082b0113.0";
+            ];
+            "memory_limit" = 107239761204;
+            "tmpfs_size" = 1149035828;
+            "port_count" = 1;
+            "environment" = {
+                "NV_JL_XMX" = "664";
+                "NV_SYS_DIR_PREFIX" = "nv_tmpfs/sys/";
+                "NV_TMPFS_SANDBOX" = "false";
+                "NV_JL_XX_MAX_METASPACE_SIZE" = "80";
+                "NV_LOG_DIR_PREFIX" = "nv_tmpfs/log/";
+                "NV_JOB_JSON_URL" = "https://job-processor.nirvana-deploy.yandex-team.ru/api/resources/job/h4T05j5bQ3O7qj6f6MFUCw";
+                "NV_JL_XX_MAX_DIRECT" = "128";
+                "NV_NATIVE_JOB_LAUNCHER" = "true";
+                "NV_MTN_PROJECT_ID" = "4457";
+                "NV_BUFFER_SIZE" = "_16_MB";
+                "NV_JL_XX_RESERVED_CODE_CACHE" = "48";
+            };
+            "command" = "tar xfz ${NV_SYS_DIR_PREFIX}static/nirvana-bundle.tar.gz -C ${NV_SYS_DIR_PREFIX}static && source ${NV_SYS_DIR_PREFIX}static/job_launcher.sh && jl_main";
+            "disk_request" = {
+                "disk_space" = 158294313334;
+            };
+            "cpu_limit" = 10.;
+            "enable_porto" = "isolate";
+            "copy_files" = %true;
+            "memory_reserve_factor" = 1.;
+            "layer_paths" = [
+                "//home/selfdriving/porto_layers/stripped/py3/sdc_binaries_8961813fd4a05ea2b38be8ad3f631c7cd3a5a65e.tar.gz";
+                "//home/selfdriving/porto_layers/sdc_sync_packages_2021-11-05-22-22_047df6d5fe.tar.gz";
+                "//home/selfdriving/porto_layers/sdc_base_packages_2021-11-05-22-22.tar.xz";
+                "//home/selfdriving/porto_layers/ubuntu-bionic-base.tar.xz";
+            ];
+        };
+    };
+    "weight" = 1.;
+    "description" = {
+        "nirvana_block_type_id" = "424d80dc-8450-4f18-ab21-681c9a252c0f";
+        "nirvana_block_url" = <
+            "_type_tag" = "url";
+        > "https://nirvana.yandex-team.ru/process/52d9d5c7-9615-43bd-ba03-03e0f0bfe959/graph/operation/6a5b1916-b583-4920-9508-a262beab1dbf";
+    };
+    "ignore_job_failures_at_banned_nodes" = %true;
+    "enable_secure_vault_variables_in_job_shell" = %false;
+    "max_speculative_job_count_per_task" = 3;
+    "title" = "Tile prepare for ICP and NDT localization";
+    "max_failed_job_count" = 2;
+    "acl" = [
+        {
+            "action" = "allow";
+            "subjects" = [
+                "robot-sdc-nirvana";
+                "robot-nirvana";
+                "robot-job-processor";
+            ];
+            "permissions" = [
+                "read";
+                "manage";
+            ];
+        };
+    ];
+    "enable_compatible_storage_mode" = %false;
+    "pool_trees" = [
+        "nirvana";
+    ];
+    "pool" = "nirvana-sdc-lidar-maps-prod";
+    "max_unpreemptable_job_count" = 0;
+    "job_shells" = [
+        {
+            "owners" = [
+                "robot-nirvana";
+                "robot-job-processor";
+            ];
+            "name" = "default";
+            "subcontainer" = "";
+        };
+        {
+            "owners" = [
+                "robot-sdc-nirvana";
+                "robot-nirvana";
+                "robot-job-processor";
+            ];
+            "name" = "N";
+            "subcontainer" = "/N";
+        };
+    ];
+    "annotations" = {};
+    "job_cpu_monitor" = {
+        "enable_cpu_reclaim" = %true;
+    };
+}
