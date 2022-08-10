@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/misc/cast.h>
+
 #include <util/stream/mem.h>
 
 namespace NYT::NYTree {
@@ -206,49 +208,140 @@ std::optional<TResult> TryParseImpl(TStringBuf yson, const TYPath& path, bool is
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TScalarTypeTraits
+{ };
+
+template <>
+struct TScalarTypeTraits<TString>
+{
+    static std::optional<TString> TryCast(const NDetail::TResult& result)
+    {
+        if (const auto* value = std::get_if<TString>(&result)) {
+            return *value;
+        }
+        return std::nullopt;
+    }
+};
+
+template <>
+struct TScalarTypeTraits<bool>
+{
+    static std::optional<bool> TryCast(const NDetail::TResult& result)
+    {
+        if (const auto* value = std::get_if<bool>(&result)) {
+            return *value;
+        }
+        return std::nullopt;
+    }
+};
+
+template <>
+struct TScalarTypeTraits<i64>
+{
+    static std::optional<i64> TryCast(const NDetail::TResult& result)
+    {
+        if (const auto* value = std::get_if<i64>(&result)) {
+            return *value;
+        } else if (const auto* value = std::get_if<ui64>(&result)) {
+            i64 typedResult;
+            if (TryIntegralCast<i64, ui64>(*value, &typedResult)) {
+                return typedResult;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
+template <>
+struct TScalarTypeTraits<ui64>
+{
+    static std::optional<ui64> TryCast(const NDetail::TResult& result)
+    {
+        if (const auto* value = std::get_if<ui64>(&result)) {
+            return *value;
+        } else if (const auto* value = std::get_if<i64>(&result)) {
+            ui64 typedResult;
+            if (TryIntegralCast<ui64, i64>(*value, &typedResult)) {
+                return typedResult;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
+template <>
+struct TScalarTypeTraits<double>
+{
+    static std::optional<double> TryCast(const NDetail::TResult& result)
+    {
+        if (const auto* value = std::get_if<double>(&result)) {
+            return *value;
+        } else if (const auto* value = std::get_if<i64>(&result)) {
+            return static_cast<double>(*value);
+        } else if (const auto* value = std::get_if<ui64>(&result)) {
+            return static_cast<double>(*value);
+        }
+        return std::nullopt;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
-std::optional<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = false)
+std::optional<T> TryGetValueImpl(TStringBuf yson, const TYPath& ypath, bool isAny = false)
 {
     auto result = NDetail::TryParseImpl(yson, ypath, isAny);
     if (!result.has_value()) {
         return std::nullopt;
     }
-    if (const auto* value = std::get_if<T>(&*result)) {
-        return *value;
-    }
-    return {};
+    return TScalarTypeTraits<T>::TryCast(*result);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+std::optional<T> TryGetValue(TStringBuf yson, const TYPath& ypath)
+{
+    return TryGetValueImpl<T>(yson, ypath, /*isAny*/ false);
+}
+
+template std::optional<i64> TryGetValue<i64>(TStringBuf yson, const TYPath& ypath);
+template std::optional<ui64> TryGetValue<ui64>(TStringBuf yson, const TYPath& ypath);
+template std::optional<bool> TryGetValue<bool>(TStringBuf yson, const TYPath& ypath);
+template std::optional<double> TryGetValue<double>(TStringBuf yson, const TYPath& ypath);
+template std::optional<TString> TryGetValue<TString>(TStringBuf yson, const TYPath& ypath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<i64> TryGetInt64(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<i64>(yson, ypath);
+    return TryGetValueImpl<i64>(yson, ypath);
 }
 
 std::optional<ui64> TryGetUint64(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<ui64>(yson, ypath);
+    return TryGetValueImpl<ui64>(yson, ypath);
 }
 
 std::optional<bool> TryGetBoolean(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<bool>(yson, ypath);
+    return TryGetValueImpl<bool>(yson, ypath);
 }
 
 std::optional<double> TryGetDouble(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<double>(yson, ypath);
+    return TryGetValueImpl<double>(yson, ypath);
 }
 
 std::optional<TString> TryGetString(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<TString>(yson, ypath);
+    return TryGetValueImpl<TString>(yson, ypath);
 }
 
 std::optional<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 {
-    return TryGetValue<TString>(yson, ypath, true);
+    return TryGetValueImpl<TString>(yson, ypath, /*isAny*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

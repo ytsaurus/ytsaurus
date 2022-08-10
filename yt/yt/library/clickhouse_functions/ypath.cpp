@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnsNumber.h>
@@ -143,36 +144,41 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
-
             TYTOutputType value{};
-
             constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
 
-            try {
-                auto subNode = GetNodeByYPath(node, TString(path.data, path.size));
-
-                if constexpr (isFundumental) {
-                    value = subNode->GetValue<TYTOutputType>();
+            if constexpr (isFundumental) {
+                if (auto maybeValue = TryGetValue<TYTOutputType>(TStringBuf(yson.data, yson.size), TYPath(path.data, path.size))) {
+                    value = std::move(*maybeValue);
                 } else {
-                    value = ConvertTo<TYTOutputType>(subNode);
+                    if (Strict) {
+                        THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                            << TErrorAttribute("path", TStringBuf(path.data, path.size));
+                    }
                 }
-            } catch (const std::exception& ex) {
-                if (Strict) {
-                    // Rethrow the error with additional context.
-                    THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
-                        << ex;
-                } else {
-                    // Just ignore the error.
+            } else {
+                auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
+                try {
+                    auto subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                    value = ConvertTo<TYTOutputType>(subNode);
+                } catch (const std::exception& ex) {
+                    if (Strict) {
+                        // Rethrow the error with additional context.
+                        THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                            << TErrorAttribute("path", TStringBuf(path.data, path.size))
+                            << ex;
+                    } else {
+                        // Just ignore the error.
 
-                    // TODO(dakovalkov): insertDefault() inserts Null for Nullable columns.
-                    // For backward compatibility we always insert default type value.
-                    // If we want to make it more consistent, we need to make an announcement for users first.
+                        // TODO(dakovalkov): insertDefault() inserts Null for Nullable columns.
+                        // For backward compatibility we always insert default type value.
+                        // If we want to make it more consistent, we need to make an announcement for users first.
 
-                    // columnTo->insertDefault();
-                    // continue;
+                        // columnTo->insertDefault();
+                        // continue;
+                    }
                 }
             }
 
