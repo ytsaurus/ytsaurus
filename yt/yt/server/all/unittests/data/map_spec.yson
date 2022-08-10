@@ -1,0 +1,111 @@
+{
+    "ban_nodes_with_failed_jobs" = %true;
+    "auto_merge" = {
+        "mode" = "relaxed";
+    };
+    "ignore_job_failures_at_banned_nodes" = %true;
+    "mapper" = {
+        "file_paths" = [
+            <
+                "file_name" = "0_indexer_executable";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/new_cache/bd/a7a32ef61c066a51973e94e2ef2631bd";
+            <
+                "file_name" = "_build_index_delta.pickle";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/new_cache/18/8ec2553c831402b2bfd0c5ac6561e518";
+            <
+                "file_name" = "config_dump";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/new_cache/db/e47d0d35bbe143a368a3d70fc748d1db";
+        ];
+        "input_format" = <
+            "sort_keys" = %false;
+            "ignore_inner_attributes" = %false;
+            "lazy" = %false;
+            "always_create_attributes" = %false;
+            "format" = "binary";
+        > "yson";
+        "title" = "_build_index_delta";
+        "output_format" = <
+            "sort_keys" = %false;
+            "ignore_inner_attributes" = %false;
+            "lazy" = %false;
+            "always_create_attributes" = %false;
+            "format" = "binary";
+        > "yson";
+        "use_yamr_descriptors" = %false;
+        "environment" = {
+            "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" = "0";
+            "YT_FORBID_REQUESTS_FROM_JOB" = "1";
+            "Y_PYTHON_ENTRY_POINT" = "__yt_entry_point__";
+        };
+        "command" = "./0_indexer_executable _build_index_delta.pickle config_dump";
+        "check_input_fully_consumed" = %false;
+    };
+    "max_speculative_job_count_per_task" = 10;
+    "output_table_paths" = [
+        "//home/muzsearch/ymusic/qa/deltas/1639048644886912";
+    ];
+    "max_failed_job_count" = 1;
+    "job_io" = {};
+    "acl" = [
+        {
+            "action" = "allow";
+            "subjects" = [
+                "muzsearch";
+            ];
+            "permissions" = [
+                "read";
+            ];
+        };
+        {
+            "action" = "allow";
+            "subjects" = [
+                "epinkovskii";
+            ];
+            "permissions" = [
+                "read";
+                "manage";
+            ];
+        };
+    ];
+    "enable_compatible_storage_mode" = %false;
+    "input_table_paths" = [
+        <
+            "columns" = [
+                "JsonMessage";
+                "JsonMessagePersonal";
+            ];
+        > "//home/muzsearch/ymusic/qa/ugc-data/tracks/deltas/1639048592483634";
+        <
+            "columns" = [
+                "JsonMessage";
+                "JsonMessagePersonal";
+            ];
+        > "//home/muzsearch/ymusic/qa/ugc-data/playlists/deltas/1639048592483634";
+    ];
+    "started_by" = {
+        "python_version" = "3.9.4";
+        "hostname" = "NvYt-98d027a9fa24-29dc396d-dcfda4e5-3fe03e8-c7a01f05.yandex.net";
+        "pid" = 3;
+        "platform" = "Ubuntu 14.04 (Trusty Tahr)";
+        "command" = [
+            "/slot/sandbox/nv_tmpfs/d/in/indexer_executable/0_indexer_executable";
+            "--ferryman-host";
+            "http://ymusic.ferryman.n.yandex-team.ru/";
+            "--base-dir";
+            "//home/muzsearch/ymusic/qa";
+            "--index";
+            "/slot/sandbox/d/out/index_table/index";
+            "--incoming-data-dir";
+            "//home/muzsearch/ymusic/qa/incoming";
+            "--dssm-archive";
+            "/slot/sandbox/d/in/dssm_archive/0_dssm_archive";
+            "process_incoming_data";
+        ];
+        "user" = "19518";
+        "wrapper_version" = "r8161697";
+    };
+    "pool" = "muzsearch";
+}

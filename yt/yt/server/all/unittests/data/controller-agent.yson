@@ -1,0 +1,185 @@
+{
+    "controller_agent" = {
+        "reduce_operation_options" = {
+            "spec_template" = {
+                "use_new_sorted_pool" = %true;
+            };
+        };
+        "operations_push_period" = 10;
+        "map_reduce_operation_options" = {
+            "spec_template" = {
+                "use_new_sorted_pool" = %true;
+                "partition_data_size" = 536870912;
+            };
+        };
+        "enable_snapshot_loading" = %true;
+        "static_orchid_cache_update_period" = 300;
+        "controller_static_orchid_update_period" = 0;
+        "safe_scheduler_online_time" = 5000;
+        "sort_operation_options" = {
+            "spec_template" = {
+                "use_new_sorted_pool" = %true;
+                "partition_data_size" = 536870912;
+            };
+        };
+        "environment" = {
+            "PYTHONPATH" = "$(SandboxPath)";
+            "PYTHON_EGG_CACHE" = "$(SandboxPath)/.python-eggs";
+            "PYTHONUSERBASE" = "$(SandboxPath)/.python-site-packages";
+            "TMPDIR" = "$(SandboxPath)";
+            "HOME" = "$(SandboxPath)";
+        };
+        "sorted_merge_operation_options" = {
+            "spec_template" = {
+                "use_new_sorted_pool" = %true;
+            };
+        };
+        "controller_exec_node_info_update_period" = 100;
+        "enable_bulk_insert_for_everyone" = %true;
+        "scheduling_tag_filter_expire_timeout" = 100;
+        "snapshot_period" = 100000000;
+        "max_archived_job_spec_count_per_operation" = 10;
+        "snapshot_timeout" = 300000;
+        "suspicious_jobs_push_period" = 100;
+        "enable_tmpfs" = %false;
+        "config_update_period" = 100;
+        "join_reduce_operation_options" = {
+            "spec_template" = {
+                "use_new_sorted_pool" = %true;
+            };
+        };
+        "enable_locality" = %false;
+        "operation_options" = {
+            "spec_template" = {
+                "intermediate_data_replication_factor" = 1;
+                "locality_timeout" = 100;
+                "enable_trace_logging" = %true;
+                "max_failed_job_count" = 10;
+            };
+        };
+        "exec_nodes_update_period" = 100;
+        "operation_alerts_push_period" = 100;
+    };
+    "logging" = {
+        "rules" = [
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "debug";
+                "exclude_categories" = [
+                    "Bus";
+                ];
+                "writers" = [
+                    "debug";
+                ];
+            };
+            {
+                "min_level" = "debug";
+                "writers" = [
+                    "json";
+                ];
+                "message_format" = "structured";
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/controller-agent-0.log";
+                "type" = "file";
+            };
+            "debug" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/controller-agent-0.debug.log";
+                "type" = "file";
+            };
+            "json" = {
+                "accepted_message_format" = "structured";
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/controller-agent-0.json.log";
+                "type" = "file";
+            };
+        };
+        "abort_on_alert" = %true;
+    };
+    "cluster_connection" = {
+        "cell_directory" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+        };
+        "table_mount_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "permission_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "primary_master" = {
+            "hard_backoff_time" = 100;
+            "addresses" = [
+                "localhost:25282";
+            ];
+            "enable_master_cache_discovery" = %false;
+            "soft_backoff_time" = 100;
+            "cell_id" = "478008c4-ffffffff-259-ffffffff";
+            "retry_attempts" = 100;
+            "rpc_timeout" = 25000;
+            "retry_backoff_time" = 100;
+        };
+        "cell_directory_synchronizer" = {
+            "sync_period" = 500;
+        };
+        "master_cell_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "timestamp_provider" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+            "update_period" = 500;
+            "addresses" = [
+                "localhost:25282";
+            ];
+        };
+        "cluster_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "job_node_descriptor_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "scheduler" = {
+            "retry_backoff_time" = 100;
+        };
+        "transaction_manager" = {
+            "default_ping_period" = 500;
+        };
+        "node_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 100;
+            "expire_after_failed_update_time" = 100;
+            "sync_period" = 100;
+        };
+        "secondary_masters" = [];
+    };
+    "address_resolver" = {
+        "localhost_fqdn" = "localhost";
+    };
+    "monitoring_port" = 5321;
+    "node_directory_synchronizer" = {
+        "sync_period" = 100;
+    };
+    "solomon_exporter" = {
+        "grid_step" = 1000;
+    };
+    "rpc_port" = 15937;
+}

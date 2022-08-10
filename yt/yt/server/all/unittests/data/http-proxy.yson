@@ -1,0 +1,152 @@
+{
+    "logging" = {
+        "rules" = [
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "debug";
+                "exclude_categories" = [
+                    "Bus";
+                ];
+                "writers" = [
+                    "debug";
+                ];
+            };
+            {
+                "min_level" = "debug";
+                "writers" = [
+                    "json";
+                ];
+                "message_format" = "structured";
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/http-proxy-0.log";
+                "type" = "file";
+            };
+            "debug" = {
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/http-proxy-0.debug.log";
+                "type" = "file";
+            };
+            "json" = {
+                "accepted_message_format" = "structured";
+                "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/http-proxy-0.json.log";
+                "type" = "file";
+            };
+        };
+        "abort_on_alert" = %true;
+    };
+    "monitoring_port" = 12298;
+    "address_resolver" = {
+        "localhost_fqdn" = "localhost";
+    };
+    "driver" = {
+        "master_cell_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "cell_directory" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+        };
+        "table_mount_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "format_defaults" = {
+            "tabular" = <
+                "format" = "text";
+            > "yson";
+            "structured" = <
+                "format" = "text";
+            > "yson";
+        };
+        "primary_master" = {
+            "hard_backoff_time" = 100;
+            "addresses" = [
+                "localhost:25282";
+            ];
+            "enable_master_cache_discovery" = %false;
+            "soft_backoff_time" = 100;
+            "cell_id" = "478008c4-ffffffff-259-ffffffff";
+            "retry_attempts" = 100;
+            "rpc_timeout" = 25000;
+            "retry_backoff_time" = 100;
+        };
+        "cell_directory_synchronizer" = {
+            "sync_period" = 500;
+        };
+        "transaction_manager" = {
+            "default_ping_period" = 500;
+        };
+        "enable_udf" = %true;
+        "timestamp_provider" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+            "update_period" = 500;
+            "addresses" = [
+                "localhost:25282";
+            ];
+        };
+        "cluster_directory_synchronizer" = {
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+            "sync_period" = 500;
+        };
+        "job_node_descriptor_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "permission_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "refresh_time" = 0;
+            "expire_after_access_time" = 0;
+        };
+        "force_tracing" = %true;
+        "proxy_discovery_cache" = {
+            "expire_after_successful_update_time" = 1000;
+            "expire_after_failed_update_time" = 1000;
+            "refresh_time" = 1000;
+        };
+        "secondary_masters" = [];
+    };
+    "auth" = {
+        "blackbox_service" = {};
+        "enable_authentication" = %false;
+        "blackbox_token_authenticator" = {
+            "scope" = "";
+            "enable_scope_check" = %false;
+        };
+        "cypress_token_authenticator" = {};
+        "blackbox_cookie_authenticator" = {};
+    };
+    "rpc_port" = 17449;
+    "coordinator" = {
+        "announce" = %true;
+        "heartbeat_interval" = 500;
+        "enable" = %true;
+        "show_ports" = %true;
+        "public_fqdn" = "localhost:29998";
+    };
+    "api" = {
+        "disable_cors_check" = %true;
+    };
+    "dynamic_config_manager" = {
+        "update_period" = 100;
+    };
+    "solomon_exporter" = {
+        "grid_step" = 1000;
+    };
+    "port" = 29998;
+}
