@@ -2956,13 +2956,16 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         return;
     }
 
+    auto joblet = GetJoblet(jobId);
+
     YT_LOG_DEBUG(
-        "Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v)",
+        "Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
         jobId,
         jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
         jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
         jobSummary->Abandoned,
-        jobSummary->InterruptReason);
+        jobSummary->InterruptReason,
+        joblet->IsJobInterruptible);
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
@@ -2971,8 +2974,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
-
-    auto joblet = GetJoblet(jobId);
 
     // TODO(max42): this code is overcomplicated, rethink it.
     if (!abandoned) {
