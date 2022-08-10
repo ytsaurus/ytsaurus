@@ -2747,9 +2747,7 @@ void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration interruptTimeout)
 
     job->SetPreempted(true);
 
-    if (interruptTimeout) {
-        DoInterruptJob(job, EInterruptReason::Preemption, interruptTimeout);
-    }
+    DoInterruptJob(job, EInterruptReason::Preemption, interruptTimeout);
 }
 
 TJobToAbort TNodeShard::BuildPreemptedJobAbortAttributes(const TJobPtr& job) const
@@ -2773,8 +2771,9 @@ void TNodeShard::DoInterruptJob(
     TCpuDuration interruptTimeout,
     const std::optional<TString>& interruptUser)
 {
-    YT_LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
+    YT_LOG_DEBUG("Interrupting job (Reason: %v, CurrentReason: %v InterruptTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
         reason,
+        job->GetInterruptReason(),
         CpuDurationToDuration(interruptTimeout).SecondsFloat(),
         job->GetId(),
         job->GetOperationId(),

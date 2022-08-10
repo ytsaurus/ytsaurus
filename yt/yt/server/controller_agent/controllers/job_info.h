@@ -42,6 +42,8 @@ struct TJobInfoBase
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
 
+    bool IsJobInterruptible;
+
     TJobNodeDescriptor NodeDescriptor;
 
     TInstant StartTime;
