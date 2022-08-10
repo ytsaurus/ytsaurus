@@ -1056,6 +1056,9 @@ public:
     //COMPAT(levysotsky): See YT-16507
     bool EnableTableColumnRenaming;
 
+    // TODO(eshcherbin): Remove this option, when we're sure aggregation is never needed. See: YT-17479.
+    bool AggregateMinNeededResourcesPerJobType;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);
