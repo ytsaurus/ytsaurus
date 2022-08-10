@@ -10,7 +10,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 public class Example03MultiYtClient {
     public static void main(String[] args) {
         // Схема динамической таблицы, которую будем читать
-        TableSchema schema = TableSchema.builder()
+        TableSchema schema = TableSchema.builderWithUniqueKeys()
                 .add(
                         ColumnSchema.builder("key", TiType.int64())
                                 .setSortOrder(ColumnSortOrder.ASCENDING)

@@ -36,7 +36,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertThrows;
 
 public class YtClientRetryWithTransactionTest extends YtClientTestBase {
-    static final TableSchema keyValueTableSchema = TableSchema.builder()
+    static final TableSchema keyValueTableSchema = TableSchema.builderWithUniqueKeys()
             .addKey("key", TiType.string())
             .addValue("value", TiType.int64())
             .build();

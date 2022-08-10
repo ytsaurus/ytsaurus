@@ -26,7 +26,7 @@ object WorkerLogSchema {
     val LENGTH = "length"
   }
 
-  val schema: TableSchema = TableSchema.builder()
+  val schema: TableSchema = TableSchema.builderWithUniqueKeys()
     .addKey(APP_DRIVER, ColumnValueType.STRING)
     .addKey(EXEC_ID, ColumnValueType.STRING)
     .addKey(STREAM, ColumnValueType.STRING)

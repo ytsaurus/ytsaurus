@@ -50,7 +50,7 @@ class YtDynTableLogger(name: String,
 }
 
 object YtDynTableLogger {
-  val logTableSchema: TableSchema = TableSchema.builder()
+  val logTableSchema: TableSchema = TableSchema.builderWithUniqueKeys()
     .addKey("logger_name", TiType.string())
     .addKey("dttm", TiType.string())
     .addKey("discovery_path", TiType.string())
