@@ -84,20 +84,6 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
     }
 
     /**
-     * Unmount table.
-     *
-     * This method doesn't wait until tablets become unmounted.
-     *
-     * <b>Dangerous:</b> using force flag is dangerous, check {@link UnmountTable}
-     *
-     * @deprecated prefer to use {@link ApiServiceClient#unmountTable(UnmountTable)} or {@link #unmountTable(String)}.
-     */
-    @Deprecated
-    default CompletableFuture<Void> unmountTable(String path, boolean force) {
-        return unmountTable(path, force, null, false);
-    }
-
-    /**
      * Unmount table and wait until all tablets become unmounted.
      *
      * @see ApiServiceClient#unmountTable(UnmountTable)
@@ -118,18 +104,6 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
     /**
      * Unmount table.
      *
-     * <b>Dangerous:</b> using force flag is dangerous, check {@link UnmountTable}
-     *
-     * @deprecated prefer to use {@link ApiServiceClient#unmountTable(UnmountTable)}
-     * or {@link #unmountTableAndWaitTablets(UnmountTable)} .
-     */
-    @Deprecated
-    CompletableFuture<Void> unmountTable(String path, boolean force, @Nullable Duration requestTimeout,
-                                         boolean waitUnmounted);
-
-    /**
-     * Unmount table.
-     *
      * This method doesn't wait until tablets become unmounted.
      *
      * @see ApiServiceClient#unmountTable(UnmountTable)
@@ -139,32 +113,5 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      */
     default CompletableFuture<Void> unmountTable(String path) {
         return unmountTable(new UnmountTable(path));
-    }
-
-    /**
-     * Unmount table.
-     *
-     * <b>Dangerous:</b> using force flag is dangerous, check {@link UnmountTable}
-     *
-     * @deprecated Prefer to use {@link ApiServiceClient#unmountTable(UnmountTable)}
-     * or {@link #unmountTableAndWaitTablets(UnmountTable)} .
-     */
-    @Deprecated
-    default CompletableFuture<Void> unmountTable(String path, boolean force, boolean waitUnmounted) {
-        return unmountTable(path, force, null, waitUnmounted);
-    }
-
-    /**
-     * Unmount table.
-     *
-     * This method doesn't wait until tablets become unmounted.
-     *
-     * <b>Dangerous:</b> using force flag is dangerous, check {@link UnmountTable}
-     *
-     * @deprecated prefer to use {@link ApiServiceClient#unmountTable(UnmountTable)} or {@link #unmountTable(String)}.
-     */
-    @Deprecated
-    default CompletableFuture<Void> unmountTable(String path, @Nullable Duration requestTimeout) {
-        return unmountTable(path, false, requestTimeout, false);
     }
 }
