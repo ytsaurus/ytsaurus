@@ -368,17 +368,17 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 }
             }
         }
-        with Clique(5, config_patch=patch) as clique:
+        with Clique(2, config_patch=patch) as clique:
             clique_path = "//sys/clickhouse/cliques/{0}".format(clique.op.id)
 
             nodes_before_resizing = ls(clique_path, verbose=False)
-            assert len(nodes_before_resizing) == 5
+            assert len(nodes_before_resizing) == 2
 
             jobs = list(clique.op.get_running_jobs())
-            assert len(jobs) == 5
+            assert len(jobs) == 2
 
-            clique.resize(3, jobs[:2])
-            wait(lambda: len(ls(clique_path, verbose=False)) == 3, iter=10)
+            clique.resize(1)
+            wait(lambda: len(ls(clique_path, verbose=False)) == 1, iter=10)
 
     @authors("evgenstf")
     def test_discovery_transaction_restore(self):
@@ -721,7 +721,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_system_clique(self):
         with Clique(3) as clique:
-            time.sleep(1)
             instances = clique.get_active_instances()
             assert len(instances) == 3
             responses = []
@@ -746,10 +745,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 3
 
-            clique.resize(2, [jobs[0]])
-            clique.resize(3)
+            print_debug("Aborting job", jobs[0])
+            abort_job(jobs[0])
 
-            time.sleep(1)
+            clique.wait_instance_count(3, unwanted_jobs=[jobs[0]], wait_discovery_sync=True)
 
             instances = clique.get_active_instances()
             assert len(instances) == 3
@@ -896,7 +895,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 1
             pid = instances[0].attributes["pid"]
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            clique.op.suspend()
             self._signal_instance(pid, signal.SIGINT)
 
             wait(lambda: len(clique.get_active_instances()) == 0)
@@ -907,7 +906,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
-            clique.resize(1)
+            clique.op.resume()
+            clique.wait_instance_count(1, unwanted_jobs=instances)
 
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
