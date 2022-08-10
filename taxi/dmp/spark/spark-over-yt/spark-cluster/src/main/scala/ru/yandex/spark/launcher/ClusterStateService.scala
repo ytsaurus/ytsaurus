@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
-import ru.yandex.yt.ytclient.proxy.request.{AbortJob, GetOperation, UpdateOperationParameters}
+import ru.yandex.yt.ytclient.proxy.request.{AbortJob, GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
 
 trait ClusterStateService {
   def query: Option[State]
@@ -70,14 +70,34 @@ object ClusterStateService extends LogLazy {
         yt.abortJob(new AbortJob(jobId))
       }
 
+      def suspendOperation(operationId: GUID): Unit = {
+        log.debug(s"Suspending operation $operationId")
+        yt.suspendOperation(new SuspendOperation(operationId).setAbortRunningJobs(false))
+      }
+
+      def resumeOperation(operationId: GUID): Unit = {
+        log.debug(s"Resuming operation $operationId")
+        yt.resumeOperation(new ResumeOperation(operationId))
+      }
+
+      def updateUserSlots(operationId: GUID, userSlots: Long): Unit = {
+        log.debug(s"Updating operation parameters for $operationId: user_slots=$userSlots")
+        val req = new UpdateOperationParameters(operationId)
+          .addSchedulingOptions("physical",
+            new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(userSlots)))
+        yt.updateOperationParameters(req)
+      }
+
       override def setUserSlots(slots: Long, stopWorkers: Set[String] = Set()): Unit = {
         val op = GUID.valueOf(discoveryService.operations().get.children.iterator.next())
-        stopWorkers.map(GUID.valueOf).foreach(stopJob)
-        val req = new UpdateOperationParameters(op)
-          .addSchedulingOptions("physical",
-            new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(slots)))
-        log.debug(s"Updating operation parameters: $req")
-        yt.updateOperationParameters(req).join()
+        if (stopWorkers.nonEmpty)
+          try {
+            suspendOperation(op)
+            stopWorkers.map(GUID.valueOf).foreach(stopJob)
+            updateUserSlots(op, slots)
+          } finally resumeOperation(op)
+        else
+          updateUserSlots(op, slots)
       }
 
       override def idleJobs: Seq[String] =
