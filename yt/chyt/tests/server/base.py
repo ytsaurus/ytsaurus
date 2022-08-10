@@ -1,6 +1,6 @@
 from helpers import get_scheduling_options
 
-from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, abort_job, create_user,
+from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, create_user,
                          sync_create_cells, print_debug)
 
 from yt.clickhouse import get_clique_spec_builder
@@ -472,15 +472,33 @@ class Clique(object):
         orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
         return get(orchid_path + path, verbose=verbose)
 
-    def resize(self, size, jobs_to_abort=None):
-        jobs_to_abort = jobs_to_abort or []
+    def resize(self, size):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
-        for job in jobs_to_abort:
-            abort_job(job)
         wait(lambda: self.get_active_instance_count() == size)
 
     def get_clique_id(self):
         return self.op.id
+
+    def wait_instance_count(self, instance_count, unwanted_jobs=[], wait_discovery_sync=False):
+        unwanted_jobs = [str(job) for job in unwanted_jobs]
+
+        def check():
+            instances = sorted(self.get_active_instances())
+            job_ids = [str(instance) for instance in instances]
+            if len(instances) != instance_count:
+                return False
+            for instance in instances:
+                if str(instance) in unwanted_jobs:
+                    return False
+            if wait_discovery_sync:
+                for instance in instances:
+                    result = self.make_direct_query(instance, "select job_id from system.clique order by job_id")
+                    result = [instance["job_id"] for instance in result]
+                    if result != job_ids:
+                        return False
+            return True
+
+        wait(check)
 
 
 class ClickHouseTestBase(YTEnvSetup):

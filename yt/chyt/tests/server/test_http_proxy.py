@@ -75,8 +75,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 1
 
-            clique.resize(0, [jobs[0]])
-            clique.resize(1)
+            print_debug("Aborting job", jobs[0])
+            abort_job(jobs[0])
+            clique.wait_instance_count(1, unwanted_jobs=jobs)
 
             proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
@@ -99,14 +100,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
         with Clique(2, config_patch=patch) as clique:
-            wait(lambda: clique.get_active_instance_count() == 2)
-
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 2
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            clique.op.suspend()
+            print_debug("Aborting job", jobs[0])
             abort_job(jobs[0])
             wait(lambda: len(clique.op.get_running_jobs()) == 1)
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
+            clique.op.resume()
 
             for instance in clique.get_active_instances():
                 if str(instance) == jobs[0]:
@@ -149,8 +151,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             instances = clique.get_active_instances()
             assert len(instances) == 2
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            wait(lambda: len(clique.get_active_instances()) == 1)
+            clique.resize(1)
 
             alive_instances = clique.get_active_instances()
             assert set(map(str, alive_instances)).issubset(set(map(str, instances)))
