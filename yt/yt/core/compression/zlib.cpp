@@ -11,7 +11,7 @@
 #include <array>
 #include <iostream>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,16 +19,19 @@ static constexpr size_t MaxZlibUInt = std::numeric_limits<uInt>::max();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ZlibCompress(int level, StreamSource* source, TBlob* output)
+void ZlibCompress(int level, TSource* source, TBlob* output)
 {
     z_stream stream{};
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    int returnCode = deflateInit(&stream, level);
-    YT_VERIFY(returnCode == Z_OK);
-    auto cleanupGuard = Finally([&] () { deflateEnd(&stream); });
+    int ret = deflateInit(&stream, level);
+    YT_VERIFY(ret == Z_OK);
+
+    auto finallyGuard = Finally([&] {
+        deflateEnd(&stream);
+    });
 
     size_t totalUncompressedSize = source->Available();
     size_t totalCompressedSize = deflateBound(&stream, totalUncompressedSize);
@@ -67,9 +70,9 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
             stream.next_out = reinterpret_cast<Bytef*>(output->End());
             stream.avail_out = static_cast<uInt>(outputAvailable);
 
-            returnCode = deflate(&stream, flush);
+            ret = deflate(&stream, flush);
             // We should not throw exception here since caller does not expect such behavior.
-            YT_VERIFY(returnCode == Z_OK || returnCode == Z_STREAM_END);
+            YT_VERIFY(ret == Z_OK || ret == Z_STREAM_END);
 
             output->Resize(output->Size() + outputAvailable - stream.avail_out, /*initializeStorage*/ false);
         } while (stream.avail_out == 0);
@@ -79,18 +82,18 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
         source->Skip(inputAvailable - stream.avail_in);
     } while (source->Available() > 0);
 
-    YT_VERIFY(returnCode == Z_STREAM_END);
+    YT_VERIFY(ret == Z_STREAM_END);
 }
 
-void ZlibDecompress(StreamSource* source, TBlob* output)
+void ZlibDecompress(TSource* source, TBlob* output)
 {
     if (source->Available() == 0) {
         return;
     }
 
     // Read header.
-    ui64 totalUncompressedSize = 0;
-    ReadPod(source, totalUncompressedSize);
+    ui64 totalUncompressedSize;
+    ReadPod(*source, totalUncompressedSize);
 
     // We add one additional byte to process correctly last inflate.
     output->Reserve(totalUncompressedSize + 1);
@@ -100,11 +103,14 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
 
-    int returnCode = inflateInit(&stream);
-    YT_VERIFY(returnCode == Z_OK);
-    auto cleanupGuard = Finally([&] () { inflateEnd(&stream); });
+    YT_VERIFY(inflateInit(&stream) == Z_OK);
+
+    auto finallyGuard = Finally([&] {
+        inflateEnd(&stream);
+    });
 
     // Read body.
+    int result;
     do {
         size_t inputAvailable;
         const char* inputNext = source->Peek(&inputAvailable);
@@ -122,19 +128,28 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
         stream.next_out = reinterpret_cast<Bytef*>(output->End());
         stream.avail_out = static_cast<uInt>(outputAvailable);
 
-        returnCode = inflate(&stream, flush);
-        // We should not throw exception here since caller does not expect such behavior.
-        YT_VERIFY(returnCode == Z_OK || returnCode == Z_STREAM_END);
+        result = inflate(&stream, flush);
+        if (result != Z_OK && result != Z_STREAM_END) {
+            THROW_ERROR_EXCEPTION("Zlib compression failed: inflate returned an error")
+                << TErrorAttribute("error", result);
+        }
 
         source->Skip(inputAvailable - stream.avail_in);
 
         output->Resize(output->Size() + outputAvailable - stream.avail_out, /*initializeStorage*/ false);
-    } while (returnCode != Z_STREAM_END);
+    } while (result != Z_STREAM_END);
 
-    YT_VERIFY(source->Available() == 0);
-    YT_VERIFY(output->Size() == totalUncompressedSize);
+    if (source->Available() != 0) {
+        THROW_ERROR_EXCEPTION("Zlib compression failed: input stream is not fully consumed")
+            << TErrorAttribute("remaining_size", source->Available());
+    }
+    if (output->Size() != totalUncompressedSize) {
+        THROW_ERROR_EXCEPTION("Zlib decompression failed: output size mismatch")
+            << TErrorAttribute("expected_size", totalUncompressedSize)
+            << TErrorAttribute("actual_size", output->Size());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+} // namespace NYT::NCompression::NDetail

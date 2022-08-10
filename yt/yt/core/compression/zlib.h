@@ -1,16 +1,15 @@
 #pragma once
 
-#include "details.h"
+#include "stream.h"
 
-namespace NYT::NCompression {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ZlibCompress(int level, StreamSource* source, TBlob* output);
-
-void ZlibDecompress(StreamSource* source, TBlob* output);
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+void ZlibCompress(int level, TSource* source, TBlob* output);
+void ZlibDecompress(TSource* source, TBlob* output);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCompression::NDetail
 

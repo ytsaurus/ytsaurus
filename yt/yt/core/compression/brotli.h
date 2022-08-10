@@ -1,16 +1,15 @@
 #pragma once
 
-#include "details.h"
+#include "stream.h"
 
-namespace NYT::NCompression {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void BrotliCompress(int level, StreamSource* source, TBlob* output);
-
-void BrotliDecompress(StreamSource* source, TBlob* output);
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+void BrotliCompress(int level, TSource* source, TBlob* output);
+void BrotliDecompress(TSource* source, TBlob* output);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCompression::NDetail
 

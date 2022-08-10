@@ -1,5 +1,4 @@
 #include "zstd.h"
-#include "details.h"
 #include "private.h"
 
 #include <yt/yt/core/misc/blob.h>
@@ -8,12 +7,11 @@
 #define ZSTD_STATIC_LINKING_ONLY
 #include <contrib/libs/zstd/include/zstd.h>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CompressionLogger;
-
 static constexpr size_t MaxZstdBlockSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +21,9 @@ struct TZstdCompressBufferTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static size_t EstimateOutputSize(size_t totalInputSize)
+namespace {
+
+size_t EstimateOutputSize(size_t totalInputSize)
 {
     size_t headerSize = ZSTD_compressBound(0);
     size_t fullBlocksNumber = totalInputSize / MaxZstdBlockSize;
@@ -34,7 +34,9 @@ static size_t EstimateOutputSize(size_t totalInputSize)
         ZSTD_compressBound(lastBlockSize);
 }
 
-void ZstdCompress(int level, StreamSource* source, TBlob* output)
+} // namespace
+
+void ZstdCompress(int level, TSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
     output->Resize(EstimateOutputSize(totalInputSize) + sizeof(totalInputSize), /*initializeStorage*/ false);
@@ -52,14 +54,15 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
        ZSTD_freeCCtx(context);
     });
 
+    auto checkError = [] (size_t result) {
+        YT_LOG_FATAL_IF(ZSTD_isError(result), "Zstd compression failed (Error: %v)",
+            ZSTD_getErrorName(result));
+    };
+
     // Write header.
     {
         size_t headerSize = ZSTD_compressBegin(context, level);
-
-        YT_LOG_FATAL_IF(
-            ZSTD_isError(headerSize),
-            ZSTD_getErrorName(headerSize));
-
+        checkError(headerSize);
         curOutputPos += headerSize;
     }
 
@@ -75,17 +78,13 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             output->Size() - curOutputPos,
             buffer,
             size);
-
-        YT_LOG_FATAL_IF(
-            ZSTD_isError(compressedSize),
-            ZSTD_getErrorName(compressedSize));
-
+        checkError(compressedSize);
         curOutputPos += compressedSize;
     };
 
     TBlob block(TZstdCompressBufferTag(), MaxZstdBlockSize, false);
     size_t blockSize = 0;
-    auto flushBlock = [&] () {
+    auto flushGuard = [&] {
         compressAndAppendBuffer(block.Begin(), blockSize);
         blockSize = 0;
     };
@@ -107,7 +106,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             size_t takeSize = std::min(remainingSize, MaxZstdBlockSize - blockSize);
             fillBlock(takeSize);
             if (blockSize == MaxZstdBlockSize) {
-                flushBlock();
+                flushGuard();
             }
         }
 
@@ -124,7 +123,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
 
         YT_VERIFY(remainingSize == 0);
     }
-    flushBlock();
+    flushGuard();
 
     // Write footer.
     {
@@ -135,45 +134,46 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             output->Size() - curOutputPos,
             nullptr,
             0);
-
-        YT_LOG_FATAL_IF(
-            ZSTD_isError(compressedSize),
-            ZSTD_getErrorName(compressedSize));
-
+        checkError(compressedSize);
         curOutputPos += compressedSize;
     }
 
     output->Resize(curOutputPos);
 }
 
-void ZstdDecompress(StreamSource* source, TBlob* output)
+void ZstdDecompress(TSource* source, TBlob* output)
 {
     ui64 outputSize;
-    ReadPod(source, outputSize);
+    ReadPod(*source, outputSize);
+
     output->Resize(outputSize, /*initializeStorage*/ false);
     void* outputPtr = output->Begin();
 
-    TBlob input;
     size_t inputSize;
     const void* inputPtr = source->Peek(&inputSize);
 
-    if (source->Available() > inputSize) {
-        Read(source, input);
+    // TODO(babenko): something weird is going on here.
+    TBlob input;
+    if (auto available = source->Available(); available > inputSize) {
+        input.Resize(available, /*initializeStorage*/ false);
+        ReadRef(*source, TMutableRef(input.Begin(), available));
         inputPtr = input.Begin();
         inputSize = input.Size();
     }
 
     size_t decompressedSize = ZSTD_decompress(outputPtr, outputSize, inputPtr, inputSize);
-
-    // ZSTD_decompress returns error code instead of decompressed size if it fails.
-    YT_LOG_FATAL_IF(
-        ZSTD_isError(decompressedSize),
-        ZSTD_getErrorName(decompressedSize));
-
-    YT_VERIFY(decompressedSize == outputSize);
+    if (ZSTD_isError(decompressedSize)) {
+        THROW_ERROR_EXCEPTION("Zstd decompression failed: ZSTD_decompress returned an error")
+            << TErrorAttribute("error", ZSTD_getErrorName(decompressedSize));
+    }
+    if (decompressedSize != outputSize) {
+        THROW_ERROR_EXCEPTION("Zstd decompression failed: output size mismatch")
+            << TErrorAttribute("expected_size", outputSize)
+            << TErrorAttribute("actual_size", decompressedSize);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression::NYT
+} // namespace NYT::NCompression::NDetail
 

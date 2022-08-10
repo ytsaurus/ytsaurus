@@ -1,80 +1,31 @@
-#include "details.h"
+#include "brotli.h"
+#include "private.h"
 
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/streams/brotli/brotli.h>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-class TBrotliStreamSourceIn
-    : public IInputStream
-{
-public:
-    explicit TBrotliStreamSourceIn(StreamSource* source)
-        : Source_(source)
-    { }
-
-private:
-    StreamSource* const Source_;
-
-    size_t DoRead(void* buffer, size_t size) override
-    {
-        if (Source_->Available() == 0) {
-            return 0;
-        }
-
-        size_t nRead;
-        const char* ptr = Source_->Peek(&nRead);
-
-        if (nRead > 0) {
-            nRead = std::min(size, nRead);
-            std::copy(ptr, ptr + nRead, static_cast<char*>(buffer));
-            Source_->Skip(nRead);
-        }
-
-        return nRead;
-    }
-};
-
-class TBrotliStreamSourceOut
-    : public IOutputStream
-{
-public:
-    explicit TBrotliStreamSourceOut(StreamSink* sink)
-        : Sink_(sink)
-    { }
-
-private:
-    StreamSink* const Sink_;
-
-    void DoWrite(const void *buf, size_t size) override
-    {
-        Sink_->Append(static_cast<const char*>(buf), size);
-    }
-};
-
-} // namespace
+static const auto& Logger = CompressionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrotliCompress(int level, StreamSource* source, TBlob* output)
+void BrotliCompress(int level, TSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
-    output->Resize(sizeof(totalInputSize), /* initializeStorage */ false);
+    output->Resize(sizeof(totalInputSize), /*initializeStorage*/ false);
 
     // Write input size that will be used during decompression.
     TMemoryOutput memoryOutput(output->Begin(), sizeof(totalInputSize));
     WritePod(memoryOutput, totalInputSize);
 
-    TDynamicByteArraySink sink(output);
-    TBrotliStreamSourceOut sinkAdaptor(&sink);
+    TBlobSink sink(output);
     try {
-        TBrotliCompress compress(&sinkAdaptor, level);
+        TBrotliCompress compress(&sink, level);
         while (source->Available() > 0) {
             size_t read;
             const char* ptr = source->Peek(&read);
@@ -83,38 +34,36 @@ void BrotliCompress(int level, StreamSource* source, TBlob* output)
                 source->Skip(read);
             }
         }
-    } catch (const std::exception&) {
-        YT_VERIFY(false && "Brotli compression failed");
+    } catch (const std::exception& ex) {
+        YT_LOG_FATAL(ex, "Brotli compression failed");
     }
 }
 
-void BrotliDecompress(StreamSource* source, TBlob* output)
+void BrotliDecompress(TSource* source, TBlob* output)
 {
     ui64 outputSize;
-    ReadPod(source, outputSize);
+    ReadPod(*source, outputSize);
+
     output->Resize(outputSize, /*initializeStorage*/ false);
 
-    TBrotliStreamSourceIn sourceAdaptor(source);
-
-    try {
-        TBrotliDecompress decompress(&sourceAdaptor);
-        ui64 remainingSize = outputSize;
-        while (remainingSize > 0) {
-            ui64 offset = outputSize - remainingSize;
-            ui64 read = decompress.Read(output->Begin() + offset, remainingSize);
-            if (read == 0) {
-                break;
-            }
-            remainingSize -= read;
+    TBrotliDecompress decompress(source);
+    ui64 remainingSize = outputSize;
+    while (remainingSize > 0) {
+        ui64 offset = outputSize - remainingSize;
+        ui64 read = decompress.Read(output->Begin() + offset, remainingSize);
+        if (read == 0) {
+            break;
         }
+        remainingSize -= read;
+    }
 
-        YT_VERIFY(remainingSize == 0);
-    } catch (const std::exception&) {
-        YT_VERIFY(false && "Brotli decompression failed");
+    if (remainingSize != 0) {
+        THROW_ERROR_EXCEPTION("Brotli decompression failed: input stream is not fully consumed")
+            << TErrorAttribute("remaining_size", remainingSize);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression::NYT
+} // namespace NYT::NCompression::NDetail
 

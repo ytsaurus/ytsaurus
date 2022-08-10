@@ -6,15 +6,13 @@
 
 #include <util/generic/utility.h>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 constexpr size_t MinBlobSize = 1024;
-
-////////////////////////////////////////////////////////////////////////////////
 
 ui64 GetTotalOut(const bz_stream& bzStream)
 {
@@ -24,12 +22,12 @@ ui64 GetTotalOut(const bz_stream& bzStream)
     return result;
 }
 
-void PeekInputBytes(StreamSource* source, bz_stream* bzStream)
+void PeekInputBytes(TSource* source, bz_stream* bzStream)
 {
     size_t bufLen;
     const char* buf = source->Peek(&bufLen);
     bufLen = std::min(source->Available(), bufLen);
-    // const_cast is due to C Api, data will not be modified.
+    // const_cast is due to C API, data will not be modified.
     bzStream->next_in = const_cast<char*>(buf);
     bzStream->avail_in = bufLen;
 }
@@ -53,13 +51,9 @@ void ActualizeOutputBlobSize(TBlob* blob, bz_stream* bzStream)
     blob->Resize(totalOut, /*initializeStorage*/ false);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
-////////////////////////////////////////////////////////////////////////////////
-
-void Bzip2Compress(int level, StreamSource* source, TBlob* output)
+void Bzip2Compress(TSource* source, TBlob* output, int level)
 {
     YT_VERIFY(source);
     YT_VERIFY(output);
@@ -77,7 +71,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
     output->Resize(0);
     while (source->Available()) {
         PeekInputBytes(source, &bzStream);
-        const size_t peekedSize = bzStream.avail_in;
+        size_t peekedSize = bzStream.avail_in;
 
         DirectOutputToBlobEnd(output, &bzStream);
 
@@ -86,7 +80,7 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
 
         ActualizeOutputBlobSize(output, &bzStream);
 
-        const size_t processedInputSize = peekedSize - bzStream.avail_in;
+        size_t processedInputSize = peekedSize - bzStream.avail_in;
         source->Skip(processedInputSize);
     }
 
@@ -100,35 +94,40 @@ void Bzip2Compress(int level, StreamSource* source, TBlob* output)
     } while (ret != BZ_STREAM_END);
 }
 
-void Bzip2Decompress(StreamSource* source, TBlob* output)
+void Bzip2Decompress(TSource* source, TBlob* output)
 {
     output->Reserve(std::max(MinBlobSize, source->Available()));
     output->Resize(0);
-    while (source->Available()) {
-        bz_stream bzStream;
-        Zero(bzStream);
+    while (source->Available() > 0) {
+        bz_stream bzStream{};
 
-        int ret = BZ2_bzDecompressInit(&bzStream, 0, 0);
-        YT_VERIFY(ret == BZ_OK);
-        auto finally = Finally([&] { BZ2_bzDecompressEnd(&bzStream); });
+        YT_VERIFY(BZ2_bzDecompressInit(&bzStream, 0, 0) == BZ_OK);
 
+        auto finallyGuard = Finally([&] {
+            BZ2_bzDecompressEnd(&bzStream);
+        });
+
+        int result;
         do {
             PeekInputBytes(source, &bzStream);
-            const size_t peekedSize = bzStream.avail_in;
+            size_t peekedSize = bzStream.avail_in;
 
             DirectOutputToBlobEnd(output, &bzStream);
 
-            ret = BZ2_bzDecompress(&bzStream);
-            YT_VERIFY(ret == BZ_OK || ret == BZ_STREAM_END);
+            result = BZ2_bzDecompress(&bzStream);
+            if (result != BZ_OK && result != BZ_STREAM_END) {
+                THROW_ERROR_EXCEPTION("BZip2 decompression failed: BZ2_bzDecompress returned an error")
+                    << TErrorAttribute("error", result);
+            }
 
             ActualizeOutputBlobSize(output, &bzStream);
 
-            const size_t processedInputSize = peekedSize - bzStream.avail_in;
+            size_t processedInputSize = peekedSize - bzStream.avail_in;
             source->Skip(processedInputSize);
-        } while (ret != BZ_STREAM_END);
+        } while (result != BZ_STREAM_END);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+} // namespace NYT::NCompression::NDetail

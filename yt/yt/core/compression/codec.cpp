@@ -1,6 +1,5 @@
 #include "codec.h"
 #include "bzip2.h"
-#include "details.h"
 #include "lz.h"
 #include "lzma.h"
 #include "snappy.h"
@@ -11,6 +10,8 @@
 #include <util/generic/algorithm.h>
 
 namespace NYT::NCompression {
+
+using namespace NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,18 +50,18 @@ public:
 
 private:
     TSharedRef Run(
-        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        void (TCodec::*converter)(TSource* source, TBlob* output),
         TRefCountedTypeCookie blobCookie,
         const TSharedRef& ref)
     {
-        ByteArraySource input(ref.Begin(), ref.Size());
+        TRefSource input(ref);
         auto outputBlob = TBlob(blobCookie, 0, false);
         (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
         return FinalizeBlob(&outputBlob, blobCookie);
     }
 
     TSharedRef Run(
-        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        void (TCodec::*converter)(TSource* source, TBlob* output),
         TRefCountedTypeCookie blobCookie,
         const std::vector<TSharedRef>& refs)
     {
@@ -68,7 +69,7 @@ private:
             return Run(converter, blobCookie, refs.front());
         }
 
-        TVectorRefsSource input(refs);
+        TRefsVectorSource input(refs);
         auto outputBlob = TBlob(blobCookie, 0, false);
         (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
         return FinalizeBlob(&outputBlob, blobCookie);
@@ -125,14 +126,14 @@ class TSnappyCodec
     : public TCodecBase<TSnappyCodec>
 {
 public:
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::SnappyCompress(source, output);
+        SnappyCompress(source, output);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::SnappyDecompress(source, output);
+        SnappyDecompress(source, output);
     }
 
     ECodec GetId() const override
@@ -151,14 +152,14 @@ public:
         : Level_(level)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::ZlibCompress(Level_, source, output);
+        ZlibCompress(Level_, source, output);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::ZlibDecompress(source, output);
+        ZlibDecompress(source, output);
     }
 
     ECodec GetId() const override
@@ -188,14 +189,14 @@ public:
         : HighCompression_(highCompression)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::Lz4Compress(HighCompression_, source, output);
+        Lz4Compress(source, output, HighCompression_);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::Lz4Decompress(source, output);
+        Lz4Decompress(source, output);
     }
 
     ECodec GetId() const override
@@ -217,14 +218,14 @@ public:
         : Level_(level)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::ZstdCompress(Level_, source, output);
+        ZstdCompress(Level_, source, output);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::ZstdDecompress(source, output);
+        ZstdDecompress(source, output);
     }
 
     ECodec GetId() const override
@@ -254,14 +255,14 @@ public:
         : Level_(level)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::BrotliCompress(Level_, source, output);
+        BrotliCompress(Level_, source, output);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::BrotliDecompress(source, output);
+        BrotliDecompress(source, output);
     }
 
     ECodec GetId() const override
@@ -289,14 +290,14 @@ public:
         : Level_(level)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::LzmaCompress(Level_, source, output);
+        LzmaCompress(Level_, source, output);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::LzmaDecompress(source, output);
+        LzmaDecompress(source, output);
     }
 
     ECodec GetId() const override
@@ -324,14 +325,14 @@ public:
         : Level_(level)
     { }
 
-    void DoCompress(StreamSource* source, TBlob* output)
+    void DoCompress(TSource* source, TBlob* output)
     {
-        NCompression::Bzip2Compress(Level_, source, output);
+        Bzip2Compress(source, output, Level_);
     }
 
-    void DoDecompress(StreamSource* source, TBlob* output)
+    void DoDecompress(TSource* source, TBlob* output)
     {
-        NCompression::Bzip2Decompress(source, output);
+        Bzip2Decompress(source, output);
     }
 
     ECodec GetId() const override

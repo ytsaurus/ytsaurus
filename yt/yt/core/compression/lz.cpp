@@ -7,7 +7,7 @@
 #include <contrib/libs/lz4/lz4.h>
 #include <contrib/libs/lz4/lz4hc.h>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,28 +55,30 @@ static constexpr size_t MaxLzBlockSize = 1_GB;
 } // namespace
 } // namespace NYT::NCompression
 
-Y_DECLARE_PODTYPE(NYT::NCompression::THeader);
-Y_DECLARE_PODTYPE(NYT::NCompression::TBlockHeader);
+Y_DECLARE_PODTYPE(NYT::NCompression::NDetail::THeader);
+Y_DECLARE_PODTYPE(NYT::NCompression::NDetail::TBlockHeader);
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 struct TLz4CompressedTag
 { };
 
-static inline bool ExtendedHeader(size_t totalUncompressedSize)
+bool IsExtendedHeader(size_t totalUncompressedSize)
 {
     return totalUncompressedSize > std::numeric_limits<i32>::max();
 }
 
 template <class TEstimateCompressedSizeFn>
-static size_t GenericEstimateTotalCompressedSize(
+size_t GenericEstimateTotalCompressedSize(
     size_t totalUncompressedSize,
     TEstimateCompressedSizeFn&& estimateCompressedSizeFn)
 {
     size_t result = sizeof(THeader);
-    if (ExtendedHeader(totalUncompressedSize)) {
+    if (IsExtendedHeader(totalUncompressedSize)) {
         result += sizeof(ui64);
     }
     // Estimate number of blocks, assuming that source feeds data in large chunks.
@@ -92,8 +94,8 @@ static size_t GenericEstimateTotalCompressedSize(
 }
 
 template <class TEstimateCompressedSizeFn, class TCompressFn>
-static void GenericBlockCompress(
-    StreamSource* source,
+void GenericBlockCompress(
+    TSource* source,
     TBlob* sink,
     TEstimateCompressedSizeFn&& estimateCompressedSizeFn,
     TCompressFn&& compressFn)
@@ -107,7 +109,7 @@ static void GenericBlockCompress(
     size_t currentPosition = 0;
 
     // Write out header.
-    if (ExtendedHeader(totalUncompressedSize)) {
+    if (IsExtendedHeader(totalUncompressedSize)) {
         THeader header;
         header.Signature = THeader::SignatureV2;
         header.Size = 0;
@@ -174,7 +176,7 @@ static void GenericBlockCompress(
 }
 
 template <class TTag, class TDecompressFn>
-static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompressFn&& decompressFn)
+void GenericBlockDecompress(TSource* source, TBlob* sink, TDecompressFn&& decompressFn)
 {
     if (source->Available() == 0) {
         return;
@@ -188,14 +190,14 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
 
     {
         THeader header;
-        ReadPod(source, header);
+        ReadPod(*source, header);
         switch (header.Signature) {
             case THeader::SignatureV1:
                 totalUncompressedSize = header.Size;
                 break;
 
             case THeader::SignatureV2:
-                ReadPod(source, totalUncompressedSize);
+                ReadPod(*source, totalUncompressedSize);
                 break;
 
             default:
@@ -218,7 +220,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
         if (Y_UNLIKELY(hasBlockHeader)) {
             hasBlockHeader = false;
         } else {
-            ReadPod(source, blockHeader);
+            ReadPod(*source, blockHeader);
         }
 
         size_t oldSize = sink->Size();
@@ -231,12 +233,12 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
         inputSize = std::min(inputSize, source->Available());
 
         // Fast-path; omit extra copy and feed data directly from source buffer.
-        const bool hasCompleteBlock = inputSize >= blockHeader.CompressedSize;
+        bool hasCompleteBlock = inputSize >= blockHeader.CompressedSize;
 
         if (!hasCompleteBlock) {
             // Slow-path; coalesce input into a single slice.
             inputBuffer.Resize(blockHeader.CompressedSize, /*initializeStorage*/ false);
-            Read(source, inputBuffer.Begin(), inputBuffer.Size());
+            ReadRef(*source, TMutableRef(inputBuffer.Begin(), inputBuffer.Size()));
             input = inputBuffer.Begin();
         }
 
@@ -252,40 +254,42 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
     }
 }
 
-void Lz4Compress(bool highCompression, StreamSource* source, TBlob* sink)
+} // namespace
+
+void Lz4Compress(TSource* source, TBlob* sink, bool highCompression)
 {
-    const auto compressFn = highCompression ? LZ4_compressHC : LZ4_compress;
+    auto compressFn = highCompression ? LZ4_compressHC : LZ4_compress;
 
     GenericBlockCompress(
         source,
         sink,
-        [] (size_t size) -> size_t {
+        [] (size_t size) {
             return static_cast<size_t>(LZ4_compressBound(static_cast<int>(size)));
         },
         compressFn);
 }
 
-void Lz4Decompress(StreamSource* source, TBlob* sink)
+void Lz4Decompress(TSource* source, TBlob* sink)
 {
     GenericBlockDecompress<TLz4CompressedTag>(
         source,
         sink,
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
             if (inputSize > Max<int>()) {
-                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: input size is too big")
+                THROW_ERROR_EXCEPTION("LZ4 decompression failed: input size is too big")
                     << TErrorAttribute("size", inputSize);
             }
             if (outputSize > Max<int>()) {
-                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: output size is too big")
+                THROW_ERROR_EXCEPTION("LZ4 decompression failed: output size is too big")
                     << TErrorAttribute("size", outputSize);
             }
             int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
             if (rv < 0) {
-                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: LZ4_decompress_fast returned an error")
+                THROW_ERROR_EXCEPTION("LZ4 decompression failed: LZ4_decompress_fast returned an error")
                     << TErrorAttribute("error", rv);
             }
             if (rv != static_cast<int>(inputSize)) {
-                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: returned size mismatch")
+                THROW_ERROR_EXCEPTION("LZ4 decompression failed: output size mismatch")
                     << TErrorAttribute("expected_size", inputSize)
                     << TErrorAttribute("actual_size", rv);
             }
@@ -295,5 +299,5 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+} // namespace NYT::NCompression::NDetail
 
