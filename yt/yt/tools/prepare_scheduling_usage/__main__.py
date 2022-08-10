@@ -32,6 +32,13 @@ def build_pool_path(pools):
     return "/" + "/".join(pools)
 
 
+def get_value(value, default):
+    if value is None:
+        return default
+    else:
+        return value
+
+
 def extract_job_statistics_for_tree(job_statistics, pool_tree):
     def filter_tree(tree):
         if isinstance(tree, dict):
@@ -40,6 +47,32 @@ def extract_job_statistics_for_tree(job_statistics, pool_tree):
             assert isinstance(tree, list)
             return [item for item in tree if item["tags"]["pool_tree"] == pool_tree]
     return filter_tree(job_statistics)
+
+
+def extract_statistic(job_statistics, path, aggr="sum", default=None):
+    statistics_by_path = job_statistics
+    for part in path.split("/"):
+        if default is not None and part not in statistics_by_path:
+            return default
+        statistics_by_path = statistics_by_path[part]
+
+    return sum([item["summary"][aggr] for item in statistics_by_path])
+
+
+def extract_cumulative_max_memory(job_statistics):
+    job_proxy_memory_reserve = extract_statistic(job_statistics, "job_proxy/cumulative_max_memory", default=0)
+    user_job_memory_reserve = extract_statistic(job_statistics, "user_job/cumulative_max_memory", default=0)
+    return job_proxy_memory_reserve + user_job_memory_reserve
+
+
+def extract_cumulative_used_cpu(job_statistics):
+    statistic_paths = [
+        "job_proxy/cpu/user",
+        "job_proxy/cpu/system",
+        "user_job/cpu/user",
+        "user_job/cpu/system",
+    ]
+    return sum([extract_statistic(job_statistics, statistic_path, default=0) for statistic_path in statistic_paths]) / 1000.0
 
 
 class YsonEncoder(json.JSONEncoder):
@@ -79,6 +112,8 @@ class OperationInfo:
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
+    cumulative_max_memory: typing.Optional[float]
+    cumulative_used_cpu: typing.Optional[float]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
@@ -98,10 +133,15 @@ def merge_info(info_base, info_update):
     info_base.accumulated_resource_usage_cpu += info_update.accumulated_resource_usage_cpu
     info_base.accumulated_resource_usage_memory += info_update.accumulated_resource_usage_memory
     info_base.accumulated_resource_usage_gpu += info_update.accumulated_resource_usage_gpu
+
+    info_base.cumulative_max_memory += info_update.cumulative_max_memory
+    info_base.cumulative_used_cpu += info_update.cumulative_used_cpu
+
     info_base.operation_state = info_update.operation_state
     info_base.start_time = info_update.start_time
     info_base.finish_time = info_update.finish_time
     info_base.job_statistics = info_update.job_statistics
+
     if len(info_update.other):
         info_base.other = info_update.other
 
@@ -186,6 +226,8 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_cpu=info["accumulated_resource_usage"]["cpu"],
                 accumulated_resource_usage_memory=info["accumulated_resource_usage"]["user_memory"],
                 accumulated_resource_usage_gpu=info["accumulated_resource_usage"]["gpu"],
+                cumulative_used_cpu=0.0,
+                cumulative_max_memory=0.0,
                 job_statistics=None,
                 start_time=None,
                 finish_time=None,
@@ -235,6 +277,8 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
                 accumulated_resource_usage_gpu=usage["gpu"],
+                cumulative_used_cpu=extract_cumulative_used_cpu(job_statistics),
+                cumulative_max_memory=extract_cumulative_max_memory(job_statistics),
                 job_statistics=yson.dumps(job_statistics),
                 start_time=date_string_to_timestamp(input_row["start_time"]),
                 finish_time=date_string_to_timestamp(input_row["finish_time"]),

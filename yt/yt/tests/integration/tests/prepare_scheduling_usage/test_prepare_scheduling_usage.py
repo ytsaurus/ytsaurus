@@ -21,6 +21,8 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
     ENABLE_HTTP_PROXY = True
 
+    USE_PORTO = True
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "accumulated_usage_log_period": 1000,
@@ -95,9 +97,16 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
         rows = rows1 + rows2
 
+        accumulated_resource_usage_memory = 0.0
         accumulated_resource_usage_cpu = 0.0
+        cumulative_max_memory = 0.0
+        cumulative_used_cpu = 0.0
+
         for index, row in enumerate(rows):
             accumulated_resource_usage_cpu += row["accumulated_resource_usage_cpu"]
+            accumulated_resource_usage_memory += row["accumulated_resource_usage_memory"]
+            cumulative_max_memory += row["cumulative_max_memory"]
+            cumulative_used_cpu += row["cumulative_used_cpu"]
             assert row["operation_id"] == op.id
             assert row["cluster"] == "local_cluster"
             assert row["pool_path"] == "/parent_pool/test_pool"
@@ -106,4 +115,11 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 assert row["operation_state"] == "running"
             else:
                 assert row["operation_state"] == "completed"
+
         assert 5.0 <= accumulated_resource_usage_cpu <= 10.0
+
+        assert cumulative_max_memory > 0
+        assert cumulative_max_memory <= accumulated_resource_usage_memory
+
+        assert cumulative_used_cpu > 0
+        assert cumulative_used_cpu <= accumulated_resource_usage_cpu
