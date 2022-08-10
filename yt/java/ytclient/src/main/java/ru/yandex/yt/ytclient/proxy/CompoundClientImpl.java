@@ -98,21 +98,6 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
         return unmountTable(req).thenCompose(rsp -> waitTabletState(path, "unmounted"));
     }
 
-    @Override
-    public CompletableFuture<Void> unmountTable(String path, boolean force, @Nullable Duration requestTimeout,
-                                                boolean waitUnmounted) {
-        UnmountTable req = new UnmountTable(path);
-        req.setForce(force);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        if (waitUnmounted) {
-            return unmountTableAndWaitTablets(req);
-        } else {
-            return unmountTable(req);
-        }
-    }
-
     private void runTabletsStateChecker(String tablePath, CompletableFuture<Void> futureToComplete, String state) {
         getNode(tablePath + "/@tablet_state").thenAccept(tabletState -> {
             if (tabletState.stringValue().equals(state)) {
