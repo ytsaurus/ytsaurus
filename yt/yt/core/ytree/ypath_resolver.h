@@ -8,6 +8,8 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+std::optional<T> TryGetValue(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<i64> TryGetInt64(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<ui64> TryGetUint64(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<bool> TryGetBoolean(TStringBuf yson, const NYPath::TYPath& ypath);
