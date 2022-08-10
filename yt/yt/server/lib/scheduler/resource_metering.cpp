@@ -28,6 +28,9 @@ void TMeteringStatistics::DiscountChild(const TMeteringStatistics& child)
     AllocatedResources_ -= child.AllocatedResources_;
     AccumulatedResourceUsage_ -= child.AccumulatedResourceUsage_;
     StrongGuaranteeResources_ -= child.StrongGuaranteeResources_;
+
+    // NB(eshcherbin): Due to computation errors, allocated resource usage may be a negative epsilon. See: YT-17435.
+    AccumulatedResourceUsage_ = Max(AccumulatedResourceUsage_, TResourceVolume());
 }
 
 TMeteringStatistics& TMeteringStatistics::operator+=(const TMeteringStatistics &other)
