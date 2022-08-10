@@ -30,12 +30,14 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NTracing::TTracingConfigPtr Tracing;
 
-    TRpcConfig();
+    REGISTER_YSON_STRUCT(TRpcConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcConfig)

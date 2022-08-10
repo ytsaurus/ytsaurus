@@ -11,6 +11,23 @@ static NProfiling::TProfiler Profiler{"/jaeger"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSamplerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("global_sample_rate", &TThis::GlobalSampleRate)
+        .Default(0.0);
+    registrar.Parameter("user_sample_rate", &TThis::UserSampleRate)
+        .Default();
+    registrar.Parameter("clear_sampled_flag", &TThis::ClearSampledFlag)
+        .Default();
+
+    registrar.Parameter("min_per_user_samples", &TThis::MinPerUserSamples)
+        .Default(0);
+    registrar.Parameter("min_per_user_samples_period", &TThis::MinPerUserSamplesPeriod)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TSampler::TUserState::TrySampleByMinCount(ui64 minCount, TCpuDuration period)
 {
     if (minCount == 0) {

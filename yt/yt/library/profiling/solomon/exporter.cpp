@@ -39,98 +39,98 @@ const static auto& Logger = SolomonLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShardConfig::TShardConfig()
+void TShardConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("filter", Filter)
+    registrar.Parameter("filter", &TThis::Filter)
         .Default();
 
-    RegisterParameter("grid_step", GridStep)
+    registrar.Parameter("grid_step", &TThis::GridStep)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSolomonExporterConfig::TSolomonExporterConfig()
+void TSolomonExporterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("grid_step", GridStep)
+    registrar.Parameter("grid_step", &TThis::GridStep)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("linger_timeout", LingerTimeout)
+    registrar.Parameter("linger_timeout", &TThis::LingerTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("window_size", WindowSize)
+    registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(12);
 
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default();
 
-    RegisterParameter("convert_counters_to_rate_for_solomon", ConvertCountersToRateForSolomon)
+    registrar.Parameter("convert_counters_to_rate_for_solomon", &TThis::ConvertCountersToRateForSolomon)
         .Alias("convert_counters_to_rate")
         .Default(true);
-    RegisterParameter("rename_converted_counters", RenameConvertedCounters)
+    registrar.Parameter("rename_converted_counters", &TThis::RenameConvertedCounters)
         .Default(true);
 
-    RegisterParameter("export_summary", ExportSummary)
+    registrar.Parameter("export_summary", &TThis::ExportSummary)
         .Default(false);
-    RegisterParameter("export_summary_as_max", ExportSummaryAsMax)
+    registrar.Parameter("export_summary_as_max", &TThis::ExportSummaryAsMax)
         .Default(true);
-    RegisterParameter("export_summary_as_avg", ExportSummaryAsAvg)
-        .Default(false);
-
-    RegisterParameter("mark_aggregates", MarkAggregates)
-        .Default(true);
-
-    RegisterParameter("enable_core_profiling_compatibility", EnableCoreProfilingCompatibility)
+    registrar.Parameter("export_summary_as_avg", &TThis::ExportSummaryAsAvg)
         .Default(false);
 
-    RegisterParameter("enable_self_profiling", EnableSelfProfiling)
+    registrar.Parameter("mark_aggregates", &TThis::MarkAggregates)
         .Default(true);
 
-    RegisterParameter("report_build_info", ReportBuildInfo)
+    registrar.Parameter("enable_core_profiling_compatibility", &TThis::EnableCoreProfilingCompatibility)
+        .Default(false);
+
+    registrar.Parameter("enable_self_profiling", &TThis::EnableSelfProfiling)
         .Default(true);
 
-    RegisterParameter("report_restart", ReportRestart)
+    registrar.Parameter("report_build_info", &TThis::ReportBuildInfo)
         .Default(true);
 
-    RegisterParameter("read_delay", ReadDelay)
+    registrar.Parameter("report_restart", &TThis::ReportRestart)
+        .Default(true);
+
+    registrar.Parameter("read_delay", &TThis::ReadDelay)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("host", Host)
+    registrar.Parameter("host", &TThis::Host)
         .Default();
 
-    RegisterParameter("instance_tags", InstanceTags)
+    registrar.Parameter("instance_tags", &TThis::InstanceTags)
         .Default();
 
-    RegisterParameter("shards", Shards)
+    registrar.Parameter("shards", &TThis::Shards)
         .Default();
 
-    RegisterParameter("response_cache_ttl", ResponseCacheTtl)
+    registrar.Parameter("response_cache_ttl", &TThis::ResponseCacheTtl)
         .Default(TDuration::Minutes(2));
 
-    RegisterParameter("update_sensor_service_tree_period", UpdateSensorServiceTreePeriod)
+    registrar.Parameter("update_sensor_service_tree_period", &TThis::UpdateSensorServiceTreePeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterPostprocessor([this] {
-        if (LingerTimeout.GetValue() % GridStep.GetValue() != 0) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->LingerTimeout.GetValue() % config->GridStep.GetValue() != 0) {
             THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
         }
     });
 
-    RegisterPostprocessor([this] {
-        for (const auto& [name, shard] : Shards) {
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [name, shard] : config->Shards) {
             if (!shard->GridStep) {
                 continue;
             }
 
-            if (shard->GridStep < GridStep) {
+            if (shard->GridStep < config->GridStep) {
                 THROW_ERROR_EXCEPTION("shard \"grid_step\" must be greater than global \"grid_step\"");
             }
 
-            if (shard->GridStep->GetValue() % GridStep.GetValue() != 0) {
+            if (shard->GridStep->GetValue() % config->GridStep.GetValue() != 0) {
                 THROW_ERROR_EXCEPTION("shard \"grid_step\" must be multiple of global \"grid_step\"");
             }
 
-            if (LingerTimeout.GetValue() % shard->GridStep->GetValue() != 0) {
+            if (config->LingerTimeout.GetValue() % shard->GridStep->GetValue() != 0) {
                 THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple shard \"grid_step\"");
             }
         }

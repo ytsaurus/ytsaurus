@@ -6,9 +6,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcConfig::TRpcConfig()
+void TRpcConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tracing", Tracing)
+    registrar.Parameter("tracing", &TThis::Tracing)
         .Default();
 }
 

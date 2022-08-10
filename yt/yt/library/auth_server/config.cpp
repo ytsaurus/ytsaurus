@@ -8,138 +8,138 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAuthCacheConfig::TAuthCacheConfig()
+void TAuthCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache_ttl", CacheTtl)
+    registrar.Parameter("cache_ttl", &TThis::CacheTtl)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("optimistic_cache_ttl", OptimisticCacheTtl)
+    registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
         .Default(TDuration::Hours(1));
-    RegisterParameter("error_ttl", ErrorTtl)
+    registrar.Parameter("error_ttl", &TThis::ErrorTtl)
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlackboxServiceConfig::TBlackboxServiceConfig()
+void TBlackboxServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("http_client", HttpClient)
+    registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
-    RegisterParameter("host", Host)
+    registrar.Parameter("host", &TThis::Host)
         .Default("blackbox.yandex-team.ru");
-    RegisterParameter("port", Port)
+    registrar.Parameter("port", &TThis::Port)
         .Default(443);
-    RegisterParameter("secure", Secure)
+    registrar.Parameter("secure", &TThis::Secure)
         .Default(true);
-    RegisterParameter("blackbox_service_id", BlackboxServiceId)
+    registrar.Parameter("blackbox_service_id", &TThis::BlackboxServiceId)
         .Default("blackbox");
-    RegisterParameter("request_timeout", RequestTimeout)
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("attempt_timeout", AttemptTimeout)
+    registrar.Parameter("attempt_timeout", &TThis::AttemptTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("backoff_timeout", BackoffTimeout)
+    registrar.Parameter("backoff_timeout", &TThis::BackoffTimeout)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("use_lowercase_login", UseLowercaseLogin)
+    registrar.Parameter("use_lowercase_login", &TThis::UseLowercaseLogin)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTvmServiceConfig::TTvmServiceConfig()
+void TTvmServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("use_tvm_tool", UseTvmTool)
+    registrar.Parameter("use_tvm_tool", &TThis::UseTvmTool)
         .Default(false);
-    RegisterParameter("client_self_id", ClientSelfId)
+    registrar.Parameter("client_self_id", &TThis::ClientSelfId)
         .Default(0);
-    RegisterParameter("client_disk_cache_dir", ClientDiskCacheDir)
+    registrar.Parameter("client_disk_cache_dir", &TThis::ClientDiskCacheDir)
         .Optional();
-    RegisterParameter("tvm_host", TvmHost)
+    registrar.Parameter("tvm_host", &TThis::TvmHost)
         .Optional();
-    RegisterParameter("tvm_port", TvmPort)
+    registrar.Parameter("tvm_port", &TThis::TvmPort)
         .Optional();
-    RegisterParameter("client_enable_user_ticket_checking", ClientEnableUserTicketChecking)
+    registrar.Parameter("client_enable_user_ticket_checking", &TThis::ClientEnableUserTicketChecking)
         .Default(false);
-    RegisterParameter("client_blackbox_env", ClientBlackboxEnv)
+    registrar.Parameter("client_blackbox_env", &TThis::ClientBlackboxEnv)
         .Default("ProdYateam");
-    RegisterParameter("client_enable_service_ticket_fetching", ClientEnableServiceTicketFetching)
+    registrar.Parameter("client_enable_service_ticket_fetching", &TThis::ClientEnableServiceTicketFetching)
         .Default(false);
-    RegisterParameter("client_self_secret", ClientSelfSecret)
+    registrar.Parameter("client_self_secret", &TThis::ClientSelfSecret)
         .Optional();
-    RegisterParameter("client_dst_map", ClientDstMap)
+    registrar.Parameter("client_dst_map", &TThis::ClientDstMap)
         .Optional();
-    RegisterParameter("client_enable_service_ticket_checking", ClientEnableServiceTicketChecking)
+    registrar.Parameter("client_enable_service_ticket_checking", &TThis::ClientEnableServiceTicketChecking)
         .Default(false);
 
-    RegisterParameter("tvm_tool_self_alias", TvmToolSelfAlias)
+    registrar.Parameter("tvm_tool_self_alias", &TThis::TvmToolSelfAlias)
         .Optional();
-    RegisterParameter("tvm_tool_port", TvmToolPort)
+    registrar.Parameter("tvm_tool_port", &TThis::TvmToolPort)
         .Optional();
-    RegisterParameter("tvm_tool_auth_token", TvmToolAuthToken)
+    registrar.Parameter("tvm_tool_auth_token", &TThis::TvmToolAuthToken)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlackboxTokenAuthenticatorConfig::TBlackboxTokenAuthenticatorConfig()
+void TBlackboxTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("scope", Scope);
-    RegisterParameter("enable_scope_check", EnableScopeCheck)
+    registrar.Parameter("scope", &TThis::Scope);
+    registrar.Parameter("enable_scope_check", &TThis::EnableScopeCheck)
         .Default(true);
-    RegisterParameter("get_user_ticket", GetUserTicket)
+    registrar.Parameter("get_user_ticket", &TThis::GetUserTicket)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlackboxTicketAuthenticatorConfig::TBlackboxTicketAuthenticatorConfig()
+void TBlackboxTicketAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("scopes", Scopes)
+    registrar.Parameter("scopes", &TThis::Scopes)
         .Optional();
-    RegisterParameter("enable_scope_check", EnableScopeCheck)
+    registrar.Parameter("enable_scope_check", &TThis::EnableScopeCheck)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingTokenAuthenticatorConfig::TCachingTokenAuthenticatorConfig()
+void TCachingTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache", Cache)
+    registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressTokenAuthenticatorConfig::TCypressTokenAuthenticatorConfig()
+void TCypressTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("root_path", RootPath)
+    registrar.Parameter("root_path", &TThis::RootPath)
         .Default("//sys/tokens");
-    RegisterParameter("realm", Realm)
+    registrar.Parameter("realm", &TThis::Realm)
         .Default("cypress");
 
-    RegisterParameter("secure", Secure)
+    registrar.Parameter("secure", &TThis::Secure)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlackboxCookieAuthenticatorConfig::TBlackboxCookieAuthenticatorConfig()
+void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("domain", Domain)
+    registrar.Parameter("domain", &TThis::Domain)
         .Default("yt.yandex-team.ru");
 
-    RegisterParameter("csrf_secret", CsrfSecret)
+    registrar.Parameter("csrf_secret", &TThis::CsrfSecret)
         .Default();
-    RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
+    registrar.Parameter("csrf_token_ttl", &TThis::CsrfTokenTtl)
         .Default(DefaultCsrfTokenTtl);
 
-    RegisterParameter("get_user_ticket", GetUserTicket)
+    registrar.Parameter("get_user_ticket", &TThis::GetUserTicket)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingCookieAuthenticatorConfig::TCachingCookieAuthenticatorConfig()
+void TCachingCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache", Cache)
+    registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 }
 

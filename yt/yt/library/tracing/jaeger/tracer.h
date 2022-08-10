@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/rpc/grpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -20,7 +20,7 @@ namespace NYT::NTracing {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJaegerTracerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NRpc::NGrpc::TChannelConfigPtr CollectorChannelConfig;
@@ -33,7 +33,9 @@ public:
 
     std::optional<TDuration> FlushPeriod;
 
-    TJaegerTracerDynamicConfig();
+    REGISTER_YSON_STRUCT(TJaegerTracerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJaegerTracerDynamicConfig)
@@ -41,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TJaegerTracerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJaegerTracerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NRpc::NGrpc::TChannelConfigPtr CollectorChannelConfig;
@@ -71,11 +73,13 @@ public:
 
     bool EnablePidTag;
 
-    TJaegerTracerConfig();
-
     TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig);
 
     bool IsEnabled() const;
+
+    REGISTER_YSON_STRUCT(TJaegerTracerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJaegerTracerConfig)

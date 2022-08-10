@@ -25,13 +25,15 @@ namespace NYT::NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TShardConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     std::vector<TString> Filter;
 
     std::optional<TDuration> GridStep;
 
-    TShardConfig();
+    REGISTER_YSON_STRUCT(TShardConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TShardConfig)
@@ -39,7 +41,7 @@ DEFINE_REFCOUNTED_TYPE(TShardConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSolomonExporterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TDuration GridStep;
 
@@ -78,9 +80,11 @@ struct TSolomonExporterConfig
 
     TDuration UpdateSensorServiceTreePeriod;
 
-    TSolomonExporterConfig();
-
     TShardConfigPtr MatchShard(const TString& sensorName);
+
+    REGISTER_YSON_STRUCT(TSolomonExporterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonExporterConfig)

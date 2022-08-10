@@ -8,14 +8,14 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSamplerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Request is sampled with probability P.
@@ -31,20 +31,9 @@ public:
     //! Clear sampled from from incoming user request.
     THashMap<TString, bool> ClearSampledFlag;
 
-    TSamplerConfig()
-    {
-        RegisterParameter("global_sample_rate", GlobalSampleRate)
-            .Default(0.0);
-        RegisterParameter("user_sample_rate", UserSampleRate)
-            .Default();
-        RegisterParameter("clear_sampled_flag", ClearSampledFlag)
-            .Default();
+    REGISTER_YSON_STRUCT(TSamplerConfig);
 
-        RegisterParameter("min_per_user_samples", MinPerUserSamples)
-            .Default(0);
-        RegisterParameter("min_per_user_samples_period", MinPerUserSamplesPeriod)
-            .Default(TDuration::Minutes(1));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSamplerConfig)
