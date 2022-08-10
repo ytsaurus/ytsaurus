@@ -2989,6 +2989,7 @@ private:
             YT_LOG_INFO("Assigned agent is missing or not registered, operation returned to waiting for agent state (OperationId: %v)",
                 operation->GetId());
             operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
+            AddOperationToTransientQueue(operation);
             throw NConcurrency::TFiberCanceledException();
         }
 
