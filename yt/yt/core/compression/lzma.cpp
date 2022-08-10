@@ -1,6 +1,8 @@
 #include "lzma.h"
 #include "private.h"
 
+#include <yt/yt/core/misc/finally.h>
+
 extern "C" {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,7 +14,7 @@ extern "C" {
 
 } // extern "C"
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,17 +47,14 @@ public:
 
 TSzAlloc Alloc;
 
-} // namespace
-
-
-class TLzmaWriteWrapper
+class TLzmaSinkWrapper
     : public ISeqOutStream
 {
 public:
-    TLzmaWriteWrapper(TBlob* output)
+    explicit TLzmaSinkWrapper(TBlob* output)
         : Output_(output)
     {
-        Write = &TLzmaWriteWrapper::WriteDataProc;
+        Write = &TLzmaSinkWrapper::WriteDataProc;
     }
 
     size_t WriteData(const void* buffer, size_t size)
@@ -66,20 +65,19 @@ public:
 
     static size_t WriteDataProc(const ISeqOutStream* lzmaWriteWrapper, const void* buffer, size_t size)
     {
-        TLzmaWriteWrapper* pThis = const_cast<TLzmaWriteWrapper*>(static_cast<const TLzmaWriteWrapper*>(lzmaWriteWrapper));
+        TLzmaSinkWrapper* pThis = const_cast<TLzmaSinkWrapper*>(static_cast<const TLzmaSinkWrapper*>(lzmaWriteWrapper));
         return pThis->WriteData(buffer, size);
     }
 
 private:
-    TBlob* Output_;
+    TBlob* const Output_;
 };
 
-
-class TLzmaReadWrapper
+class TLzmaSourceWrapper
     : public ISeqInStream
 {
 public:
-    TLzmaReadWrapper(StreamSource* source)
+    explicit TLzmaSourceWrapper(TSource* source)
         : Source_(source)
     {
         Read = ReadDataProc;
@@ -101,29 +99,34 @@ public:
 
     static SRes ReadDataProc(const ISeqInStream* lzmaReadWrapper, void* buffer, size_t* size)
     {
-        TLzmaReadWrapper* pThis = const_cast<TLzmaReadWrapper*>(static_cast<const TLzmaReadWrapper*>(lzmaReadWrapper));
+        TLzmaSourceWrapper* pThis = const_cast<TLzmaSourceWrapper*>(static_cast<const TLzmaSourceWrapper*>(lzmaReadWrapper));
         return pThis->ReadData(buffer, size);
     }
 
 private:
-    StreamSource* const Source_;
+    TSource* const Source_;
 };
 
+} // namespace
 
-void Check(SRes sres)
-{
-    YT_LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
-}
-
-void LzmaCompress(int level, StreamSource* source, TBlob* output)
+void LzmaCompress(int level, TSource* source, TBlob* output)
 {
     YT_VERIFY(0 <= level && level <= 9);
 
-    TLzmaReadWrapper reader(source);
-    TLzmaWriteWrapper writer(output);
+    TLzmaSourceWrapper reader(source);
+    TLzmaSinkWrapper writer(output);
 
-    CLzmaEncHandle handle = LzmaEnc_Create(&Alloc);
+    auto handle = LzmaEnc_Create(&Alloc);
     YT_VERIFY(handle);
+
+    auto finallyGuard = Finally([&] {
+        LzmaEnc_Destroy(handle, &Alloc, &Alloc);
+    });
+
+    auto checkError = [] (SRes result) {
+        YT_LOG_FATAL_IF(result != SZ_OK, "Lzma compression failed (Error: %v)",
+            result);
+    };
 
     {
         // Set properties.
@@ -131,50 +134,66 @@ void LzmaCompress(int level, StreamSource* source, TBlob* output)
         LzmaEncProps_Init(&props);
         props.level = level;
         props.writeEndMark = 1;
-
-        Check(LzmaEnc_SetProps(handle, &props));
+        checkError(LzmaEnc_SetProps(handle, &props));
     }
 
     {
         // Write properties.
         Byte propsBuffer[LZMA_PROPS_SIZE];
         size_t propsBufferSize = LZMA_PROPS_SIZE;
-        Check(LzmaEnc_WriteProperties(handle, propsBuffer, &propsBufferSize));
+        checkError(LzmaEnc_WriteProperties(handle, propsBuffer, &propsBufferSize));
         writer.WriteData(propsBuffer, sizeof(propsBuffer));
     }
 
     // Compress data.
-    Check(LzmaEnc_Encode(handle, &writer, &reader, nullptr, &Alloc, &Alloc));
-
-    LzmaEnc_Destroy(handle, &Alloc, &Alloc);
+    checkError(LzmaEnc_Encode(handle, &writer, &reader, nullptr, &Alloc, &Alloc));
 }
 
-void LzmaDecompress(StreamSource* source, TBlob* output)
+void LzmaDecompress(TSource* source, TBlob* output)
 {
     Byte propsBuffer[LZMA_PROPS_SIZE];
-    Read(source, reinterpret_cast<char*>(propsBuffer), sizeof(propsBuffer));
+    ReadRef(*source, TMutableRef(reinterpret_cast<char*>(propsBuffer), sizeof(propsBuffer)));
 
     CLzmaDec handle;
     LzmaDec_Construct(&handle);
-    Check(LzmaDec_Allocate(&handle, propsBuffer, LZMA_PROPS_SIZE, &Alloc));
+
+    {
+        auto result = LzmaDec_Allocate(&handle, propsBuffer, LZMA_PROPS_SIZE, &Alloc);
+        if(result != SZ_OK) {
+            THROW_ERROR_EXCEPTION("Lzma decompression failed: LzmaDec_Allocate returned an error")
+                << TErrorAttribute("error", result);
+        }
+    }
+
+    auto finallyGuard = Finally([&] {
+        LzmaDec_Free(&handle, &Alloc);
+    });
+
     LzmaDec_Init(&handle);
 
-    ELzmaStatus status = LZMA_STATUS_NOT_FINISHED;
-    while (source->Available()) {
+    auto status = LZMA_STATUS_NOT_FINISHED;
+    while (source->Available() > 0) {
         size_t sourceDataSize;
         const Byte* sourceData = reinterpret_cast<const Byte*>(source->Peek(&sourceDataSize));
+
         sourceDataSize = std::min(sourceDataSize, source->Available());
 
-        const size_t oldDicPos = handle.dicPos;
+        size_t oldDicPos = handle.dicPos;
+        size_t bufferSize = sourceDataSize;
 
-        SizeT bufferSize = sourceDataSize;
-        Check(LzmaDec_DecodeToDic(
-            &handle,
-            handle.dicBufSize,
-            sourceData,
-            &bufferSize, // It's input buffer size before call, read byte count afterwards.
-            LZMA_FINISH_ANY,
-            &status));
+        {
+            auto result = LzmaDec_DecodeToDic(
+                &handle,
+                handle.dicBufSize,
+                sourceData,
+                &bufferSize, // It's input buffer size before call, read byte count afterwards.
+                LZMA_FINISH_ANY,
+                &status);
+            if(result != SZ_OK) {
+                THROW_ERROR_EXCEPTION("Lzma decompression failed: LzmaDec_DecodeToDic returned an error")
+                    << TErrorAttribute("error", result);
+            }
+        }
 
         output->Append(handle.dic + oldDicPos, handle.dicPos - oldDicPos);
 
@@ -188,10 +207,13 @@ void LzmaDecompress(StreamSource* source, TBlob* output)
 
         source->Skip(bufferSize);
     }
-    YT_VERIFY(status == LZMA_STATUS_FINISHED_WITH_MARK);
-    LzmaDec_Free(&handle, &Alloc);
+
+    if (status != LZMA_STATUS_FINISHED_WITH_MARK) {
+        THROW_ERROR_EXCEPTION("Lzma decompression failed: unexpected final status")
+            << TErrorAttribute("status", static_cast<int>(status));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+} // namespace NYT::NCompression::NDetail

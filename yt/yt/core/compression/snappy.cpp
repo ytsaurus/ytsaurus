@@ -1,22 +1,21 @@
 #include "snappy.h"
-#include "details.h"
 
 #include <contrib/libs/snappy/snappy-stubs-internal.h>
 #include <contrib/libs/snappy/snappy.h>
 
-namespace NYT::NCompression {
+namespace NYT::NCompression::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPreloadingSource
-    : public StreamSource
+    : public TSource
 {
 public:
-    explicit TPreloadingSource(StreamSource* source)
+    explicit TPreloadingSource(TSource* source)
         : Source_(source)
         , Length_(std::min(Source_->Available(), Buffer_.size()))
     {
-        Read(Source_, Buffer_.data(), Length_);
+        ReadRef(*Source_, TMutableRef(Buffer_.data(), Length_));
     }
 
     size_t Available() const override
@@ -57,16 +56,19 @@ public:
     }
 
 private:
-    StreamSource* Source_;
+    TSource* const Source_;
     std::array<char, snappy::Varint::kMax32> Buffer_;
     size_t Length_ = 0;
     size_t Position_ = 0;
 };
 
-void SnappyCompress(StreamSource* source, TBlob* output)
+void SnappyCompress(TSource* source, TBlob* output)
 {
     // Snappy implementation relies on entire input length to fit into an integer.
-    YT_VERIFY(source->Available() <= std::numeric_limits<int>::max());
+    if (source->Available() > std::numeric_limits<int>::max()) {
+        THROW_ERROR_EXCEPTION("Snappy compression failed: input size is too big")
+            << TErrorAttribute("size", source->Available());
+    }
 
     output->Resize(snappy::MaxCompressedLength(source->Available()), /*initializeStorage*/ false);
     snappy::UncheckedByteArraySink writer(output->Begin());
@@ -74,7 +76,7 @@ void SnappyCompress(StreamSource* source, TBlob* output)
     output->Resize(compressedSize);
 }
 
-void SnappyDecompress(StreamSource* source, TBlob* output)
+void SnappyDecompress(TSource* source, TBlob* output)
 {
     // Empty input leads to an empty output in Snappy.
     if (source->Available() == 0) {
@@ -88,11 +90,15 @@ void SnappyDecompress(StreamSource* source, TBlob* output)
         preloadingSource.begin(),
         preloadingSource.end(),
         &uncompressedSize);
+
     output->Resize(uncompressedSize, /*initializeStorage*/ false);
-    YT_VERIFY(snappy::RawUncompress(&preloadingSource, output->Begin()));
+
+    if (!snappy::RawUncompress(&preloadingSource, output->Begin())) {
+        THROW_ERROR_EXCEPTION("Snappy compression failed: RawUncompress returned an error");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCompression
+} // namespace NYT::NCompression::NDetail
 
