@@ -61,7 +61,7 @@ object Dependencies {
   ).excludeLogging
 
   lazy val yandexIceberg = Seq(
-    "ru.yandex" % "java-ytclient" % "9719379"
+    "ru.yandex" % "java-ytclient" % "9843488"
 //      excludeAll (
 //      ExclusionRule(organization = "ru.yandex", name = "iceberg-inside-yt-core")
 //    ),
