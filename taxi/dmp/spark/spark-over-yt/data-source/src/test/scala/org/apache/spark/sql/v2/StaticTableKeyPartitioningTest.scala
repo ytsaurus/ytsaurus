@@ -95,7 +95,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
   private def extractYtScan(plan: SparkPlan): YtScan = {
     plan.collectFirst {
-      case BatchScanExec(_, scan@YtScan(_, _, _, _, _, _, _, _, _, _, _)) => scan
+      case BatchScanExec(_, scan: YtScan) => scan
     }.get
   }
 
@@ -168,7 +168,8 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
     res.collect()
 
     val ytScan = extractYtScan(res.queryExecution.executedPlan)
-    val partitions = ytScan.getPartitions.flatMap(f => extractRawKeys(f.files))
+    val partitions = ytScan.tryKeyPartitioning().getOrElse(ytScan)
+      .getPartitions.flatMap(f => extractRawKeys(f.files))
     partitions
   }
 
@@ -325,7 +326,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
       YtPartitionedFile.static(tmpPath, 5, 6, 0, 0, null),
     )
 
-    val res = YtFilePartition.getPivotKeys(tmpPath, schema, Seq("a"), files)
+    val res = YtFilePartition.getPivotKeys(schema, Seq("a"), files)
     res should contain theSameElementsAs Seq(
       TuplePoint(Seq(RealValue("a"))),
       TuplePoint(Seq(RealValue("c"))),

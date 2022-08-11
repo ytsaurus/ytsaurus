@@ -110,6 +110,20 @@ trait LocalSpark extends LocalYtClient {
     }
   }
 
+  def withConfs[R](confs: Map[String, String])(f: => R): R = {
+    def withConfRec(confs: Seq[(String, String)]): R = {
+      confs match {
+        case (headK, headV) +: tail =>
+          withConf(headK, headV) {
+            withConfRec(tail)
+          }
+        case _ =>
+          f
+      }
+    }
+    withConfRec(confs.toSeq)
+  }
+
   def defaultParallelism: Int = Utils.defaultParallelism(spark)
 }
 

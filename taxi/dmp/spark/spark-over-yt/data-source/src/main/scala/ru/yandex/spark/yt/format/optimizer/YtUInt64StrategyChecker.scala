@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.format.optimizer
 
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan}
