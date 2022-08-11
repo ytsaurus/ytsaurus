@@ -3,13 +3,12 @@
 #include "callbacks.h"
 #include "functions.h"
 #include "lexer.h"
+#include "parser.h"
 #include "query_helpers.h"
-
-#include <yt/yt/ytlib/query_client/parser.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

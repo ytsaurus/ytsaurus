@@ -107,8 +107,10 @@ TRowRanges GetPrunedRanges(
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
-    const NLogging::TLogger& Logger)
+    TGuid queryId)
 {
+    auto Logger = MakeQueryLogger(queryId);
+
     YT_LOG_DEBUG("Inferring ranges from predicate");
 
     auto rangeInferrer = CreateRangeInferrer(
@@ -152,7 +154,6 @@ TRowRanges GetPrunedRanges(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {
-    auto Logger = MakeQueryLogger(query);
     return GetPrunedRanges(
         query->WhereClause,
         query->Schema.Original,
@@ -163,7 +164,7 @@ TRowRanges GetPrunedRanges(
         evaluatorCache,
         rangeExtractors,
         options,
-        Logger);
+        query->Id);
 }
 
 TQueryStatistics CoordinateAndExecute(

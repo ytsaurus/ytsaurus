@@ -66,6 +66,8 @@ struct IPrepareCallbacks;
 
 struct TQueryStatistics;
 
+struct TQueryOptions;
+
 DECLARE_REFCOUNTED_STRUCT(IAggregateFunctionDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(ICallingConvention)

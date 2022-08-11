@@ -1130,6 +1130,7 @@ std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,
     TTableSchemaPtr schema);
 
+NLogging::TLogger MakeQueryLogger(TGuid queryId);
 NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
