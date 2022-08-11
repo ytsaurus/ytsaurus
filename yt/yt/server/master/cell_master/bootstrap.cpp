@@ -27,6 +27,9 @@
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
+#include <yt/yt/server/master/incumbent_server/incumbent_service.h>
+
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
@@ -193,6 +196,7 @@ using namespace NFileServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NIncumbentServer;
 using namespace NJournalServer;
 using namespace NJournalServer;
 using namespace NMonitoring;
@@ -303,6 +307,11 @@ const IConfigManagerPtr& TBootstrap::GetConfigManager() const
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
+}
+
+const IIncumbentManagerPtr& TBootstrap::GetIncumbentManager() const
+{
+    return IncumbentManager_;
 }
 
 const IServerPtr& TBootstrap::GetRpcServer() const
@@ -719,6 +728,8 @@ void TBootstrap::DoInitialize()
 
     WorldInitializer_ = CreateWorldInitializer(this);
 
+    IncumbentManager_ = CreateIncumbentManager(this);
+
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
@@ -832,6 +843,7 @@ void TBootstrap::DoInitialize()
     // Recalculates roles for master cells.
     // If you need to know cell roles, initialize it below MulticellManager_.
     MulticellManager_->Initialize();
+    IncumbentManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
     NodeTracker_->Initialize();
@@ -905,6 +917,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
+    RpcServer_->RegisterService(CreateIncumbentService(this));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));
@@ -1035,6 +1048,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/config",
         CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+    SetNodeByYPath(
+        orchidRoot,
+        "/incumbent_manager",
+        CreateVirtualNode(IncumbentManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
         "/chunk_manager",

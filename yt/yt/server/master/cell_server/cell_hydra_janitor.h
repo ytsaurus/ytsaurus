@@ -9,7 +9,7 @@ namespace NYT::NCellServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICellHydraJanitor
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
 };

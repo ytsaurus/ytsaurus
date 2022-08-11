@@ -33,6 +33,9 @@ DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
 DECLARE_REFCOUNTED_CLASS(TMasterAutomatonPart)
 DECLARE_REFCOUNTED_CLASS(TMultiPhaseCellSyncSession)
 DECLARE_REFCOUNTED_CLASS(TDiskSpaceProfiler)
+DECLARE_REFCOUNTED_CLASS(TMultiPhaseCellSyncSession)
+DECLARE_REFCOUNTED_CLASS(TMultiPhaseCellSyncSession)
+DECLARE_REFCOUNTED_CLASS(TDiskSpaceProfiler)
 
 DECLARE_REFCOUNTED_STRUCT(IAlertManager)
 DECLARE_REFCOUNTED_STRUCT(IConfigManager)
@@ -115,6 +118,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (CellTrackerService)
     (EphemeralPtrUnref)
     (ChunkAutotomizer)
+    (IncumbentManager)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,
