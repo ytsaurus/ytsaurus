@@ -201,83 +201,90 @@ object YtFilePartition {
     partitions
   }
 
-  def getFilePartition(sparkSession: SparkSession, splitFiles: Seq[PartitionedFile],
-                       schema: StructType, keyPartitioningConfig: KeyPartitioningConfig,
-                       maxSplitBytes: Long): Seq[FilePartition] = {
+  def tryGetKeyPartitions(sparkSession: SparkSession, splitFiles: Seq[PartitionedFile], schema: StructType,
+                          keyPartitioningConfig: KeyPartitioningConfig,
+                          requiredKeysO: Option[Seq[String]] = None): Option[Seq[FilePartition]] = {
+    implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
     val keys = SchemaConverter.prefixKeys(schema)
-    log.info("Partitioned table has keys " + keys.toString())
-    if (keys.nonEmpty && keyPartitioningConfig.enabled) {
+    log.info(s"Partitioned table has keys ${keys.toString()}. " +
+      s"Required keys: ${requiredKeysO.map(_.mkString(",")).getOrElse("-")}")
+    if (keys.nonEmpty && keyPartitioningConfig.enabled && requiredKeysO.forall(keys.startsWith(_))) {
       val isSupportedFiles = splitFiles.forall {
         case file: YtPartitionedFile => !file.isDynamic
         case _ => false
       }
-      log.info("Key partitioning supports all files: " + isSupportedFiles)
       if (isSupportedFiles) {
-        log.info("Key partitioning getting...")
-        val keyPartitioning = getKeyPartitions(sparkSession, splitFiles.asInstanceOf[Seq[YtPartitionedFile]],
-          schema, keys, keyPartitioningConfig)
-        keyPartitioning match {
-          case Some(partitions) =>
-            log.info("Used key partitioning for key set " + keys.toString())
-            partitions.indices.zip(partitions).map { case (i, x) => FilePartition(i, Array(x)) }
-          case None =>
-            log.info("Unsuccessful using of key partitioning")
-            getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
+        log.info("Key partitioning supports all files")
+        val ytSplitFiles = splitFiles.asInstanceOf[Seq[YtPartitionedFile]]
+        if (ytSplitFiles.isEmpty) {
+          log.info("Empty file list")
+          Some(Seq.empty)
+        } else {
+          if (ytSplitFiles.forall(ytSplitFiles.head.filePath == _.filePath)) {
+            val keyPartitioning = requiredKeysO match {
+              case Some(requiredKeys) => getKeyPartitions(schema, requiredKeys, ytSplitFiles, keyPartitioningConfig)
+              case None => collectFirstKeyPartitions(schema, keys, ytSplitFiles, keyPartitioningConfig)
+            }
+            keyPartitioning match {
+              case Some(partitions) =>
+                log.info(s"Used key partitioning for key set ${keys.toString()}")
+                Some(partitions.indices.zip(partitions).map { case (i, x) => FilePartition(i, Array(x)) })
+              case None =>
+                log.info("Unsuccessful using of key partitioning")
+                None
+            }
+          } else {
+            // TODO support correct few tables reading
+            log.info("Reading few tables try")
+            None
+          }
         }
       } else {
         log.info("Unsupported files found")
-        getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
-      }
-    } else {
-      log.info("Key partitioning hasn't been tried")
-      getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
-    }
-  }
-
-  private def getKeyPartitions(sparkSession: SparkSession, splitFiles: Seq[YtPartitionedFile], schema: StructType,
-                               keys: Seq[String], keyPartitioningConfig: KeyPartitioningConfig): Option[Seq[PartitionedFile]] = {
-    val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
-    val filepathO = splitFiles.headOption.map(_.filePath)
-    filepathO match {
-      case Some(filepath) =>
-        if (splitFiles.forall(_.filePath == filepath)) {
-          (1 to keys.size).collectFirst {
-            Function.unlift {
-              colCount =>
-                val currentKeySet = keys.take(colCount)
-                val keySchema = StructType(schema.fields.filter(f => currentKeySet.contains(f.name)))
-                log.info(colCount + " columns try for key partitioning. Key set: " + currentKeySet)
-                getKeyPartitions(filepath, keySchema, currentKeySet, splitFiles, keyPartitioningConfig)(yt)
-            }
-          }
-        } else {
-          // TODO support correct few tables reading
-          None
-        }
-      case None =>
-        // no files
-        Some(Seq.empty)
-    }
-  }
-
-  private def getKeyPartitions(filepath: String, schema: StructType, keys: Seq[String],
-                               splitFiles: Seq[YtPartitionedFile], keyPartitioningConfig: KeyPartitioningConfig)
-                              (implicit yt: CompoundClient): Option[Seq[YtPartitionedFile]] = {
-    if (schema.fields.forall(f => ExpressionTransformer.isSupportedDataType(f.dataType))) { // always true
-      log.info("All columns are supported for key partitioning")
-      val pivotKeys = getPivotKeys(filepath, schema, keys, splitFiles)
-      log.info("Pivot keys: " + pivotKeys.mkString(", "))
-      val filesGroupedByKey = seqGroupBy(pivotKeys.zip(splitFiles))
-      if (filesGroupedByKey.forall { case (_, files) => files.length <= keyPartitioningConfig.unionLimit }) {
-        log.info("Coalesced partitions satisfy union limit")
-        Some(getFilesWithUniquePivots(keys, filesGroupedByKey))
-      } else {
-        log.info("Coalesced partitions don't satisfy union limit")
         None
       }
     } else {
-      log.info("Not all columns are supported for key partitioning")
+      log.info("Key partitioning hasn't been tried")
       None
+    }
+  }
+
+  private def collectFirstKeyPartitions(schema: StructType, keys: Seq[String], splitFiles: Seq[YtPartitionedFile],
+                                        keyPartitioningConfig: KeyPartitioningConfig)
+                              (implicit yt: CompoundClient): Option[Seq[PartitionedFile]] = {
+    (1 to keys.size).collectFirst {
+      Function.unlift {
+        colCount =>
+          getKeyPartitions(schema, keys.take(colCount), splitFiles, keyPartitioningConfig)
+      }
+    }
+  }
+
+  private def getKeyPartitions(schema: StructType, currentKeys: Seq[String],
+                               splitFiles: Seq[YtPartitionedFile], keyPartitioningConfig: KeyPartitioningConfig)
+                              (implicit yt: CompoundClient): Option[Seq[YtPartitionedFile]] = {
+    log.info(currentKeys.length + " columns try for key partitioning. Key set: " + currentKeys)
+    val keySchema = StructType(schema.fields.filter(f => currentKeys.contains(f.name)))
+    if (keySchema.fields.map(_.name).toSeq != currentKeys) {
+      log.error("Key partitioning schema is " + keySchema + ", but other keys (" + currentKeys + ") required")
+      None
+    } else {
+      if (keySchema.fields.forall(f => ExpressionTransformer.isSupportedDataType(f.dataType))) { // always true
+        log.info("All columns are supported for key partitioning")
+        val pivotKeys = getPivotKeys(keySchema, currentKeys, splitFiles)
+        log.info("Pivot keys: " + pivotKeys.mkString(", "))
+        val filesGroupedByKey = seqGroupBy(pivotKeys.zip(splitFiles))
+        if (filesGroupedByKey.forall { case (_, files) => files.length <= keyPartitioningConfig.unionLimit }) {
+          log.info("Coalesced partitions satisfy union limit")
+          Some(getFilesWithUniquePivots(currentKeys, filesGroupedByKey))
+        } else {
+          log.info("Coalesced partitions don't satisfy union limit")
+          None
+        }
+      } else {
+        log.info("Not all columns are supported for key partitioning")
+        None
+      }
     }
   }
 
@@ -292,8 +299,9 @@ object YtFilePartition {
     res
   }
 
-  private[v2] def getPivotKeys(filepath: String, schema: StructType, keys: Seq[String], files: Seq[YtPartitionedFile])
+  private[v2] def getPivotKeys(schema: StructType, keys: Seq[String], files: Seq[YtPartitionedFile])
                           (implicit yt: CompoundClient): Seq[TuplePoint] = {
+    val filepath = files.head.filePath
     val basePath = ypath(new Path(filepath)).toYPath.withColumns(keys: _*)
     val pathWithRanges = files.foldLeft(basePath) {
       case (path, pf) => path.withRange(pf.beginRow, pf.beginRow + 1)

@@ -13,7 +13,7 @@ import org.apache.spark.sql.execution.datasources.{FilePartition, PartitionDirec
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import org.apache.spark.sql.v2.YtFilePartition.getFilePartition
+import org.apache.spark.sql.v2.YtFilePartition.{getFilePartitions, tryGetKeyPartitions}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
 import ru.yandex.spark.yt.common.utils._
@@ -34,9 +34,14 @@ case class YtScan(sparkSession: SparkSession,
                   partitionFilters: Seq[Expression] = Seq.empty,
                   dataFilters: Seq[Expression] = Seq.empty,
                   pushedFilterSegments: SegmentSet = SegmentSet(),
-                  pushedFilters: Seq[Filter] = Nil) extends FileScan with SupportsReportPartitioning with Logging {
+                  pushedFilters: Seq[Filter] = Nil,
+                  keyPartitionsHint: Option[Seq[FilePartition]] = None) extends FileScan with SupportsReportPartitioning with Logging {
   private val filterPushdownConf = FilterPushdownConfig(sparkSession)
   private val keyPartitioningConf = KeyPartitioningConfig(sparkSession)
+
+  def supportsKeyPartitioning: Boolean = {
+    keyPartitionsHint.isDefined
+  }
 
   override def isSplitable(path: Path): Boolean = {
     path match {
@@ -83,12 +88,25 @@ case class YtScan(sparkSession: SparkSession,
     }
   }
 
-  private var knownNumPartitions: Int = _
-
   // for tests
   private[v2] def getPartitions: Seq[FilePartition] = partitions
 
-  override protected def partitions: Seq[FilePartition] = {
+  def tryKeyPartitioning(columns: Option[Seq[String]] = None): Option[YtScan] = {
+    val (_, splitFiles) = preparePartitioning()
+
+    tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
+      .map(partitions => copy(keyPartitionsHint = Some(partitions)))
+  }
+
+  override protected lazy val partitions: Seq[FilePartition] = {
+    keyPartitionsHint.getOrElse {
+      val (maxSplitBytes, splitFiles) = preparePartitioning()
+
+      getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
+    }
+  }
+
+  private def preparePartitioning(): (Long, Seq[PartitionedFile]) = {
     val selectedPartitions = fileIndex.listFiles(partitionFilters, dataFilters)
     val maxSplitBytes = YtFilePartition.maxSplitBytes(sparkSession, selectedPartitions, maybeReadParallelism)
     val splitFiles = getSplitFiles(selectedPartitions, maxSplitBytes)
@@ -101,10 +119,7 @@ case class YtScan(sparkSession: SparkSession,
           s"partition, the reason is: ${getFileUnSplittableReason(path)}")
       }
     }
-
-    val partitions = getFilePartition(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, maxSplitBytes)
-    knownNumPartitions = partitions.length
-    partitions
+    (maxSplitBytes, splitFiles)
   }
 
   private def getSplitFiles(selectedPartitions: Seq[PartitionDirectory], maxSplitBytes: Long): Seq[PartitionedFile] = {
@@ -141,7 +156,7 @@ case class YtScan(sparkSession: SparkSession,
   }
 
   override def outputPartitioning(): Partitioning = new Partitioning {
-    override def numPartitions(): Int = knownNumPartitions
+    override def numPartitions(): Int = partitions.length
 
     override def satisfy(distribution: Distribution): Boolean = false
   }

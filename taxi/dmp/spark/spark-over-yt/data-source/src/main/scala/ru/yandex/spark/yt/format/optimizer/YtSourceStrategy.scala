@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.format.optimizer
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
