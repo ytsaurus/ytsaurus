@@ -28,7 +28,7 @@ public:
     TSharedRefArray GetRequestMessage() const override;
 
     TRequestId GetRequestId() const override;
-    NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    NYT::NBus::TBusNetworkStatistics GetBusNetworkStatistics() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     const TString& GetEndpointDescription() const override;
 
@@ -167,7 +167,7 @@ public:
     TSharedRefArray GetRequestMessage() const override;
 
     NRpc::TRequestId GetRequestId() const override;
-    NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    NYT::NBus::TBusNetworkStatistics GetBusNetworkStatistics() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     const TString& GetEndpointDescription() const override;
 

@@ -7,6 +7,9 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <yt/yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NBus {
@@ -14,13 +17,15 @@ namespace NYT::NBus {
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NNet;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = BusLogger;
 
-static constexpr auto LivenessCheckPeriod = TDuration::MilliSeconds(100);
-static constexpr auto PerConnectionLivenessChecksPeriod = TDuration::Seconds(10);
+static constexpr auto PeriodcCheckPeriod = TDuration::MilliSeconds(100);
+static constexpr auto PerConnectionPeriodicCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,32 +46,11 @@ bool IsLocalBusTransportEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherStatistics TTcpDispatcherCounters::ToStatistics() const
+TBusNetworkStatistics TBusNetworkCounters::ToStatistics() const
 {
-    TTcpDispatcherStatistics result;
-#define XX(name) result.name = name.load();
-    XX(InBytes)
-    XX(InPackets)
-
-    XX(OutBytes)
-    XX(OutPackets)
-
-    XX(PendingOutPackets)
-    XX(PendingOutBytes)
-
-    XX(ClientConnections)
-    XX(ServerConnections)
-
-    XX(StalledReads)
-    XX(StalledWrites)
-
-    XX(ReadErrors)
-    XX(WriteErrors)
-
-    XX(Retransmits)
-
-    XX(EncoderErrors)
-    XX(DecoderErrors)
+    TBusNetworkStatistics result;
+#define XX(field) result.field = field.load();
+    FOR_EACH_BUS_NETWORK_STATISTICS_FIELD(XX)
 #undef XX
     return result;
 }
@@ -78,7 +62,7 @@ const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
     return TTcpDispatcher::Get()->Impl_;
 }
 
-const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
+const TBusNetworkCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
 {
     auto [statistics, ok] = NetworkStatistics_.FindOrInsert(networkName, [] {
         return TNetworkStatistics{};
@@ -149,8 +133,8 @@ const TString& TTcpDispatcher::TImpl::GetNetworkNameForAddress(const TNetworkAdd
 
 void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const
 {
-    if (Y_UNLIKELY(NetworkingDisabled_.load())) {
-        YT_LOG_FATAL("Networking is disabled with global switch, %lv message detected",
+    if (Y_UNLIKELY(NetworkingDisabled_.load(std::memory_order::relaxed))) {
+        YT_LOG_FATAL("Message transfer detected while networking is globally disabled (MessageDirection: %v)",
             messageDirection);
     }
 }
@@ -208,12 +192,12 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
     auto invoker = poller->GetInvoker();
 
     auto guard = Guard(PeriodicExecutorsLock_);
-    if (!LivenessCheckExecutor_) {
-        LivenessCheckExecutor_ = New<TPeriodicExecutor>(
+    if (!PeriodicCheckExecutor_) {
+        PeriodicCheckExecutor_ = New<TPeriodicExecutor>(
             invoker,
-            BIND(&TImpl::OnLivenessCheck, MakeWeak(this)),
-            LivenessCheckPeriod);
-        LivenessCheckExecutor_->Start();
+            BIND(&TImpl::OnPeriodicCheck, MakeWeak(this)),
+            PeriodcCheckPeriod);
+        PeriodicCheckExecutor_->Start();
     }
 }
 
@@ -251,31 +235,76 @@ void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
     }
 }
 
-void TTcpDispatcher::TImpl::OnLivenessCheck()
+std::vector<TTcpConnectionPtr> TTcpDispatcher::TImpl::GetConnections()
+{
+    std::vector<TTcpConnectionPtr> result;
+    result.reserve(ConnectionList_.size());
+    for (const auto& weakConnection : ConnectionList_) {
+        if (auto connection = weakConnection.Lock()) {
+            result.push_back(connection);
+        }
+    }
+    return result;
+}
+
+void TTcpDispatcher::TImpl::BuildOrchid(IYsonConsumer* consumer)
+{
+    std::vector<std::pair<TTcpConnectionPtr, TBusNetworkStatistics>> connectionsWithStatistics;
+    for (const auto& connection : GetConnections()) {
+        connectionsWithStatistics.emplace_back(connection, connection->GetBusStatistics());
+    }
+    SortBy(connectionsWithStatistics, [] (const auto& connectionWithStatistics) {
+        return -connectionWithStatistics.second.PendingOutBytes;
+    });
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("connections").DoMapFor(connectionsWithStatistics, [] (auto fluent, const auto& connectionWithStatistics) {
+                const auto& [connection, statistics] = connectionWithStatistics;
+                fluent
+                    .Item(ToString(connection->GetId())).BeginMap()
+                        .Item("address").Value(connection->GetEndpointAddress())
+                        .Item("statistics").BeginMap()
+                            .Item("in_bytes").Value(statistics.InBytes)
+                            .Item("in_packets").Value(statistics.InPackets)
+                            .Item("out_bytes").Value(statistics.OutBytes)
+                            .Item("out_packets").Value(statistics.OutPackets)
+                            .Item("pending_out_bytes").Value(statistics.PendingOutBytes)
+                            .Item("pending_out_packets").Value(statistics.PendingOutPackets)
+                        .EndMap()
+                    .EndMap();
+            })
+        .EndMap();
+}
+
+
+IYPathServicePtr TTcpDispatcher::TImpl::GetOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TImpl::BuildOrchid, MakeStrong(this)))
+        ->Via(GetXferPoller()->GetInvoker());
+}
+
+void TTcpDispatcher::TImpl::OnPeriodicCheck()
 {
     for (auto&& connection : ConnectionsToRegister_.DequeueAll()) {
         ConnectionList_.push_back(std::move(connection));
     }
 
-    if (ConnectionList_.empty()) {
-        return;
-    }
-
     i64 connectionsToCheck = std::max(
-        static_cast<i64>(ConnectionList_.size()) *
-        static_cast<i64>(LivenessCheckPeriod.GetValue()) /
-        static_cast<i64>(PerConnectionLivenessChecksPeriod.GetValue()),
+        std::ssize(ConnectionList_) *
+        static_cast<i64>(PeriodcCheckPeriod.GetValue()) /
+        static_cast<i64>(PerConnectionPeriodicCheckPeriod.GetValue()),
         static_cast<i64>(1));
-    for (i64 index = 0; index < connectionsToCheck; ++index) {
+    for (i64 index = 0; index < connectionsToCheck && !ConnectionList_.empty(); ++index) {
         auto& weakConnection = ConnectionList_[CurrentConnectionListIndex_];
         if (auto connection = weakConnection.Lock()) {
-            connection->CheckLiveness();
+            connection->RunPeriodicCheck();
             ++CurrentConnectionListIndex_;
         } else {
             std::swap(weakConnection, ConnectionList_.back());
             ConnectionList_.pop_back();
         }
-        if (CurrentConnectionListIndex_ >= static_cast<int>(ConnectionList_.size())) {
+        if (CurrentConnectionListIndex_ >= std::ssize(ConnectionList_)) {
             CurrentConnectionListIndex_ = 0;
         }
     }

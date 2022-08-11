@@ -51,6 +51,7 @@
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
+
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
@@ -181,6 +182,8 @@
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -1072,6 +1075,10 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/tcp_dispatcher",
+            CreateVirtualNode(NYT::NBus::TTcpDispatcher::Get()->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/config",

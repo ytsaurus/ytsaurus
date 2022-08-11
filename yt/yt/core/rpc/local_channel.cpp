@@ -164,7 +164,7 @@ private:
             return *EndpointAttributes;
         }
 
-        TTcpDispatcherStatistics GetStatistics() const override
+        TBusNetworkStatistics GetNetworkStatistics() const override
         {
             return {};
         }

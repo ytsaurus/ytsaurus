@@ -47,11 +47,11 @@ struct IServiceContext
      */
     virtual TRequestId GetRequestId() const = 0;
 
-    //! Returns the statistics from underlying bus.
+    //! Returns the statistics from the underlying bus.
     /*!
      *  For implementations not using bus, returns all zeroes.
      */
-    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
+    virtual NYT::NBus::TBusNetworkStatistics GetBusNetworkStatistics() const = 0;
 
     //! Returns the attributes of the connected endpoint.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;

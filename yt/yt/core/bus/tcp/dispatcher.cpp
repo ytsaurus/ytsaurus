@@ -23,7 +23,7 @@ void TTcpDispatcher::Configure(const TTcpDispatcherConfigPtr& config)
     Impl_->Configure(config);
 }
 
-const TTcpDispatcherCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
+const TBusNetworkCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
 {
     return Impl_->GetCounters(networkName);
 }
@@ -46,6 +46,11 @@ bool TTcpDispatcher::IsNetworkingDisabled()
 const TString& TTcpDispatcher::GetNetworkNameForAddress(const NNet::TNetworkAddress& address)
 {
     return Impl_->GetNetworkNameForAddress(address);
+}
+
+NYTree::IYPathServicePtr TTcpDispatcher::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
