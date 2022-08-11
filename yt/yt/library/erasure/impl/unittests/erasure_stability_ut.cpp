@@ -31,7 +31,10 @@ TEST_P(TErasureStabilityTest, TErasureStabilityTest)
     SetRandomSeed(42);
     const auto& params = GetParam();
 
-    auto codec = GetCodec(std::get<0>(params));
+    auto* codec = FindCodec(std::get<0>(params));
+    if (!codec) {
+       return;
+    }
 
     std::vector<TSharedRef> dataParts;
     for (int i = 0; i < codec->GetDataPartCount(); ++i) {

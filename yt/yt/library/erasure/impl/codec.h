@@ -63,16 +63,24 @@ struct ICodec
     virtual int GetWordSize() const = 0;
 
     //! Returns |true| if the codec is "bytewise", i.e. the i-th byte of any parity part depends only on
-    // the i-th bytes of data parts.
+    //! the i-th bytes of data parts.
     virtual bool IsBytewise() const = 0;
 
-    // Extension methods
+    // Extension methods.
 
     //! Returns the sum of #GetDataPartCount and #GetParityPartCount.
     int GetTotalPartCount() const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Finds an erasure codec by id. Returns |nullptr| if codec is not supported.
+ICodec* FindCodec(ECodec id);
+
+//! Finds an erasure codec by id. Throws an error if codec is not supported.
 ICodec* GetCodec(ECodec id);
+
+//! Returns the list of supported erasure codecs.
 const std::vector<ECodec>& GetSupportedCodecIds();
 
 ////////////////////////////////////////////////////////////////////////////////
