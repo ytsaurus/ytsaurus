@@ -4,6 +4,8 @@
 #include "host.h"
 #include "helpers.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Server/HTTPHandler.h>
 #include <Server/NotFoundHandler.h>
@@ -87,25 +89,34 @@ public:
 
     void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
     {
+        const auto& Logger = ClickHouseYtLogger;
+
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
 
+        auto replyError = [&] (Poco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
+            YT_LOG_INFO(error, "Replying with error");
+            response.setStatusAndReason(statusCode);
+            (*response.send()) << ToString(error);
+        };
         auto userName = request.get("X-ClickHouse-User", "");
+        const auto& userNameBlacklist = Host_->GetConfig()->UserNameBlacklist;
+        const auto& userNameWhitelist = Host_->GetConfig()->UserNameWhitelist;
         if (userName.empty()) {
-            response.setStatusAndReason(DB::HTTPResponse::HTTP_UNAUTHORIZED);
-            (*response.send()) << "User name should be specified via X-ClickHouse-User header" << std::endl;
+            replyError(DB::HTTPResponse::HTTP_UNAUTHORIZED, TError("User name should be specified via X-ClickHouse-User header"));
+            return;
+        } else if (userNameBlacklist && NRe2::TRe2::FullMatch(userName, *userNameBlacklist) &&
+                   (!userNameWhitelist || !NRe2::TRe2::FullMatch(userName, *userNameWhitelist))) {
+            replyError(DB::HTTPResponse::HTTP_FORBIDDEN, TError("User name %Qv is banned by blacklist regular expression %Qv", userName, userNameBlacklist->pattern()));
             return;
         }
 
         auto userAgent = request.get("User-Agent", "");
-        const auto& userAgentBlackList = Host_->GetConfig()->UserAgentBlackList;
+        const auto& userAgentBlacklist = Host_->GetConfig()->UserAgentBlacklist;
 
-        if (userAgentBlackList.contains(userAgent)) {
-            response.setStatusAndReason(DB::HTTPResponse::HTTP_FORBIDDEN);
-            (*response.send()) << "User Agent '" << userAgent << "' is banned in clique config" << std::endl;
+        if (userAgentBlacklist.contains(userAgent)) {
+            replyError(DB::HTTPResponse::HTTP_FORBIDDEN, TError("User Agent %Qv is banned in clique config by blacklist %Qv", userAgent, userAgentBlacklist));
             return;
         }
-
-        const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
         RegisterNewUser(Server_.context()->getAccessControlManager(), TString(userName));
