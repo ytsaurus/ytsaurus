@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NIncumbentServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const NLogging::TLogger IncumbentServerLogger("IncumbentServer");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NIncumbentServer

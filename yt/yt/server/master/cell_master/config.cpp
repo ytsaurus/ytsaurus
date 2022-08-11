@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/chaos_server/config.h>
 
+#include <yt/yt/server/master/incumbent_server/config.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
 #include <yt/yt/server/master/object_server/config.h>
@@ -320,6 +322,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
     registrar.Parameter("chunk_service", &TThis::ChunkService)
+        .DefaultNew();
+    registrar.Parameter("incumbent_manager", &TThis::IncumbentManager)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

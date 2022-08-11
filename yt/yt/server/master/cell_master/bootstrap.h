@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/master/cell_server/public.h>
 
+#include <yt/yt/server/master/incumbent_server/public.h>
+
 #include <yt/yt/server/master/journal_server/public.h>
 
 #include <yt/yt/server/master/hive/public.h>
@@ -99,6 +101,7 @@ public:
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
     const IMulticellManagerPtr& GetMulticellManager() const;
+    const NIncumbentServer::IIncumbentManagerPtr& GetIncumbentManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
@@ -167,6 +170,7 @@ protected:
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;
     IMulticellManagerPtr MulticellManager_;
+    NIncumbentServer::IIncumbentManagerPtr IncumbentManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;

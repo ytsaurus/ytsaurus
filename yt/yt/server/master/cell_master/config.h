@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/master/chaos_server/public.h>
 
+#include <yt/yt/server/master/incumbent_server/public.h>
+
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
@@ -310,6 +312,7 @@ public:
     NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
+    NIncumbentServer::TIncumbentManagerConfigPtr IncumbentManager;
 
     REGISTER_YSON_STRUCT(TDynamicClusterConfig);
 

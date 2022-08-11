@@ -9,6 +9,9 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent.h>
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
+
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/tablet_server/config.h>
@@ -31,6 +34,8 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
 using namespace NHydra;
+using namespace NIncumbentClient;
+using namespace NIncumbentServer;
 using namespace NCellMaster;
 
 using NYT::ToProto;
@@ -43,20 +48,21 @@ static const auto& Logger = CellServerLogger;
 
 class TCellHydraJanitor
     : public ICellHydraJanitor
+    , public TIncumbentBase
 {
 public:
     explicit TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+        : TIncumbentBase(bootstrap->GetIncumbentManager())
+        , Bootstrap_(bootstrap)
     { }
 
-    void Initialize()
+    void Initialize() override
     {
         Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
             BIND(&TCellHydraJanitor::OnDynamicConfigChanged, MakeWeak(this)));
-        Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeLeaderActive(
-            BIND(&TCellHydraJanitor::OnLeaderActive, MakeWeak(this)));
-        Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeStopLeading(
-            BIND(&TCellHydraJanitor::OnStopLeading, MakeWeak(this)));
+
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+        incumbentManager->RegisterIncumbent(this);
     }
 
 private:
@@ -66,10 +72,21 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    EIncumbentType GetType() const override
+    {
+        return EIncumbentType::CellJanitor;
+    }
 
-    void OnLeaderActive()
+    void OnIncumbencyStarted(int shardIndex) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (shardIndex != 0) {
+            YT_LOG_ALERT("Started cell hydra janitor incumbency with unexpected shard index, ignored "
+                "(ShardIndex: %v)",
+                shardIndex);
+            return;
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
@@ -82,16 +99,22 @@ private:
         PeriodicExecutor_->Start();
     }
 
-    void OnStopLeading()
+    void OnIncumbencyFinished(int shardIndex) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (shardIndex != 0) {
+            YT_LOG_ALERT("Stopped cell Hydra janitor incumbency with unexpected shard index, ignored "
+                "(ShardIndex: %v)",
+                shardIndex);
+            return;
+        }
 
         if (PeriodicExecutor_) {
             PeriodicExecutor_->Stop();
             PeriodicExecutor_.Reset();
         }
     }
-
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
