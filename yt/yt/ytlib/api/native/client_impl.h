@@ -38,6 +38,8 @@
 
 #include <yt/yt/client/api/internal_client.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ypath/public.h>

@@ -266,6 +266,26 @@ void ThrowTypeMismatchError(
         << TErrorAttribute("rhs_type", rhsType);
 }
 
+struct TExtraColumnsChecker
+    : public TVisitor<TExtraColumnsChecker>
+{
+    using TBase = TVisitor<TExtraColumnsChecker>;
+
+    const THashSet<TString>& Names;
+    bool HasExtraColumns = false;
+
+    explicit TExtraColumnsChecker(const THashSet<TString>& names)
+        : Names(names)
+    { }
+
+    void OnReference(const TReferenceExpression* referenceExpr)
+    {
+        HasExtraColumns |= Names.count(referenceExpr->ColumnName) == 0;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,
     TTableSchemaPtr schema)
@@ -309,9 +329,14 @@ std::vector<size_t> GetJoinGroups(
     return joinGroups;
 }
 
+NLogging::TLogger MakeQueryLogger(TGuid queryId)
+{
+    return QueryClientLogger.WithTag("FragmentId: %v", queryId);
+}
+
 NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)
 {
-    return QueryClientLogger.WithTag("FragmentId: %v", query->Id);
+    return MakeQueryLogger(query->Id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

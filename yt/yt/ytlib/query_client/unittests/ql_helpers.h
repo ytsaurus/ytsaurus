@@ -1,14 +1,15 @@
 #pragma once
 
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/query_client/callbacks.h>
 #include <yt/yt/ytlib/query_client/query.h>
 #include <yt/yt/ytlib/query_client/query_preparer.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/comparator.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"

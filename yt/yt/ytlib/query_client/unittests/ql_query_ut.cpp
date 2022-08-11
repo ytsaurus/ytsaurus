@@ -1,4 +1,3 @@
-#include <yt/yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
 #include "udf/short_invalid_ir.h"
 #include "udf/long_invalid_ir.h"

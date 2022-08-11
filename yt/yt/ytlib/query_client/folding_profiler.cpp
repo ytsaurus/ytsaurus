@@ -1485,15 +1485,4 @@ TCGQueryCallbackGenerator Profile(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExtraColumnsChecker::TExtraColumnsChecker(const THashSet<TString>& names)
-    : Names(names)
-{ }
-
-void TExtraColumnsChecker::OnReference(const TReferenceExpression* referenceExpr)
-{
-    HasExtraColumns |= Names.count(referenceExpr->ColumnName) == 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryClient

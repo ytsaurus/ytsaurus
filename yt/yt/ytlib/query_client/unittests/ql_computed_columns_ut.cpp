@@ -1,4 +1,3 @@
-#include <yt/yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
 
 #include <yt/yt/ytlib/query_client/column_evaluator.h>

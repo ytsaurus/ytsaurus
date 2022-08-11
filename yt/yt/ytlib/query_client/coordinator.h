@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NQueryClient {
 
@@ -30,7 +30,7 @@ TRowRanges GetPrunedRanges(
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
-    const NLogging::TLogger& Logger = QueryClientLogger);
+    TGuid queryId = {});
 
 TRowRanges GetPrunedRanges(
     const TConstQueryPtr& query,
