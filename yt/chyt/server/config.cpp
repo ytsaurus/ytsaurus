@@ -2,6 +2,8 @@
 
 #include "clickhouse_config.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,7 +364,13 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
-    registrar.Parameter("user_agent_black_list", &TThis::UserAgentBlackList)
+    registrar.Parameter("user_agent_blacklist", &TThis::UserAgentBlacklist)
+        .Default();
+
+    registrar.Parameter("user_name_blacklist", &TThis::UserNameBlacklist)
+        .Default();
+
+    registrar.Parameter("user_name_whitelist", &TThis::UserNameWhitelist)
         .Default();
 
     registrar.Parameter("validate_operation_access", &TThis::ValidateOperationAccess)

@@ -797,6 +797,35 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
                 wait(lambda: len(clique.make_direct_query(instance, "select * from system.clique")) == 2)
 
+    @authors("gudqeit")
+    def test_ban_user_name(self):
+        patch = {
+            "yt": {
+                "user_name_blacklist": "robot-.*",
+                "user_name_whitelist": "robot-walker|gudqeit",
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
+            assert clique.make_query("select 1", user="gudqeit", full_response=True).status_code == 200
+            assert clique.make_query("select 1", user="robot-walker", full_response=True).status_code == 200
+            assert clique.make_query("select 1", user="robot-gudqeit", full_response=True).status_code == 403
+
+        patch = {
+            "yt": {
+                "user_name_whitelist": "gudqeit",
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
+            assert clique.make_query("select 1", user="whoever", full_response=True).status_code == 200
+
+        patch = {
+            "yt": {
+                "user_name_blacklist": "robot-.*",
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
+            assert clique.make_query("select 1", user="robot-gudqeit", full_response=True).status_code == 403
+
     @authors("dakovalkov")
     def test_gossip_timeout(self):
         patch = {
@@ -1461,10 +1490,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                    [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
     @authors("dakovalkov")
-    def test_user_agent_black_list(self):
+    def test_user_agent_blacklist(self):
         patch = {
             "yt": {
-                "user_agent_black_list": ["banned_user_agent"],
+                "user_agent_blacklist": ["banned_user_agent"],
             },
         }
         with Clique(1, config_patch=patch) as clique:

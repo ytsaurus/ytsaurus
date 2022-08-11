@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/library/re2/public.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -476,7 +478,10 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    THashSet<TString> UserAgentBlackList;
+    THashSet<TString> UserAgentBlacklist;
+
+    NRe2::TRe2Ptr UserNameBlacklist;
+    NRe2::TRe2Ptr UserNameWhitelist;
 
     // COMPAT(max42): deprecate these.
     std::optional<bool> ValidateOperationAccess;
