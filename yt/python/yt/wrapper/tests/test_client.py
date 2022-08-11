@@ -1,6 +1,8 @@
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option
 
+from yt.common import YtError
+
 import yt.wrapper.http_helpers as http
 
 from yt.packages.six.moves import xrange
@@ -232,3 +234,34 @@ class TestClient(object):
             http.get_token(client=yt.YtClient(config={"token": "\x01\x02"}))
 
         assert http.get_token(client=yt.YtClient(config={"token": ""})) is None
+
+    @authors("verytable")
+    def test_get_proxy_url(self):
+        for test_name, proxy_config, expected_url in [
+            (
+                "cluster_name",
+                {"url": "hume"},
+                "hume.yt.yandex.net",
+            ),
+            (
+                "proxy_fqdn",
+                {"url": "sas4-5340-proxy-hume.man-pre.yp-c.yandex.net:80"},
+                "sas4-5340-proxy-hume.man-pre.yp-c.yandex.net:80",
+            ),
+            (
+                "tvm_only",
+                {"url": "hume", "tvm_only": True},
+                "tvm.hume.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+            ),
+            (
+                "default_suffix",
+                {"url": "hume", "default_suffix": ".imaginary.yt.yandex.net"},
+                "hume.imaginary.yt.yandex.net",
+            ),
+        ]:
+            client = yt.YtClient(config={"proxy": proxy_config})
+            assert http.get_proxy_url(client=client) == expected_url, test_name
+
+        client = yt.YtClient()
+        with pytest.raises(YtError):
+            http.get_proxy_url(client=client)

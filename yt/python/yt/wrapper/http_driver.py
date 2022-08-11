@@ -7,7 +7,7 @@ from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExc
                      create_http_response_error)
 from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
-                           get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider)
+                           get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider, TVM_ONLY_HTTP_PROXY_PORT)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -94,12 +94,23 @@ class HeavyProxyProvider(ProxyProvider):
             logger.info("Proxy %s banned", proxy)
             self.state.banned_proxies[proxy] = datetime.now()
 
+    def _configure_proxy_port(self, proxy):
+        tvm_only = get_config(self.client)["proxy"]["tvm_only"]
+        if not tvm_only:
+            return proxy
+
+        if ":" in proxy:
+            raise YtError('Cannot create TVM-only proxy for {}'.format(proxy))
+
+        return "{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
+
     def _discover_heavy_proxies(self):
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
-        return make_request_with_retries(
+        heavy_proxies = make_request_with_retries(
             "get",
             "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
             client=self.client).json()
+        return map(self._configure_proxy_port, heavy_proxies)
 
 
 class TokenAuth(AuthBase):
