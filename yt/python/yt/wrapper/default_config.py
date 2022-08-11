@@ -85,6 +85,9 @@ default_config = {
         # Suffix appended to url if it is short.
         "default_suffix": ".yt.yandex.net",
 
+        # Use TVM-only API endpoints.
+        "tvm_only": False,
+
         # Possible values are "gzip", "br" and "identity", by default we use "br" if
         # brotli is installed and "gzip" otherwise.
         "accept_encoding": None,

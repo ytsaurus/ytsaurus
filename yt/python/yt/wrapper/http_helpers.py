@@ -43,6 +43,8 @@ RECEIVE_TOKEN_FROM_SSH_SESSION = \
     int(os.environ.get("RECEIVE_TOKEN_FROM_SSH_SESSION", True)) and \
     "TEST_TOOL" not in os.environ
 
+TVM_ONLY_HTTP_PROXY_PORT = 9026
+
 
 def format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
@@ -435,6 +437,10 @@ def get_proxy_url(required=True, client=None):
 
     if proxy is not None and "." not in proxy and "localhost" not in proxy and ":" not in proxy:
         proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
+
+    tvm_only = get_config(client=client)["proxy"]["tvm_only"]
+    if tvm_only and ":" not in proxy:
+        proxy = "tvm.{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
 
     if required:
         require(proxy, lambda: YtError("You should specify proxy"))
