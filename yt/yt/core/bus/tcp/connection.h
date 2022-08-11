@@ -6,6 +6,8 @@
 #include <yt/yt/core/bus/private.h>
 #include <yt/yt/core/bus/bus.h>
 
+#include <yt/yt_proto/yt/core/bus/proto/bus.pb.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -252,6 +254,7 @@ private:
     bool OnPacketReceived() noexcept;
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
+    bool OnHandshakePacketReceived();
 
     TPacket* EnqueuePacket(
         EPacketType type,
@@ -271,10 +274,15 @@ private:
     void OnPacketSent();
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
+    void OnHandshakePacketSent();
     void OnTerminate();
     void ProcessQueuedMessages();
     void DiscardOutcomingMessages();
     void DiscardUnackedMessages();
+
+    void EnqueueHandshake();
+    TSharedRefArray MakeHandshakeMessage(const NProto::THandshake& handshake);
+    std::optional<NProto::THandshake> TryParseHandshakeMessage(const TSharedRefArray& message);
 
     void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);

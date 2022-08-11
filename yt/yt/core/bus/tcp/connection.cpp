@@ -3,7 +3,6 @@
 #include "server.h"
 #include "dispatcher_impl.h"
 
-#include <unistd.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/string.h>
@@ -52,6 +51,8 @@ static constexpr size_t MaxWriteCoalesceSize = 1_KB;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
 
 static constexpr auto TcpStatisticsUpdatePeriod = TDuration::Seconds(1);
+
+static constexpr auto HandshakePacketId = TPacketId(1, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,6 +245,76 @@ const TString& TTcpConnection::GetLoggingTag() const
     return LoggingTag_;
 }
 
+void TTcpConnection::EnqueueHandshake()
+{
+    NProto::THandshake handshake;
+    ToProto(handshake.mutable_foreign_connection_id(), Id_);
+
+    auto message = MakeHandshakeMessage(handshake);
+    auto messageSize = GetByteSize(message);
+
+    EnqueuePacket(
+        // COMPAT(babenko)
+        EPacketType::Message,
+        EPacketFlags::None,
+        1,
+        HandshakePacketId,
+        std::move(message),
+        messageSize);
+
+    YT_LOG_DEBUG("Handshake enqueued");
+}
+
+TSharedRefArray TTcpConnection::MakeHandshakeMessage(const NProto::THandshake& handshake)
+{
+    auto protoSize = handshake.ByteSize();
+    auto totalSize = sizeof(HandshakeMessageSignature) + protoSize;
+
+    TSharedRefArrayBuilder builder(1, totalSize);
+    auto ref = builder.AllocateAndAdd(totalSize);
+    char* ptr = ref.Begin();
+
+    *reinterpret_cast<ui32*>(ptr) = HandshakeMessageSignature;
+    ptr += sizeof(ui32);
+
+    SerializeProtoToRef(handshake, TMutableRef(ptr, protoSize));
+    ptr += protoSize;
+
+    return builder.Finish();
+}
+
+std::optional<NProto::THandshake> TTcpConnection::TryParseHandshakeMessage(const TSharedRefArray& message)
+{
+    if (message.Size() != 1) {
+        YT_LOG_ERROR("Handshake packet contains invalid number of parts (PartCount: %v)",
+            message.Size());
+        return {};
+    }
+
+    const auto& part = message[0];
+    if (part.Size() < sizeof(HandshakeMessageSignature)) {
+        YT_LOG_ERROR("Handshake packet size is too small (Size: %v)",
+            part.Size());
+        return {};
+    }
+
+    auto signature = *reinterpret_cast<const ui32*>(part.Begin());
+    if (signature != HandshakeMessageSignature) {
+        YT_LOG_ERROR("Invalid handshake packet signature (Expected: %x, Actual: %x)",
+            HandshakeMessageSignature,
+            signature);
+        return {};
+    }
+
+    NProto::THandshake handshake;
+    if (!TryDeserializeProto(&handshake, part.Slice(sizeof(HandshakeMessageSignature), part.Size()))) {
+        YT_LOG_ERROR("Error deserializing handshake packet");
+        return {};
+    }
+
+    return handshake;
+}
+
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
     VERIFY_SPINLOCK_AFFINITY(Lock_);
@@ -290,6 +361,8 @@ void TTcpConnection::Open()
     auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_and(~static_cast<ui64>(EPollControl::Offline)));
 
     ArmPoller();
+
+    EnqueueHandshake();
 
     // Something might be pending already, for example Terminate.
     if (Any(previousPendingControl & ~EPollControl::Offline)) {
@@ -533,7 +606,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     }
 
     TQueuedMessage queuedMessage(std::move(message), options);
-
+    auto promise = queuedMessage.Promise;
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
 
     // Log first to avoid producing weird traces.
@@ -546,7 +619,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     }
 
-    QueuedMessages_.Enqueue(queuedMessage);
+    QueuedMessages_.Enqueue(std::move(queuedMessage));
 
     // Wake up the event processing if needed.
     {
@@ -562,7 +635,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
         DiscardOutcomingMessages();
     }
 
-    return queuedMessage.Promise;
+    return promise;
 }
 
 void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
@@ -898,6 +971,11 @@ bool TTcpConnection::OnAckPacketReceived()
 
 bool TTcpConnection::OnMessagePacketReceived()
 {
+    // COMPAT(babenko)
+    if (Decoder_.GetPacketId() == HandshakePacketId) {
+        return OnHandshakePacketReceived();
+    }
+
     YT_LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v, PacketFlags: %v)",
         Decoder_.GetPacketId(),
         Decoder_.GetPacketSize(),
@@ -913,6 +991,19 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
+bool TTcpConnection::OnHandshakePacketReceived()
+{
+    auto optionalHandshake = TryParseHandshakeMessage(Decoder_.GrabMessage());
+    if (!optionalHandshake) {
+        return false;
+    }
+
+    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v)",
+        FromProto<TConnectionId>(optionalHandshake->foreign_connection_id()));
+
+    return true;
+}
+
 TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
@@ -922,16 +1013,18 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     size_t payloadSize)
 {
     size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
-    auto& packet = QueuedPackets_.emplace(New<TPacket>(
+    auto packetHolder = New<TPacket>(
         type,
         flags,
         checksummedPartCount,
         packetId,
         std::move(message),
         payloadSize,
-        packetSize));
+        packetSize);
+    auto* packet = packetHolder.Get();
+    QueuedPackets_.push(std::move(packetHolder));
     UpdatePendingOut(+1, +packetSize);
-    return packet.Get();
+    return packet;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -1185,7 +1278,12 @@ void TTcpConnection::OnPacketSent()
             break;
 
         case EPacketType::Message:
-            OnMessagePacketSent(*packet);
+            // COMPAT(babenko)
+            if (packet->PacketId == HandshakePacketId) {
+                OnHandshakePacketSent();
+            } else {
+                OnMessagePacketSent(*packet);
+            }
             break;
 
         default:
@@ -1217,6 +1315,11 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
     {
         LastIncompleteReadTime_ = NProfiling::GetCpuInstant();
     }
+}
+
+void TTcpConnection::OnHandshakePacketSent()
+{
+    YT_LOG_DEBUG("Handshake sent");
 }
 
 void TTcpConnection::OnTerminate()

@@ -24,6 +24,7 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
 #pragma pack(push, 4)
 
 constexpr ui32 PacketSignature = 0x78616d4f;
+constexpr ui32 HandshakeMessageSignature = 0x68737562;
 constexpr ui32 NullPacketPartSize = 0xffffffff;
 constexpr int TypicalPacketPartCount = 16;
 constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));

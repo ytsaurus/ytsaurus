@@ -1,0 +1,8 @@
+package NYT.NBus.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+message THandshake
+{
+    required NYT.NProto.TGuid foreign_connection_id = 1;
+}

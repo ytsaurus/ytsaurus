@@ -159,13 +159,22 @@ struct TEnvelopeFixedHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Serializes a protobuf message.
+//! Serializes a protobuf message to pre-alocated TMutableRef.
+//! The caller is responsible for providing #ref of a suitable size.
+//! Fails on error.
+void SerializeProtoToRef(
+    const google::protobuf::MessageLite& message,
+    TMutableRef ref,
+    bool partial = true);
+
+//! Serializes a protobuf message to TSharedRef.
 //! Fails on error.
 TSharedRef SerializeProtoToRef(
     const google::protobuf::MessageLite& message,
     bool partial = true);
 
-//! \see SerializeProtoToString
+//! Serializes a protobuf message to TString.
+//! Fails on error.
 TString SerializeProtoToString(
     const google::protobuf::MessageLite& message,
     bool partial = true);
