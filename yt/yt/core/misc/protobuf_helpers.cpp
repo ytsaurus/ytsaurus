@@ -33,21 +33,6 @@ struct TSerializedMessageTag { };
 
 namespace {
 
-void SerializeProtoToRefImpl(
-    const google::protobuf::MessageLite& message,
-    [[maybe_unused]] bool partial,
-    const TMutableRef& ref)
-{
-#ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
-    if (!partial && !message.IsInitialized()) {
-        YT_LOG_FATAL("Missing required fields: %v", message.InitializationErrorString());
-    }
-#endif
-    auto* begin = reinterpret_cast<google::protobuf::uint8*>(ref.begin());
-    auto* end = reinterpret_cast<google::protobuf::uint8*>(ref.end());
-    YT_VERIFY(message.SerializeWithCachedSizesToArray(begin) == end);
-}
-
 i32 CheckedCastToI32(ui64 length)
 {
     if (length >= std::numeric_limits<i32>::max()) {
@@ -59,13 +44,29 @@ i32 CheckedCastToI32(ui64 length)
 
 } // namespace
 
+void SerializeProtoToRef(
+    const google::protobuf::MessageLite& message,
+    TMutableRef ref,
+    [[maybe_unused]] bool partial)
+{
+#ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
+    if (!partial && !message.IsInitialized()) {
+        YT_LOG_FATAL("Missing required protobuf fields (Error: %v)",
+            message.InitializationErrorString());
+    }
+#endif
+    auto* begin = reinterpret_cast<google::protobuf::uint8*>(ref.begin());
+    auto* end = reinterpret_cast<google::protobuf::uint8*>(ref.end());
+    YT_VERIFY(message.SerializeWithCachedSizesToArray(begin) == end);
+}
+
 TSharedRef SerializeProtoToRef(
     const google::protobuf::MessageLite& message,
     bool partial)
 {
     auto size = CheckedCastToI32(message.ByteSizeLong());
     auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, {.InitializeStorage = false});
-    SerializeProtoToRefImpl(message, partial, data);
+    SerializeProtoToRef(message, data, partial);
     return data;
 }
 
@@ -75,7 +76,7 @@ TString SerializeProtoToString(
 {
     auto size = CheckedCastToI32(message.ByteSizeLong());
     auto data = TString::Uninitialized(size);
-    SerializeProtoToRefImpl(message, partial, TMutableRef(data.begin(), size));
+    SerializeProtoToRef(message, TMutableRef(data.begin(), size), partial);
     return data;
 }
 
