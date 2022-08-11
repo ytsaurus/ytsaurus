@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeCellBundleRefCounters)                               (2042))  // gritukan
     ((BackupVsTabletAction)                                         (2043))  // ifsmirnov
     ((AlwaysUseNewHeartbeats)                                       (2044))  // gepardo
+    ((ExpectedTabletState)                                          (2045))  // savrus
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa

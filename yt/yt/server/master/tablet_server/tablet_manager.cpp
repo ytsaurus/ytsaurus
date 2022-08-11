@@ -3251,6 +3251,8 @@ private:
             if (touchedTablets.find(tablet) != touchedTablets.end()) {
                 YT_VERIFY(tablet->GetAction() == action);
                 tablet->SetAction(nullptr);
+                // Restore expected state YT-17492.
+                tablet->SetState(tablet->GetState());
                 touched = true;
             }
         }
@@ -3466,8 +3468,20 @@ private:
                         std::vector<TTabletBase*> oldTablets;
                         oldTablets.swap(action->Tablets());
                         for (auto* tablet : oldTablets) {
-                            YT_VERIFY(tablet->GetExpectedState() == expectedState);
                             tablet->SetAction(nullptr);
+                        }
+                        for (auto* tablet : oldTablets) {
+                            if (tablet->GetExpectedState() != expectedState) {
+                                YT_LOG_ALERT_IF(IsMutationLoggingEnabled() && (tablet->GetExpectedState() != expectedState),
+                                    "Unexpected tablet expected state, try fixing with unmount plus mount "
+                                    "(TableId: %v, TabletId: %v, ActionId: %v, ActionExpected: %v, TabletExpected: %v)",
+                                    tablet->As<TTablet>()->GetTable()->GetId(),
+                                    tablet->GetId(),
+                                    action->GetId(),
+                                    expectedState,
+                                    tablet->GetExpectedState());
+                                THROW_ERROR_EXCEPTION("Tablet action canceled due to a bug");
+                            }
                         }
 
                         int newTabletCount = action->GetTabletCount()
