@@ -17,7 +17,7 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTcpDispatcherStatistics
+struct TBusNetworkStatistics
 {
     i64 InBytes = 0;
     i64 InPackets = 0;
@@ -25,8 +25,8 @@ struct TTcpDispatcherStatistics
     i64 OutBytes = 0;
     i64 OutPackets = 0;
 
-    i64 PendingOutPackets = 0;
     i64 PendingOutBytes = 0;
+    i64 PendingOutPackets = 0;
 
     int ClientConnections = 0;
     int ServerConnections = 0;
@@ -42,6 +42,30 @@ struct TTcpDispatcherStatistics
     i64 EncoderErrors = 0;
     i64 DecoderErrors = 0;
 };
+
+#define FOR_EACH_BUS_NETWORK_STATISTICS_FIELD(func) \
+    func(InBytes) \
+    func(InPackets) \
+    \
+    func(OutBytes) \
+    func(OutPackets) \
+    \
+    func(PendingOutPackets) \
+    func(PendingOutBytes) \
+    \
+    func(ClientConnections) \
+    func(ServerConnections) \
+    \
+    func(StalledReads) \
+    func(StalledWrites) \
+    \
+    func(ReadErrors) \
+    func(WriteErrors) \
+    \
+    func(Retransmits) \
+    \
+    func(EncoderErrors) \
+    func(DecoderErrors)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +106,8 @@ struct IBus
     //! Null if it is not supported by the implementation (e.g. for a client-side bus).
     virtual const NNet::TNetworkAddress& GetEndpointNetworkAddress() const = 0;
 
-    virtual TTcpDispatcherStatistics GetStatistics() const = 0;
+    //! Returns the statistics for the whole network this bus is bound to.
+    virtual TBusNetworkStatistics GetNetworkStatistics() const = 0;
 
     //! Returns a future indicating the moment when the bus is actually ready to send messages.
     /*!

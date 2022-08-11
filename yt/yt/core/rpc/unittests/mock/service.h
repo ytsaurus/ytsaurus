@@ -42,8 +42,8 @@ public:
     );
 
     MOCK_METHOD(
-        NBus::TTcpDispatcherStatistics,
-        GetBusStatistics,
+        NBus::TBusNetworkStatistics,
+        GetBusNetworkStatistics,
         (),
         (const, override)
     );

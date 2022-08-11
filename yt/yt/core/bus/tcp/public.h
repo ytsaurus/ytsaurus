@@ -11,6 +11,9 @@ DEFINE_ENUM(EMessageDirection,
     (Outcoming)
 );
 
+struct TBusNetworkCounters;
+using TBusNetworkCountersPtr = TIntrusivePtr<TBusNetworkCounters>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NBus

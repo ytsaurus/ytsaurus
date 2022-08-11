@@ -33,7 +33,7 @@ class TTcpDispatcher::TImpl
 public:
     static const TIntrusivePtr<TImpl>& Get();
 
-    const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
+    const TBusNetworkCountersPtr& GetCounters(const TString& networkName);
 
     void DisableNetworking();
     bool IsNetworkingDisabled();
@@ -51,18 +51,23 @@ public:
 
     void CollectSensors(NProfiling::ISensorWriter* writer) override;
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     friend class TTcpDispatcher;
 
     DECLARE_NEW_FRIEND();
 
     void StartPeriodicExecutors();
-    void OnLivenessCheck();
+    void OnPeriodicCheck();
 
     NConcurrency::IPollerPtr GetOrCreatePoller(
         NConcurrency::IPollerPtr* poller,
         bool isXfer,
         const TString& threadNamePrefix);
+
+    std::vector<TTcpConnectionPtr> GetConnections();
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
@@ -75,14 +80,14 @@ private:
 
     struct TNetworkStatistics
     {
-        TTcpDispatcherCountersPtr Counters = New<TTcpDispatcherCounters>();
+        const TBusNetworkCountersPtr Counters = New<TBusNetworkCounters>();
     };
 
     NConcurrency::TSyncMap<TString, TNetworkStatistics> NetworkStatistics_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeriodicExecutorsLock_);
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-    NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
+    NConcurrency::TPeriodicExecutorPtr PeriodicCheckExecutor_;
 
     std::atomic<bool> NetworkingDisabled_ = false;
 

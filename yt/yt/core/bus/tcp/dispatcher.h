@@ -8,13 +8,16 @@
 
 #include <yt/yt/core/net/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTcpDispatcherCounters
-    : public TRefCounted
+struct TBusNetworkCounters final
 {
+    static constexpr bool EnableHazard = true;
+
     std::atomic<i64> InBytes = 0;
     std::atomic<i64> InPackets = 0;
 
@@ -38,10 +41,8 @@ struct TTcpDispatcherCounters
     std::atomic<i64> EncoderErrors = 0;
     std::atomic<i64> DecoderErrors = 0;
 
-    TTcpDispatcherStatistics ToStatistics() const;
+    TBusNetworkStatistics ToStatistics() const;
 };
-
-DEFINE_REFCOUNTED_TYPE(TTcpDispatcherCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,11 +51,12 @@ class TTcpDispatcher
 public:
     static TTcpDispatcher* Get();
 
-    const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
+    const TBusNetworkCountersPtr& GetCounters(const TString& networkName);
 
     //! Returns the poller used by TCP transport.
     NConcurrency::IPollerPtr GetXferPoller();
 
+    //! Reconfigures the dispatcher.
     void Configure(const TTcpDispatcherConfigPtr& config);
 
     //! Disables all networking. Safety measure for local runs and snapshot validation.
@@ -65,6 +67,9 @@ public:
 
     //! Returns the network name for a given #address.
     const TString& GetNetworkNameForAddress(const NNet::TNetworkAddress& address);
+
+    //! Provides diagnostics for the whole TCP bus subsystem.
+    NYTree::IYPathServicePtr GetOrchidService();
 
 private:
     TTcpDispatcher();

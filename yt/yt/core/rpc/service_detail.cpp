@@ -368,9 +368,9 @@ public:
         return RuntimeInfo_->Pooled.load();
     }
 
-    TTcpDispatcherStatistics GetBusStatistics() const override
+    TBusNetworkStatistics GetBusNetworkStatistics() const override
     {
-        return ReplyBus_->GetStatistics();
+        return ReplyBus_->GetNetworkStatistics();
     }
 
     const IAttributeDictionary& GetEndpointAttributes() const override

@@ -385,9 +385,9 @@ void ExecuteVerb(
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 
-        TTcpDispatcherStatistics GetBusStatistics() const override
+        TBusNetworkStatistics GetBusNetworkStatistics() const override
         {
-            return UnderlyingContext_->GetBusStatistics();
+            return UnderlyingContext_->GetBusNetworkStatistics();
         }
 
         const IAttributeDictionary& GetEndpointAttributes() const override

@@ -100,7 +100,7 @@ public:
         return EndpointNetworkAddress_;
     }
 
-    TTcpDispatcherStatistics GetStatistics() const override
+    TBusNetworkStatistics GetNetworkStatistics() const override
     {
         return {};
     }

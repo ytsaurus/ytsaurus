@@ -75,10 +75,10 @@ public:
         return Connection_->GetEndpointNetworkAddress();
     }
 
-    TTcpDispatcherStatistics GetStatistics() const override
+    TBusNetworkStatistics GetNetworkStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->GetStatistics();
+        return Connection_->GetNetworkStatistics();
     }
 
     TFuture<void> GetReadyFuture() const override

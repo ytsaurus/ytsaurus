@@ -18,6 +18,7 @@
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/net/public.h>
 
@@ -69,9 +70,10 @@ public:
     ~TTcpConnection();
 
     void Start();
-    void CheckLiveness();
+    void RunPeriodicCheck();
 
     TConnectionId GetId() const;
+    TBusNetworkStatistics GetBusStatistics() const;
 
     // IPollable implementation.
     const TString& GetLoggingTag() const override;
@@ -83,7 +85,7 @@ public:
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     const TString& GetEndpointAddress() const override;
     const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override;
-    TTcpDispatcherStatistics GetStatistics() const override;
+    TBusNetworkStatistics GetNetworkStatistics() const override;
     TFuture<void> GetReadyFuture() const override;
     TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     void SetTosLevel(TTosLevel tosLevel) override;
@@ -173,7 +175,11 @@ private:
     const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
     TString NetworkName_;
-    TTcpDispatcherCountersPtr Counters_;
+
+    TBusNetworkCounters BusCounters_;
+    TBusNetworkCounters BusCountersDelta_;
+    TAtomicPtr<TBusNetworkCounters> NetworkCounters_;
+
     bool GenerateChecksums_ = true;
 
     // Only used by client sockets.
@@ -218,7 +224,7 @@ private:
 
     std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
-    NProfiling::TCpuInstant LastTcpStatisticsUpdate_ = 0;
+    NProfiling::TCpuInstant StatisticsUpdateDeadline_ = 0;
     i64 LastRetransmitCount_ = 0;
 
     void Open();
@@ -286,7 +292,12 @@ private:
 
     void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
-    void UpdateTcpStatistics(bool force);
+    void UpdateStatistics(bool force);
+
+    template <class T, class U>
+    void IncrementBusCounter(T TBusNetworkCounters::* field, U delta);
+    void UpdateTcpStatistics();
+    void FlushBusStatistics();
 
     void InitSocketTosLevel(int tosLevel);
 };

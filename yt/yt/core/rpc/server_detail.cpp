@@ -276,7 +276,7 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
-TTcpDispatcherStatistics TServiceContextBase::GetBusStatistics() const
+TBusNetworkStatistics TServiceContextBase::GetBusNetworkStatistics() const
 {
     return {};
 }
@@ -449,9 +449,9 @@ const NProto::TRequestHeader& TServiceContextWrapper::GetRequestHeader() const
     return UnderlyingContext_->GetRequestHeader();
 }
 
-TTcpDispatcherStatistics TServiceContextWrapper::GetBusStatistics() const
+TBusNetworkStatistics TServiceContextWrapper::GetBusNetworkStatistics() const
 {
-    return UnderlyingContext_->GetBusStatistics();
+    return UnderlyingContext_->GetBusNetworkStatistics();
 }
 
 const NYTree::IAttributeDictionary& TServiceContextWrapper::GetEndpointAttributes() const
