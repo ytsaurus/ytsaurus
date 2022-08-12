@@ -679,13 +679,12 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
     // Delete redundant delete timestamps between subsequent write timestamps.
     if (MergeRowsOnFlush_ && MergeDeletionsOnFlush_) {
         auto nextWriteTimestampIt = WriteTimestamps_.begin();
-        TTimestamp lastWriteTimestamp = MinTimestamp;
         auto deleteTimestampOutputIt = DeleteTimestamps_.begin();
         bool deleteTimestampStored = false;
 
         for (auto deleteTimestamp : DeleteTimestamps_) {
             while (nextWriteTimestampIt != WriteTimestamps_.end() && *nextWriteTimestampIt <= deleteTimestamp) {
-                lastWriteTimestamp = *nextWriteTimestampIt++;
+                nextWriteTimestampIt++;
                 deleteTimestampStored = false;
             }
 

@@ -835,8 +835,6 @@ void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBu
 
     auto& offsets = tmpBuffers->Offsets;
 
-    ui32 batchSize = 0;
-
     if (direct) {
         ptr += UnpackBitVector(ptr, &offsets);
         auto valueCount = offsets.size();
@@ -853,7 +851,6 @@ void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBu
         NullBits_ = TBitmap(ptr);
         ptr += GetBitmapSize(valueCount);
 
-        batchSize = valueCount;
     } else {
         auto& ids = tmpBuffers->Ids;
 
@@ -875,8 +872,6 @@ void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBu
         }
 
         NullBits_ = nullBits;
-
-        batchSize = valueCount;
     }
 
     Data_ = reinterpret_cast<const char*>(ptr);
