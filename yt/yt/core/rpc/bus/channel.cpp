@@ -12,6 +12,7 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -261,7 +262,7 @@ private:
     {
     public:
         explicit TSession(EMultiplexingBand band)
-            : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band))
+            : TosLevel_(TTcpDispatcher::Get()->GetTosLevelForBand(band))
         { }
 
         void Initialize(IBusPtr bus)

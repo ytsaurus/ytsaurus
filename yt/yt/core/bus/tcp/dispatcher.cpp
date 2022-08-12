@@ -48,6 +48,11 @@ const TString& TTcpDispatcher::GetNetworkNameForAddress(const NNet::TNetworkAddr
     return Impl_->GetNetworkNameForAddress(address);
 }
 
+TTosLevel TTcpDispatcher::GetTosLevelForBand(EMultiplexingBand band)
+{
+    return Impl_->GetTosLevelForBand(band);
+}
+
 NYTree::IYPathServicePtr TTcpDispatcher::GetOrchidService()
 {
     return Impl_->GetOrchidService();

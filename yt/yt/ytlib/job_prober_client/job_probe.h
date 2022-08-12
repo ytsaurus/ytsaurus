@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/bus/tcp/public.h>
+
 namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////

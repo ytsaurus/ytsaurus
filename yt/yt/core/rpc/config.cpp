@@ -253,17 +253,6 @@ TResponseKeeperConfig::TResponseKeeperConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiplexingBandConfig::TMultiplexingBandConfig()
-{
-    RegisterParameter("tos_level", TosLevel)
-        .Default(NYT::NBus::DefaultTosLevel);
-
-    RegisterParameter("network_to_tos_level", NetworkToTosLevel)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDispatcherConfig::TDispatcherConfig()
 {
     RegisterParameter("heavy_pool_size", HeavyPoolSize)
@@ -272,8 +261,6 @@ TDispatcherConfig::TDispatcherConfig()
     RegisterParameter("compression_pool_size", CompressionPoolSize)
         .Default(DefaultCompressionPoolSize)
         .GreaterThan(0);
-    RegisterParameter("multiplexing_bands", MultiplexingBands)
-        .Default();
 }
 
 TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
@@ -281,7 +268,6 @@ TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicCon
     auto mergedConfig = New<TDispatcherConfig>();
     mergedConfig->HeavyPoolSize = dynamicConfig->HeavyPoolSize.value_or(HeavyPoolSize);
     mergedConfig->CompressionPoolSize = dynamicConfig->CompressionPoolSize.value_or(CompressionPoolSize);
-    mergedConfig->MultiplexingBands = dynamicConfig->MultiplexingBands.value_or(MultiplexingBands);
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -296,8 +282,6 @@ TDispatcherDynamicConfig::TDispatcherDynamicConfig()
     RegisterParameter("compression_pool_size", CompressionPoolSize)
         .Optional()
         .GreaterThan(0);
-    RegisterParameter("multiplexing_bands", MultiplexingBands)
-        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

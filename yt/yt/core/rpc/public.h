@@ -99,11 +99,12 @@ DECLARE_REFCOUNTED_CLASS(TBalancingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TThrottlingChannelDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
-DECLARE_REFCOUNTED_CLASS(TMultiplexingBandConfig)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using NBus::EMultiplexingBand;
 
 using TRequestId = TGuid;
 extern const TRequestId NullRequestId;
@@ -133,13 +134,6 @@ extern const TString FeatureIdAttributeKey;
 extern const TString FeatureNameAttributeKey;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EMultiplexingBand,
-    ((Default)               (0))
-    ((Control)               (1))
-    ((Heavy)                 (2))
-    ((Interactive)           (3))
-);
 
 YT_DEFINE_ERROR_ENUM(
     ((TransportError)               (static_cast<int>(NBus::EErrorCode::TransportError)))

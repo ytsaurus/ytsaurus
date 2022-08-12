@@ -338,20 +338,6 @@ DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiplexingBandConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    int TosLevel;
-    THashMap<TString, int> NetworkToTosLevel;
-
-    TMultiplexingBandConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TMultiplexingBandConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDispatcherConfig
     : public NYTree::TYsonSerializable
 {
@@ -360,8 +346,6 @@ public:
     static constexpr int DefaultCompressionPoolSize = 8;
     int HeavyPoolSize;
     int CompressionPoolSize;
-
-    TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr> MultiplexingBands;
 
     TDispatcherConfig();
     TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
@@ -377,8 +361,6 @@ class TDispatcherDynamicConfig
 public:
     std::optional<int> HeavyPoolSize;
     std::optional<int> CompressionPoolSize;
-
-    std::optional<TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr>> MultiplexingBands;
 
     TDispatcherDynamicConfig();
 };

@@ -40,6 +40,8 @@ public:
 
     const TString& GetNetworkNameForAddress(const NNet::TNetworkAddress& address);
 
+    TTosLevel GetTosLevelForBand(EMultiplexingBand band);
+
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
 
@@ -93,6 +95,13 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TForkAwareReaderWriterSpinLock, NetworksLock_);
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
+
+    struct TBandDescriptor
+    {
+        std::atomic<TTosLevel> TosLevel = DefaultTosLevel;
+    };
+
+    TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

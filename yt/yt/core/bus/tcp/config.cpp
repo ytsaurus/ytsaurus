@@ -6,6 +6,17 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMultiplexingBandConfig::TMultiplexingBandConfig()
+{
+    RegisterParameter("tos_level", TosLevel)
+        .Default(NYT::NBus::DefaultTosLevel);
+
+    RegisterParameter("network_to_tos_level", NetworkToTosLevel)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTcpDispatcherConfig::TTcpDispatcherConfig()
 {
     RegisterParameter("thread_pool_size", ThreadPoolSize)
@@ -16,6 +27,9 @@ TTcpDispatcherConfig::TTcpDispatcherConfig()
 
     RegisterParameter("networks", Networks)
         .Default();
+
+    RegisterParameter("multiplexing_bands", MultiplexingBands)
+        .Default();
 }
 
 TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
@@ -24,6 +38,7 @@ TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
     auto mergedConfig = New<TTcpDispatcherConfig>();
     mergedConfig->ThreadPoolSize = dynamicConfig->ThreadPoolSize.value_or(ThreadPoolSize);
     mergedConfig->Networks = dynamicConfig->Networks.value_or(Networks);
+    mergedConfig->MultiplexingBands = dynamicConfig->MultiplexingBands.value_or(MultiplexingBands);
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -41,6 +56,9 @@ TTcpDispatcherDynamicConfig::TTcpDispatcherDynamicConfig()
 
     RegisterParameter("networks", Networks)
         .Default();
+
+    RegisterParameter("multiplexing_bands", MultiplexingBands)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

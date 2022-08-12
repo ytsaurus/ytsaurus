@@ -11,6 +11,20 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMultiplexingBandConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int TosLevel;
+    THashMap<TString, int> NetworkToTosLevel;
+
+    TMultiplexingBandConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexingBandConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTcpDispatcherConfig
     : public NYTree::TYsonSerializable
 {
@@ -21,6 +35,8 @@ public:
     std::optional<i64> NetworkBandwidth;
 
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
+
+    TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr> MultiplexingBands;
 
     TTcpDispatcherConfig();
     TTcpDispatcherConfigPtr ApplyDynamic(const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const;
@@ -39,6 +55,8 @@ public:
     std::optional<i64> NetworkBandwidth;
 
     std::optional<THashMap<TString, std::vector<NNet::TIP6Network>>> Networks;
+
+    std::optional<TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr>> MultiplexingBands;
 
     TTcpDispatcherDynamicConfig();
 };

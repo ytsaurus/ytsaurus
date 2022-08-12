@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/bus/public.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 
