@@ -185,6 +185,18 @@ TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(
         options);
 }
 
+TMultiTablePartitions TClientBase::GetTablePartitions(
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options)
+{
+    return NRawClient::GetTablePartitions(
+        ClientRetryPolicy_->CreatePolicyForGenericRequest(),
+        Auth_,
+        TransactionId_,
+        paths,
+        options);
+}
+
 TMaybe<TYPath> TClientBase::GetFileFromCache(
     const TString& md5Signature,
     const TYPath& cachePath,

@@ -682,6 +682,24 @@ TNode SerializeParamsForGetTableColumnarStatistics(
     return result;
 }
 
+TNode SerializeParamsForGetTablePartitions(
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    for (const auto& path : paths) {
+        result["paths"].Add(PathToNode(path));
+    }
+    result["partition_mode"] = ToString(options.PartitionMode_);
+    result["data_weight_per_partition"] = options.DataWeightPerPartition_;
+    if (options.MaxPartitionCount_) {
+        result["max_partition_count"] = *options.MaxPartitionCount_;
+    }
+    return result;
+}
+
 TNode SerializeParamsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TString& md5Signature,

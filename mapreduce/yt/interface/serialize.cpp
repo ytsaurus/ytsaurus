@@ -502,6 +502,18 @@ void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
     DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
 }
 
+void Deserialize(TMultiTablePartition& partition, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("table_ranges", partition.TableRanges);
+}
+
+void Deserialize(TMultiTablePartitions& partitions, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("partitions", partitions.Partitions);
+}
+
 void Serialize(const TGUID& value, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).Value(GetGuidAsString(value));

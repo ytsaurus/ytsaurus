@@ -866,6 +866,24 @@ TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
     return result;
 }
 
+TMultiTablePartitions GetTablePartitions(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options)
+{
+    THttpHeader header("GET", "partition_tables");
+    header.MergeParameters(SerializeParamsForGetTablePartitions(transactionId, paths, options));
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto requestResult = RetryRequestWithPolicy(retryPolicy, auth, header, {}, config);
+    auto response = NodeFromYsonString(requestResult.Response);
+    TMultiTablePartitions result;
+    Deserialize(result, response);
+    return result;
+}
+
 TRichYPath CanonizeYPath(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,

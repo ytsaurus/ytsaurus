@@ -751,6 +751,22 @@ struct TTableColumnarStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Description of a partition.
+struct TMultiTablePartition
+{
+    /// Ranges of input tables for this partition.
+    TVector<TRichYPath> TableRanges;
+};
+
+/// Table partitions from GetTablePartitions command.
+struct TMultiTablePartitions
+{
+    /// Disjoint partitions into which the input tables were divided.
+    TVector<TMultiTablePartition> Partitions;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ///
 /// @brief Contains information about tablet
 ///

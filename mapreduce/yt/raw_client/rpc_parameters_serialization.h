@@ -158,6 +158,11 @@ TNode SerializeParamsForGetTableColumnarStatistics(
     const TVector<TRichYPath>& paths,
     const TGetTableColumnarStatisticsOptions& options);
 
+TNode SerializeParamsForGetTablePartitions(
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options);
+
 TNode SerializeParamsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TString& md5Signature,

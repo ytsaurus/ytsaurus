@@ -1286,6 +1286,50 @@ struct TGetTableColumnarStatisticsOptions
 };
 
 ///
+/// @brief Table partioning mode.
+///
+/// @ref NYT::TGetTablePartitionsOptions::PartitionMode
+enum class ETablePartitionMode
+{
+    ///
+    /// @brief Ignores the order of input tables and their chunk and sorting orders.
+    ///
+    Unordered /* "unordered" */,
+
+    ///
+    /// @brief The order of table ranges inside each partition obey the order of input tables and their chunk orders.
+    ///
+    Ordered /* "ordered" */,
+};
+
+///
+/// @brief Options for @ref NYT::IClient::GetTablePartitions
+///
+struct TGetTablePartitionsOptions
+{
+    /// @cond Doxygen_Suppress
+    using TSelf = TGetTablePartitionsOptions;
+    /// @endcond
+
+    ///
+    /// @brief Table partioning mode.
+    ///
+    /// @ref NYT::ETablePartitionMode
+    FLUENT_FIELD(ETablePartitionMode, PartitionMode);
+
+    ///
+    /// @brief Approximate data weight of each output partition.
+    ///
+    FLUENT_FIELD(i64, DataWeightPerPartition);
+
+    ///
+    /// @brief Maximum output partition count.
+    ///
+    /// Partitioning will be aborted if the output partition count exceeds this limit.
+    FLUENT_FIELD_OPTION(int, MaxPartitionCount);
+};
+
+///
 /// @brief Options for @ref NYT::IClient::GetTabletInfos
 ///
 /// @note They are empty for now but options might appear in the future.

@@ -522,6 +522,34 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT(TInstant::Now() - start < TDuration::Seconds(10));
     }
 
+    Y_UNIT_TEST(TestGetTablePartitions)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto tx = client->StartTransaction();
+        {
+            auto writer1 = tx->CreateTableWriter<TNode>(workingDir + "/table1");
+            writer1->AddRow(TNode()("foo", 1)("bar", "baz"));
+            writer1->Finish();
+
+            auto writer2 = tx->CreateTableWriter<TNode>(workingDir + "/table2");
+            writer2->AddRow(TNode()("foo", 2)("bar", "qux"));
+            writer2->Finish();
+        }
+
+        auto options = NYT::TGetTablePartitionsOptions()
+            .PartitionMode(NYT::ETablePartitionMode::Unordered)
+            .DataWeightPerPartition(100'000);
+
+        auto partitions = tx->GetTablePartitions(
+            {TRichYPath(workingDir + "/table1"), TRichYPath(workingDir + "/table2")},
+            options);
+
+        UNIT_ASSERT(partitions.Partitions.size() > 0);
+        UNIT_ASSERT(partitions.Partitions[0].TableRanges.size() > 0);
+    }
+
     Y_UNIT_TEST(TestConcurrency) {
         TTestFixture fixture;
         auto client = fixture.GetClient();

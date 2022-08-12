@@ -294,6 +294,13 @@ TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
     const TVector<TRichYPath>& paths,
     const TGetTableColumnarStatisticsOptions& options);
 
+TMultiTablePartitions GetTablePartitions(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options);
+
 TRichYPath CanonizeYPath(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
