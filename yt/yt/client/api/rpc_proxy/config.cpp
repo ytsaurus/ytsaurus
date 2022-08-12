@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "address_helpers.h"
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/http/config.h>
@@ -17,6 +19,10 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_url", &TThis::ClusterUrl)
         .Default();
     registrar.Parameter("proxy_role", &TThis::ProxyRole)
+        .Optional();
+    registrar.Parameter("proxy_address_type", &TThis::ProxyAddressType)
+        .Optional();
+    registrar.Parameter("proxy_network_name", &TThis::ProxyNetworkName)
         .Optional();
     registrar.Parameter("proxy_addresses", &TThis::ProxyAddresses)
         .Alias("addresses")

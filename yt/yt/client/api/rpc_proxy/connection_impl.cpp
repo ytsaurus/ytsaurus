@@ -315,6 +315,14 @@ std::vector<TString> TConnection::DiscoverProxiesViaRpc()
         }
         req->SetTimeout(Config_->RpcTimeout);
 
+        if (Config_->ProxyNetworkName) {
+            req->set_network_name(*Config_->ProxyNetworkName);
+        }
+
+        if (Config_->ProxyAddressType) {
+            req->set_address_type(static_cast<NProto::EAddressType>(*Config_->ProxyAddressType));
+        }
+
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
@@ -352,6 +360,8 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
                     .EndAttributes()
                     .Value("yson")
                     .OptionalItem("role", Config_->ProxyRole)
+                    .OptionalItem("address_type", Config_->ProxyAddressType)
+                    .OptionalItem("network_name", Config_->ProxyNetworkName)
                 .EndMap().ToString());
 
         auto url = NormalizeHttpProxyUrl(*Config_->ClusterUrl) + "/api/v4/discover_proxies";

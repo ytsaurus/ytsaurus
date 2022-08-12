@@ -23,6 +23,8 @@ class TConnectionConfig
 public:
     std::optional<TString> ClusterUrl;
     std::optional<TString> ProxyRole;
+    std::optional<EAddressType> ProxyAddressType;
+    std::optional<TString> ProxyNetworkName;
     std::optional<std::vector<TString>> ProxyAddresses;
     NRpc::TServiceDiscoveryEndpointsConfigPtr ProxyEndpoints;
     std::vector<NRe2::TRe2Ptr> ProxyHostOrder;

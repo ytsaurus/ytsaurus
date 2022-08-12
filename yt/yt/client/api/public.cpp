@@ -9,6 +9,7 @@ const TString GrpcProxiesPath = "//sys/grpc_proxies";
 const TString AliveNodeName = "alive";
 const TString BannedAttributeName = "banned";
 const TString RoleAttributeName = "role";
+const TString AddressesAttributeName = "addresses";
 const TString DefaultProxyRole = "default";
 
 ////////////////////////////////////////////////////////////////////////////////

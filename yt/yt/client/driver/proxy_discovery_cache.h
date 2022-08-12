@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/api/rpc_proxy/address_helpers.h>
+
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NDriver {
@@ -14,6 +16,8 @@ struct TProxyDiscoveryRequest
 {
     NApi::EProxyType Type;
     TString Role = NApi::DefaultProxyRole;
+    NApi::NRpcProxy::EAddressType AddressType = NApi::NRpcProxy::DefaultAddressType;
+    TString NetworkName = NApi::NRpcProxy::DefaultNetworkName;
 
     bool operator==(const TProxyDiscoveryRequest& other) const;
     bool operator!=(const TProxyDiscoveryRequest& other) const;

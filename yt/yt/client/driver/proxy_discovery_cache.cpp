@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/api/rpc_proxy/address_helpers.h>
+
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <util/digest/multi.h>
@@ -15,6 +17,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +25,9 @@ bool TProxyDiscoveryRequest::operator==(const TProxyDiscoveryRequest& other) con
 {
     return
         Type == other.Type &&
-        Role == other.Role;
+        Role == other.Role &&
+        AddressType == other.AddressType &&
+        NetworkName == other.NetworkName;
 }
 
 bool TProxyDiscoveryRequest::operator!=(const TProxyDiscoveryRequest& other) const
@@ -34,16 +39,20 @@ TProxyDiscoveryRequest::operator size_t() const
 {
     return MultiHash(
         Type,
-        Role);
+        Role,
+        AddressType,
+        NetworkName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TProxyDiscoveryRequest& request, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Type: %v, Role: %v}",
+    builder->AppendFormat("{Type: %v, Role: %v, AddressType: %v, NetworkName: %v}",
         request.Type,
-        request.Role);
+        request.Role,
+        request.AddressType,
+        request.NetworkName);
 }
 
 TString ToString(const TProxyDiscoveryRequest& request)
@@ -84,7 +93,7 @@ private:
         options.ReadFrom = EMasterChannelKind::LocalCache;
         options.SuppressUpstreamSync = true;
         options.SuppressTransactionCoordinatorSync = true;
-        options.Attributes = {BannedAttributeName, RoleAttributeName};
+        options.Attributes = {BannedAttributeName, RoleAttributeName, AddressesAttributeName};
 
         auto path = GetProxyRegistryPath(request.Type);
 
@@ -104,7 +113,12 @@ private:
                         continue;
                     }
 
-                    response.Addresses.push_back(proxyAddress);
+                    auto addresses = proxyNode->Attributes().Get<TProxyAddressMap>(AddressesAttributeName, {});
+                    auto address = GetAddressOrNull(addresses, request.AddressType, request.NetworkName);
+
+                    if (address) {
+                        response.Addresses.push_back(*address);
+                    }
                 }
                 return response;
             }).AsyncVia(Client_->GetConnection()->GetInvoker()));

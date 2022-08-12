@@ -1,13 +1,16 @@
+from copy import deepcopy
 from hashlib import sha1
 
 from yt_env_setup import YTEnvSetup
-from yt_commands import authors, get, create_user, set
+from yt_commands import authors, get, create_user, set, ls, discover_proxies
 
 import yatest.common
 import yatest.common.network
 
 from yt.wrapper import YtClient, tvm
-from yt.common import YtError
+from yt.common import YtError, update_inplace
+
+from yt_driver_bindings import Driver
 
 import tvmauth
 
@@ -63,7 +66,7 @@ def auth_config(bb_port, tvm_port):
     }
 
 
-class TestAuth(YTEnvSetup):
+class TestAuthBase(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     ENABLE_TVM_ONLY_PROXIES = True
@@ -118,17 +121,17 @@ class TestAuth(YTEnvSetup):
         cls.DELTA_PROXY_CONFIG["auth"] = auth_config(bb_port, tvm_port)
         cls.DELTA_RPC_PROXY_CONFIG.update(auth_config(bb_port, tvm_port))
 
-        super(TestAuth, cls).setup_class()
+        super(TestAuthBase, cls).setup_class()
 
     @classmethod
     def teardown_class(cls):
         cls.fake_bb.kill()
         cls.fake_tvm.kill()
 
-        super(TestAuth, cls).teardown_class()
+        super(TestAuthBase, cls).teardown_class()
 
     def setup_method(self, method):
-        super(TestAuth, self).setup_method(method)
+        super(TestAuthBase, self).setup_method(method)
         create_user("prime")
         create_user("tvm:90231")
         set("//sys/tokens/" + sha1(b"cypress_token").hexdigest(), "prime")
@@ -147,10 +150,12 @@ class TestAuth(YTEnvSetup):
         }
 
         if config is not None:
-            default_config.update(config)
+            update_inplace(default_config, config)
 
         return YtClient(proxy=None, config=default_config)
 
+
+class TestAuth(TestAuthBase):
     @authors("prime", "verytable")
     def test_http_proxy_invalid_token(self):
         yc = self._create_yt_client(config={"token": "bad_token"})
@@ -265,3 +270,44 @@ class TestAuth(YTEnvSetup):
             yc.create("map_node", path)
 
             assert get(path+"/@owner") == "tvm:90231"
+
+
+class TestTvmOnlyRpcProxyDiscovery(TestAuthBase):
+    NUM_RPC_PROXIES = 2
+
+    def setup_method(self, method):
+        super(TestTvmOnlyRpcProxyDiscovery, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("verytable")
+    def test_addresses(self):
+        proxy = ls("//sys/rpc_proxies")[0]
+
+        addresses = get("//sys/rpc_proxies/"+proxy+"/@addresses")
+        assert "tvm_only_internal_rpc" in addresses
+        assert "default" in addresses["tvm_only_internal_rpc"]
+
+    @authors("verytable")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+        configured_tvm_only_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses(tvm_only=True))
+
+        for test_name, request, expected_addresses in [
+            (
+                "defaults", {}, configured_proxy_addresses,
+            ),
+            (
+                "explicit_address_type",
+                {"address_type": "tvm_only_internal_rpc"},
+                configured_tvm_only_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"address_type": "tvm_only_internal_rpc", "network_name": "default"},
+                configured_tvm_only_proxy_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_="rpc", driver=self.driver, **request)
+            assert sorted(proxies) == expected_addresses, test_name
