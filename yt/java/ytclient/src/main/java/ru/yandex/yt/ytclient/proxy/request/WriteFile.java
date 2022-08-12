@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -28,6 +29,10 @@ public class WriteFile extends RequestBase<WriteFile> {
 
     public WriteFile(String path) {
         this.path = path;
+    }
+
+    public YPath getPath() {
+        return YPath.simple(path);
     }
 
     public WriteFile setWindowSize(long windowSize) {
@@ -61,6 +66,10 @@ public class WriteFile extends RequestBase<WriteFile> {
     public WriteFile setComputeMd5(boolean flag) {
         this.computeMd5 = flag;
         return this;
+    }
+
+    public Boolean getComputeMd5() {
+        return this.computeMd5;
     }
 
     public WriteFile setPrerequisiteOptions(PrerequisiteOptions prerequisiteOptions) {

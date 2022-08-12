@@ -28,6 +28,18 @@ public class PutFileToCache
         this.md5 = md5;
     }
 
+    public YPath getFilePath() {
+        return filePath;
+    }
+
+    public YPath getCachePath() {
+        return cachePath;
+    }
+
+    public String getMd5() {
+        return md5;
+    }
+
     public PutFileToCache setMasterReadOptions(MasterReadOptions masterReadOptions) {
         this.masterReadOptions = masterReadOptions;
         return this;

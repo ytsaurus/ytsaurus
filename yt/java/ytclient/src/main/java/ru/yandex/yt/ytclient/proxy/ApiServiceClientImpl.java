@@ -803,7 +803,12 @@ public class ApiServiceClientImpl implements ApiServiceClient {
     public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_FILE_FROM_CACHE.createRequestBuilder(rpcOptions)),
-                response -> new GetFileFromCacheResult(YPath.simple(response.body().getResult().getPath())));
+                response -> {
+                    if (!response.body().getResult().getPath().isEmpty()) {
+                        return new GetFileFromCacheResult(YPath.simple(response.body().getResult().getPath()));
+                    }
+                    return new GetFileFromCacheResult(null);
+                });
     }
 
     @Override

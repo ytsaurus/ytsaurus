@@ -26,6 +26,14 @@ public class GetFileFromCache
         this.md5 = md5;
     }
 
+    public YPath getCachePath() {
+        return cachePath;
+    }
+
+    public String getMd5() {
+        return md5;
+    }
+
     public GetFileFromCache setMasterReadOptions(MasterReadOptions masterReadOptions) {
         this.masterReadOptions = masterReadOptions;
         return this;
