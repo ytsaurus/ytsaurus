@@ -415,14 +415,6 @@ protected:
         BIND_DONT_CAPTURE_TRACE_CONTEXT(&std::remove_reference<decltype(*this)>::type::method##LiteThunk, ::NYT::Unretained(this)), \
         BIND_DONT_CAPTURE_TRACE_CONTEXT(&std::remove_reference<decltype(*this)>::type::method##HeavyThunk, ::NYT::Unretained(this)))
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IRequestQueue
-    : public TRefCounted
-{
-    virtual void ConfigureWeightThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
-    virtual void ConfigureBytesThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -638,8 +630,8 @@ protected:
             TMethodDescriptor descriptor,
             const NProfiling::TProfiler& profiler);
 
-        // TODO(kvk1920):Generalize asdefault queue provider.
-        IRequestQueue* GetDefaultRequestQueue();
+        // TODO(kvk1920): Generalize as default queue provider.
+        TRequestQueue* GetDefaultRequestQueue();
 
         const TServiceId ServiceId;
         const TMethodDescriptor Descriptor;
@@ -919,6 +911,72 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestQueue
+    : public TRefCounted
+{
+public:
+    explicit TRequestQueue(TString name);
+
+    bool Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo);
+    void Configure(const TMethodConfigPtr& config);
+
+    bool IsQueueLimitSizeExceeded() const;
+
+    int GetQueueSize() const;
+    int GetConcurrency() const;
+
+    void OnRequestArrived(TServiceBase::TServiceContextPtr context);
+    void OnRequestFinished();
+
+    void ConfigureWeightThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config);
+    void ConfigureBytesThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config);
+
+    const TString& GetName() const;
+
+private:
+    const TString Name_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
+    std::atomic<bool> Registered_ = false;
+    TServiceBase* Service_;
+    TServiceBase::TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
+
+    std::atomic<int> Concurrency_ = 0;
+
+    struct TRequestThrottler
+    {
+        const NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler;
+        std::atomic<bool> Specified = false;
+
+        void Reconfigure(const NConcurrency::TThroughputThrottlerConfigPtr& config);
+    };
+
+    TRequestThrottler BytesThrottler_;
+    TRequestThrottler WeightThrottler_;
+    std::atomic<bool> Throttled_ = false;
+
+    std::atomic<int> QueueSize_ = 0;
+    moodycamel::ConcurrentQueue<TServiceBase::TServiceContextPtr> Queue_;
+
+
+    void ScheduleRequestsFromQueue();
+    void RunRequest(TServiceBase::TServiceContextPtr context);
+
+    int IncrementQueueSize();
+    void DecrementQueueSize();
+
+    int IncrementConcurrency();
+    void DecrementConcurrency();
+
+    bool AreThrottlersOverdrafted() const;
+    void AcquireThrottlers(const TServiceBase::TServiceContextPtr& context);
+    void SubscribeToThrottlers();
+};
+
+DEFINE_REFCOUNTED_TYPE(TRequestQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

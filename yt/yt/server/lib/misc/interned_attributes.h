@@ -385,6 +385,8 @@
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationProgress, replication_progress) \
     XX(ReplicationStatus, replication_status) \
+    XX(ChunkServiceRequestWeightThrottler, chunk_service_request_weight_throttler) \
+    XX(ChunkServiceRequestBytesThrottler, chunk_service_request_bytes_throttler) \
     XX(RequestQueueSizeLimit, request_queue_size_limit) \
     XX(RequestLimits, request_limits) \
     XX(Requisition, requisition) \

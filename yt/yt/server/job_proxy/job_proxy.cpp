@@ -625,7 +625,7 @@ TJobResult TJobProxy::RunJob()
 
         RetrieveJobSpec(clusterConnection->GetNodeDirectory());
 
-        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetJobUserName()));
+        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
 
@@ -918,11 +918,9 @@ TJobId TJobProxy::GetJobId() const
     return JobId_;
 }
 
-TString TJobProxy::GetJobUserName() const
+TString TJobProxy::GetAuthenticatedUser() const
 {
-    return Format("%v:%v",
-        NSecurityClient::JobUserName,
-        JobSpecHelper_->GetSchedulerJobSpecExt().authenticated_user());
+    return JobSpecHelper_->GetSchedulerJobSpecExt().authenticated_user();
 }
 
 TString TJobProxy::GetLocalHostName() const

@@ -46,82 +46,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto DefaultRequestBytesThrottlerConfig = New<TThroughputThrottlerConfig>();
-static const auto DefaultRequestWeightThrottlerConfig = New<TThroughputThrottlerConfig>();
+static const auto InifiniteRequestThrottlerConfig = New<TThroughputThrottlerConfig>();
 static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TThroughputThrottlerConfig>(1'000);
 
 constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(IRequestQueue)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRequestQueue
-    : public IRequestQueue
-{
-public:
-    explicit TRequestQueue(TString name);
-
-    bool Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo);
-    void Configure(const TMethodConfigPtr& config);
-
-    bool IsQueueLimitSizeExceeded() const;
-
-    int GetQueueSize() const;
-    int GetConcurrency() const;
-
-    void OnRequestArrived(TServiceBase::TServiceContextPtr context);
-    void OnRequestFinished();
-
-    void ConfigureBytesThrottler(const TThroughputThrottlerConfigPtr& config) override;
-    void ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr& config) override;
-
-    const TString& GetName() const;
-
-private:
-    const TString Name_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
-    std::atomic<bool> Registered_ = false;
-    TServiceBase* Service_;
-    TServiceBase::TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
-
-    std::atomic<int> Concurrency_ = 0;
-
-    struct TRequestThrottler
-    {
-        const NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler;
-        std::atomic<bool> Specified = false;
-
-        void Reconfigure(
-            const TThroughputThrottlerConfigPtr& config,
-            const TThroughputThrottlerConfigPtr& defaultConfig);
-    };
-
-    TRequestThrottler BytesThrottler_;
-    TRequestThrottler WeightThrottler_;
-    std::atomic<bool> Throttled_ = false;
-
-    std::atomic<int> QueueSize_ = 0;
-    moodycamel::ConcurrentQueue<TServiceBase::TServiceContextPtr> Queue_;
-
-
-    void ScheduleRequestsFromQueue();
-    void RunRequest(TServiceBase::TServiceContextPtr context);
-
-    int IncrementQueueSize();
-    void DecrementQueueSize();
-
-    int IncrementConcurrency();
-    void DecrementConcurrency();
-
-    bool AreThrottlersOverdrafted() const;
-    void AcquireThrottlers(const TServiceBase::TServiceContextPtr& context);
-    void SubscribeToThrottlers();
-};
-
-DEFINE_REFCOUNTED_TYPE(TRequestQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -309,7 +237,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
             DefaultLoggingSuppressionFailedRequestThrottlerConfig))
 { }
 
-IRequestQueue* TServiceBase::TRuntimeMethodInfo::GetDefaultRequestQueue()
+TRequestQueue* TServiceBase::TRuntimeMethodInfo::GetDefaultRequestQueue()
 {
     return DefaultRequestQueue.Get();
 }
@@ -1237,8 +1165,8 @@ private:
 
 TRequestQueue::TRequestQueue(TString name)
     : Name_(std::move(name))
-    , BytesThrottler_{CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig)}
-    , WeightThrottler_{CreateReconfigurableThroughputThrottler(DefaultRequestWeightThrottlerConfig)}
+    , BytesThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig)}
+    , WeightThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig)}
 { }
 
 bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo)
@@ -1263,18 +1191,16 @@ bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethod
     return true;
 }
 
-void TRequestQueue::TRequestThrottler::Reconfigure(
-    const TThroughputThrottlerConfigPtr& config,
-    const TThroughputThrottlerConfigPtr& defaultConfig)
+void TRequestQueue::TRequestThrottler::Reconfigure(const TThroughputThrottlerConfigPtr& config)
 {
-    Throttler->Reconfigure(config ? config : defaultConfig);
+    Throttler->Reconfigure(config ? config : New<TThroughputThrottlerConfig>());
     Specified.store(config.operator bool(), std::memory_order::release);
 }
 
 void TRequestQueue::Configure(const TMethodConfigPtr& config)
 {
-    BytesThrottler_.Reconfigure(config->RequestBytesThrottler, DefaultRequestBytesThrottlerConfig);
-    WeightThrottler_.Reconfigure(config->RequestWeightThrottler, DefaultRequestWeightThrottlerConfig);
+    BytesThrottler_.Reconfigure(config->RequestBytesThrottler);
+    WeightThrottler_.Reconfigure(config->RequestWeightThrottler);
 
     ScheduleRequestsFromQueue();
     SubscribeToThrottlers();
@@ -1287,12 +1213,12 @@ const TString& TRequestQueue::GetName() const
 
 void TRequestQueue::ConfigureBytesThrottler(const TThroughputThrottlerConfigPtr& config)
 {
-    BytesThrottler_.Reconfigure(config, DefaultRequestBytesThrottlerConfig);
+    BytesThrottler_.Reconfigure(config);
 }
 
 void TRequestQueue::ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr& config)
 {
-    WeightThrottler_.Reconfigure(config, DefaultRequestWeightThrottlerConfig);
+    WeightThrottler_.Reconfigure(config);
 }
 
 bool TRequestQueue::IsQueueLimitSizeExceeded() const

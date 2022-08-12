@@ -2308,6 +2308,19 @@ public:
         RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
     }
 
+    void SetChunkServiceUserRequestWeightThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) override
+    {
+        YT_VERIFY(HasMutationContext());
+        user->SetChunkServiceUserRequestWeightThrottlerConfig(config);
+        UserRequestThrottlerConfigChanged_.Fire(user);
+    }
+
+    void SetChunkServiceUserRequestBytesThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) override
+    {
+        YT_VERIFY(HasMutationContext());
+        user->SetChunkServiceUserRequestBytesThrottlerConfig(config);
+        UserRequestThrottlerConfigChanged_.Fire(user);
+    }
 
     bool TryIncreaseRequestQueueSize(TUser* user) override
     {
@@ -2318,7 +2331,6 @@ public:
     {
         RequestTracker_->DecreaseRequestQueueSize(user);
     }
-
 
     const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const override
     {
@@ -3259,12 +3271,15 @@ private:
         DoRecomputeMembershipClosure();
 
         // Users
+        const auto unlimitedThrottlerConfig = New<TThroughputThrottlerConfig>();
 
         // root
         if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
             RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Read);
             RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Write);
             RootUser_->SetRequestQueueSizeLimit(1'000'000);
+            RootUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            RootUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // guest
@@ -3282,6 +3297,8 @@ private:
             SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             SchedulerUser_->SetRequestQueueSizeLimit(1'000'000);
+            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // replicator
@@ -3289,6 +3306,8 @@ private:
             ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             ReplicatorUser_->SetRequestQueueSizeLimit(1'000'000);
+            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // owner
@@ -3299,6 +3318,8 @@ private:
             FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             FileCacheUser_->SetRequestQueueSizeLimit(1'000'000);
+            FileCacheUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            FileCacheUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // operations cleaner
@@ -3306,6 +3327,8 @@ private:
             OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             OperationsCleanerUser_->SetRequestQueueSizeLimit(1'000'000);
+            OperationsCleanerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsCleanerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // operations client
@@ -3313,6 +3336,8 @@ private:
             OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             OperationsClientUser_->SetRequestQueueSizeLimit(1'000'000);
+            OperationsClientUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsClientUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // tablet cell changelogger
@@ -3320,6 +3345,8 @@ private:
             TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1'000'000);
+            TabletCellChangeloggerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellChangeloggerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // tablet cell snapshotter
@@ -3327,6 +3354,8 @@ private:
             TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1'000'000);
+            TabletCellSnapshotterUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellSnapshotterUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // table mount informer
@@ -3334,6 +3363,8 @@ private:
             TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             TableMountInformerUser_->SetRequestQueueSizeLimit(1'000'000);
+            TableMountInformerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TableMountInformerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // alien cell synchronizer

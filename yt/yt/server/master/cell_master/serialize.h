@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCellRoles)                                              (2106))  // aleksandra-zh
     ((ShardedChunkMaps)                                             (2107))  // gritukan
     ((LinkHunkStorageNode)                                          (2108))  // aleksandra-zh
+    ((AddPerUserChunkThrottlers)                                    (2109))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

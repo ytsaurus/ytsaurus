@@ -80,7 +80,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableUserRequestLimitsOptions
@@ -159,7 +158,9 @@ class TUser
 public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
-    DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, RequestLimits);
+    DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, ObjectServiceRequestLimits);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
 
     int GetRequestQueueSize() const;
     void SetRequestQueueSize(int size);

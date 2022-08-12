@@ -128,30 +128,40 @@ private:
 
             auto guard = Guard(SpinLock_);
 
-            if (!CurrentBatch_) {
-                CurrentBatch_ = New<TBatch>();
+            const auto& user = context->RequestHeader().user();
+            auto userIt = UserToBatch_.find(user);
+            TBatchPtr currentBatch;
 
-                auto request = CurrentBatch_->BatchRequest = CreateBatchRequest();
+            if (userIt == UserToBatch_.end()) {
+                currentBatch = New<TBatch>();
+
+                currentBatch->BatchRequest = CreateBatchRequest();
+                auto& request = currentBatch->BatchRequest;
                 GenerateMutationId(request);
-                request->SetUser(NSecurityClient::JobUserName);
+                request->SetUser(user);
                 request->SetTimeout(owner->ConnectionConfig_->RpcTimeout);
+                EmplaceOrCrash(UserToBatch_, user, currentBatch);
 
                 TDelayedExecutor::Submit(
-                    BIND(&TBatcherBase::OnTimeout, MakeStrong(this), CurrentBatch_),
+                    BIND(&TBatcherBase::OnTimeout, MakeStrong(this), user, currentBatch),
                     owner->ServiceConfig_->MaxBatchDelay);
+            } else {
+                currentBatch = userIt->second;
             }
 
-            CurrentBatch_->ContextsWithStates.emplace_back(context, TState());
-            auto& state = CurrentBatch_->ContextsWithStates.back().second;
-            BatchRequest(&context->Request(), CurrentBatch_->BatchRequest.Get(), &state);
-            UpdateLogicalRequestWeight(CurrentBatch_->BatchRequest, state);
+            const auto& batchRequest = currentBatch->BatchRequest;
 
-            YT_LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
+            auto& state = currentBatch->ContextsWithStates.emplace_back(context, TState()).second;
+            BatchRequest(&context->Request(), batchRequest.Get(), &state);
+            UpdateLogicalRequestWeight(batchRequest, state);
+
+            YT_LOG_DEBUG("Chunk Service request batched (User: %v, RequestId: %v -> %v)",
+                user,
                 context->GetRequestId(),
-                CurrentBatch_->BatchRequest->GetRequestId());
+                batchRequest->GetRequestId());
 
-            if (GetCost(CurrentBatch_->BatchRequest) >= owner->ServiceConfig_->MaxBatchCost) {
-                DoFlush();
+            if (GetCost(batchRequest) >= owner->ServiceConfig_->MaxBatchCost) {
+                DoFlush(user);
             }
         }
 
@@ -172,8 +182,8 @@ private:
         TChunkServiceProxy FollowerProxy_;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-        TBatchPtr CurrentBatch_;
 
+        THashMap<TString, TBatchPtr> UserToBatch_;
 
         virtual TRequestPtr CreateBatchRequest() = 0;
         virtual void BatchRequest(
@@ -243,15 +253,16 @@ private:
         }
 
     private:
-        void OnTimeout(const TBatchPtr& batch)
+        void OnTimeout(const TString& user, const TBatchPtr& batch)
         {
             auto guard = Guard(SpinLock_);
-            if (CurrentBatch_ == batch) {
-                DoFlush();
+            auto userIt = UserToBatch_.find(user);
+            if (userIt != UserToBatch_.end() && userIt->second == batch) {
+                DoFlush(user);
             }
         }
 
-        void DoFlush()
+        void DoFlush(const TString& user)
         {
             VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -260,8 +271,11 @@ private:
                 return;
             }
 
-            TBatchPtr batch;
-            std::swap(batch, CurrentBatch_);
+            auto userIt = UserToBatch_.find(user);
+            YT_VERIFY(userIt != UserToBatch_.end());
+
+            auto batch = std::move(userIt->second);
+            UserToBatch_.erase(userIt);
 
             auto cost = GetCost(batch->BatchRequest);
             owner->CostThrottler_->Throttle(cost)

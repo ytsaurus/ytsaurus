@@ -906,7 +906,7 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
     def _validate_basic_tags(self, event, op_id, op_type, users=None, pool_tree="default", pool="/root",
                              allow_zero=False):
         if users is None:
-            users = ["job:root"]
+            users = ["root"]
         assert event["pool_tree@"] == pool_tree
         assert event["pool@"] == pool.rsplit("/", 1)[1]
         assert event["pool_path@"] == "/{}{}".format(pool_tree, pool)
@@ -1282,7 +1282,7 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         op_type = get(op.get_path() + "/@operation_type")
 
         for event in raw_events:
-            self._validate_basic_tags(event, op.id, op_type, users=["root", "job:root"])
+            self._validate_basic_tags(event, op.id, op_type, users=["root"])
 
             assert event["task_name@"] == task_name
             assert event["job_type@"] == job_type
@@ -2089,7 +2089,7 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
         assert event["task_name@"] == "remote_copy"
         assert event["bytes"] > 0
         assert event["io_requests"] > 0
-        assert event["user@"] == "job:root"
+        assert event["user@"] == "root"
         assert "object_id" in event
         assert event["account@"] == "tmp"
 
@@ -2379,7 +2379,7 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
         sum_bytes = {"read": 0, "write": 0}
         sum_io_requests = {"read": 0, "write": 0}
         for event in raw_events:
-            self._validate_basic_tags(event, op.id, "map", users=["root", "job:root"], allow_zero=True)
+            self._validate_basic_tags(event, op.id, "map", users=["root"], allow_zero=True)
             sum_bytes[event["direction@"]] += event["bytes"]
             sum_io_requests[event["direction@"]] += event["io_requests"]
 

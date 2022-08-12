@@ -518,13 +518,39 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
+        .Default(false);
+    registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)
+        .Default(false);
+
+    registrar.Parameter("default_request_weight_throttler_config", &TThis::DefaultRequestWeightThrottlerConfig)
+        .DefaultNew();
+
+    registrar.Parameter("default_per_user_request_weight_throttler_config", &TThis::DefaultPerUserRequestWeightThrottlerConfig)
+        .DefaultNew();
+    registrar.Parameter("default_per_user_request_bytes_throttler_config", &TThis::DefaultPerUserRequestBytesThrottlerConfig)
+        .DefaultNew();
+
+    // TODO Move values into proper configs
     registrar.Parameter("execute_request_weight_throttler_limit", &TThis::ExecuteRequestWeightThrottlerLimit)
         .Default()
         .DontSerializeDefault();
-
     registrar.Parameter("execute_request_bytes_throttler_limit", &TThis::ExecuteRequestBytesThrottlerLimit)
         .Default()
         .DontSerializeDefault();
+
+    // COMPAT(h0pless): Remove (alongside execute_..._throttler_limits) when this code will be live on clusters.
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ExecuteRequestWeightThrottlerLimit != std::nullopt) {
+            config->DefaultPerUserRequestWeightThrottlerConfig->Limit = config->ExecuteRequestWeightThrottlerLimit;
+            config->ExecuteRequestWeightThrottlerLimit = std::nullopt;
+        }
+
+        if (config->ExecuteRequestBytesThrottlerLimit != std::nullopt) {
+            config->DefaultPerUserRequestBytesThrottlerConfig->Limit = config->ExecuteRequestBytesThrottlerLimit;
+            config->ExecuteRequestBytesThrottlerLimit = std::nullopt;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

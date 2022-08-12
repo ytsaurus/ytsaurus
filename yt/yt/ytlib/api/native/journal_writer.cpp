@@ -673,6 +673,7 @@ private:
 
                 // NB: It is too dangerous to throttle journals.
                 // Hence we omit setting logical_request_weight.
+                // And set user to "root".
                 auto* req = batchReq->add_create_chunk_subrequests();
                 req->set_type(ToProto<int>(ErasureCodec_ == NErasure::ECodec::None ? EObjectType::JournalChunk : EObjectType::ErasureJournalChunk));
                 req->set_account(Account_);
@@ -804,7 +805,6 @@ private:
                 TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
                 auto batchReq = CreateExecuteBatchRequest();
-
                 YT_VERIFY(!replicas.empty());
                 YT_VERIFY(session->Nodes.size() == replicas.size());
                 auto* req = batchReq->add_confirm_chunk_subrequests();
@@ -849,7 +849,6 @@ private:
                 TEventTimerGuard timingGuard(Counters_.AttachChunkTimer);
 
                 auto batchReq = CreateExecuteBatchRequest();
-
                 auto* req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), ChunkListId_);
                 ToProto(req->add_child_ids(), chunkId);

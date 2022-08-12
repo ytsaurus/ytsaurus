@@ -56,7 +56,7 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
-    virtual TString GetJobUserName() const = 0;
+    virtual TString GetAuthenticatedUser() const = 0;
 
     virtual TString GetLocalHostName() const = 0;
 

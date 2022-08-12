@@ -127,6 +127,8 @@ public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Group, TGroup);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
+    DEFINE_SIGNAL(void(TUser*), UserRequestThrottlerConfigChanged);
+
     //! Creates an account.
     virtual TAccount* CreateAccount(NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
 
@@ -411,6 +413,10 @@ public:
 
     //! Updates the user request limit options.
     virtual void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config) = 0;
+
+    //! Updates RequestQueue throttler config and fires UserRequestThrottlerConfigChanged.
+    virtual void SetChunkServiceUserRequestWeightThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
+    virtual void SetChunkServiceUserRequestBytesThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
 
     //! Attempts to increase the queue size for a given #user and validates the limit.
     //! Returns |true| on success.
