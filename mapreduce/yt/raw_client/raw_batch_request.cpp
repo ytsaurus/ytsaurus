@@ -206,6 +206,21 @@ public:
     }
 };
 
+////////////////////////////////////////////////////////////////////
+
+class TTablePartitionsParser
+    : public TResponseParserBase<TMultiTablePartitions>
+{
+public:
+    void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::Map);
+        TMultiTablePartitions partitions;
+        Deserialize(partitions, *node);
+        Result.SetValue(std::move(partitions));
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetFileFromCacheParser
@@ -553,6 +568,17 @@ TFuture<TVector<TTableColumnarStatistics>> TRawBatchRequest::GetTableColumnarSta
     return AddRequest<TTableColumnarStatisticsParser>(
         "get_table_columnar_statistics",
         SerializeParamsForGetTableColumnarStatistics(transaction, paths, options),
+        Nothing());
+}
+
+TFuture<TMultiTablePartitions> TRawBatchRequest::GetTablePartitions(
+    const TTransactionId& transaction,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options)
+{
+    return AddRequest<TTablePartitionsParser>(
+        "partition_tables",
+        SerializeParamsForGetTablePartitions(transaction, paths, options),
         Nothing());
 }
 

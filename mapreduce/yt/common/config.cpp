@@ -226,6 +226,7 @@ void TConfig::Reset()
         "get_table_columnar_statistics",
         "get_job_input",
         "concatenate",
+        "partition_tables",
     };
 }
 

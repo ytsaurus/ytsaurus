@@ -75,6 +75,8 @@ void Deserialize(EValueType& valueType, const TNode& node);
 void Deserialize(TTableSchema& tableSchema, const TNode& node);
 void Deserialize(TColumnSchema& columnSchema, const TNode& node);
 void Deserialize(TTableColumnarStatistics& statistics, const TNode& node);
+void Deserialize(TMultiTablePartition& partition, const TNode& node);
+void Deserialize(TMultiTablePartitions& partitions, const TNode& node);
 void Deserialize(TTabletInfo& tabletInfos, const TNode& node);
 
 void Serialize(const TGUID& path, NYT::NYson::IYsonConsumer* consumer);

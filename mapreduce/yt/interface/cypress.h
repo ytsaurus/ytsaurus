@@ -181,6 +181,16 @@ public:
         const TGetTableColumnarStatisticsOptions& options = {}) = 0;
 
     ///
+    /// @brief Divide input tables into disjoint partitions.
+    ///
+    /// Resulted partitions are vectors of rich YPaths.
+    /// Each partition can be given to a separate worker for further independent processing.
+    ///
+    virtual TMultiTablePartitions GetTablePartitions(
+        const TVector<TRichYPath>& paths,
+        const TGetTablePartitionsOptions& options) = 0;
+
+    ///
     /// @brief Get file from file cache.
     ///
     /// @param md5Signature MD5 digest of the file.

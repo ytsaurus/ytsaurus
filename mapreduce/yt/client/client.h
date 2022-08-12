@@ -89,6 +89,10 @@ public:
         const TVector<TRichYPath>& paths,
         const TGetTableColumnarStatisticsOptions& options) override;
 
+    TMultiTablePartitions GetTablePartitions(
+        const TVector<TRichYPath>& paths,
+        const TGetTablePartitionsOptions& options) override;
+
     TMaybe<TYPath> GetFileFromCache(
         const TString& md5Signature,
         const TYPath& cachePath,

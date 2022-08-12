@@ -25,6 +25,7 @@ namespace NTesting {
         MOCK_METHOD(void, Concatenate, (const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&), (override));
         MOCK_METHOD(TRichYPath, CanonizeYPath, (const TRichYPath&), (override));
         MOCK_METHOD(TVector<TTableColumnarStatistics>, GetTableColumnarStatistics, (const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&), (override));
+        MOCK_METHOD(TMultiTablePartitions, GetTablePartitions, (const TVector<TRichYPath>&, const TGetTablePartitionsOptions&), (override));
         MOCK_METHOD(TBatchRequestPtr, CreateBatchRequest, (), (override));
         MOCK_METHOD(TVector<TTabletInfo>, GetTabletInfos, (const TYPath&, const TVector<int>&, const TGetTabletInfosOptions&), (override));
 
