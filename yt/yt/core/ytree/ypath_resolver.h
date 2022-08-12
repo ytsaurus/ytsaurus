@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <yt/yt/core/yson/pull_parser.h>
+
 #include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NYTree {
@@ -16,6 +18,9 @@ std::optional<bool> TryGetBoolean(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<double> TryGetDouble(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<TString> TryGetString(TStringBuf yson, const NYPath::TYPath& ypath);
 std::optional<TString> TryGetAny(TStringBuf yson, const NYPath::TYPath& ypath);
+
+template <class T>
+std::optional<T> TryParseValue(NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

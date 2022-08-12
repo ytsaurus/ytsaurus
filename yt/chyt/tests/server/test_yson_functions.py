@@ -117,10 +117,8 @@ class TestYsonFunctions(ClickHouseTestBase):
                     assert item.popitem()[1] == -42
                 elif i == 4:
                     assert item.popitem()[1] == 57
-                elif i == 5:
-                    assert item.popitem()[1] is None
                 else:
-                    assert item.popitem()[1] == 0
+                    assert item.popitem()[1] is None
 
     @authors("max42")
     def test_read_all_types_strict(self):
@@ -160,11 +158,11 @@ class TestYsonFunctions(ClickHouseTestBase):
             result = clique.make_query(query)
         assert result == [
             {
-                "i64": 0,
-                "ui64": 0,
-                "bool": False,
-                "dbl": 0.0,
-                "str": "",
+                "i64": None,
+                "ui64": None,
+                "bool": None,
+                "dbl": None,
+                "str": None,
                 "arr_i64": [],
                 "arr_ui64": [],
                 "arr_dbl": [],
@@ -190,8 +188,6 @@ class TestYsonFunctions(ClickHouseTestBase):
             for i, item in enumerate(result):
                 if i == 0:
                     assert item.popitem()[1] == -1
-                elif i == 1 or i == 6:
-                    assert item.popitem()[1] == 0
                 else:
                     assert item.popitem()[1] is None
 
