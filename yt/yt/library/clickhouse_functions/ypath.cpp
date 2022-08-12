@@ -67,6 +67,48 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+template <class T>
+bool ParseArray(TYsonPullParserCursor* cursor, std::vector<T>* array)
+{
+    array->clear();
+    if ((*cursor)->GetType() != EYsonItemType::BeginList) {
+        return false;
+    }
+    cursor->Next();
+
+    while ((*cursor)->GetType() != EYsonItemType::EndList) {
+        if (auto value = TryParseValue<T>(cursor)) {
+            array->emplace_back(std::move(*value));
+        } else {
+            return false;
+        }
+        cursor->Next();
+    }
+    cursor->Next();
+    return true;
+}
+
+template <class T>
+bool TryGetArray(TStringBuf yson, const NYPath::TYPath& ypath, std::vector<T>* array)
+{
+    if (auto maybeAny = TryGetAny(yson, ypath)) {
+        auto ysonStringBuf = TYsonStringBuf(*maybeAny);
+        TMemoryInput input(ysonStringBuf.AsStringBuf());
+        TYsonPullParser parser(&input, ysonStringBuf.GetType());
+        TYsonPullParserCursor cursor(&parser);
+        if (ParseArray(&cursor, array)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TYTOutputType, bool Strict, class TName>
 class TYPathFunctionBase : public IFunction
 {
@@ -135,6 +177,7 @@ public:
         auto columnTo = resultType->createColumn();
         columnTo->reserve(inputRowCount);
 
+        TYTOutputType value{};
         for (size_t i = 0; i < inputRowCount; ++i) {
             if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i)) {
                 // Default is Null if columnTo is nullable, default type value otherwise.
@@ -144,50 +187,24 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            TYTOutputType value{};
             constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
+            bool dataIsFound = TryGetData(TStringBuf(yson.data, yson.size), TYPath(path.data, path.size), &value);
 
-            if constexpr (isFundumental) {
-                if (auto maybeValue = TryGetValue<TYTOutputType>(TStringBuf(yson.data, yson.size), TYPath(path.data, path.size))) {
-                    value = std::move(*maybeValue);
+            if (dataIsFound) {
+                if constexpr (isFundumental) {
+                    columnTo->insert(toField(value));
                 } else {
-                    if (Strict) {
-                        THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                            << TErrorAttribute("path", TStringBuf(path.data, path.size));
-                    }
+                    // TODO(dakovalkov): This looks weird.
+                    // NB: Arrays are only not fundumental types which can be passed as TYTOutputType here.
+                    columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
                 }
             } else {
-                auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
-                try {
-                    auto subNode = GetNodeByYPath(node, TString(path.data, path.size));
-                    value = ConvertTo<TYTOutputType>(subNode);
-                } catch (const std::exception& ex) {
-                    if (Strict) {
-                        // Rethrow the error with additional context.
-                        THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                            << TErrorAttribute("path", TStringBuf(path.data, path.size))
-                            << ex;
-                    } else {
-                        // Just ignore the error.
-
-                        // TODO(dakovalkov): insertDefault() inserts Null for Nullable columns.
-                        // For backward compatibility we always insert default type value.
-                        // If we want to make it more consistent, we need to make an announcement for users first.
-
-                        // columnTo->insertDefault();
-                        // continue;
-                    }
+                if (Strict) {
+                    THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                        << TErrorAttribute("path", TStringBuf(path.data, path.size));
                 }
-            }
-
-            if constexpr (isFundumental) {
-                columnTo->insert(toField(value));
-            } else {
-                // TODO(dakovalkov): This looks weird.
-                // NB: Arrays are only not fundumental types which can be passed as TYTOutputType here.
-                columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
+                columnTo->insertDefault();
             }
         }
 
@@ -196,6 +213,21 @@ public:
 
 protected:
     DataTypePtr OutputDataType_;
+
+private:
+    static bool TryGetData(TStringBuf yson, const NYPath::TYPath& ypath, TYTOutputType* data)
+    {
+        constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
+        if constexpr (isFundumental) {
+            if (auto maybeValue = TryGetValue<TYTOutputType>(yson, ypath)) {
+                *data = std::move(*maybeValue);
+                return true;
+            }
+            return false;
+        } else {
+            return NDetail::TryGetArray(yson, ypath, data);
+        }
+    }
 };
 
 template <class TCHOutputDataType, class TYTOutputType, bool Strict, class TName>

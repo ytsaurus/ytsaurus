@@ -2,7 +2,6 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -343,6 +342,20 @@ std::optional<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValueImpl<TString>(yson, ypath, /*isAny*/ true);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+std::optional<T> TryParseValue(TYsonPullParserCursor* cursor)
+{
+    return TScalarTypeTraits<T>::TryCast(NDetail::ParseValue(cursor));
+}
+
+template std::optional<i64> TryParseValue<i64>(TYsonPullParserCursor* cursor);
+template std::optional<ui64> TryParseValue<ui64>(TYsonPullParserCursor* cursor);
+template std::optional<bool> TryParseValue<bool>(TYsonPullParserCursor* cursor);
+template std::optional<double> TryParseValue<double>(TYsonPullParserCursor* cursor);
+template std::optional<TString> TryParseValue<TString>(TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
