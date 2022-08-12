@@ -11,14 +11,15 @@ from yt_commands import (
     read_table, write_table, map,
     map_reduce, sort, dump_job_context, sync_create_cells,
     sync_mount_table, sync_unmount_table, update_op_parameters, set_node_banned,
-    set_account_disk_space_limit, create_dynamic_table, execute_command, Operation, raises_yt_error)
+    set_account_disk_space_limit, create_dynamic_table, execute_command, Operation, raises_yt_error,
+    discover_proxies)
 
 from yt_helpers import write_log_barrier, read_structured_log
 
 from yt_type_helpers import make_schema
 
-from yt.wrapper import JsonFormat
-from yt.common import YtError, YtResponseError
+from yt.wrapper import JsonFormat, YtClient
+from yt.common import YtError, YtResponseError, update_inplace
 import yt.yson as yson
 
 from yt_driver_bindings import Driver
@@ -234,6 +235,118 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         assert get_select_entry(from_barrier=b1, to_barrier=b2)["request"]["query"] == query
         assert get_select_entry(from_barrier=b2, to_barrier=b3)["request"] == yson.YsonEntity()
+
+
+class TestRpcProxyDiscovery(YTEnvSetup):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 2
+
+    def setup_method(self, method):
+        super(TestRpcProxyDiscovery, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("verytable")
+    def test_addresses(self):
+        proxy = ls("//sys/rpc_proxies")[0]
+
+        addresses = get("//sys/rpc_proxies/" + proxy + "/@addresses")
+        assert "internal_rpc" in addresses
+        assert "default" in addresses["internal_rpc"]
+        assert proxy == addresses["internal_rpc"]["default"]
+
+    @authors("verytable")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+        configured_monitoring_addresses = sorted(self.Env.get_rpc_proxy_monitoring_addresses())
+
+        for test_name, request, expected_addresses in [
+            (
+                "defaults", {}, configured_proxy_addresses,
+            ),
+            (
+                "explicit_address_type",
+                {"address_type": "internal_rpc"},
+                configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"address_type": "internal_rpc", "network_name": "default"},
+                configured_proxy_addresses,
+            ),
+            (
+                "monitoring_addresses",
+                {"address_type": "monitoring_http", "network_name": "default"},
+                configured_monitoring_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_="rpc", driver=self.driver, **request)
+            assert sorted(proxies) == expected_addresses, test_name
+
+    @authors("verytable")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="rpc", driver=self.driver, address_type="invalid")
+
+    @authors("verytable")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="rpc", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0
+
+    def _create_yt_rpc_client_with_http_discovery(self, config=None):
+        proxy = self.Env.get_proxy_address()
+
+        default_config = {
+            "token": "cypress_token",
+            "backend": "rpc",
+            "driver_config": {
+                "connection_type": "rpc",
+                "cluster_url": "http://"+proxy,
+            },
+        }
+
+        if config is not None:
+            update_inplace(default_config, config)
+
+        return YtClient(proxy=None, config=default_config)
+
+    @authors("verytable")
+    def test_discovery_via_http(self):
+        for test_name, config in [
+            (
+                "defaults", {},
+            ),
+            (
+                "explicit_address_type",
+                {"driver_config": {"proxy_address_type": "internal_rpc"}},
+            ),
+            (
+                "explicit_params",
+                {"driver_config": {"proxy_address_type": "internal_rpc", "proxy_network_name": "default"}},
+            )
+        ]:
+            yc = self._create_yt_rpc_client_with_http_discovery(config=config)
+            assert yc.get("//tmp/@"), test_name
+
+    @authors("verytable")
+    def test_discovery_via_http_invalid_address_type(self):
+        with pytest.raises(RuntimeError) as excinfo:
+            yc = self._create_yt_rpc_client_with_http_discovery(config={"driver_config": {"proxy_address_type": "invalid"}})
+            yc.get("//tmp/@")
+
+        assert "Error creating driver" in str(excinfo.value)
+
+    @authors("verytable")
+    def test_discovery_via_http_invalid_network(self):
+        with pytest.raises(YtError) as excinfo:
+            yc = self._create_yt_rpc_client_with_http_discovery(config={"driver_config": {"proxy_network_name": "invalid"}})
+            yc.get("//tmp/@")
+
+        assert excinfo.value.contains_text("Proxy list is empty")
 
 
 class TestRpcProxyBase(YTEnvSetup):

@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/api/rpc_proxy/public.h>
+
 #include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NDriver {
@@ -192,6 +194,8 @@ public:
 private:
     NApi::EProxyType Type;
     TString Role;
+    NApi::NRpcProxy::EAddressType AddressType;
+    TString NetworkName;
 
     void DoExecute(ICommandContextPtr context) override;
 };

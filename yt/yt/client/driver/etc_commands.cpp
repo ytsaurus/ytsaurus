@@ -375,13 +375,19 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
         .Default(EProxyType::Rpc);
     RegisterParameter("role", Role)
         .Default(DefaultProxyRole);
+    RegisterParameter("address_type", AddressType)
+        .Default(NApi::NRpcProxy::DefaultAddressType);
+    RegisterParameter("network_name", NetworkName)
+        .Default(NApi::NRpcProxy::DefaultNetworkName);
 }
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 {
     TProxyDiscoveryRequest request{
         .Type = Type,
-        .Role = Role
+        .Role = Role,
+        .AddressType = AddressType,
+        .NetworkName = NetworkName
     };
 
     const auto& proxyDiscoveryCache = context->GetDriver()->GetProxyDiscoveryCache();

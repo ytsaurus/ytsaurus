@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/api/rpc_proxy/address_helpers.h>
 #include <yt/yt/client/api/rpc_proxy/discovery_service_proxy.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -50,10 +51,8 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NRpc;
 using namespace NNet;
-using namespace NNodeTrackerClient;
 using namespace NApi::NNative;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +60,7 @@ using NYT::ToProto;
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
 static const TString StartTimeAttributeName = "start_time";
+static const TString AddressesAttributeName = "addresses";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +102,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
             TPeriodicExecutorOptions::WithJitter(Config_->ProxyUpdatePeriod)))
+        , GrpcPort_(GetGrpcPort())
         , GrpcProxyPath_(BuildGrpcProxyPath())
     {
         AliveUpdateExecutor_->Start();
@@ -118,6 +119,7 @@ private:
     const TString ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
+    const std::optional<int> GrpcPort_;
     const std::optional<TString> GrpcProxyPath_;
 
     TInstant LastSuccessTimestamp_ = Now();
@@ -126,7 +128,7 @@ private:
 
     struct TProxy
     {
-        TString Address;
+        TProxyAddressMap Addresses;
         TString Role;
     };
 
@@ -134,8 +136,7 @@ private:
 
     bool Initialized_ = false;
 
-
-    std::optional<TString> BuildGrpcProxyPath()
+    std::optional<int> GetGrpcPort()
     {
         const auto& grpcServerConfig = Bootstrap_->GetConfig()->GrpcServer;
         if (!grpcServerConfig) {
@@ -148,7 +149,47 @@ private:
         int port;
         ParseServiceAddress(addresses[0]->Address, nullptr, &port);
 
-        return GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), port);
+        return port;
+    }
+
+    std::optional<TString> BuildGrpcProxyPath()
+    {
+        if (!GrpcPort_) {
+            return std::nullopt;
+        }
+
+        return GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), *GrpcPort_);
+    }
+
+    struct TProxyDescriptor
+    {
+        TProxyAddressMap Addresses;
+        TString CypressPath;
+    };
+
+    std::vector<TProxyDescriptor> GetProxyDescriptors() const
+    {
+        const auto& config = Bootstrap_->GetConfig();
+
+        auto proxyAddressMap = TProxyAddressMap{
+            {EAddressType::InternalRpc, GetLocalAddresses(config->Addresses, config->RpcPort)},
+            {EAddressType::MonitoringHttp, GetLocalAddresses(config->Addresses, config->MonitoringPort)}
+        };
+
+        if (config->TvmOnlyAuth && config->TvmOnlyRpcPort) {
+            auto addresses = GetLocalAddresses(config->Addresses, config->TvmOnlyRpcPort);
+            proxyAddressMap.emplace(EAddressType::TvmOnlyInternalRpc, addresses);
+        }
+
+        std::vector<TProxyDescriptor> descriptors = {{proxyAddressMap, ProxyPath_}};
+        if (GrpcProxyPath_) {
+            auto grpcProxyAddressMap = TProxyAddressMap{
+                {EAddressType::InternalRpc, GetLocalAddresses({}, *GrpcPort_)}
+            };
+            descriptors.push_back({grpcProxyAddressMap, *GrpcProxyPath_});
+        }
+
+        return descriptors;
     }
 
     std::vector<TString> GetCypressPaths() const
@@ -177,9 +218,11 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& path : GetCypressPaths()) {
+        const auto& config = Bootstrap_->GetConfig();
+
+        for (const auto& descriptor : GetProxyDescriptors()) {
             {
-                auto req = TCypressYPathProxy::Create(path);
+                auto req = TCypressYPathProxy::Create(descriptor.CypressPath);
                 req->set_type(static_cast<int>(EObjectType::MapNode));
                 req->set_recursive(true);
                 req->set_ignore_existing(true);
@@ -187,25 +230,31 @@ private:
                 batchReq->AddRequest(req);
             }
             {
-                auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
+                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + VersionAttributeName);
                 req->set_value(ConvertToYsonStringNestingLimited(GetVersion()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
-                auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
+                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + StartTimeAttributeName);
                 req->set_value(ConvertToYsonStringNestingLimited(TInstant::Now().ToString()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
-                auto req = TCypressYPathProxy::Set(path + "/@annotations");
-                req->set_value(ConvertToYsonStringNestingLimited(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+                auto req = TCypressYPathProxy::Set(descriptor.CypressPath + "/@annotations");
+                req->set_value(ConvertToYsonStringNestingLimited(config->CypressAnnotations).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
-                auto req = TCypressYPathProxy::Create(path + "/orchid");
+                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + AddressesAttributeName);
+                req->set_value(ConvertToYsonStringNestingLimited(descriptor.Addresses).ToString());
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TCypressYPathProxy::Create(descriptor.CypressPath + "/orchid");
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
@@ -315,6 +364,7 @@ private:
                 std::vector<TString>{
                     RoleAttributeName,
                     BannedAttributeName,
+                    AddressesAttributeName,
                 });
             SetCachingHeader(req, connection->GetConfig(), options);
             batchReq->AddRequest(req, "get_proxies");
@@ -352,12 +402,19 @@ private:
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
 
             for (const auto& child : nodeResult->AsMap()->GetChildren()) {
-                bool banned = child.second->Attributes().Get(BannedAttributeName, false);
-                auto role = child.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole);
+                const auto& attributes = child.second->Attributes();
+
+                bool banned = attributes.Get(BannedAttributeName, false);
+                auto role = attributes.Get<TString>(RoleAttributeName, DefaultProxyRole);
+                auto addresses = attributes.Get<TProxyAddressMap>(AddressesAttributeName, {});
                 bool alive = static_cast<bool>(child.second->AsMap()->FindChild(AliveNodeName));
+
                 bool available = alive && !banned;
                 if (available) {
-                    proxies.push_back({child.first, role});
+                    if (addresses.size() == 0) {
+                        addresses[DefaultAddressType] = TAddressMap{{DefaultNetworkName, child.first}};
+                    }
+                    proxies.push_back({addresses, role});
                 }
             }
             YT_LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
@@ -374,14 +431,23 @@ private:
         Coordinator_->ValidateOperable();
 
         auto roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+        auto addressType = request->has_address_type()
+            ? CheckedEnumCast<EAddressType>(request->address_type())
+            : DefaultAddressType;
+        auto networkName = request->has_network_name() ? request->network_name() : DefaultNetworkName;
 
         context->SetRequestInfo("Role: %v", roleFilter);
 
         {
             auto guard = Guard(ProxySpinLock_);
             for (const auto& proxy : AvailableProxies_) {
-                if (proxy.Role == roleFilter) {
-                    *response->mutable_addresses()->Add() = proxy.Address;
+                if (proxy.Role != roleFilter) {
+                    continue;
+                }
+
+                auto address = GetAddressOrNull(proxy.Addresses, addressType, networkName);
+                if (address) {
+                    *response->mutable_addresses()->Add() = *address;
                 }
             }
         }

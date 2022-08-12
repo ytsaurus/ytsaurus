@@ -591,6 +591,12 @@ class YTInstance(object):
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "rpc_port", "rpcproxy"))
                 for config in self.configs["rpc_proxy"]]
 
+    def get_rpc_proxy_monitoring_addresses(self):
+        if self.yt_config.rpc_proxy_count == 0:
+            raise YtError("Rpc proxies are not started")
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "rpcproxy"))
+                for config in self.configs["rpc_proxy"]]
+
     def get_grpc_proxy_address(self):
         if self.yt_config.rpc_proxy_count == 0:
             raise YtError("Rpc proxies are not started")

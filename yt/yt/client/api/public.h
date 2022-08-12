@@ -167,6 +167,7 @@ extern const TString GrpcProxiesPath;
 extern const TString DefaultProxyRole;
 extern const TString BannedAttributeName;
 extern const TString RoleAttributeName;
+extern const TString AddressesAttributeName;
 extern const TString AliveNodeName;
 
 ////////////////////////////////////////////////////////////////////////////////
