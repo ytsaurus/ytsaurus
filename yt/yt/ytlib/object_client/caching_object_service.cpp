@@ -26,7 +26,7 @@
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/yt/core/rpc/per_user_queue.h>
+#include <yt/yt/core/rpc/per_user_queues.h>
 
 namespace NYT::NObjectClient {
 
@@ -96,7 +96,7 @@ private:
     std::atomic<double> CacheTtlRatio_;
     std::atomic<i64> EntryByteRateLimit_;
 
-    TPerUserRequestQueue ExecuteRequestQueue_;
+    TPerUserRequestQueues ExecuteRequestQueue_;
 
     std::atomic<bool> CachingEnabled_ = false;
 };

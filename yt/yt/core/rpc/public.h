@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <library/cpp/yt/misc/guid.h>
@@ -29,7 +31,6 @@ struct TStreamingFeedback;
 struct TServiceDescriptor;
 struct TMethodDescriptor;
 
-DECLARE_REFCOUNTED_STRUCT(IRequestQueue)
 DECLARE_REFCOUNTED_CLASS(TRequestQueue)
 
 using TRequestQueueProvider = TCallback<TRequestQueue*(const NRpc::NProto::TRequestHeader&)>;
@@ -101,6 +102,12 @@ DECLARE_REFCOUNTED_CLASS(TThrottlingChannelDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TDispatcherDynamicConfig)
+
+struct TRequestQueueThrottlerConfigs
+{
+    NConcurrency::TThroughputThrottlerConfigPtr WeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr BytesThrottlerConfig;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

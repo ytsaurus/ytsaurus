@@ -518,7 +518,15 @@ public:
     bool EnableMutationBoomerangs;
     bool EnableAlertOnChunkConfirmationWithoutLocationUuid;
 
-    // COMPAT(kvk1920): Replace with TThroughputThrottlerConfig.
+    bool EnablePerUserRequestWeightThrottling;
+    bool EnablePerUserRequestBytesThrottling;
+
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultRequestWeightThrottlerConfig;
+
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottlerConfig;
+
+    // COMPAT(h0pless): Remove after release when per user throttlers will be live on all clusters.
     std::optional<double> ExecuteRequestWeightThrottlerLimit;
     std::optional<double> ExecuteRequestBytesThrottlerLimit;
 

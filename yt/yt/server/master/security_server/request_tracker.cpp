@@ -145,7 +145,7 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
     auto* rootUser = securityManager->GetRootUser();
     YT_VERIFY(user != rootUser);
 
-    user->SetRequestLimits(std::move(config));
+    user->SetObjectServiceRequestLimits(std::move(config));
     ReconfigureUserRequestRateThrottlers(user);
 }
 

@@ -47,7 +47,7 @@
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/per_user_queue.h>
+#include <yt/yt/core/rpc/per_user_queues.h>
 
 #include <yt/yt/core/ytree/ypath_detail.h>
 
@@ -225,7 +225,7 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
-    TPerUserRequestQueue ExecuteRequestQueue_;
+    TPerUserRequestQueues ExecuteRequestQueue_;
 
     class TSessionScheduler;
 
@@ -279,7 +279,7 @@ private:
 
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
-;
+
     void ProcessSessions();
     void FinishSession(const TExecuteSessionInfo& sessionInfo);
 

@@ -55,7 +55,7 @@ public:
 
     NJobTrackerClient::TJobId GetJobId() const override;
 
-    TString GetJobUserName() const override;
+    TString GetAuthenticatedUser() const override;
 
     TString GetLocalHostName() const override;
 

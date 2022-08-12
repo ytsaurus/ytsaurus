@@ -39,6 +39,7 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/per_user_queues.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -51,6 +52,7 @@ using namespace NConcurrency;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NCellMaster;
 using namespace NHydra;
 using namespace NTransactionClient;
@@ -71,6 +73,7 @@ public:
             TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger)
+        , ExecuteBatchRequestQueues_(CreateReconfigurationCallback(bootstrap))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
@@ -93,15 +96,118 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetHeavy(true)
             .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000));
+            .SetConcurrencyLimit(10000)
+            .SetRequestQueueProvider(ExecuteBatchRequestQueues_.GetProvider()));
 
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
-            BIND(&TChunkService::OnDynamicConfigChanged, Unretained(this)));
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TChunkService::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->SubscribeUserRequestThrottlerConfigChanged(
+            BIND(&TChunkService::OnUserRequestThrottlerConfigChanged, MakeWeak(this)));
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
     }
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TPerUserRequestQueues ExecuteBatchRequestQueues_;
+
+    static TPerUserRequestQueues::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
+    {
+        return [=] (TString userName, TRequestQueuePtr queue) {
+            auto epochAutomatonInvoker = bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkService);
+
+            epochAutomatonInvoker->Invoke(BIND([bootstrap, userName = std::move(userName), queue = std::move(queue)] {
+                const auto& securityManager = bootstrap->GetSecurityManager();
+
+                auto* user = securityManager->FindUserByName(userName, false);
+                if (!user) {
+                    return;
+                }
+
+                const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
+
+                auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;
+                auto bytesThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestBytesThrottling;
+
+                if (weightThrottlingEnabled) {
+                    auto weightThrottlerConfig = user->GetChunkServiceUserRequestWeightThrottlerConfig();
+                    if (!weightThrottlerConfig) {
+                        weightThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig;
+                    }
+                    queue->ConfigureWeightThrottler(weightThrottlerConfig);
+                } else {
+                    queue->ConfigureWeightThrottler(nullptr);
+                }
+
+                if (bytesThrottlingEnabled) {
+                    auto bytesThrottlerConfig = user->GetChunkServiceUserRequestBytesThrottlerConfig();
+                    if (!bytesThrottlerConfig) {
+                        bytesThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig;
+                    }
+                    queue->ConfigureBytesThrottler(bytesThrottlerConfig);
+                } else {
+                    queue->ConfigureBytesThrottler(nullptr);
+                }
+            }));
+        };
+    }
+
+    const TDynamicChunkServiceConfigPtr& GetDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return Bootstrap_->GetConfigManager()->GetConfig()->ChunkService;
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& config = GetDynamicConfig();
+
+        try {
+            auto* methodInfo = GetMethodInfoOrThrow(RPC_SERVICE_METHOD_DESC(ExecuteBatch).Method);
+            auto weightThrottlerConfig = config->DefaultRequestWeightThrottlerConfig;
+            auto* requestQueue = methodInfo->GetDefaultRequestQueue();
+            requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue");
+        }
+
+        const auto& oldConfig = oldClusterConfig->ChunkService;
+
+        // Since ReconfigureDefaultUserThrottlers and EnableThrottling can create extra load on Automaton thread,
+        // we want to call them only when it's actually needed.
+        // TODO(h0pless): Use operator instead of comparing all fields individualy here.
+        if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Limit != config->DefaultPerUserRequestWeightThrottlerConfig->Limit ||
+        oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Limit != config->DefaultPerUserRequestBytesThrottlerConfig->Limit ||
+        oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Period != config->DefaultPerUserRequestWeightThrottlerConfig->Period ||
+        oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Period != config->DefaultPerUserRequestBytesThrottlerConfig->Period)
+        {
+            ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
+                config->DefaultPerUserRequestWeightThrottlerConfig,
+                config->DefaultPerUserRequestBytesThrottlerConfig});
+        }
+
+        if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
+            oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
+        {
+            ExecuteBatchRequestQueues_.EnableThrottling(
+                config->EnablePerUserRequestWeightThrottling,
+                config->EnablePerUserRequestBytesThrottling);
+        }
+    }
+
+    void OnUserRequestThrottlerConfigChanged(TUser* user)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ExecuteBatchRequestQueues_.ReconfigureCustomUserThrottlers(user->GetName());
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
         context->SetRequestInfo("SubrequestCount: %v",
@@ -564,18 +670,6 @@ private:
 
         WaitFor(syncFuture)
             .ThrowOnError();
-    }
-
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
-    {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-
-        auto* methodInfo = GetMethodInfoOrThrow(RPC_SERVICE_METHOD_DESC(ExecuteBatch).Method);
-        auto weightThrottlerConfig = New<TThroughputThrottlerConfig>(config->ChunkService->ExecuteRequestWeightThrottlerLimit);
-        auto bytesThrottlerConfig = New<TThroughputThrottlerConfig>(config->ChunkService->ExecuteRequestBytesThrottlerLimit);
-        auto* requestQueue = methodInfo->GetDefaultRequestQueue();
-        requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
-        requestQueue->ConfigureBytesThrottler(bytesThrottlerConfig);
     }
 };
 

@@ -7,12 +7,14 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/concurrency/config.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -226,7 +228,7 @@ TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThro
 
 TUser::TUser(TUserId id)
     : TSubject(id)
-    , RequestLimits_(New<TUserRequestLimitsConfig>())
+    , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
 TString TUser::GetLowercaseObjectName() const
@@ -245,7 +247,9 @@ void TUser::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Banned_);
-    Save(context, *RequestLimits_);
+    Save(context, *ObjectServiceRequestLimits_);
+    TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
+    TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
 
 void TUser::Load(NCellMaster::TLoadContext& context)
@@ -254,7 +258,12 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-    Load(context, *RequestLimits_);
+    Load(context, *ObjectServiceRequestLimits_);
+    // COMPAT(h0pless)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::AddPerUserChunkThrottlers) {
+        TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
+        TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
+    }
 
     auto profiler = SecurityProfiler
         .WithSparse()
@@ -301,7 +310,7 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
     }
 }
 
-const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
+const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -316,7 +325,7 @@ const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRate
 }
 
 void TUser::SetRequestRateThrottler(
-    NConcurrency::IReconfigurableThroughputThrottlerPtr throttler,
+    IReconfigurableThroughputThrottlerPtr throttler,
     EUserWorkloadType workloadType)
 {
     switch (workloadType) {
@@ -335,9 +344,9 @@ std::optional<int> TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectSer
 {
     switch (type) {
         case EUserWorkloadType::Read:
-            return RequestLimits_->ReadRequestRateLimits->GetValue(cellTag);
+            return ObjectServiceRequestLimits_->ReadRequestRateLimits->GetValue(cellTag);
         case EUserWorkloadType::Write:
-            return RequestLimits_->WriteRequestRateLimits->GetValue(cellTag);
+            return ObjectServiceRequestLimits_->WriteRequestRateLimits->GetValue(cellTag);
         default:
             YT_ABORT();
     }
@@ -347,10 +356,10 @@ void TUser::SetRequestRateLimit(std::optional<int> limit, EUserWorkloadType type
 {
     switch (type) {
         case EUserWorkloadType::Read:
-            RequestLimits_->ReadRequestRateLimits->SetValue(cellTag, limit);
+            ObjectServiceRequestLimits_->ReadRequestRateLimits->SetValue(cellTag, limit);
             break;
         case EUserWorkloadType::Write:
-            RequestLimits_->WriteRequestRateLimits->SetValue(cellTag, limit);
+            ObjectServiceRequestLimits_->WriteRequestRateLimits->SetValue(cellTag, limit);
             break;
         default:
             YT_ABORT();
@@ -359,12 +368,12 @@ void TUser::SetRequestRateLimit(std::optional<int> limit, EUserWorkloadType type
 
 int TUser::GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag) const
 {
-    return RequestLimits_->RequestQueueSizeLimits->GetValue(cellTag);
+    return ObjectServiceRequestLimits_->RequestQueueSizeLimits->GetValue(cellTag);
 }
 
 void TUser::SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag)
 {
-    RequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
+    ObjectServiceRequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

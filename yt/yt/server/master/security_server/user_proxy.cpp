@@ -22,6 +22,7 @@ namespace NYT::NSecurityServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +52,8 @@ private:
         auto* user = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto isRoot = user == securityManager->GetRootUser();
+        auto chunkServiceWeightConfigPresent = user->GetChunkServiceUserRequestWeightThrottlerConfig() != nullptr;
+        auto chunkServiceBytesConfigPresent = user->GetChunkServiceUserRequestBytesThrottlerConfig() != nullptr;
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Banned)
             .SetWritable(true)
@@ -75,6 +78,14 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableTabletCellBundles)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkServiceRequestWeightThrottler)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetPresent(chunkServiceWeightConfigPresent));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkServiceRequestBytesThrottler)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetPresent(chunkServiceBytesConfigPresent));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -105,10 +116,32 @@ private:
             case EInternedAttributeKey::RequestLimits: {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-                auto userLimitsSerializer = TSerializableUserRequestLimitsConfig::CreateFrom(user->GetRequestLimits(), multicellManager);
+                auto userLimitsSerializer = TSerializableUserRequestLimitsConfig::CreateFrom(user->GetObjectServiceRequestLimits(), multicellManager);
                 BuildYsonFluently(consumer)
                     .Value(userLimitsSerializer);
 
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
+                if (!user->GetChunkServiceUserRequestWeightThrottlerConfig()) {
+                    break;
+                }
+
+                auto config = user->GetChunkServiceUserRequestWeightThrottlerConfig();
+                BuildYsonFluently(consumer)
+                    .Value(config);
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
+                if (!user->GetChunkServiceUserRequestBytesThrottlerConfig()) {
+                    break;
+                }
+
+                auto config = user->GetChunkServiceUserRequestBytesThrottlerConfig();
+                BuildYsonFluently(consumer)
+                    .Value(config);
                 return true;
             }
 
@@ -233,11 +266,58 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
+                if (user == rootUser) {
+                    THROW_ERROR_EXCEPTION("Cannot set %Qv for %Qv",
+                        key.Unintern(),
+                        user->GetName());
+                }
+
+                auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
+                securityManager->SetChunkServiceUserRequestWeightThrottlerConfig(user, config);
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
+                if (user == rootUser) {
+                    THROW_ERROR_EXCEPTION("Cannot set %Qv for %Qv",
+                        key.Unintern(),
+                        user->GetName());
+                }
+
+                auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
+                securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, config);
+                return true;
+            }
+
             default:
                 break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    {
+        auto* user = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        switch (key) {
+            case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
+                securityManager->SetChunkServiceUserRequestWeightThrottlerConfig(user, nullptr);
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
+                securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, nullptr);
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::RemoveBuiltinAttribute(key);
     }
 };
 

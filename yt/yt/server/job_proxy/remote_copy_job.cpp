@@ -126,6 +126,7 @@ public:
 
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
+
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
 
@@ -136,7 +137,7 @@ public:
         auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
         RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
 
-        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions::FromUser(Host_->GetJobUserName()));
+        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions::FromUser(Host_->GetAuthenticatedUser()));
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             TotalChunkCount_ += dataSliceDescriptor.ChunkSpecs.size();
