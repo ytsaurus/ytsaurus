@@ -150,17 +150,17 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
-    def _format_script(self, before_action="", memory=140 * 10 ** 6):
+    def _format_script(self, memory, before_action=""):
         return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
-    @authors("max42")
+    @authors("ignat", "max42")
     @pytest.mark.timeout(300)
     def test_memory_reserve_factor(self):
-        job_count = 30
+        job_count = 20
 
         create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", self._format_script())
+        write_file("//tmp/mapper.py", self._format_script(memory=200 * 10 ** 6))
         set("//tmp/mapper.py/@executable", True)
 
         op = run_test_vanilla(
@@ -171,7 +171,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
             },
             task_patch={
-                "memory_limit": 200 * 10 ** 6,
+                "memory_limit": 300 * 10 ** 6,
                 "file_paths": ["//tmp/mapper.py"],
             })
 
@@ -187,7 +187,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 )
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert last_memory_reserve is not None
-        assert 1e8 <= last_memory_reserve <= 2e8
+        assert 1.5e8 <= last_memory_reserve <= 2.5e8
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
