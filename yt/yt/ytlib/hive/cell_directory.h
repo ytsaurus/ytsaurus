@@ -49,6 +49,8 @@ public:
     TCellPeerDescriptor(const TCellPeerDescriptor& other) = default;
     TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
+    TCellPeerDescriptor& operator=(const TCellPeerDescriptor& other) = default;
+
     NElection::TCellPeerConfig ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networkName) const;
 };
 

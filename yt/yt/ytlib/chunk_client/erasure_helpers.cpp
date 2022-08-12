@@ -232,7 +232,6 @@ std::vector<TPartRange> TParityPartSplitInfo::GetBlockRanges(int partIndex, cons
     const auto& partInfo = placementExt.part_infos(partIndex);
 
     i64 offset = 0;
-    int blockIndexInPart = 0;
     int indexInPart = 0;
     std::vector<TPartRange> result;
 
@@ -247,7 +246,6 @@ std::vector<TPartRange> TParityPartSplitInfo::GetBlockRanges(int partIndex, cons
             ++indexInPart;
         }
 
-        blockIndexInPart += blockCount;
         offset += BlockSize_ * (StripeBlockCounts_[stripeIndex] - 1) + StripeLastBlockSizes_[stripeIndex];
     }
     return result;
