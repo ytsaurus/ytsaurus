@@ -131,6 +131,12 @@ const TString& TTcpDispatcher::TImpl::GetNetworkNameForAddress(const TNetworkAdd
     return DefaultNetworkName;
 }
 
+TTosLevel TTcpDispatcher::TImpl::GetTosLevelForBand(EMultiplexingBand band)
+{
+    const auto& bandDescriptor = BandToDescriptor_[band];
+    return bandDescriptor.TosLevel.load(std::memory_order::relaxed);
+}
+
 void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const
 {
     if (Y_UNLIKELY(NetworkingDisabled_.load(std::memory_order::relaxed))) {
@@ -178,6 +184,12 @@ void TTcpDispatcher::TImpl::Configure(const TTcpDispatcherConfigPtr& config)
         std::sort(Networks_.begin(), Networks_.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
         });
+    }
+
+    for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+        const auto& bandConfig = config->MultiplexingBands[band];
+        auto& bandDescriptor = BandToDescriptor_[band];
+        bandDescriptor.TosLevel.store(bandConfig ? bandConfig->TosLevel : DefaultTosLevel);
     }
 }
 

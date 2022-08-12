@@ -13,12 +13,6 @@ DECLARE_REFCOUNTED_STRUCT(IBusServer)
 
 struct TBusNetworkStatistics;
 
-DECLARE_REFCOUNTED_CLASS(TTcpDispatcherConfig)
-DECLARE_REFCOUNTED_CLASS(TTcpDispatcherDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TTcpBusConfig)
-DECLARE_REFCOUNTED_CLASS(TTcpBusServerConfig)
-DECLARE_REFCOUNTED_CLASS(TTcpBusClientConfig)
-
 using TTosLevel = int;
 constexpr int DefaultTosLevel = 0;
 constexpr int BlackHoleTosLevel = -1;
@@ -30,6 +24,13 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
     (None)
     (ErrorOnly)
     (Full)
+);
+
+DEFINE_ENUM(EMultiplexingBand,
+    ((Default)               (0))
+    ((Control)               (1))
+    ((Heavy)                 (2))
+    ((Interactive)           (3))
 );
 
 YT_DEFINE_ERROR_ENUM(

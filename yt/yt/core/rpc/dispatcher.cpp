@@ -31,18 +31,6 @@ public:
         HeavyPool_->Configure(config->HeavyPoolSize);
         CompressionPool_->Configure(config->CompressionPoolSize);
         FairShareCompressionPool_->Configure(config->CompressionPoolSize);
-
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            const auto& bandConfig = config->MultiplexingBands[band];
-            auto& bandDescriptor = BandToDescriptor_[band];
-            bandDescriptor.TosLevel.store(bandConfig ? bandConfig->TosLevel : DefaultTosLevel);
-        }
-    }
-
-    TTosLevel GetTosLevelForBand(EMultiplexingBand band)
-    {
-        const auto& bandDescriptor = BandToDescriptor_[band];
-        return bandDescriptor.TosLevel.load(std::memory_order::relaxed);
     }
 
     const IInvokerPtr& GetLightInvoker()
@@ -81,19 +69,12 @@ public:
     }
 
 private:
-    struct TBandDescriptor
-    {
-        std::atomic<TTosLevel> TosLevel = DefaultTosLevel;
-    };
-
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
     const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
     const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
     const IFairShareThreadPoolPtr FairShareCompressionPool_ = CreateFairShareThreadPool(TDispatcherConfig::DefaultCompressionPoolSize, "FSCompression");
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
-
-    TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
 };
@@ -114,11 +95,6 @@ TDispatcher* TDispatcher::Get()
 void TDispatcher::Configure(const TDispatcherConfigPtr& config)
 {
     Impl_->Configure(config);
-}
-
-TTosLevel TDispatcher::GetTosLevelForBand(EMultiplexingBand band)
-{
-    return Impl_->GetTosLevelForBand(band);
 }
 
 const IInvokerPtr& TDispatcher::GetLightInvoker()

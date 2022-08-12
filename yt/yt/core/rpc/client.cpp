@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
 #include <yt/yt/build/ya_version.h>
 
 #include <library/cpp/yt/misc/cast.h>
@@ -288,7 +290,7 @@ EMultiplexingBand TClientRequest::GetMultiplexingBand() const
 void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
     MultiplexingBand_ = band;
-    Header_.set_tos_level(TDispatcher::Get()->GetTosLevelForBand(band));
+    Header_.set_tos_level(TTcpDispatcher::Get()->GetTosLevelForBand(band));
 }
 
 int TClientRequest::GetMultiplexingParallelism() const

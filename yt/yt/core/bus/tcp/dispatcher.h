@@ -68,6 +68,9 @@ public:
     //! Returns the network name for a given #address.
     const TString& GetNetworkNameForAddress(const NNet::TNetworkAddress& address);
 
+    //! Returns the TOS level configured for a band.
+    TTosLevel GetTosLevelForBand(EMultiplexingBand band);
+
     //! Provides diagnostics for the whole TCP bus subsystem.
     NYTree::IYPathServicePtr GetOrchidService();
 
