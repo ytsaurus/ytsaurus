@@ -133,6 +133,9 @@ const TString& TTcpDispatcher::TImpl::GetNetworkNameForAddress(const TNetworkAdd
 
 TTosLevel TTcpDispatcher::TImpl::GetTosLevelForBand(EMultiplexingBand band)
 {
+    if (band < TEnumTraits<EMultiplexingBand>::GetMinValue() || band > TEnumTraits<EMultiplexingBand>::GetMaxValue()) {
+        return DefaultTosLevel;
+    }
     const auto& bandDescriptor = BandToDescriptor_[band];
     return bandDescriptor.TosLevel.load(std::memory_order::relaxed);
 }
