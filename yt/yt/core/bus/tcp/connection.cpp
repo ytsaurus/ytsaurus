@@ -368,8 +368,6 @@ void TTcpConnection::Open()
 
     ArmPoller();
 
-    EnqueueHandshake();
-
     // Something might be pending already, for example Terminate.
     if (Any(previousPendingControl & ~EPollControl::Offline)) {
         YT_LOG_TRACE("Retrying event processing for Open (PendingControl: %v)", previousPendingControl);
@@ -765,6 +763,9 @@ void TTcpConnection::OnEvent(EPollControl control)
     }
 
     if (State_ == EState::Open) {
+        if (!std::exchange(HandshakeEnqueued_, true)) {
+            EnqueueHandshake();
+        }
         ProcessQueuedMessages();
         OnSocketWrite();
     }

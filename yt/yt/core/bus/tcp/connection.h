@@ -227,6 +227,8 @@ private:
     NProfiling::TCpuInstant StatisticsUpdateDeadline_ = 0;
     i64 LastRetransmitCount_ = 0;
 
+    bool HandshakeEnqueued_ = false;
+
     void Open();
     void Close();
 
