@@ -54,8 +54,11 @@ func TestErrors(t *testing.T) {
 
 	t.Run("Write", func(t *testing.T) {
 		f, err := env.YT.WriteFile(env.Ctx, badPath, nil)
-		require.NoError(t, err)
-		checkPathError(t, f.Close(), badPath)
+		if err != nil {
+			checkPathError(t, err, badPath)
+		} else {
+			checkPathError(t, f.Close(), badPath)
+		}
 	})
 }
 
