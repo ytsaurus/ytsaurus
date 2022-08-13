@@ -16,7 +16,8 @@ void TLogDigestConfig::Register(TRegistrar registrar)
     registrar.Parameter("upper_bound", &TThis::UpperBound)
         .GreaterThan(0);
 
-    registrar.Parameter("default_value", &TThis::DefaultValue);
+    registrar.Parameter("default_value", &TThis::DefaultValue)
+        .Default();
 
     registrar.Postprocessor([] (TLogDigestConfig* config) {
         // If there are more than 1000 buckets, the implementation of TLogDigest
