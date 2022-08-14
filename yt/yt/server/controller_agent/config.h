@@ -1036,10 +1036,10 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
-    //! List of medium that requires specifying of account and disk space limit.
+    //! List of media that require specifying account and disk space limit.
     THashSet<TString> ObligatoryAccountMediums;
 
-    //! List of medium that deprecated to be used as disk requests.
+    //! List of media that are deprecated to be used in disk requests.
     THashSet<TString> DeprecatedMediums;
 
     bool EnableMasterResourceUsageAccounting;
