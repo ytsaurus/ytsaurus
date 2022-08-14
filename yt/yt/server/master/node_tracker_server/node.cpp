@@ -27,7 +27,6 @@
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/yt/ytlib/node_tracker_client/interop.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

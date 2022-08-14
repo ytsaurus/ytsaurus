@@ -30,8 +30,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>

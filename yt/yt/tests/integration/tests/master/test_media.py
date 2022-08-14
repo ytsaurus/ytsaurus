@@ -837,20 +837,3 @@ class TestDynamicMedia(YTEnvSetup):
         assert read_table("//tmp/t") == [{"foo": "bar"}]
         # NB: Total used space should not change.
         wait(lambda: get_used_space() == used_space)
-
-
-################################################################################
-
-
-class TestDynamicMediaWithOldHeartbeats(TestDynamicMedia):
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "incremental_heartbeat_period": 100,
-        },
-        "use_new_heartbeats": False,
-        "cluster_connection": {
-            "medium_directory_synchronizer": {
-                "sync_period": 10
-            }
-        }
-    }

@@ -96,9 +96,6 @@ struct IBootstrapBase
     virtual const NObjectClient::TCellTagList& GetMasterCellTags() const = 0;
     virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const = 0;
-    virtual bool UseNewHeartbeats() const = 0;
-
     virtual void ResetAndRegisterAtMaster() = 0;
 
     virtual bool IsConnected() const = 0;
@@ -244,9 +241,6 @@ public:
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
     const NObjectClient::TCellTagList& GetMasterCellTags() const override;
     std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
-
-    const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override;
-    bool UseNewHeartbeats() const override;
 
     void ResetAndRegisterAtMaster() override;
 

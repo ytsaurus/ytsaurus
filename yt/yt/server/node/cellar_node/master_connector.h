@@ -40,14 +40,6 @@ struct IMasterConnector
     *  Thread affinity: any
     */
     virtual void ScheduleHeartbeat(NObjectClient::TCellTag cellTag, bool immediately) = 0;
-
-    //! Return cellar node master heartbeat request for a given cell. This function is used only for compatibility
-    //! with legacy master connector and will be removed after switching to new heartbeats.
-    virtual NCellarNodeTrackerClient::NProto::TReqHeartbeat GetHeartbeatRequest(NObjectClient::TCellTag cellTag) const = 0;
-
-    //! Process cellar node master heartbeat response. This function is used only for compatibility
-    //! with legacy master connector and will be removed after switching to new heartbeats.
-    virtual void OnHeartbeatResponse(const NCellarNodeTrackerClient::NProto::TRspHeartbeat& response) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

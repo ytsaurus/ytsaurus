@@ -55,7 +55,7 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    TReqHeartbeat GetHeartbeatRequest() const override
+    TReqHeartbeat GetHeartbeatRequest() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Bootstrap_->IsConnected());
@@ -81,7 +81,7 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    void OnHeartbeatResponse(const TRspHeartbeat& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -105,9 +105,7 @@ private:
 
         HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
-        if (Bootstrap_->UseNewHeartbeats()) {
-            StartHeartbeats();
-        }
+        StartHeartbeats();
     }
 
     void OnDynamicConfigChanged(

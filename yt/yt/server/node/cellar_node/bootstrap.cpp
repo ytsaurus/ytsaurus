@@ -8,8 +8,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
@@ -186,14 +184,8 @@ public:
             return;
         }
 
-        if (UseNewHeartbeats()) {
-            for (auto masterCellTag : GetMasterCellTags()) {
-                MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
-            }
-        } else {
-            // Old heartbeats are heavy, so we send out-of-order heartbeat to primary master cell only.
-            auto primaryCellTag = CellTagFromId(GetCellId());
-            GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, immediately);
+        for (auto masterCellTag : GetMasterCellTags()) {
+            MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
         }
     }
 

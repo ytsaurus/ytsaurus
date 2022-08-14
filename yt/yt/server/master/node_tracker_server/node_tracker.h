@@ -45,20 +45,6 @@ public:
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
     virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) = 0;
 
-    // Legacy heartbeats.
-    using TCtxFullHeartbeat = NRpc::TTypedServiceContext<
-        NNodeTrackerClient::NProto::TReqFullHeartbeat,
-        NNodeTrackerClient::NProto::TRspFullHeartbeat>;
-    using TCtxFullHeartbeatPtr = TIntrusivePtr<TCtxFullHeartbeat>;
-    virtual void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) = 0;
-
-    using TCtxIncrementalHeartbeat = NRpc::TTypedServiceContext<
-        NNodeTrackerClient::NProto::TReqIncrementalHeartbeat,
-        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat>;
-    using TCtxIncrementalHeartbeatPtr = TIntrusivePtr<TCtxIncrementalHeartbeat>;
-    virtual void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) = 0;
-
-
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TNode);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Host, THost);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Rack, TRack);

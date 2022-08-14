@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
@@ -52,12 +50,8 @@ private:
 
         if (Bootstrap_->IsConnected()) {
             auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
-            if (Bootstrap_->UseNewHeartbeats()) {
-                const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
-                masterConnector->ScheduleHeartbeat(primaryCellTag, /* immediately */ true);
-            } else {
-                Bootstrap_->GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, /* immediately */ true);
-            }
+            const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
+            masterConnector->ScheduleHeartbeat(primaryCellTag, /*immediately*/ true);
         }
 
         context->Reply();

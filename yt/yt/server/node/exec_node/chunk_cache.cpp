@@ -9,7 +9,6 @@
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 #include <yt/yt/server/node/data_node/private.h>

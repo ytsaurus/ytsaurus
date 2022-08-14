@@ -14,7 +14,6 @@
 
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/location.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 

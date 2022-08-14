@@ -48,13 +48,6 @@ message TRspFullHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(ifsmirnov): move into TReqIncrementalHeartbeatRequest when old heartbeats are dropped.
-message TConfirmedReplicaAnnouncementRequest
-{
-    required NYT.NProto.TGuid chunk_id = 1;
-    required uint64 revision = 2;
-}
-
 message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
@@ -66,6 +59,11 @@ message TReqIncrementalHeartbeat
 
     optional bool write_sessions_disabled = 5;
 
+    message TConfirmedReplicaAnnouncementRequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required uint64 revision = 2;
+    }
     repeated TConfirmedReplicaAnnouncementRequest confirmed_replica_announcement_requests = 6;
 }
 

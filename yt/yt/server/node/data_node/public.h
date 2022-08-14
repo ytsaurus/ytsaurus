@@ -33,8 +33,6 @@ class TNetworkStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
-DECLARE_REFCOUNTED_CLASS(TLegacyMasterConnector)
-
 DECLARE_REFCOUNTED_STRUCT(IChunkStoreHost)
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
 

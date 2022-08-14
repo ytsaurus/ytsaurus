@@ -12,7 +12,6 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 

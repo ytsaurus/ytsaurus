@@ -17,7 +17,6 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/location.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_controller.h>

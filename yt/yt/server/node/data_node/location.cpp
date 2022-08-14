@@ -8,7 +8,6 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
-#include "legacy_master_connector.h"
 #include "master_connector.h"
 #include "medium_updater.h"
 

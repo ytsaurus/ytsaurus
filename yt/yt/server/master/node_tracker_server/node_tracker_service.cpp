@@ -46,14 +46,6 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));
-
-        // Legacy heartbeats.
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-            .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000)
-            .SetHeavy(true));
     }
 
 private:
@@ -111,46 +103,6 @@ private:
             statistics);
 
         nodeTracker->ProcessHeartbeat(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
-    {
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
-
-        auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-
-        context->SetRequestInfo("NodeId: %v, Address: %v, %v",
-            nodeId,
-            node->GetDefaultAddress(),
-            statistics);
-
-        nodeTracker->ProcessFullHeartbeat(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
-    {
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
-
-        auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-
-        context->SetRequestInfo("NodeId: %v, Address: %v, %v",
-            nodeId,
-            node->GetDefaultAddress(),
-            statistics);
-
-        nodeTracker->ProcessIncrementalHeartbeat(context);
     }
 };
 

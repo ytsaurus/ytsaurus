@@ -274,6 +274,9 @@ class TestMasterCellsSync(YTEnvSetup):
 
         set("//sys/@config/cell_master/alert_update_period", 100)
 
+        # COMPAT(gritukan): EMasterReign::RemoveLegacyHeartbeats.
+        remove("//sys/@config/node_tracker/use_new_heartbeats")
+
         check(0)
         set("//sys/@config/foo", "bar")
         check(1)

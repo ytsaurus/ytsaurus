@@ -63,13 +63,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(50)
         .GreaterThan(0);
 
-    registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
-        .Default(1)
-        .GreaterThan(0);
-    registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
-        .Default(10)
-        .GreaterThan(0);
-
     registrar.Parameter("force_node_heartbeat_request_timeout", &TThis::ForceNodeHeartbeatRequestTimeout)
         .Default(TDuration::Seconds(1));
 
@@ -77,9 +70,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("timestamp_provider_manager", &TThis::TimestampProviderManager)
         .DefaultNew();
-
-    registrar.Parameter("use_new_heartbeats", &TThis::UseNewHeartbeats)
-        .Default(true);
 
     registrar.Parameter("preserve_rack_for_new_host", &TThis::PreserveRackForNewHost)
         .Default(false)
