@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -147,9 +149,49 @@ public:
         WaitFor(queryContext->Client()->RemoveNode(path))
             .ThrowOnError();
 
-        auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
-        auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
-        queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
+        InvalidateCache(queryContext, {path});
+    }
+
+    void renameTable(
+        DB::ContextPtr context,
+        const String& name,
+        IDatabase& /*toDatabase*/,
+        const String& toName,
+        bool exchange,
+        bool dictionary) override
+    {
+        if (dictionary) {
+            THROW_ERROR_EXCEPTION("Renaming dictionaries is not supported");
+        }
+
+        auto* queryContext = GetQueryContext(context);
+        auto client = queryContext->Client();
+        auto srcPath = TYPath(name);
+        auto dstPath = TYPath(toName);
+
+        const auto& Logger = ClickHouseYtLogger;
+        YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v)", srcPath, dstPath, exchange);
+
+        if (exchange) {
+            auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
+                .ValueOrThrow();
+            auto tmpPath = TYPath(Format("//tmp/tmp_exchange_table_%v", transaction->GetId()));
+
+            WaitFor(transaction->MoveNode(srcPath, tmpPath))
+                .ThrowOnError();
+            WaitFor(transaction->MoveNode(dstPath, srcPath))
+                .ThrowOnError();
+            WaitFor(transaction->MoveNode(tmpPath, dstPath))
+                .ThrowOnError();
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+        } else {
+            WaitFor(client->MoveNode(srcPath, dstPath))
+                .ThrowOnError();
+        }
+
+        InvalidateCache(queryContext, {srcPath, dstPath});
     }
 
     DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override

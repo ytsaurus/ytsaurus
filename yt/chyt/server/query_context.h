@@ -189,6 +189,8 @@ TQueryContext* GetQueryContext(DB::ContextPtr context);
 
 NLogging::TLogger GetLogger(DB::ContextPtr context);
 
+void InvalidateCache(TQueryContext* queryContext, const std::vector<NYPath::TYPath>& paths);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
