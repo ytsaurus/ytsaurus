@@ -141,6 +141,20 @@ def get_dynamic_master_config():
     };
 
     sequoia_manager = {};
+
+    incumbent_manager = {
+        scheduler = {
+            incumbents = {
+                cell_janitor = {
+                    use_followers = %true;
+                };
+                chunk_replicator = {
+                    use_followers = %true;
+                    weight = 1000000;
+                };
+            };
+        };
+    };
 }
 """)
 

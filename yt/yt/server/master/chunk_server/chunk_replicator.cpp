@@ -29,6 +29,8 @@
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -80,6 +82,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
+using namespace NIncumbentClient;
 using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
@@ -300,7 +303,8 @@ TChunkReplicator::TChunkReplicator(
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
     IJobRegistryPtr jobRegistry)
-    : Config_(config)
+    : TIncumbentBase(bootstrap->GetIncumbentManager())
+    , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
     , JobRegistry_(std::move(jobRegistry))
@@ -336,39 +340,27 @@ TChunkReplicator::TChunkReplicator(
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
 
+    const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+    incumbentManager->RegisterIncumbent(this);
+
     std::fill(JobEpochs_.begin(), JobEpochs_.end(), InvalidJobEpoch);
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
     }
+
+    YT_VERIFY(GetShardCount() == ChunkShardCount);
 }
 
 TChunkReplicator::~TChunkReplicator()
 { }
 
-void TChunkReplicator::Start()
+void TChunkReplicator::OnEpochStarted()
 {
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        StartRefresh(shardIndex);
-    }
-    StartRequisitionUpdate();
-
     RefreshExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         GetDynamicConfig()->ChunkRefreshPeriod);
     RefreshExecutor_->Start();
-
-    RequisitionUpdateExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
-        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
-        GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
-    RequisitionUpdateExecutor_->Start();
-
-    FinishedRequisitionTraverseFlushExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
-        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this)),
-        GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
-    FinishedRequisitionTraverseFlushExecutor_->Start();
 
     EnabledCheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
@@ -380,16 +372,8 @@ void TChunkReplicator::Start()
     Enabled_ = false;
 }
 
-void TChunkReplicator::Stop()
+void TChunkReplicator::OnEpochFinished()
 {
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        StopRefresh(shardIndex);
-    }
-    StopRequisitionUpdate();
-
-    ClearChunkRequisitionCache();
-    TmpRequisitionRegistry_.Clear();
-
     LastPerNodeProfilingTime_ = TInstant::Zero();
 
     if (RefreshExecutor_) {
@@ -443,6 +427,46 @@ void TChunkReplicator::Stop()
     }
 
     Enabled_ = false;
+}
+
+void TChunkReplicator::OnLeadingStarted()
+{
+    StartRequisitionUpdate();
+
+    RequisitionUpdateExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
+        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
+        GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
+    RequisitionUpdateExecutor_->Start();
+
+    FinishedRequisitionTraverseFlushExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
+        BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this)),
+        GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
+    FinishedRequisitionTraverseFlushExecutor_->Start();
+}
+
+void TChunkReplicator::OnLeadingFinished()
+{
+    StopRequisitionUpdate();
+
+    ClearChunkRequisitionCache();
+    TmpRequisitionRegistry_.Clear();
+}
+
+void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
+{
+    StartRefresh(shardIndex);
+}
+
+void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
+{
+    StopRefresh(shardIndex);
+}
+
+EIncumbentType TChunkReplicator::GetType() const
+{
+    return EIncumbentType::ChunkReplicator;
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -1782,7 +1806,11 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             }
 
             if (!chunksBeingRemoved.contains(*jt)) {
-                if (TryScheduleRemovalJob(context, *jt)) {
+                auto shardIndex = GetChunkShardIndex(jt->Id);
+                if (!RefreshRunning_.test(shardIndex)) {
+                    node->AdvanceDestroyedReplicasIterator();
+                    ++misscheduledRemovalJobs;
+                } else if (TryScheduleRemovalJob(context, *jt)) {
                     node->AdvanceDestroyedReplicasIterator();
                 } else {
                     ++misscheduledRemovalJobs;
@@ -2011,6 +2039,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                             }
 
                             TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
+
                             node->AddToChunkPushReplicationQueue(chunkWithIndexes, mediumIndex, priority);
                         }
                     }

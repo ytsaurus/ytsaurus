@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/misc/max_min_balancer.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent.h>
+
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -35,6 +37,7 @@ namespace NYT::NChunkServer {
 
 class TChunkReplicator
     : public IJobController
+    , public NIncumbentServer::TIncumbentBase
 {
 public:
     TChunkReplicator(
@@ -45,8 +48,16 @@ public:
 
     ~TChunkReplicator();
 
-    void Start();
-    void Stop();
+    void OnEpochStarted();
+    void OnEpochFinished();
+
+    void OnLeadingStarted();
+    void OnLeadingFinished();
+
+    void OnIncumbencyStarted(int shardIndex) override;
+    void OnIncumbencyFinished(int shardIndex) override;
+
+    NIncumbentClient::EIncumbentType GetType() const override;
 
     void OnNodeDisposed(TNode* node);
     void OnNodeUnregistered(TNode* node);

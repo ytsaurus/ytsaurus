@@ -695,6 +695,8 @@ private:
             auto req = proxy.Heartbeat();
             req->SetTimeout(GetDynamicConfig()->JobHeartbeatTimeout);
 
+            req->set_reports_heartbeats_to_all_peers(true);
+
             const auto& jobController = Bootstrap_->GetJobController();
             YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
                 cellTag,

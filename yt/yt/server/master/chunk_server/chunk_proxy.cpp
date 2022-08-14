@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -49,6 +51,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NIncumbentClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTableClient;
@@ -379,17 +382,21 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::ChunkReplicatorAddress:
+            case EInternedAttributeKey::ChunkReplicatorAddress: {
                 if (isForeign) {
                     break;
                 }
 
                 RequireLeader();
 
-                // TODO(gritukan): Use incumbent manager here.
+                const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+                auto address = incumbentManager->GetIncumbentAddress(
+                    EIncumbentType::ChunkReplicator,
+                    chunk->GetShardIndex());
                 BuildYsonFluently(consumer)
-                    .Value(NNet::GetLocalHostName());
+                    .Value(address);
                 return true;
+            }
 
             case EInternedAttributeKey::Available:
                 if (isForeign) {

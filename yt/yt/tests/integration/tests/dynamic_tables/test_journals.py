@@ -143,7 +143,7 @@ class TestJournalsBase(YTEnvSetup):
 
 class TestJournals(TestJournalsBase):
     NUM_TEST_PARTITIONS = 10
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_NODES = 6
 
     PAYLOAD = [
@@ -706,7 +706,7 @@ class TestJournalsRpcProxy(TestJournals):
 
 
 class TestJournalsChangeMedia(TestJournalsBase):
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_NODES = 5
 
     PAYLOAD = [{"payload": "payload" + str(i)} for i in range(0, 10)]
@@ -772,7 +772,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
 
 class TestErasureJournals(TestJournalsBase):
     NUM_TEST_PARTITIONS = 4
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_NODES = 20
 
     JOURNAL_ATTRIBUTES = {

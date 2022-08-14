@@ -28,6 +28,8 @@ struct IIncumbentManager
         const NIncumbentClient::TIncumbentMap& incumbentMap) = 0;
 
     virtual bool HasIncumbency(NIncumbentClient::EIncumbentType type, int shardIndex) const = 0;
+
+    virtual std::optional<TString> GetIncumbentAddress(NIncumbentClient::EIncumbentType type, int shardIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIncumbentManager)

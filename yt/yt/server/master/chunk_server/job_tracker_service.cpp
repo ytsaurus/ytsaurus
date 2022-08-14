@@ -66,40 +66,12 @@ private:
     {
         ValidateClusterInitialized();
 
-        if (request->reports_heartbeats_to_all_peers()) {
-            // New logic: node reports heartbeats to all peers, so
-            // leader processes heartbeats as usual and follower
-            // schedules no new jobs but aborts all jobs scheduled
-            // while being leader.
-            ValidatePeer(EPeerKind::LeaderOrFollower);
+        ValidatePeer(EPeerKind::LeaderOrFollower);
 
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            if (hydraManager->IsFollower()) {
-                for (const auto& jobStatus : request->jobs()) {
-                    auto jobId = FromProto<TJobId>(jobStatus.job_id());
-                    auto state = CheckedEnumCast<EJobState>(jobStatus.state());
-
-                    switch (state) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            continue;
-                        case EJobState::Running:
-                        case EJobState::Waiting:
-                            AddJobToAbort(response, {jobId});
-                            break;
-                        default:
-                            YT_ABORT();
-                    }
-                }
-
-                return;
-            }
-        } else {
-            // Old logic: node reports heartbeats to leader only, so
-            // attempt to report heartbeat to follower should end up
-            // with an error.
-            ValidatePeer(EPeerKind::Leader);
+        if (!request->reports_heartbeats_to_all_peers()) {
+            YT_LOG_ALERT("Node does not report heartbeats to all peers "
+                "(NodeId: %v)",
+                request->node_id());
         }
 
         auto nodeId = request->node_id();
@@ -116,9 +88,15 @@ private:
             FormatResourceUsage(resourceUsage, resourceLimits));
 
         if (!node->ReportedDataNodeHeartbeat()) {
-            THROW_ERROR_EXCEPTION(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a job heartbeat unless data node heartbeat is reported");
+            SyncWithUpstream();
+
+            // NB: Node can become dead during upstream sync.
+            node = nodeTracker->GetNodeOrThrow(nodeId);
+            if (!node->ReportedDataNodeHeartbeat()) {
+                THROW_ERROR_EXCEPTION(
+                    NNodeTrackerClient::EErrorCode::InvalidState,
+                    "Cannot process a job heartbeat unless data node heartbeat has been reported");
+            }
         }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
