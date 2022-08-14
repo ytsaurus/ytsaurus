@@ -9,7 +9,6 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/location.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/yt/server/node/data_node/medium_directory_manager.h>
 #include <yt/yt/server/node/data_node/medium_updater.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
@@ -34,9 +33,12 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -120,7 +122,7 @@ public:
         ResetAndRegisterAtMaster(/* firstTime */ true);
     }
 
-    TReqHeartbeat GetHeartbeatRequest() override
+    TReqHeartbeat GetHeartbeatRequest()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -163,7 +165,7 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    void OnHeartbeatResponse(const TRspHeartbeat& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -258,14 +260,6 @@ public:
         return Epoch_.load();
     }
 
-    bool UseNewHeartbeats() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_VERIFY(UseNewHeartbeats_);
-        return *UseNewHeartbeats_;
-    }
-
     const NObjectClient::TCellTagList& GetMasterCellTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -277,8 +271,6 @@ private:
     NClusterNode::IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
-
-    std::optional<bool> UseNewHeartbeats_;
 
     const TAddressMap RpcAddresses_;
     const TAddressMap SkynetHttpAddresses_;
@@ -420,8 +412,6 @@ private:
         NodeId_.store(InvalidNodeId);
         Epoch_++;
 
-        Bootstrap_->GetLegacyMasterConnector()->Reset();
-
         MasterDisconnected_.Fire();
     }
 
@@ -448,11 +438,7 @@ private:
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
             GetNodeId());
 
-        if (UseNewHeartbeats()) {
-            StartHeartbeats();
-        } else {
-            Bootstrap_->GetLegacyMasterConnector()->OnMasterConnected();
-        }
+        StartHeartbeats();
     }
 
     void InitMedia()
@@ -563,15 +549,7 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        // Changing protocol without restart does not seem safe and is not required.
-        if (!UseNewHeartbeats_) {
-            UseNewHeartbeats_ = Bootstrap_->GetConfig()->UseNewHeartbeats && rsp->use_new_heartbeats();
-            if (*UseNewHeartbeats_) {
-                YT_LOG_INFO("Using new heartbeats");
-            } else {
-                YT_LOG_INFO("Using old heartbeats");
-            }
-        }
+        YT_VERIFY(rsp->use_new_heartbeats());
 
         if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
@@ -632,6 +610,8 @@ private:
     void ReportHeartbeat()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_VERIFY(GetNodeId() != InvalidNodeId);
 
         // Cluster node heartbeats are required at primary master only.
         auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);

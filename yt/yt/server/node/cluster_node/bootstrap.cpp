@@ -28,7 +28,6 @@
 #include <yt/yt/server/node/data_node/job_heartbeat_processor.h>
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/location.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 #include <yt/yt/server/node/data_node/medium_updater.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
@@ -445,16 +444,6 @@ public:
         THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
     }
 
-    const TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override
-    {
-        return LegacyMasterConnector_;
-    }
-
-    bool UseNewHeartbeats() const override
-    {
-        return MasterConnector_->UseNewHeartbeats();
-    }
-
     void ResetAndRegisterAtMaster() override
     {
         return MasterConnector_->ResetAndRegisterAtMaster();
@@ -701,7 +690,6 @@ private:
     TJobControllerPtr JobController_;
 
     IMasterConnectorPtr MasterConnector_;
-    TLegacyMasterConnectorPtr LegacyMasterConnector_;
 
     IBlockTrackerPtr BlockTracker_;
 
@@ -861,8 +849,6 @@ private:
         for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
             createBatchingChunkService(config);
         }
-
-        LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
 
         MasterConnector_ = NClusterNode::CreateMasterConnector(
             this,
@@ -1129,7 +1115,6 @@ private:
 
         MasterConnector_->Initialize();
         MasterConnector_->Start();
-        LegacyMasterConnector_->Start();
 
         DoValidateConfig();
 
@@ -1457,16 +1442,6 @@ const TCellTagList& TBootstrapBase::GetMasterCellTags() const
 std::vector<TString> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
 {
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
-}
-
-const TLegacyMasterConnectorPtr& TBootstrapBase::GetLegacyMasterConnector() const
-{
-    return Bootstrap_->GetLegacyMasterConnector();
-}
-
-bool TBootstrapBase::UseNewHeartbeats() const
-{
-    return Bootstrap_->UseNewHeartbeats();
 }
 
 void TBootstrapBase::ResetAndRegisterAtMaster()

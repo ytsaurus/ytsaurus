@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -35,14 +33,6 @@ struct IMasterConnector
 
     //! Starts communication with master.
     virtual void Start() = 0;
-
-    //! Returns cluster node master heartbeat request. This function is used only for compatibility
-    //! with legacy master connector and will be removed after switching to new heartbeats.
-    virtual NNodeTrackerClient::NProto::TReqHeartbeat GetHeartbeatRequest() = 0;
-
-    //! Processes cluster node master heartbeat response. This function is used only for compatibility
-    //! with legacy master connector and will be removed after switching to new heartbeats.
-    virtual void OnHeartbeatResponse(const NNodeTrackerClient::NProto::TRspHeartbeat& response) = 0;
 
     //! Returns a dynamically updated node descriptor.
     /*!
@@ -92,13 +82,6 @@ struct IMasterConnector
     *  Thread affinity: any
     */
     virtual TMasterEpoch GetEpoch() const = 0;
-
-    //! Returns |True| if new heartbeats are used for communication with master.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
-    virtual bool UseNewHeartbeats() const = 0;
 
     //! Returns list of all master cell tags (including the primary).
     /*!

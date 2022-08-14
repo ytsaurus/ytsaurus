@@ -292,9 +292,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 
-    registrar.Parameter("use_new_heartbeats", &TThis::UseNewHeartbeats)
-        .Default(false);
-
     registrar.Parameter("exec_node_is_not_data_node", &TThis::ExecNodeIsNotDataNode)
         .Default(false);
 

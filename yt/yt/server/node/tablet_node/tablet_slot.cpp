@@ -43,8 +43,6 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>

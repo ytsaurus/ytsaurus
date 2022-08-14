@@ -53,14 +53,11 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDataNodeTrackerClient;
 using namespace NDataNodeTrackerClient::NProto;
+using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
-
-// TODO: Use `using NNodeTrackerClient::NProto` after legacy heartbeats removal.
-using NNodeTrackerClient::NProto::TDataNodeStatistics;
-using NNodeTrackerClient::NProto::TIOStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +69,17 @@ void ToProto(
     TIOStatistics* protoStatistics,
     const TStoreLocation::TIOStatistics& statistics,
     const IIOThroughputMeter::TIOCapacity& capacity);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EMasterConnectorState,
+    // Not registered.
+    (Offline)
+    // Registered but did not report the full heartbeat yet.
+    (Registered)
+    // Registered and reported the full heartbeat.
+    (Online)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +147,7 @@ public:
                 .Via(controlInvoker));
     }
 
-    TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag) override
+    TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -184,7 +192,7 @@ public:
         return heartbeat;
     }
 
-    TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(TCellTag cellTag) override
+    TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -257,7 +265,7 @@ public:
 
     void OnFullHeartbeatResponse(
         TCellTag cellTag,
-        const TRspFullHeartbeat& response) override
+        const TRspFullHeartbeat& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -289,7 +297,7 @@ public:
         }
     }
 
-    void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
+    void OnIncrementalHeartbeatFailed(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -310,7 +318,7 @@ public:
 
     void OnIncrementalHeartbeatResponse(
         TCellTag cellTag,
-        const TRspIncrementalHeartbeat& response) override
+        const TRspIncrementalHeartbeat& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -378,7 +386,7 @@ public:
         }
     }
 
-    EMasterConnectorState GetMasterConnectorState(TCellTag cellTag) override
+    EMasterConnectorState GetMasterConnectorState(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -386,7 +394,7 @@ public:
         return delta->State;
     }
 
-    bool CanSendFullNodeHeartbeat(TCellTag cellTag) const override
+    bool CanSendFullNodeHeartbeat(TCellTag cellTag) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -597,12 +605,7 @@ private:
             delta->State = EMasterConnectorState::Registered;
         }
 
-        if (Bootstrap_->UseNewHeartbeats()) {
-            StartHeartbeats();
-        }
-        // Job heartbeats are sent using data node master connector in both old and new protocols.
-        // TODO(gritukan): Move it to StartHeartbeats.
-        DoScheduleJobHeartbeat(/* immediately */ true);
+        StartHeartbeats();
     }
 
     void OnDynamicConfigChanged(
@@ -632,8 +635,10 @@ private:
 
         const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
-            DoScheduleHeartbeat(cellTag, /* immediately */ true);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ true);
         }
+
+        DoScheduleJobHeartbeat(/*immediately*/ true);
     }
 
     void DoScheduleHeartbeat(TCellTag cellTag, bool immediately)

@@ -11,8 +11,6 @@
 #include "host_type_handler.h"
 #include "rack_type_handler.h"
 #include "data_center_type_handler.h"
-// COMPAT(gritukan)
-#include "exec_node_tracker.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -52,8 +50,6 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/node_tracker_client/interop.h>
 
 #include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
@@ -131,8 +127,6 @@ public:
         RegisterMethod(BIND(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraFullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
@@ -262,28 +256,6 @@ public:
             &TNodeTracker::HydraClusterNodeHeartbeat,
             this);
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
-    }
-
-    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
-    {
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
-            &TNodeTracker::HydraFullHeartbeat,
-            this);
-        mutation->SetCurrentTraceContext();
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
-   }
-
-    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
-    {
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
-            &TNodeTracker::HydraIncrementalHeartbeat,
-            this);
-        mutation->SetCurrentTraceContext();
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
@@ -958,8 +930,6 @@ private:
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
-    const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
-    const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
     TEnumIndexedVector<ENodeRole, TNodeListForRole> NodeListPerRole_;
@@ -1189,7 +1159,7 @@ private:
         }
 
         response->set_node_id(node->GetId());
-        response->set_use_new_heartbeats(GetDynamicConfig()->UseNewHeartbeats);
+        response->set_use_new_heartbeats(true);
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1251,161 +1221,6 @@ private:
             UpdateLastSeenTime(node);
 
             DoProcessHeartbeat(node, request, response);
-        }
-    }
-
-    void HydraFullHeartbeat(
-        const TCtxFullHeartbeatPtr& /*context*/,
-        TReqFullHeartbeat* request,
-        TRspFullHeartbeat* response)
-    {
-        auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
-        if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
-            statistics.clear_cpu();
-        }
-
-        auto* node = GetNodeOrThrow(nodeId);
-        if (node->GetLocalState() != ENodeState::Registered) {
-            THROW_ERROR_EXCEPTION(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a full heartbeat in %Qlv state",
-                node->GetLocalState());
-        }
-
-        YT_PROFILE_TIMING("/node_tracker/full_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState(),
-                statistics);
-
-            UpdateLastSeenTime(node);
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
-                TReqHeartbeat req;
-                TRspHeartbeat rsp;
-                FromFullHeartbeatRequest(&req, *request);
-                DoProcessHeartbeat(node, &req, &rsp);
-            }
-
-            {
-                NDataNodeTrackerClient::NProto::TReqFullHeartbeat req;
-                NDataNodeTrackerClient::NProto::TRspFullHeartbeat rsp;
-                FromFullHeartbeatRequest(&req, *request);
-
-                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                dataNodeTracker->ProcessFullHeartbeat(node, &req, &rsp);
-                FillFullHeartbeatResponse(response, rsp);
-            }
-
-            if (multicellManager->IsPrimaryMaster()) {
-                NExecNodeTrackerClient::NProto::TReqHeartbeat req;
-                NExecNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromFullHeartbeatRequest(&req, *request);
-
-                const auto& execNodeTracker = Bootstrap_->GetExecNodeTracker();
-                execNodeTracker->ProcessHeartbeat(node, &req, &rsp);
-            }
-
-            {
-                NCellarNodeTrackerClient::NProto::TReqHeartbeat req;
-                NCellarNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromFullHeartbeatRequest(&req, *request);
-
-                const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
-                cellarNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
-            }
-
-            {
-                NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
-                NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
-
-                const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-                tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
-            }
-        }
-    }
-
-    void HydraIncrementalHeartbeat(
-        const TCtxIncrementalHeartbeatPtr& /*context*/,
-        TReqIncrementalHeartbeat* request,
-        TRspIncrementalHeartbeat* response)
-    {
-        auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
-        if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
-            statistics.clear_cpu();
-        }
-
-        auto* node = GetNodeOrThrow(nodeId);
-        if (node->GetLocalState() != ENodeState::Online) {
-            THROW_ERROR_EXCEPTION(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process an incremental heartbeat in %Qlv state",
-                node->GetLocalState());
-        }
-
-        YT_PROFILE_TIMING("/node_tracker/incremental_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState(),
-                statistics);
-
-            UpdateLastSeenTime(node);
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
-                TReqHeartbeat req;
-                TRspHeartbeat rsp;
-                FromIncrementalHeartbeatRequest(&req, *request);
-                DoProcessHeartbeat(node, &req, &rsp);
-                FillIncrementalHeartbeatResponse(response, rsp);
-            }
-
-            {
-                NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat req;
-                NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat rsp;
-                FromIncrementalHeartbeatRequest(&req, *request);
-
-                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                dataNodeTracker->ProcessIncrementalHeartbeat(node, &req, &rsp);
-
-                FillIncrementalHeartbeatResponse(response, rsp);
-            }
-
-            if (multicellManager->IsPrimaryMaster()) {
-                NExecNodeTrackerClient::NProto::TReqHeartbeat req;
-                NExecNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromIncrementalHeartbeatRequest(&req, *request);
-
-                const auto& execNodeTracker = Bootstrap_->GetExecNodeTracker();
-                execNodeTracker->ProcessHeartbeat(node, &req, &rsp);
-
-                FillIncrementalHeartbeatResponse(response, rsp);
-            }
-
-            {
-                NCellarNodeTrackerClient::NProto::TReqHeartbeat req;
-                NCellarNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromIncrementalHeartbeatRequest(&req, *request);
-
-                const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
-                cellarNodeTracker->ProcessHeartbeat(node, &req, &rsp);
-
-                FillIncrementalHeartbeatResponse(response, rsp);
-            }
-
-            {
-                NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
-                NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromIncrementalHeartbeatRequest(&req, *request);
-
-                const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-                tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp);
-            }
         }
     }
 
@@ -2347,8 +2162,6 @@ private:
     void ReconfigureNodeSemaphores()
     {
         HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentClusterNodeHeartbeats);
-        FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
-        IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
         DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
     }
 

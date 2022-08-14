@@ -88,15 +88,10 @@ public:
     int MaxConcurrentClusterNodeHeartbeats;
     int MaxConcurrentExecNodeHeartbeats;
 
-    int MaxConcurrentFullHeartbeats;
-    int MaxConcurrentIncrementalHeartbeats;
-
     TDuration ForceNodeHeartbeatRequestTimeout;
 
     TNodeDiscoveryManagerConfigPtr MasterCacheManager;
     TNodeDiscoveryManagerConfigPtr TimestampProviderManager;
-
-    bool UseNewHeartbeats;
 
     bool EnableStructuredLog;
 

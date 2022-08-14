@@ -156,6 +156,7 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedChunkMaps)                                             (2107))  // gritukan
     ((LinkHunkStorageNode)                                          (2108))  // aleksandra-zh
     ((AddPerUserChunkThrottlers)                                    (2109))  // h0pless
+    ((RemoveLegacyHeartbeats)                                       (2110))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

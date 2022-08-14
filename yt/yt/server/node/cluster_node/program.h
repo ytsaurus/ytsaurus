@@ -96,7 +96,6 @@ protected:
 
             // Create a tablet node config with 5 tablet slots.
             defaultConfig->Flavors = {NNodeTrackerClient::ENodeFlavor::Tablet};
-            defaultConfig->UseNewHeartbeats = true;
             auto& tabletCellarConfig = defaultConfig->CellarNode->CellarManager->Cellars[NCellarClient::ECellarType::Tablet];
             tabletCellarConfig = New<NCellarAgent::TCellarConfig>();
             tabletCellarConfig->Size = 5;

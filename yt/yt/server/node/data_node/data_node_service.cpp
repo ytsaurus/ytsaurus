@@ -7,7 +7,6 @@
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
-#include "legacy_master_connector.h"
 #include "network_statistics.h"
 #include "p2p.h"
 #include "session.h"

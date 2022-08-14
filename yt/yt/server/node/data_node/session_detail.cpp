@@ -4,7 +4,6 @@
 #include "private.h"
 #include "config.h"
 #include "location.h"
-#include "legacy_master_connector.h"
 #include "session_manager.h"
 
 #include <yt/yt/core/profiling/timing.h>

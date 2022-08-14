@@ -17,12 +17,6 @@ namespace NProto {
 class TReqRegisterNode;
 class TRspRegisterNode;
 
-class TReqIncrementalHeartbeat;
-class TRspIncrementalHeartbeat;
-
-class TReqFullHeartbeat;
-class TRspFullHeartbeat;
-
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

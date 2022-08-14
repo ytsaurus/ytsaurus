@@ -22,8 +22,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>

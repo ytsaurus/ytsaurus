@@ -7,7 +7,6 @@
 #include "journal_chunk.h"
 #include "journal_manager.h"
 #include "location.h"
-#include "legacy_master_connector.h"
 #include "session.h"
 #include "session_manager.h"
 #include "master_connector.h"
@@ -53,13 +52,8 @@ public:
     void ScheduleMasterHeartbeat() override
     {
         if (Bootstrap_->IsDataNode()) {
-            if (Bootstrap_->UseNewHeartbeats()) {
-                const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
-                masterConnector->ScheduleHeartbeat(/*immediately*/ true);
-            } else {
-                const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
-                masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
-            }
+            const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
+            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
         }
     }
 
