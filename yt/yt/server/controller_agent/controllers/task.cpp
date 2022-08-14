@@ -506,12 +506,7 @@ void TTask::ScheduleJob(
         const auto& state = findIt->second;
         joblet->PredecessorJobId = state.LastJobId;
         joblet->PredecessorType = EPredecessorType::ResourceOverdraft;
-        if (state.DedicatedJobProxyMemoryReserveFactor > 0.0) {
-            joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
-        } else {
-            // COMPAT(ignat)
-            joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
-        }
+        joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
         if (HasUserJob()) {
             joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
         }
