@@ -41,6 +41,8 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/hive/helpers.h>
@@ -141,6 +143,7 @@ using namespace NProfiling;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
+using namespace NIncumbentClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
@@ -1805,7 +1808,7 @@ public:
 
     void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) override
     {
-        YT_VERIFY(IsLeader());
+        YT_VERIFY(IsLeader() || IsFollower());
 
         auto* request = &context->Request();
         auto* response = &context->Response();
@@ -4678,7 +4681,10 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        ChunkReplicator_->Start();
+        OnEpochStarted();
+
+        ChunkReplicator_->OnLeadingStarted();
+
         ChunkSealer_->Start();
 
         {
@@ -4700,15 +4706,38 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        // Stop replicator first so that aborting jobs below doesn't schedule
-        // chunk refresh.
-        ChunkReplicator_->Stop();
+        OnEpochFinished();
+
+        ChunkReplicator_->OnLeadingFinished();
 
         ChunkSealer_->Stop();
 
         ExpirationTracker_->Stop();
     }
 
+    void OnStartFollowing() override
+    {
+        TMasterAutomatonPart::OnStartFollowing();
+
+        OnEpochStarted();
+    }
+
+    void OnStopFollowing() override
+    {
+        TMasterAutomatonPart::OnStopFollowing();
+
+        OnEpochFinished();
+    }
+
+    void OnEpochStarted()
+    {
+        ChunkReplicator_->OnEpochStarted();
+    }
+
+    void OnEpochFinished()
+    {
+        ChunkReplicator_->OnEpochFinished();
+    }
 
     void RegisterChunk(TChunk* chunk)
     {
@@ -5258,21 +5287,56 @@ private:
         JobRegistry_->OnJobFinished(job);
     }
 
-    NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* /*chunk*/) override
+    NRpc::IChannelPtr FindChunkReplicatorChannel(TChunk* chunk) override
     {
-        return GetChunkReplicatorChannels().front();
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+        auto address = incumbentManager->GetIncumbentAddress(
+            EIncumbentType::ChunkReplicator,
+            chunk->GetShardIndex());
+        if (!address) {
+            return nullptr;
+        }
+
+        const auto& channelFactory = Bootstrap_->GetClusterConnection()->GetChannelFactory();
+        auto channel = channelFactory->CreateChannel(*address);
+        return CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
     }
 
     NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override
     {
-        return FindChunkReplicatorChannel(chunk);
+        if (auto channel = FindChunkReplicatorChannel(chunk)) {
+            return channel;
+        } else {
+            THROW_ERROR_EXCEPTION("Chunk replicator for chunk %Qlv is not alive")
+                << TErrorAttribute("shard_index", chunk->GetShardIndex());
+        }
     }
 
     std::vector<NRpc::IChannelPtr> GetChunkReplicatorChannels() override
     {
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        return {cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader)};
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+
+        THashSet<TString> replicatorAddresses;
+        replicatorAddresses.reserve(ChunkShardCount);
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            auto address = incumbentManager->GetIncumbentAddress(
+                EIncumbentType::ChunkReplicator,
+                shardIndex);
+            if (address) {
+                replicatorAddresses.insert(*address);
+            }
+        }
+
+        std::vector<NRpc::IChannelPtr> channels;
+        channels.reserve(replicatorAddresses.size());
+
+        const auto& channelFactory = Bootstrap_->GetClusterConnection()->GetChannelFactory();
+        for (const auto& address : replicatorAddresses) {
+            auto channel = channelFactory->CreateChannel(address);
+            channels.push_back(CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId()));
+        }
+
+        return channels;
     }
 
     TFuture<i64> GetCellLostVitalChunkCount() override

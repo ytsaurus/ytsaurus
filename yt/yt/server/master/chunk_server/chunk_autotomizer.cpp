@@ -247,7 +247,10 @@ public:
     void ScheduleJobs(IJobSchedulingContext* context) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(IsLeader());
+
+        if (!IsLeader()) {
+            return;
+        }
 
         const auto& resourceUsage = context->GetNodeResourceUsage();
         const auto& resourceLimits = context->GetNodeResourceLimits();

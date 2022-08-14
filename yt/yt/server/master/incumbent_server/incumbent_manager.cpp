@@ -339,6 +339,13 @@ private:
         return LocalIncumbentMap_[type].Addresses[shardIndex] == GetSelfAddress();
     }
 
+    std::optional<TString> GetIncumbentAddress(EIncumbentType type, int shardIndex) const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return LocalIncumbentMap_[type].Addresses[shardIndex];
+    }
+
     void AssignIncumbents()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

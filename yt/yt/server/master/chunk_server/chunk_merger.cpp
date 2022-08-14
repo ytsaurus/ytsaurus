@@ -592,6 +592,10 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (!IsLeader()) {
+        return;
+    }
+
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
