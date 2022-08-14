@@ -410,6 +410,13 @@ TQueryContext* GetQueryContext(DB::ContextPtr context)
     return queryContext;
 }
 
+void InvalidateCache(TQueryContext* queryContext, const std::vector<NYPath::TYPath>& paths)
+{
+    auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+    auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+    queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, invalidateMode, timeout);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
