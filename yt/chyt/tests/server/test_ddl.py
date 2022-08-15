@@ -18,7 +18,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert not exists("//tmp/t")
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
             with raises_yt_error(QueryFailedError):
-                assert clique.make_query('drop table "//tmp/t"')
+                clique.make_query('drop table "//tmp/t"')
 
     @authors("evgenstf")
     def test_drop_table(self):
@@ -41,11 +41,11 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert exists("//tmp/t") and exists("//tmp/s")
             with raises_yt_error(QueryFailedError):
                 clique.make_query('rename table "//tmp/t" to "//tmp/s"')
-                assert clique.make_query('select * from "//tmp/s"') == []
+            assert clique.make_query('select * from "//tmp/s"') == []
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query('rename table "//tmp/tt" to "//tmp/ss"')
-                assert not exists("//tmp/tt") and not exists("//tmp/ss")
+            assert not exists("//tmp/tt") and not exists("//tmp/ss")
 
     @authors("gudqeit")
     def test_rename_table(self):
@@ -65,7 +65,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert exists("//tmp/t")
             with raises_yt_error(QueryFailedError):
                 clique.make_query('exchange tables "//tmp/t" and "//tmp/s"')
-                assert not exists("//tmp/s")
+            assert not exists("//tmp/s")
 
     @authors("gudqeit")
     def test_exchange_tables(self):
