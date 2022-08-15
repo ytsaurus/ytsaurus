@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.controller.test_map_reduce_operation \
+from original_tests.yt.yt.tests.integration.controller.test_map_reduce_operation \
     import TestSchedulerMapReduceCommands as BaseTestMapReduceCommands
 from yt.common import update
 from yt_commands import authors

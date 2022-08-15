@@ -22,4 +22,4 @@ DEPENDS(
     yt/yt/tools/prepare_scheduling_usage
 )
 
-PEERDIR(yt/yt/tests/integration/tests)
+PEERDIR(yt/yt/tests/integration)
