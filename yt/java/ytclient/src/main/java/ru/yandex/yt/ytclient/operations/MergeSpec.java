@@ -121,6 +121,8 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
         }
     }
 
+    // BuilderBase was taken out because there is another client
+    // which we need to support too and which use the same MergeSpec class.
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SystemOperationSpecBase.Builder<T> {
