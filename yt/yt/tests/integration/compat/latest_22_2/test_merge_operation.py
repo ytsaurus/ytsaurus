@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.controller.test_merge_operation \
+from original_tests.yt.yt.tests.integration.controller.test_merge_operation \
     import TestSchedulerMergeCommands as BaseTestMergeCommands
 
 

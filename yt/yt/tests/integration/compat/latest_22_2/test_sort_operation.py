@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.controller.test_sort_operation \
+from original_tests.yt.yt.tests.integration.controller.test_sort_operation \
     import TestSchedulerSortCommands as BaseTestSortCommands
 
 

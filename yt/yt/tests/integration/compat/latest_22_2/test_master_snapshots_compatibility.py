@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (authors, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells)
 
-from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
+from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 import os
