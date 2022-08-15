@@ -79,11 +79,6 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, Cell);
     Persist(context, PeerState);
     Persist(context, PeerId);
-    // COMPAT(h0pless)
-    if (context.GetVersion() < EMasterReign::RemovedIsResponseKeeperWarmingUp) {
-        bool isResponseKeeperWarmingUp;
-        Persist(context, isResponseKeeperWarmingUp);
-    }
     Persist(context, PreloadPendingStoreCount);
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
@@ -527,9 +522,7 @@ void TNode::Load(TLoadContext& context)
     Load(context, UserTags_);
     Load(context, NodeTags_);
 
-    if (context.GetVersion() >= EMasterReign::ChunkLocation) {
-        Load(context, ChunkLocations_);
-    }
+    Load(context, ChunkLocations_);
 
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
@@ -573,29 +566,12 @@ void TNode::Load(TLoadContext& context)
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
-    if (context.GetVersion() < EMasterReign::ChunkLocation) {
-        Load(context, CompatChunkLocationUuids_);
-    }
     Load(context, Flavors_);
     // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::ExecNodeIsNotDataNode) {
-        Load(context, ExecNodeIsNotDataNode_);
-    }
-
+    Load(context, ExecNodeIsNotDataNode_);
     Load(context, ReplicaEndorsements_);
-
     Load(context, ConsistentReplicaPlacementTokenCount_);
-
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::MediumOverridesViaHeartbeats &&
-        context.GetVersion() < EMasterReign::ChunkLocation)
-    {
-        using TMediumOverrideMap = THashMap<TChunkLocationUuid, int>;
-        Load<TMediumOverrideMap>(context);
-    }
 
     ComputeDefaultAddress();
     ResetDestroyedReplicasIterator();

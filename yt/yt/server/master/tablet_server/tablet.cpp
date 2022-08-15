@@ -211,26 +211,18 @@ void TTablet::Load(TLoadContext& context)
     Load(context, EdenStoreIds_);
     Load(context, BackupState_);
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupOrdered) {
-        if (context.GetVersion() >= EMasterReign::BackupReplicated) {
-            Load(context, BackupCutoffDescriptor_);
-        } else {
-            BackupCutoffDescriptor_.emplace();
-            Load(context, *BackupCutoffDescriptor_);
-        }
+    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
+        Load(context, BackupCutoffDescriptor_);
+    } else {
+        BackupCutoffDescriptor_.emplace();
+        Load(context, *BackupCutoffDescriptor_);
     }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupReplicated) {
         Load(context, BackedUpReplicaInfos_);
     }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::RefFromTabletToDynamicStore) {
-        Load(context, DynamicStores_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosDataTransfer) {
-        Load(context, ReplicationProgress_);
-    }
+    Load(context, DynamicStores_);
+    Load(context, ReplicationProgress_);
 }
 
 TTableNode* TTablet::GetTable() const

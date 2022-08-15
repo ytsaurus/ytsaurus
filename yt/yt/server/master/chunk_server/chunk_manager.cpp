@@ -4041,7 +4041,7 @@ private:
             LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
             LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
             LoadHistogramValues(context, ChunkDataWeightHistogram_);
-        } else if (context.GetVersion() >= EMasterReign::ChunkWeightStatisticsHistogram) {
+        } else {
             TGaugeHistogram dummy(ChunkRowCountHistogram_);
             LoadHistogramValues(context, dummy);
             LoadHistogramValues(context, dummy);

@@ -126,10 +126,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkCount_);
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
-    // COMPAT(h0pless)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AccountGossipStatisticsOptimization) {
-        Load(context, ChunkHostCellMasterMemory_);
-    }
+    Load(context, ChunkHostCellMasterMemory_);
     Load(context, DetailedMasterMemory_);
 }
 

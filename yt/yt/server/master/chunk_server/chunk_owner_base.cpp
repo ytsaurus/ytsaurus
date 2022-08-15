@@ -94,14 +94,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaStatistics_);
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::EnableStripedErasureAttribute) {
-        Load(context, EnableStripedErasure_);
-    } else {
-        SetEnableStripedErasure(false);
-    }
-
+    Load(context, EnableStripedErasure_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
     Load(context, ChunkMergerMode_);

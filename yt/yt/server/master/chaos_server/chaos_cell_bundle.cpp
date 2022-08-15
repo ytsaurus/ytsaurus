@@ -34,9 +34,7 @@ void TChaosCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, *ChaosOptions_);
-    if (context.GetVersion() >= EMasterReign::AutoCreateReplicationCard) {
-        Load(context, MetadataCell_);
-    }
+    Load(context, MetadataCell_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

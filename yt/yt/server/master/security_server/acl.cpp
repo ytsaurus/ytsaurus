@@ -47,9 +47,7 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, Action);
     Persist(context, InheritanceMode);
     Persist(context, Columns);
-    if (context.GetVersion() >= EMasterReign::RegisterQueueConsumerPermission) {
-        Persist(context, Vital);
-    }
+    Persist(context, Vital);
 }
 
 void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)

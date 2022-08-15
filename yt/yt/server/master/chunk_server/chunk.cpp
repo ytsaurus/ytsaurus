@@ -189,13 +189,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     SetOverlayed(Load<bool>(context));
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::StripedErasureChunks) {
-        SetStripedErasure(Load<bool>(context));
-    } else {
-        SetStripedErasure(false);
-    }
+    SetStripedErasure(Load<bool>(context));
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::HunkStorage) {
