@@ -68,15 +68,15 @@ void THistogramDigestConfig::Register(TRegistrar registrar)
         double bucketCount = (config->UpperBound - config->LowerBound) / config->AbsolutePrecision;
         if (bucketCount > MaxBucketCount) {
             THROW_ERROR_EXCEPTION("Bucket count is too large")
-                    << TErrorAttribute("bucket_count", bucketCount)
-                    << TErrorAttribute("max_bucket_count", MaxBucketCount);
+                << TErrorAttribute("bucket_count", bucketCount)
+                << TErrorAttribute("max_bucket_count", MaxBucketCount);
         }
 
         if (config->DefaultValue && (*config->DefaultValue < config->LowerBound || *config->DefaultValue > config->UpperBound)) {
             THROW_ERROR_EXCEPTION("Default value should be between lower bound and upper bound")
-                    << TErrorAttribute("default_value", *config->DefaultValue)
-                    << TErrorAttribute("lower_bound", config->LowerBound)
-                    << TErrorAttribute("upper_bound", config->UpperBound);
+                << TErrorAttribute("default_value", *config->DefaultValue)
+                << TErrorAttribute("lower_bound", config->LowerBound)
+                << TErrorAttribute("upper_bound", config->UpperBound);
         }
     });
 }
