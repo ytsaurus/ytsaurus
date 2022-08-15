@@ -41,11 +41,7 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
-
-    if (context.GetVersion() >= /*ESnapshotVersion::StripedErasureTables*/ 300585) {
-        Persist(context, EnableStripedErasure);
-    }
-
+    Persist(context, EnableStripedErasure);
     Persist(context, SecurityTags);
     Persist(context, PartiallySorted);
 }

@@ -794,9 +794,7 @@ private:
 
         Persist(context, Host_);
         Persist(context, Logger);
-        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::LowGpuPowerUsageOnWindow) {
-            Persist(context, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_);
-        }
+        Persist(context, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_);
 
         if (context.IsLoad()) {
             Config_ = Host_->GetConfig()->AlertManager;

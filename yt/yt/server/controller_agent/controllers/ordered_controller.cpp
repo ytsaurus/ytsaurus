@@ -1117,9 +1117,7 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
-        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::RemoteCopyNetworks) {
-            Persist(context, Networks_);
-        }
+        Persist(context, Networks_);
     }
 
 private:

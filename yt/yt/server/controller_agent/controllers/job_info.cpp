@@ -117,9 +117,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, EstimatedResourceUsage);
     Persist(context, JobProxyMemoryReserveFactor);
     Persist(context, UserJobMemoryReserveFactor);
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MemoryReserve) {
-        Persist(context, UserJobMemoryReserve);
-    }
+    Persist(context, UserJobMemoryReserve);
     if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobId) {
         Persist(context, PredecessorType);
         Persist(context, PredecessorJobId);
@@ -135,10 +133,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobSpeculationTimeout);
     Persist(context, StreamDescriptors);
     Persist(context, DiskQuota);
-
-    if (context.GetVersion() >= ESnapshotVersion::FixDiskAccountPersistence) {
-        Persist(context, DiskRequestAccount);  
-    }
+    Persist(context, DiskRequestAccount);
 
     if (context.IsLoad()) {
         Revived = true;

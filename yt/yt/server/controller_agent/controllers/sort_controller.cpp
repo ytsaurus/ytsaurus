@@ -173,9 +173,7 @@ public:
         Persist(context, ShuffleMultiChunkPoolInputs);
         Persist(context, ShuffleMultiInputChunkMappings);
 
-        if (context.GetVersion() >= ESnapshotVersion::FixSimpleSort) {
-            Persist(context, *IntermediateChunkSchema_);
-        }
+        Persist(context, *IntermediateChunkSchema_);
 
         Persist(context, PartitionTasks);
         Persist(context, SimpleSortTask);
