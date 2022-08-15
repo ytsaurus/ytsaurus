@@ -1026,7 +1026,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         )
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
-        wait(lambda: get(alerts_path))
+        wait(lambda: get(alerts_path), timeout=INCREASED_TIMEOUT)
 
         alerts = get(alerts_path)
         assert len(alerts) == 1
