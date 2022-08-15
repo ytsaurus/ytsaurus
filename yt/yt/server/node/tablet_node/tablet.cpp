@@ -814,19 +814,11 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, SchemaId_);
 
-    // COMPAT(savrus)
-    if (context.GetVersion() >= ETabletReign::Chaos) {
-        TRefCountedReplicationProgressPtr replicationProgress;
-        TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
-        RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
-        // COMPAT(savrus)
-        if (context.GetVersion() >= ETabletReign::LongReplicationRound) {
-            Load(context, ChaosData_->ReplicationRound);
-        } else {
-            ChaosData_->ReplicationRound = Load<int>(context);
-        }
-        ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
-    }
+    TRefCountedReplicationProgressPtr replicationProgress;
+    TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
+    RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
+    Load(context, ChaosData_->ReplicationRound);
+    ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= ETabletReign::ReplicationTxLocksTablet) {
@@ -837,7 +829,7 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::BackupsReplicated) {
         Load(context, BackupMetadata_);
-    } else if (context.GetVersion() >= ETabletReign::BackupsSorted) {
+    } else {
         BackupMetadata_.SetCheckpointTimestamp(Load<TTimestamp>(context));
         BackupMetadata_.SetBackupStage(Load<EBackupStage>(context));
     }
@@ -2234,7 +2226,7 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
 
     const auto& segments = replicationProgress->Segments;
     const auto& upper = replicationProgress->UpperKey;
-    if (segments.size() != 1 || 
+    if (segments.size() != 1 ||
         segments[0].LowerKey.GetCount() != 1 ||
         segments[0].LowerKey[0].Type != EValueType::Int64 ||
         upper.GetCount() != 1 ||

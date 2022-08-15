@@ -146,15 +146,12 @@ void TTransaction::Load(TLoadContext& context)
     }
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= ETabletReign::SerializeReplicationProgress) {
-        Load(context, CommitTimestampClusterTag_);
-        // COMPAT(gritukan)
-        if (context.GetVersion() < ETabletReign::TabletWriteManager) {
-            Load(context, CompatSerializationForced_);
-        }
-        Load(context, TabletsToUpdateReplicationProgress_);
+    Load(context, CommitTimestampClusterTag_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() < ETabletReign::TabletWriteManager) {
+        Load(context, CompatSerializationForced_);
     }
+    Load(context, TabletsToUpdateReplicationProgress_);
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)

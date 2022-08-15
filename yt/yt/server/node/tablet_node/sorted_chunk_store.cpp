@@ -157,7 +157,7 @@ public:
 
 private:
     const IVersionedReaderPtr UnderlyingReader_;
-    
+
     int SkipBefore_;
     int SkipAfter_;
     bool SkippingAfter_ = false;
@@ -690,15 +690,14 @@ void TSortedChunkStore::Load(TLoadContext& context)
     TChunkStoreBase::Load(context);
 
     using NYT::Load;
+
     Load(context, ChunkId_);
+
     auto lowerBound = Load<TLegacyOwningKey>(context);
     auto upperBound = Load<TLegacyOwningKey>(context);
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::MaxClipTimestamp) {
-        Load(context, MaxClipTimestamp_);
-    }
+    Load(context, MaxClipTimestamp_);
 }
 
 IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(

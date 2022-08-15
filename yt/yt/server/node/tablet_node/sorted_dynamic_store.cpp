@@ -1903,11 +1903,7 @@ void TSortedDynamicStore::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, MinTimestamp_);
     Load(context, MaxTimestamp_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::BackupsSorted) {
-        Load(context, MergeRowsOnFlushAllowed_);
-    }
+    Load(context, MergeRowsOnFlushAllowed_);
 }
 
 TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
