@@ -602,7 +602,7 @@ INodePtr WalkNodeByYPath(
                     auto currentList = currentNode->AsList();
                     const auto& token = tokenizer.GetToken();
                     int index = ParseListIndex(token);
-                    auto optionalAdjustedIndex = TryAdjustChildIndex(index, currentList->GetChildCount());
+                    auto optionalAdjustedIndex = TryAdjustListIndex(index, currentList->GetChildCount());
                     currentNode = optionalAdjustedIndex ? currentList->FindChild(*optionalAdjustedIndex) : nullptr;
                     if (!currentNode) {
                         return options.MissingChildIndexHandler(currentList, optionalAdjustedIndex.value_or(index));

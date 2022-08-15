@@ -371,8 +371,6 @@ struct IListNode
 
 DEFINE_REFCOUNTED_TYPE(IListNode)
 
-std::optional<int> TryAdjustChildIndex(int index, int childCount);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An structureless entity node.

@@ -44,6 +44,15 @@ int ParseListIndex(TStringBuf token)
     }
 }
 
+std::optional<int> TryAdjustListIndex(int index, int count)
+{
+    int adjustedIndex = index >= 0 ? index : index + count;
+    if (adjustedIndex < 0 || adjustedIndex >= count) {
+        return std::nullopt;
+    }
+    return adjustedIndex;
+}
+
 TString ToYPathLiteral(TStringBuf value)
 {
     TStringBuilder builder;
