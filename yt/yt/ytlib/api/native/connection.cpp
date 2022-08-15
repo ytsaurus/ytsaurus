@@ -28,8 +28,8 @@
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
-#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>

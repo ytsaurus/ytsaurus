@@ -1,8 +1,8 @@
 #include "schema.h"
 
 // TODO(sandello,lukyan): Refine these dependencies.
-#include <yt/yt/ytlib/query_client/query_preparer.h>
-#include <yt/yt/ytlib/query_client/functions.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/functions.h>
 
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/complex_types/check_type_compatibility.h>

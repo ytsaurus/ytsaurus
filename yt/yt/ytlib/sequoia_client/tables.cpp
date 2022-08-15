@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_base.h>

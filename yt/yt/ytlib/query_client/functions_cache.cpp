@@ -1,6 +1,8 @@
 #include "functions_cache.h"
-#include "functions_cg.h"
-#include "private.h"
+
+#include <yt/yt/library/query/engine/functions_cg.h>
+
+#include <yt/yt/library/query/base/private.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>

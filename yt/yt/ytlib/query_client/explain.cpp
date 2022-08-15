@@ -1,8 +1,11 @@
-#include "coordinator.h"
+
 #include "explain.h"
-#include "functions.h"
-#include "query_helpers.h"
-#include "query_preparer.h"
+
+#include <yt/yt/library/query/engine/coordinator.h>
+
+#include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/client/api/public.h>
 

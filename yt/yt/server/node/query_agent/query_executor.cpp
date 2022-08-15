@@ -36,15 +36,15 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
-#include <yt/yt/ytlib/query_client/coordinator.h>
-#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine/coordinator.h>
+#include <yt/yt/library/query/engine/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/query.h>
-#include <yt/yt/ytlib/query_client/query_helpers.h>
-#include <yt/yt/ytlib/query_client/private.h>
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/private.h>
 #include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/coordination_helpers.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 

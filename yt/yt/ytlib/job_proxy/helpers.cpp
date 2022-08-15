@@ -4,10 +4,10 @@
 
 #include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/library/query/engine/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/config.h>
-#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/library/query/engine/config.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 

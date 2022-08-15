@@ -27,7 +27,7 @@
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/api/transaction.h>
 

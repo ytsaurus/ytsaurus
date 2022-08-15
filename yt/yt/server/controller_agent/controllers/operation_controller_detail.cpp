@@ -59,11 +59,11 @@
 
 #include <yt/yt/ytlib/security_client/helpers.h>
 
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/query.h>
-#include <yt/yt/ytlib/query_client/query_preparer.h>
-#include <yt/yt/ytlib/query_client/range_inferrer.h>
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/engine/range_inferrer.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>

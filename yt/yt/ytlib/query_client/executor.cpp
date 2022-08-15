@@ -1,12 +1,14 @@
 #include "executor.h"
-#include "column_evaluator.h"
-#include "coordinator.h"
-#include "evaluator.h"
-#include "query.h"
-#include "query_helpers.h"
-#include "query_service_proxy.h"
 #include "functions_cache.h"
-#include "coordination_helpers.h"
+#include "query_service_proxy.h"
+
+#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine/coordinator.h>
+#include <yt/yt/library/query/engine/evaluator.h>
+
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 

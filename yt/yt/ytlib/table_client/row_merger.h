@@ -5,7 +5,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/client/api/public.h>
 

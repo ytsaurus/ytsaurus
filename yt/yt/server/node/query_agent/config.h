@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/query_client/config.h>
+#include <yt/yt/library/query/engine/config.h>
 
 #include <yt/yt/core/misc/cache_config.h>
 

@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/ytlib/query_client/ast.h>
+#include <yt/yt/library/query/base/ast.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 

@@ -9,8 +9,8 @@ import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
-import "yt/ytlib/query_client/proto/functions_cache.proto";
-import "yt/ytlib/query_client/proto/query.proto";
+import "yt/library/query/proto/functions_cache.proto";
+import "yt/library/query/proto/query.proto";
 import "yt/ytlib/scheduler/proto/output_result.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 

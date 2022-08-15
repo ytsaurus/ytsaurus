@@ -49,8 +49,6 @@
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
-#include <yt/yt/ytlib/query_client/proto/query_service.pb.h>
-
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/comparator.h>
 

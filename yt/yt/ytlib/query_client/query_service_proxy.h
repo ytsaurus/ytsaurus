@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/library/query/base/public.h>
 
-#include <yt/yt/ytlib/query_client/proto/query_service.pb.h>
+#include <yt/yt/library/query/proto/query_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

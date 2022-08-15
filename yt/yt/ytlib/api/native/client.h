@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 namespace NYT::NApi::NNative {
 
