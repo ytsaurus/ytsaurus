@@ -1796,7 +1796,9 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         }
         chunksBeingRemoved.insert(job->GetChunkIdWithIndexes());
     }
-    {
+
+    // TODO(gritukan): Use sharded destroyed replica sets here.
+    if (RefreshRunning_.any()) {
         const auto& queue = node->DestroyedReplicas();
         auto it = node->GetDestroyedReplicasIterator();
         auto jt = it;
@@ -1823,6 +1825,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             }
         } while (jt != it);
     }
+
     {
         auto& queue = node->ChunkRemovalQueue();
         auto it = queue.begin();
