@@ -167,6 +167,46 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 	}, nil
 }
 
+func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
+	if err != nil {
+		a.l.Error("time convertion failed", log.Error(err))
+		return nil, err
+	}
+
+	metaquery.ResultSkip = 0
+	metaquery.ResultLimit = 0
+
+	resp, err := a.ts.MetadataIdsQueryExpr(ctx, metaquery)
+	if err != nil {
+		a.l.Error("metaquery failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Debug("merge all request started", log.Int("profiles_found", len(resp)))
+
+	profile, err := a.ts.FindAndMergeProfiles(ctx, resp)
+	if err != nil {
+		a.l.Error("find and merge failed", log.Error(err))
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	err = profile.Write(&buf)
+	if err != nil {
+		a.l.Error("writing to buffer failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Debug("merge all request succeded", log.Int("total", len(resp)))
+
+	return &httpbody.HttpBody{
+		ContentType: "application/pprof",
+
+		Data: buf.Bytes(),
+	}, nil
+}
+
 func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.SuggestTagsResponse, error) {
 	resp, err := a.ts.FindTags(ctx)
 	if err != nil {
