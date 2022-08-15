@@ -1471,15 +1471,12 @@ private:
         storeManager->Rotate(true, reason);
         UpdateTabletSnapshot(tablet);
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::BackupsOrdered)) {
-            if (tablet->IsPhysicallyOrdered()) {
-                if (AllocateDynamicStoreIfNeeded(tablet)) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                        "Dynamic store id for ordered tablet allocated after rotation (%v)",
-                        tablet->GetLoggingTag());
+        if (tablet->IsPhysicallyOrdered()) {
+            if (AllocateDynamicStoreIfNeeded(tablet)) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Dynamic store id for ordered tablet allocated after rotation (%v)",
+                    tablet->GetLoggingTag());
 
-                }
             }
         }
     }
@@ -2856,33 +2853,18 @@ private:
             return;
         }
 
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::BackupsOrdered)) {
-            auto state = tablet->GetState();
-            if (state != ETabletState::Mounted &&
-                state != ETabletState::UnmountFlushPending &&
-                state != ETabletState::UnmountFlushing &&
-                state != ETabletState::FreezeFlushPending &&
-                state != ETabletState::FreezeFlushing)
-            {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
-                    tablet->GetLoggingTag(),
-                    state);
-                return;
-            }
-        } else {
-            tablet->SetDynamicStoreIdRequested(false);
+        tablet->SetDynamicStoreIdRequested(false);
 
-            auto state = tablet->GetState();
-            if (state == ETabletState::Frozen ||
-                state == ETabletState::Unmounted ||
-                state == ETabletState::Orphaned)
-            {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
-                    tablet->GetLoggingTag(),
-                    state);
-                return;
-            }
+        auto state = tablet->GetState();
+        if (state == ETabletState::Frozen ||
+            state == ETabletState::Unmounted ||
+            state == ETabletState::Orphaned)
+        {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
+                tablet->GetLoggingTag(),
+                state);
+            return;
         }
 
         auto dynamicStoreId = FromProto<TDynamicStoreId>(request->dynamic_store_id());

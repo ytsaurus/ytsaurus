@@ -23,16 +23,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 22.1 starts here.
-    ((NewLockMasks)                       (100400)) // gritukan
-    ((Chaos)                              (100401)) // savrus
-    ((BackupsSorted)                      (100402)) // ifsmirnov
-    ((MaxClipTimestamp)                   (100403)) // ifsmirnov
-    ((SerializeForeign)                   (100404)) // savrus
-    ((SerializeReplicationProgress)       (100405)) // savrus
-    ((LongReplicationRound)               (100406)) // savrus
-    // Late 22.1 starts here
-    ((BackupsOrdered)                     (100450)) // ifsmirnov
     // 22.2 starts here.
     ((CumulativeDataWeight)               (100500)) // achulkov2
     ((CommitSignature)                    (100501)) // gritukan

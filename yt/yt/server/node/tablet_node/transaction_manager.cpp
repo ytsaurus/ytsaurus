@@ -1122,32 +1122,8 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    bool IsOldHydraContext(ETabletReign reign)
-    {
-        if (const auto* mutationContext = TryGetCurrentMutationContext();
-            mutationContext && mutationContext->Request().Reign < ToUnderlying(reign))
-        {
-            return true;
-        }
-
-        if (const auto* snapshotContext = TryGetCurrentHydraContext();
-            snapshotContext && SnapshotReign_ < reign)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
-        // COMPAT(savrus)
-        if (IsOldHydraContext(ETabletReign::SerializeForeign)) {
-            if (transaction->GetForeign()) {
-                return;
-            }
-        }
-
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -1157,13 +1133,6 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
-        // COMPAT(savrus)
-        if (IsOldHydraContext(ETabletReign::SerializeForeign)) {
-            if (transaction->GetForeign()) {
-                return;
-            }
-        }
-
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -1254,11 +1223,6 @@ private:
 
     TCellTag GetSerializingTransactionHeapTag(TTransaction* transaction)
     {
-        // COMPAT(savrus)
-        if (IsOldHydraContext(ETabletReign::SerializeReplicationProgress)) {
-            return transaction->GetCellTag();
-        }
-
         return transaction->GetCommitTimestampClusterTag() != InvalidCellTag
             ? transaction->GetCommitTimestampClusterTag()
             : transaction->GetCellTag();
