@@ -850,7 +850,6 @@ class TestInputFetchingYPath(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    @pytest.mark.timeout(150)
     def test_ypath(self):
         create(
             "table",
