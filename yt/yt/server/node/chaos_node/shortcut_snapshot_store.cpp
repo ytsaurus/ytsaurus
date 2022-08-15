@@ -65,6 +65,14 @@ public:
         return *shortcut;
     }
 
+    void Clear() override
+    {
+        for (auto& bucket : Buckets_) {
+            auto guard = WriterGuard(bucket.Lock);
+            bucket.ShortcutSnapshots.clear();
+        }
+    }
+
 private:
     struct TBucket
     {
