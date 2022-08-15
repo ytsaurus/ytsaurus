@@ -4,7 +4,7 @@ import spyt.SparkForkVersion.sparkForkVersion
 object Dependencies {
   lazy val circeVersion = "0.12.3"
   lazy val circeYamlVersion = "0.12.0"
-  lazy val scalatestVersion = "3.0.8"
+  lazy val scalatestVersion = "3.1.0"
   lazy val sparkVersion = "3.0.1"
   lazy val yandexIcebergVersion = "9562347"
   lazy val slf4jVersion = "1.7.28"
@@ -31,9 +31,10 @@ object Dependencies {
   ))
 
   lazy val testDeps = Seq(
-    "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
+    "org.scalacheck" %% "scalacheck" % "1.14.3" % Test,
     "org.scalactic" %% "scalactic" % scalatestVersion,
-    "org.scalatest" %% "scalatest" % scalatestVersion % Test
+    "org.scalatest" %% "scalatest" % scalatestVersion % Test,
+    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.0" % Test
   ) ++ mockito ++ dockerTest
 
   lazy val itTestDeps = Seq(
