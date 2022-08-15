@@ -826,7 +826,7 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
             switch (kind) {
                 case ETabletNodeThrottlerKind::StaticStorePreloadIn:
                 case ETabletNodeThrottlerKind::DynamicStoreReadOut:
-                    config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
+                    config->Throttlers[kind] = NConcurrency::TRelativeThroughputThrottlerConfig::Create(100_MB);
                     break;
 
                 default:

@@ -2,12 +2,14 @@
 
 #include "throughput_throttler.h"
 
+#include "yt/yt/core/ytree/yson_struct.h"
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFairThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     i64 TotalLimit;
 
@@ -19,7 +21,9 @@ struct TFairThrottlerConfig
 
     std::optional<TString> IPCPath;
 
-    TFairThrottlerConfig();
+    REGISTER_YSON_STRUCT(TFairThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairThrottlerConfig)
@@ -27,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(TFairThrottlerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFairThrottlerBucketConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     double Weight;
 
@@ -39,7 +43,9 @@ struct TFairThrottlerBucketConfig
     std::optional<double> RelativeGuarantee;
     std::optional<i64> GetGuarantee(i64 totalLimit);
 
-    TFairThrottlerBucketConfig();
+    REGISTER_YSON_STRUCT(TFairThrottlerBucketConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairThrottlerBucketConfig)

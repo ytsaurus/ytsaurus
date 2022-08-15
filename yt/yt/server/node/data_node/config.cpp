@@ -473,7 +473,11 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("incremental_heartbeat_throttler", &TThis::IncrementalHeartbeatThrottler)
-        .DefaultNew(/* limit */std::optional<double>(1), /* period */TDuration::Minutes(10));
+        .DefaultCtor([] () {
+                auto result = NConcurrency::TThroughputThrottlerConfig::Create(1);
+                result->Period = TDuration::Minutes(10);
+                return result;
+            });
 
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));

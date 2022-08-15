@@ -22,7 +22,7 @@ public:
         IChannelPtr underlyingChannel)
         : TChannelWrapper(std::move(underlyingChannel))
         , Config_(std::move(config))
-        , Throttler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>(
+        , Throttler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(
             Config_->RateLimit)))
     { }
 
@@ -61,7 +61,7 @@ public:
 
     void Reconfigure(const TThrottlingChannelDynamicConfigPtr& config) override
     {
-        Throttler_->Reconfigure(New<TThroughputThrottlerConfig>(
+        Throttler_->Reconfigure(TThroughputThrottlerConfig::Create(
             config->RateLimit.value_or(Config_->RateLimit)));
     }
 

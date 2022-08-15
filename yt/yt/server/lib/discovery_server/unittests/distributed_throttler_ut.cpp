@@ -115,8 +115,8 @@ private:
 TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 {
     int throttlersCount = 4;
-    auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
-    auto throttlerConfig = New<TThroughputThrottlerConfig>(1);
+    auto leaderThrottlerConfig = TThroughputThrottlerConfig::Create(100);
+    auto throttlerConfig = TThroughputThrottlerConfig::Create(1);
     auto config = GenerateThrottlerConfig();
     config->Mode = EDistributedThrottlerMode::Uniform;
 
@@ -210,8 +210,8 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
     int throttlersCount = 4;
-    auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
-    auto throttlerConfig = New<TThroughputThrottlerConfig>(1);
+    auto leaderThrottlerConfig = TThroughputThrottlerConfig::Create(100);
+    auto throttlerConfig = TThroughputThrottlerConfig::Create(1);
     auto config = GenerateThrottlerConfig();
     config->Mode = EDistributedThrottlerMode::Adaptive;
 

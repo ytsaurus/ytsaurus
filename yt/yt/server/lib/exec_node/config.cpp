@@ -48,7 +48,7 @@ void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_exec_from_layer", &TThis::UseExecFromLayer)
         .Default(false);
-    
+
     registrar.Parameter("allow_mount_fuse_device", &TThis::AllowMountFuseDevice)
         .Default(true);
 
@@ -131,10 +131,10 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
-    
+
     registrar.Parameter("numa_nodes", &TThis::NumaNodes)
         .Default();
-        
+
     registrar.Postprocessor([] (TThis* config) {
         std::unordered_set<i64> numaNodeIds;
         for (const auto& numaNode : config->NumaNodes) {
@@ -230,7 +230,7 @@ void TSchedulerConnectorConfig::ApplyDynamicInplace(const TSchedulerConnectorDyn
 void TControllerAgentConnectorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
-        .DefaultNew(1_MB);
+        .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
     registrar.Parameter("running_job_sending_backoff", &TThis::RunningJobInfoSendingBackoff)
         .Default(TDuration::Seconds(30));
 }

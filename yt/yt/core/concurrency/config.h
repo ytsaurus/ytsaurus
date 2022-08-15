@@ -2,24 +2,27 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThroughputThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    explicit TThroughputThrottlerConfig(
-        std::optional<double> limit = std::nullopt,
-        TDuration period = TDuration::MilliSeconds(1000));
     //! Limit on average throughput (per sec). Null means unlimited.
     std::optional<double> Limit;
 
     //! Period for leaky bucket algorithm.
     TDuration Period;
+
+    static TThroughputThrottlerConfigPtr Create(std::optional<double> limit);
+
+    REGISTER_YSON_STRUCT(TThroughputThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TThroughputThrottlerConfig)
@@ -34,11 +37,13 @@ class TRelativeThroughputThrottlerConfig
     : public TThroughputThrottlerConfig
 {
 public:
-    explicit TRelativeThroughputThrottlerConfig(
-        std::optional<double> limit = std::nullopt,
-        TDuration period = TDuration::MilliSeconds(1000));
-
     std::optional<double> RelativeLimit;
+
+    static TRelativeThroughputThrottlerConfigPtr Create(std::optional<double> limit);
+
+    REGISTER_YSON_STRUCT(TRelativeThroughputThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRelativeThroughputThrottlerConfig)
@@ -46,11 +51,9 @@ DEFINE_REFCOUNTED_TYPE(TRelativeThroughputThrottlerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPrefetchingThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TPrefetchingThrottlerConfig();
-
     //! RPS limit for requests to the underlying throttler.
     double TargetRps;
 
@@ -69,6 +72,10 @@ public:
     //! and will return the underlying throttler instead.
     //! #TPrefetchingThrottler itself does not check this field.
     bool Enable;
+
+    REGISTER_YSON_STRUCT(TPrefetchingThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPrefetchingThrottlerConfig)

@@ -38,7 +38,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestNoLimit)
 TEST(TReconfigurableThroughputThrottlerTest, TestLimit)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
     throttler->Throttle(1).Get().ThrowOnError();
@@ -56,7 +56,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestLimit)
 TEST(TReconfigurableThroughputThrottlerTest, TestScheduleUpdate)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
 
@@ -74,7 +74,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestScheduleUpdate)
 TEST(TReconfigurableThroughputThrottlerTest, TestUpdate)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
 
@@ -88,7 +88,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestUpdate)
 TEST(TReconfigurableThroughputThrottlerTest, TestCancel)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
 
@@ -105,7 +105,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestCancel)
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProperly)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
 
@@ -114,7 +114,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
         scheduled.push_back(throttler->Throttle(100));
     }
 
-    throttler->Reconfigure(New<TThroughputThrottlerConfig>(100));
+    throttler->Reconfigure(TThroughputThrottlerConfig::Create(100));
 
     for (const auto& future : scheduled) {
         future.Get().ThrowOnError();
@@ -126,7 +126,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
 TEST(TReconfigurableThroughputThrottlerTest, TestSetLimit)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     NProfiling::TWallTimer timer;
 
@@ -147,7 +147,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestSetLimit)
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(1));
+        TThroughputThrottlerConfig::Create(1));
 
     throttler->Acquire(1); // drains throttler to zero
 
@@ -156,7 +156,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate
     auto scheduled1 = throttler->Throttle(100); // sits in front of the queue
     auto scheduled2 = throttler->Throttle(100); // also waits in the queue
 
-    throttler->Reconfigure(New<TThroughputThrottlerConfig>(100));
+    throttler->Reconfigure(TThroughputThrottlerConfig::Create(100));
 
     EXPECT_FALSE(scheduled2.IsSet()); // must remain waiting in the queue after Reconfigure
 
@@ -167,7 +167,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate
 TEST(TReconfigurableThroughputThrottlerTest, TestOverdraft)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(100));
+        TThroughputThrottlerConfig::Create(100));
 
     throttler->Throttle(150).Get().ThrowOnError();
 
@@ -181,7 +181,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestOverdraft)
 TEST(TReconfigurableThroughputThrottlerTest, StressTest)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(100));
+        TThroughputThrottlerConfig::Create(100));
 
     const int N = 30;
     const int M = 10;
@@ -209,7 +209,7 @@ TEST(TReconfigurableThroughputThrottlerTest, StressTest)
 TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(0.5));
+        TThroughputThrottlerConfig::Create(0.5));
 
     NProfiling::TWallTimer timer;
     for (int i = 0; i < 2; ++i) {
@@ -223,7 +223,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
 TEST(TReconfigurableThroughputThrottlerTest, TestZeroLimit)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
-        New<TThroughputThrottlerConfig>(0));
+        TThroughputThrottlerConfig::Create(0));
 
     throttler->SetLimit(100);
 

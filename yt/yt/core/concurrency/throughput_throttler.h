@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ypath/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {

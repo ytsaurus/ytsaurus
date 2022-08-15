@@ -6,29 +6,29 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiplexingBandConfig::TMultiplexingBandConfig()
+void TMultiplexingBandConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tos_level", TosLevel)
+    registrar.Parameter("tos_level", &TThis::TosLevel)
         .Default(NYT::NBus::DefaultTosLevel);
 
-    RegisterParameter("network_to_tos_level", NetworkToTosLevel)
+    registrar.Parameter("network_to_tos_level", &TThis::NetworkToTosLevel)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherConfig::TTcpDispatcherConfig()
+void TTcpDispatcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(8);
 
-    RegisterParameter("network_bandwidth", NetworkBandwidth)
+    registrar.Parameter("network_bandwidth", &TThis::NetworkBandwidth)
         .Default();
 
-    RegisterParameter("networks", Networks)
+    registrar.Parameter("networks", &TThis::Networks)
         .Default();
 
-    RegisterParameter("multiplexing_bands", MultiplexingBands)
+    registrar.Parameter("multiplexing_bands", &TThis::MultiplexingBands)
         .Default();
 }
 
@@ -45,33 +45,33 @@ TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherDynamicConfig::TTcpDispatcherDynamicConfig()
+void TTcpDispatcherDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Optional()
         .GreaterThan(0);
 
-    RegisterParameter("network_bandwidth", NetworkBandwidth)
+    registrar.Parameter("network_bandwidth", &TThis::NetworkBandwidth)
         .Default();
 
-    RegisterParameter("networks", Networks)
+    registrar.Parameter("networks", &TThis::Networks)
         .Default();
 
-    RegisterParameter("multiplexing_bands", MultiplexingBands)
+    registrar.Parameter("multiplexing_bands", &TThis::MultiplexingBands)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpBusServerConfig::TTcpBusServerConfig()
+void TTcpBusServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("port", Port)
+    registrar.Parameter("port", &TThis::Port)
         .Default();
-    RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
+    registrar.Parameter("unix_domain_socket_path", &TThis::UnixDomainSocketPath)
         .Default();
-    RegisterParameter("max_backlog_size", MaxBacklogSize)
+    registrar.Parameter("max_backlog_size", &TThis::MaxBacklogSize)
         .Default(8192);
-    RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
+    registrar.Parameter("max_simultaneous_connections", &TThis::MaxSimultaneousConnections)
         .Default(50000);
 }
 
@@ -91,35 +91,35 @@ TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const TString& sock
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpBusConfig::TTcpBusConfig()
+void TTcpBusConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_quick_ack", EnableQuickAck)
+    registrar.Parameter("enable_quick_ack", &TThis::EnableQuickAck)
         .Default(true);
-    RegisterParameter("bind_retry_count", BindRetryCount)
+    registrar.Parameter("bind_retry_count", &TThis::BindRetryCount)
         .Default(5);
-    RegisterParameter("bind_retry_backoff", BindRetryBackoff)
+    registrar.Parameter("bind_retry_backoff", &TThis::BindRetryBackoff)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("read_stall_timeout", ReadStallTimeout)
+    registrar.Parameter("read_stall_timeout", &TThis::ReadStallTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("write_stall_timeout", WriteStallTimeout)
+    registrar.Parameter("write_stall_timeout", &TThis::WriteStallTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("verify_checksums", VerifyChecksums)
+    registrar.Parameter("verify_checksums", &TThis::VerifyChecksums)
         .Default(true);
-    RegisterParameter("generate_checksums", GenerateChecksums)
+    registrar.Parameter("generate_checksums", &TThis::GenerateChecksums)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpBusClientConfig::TTcpBusClientConfig()
+void TTcpBusClientConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("address", Address)
+    registrar.Parameter("address", &TThis::Address)
         .Default();
-    RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
+    registrar.Parameter("unix_domain_socket_path", &TThis::UnixDomainSocketPath)
         .Default();
 
-    RegisterPostprocessor([&] () {
-        if (!Address && !UnixDomainSocketPath) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Address && !config->UnixDomainSocketPath) {
             THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_socket_path\" cannot be both missing");
         }
     });
