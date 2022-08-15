@@ -277,20 +277,11 @@ int IListNode::GetChildIndexOrThrow(const IConstNodePtr& child)
 
 int IListNode::AdjustChildIndexOrThrow(int index) const
 {
-    auto adjustedIndex = TryAdjustChildIndex(index, GetChildCount());
+    auto adjustedIndex = NYPath::TryAdjustListIndex(index, GetChildCount());
     if (!adjustedIndex) {
         ThrowNoSuchChildIndex(this, index);
     }
     return *adjustedIndex;
-}
-
-std::optional<int> TryAdjustChildIndex(int index, int childCount)
-{
-    int adjustedIndex = index >= 0 ? index : index + childCount;
-    if (adjustedIndex < 0 || adjustedIndex >= childCount) {
-        return std::nullopt;
-    }
-    return adjustedIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -191,7 +191,7 @@ TCypressNode* FindListNodeChild(
 
     const auto& indexToChild = trunkNode->IndexToChild();
     int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
+    auto adjustedIndex = TryAdjustListIndex(index, static_cast<int>(indexToChild.size()));
     if (!adjustedIndex) {
         return nullptr;
     }
@@ -208,7 +208,7 @@ TCypressNode* GetListNodeChildOrThrow(
 
     const auto& indexToChild = trunkNode->IndexToChild();
     int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
+    auto adjustedIndex = TryAdjustListIndex(index, static_cast<int>(indexToChild.size()));
     if (!adjustedIndex) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,

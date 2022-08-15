@@ -484,7 +484,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             } else {
                 int index = ParseListIndex(token);
                 INodePtr child;
-                auto adjustedIndex = TryAdjustChildIndex(index, GetChildCount());
+                auto adjustedIndex = NYPath::TryAdjustListIndex(index, GetChildCount());
                 if (adjustedIndex) {
                     child = FindChild(*adjustedIndex);
                 }
