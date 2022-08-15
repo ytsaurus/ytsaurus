@@ -20,6 +20,8 @@ public:
 
     virtual std::optional<TShortcutSnapshot> FindShortcut(TReplicationCardId replicationCardId) = 0;
     virtual TShortcutSnapshot GetShortcutOrThrow(TReplicationCardId replicationCardId) = 0;
+
+    virtual void Clear() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShortcutSnapshotStore)

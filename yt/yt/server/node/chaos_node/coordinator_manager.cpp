@@ -212,6 +212,18 @@ private:
 
         Shortcuts_.clear();
         Suspended_ = false;
+        SnapshotStore_->Clear();
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TChaosAutomatonPart::OnAfterSnapshotLoaded();
+
+        for (const auto& [replicationCardId, shortcut] : Shortcuts_) {
+            SnapshotStore_->UpdateShortcut(replicationCardId, {shortcut.Era});
+        }
     }
 
     TShortcut* FindShortcut(TReplicationCardId replicationCardId)
