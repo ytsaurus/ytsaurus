@@ -24,9 +24,9 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
-#include <yt/yt/ytlib/query_client/query_preparer.h>
-#include <yt/yt/ytlib/query_client/functions.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/explain.h>

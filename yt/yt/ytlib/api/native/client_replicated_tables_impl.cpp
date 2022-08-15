@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>

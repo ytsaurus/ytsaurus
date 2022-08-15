@@ -32,7 +32,7 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/ytlib/memory_trackers/public.h>
 

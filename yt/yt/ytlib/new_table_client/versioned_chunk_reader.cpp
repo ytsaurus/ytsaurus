@@ -14,7 +14,7 @@
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 
-#include <yt/yt/ytlib/query_client/coordination_helpers.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/client/table_client/config.h>
 

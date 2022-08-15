@@ -5,7 +5,7 @@
 #include "format.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/query_client/query_preparer.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
 #ifdef __clang__
@@ -13,14 +13,14 @@
 #pragma clang diagnostic ignored "-Wmacro-redefined"
 #endif
 
-#include <yt/yt/ytlib/query_client/folding_profiler.h>
+#include <yt/yt/library/query/engine/folding_profiler.h>
 
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
 
-#include <yt/yt/ytlib/query_client/evaluation_helpers.h>
+#include <yt/yt/library/query/engine/evaluation_helpers.h>
 
 #include <Parsers/IAST.h>
 #include <Parsers/ASTSubquery.h>

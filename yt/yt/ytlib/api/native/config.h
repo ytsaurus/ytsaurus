@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/object_client/config.h>
 
-#include <yt/yt/ytlib/query_client/config.h>
+#include <yt/yt/library/query/engine/config.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
 

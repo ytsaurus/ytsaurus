@@ -2,9 +2,9 @@
 
 #include "executor.h"
 
-#include "public.h"
+#include <yt/yt/library/query/base/public.h>
 
-#include "query_preparer.h"
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/core/yson/string.h>
 

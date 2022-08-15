@@ -31,7 +31,7 @@ PEERDIR(
     contrib/python/zstandard
 
     yt/yt/tests/library
-    yt/yt/ytlib/query_client/unittests/udf
+    yt/yt/library/query/unittests/udf
 )
 
 IF (AUTOCHECK OR YT_TEAMCITY)

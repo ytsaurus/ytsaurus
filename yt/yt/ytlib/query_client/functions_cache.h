@@ -1,13 +1,13 @@
 #pragma once
 
-#include "public.h"
-#include "functions.h"
+#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/query/base/functions.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/query_client/proto/functions_cache.pb.h>
+#include <yt/yt/library/query/proto/functions_cache.pb.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

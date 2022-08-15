@@ -40,9 +40,9 @@
 
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
-#include <yt/yt/ytlib/query_client/evaluator.h>
-#include <yt/yt/ytlib/query_client/query.h>
-#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/library/query/engine/evaluator.h>
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/public.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>

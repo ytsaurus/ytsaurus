@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/tablet_node/public.h>
 
-#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 

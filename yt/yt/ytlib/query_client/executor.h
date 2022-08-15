@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
-#include "callbacks.h"
+#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/query/base/callbacks.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

@@ -37,7 +37,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/library/query/engine/column_evaluator.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
