@@ -4,22 +4,22 @@ namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDialerConfig::TDialerConfig()
+void TDialerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_no_delay", EnableNoDelay)
+    registrar.Parameter("enable_no_delay", &TThis::EnableNoDelay)
         .Default(true);
-    RegisterParameter("enable_aggressive_reconnect", EnableAggressiveReconnect)
+    registrar.Parameter("enable_aggressive_reconnect", &TThis::EnableAggressiveReconnect)
         .Default(false);
-    RegisterParameter("min_rto", MinRto)
+    registrar.Parameter("min_rto", &TThis::MinRto)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("max_rto", MaxRto)
+    registrar.Parameter("max_rto", &TThis::MaxRto)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("rto_scale", RtoScale)
+    registrar.Parameter("rto_scale", &TThis::RtoScale)
         .GreaterThan(0.0)
         .Default(2.0);
 
-    RegisterPostprocessor([&] () {
-        if (MaxRto < MinRto) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxRto < config->MinRto) {
             THROW_ERROR_EXCEPTION("\"max_rto\" should be greater than or equal to \"min_rto\"");
         }
     });

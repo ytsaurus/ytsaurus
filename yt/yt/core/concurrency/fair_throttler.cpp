@@ -20,44 +20,44 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairThrottlerConfig::TFairThrottlerConfig()
+void TFairThrottlerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("total_limit", TotalLimit)
+    registrar.Parameter("total_limit", &TThis::TotalLimit)
         .Default(125_MB);
 
-    RegisterParameter("distribution_period", DistributionPeriod)
+    registrar.Parameter("distribution_period", &TThis::DistributionPeriod)
         .Default(TDuration::MilliSeconds(100))
         .GreaterThan(TDuration::Zero());
 
-    RegisterParameter("bucket_accumulation_ticks", BucketAccumulationTicks)
+    registrar.Parameter("bucket_accumulation_ticks", &TThis::BucketAccumulationTicks)
         .Default(5);
 
-    RegisterParameter("global_accumulation_ticks", GlobalAccumulationTicks)
+    registrar.Parameter("global_accumulation_ticks", &TThis::GlobalAccumulationTicks)
         .Default(5);
 
-    RegisterParameter("ipc_path", IPCPath)
+    registrar.Parameter("ipc_path", &TThis::IPCPath)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairThrottlerBucketConfig::TFairThrottlerBucketConfig()
+void TFairThrottlerBucketConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("weight", Weight)
+    registrar.Parameter("weight", &TThis::Weight)
         .Default(1.0)
         .GreaterThanOrEqual(0.01)
         .LessThanOrEqual(100);
 
-    RegisterParameter("limit", Limit)
+    registrar.Parameter("limit", &TThis::Limit)
         .Default();
 
-    RegisterParameter("relative_limit", RelativeLimit)
+    registrar.Parameter("relative_limit", &TThis::RelativeLimit)
         .Default();
 
-    RegisterParameter("guarantee", Guarantee)
+    registrar.Parameter("guarantee", &TThis::Guarantee)
         .Default();
 
-    RegisterParameter("relative_guaratee", RelativeGuarantee)
+    registrar.Parameter("relative_guaratee", &TThis::RelativeGuarantee)
         .Default();
 }
 

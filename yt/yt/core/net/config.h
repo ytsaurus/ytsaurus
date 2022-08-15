@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/cache_config.h>
 
@@ -11,7 +11,7 @@ namespace NYT::NNet {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDialerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableNoDelay;
@@ -21,7 +21,9 @@ public:
     TDuration MaxRto;
     double RtoScale;
 
-    TDialerConfig();
+    REGISTER_YSON_STRUCT(TDialerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDialerConfig)

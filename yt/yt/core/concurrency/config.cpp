@@ -4,53 +4,62 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TThroughputThrottlerConfig::TThroughputThrottlerConfig(
-    std::optional<double> limit,
-    TDuration period)
+TThroughputThrottlerConfigPtr TThroughputThrottlerConfig::Create(std::optional<double> limit)
 {
-    RegisterParameter("limit", Limit)
-        .Default(limit)
+    auto result = New<TThroughputThrottlerConfig>();
+    result->Limit = limit;
+    return result;
+}
+
+void TThroughputThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("limit", &TThis::Limit)
+        .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("period", Period)
-        .Default(period);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::MilliSeconds(1000));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRelativeThroughputThrottlerConfig::TRelativeThroughputThrottlerConfig(
-    std::optional<double> limit,
-    TDuration period)
-    : TThroughputThrottlerConfig(limit, period)
+TRelativeThroughputThrottlerConfigPtr TRelativeThroughputThrottlerConfig::Create(std::optional<double> limit)
 {
-    RegisterParameter("relative_limit", RelativeLimit)
+    auto result = New<TRelativeThroughputThrottlerConfig>();
+    result->Limit = limit;
+    return result;
+}
+
+void TRelativeThroughputThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("relative_limit", &TThis::RelativeLimit)
         .InRange(0.0, 1.0)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPrefetchingThrottlerConfig::TPrefetchingThrottlerConfig()
+void TPrefetchingThrottlerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("target_rps", TargetRps)
+    registrar.Parameter("target_rps", &TThis::TargetRps)
         .Default(1.0)
         .GreaterThan(1e-3);
-    RegisterParameter("min_prefetch_amount", MinPrefetchAmount)
+    registrar.Parameter("min_prefetch_amount", &TThis::MinPrefetchAmount)
         .Default(1)
         .GreaterThanOrEqual(1);
-    RegisterParameter("max_prefetch_amount", MaxPrefetchAmount)
+    registrar.Parameter("max_prefetch_amount", &TThis::MaxPrefetchAmount)
         .Default(10)
         .GreaterThanOrEqual(1);
-    RegisterParameter("window", Window)
+    registrar.Parameter("window", &TThis::Window)
         .GreaterThan(TDuration::MilliSeconds(1))
         .Default(TDuration::Seconds(1));
 
-    RegisterPostprocessor([=] {
-        if (MinPrefetchAmount > MaxPrefetchAmount) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MinPrefetchAmount > config->MaxPrefetchAmount) {
             THROW_ERROR_EXCEPTION("\"min_prefetch_amount\" should be less than or equal \"max_prefetch_amount\"")
-                << TErrorAttribute("min_prefetch_amount", MinPrefetchAmount)
-                << TErrorAttribute("max_prefetch_amount", MaxPrefetchAmount);
+                << TErrorAttribute("min_prefetch_amount", config->MinPrefetchAmount)
+                << TErrorAttribute("max_prefetch_amount", config->MaxPrefetchAmount);
         }
     });
 }

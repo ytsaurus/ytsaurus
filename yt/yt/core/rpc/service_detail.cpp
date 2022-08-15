@@ -47,7 +47,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto InifiniteRequestThrottlerConfig = New<TThroughputThrottlerConfig>();
-static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TThroughputThrottlerConfig>(1'000);
+static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = TThroughputThrottlerConfig::Create(1'000);
 
 constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
 
