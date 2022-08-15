@@ -101,11 +101,7 @@ void TChunkViewModifier::Load(NCellMaster::TLoadContext& context)
 
     Load(context, ReadRange_);
     Load(context, TransactionId_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
-        Load(context, MaxClipTimestamp_);
-    }
+    Load(context, MaxClipTimestamp_);
 }
 
 int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs)
@@ -191,23 +187,8 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, UnderlyingTree_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::ChunkViewModifier) {
-        auto readRange = Load<TLegacyReadRange>(context);
-        Modifier_.SetReadRange(std::move(readRange));
-    }
     Load(context, Parents_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::ChunkViewModifier) {
-        auto transactionId = Load<TTransactionId>(context);
-        Modifier_.SetTransactionId(transactionId);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::ChunkViewModifier) {
-        Load(context, Modifier_);
-    }
+    Load(context, Modifier_);
 }
 
 TLegacyReadRange TChunkView::GetCompleteReadRange() const

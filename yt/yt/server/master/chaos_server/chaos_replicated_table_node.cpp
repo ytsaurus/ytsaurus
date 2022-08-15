@@ -64,10 +64,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, ChaosCellBundle_);
     Load(context, ReplicationCardId_);
     Load(context, OwnsReplicationCard_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosReplicatedTableSchema) {
-        Load(context, Schema_);
-    }
+    Load(context, Schema_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

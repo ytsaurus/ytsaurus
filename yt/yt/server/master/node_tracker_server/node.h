@@ -155,8 +155,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
-    // COMPAT(babenko)
-    DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TChunkLocationId>, CompatChunkLocationUuids);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
 
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);

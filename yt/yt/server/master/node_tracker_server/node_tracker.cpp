@@ -1363,11 +1363,6 @@ private:
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
         HostMap_.LoadValues(context);
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < EMasterReign::ChunkLocation) {
-            Load<THashMap<TChunkLocationUuid, TNode*>>(context);
-        }
     }
 
 

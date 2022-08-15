@@ -832,9 +832,6 @@ private:
     //! Contains native trunk nodes for which IsConsumer() is true.
     THashSet<TTableNode*> Consumers_;
 
-    // COMPAT(achulkov2)
-    bool NeedToFillQueueSet_ = false;
-
     // COMPAT(ifsmirnov)
     bool NeedToFillMountConfigStorage_ = false;
 
@@ -1119,7 +1116,6 @@ private:
         TableCollocationMap_.Clear();
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
-        NeedToFillQueueSet_ = false;
         NeedToFillMountConfigStorage_ = false;
         Consumers_.clear();
     }
@@ -1145,17 +1141,8 @@ private:
         Load(context, StatisticsUpdateRequests_);
         TableCollocationMap_.LoadValues(context);
 
-        // COMPAT(achulkov2)
-        if (context.GetVersion() >= EMasterReign::QueueList) {
-            Load(context, Queues_);
-        }
-
-        // COMPAT(achulkov2)
-        if (context.GetVersion() >= EMasterReign::ConsumerAttributes) {
-            Load(context, Consumers_);
-        }
-
-        NeedToFillQueueSet_ = context.GetVersion() < EMasterReign::QueueList;
+        Load(context, Queues_);
+        Load(context, Consumers_);
 
         NeedToFillMountConfigStorage_ = context.GetVersion() < EMasterReign::BuiltinMountConfig;
     }
@@ -1175,17 +1162,6 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
-
-        if (NeedToFillQueueSet_) {
-            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
-                if (node->GetType() == EObjectType::Table) {
-                    auto* tableNode = node->As<TTableNode>();
-                    if (tableNode->IsQueueObject()) {
-                        RegisterQueue(tableNode);
-                    }
-                }
-            }
-        }
 
         if (NeedToFillMountConfigStorage_) {
             for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {

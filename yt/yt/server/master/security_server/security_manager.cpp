@@ -2495,9 +2495,6 @@ private:
 
     bool MustRecomputeMembershipClosure_ = false;
 
-    // COMPAT(h0pless)
-    bool RecomputeChunkHostCellMasterMemory_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
@@ -2819,19 +2816,13 @@ private:
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
 
-        // COMPAT(h0pless)
-        RecomputeChunkHostCellMasterMemory_ = context.GetVersion() < EMasterReign::AccountGossipStatisticsOptimization;
-
         // COMPAT(aleksandra-zh, gritukan)
         RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::RecomputeResourceUsageOnceAgainᛝ;
 
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
-        // COMPAT(h0pless)
-        if (context.GetVersion() >= NCellMaster::EMasterReign::AccountGossipStatisticsOptimization) {
-            Load(context, IsChunkHostCell_);
-        }
+        Load(context, IsChunkHostCell_);
     }
 
     void OnAfterSnapshotLoaded() override
@@ -2913,31 +2904,6 @@ private:
         RecomputeAccountResourceUsage();
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
-
-        if (RecomputeChunkHostCellMasterMemory_) {
-            RecomputeChunkHostCellMasterMemory();
-        }
-    }
-
-    void RecomputeChunkHostCellMasterMemory() {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-        auto roles = multicellManager->GetMasterCellRoles(cellTag);
-        IsChunkHostCell_ = Any(roles & EMasterCellRoles::ChunkHost);
-        if (!IsChunkHostCell_) {
-            return;
-        }
-
-        for (auto [accountId, account] : AccountMap_) {
-            if (!IsObjectAlive(account)) {
-                continue;
-            }
-
-            auto& resourceUsage = account->LocalStatistics().ResourceUsage;
-            auto& committedResourceUsage = account->LocalStatistics().CommittedResourceUsage;
-            resourceUsage.SetChunkHostCellMasterMemory(resourceUsage.DetailedMasterMemory().GetTotal());
-            committedResourceUsage.SetChunkHostCellMasterMemory(committedResourceUsage.DetailedMasterMemory().GetTotal());
-        }
     }
 
     void RecomputeAccountResourceUsage()

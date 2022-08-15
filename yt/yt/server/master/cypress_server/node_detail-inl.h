@@ -20,12 +20,8 @@ void TCompositeNodeBase::TGenericAttributes<Transient>::Persist(const NCellMaste
 
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
-    if (context.GetVersion() >= EMasterReign::HunkErasureCodec) {
-        Persist(context, HunkErasureCodec);
-    }
-    if (context.GetVersion() >= EMasterReign::EnableStripedErasureAttribute) {
-        Persist(context, EnableStripedErasure);
-    }
+    Persist(context, HunkErasureCodec);
+    Persist(context, EnableStripedErasure);
     Persist(context, ReplicationFactor);
     Persist(context, Vital);
     Persist(context, Atomicity);
@@ -38,9 +34,7 @@ void TCompositeNodeBase::TGenericAttributes<Transient>::Persist(const NCellMaste
     Persist(context, PrimaryMediumIndex);
     Persist(context, Media);
     Persist(context, TabletCellBundle);
-    if (context.GetVersion() >= EMasterReign::AutoCreateReplicationCard) {
-        Persist(context, ChaosCellBundle);
-    }
+    Persist(context, ChaosCellBundle);
 }
 
 template <bool Transient>

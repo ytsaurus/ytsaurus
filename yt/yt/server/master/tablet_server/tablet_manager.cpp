@@ -2943,8 +2943,6 @@ private:
     bool RecomputeAggregateTabletStatistics_ = false;
     // COMPAT(ifsmirnov)
     bool RecomputeHunkResourceUsage_ = false;
-    // COMPAT(ifsmirnov)
-    bool RecomputeRefsFromTabletsToDynamicStores_ = true;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -5384,14 +5382,8 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
 
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::ExtraMountConfigKeys) {
-            Load(context, MountConfigKeysFromNodes_);
-            Load(context, LocalMountConfigKeys_);
-        }
-
-        // COMPAT(ifsmirnov)
-        RecomputeRefsFromTabletsToDynamicStores_ = context.GetVersion() < EMasterReign::RefFromTabletToDynamicStore;
+        Load(context, MountConfigKeysFromNodes_);
+        Load(context, LocalMountConfigKeys_);
 
         // Update mount config keys whenever the reign changes.
         FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
@@ -5450,7 +5442,6 @@ private:
 
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
-        RecomputeRefsFromTabletsToDynamicStores_ = false;
         FillMountConfigKeys_ = false;
     }
 
@@ -5471,40 +5462,6 @@ private:
         }
 
         InitBuiltins();
-
-        if (RecomputeRefsFromTabletsToDynamicStores_) {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            for (auto [id, dynamicStore] : chunkManager->DynamicStores()) {
-                dynamicStore->ResetTabletCompat();
-            }
-
-            int relationCount = 0;
-
-            for (auto [id, tabletBase] : Tablets()) {
-                if (!IsObjectAlive(tabletBase) || tabletBase->GetType() != EObjectType::Tablet) {
-                    continue;
-                }
-                auto* tablet = tabletBase->As<TTablet>();
-
-                if (!tablet->GetTable()) {
-                    continue;
-                }
-
-                for (auto* child : tablet->GetChunkList()->Children()) {
-                    if (child &&
-                        (child->GetType() == EObjectType::SortedDynamicTabletStore ||
-                         child->GetType() == EObjectType::OrderedDynamicTabletStore))
-                    {
-                        child->AsDynamicStore()->SetTablet(tablet);
-                        ++relationCount;
-                    }
-                }
-            }
-
-            YT_LOG_INFO("Fixed relations between tablets and dynamic stores "
-                "(RelationCount: %v)",
-                relationCount);
-        }
 
         if (FillMountConfigKeys_) {
             auto mountConfig = New<NTabletNode::TTableMountConfig>();

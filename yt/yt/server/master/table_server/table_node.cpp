@@ -158,43 +158,19 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, BackupState);
     Load(context, TabletCountByBackupState);
     Load(context, AggregatedTabletBackupState);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
-        Load(context, BackupCheckpointTimestamp);
-    }
+    Load(context, BackupCheckpointTimestamp);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupReplicated) {
         Load(context, BackupMode);
     }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupErrors) {
-        Load(context, BackupError);
-    }
+    Load(context, BackupError);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupReplicated) {
         Load(context, ReplicaBackupDescriptors);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosDataTransfer &&
-        context.GetVersion() < EMasterReign::ReplicationCardTokenIsNoMore)
-    {
-        YT_VERIFY(!Load<bool>(context));
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ReplicationCardTokenIsNoMore &&
-        context.GetVersion() < EMasterReign::ImplicitReplicationCardId)
-    {
-        Load<NChaosClient::TReplicationCardId>(context);
-    }
-    // COMPAT(max42)
-    if (context.GetVersion() >= EMasterReign::QueueAgentStageAttribute) {
-        Load(context, QueueAgentStage);
-    }
-    // COMPAT(achulkov2)
-    if (context.GetVersion() >= EMasterReign::ConsumerAttributes) {
-        Load(context, TreatAsConsumer);
-        Load(context, IsVitalConsumer);
-    }
+    Load(context, QueueAgentStage);
+    Load(context, TreatAsConsumer);
+    Load(context, IsVitalConsumer);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BuiltinMountConfig) {
         Load(context, *MountConfigStorage);
@@ -372,10 +348,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     LoadTableSchema(context);
     Load(context, SchemaMode_);
     Load(context, OptimizeFor_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::HunkErasureCodec) {
-        Load(context, HunkErasureCodec_);
-    }
+    Load(context, HunkErasureCodec_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
 

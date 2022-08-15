@@ -362,8 +362,6 @@ private:
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    // COMPAT(babenko)
-    bool NeedCreateChunkLocations_ = false;
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     THashMap<TChunkLocationUuid, TChunkLocation*> ChunkLocationUuidToLocation_;
 
@@ -511,7 +509,6 @@ private:
 
         ChunkLocationMap_.Clear();
         ChunkLocationUuidToLocation_.clear();
-        NeedCreateChunkLocations_ = true;
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -532,9 +529,6 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         ChunkLocationMap_.LoadValues(context);
-        // NB: This is just "false" since we did not have DataNodeTracker.* snapshot parts
-        // prior to EMasterReign::ChunkLocation.
-        NeedCreateChunkLocations_ = context.GetVersion() < EMasterReign::ChunkLocation;
     }
 
     TChunkLocationId ChunkLocationIdFromUuid(TChunkLocationUuid uuid)
@@ -552,23 +546,6 @@ private:
 
         for (auto [locationId, location] : ChunkLocationMap_) {
             EmplaceOrCrash(ChunkLocationUuidToLocation_, location->GetUuid(), location);
-        }
-
-        // COMPAT(babenko)
-        if (NeedCreateChunkLocations_) {
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            for (auto [nodeId, node] : nodeTracker->Nodes()) {
-                for (auto locationUuid : node->CompatChunkLocationUuids()) {
-                    auto locationId = ChunkLocationIdFromUuid(locationUuid);
-                    auto* location = CreateChunkLocation(locationUuid, locationId);
-                    location->SetNode(node);
-                    node->ChunkLocations().push_back(location);
-                    YT_LOG_DEBUG("Chunk location migrated to object (LocationUuid: %v, LocationId: %v, NodeAddress: %v)",
-                        locationUuid,
-                        locationId,
-                        node->GetDefaultAddress());
-                }
-            }
         }
     }
 
