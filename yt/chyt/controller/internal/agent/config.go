@@ -1,4 +1,4 @@
-package strawberry
+package agent
 
 import (
 	"a.yandex-team.ru/yt/go/ypath"

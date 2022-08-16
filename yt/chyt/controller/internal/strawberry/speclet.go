@@ -27,6 +27,7 @@ type Speclet struct {
 
 const (
 	DefaultActive                 = false
+	DefaultFamily                 = "none"
 	DefaultStage                  = "production"
 	DefaultRestartOnSpecletChange = false
 )
@@ -36,6 +37,13 @@ func (speclet *Speclet) ActiveOrDefault() bool {
 		return *speclet.Active
 	}
 	return DefaultActive
+}
+
+func (speclet *Speclet) FamilyOrDefault() string {
+	if speclet.Family != nil {
+		return *speclet.Family
+	}
+	return DefaultFamily
 }
 
 func (speclet *Speclet) StageOrDefault() string {

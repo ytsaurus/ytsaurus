@@ -21,7 +21,7 @@ type Controller struct {
 	cluster           string
 }
 
-func (c *Controller) Prepare(ctx context.Context, oplet strawberry.Oplet) (
+func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	alias := oplet.Alias()
 
