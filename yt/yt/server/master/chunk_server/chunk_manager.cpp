@@ -5137,11 +5137,6 @@ private:
 
     void OnProfiling()
     {
-        if (!IsLeader()) {
-            BufferedProducer_->SetEnabled(false);
-            return;
-        }
-
         BufferedProducer_->SetEnabled(true);
 
         TSensorBuffer buffer;
@@ -5149,44 +5144,47 @@ private:
         ChunkReplicator_->OnProfiling(&buffer);
         ChunkSealer_->OnProfiling(&buffer);
         JobRegistry_->OnProfiling(&buffer);
-        ChunkMerger_->OnProfiling(&buffer);
-        ChunkAutotomizer_->OnProfiling(&buffer);
 
-        buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
-        buffer.AddGauge("/sequoia_chunk_count", SequoiaChunkCount_);
-        buffer.AddCounter("/chunks_created", ChunksCreated_);
-        buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
+        if (IsLeader()) {
+            ChunkMerger_->OnProfiling(&buffer);
+            ChunkAutotomizer_->OnProfiling(&buffer);
 
-        buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
-        buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);
-        buffer.AddCounter("/chunk_replicas_removed", ChunkReplicasRemoved_);
+            buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
+            buffer.AddGauge("/sequoia_chunk_count", SequoiaChunkCount_);
+            buffer.AddCounter("/chunks_created", ChunksCreated_);
+            buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
-        buffer.AddGauge("/chunk_view_count", ChunkViewMap_.GetSize());
-        buffer.AddCounter("/chunk_views_created", ChunkViewsCreated_);
-        buffer.AddCounter("/chunk_views_destroyed", ChunkViewsDestroyed_);
+            buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
+            buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);
+            buffer.AddCounter("/chunk_replicas_removed", ChunkReplicasRemoved_);
 
-        buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
-        buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
-        buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
+            buffer.AddGauge("/chunk_view_count", ChunkViewMap_.GetSize());
+            buffer.AddCounter("/chunk_views_created", ChunkViewsCreated_);
+            buffer.AddCounter("/chunk_views_destroyed", ChunkViewsDestroyed_);
 
-        {
-            TWithTagGuard guard(&buffer, "mode", "immediate");
-            buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
+            buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
+            buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
+            buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
+
+            {
+                TWithTagGuard guard(&buffer, "mode", "immediate");
+                buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
+            }
+            {
+                TWithTagGuard guard(&buffer, "mode", "delayed");
+                buffer.AddCounter("/ally_replicas_announced", DelayedAllyReplicasAnnounced_);
+            }
+            {
+                TWithTagGuard guard(&buffer, "mode", "lazy");
+                buffer.AddCounter("/ally_replicas_announced", LazyAllyReplicasAnnounced_);
+            }
+
+            buffer.AddGauge("/endorsement_count", EndorsementCount_);
+            buffer.AddCounter("/endorsements_added", EndorsementsAdded_);
+            buffer.AddCounter("/endorsements_confirmed", EndorsementsConfirmed_);
+
+            buffer.AddGauge("/destroyed_replica_count", DestroyedReplicaCount_);
         }
-        {
-            TWithTagGuard guard(&buffer, "mode", "delayed");
-            buffer.AddCounter("/ally_replicas_announced", DelayedAllyReplicasAnnounced_);
-        }
-        {
-            TWithTagGuard guard(&buffer, "mode", "lazy");
-            buffer.AddCounter("/ally_replicas_announced", LazyAllyReplicasAnnounced_);
-        }
-
-        buffer.AddGauge("/endorsement_count", EndorsementCount_);
-        buffer.AddCounter("/endorsements_added", EndorsementsAdded_);
-        buffer.AddCounter("/endorsements_confirmed", EndorsementsConfirmed_);
-
-        buffer.AddGauge("/destroyed_replica_count", DestroyedReplicaCount_);
 
         BufferedProducer_->Update(std::move(buffer));
     }
