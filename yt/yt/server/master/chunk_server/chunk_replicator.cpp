@@ -3227,6 +3227,7 @@ void TChunkReplicator::StopRefresh(int shardIndex)
     YT_VERIFY(jobEpoch != InvalidJobEpoch);
     JobRegistry_->OnEpochFinished(jobEpoch);
     jobEpoch = InvalidJobEpoch;
+    SetRefreshEpoch(shardIndex, jobEpoch);
 
     YT_LOG_INFO("Chunk refresh stopped (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
