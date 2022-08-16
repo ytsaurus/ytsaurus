@@ -125,6 +125,8 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
             name,
             cluster.Connection->GetClusterTag());
     }
+
+    OnClusterUpdated_.Fire(name, nativeConnectionConfig);
 }
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)

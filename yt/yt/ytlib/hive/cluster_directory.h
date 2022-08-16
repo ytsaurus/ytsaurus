@@ -57,6 +57,8 @@ public:
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
     void UpdateDirectory(const NProto::TClusterDirectory& protoDirectory);
 
+    DEFINE_SIGNAL(void(const TString&, NYTree::INodePtr), OnClusterUpdated);
+
 private:
     struct TCluster
     {

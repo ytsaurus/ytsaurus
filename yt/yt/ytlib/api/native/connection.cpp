@@ -1,6 +1,7 @@
 #include "config.h"
 #include "connection.h"
 #include "client.h"
+#include "service_ticket_channel_factory.h"
 #include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
 #include "transaction_participant.h"
@@ -60,6 +61,8 @@
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
+#include <yt/yt/library/auth_server/tvm_service.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
@@ -80,6 +83,7 @@
 
 namespace NYT::NApi::NNative {
 
+using namespace NAuth;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -129,14 +133,24 @@ public:
             TGuid::Create(),
             Config_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(Config_))
-        , ChannelFactory_(CreateCachingChannelFactory(
-            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
-            Config_->IdleChannelTtl))
         , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
-    { }
+    {
+        if (Config_->TvmId && !Options_.TvmService) {
+            THROW_ERROR_EXCEPTION("Cluster connection requires TVM authentification, but TVM service is unset");
+        }
+        ChannelFactory_ = CreateCachingChannelFactory(
+            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+            Config_->IdleChannelTtl);
+        if (Options_.TvmService && Config_->TvmId) {
+            auto ticketAuth = CreateServiceTicketAuth(Options_.TvmService, *Config_->TvmId);
+            ChannelFactory_ = CreateServiceTicketInjectingChannelFactory(
+                std::move(ChannelFactory_),
+                std::move(ticketAuth));
+        }
+    }
 
     void Initialize()
     {
@@ -607,7 +621,7 @@ private:
     const TString LoggingTag_;
     const TString ClusterId_;
 
-    const NRpc::IChannelFactoryPtr ChannelFactory_;
+    NRpc::IChannelFactoryPtr ChannelFactory_;
     const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
     const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
@@ -653,7 +667,6 @@ private:
     TThreadPoolPtr ConnectionThreadPool_;
 
     std::atomic<bool> Terminated_ = false;
-
 
     void ConfigureMasterCells()
     {
