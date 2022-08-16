@@ -26,7 +26,7 @@ private:
     struct TInputTable
     {
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        size_t TableIndex;
+        int TableIndex;
     };
 
     struct TVersionedSliceFetchState

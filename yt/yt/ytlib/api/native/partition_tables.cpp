@@ -120,7 +120,7 @@ void TMultiTablePartitioner::CollectInput()
             }
         }
 
-        inputTables.emplace_back(TInputTable{std::move(inputChunks), tableIndex});
+        inputTables.emplace_back(TInputTable{std::move(inputChunks), static_cast<int>(tableIndex)});
 
         totalChunkCount += inputChunks.size();
     }
@@ -293,7 +293,7 @@ void TMultiTablePartitioner::FetchVersionedDataSlices()
     std::vector<TFuture<void>> asyncResults;
     asyncResults.reserve(FetchState_.TableFetchers.size());
     for (const auto& fetcher : FetchState_.TableFetchers) {
-        asyncResults.emplace_back(fetcher->Fetch());
+        asyncResults.push_back(fetcher->Fetch());
     }
 
     WaitFor(AllSucceeded(asyncResults))
