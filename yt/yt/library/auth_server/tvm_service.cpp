@@ -3,6 +3,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/yt/library/auth/tvm.h>
+
 #include <yt/yt/core/json/json_parser.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -382,6 +384,38 @@ IDynamicTvmServicePtr CreateDynamicTvmService(
     return New<TDynamicTvmService>(
         std::move(config),
         std::move(profiler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServiceTicketAuth
+    : public IServiceTicketAuth
+{
+public:
+    TServiceTicketAuth(
+        ITvmServicePtr tvmService,
+        ui32 destServiceId)
+        : TvmService_(std::move(tvmService))
+        , DstServiceId_(destServiceId)
+    { }
+
+    TString IssueServiceTicket() override
+    {
+        return TvmService_->GetServiceTicket(DstServiceId_);
+    }
+
+private:
+    ITvmServicePtr TvmService_;
+    ui32 DstServiceId_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServiceTicketAuthPtr CreateServiceTicketAuth(
+    ITvmServicePtr tvmService,
+    ui32 dstServiceId)
+{
+    return New<TServiceTicketAuth>(std::move(tvmService), dstServiceId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

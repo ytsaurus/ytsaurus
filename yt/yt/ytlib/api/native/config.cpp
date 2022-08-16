@@ -270,6 +270,9 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
         .Default(false);
 
+    registrar.Parameter("tvm_id", &TThis::TvmId)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
 

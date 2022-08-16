@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/auth/public.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/profiling/public.h>
@@ -55,6 +57,12 @@ ITvmServicePtr CreateTvmService(
 IDynamicTvmServicePtr CreateDynamicTvmService(
     TTvmServiceConfigPtr config,
     NProfiling::TProfiler profiler = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServiceTicketAuthPtr CreateServiceTicketAuth(
+    ITvmServicePtr tvmService,
+    ui32 dstServiceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

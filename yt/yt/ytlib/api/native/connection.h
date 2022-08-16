@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/core/logging/public.h>
@@ -153,6 +155,9 @@ struct TConnectionOptions
 
     //! If non-null, provides an externally-controlled chunk meta cache.
     NChunkClient::IClientChunkMetaCachePtr ChunkMetaCache;
+
+    //! Must be non-null iff connection has TVM ID specified in config.
+    NAuth::IDynamicTvmServicePtr TvmService;
 
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;

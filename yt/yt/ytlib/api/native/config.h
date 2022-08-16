@@ -207,6 +207,10 @@ public:
 
     bool UseFollowersForWriteTargetsAllocation;
 
+    //! TVM application id corresponding to the cluster.
+    //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
+    std::optional<ui32> TvmId;
+
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.
     void OverrideMasterAddresses(const std::vector<TString>& addresses);
