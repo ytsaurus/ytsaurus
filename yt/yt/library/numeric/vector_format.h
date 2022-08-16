@@ -18,7 +18,7 @@ TString ToString(const std::vector<T>& vec)
         }
     }
     outputStream << "]";
-    return outputStream;
+    return std::move(outputStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
