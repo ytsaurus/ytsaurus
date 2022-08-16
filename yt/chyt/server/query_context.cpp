@@ -410,11 +410,16 @@ TQueryContext* GetQueryContext(DB::ContextPtr context)
     return queryContext;
 }
 
-void InvalidateCache(TQueryContext* queryContext, const std::vector<NYPath::TYPath>& paths)
+void InvalidateCache(
+    TQueryContext* queryContext,
+    std::vector<NYPath::TYPath> paths,
+    std::optional<EInvalidateCacheMode> invalidateMode)
 {
-    auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+    if (!invalidateMode) {
+        invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+    }
     auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
-    queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, invalidateMode, timeout);
+    queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, *invalidateMode, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

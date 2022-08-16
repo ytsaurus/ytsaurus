@@ -1,6 +1,6 @@
 from helpers import get_object_attribute_cache_config
 
-from yt_commands import (authors, raises_yt_error, create, exists, write_table)
+from yt_commands import (authors, raises_yt_error, create, create_dynamic_table, exists, sync_mount_table, write_table)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
@@ -33,7 +33,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
 
     @authors("gudqeit")
-    def test_error_rename_table(self):
+    def test_rename_table_error(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
@@ -58,7 +58,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert clique.make_query('select * from "//tmp/tt"') == [{"a": "2012-12-12 20:00:00"}]
 
     @authors("gudqeit")
-    def test_error_exchange_tables(self):
+    def test_exchange_tables_error(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
@@ -77,3 +77,27 @@ class TestClickHouseDdl(ClickHouseTestBase):
             clique.make_query('exchange tables "//tmp/t" and "//tmp/s"')
             assert clique.make_query('select * from "//tmp/t"') == [{"a": "string"}]
             assert clique.make_query('select * from "//tmp/s"') == [{"a": "2012-12-12 20:00:00"}]
+
+    @authors("gudqeit")
+    def test_truncate_error(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('truncate table "//tmp/t"')
+
+            create_dynamic_table("//tmp/t1", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
+                                                     {"name": "v", "type": "string"}], enable_dynamic_store_read=True)
+            sync_mount_table("//tmp/t1")
+            assert exists("//tmp/t1")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('truncate table "//tmp/t1"')
+
+    @authors("gudqeit")
+    def test_truncate(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+            write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
+            assert clique.make_query('select * from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
+            clique.make_query('truncate table "//tmp/t"')
+            assert clique.make_query('select * from "//tmp/t"') == []
+
+            clique.make_query('truncate table if exists "//tmp/s"')
