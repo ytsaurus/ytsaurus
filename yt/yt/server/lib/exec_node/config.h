@@ -437,6 +437,8 @@ public:
     //! For testing purposes only.
     bool DoNotSetUserId;
 
+    NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
+
     TDuration MemoryTrackerCachePeriod;
     TDuration SMapsMemoryTrackerCachePeriod;
 
@@ -552,6 +554,8 @@ public:
 
     //! Job throttler config, eg. its RPC timeout and backoff.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
+
+    NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 
