@@ -244,7 +244,7 @@ struct TScalarTypeTraits<i64>
             return *value;
         } else if (const auto* value = std::get_if<ui64>(&result)) {
             i64 typedResult;
-            if (TryIntegralCast<i64, ui64>(*value, &typedResult)) {
+            if (TryIntegralCast(*value, &typedResult)) {
                 return typedResult;
             }
         }
@@ -261,7 +261,7 @@ struct TScalarTypeTraits<ui64>
             return *value;
         } else if (const auto* value = std::get_if<i64>(&result)) {
             ui64 typedResult;
-            if (TryIntegralCast<ui64, i64>(*value, &typedResult)) {
+            if (TryIntegralCast(*value, &typedResult)) {
                 return typedResult;
             }
         }
