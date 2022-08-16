@@ -3,10 +3,12 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/nonblocking_batch.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 namespace NYT {
@@ -228,7 +230,7 @@ private:
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
                 WriteFailuresCounter_.Increment();
-                YT_LOG_WARNING(ex, "Failed to uppload archived rows (RetryDelay: %v, PendingItems: %v)",
+                YT_LOG_WARNING(ex, "Failed to upload archived rows (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
             }
