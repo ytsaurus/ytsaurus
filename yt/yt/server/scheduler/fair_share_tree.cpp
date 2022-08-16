@@ -2034,7 +2034,10 @@ private:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         // TODO(egor-gutrov): remove after fixing test_user_slots_validation
-        YT_LOG_DEBUG("Validating resource limits (RequiredResourceLimits.UserSlots: %v)", requiredResourceLimits->UserSlots);
+        YT_LOG_DEBUG("Validating resource limits (RequiredResourceLimits.UserSlots: %v, Pool: %v, OperationId: %v)",
+            requiredResourceLimits->UserSlots,
+            pool->GetId(),
+            operation->GetId());
         auto requiredLimits = ToJobResources(requiredResourceLimits, TJobResources::Infinite());
         auto actualLimits = ToJobResources(operation->GetStrategySpec()->ResourceLimits, TJobResources::Infinite());
         if (Dominates(requiredLimits, actualLimits)) {
@@ -2052,6 +2055,7 @@ private:
             "Operations of type %Qlv must have small enough specified resource limits in spec or in some of ancestor pools",
             operation->GetType())
             << TErrorAttribute("operation_id", operation->GetId())
+            << TErrorAttribute("pool", pool->GetId())
             << TErrorAttribute("required_resource_limits", requiredResourceLimits)
             << TErrorAttribute("tree_id", TreeId_);
     }
