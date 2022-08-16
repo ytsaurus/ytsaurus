@@ -75,8 +75,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, SerializingTabletIds);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, LockedTablets);
-
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TabletsToUpdateReplicationProgress);
     DEFINE_BYVAL_RW_PROPERTY(bool, CompatSerializationForced);
 

@@ -369,8 +369,8 @@ public:
         }
 
         for (auto* transaction : transactions) {
-            for (auto* tablet : GetAffectedTablets(transaction)) {
-                transaction->LockedTablets().push_back(tablet);
+            YT_VERIFY(GetTransientAffectedTablets(transaction).empty());
+            for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
                 LockTablet(tablet);
             }
         }
@@ -751,7 +751,7 @@ private:
             tabletWriteManager->OnTransactionCommitted(transaction);
         }
 
-        if (transaction->SerializingTabletIds().empty()) {
+        if (!transaction->IsSerializationNeeded()) {
             OnTransactionFinished(transaction);
         }
     }
@@ -864,6 +864,12 @@ private:
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             tabletWriteManager->OnTransactionTransientReset(transaction);
         }
+
+        // Release all transient locks.
+        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
+            UnlockTablet(tablet);
+        }
+        transaction->TransientAffectedTabletIds().clear();
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)
@@ -1022,7 +1028,6 @@ private:
 
         auto tabletId = tablet->GetId();
         if (transaction->TransientAffectedTabletIds().emplace(tabletId).second) {
-            transaction->LockedTablets().push_back(tablet);
             auto lockCount = LockTablet(tablet);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Transaction transiently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
@@ -1039,7 +1044,6 @@ private:
 
         auto tabletId = tablet->GetId();
         if (transaction->PersistentAffectedTabletIds().emplace(tabletId).second) {
-            transaction->LockedTablets().push_back(tablet);
             auto lockCount = LockTablet(tablet);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Transaction persistently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
@@ -1089,12 +1093,16 @@ private:
 
     void UnlockLockedTablets(TTransaction* transaction)
     {
-        auto& tablets = transaction->LockedTablets();
-        while (!tablets.empty()) {
-            auto* tablet = tablets.back();
-            tablets.pop_back();
+        // NB: Transaction may hold both transient and persistent lock on tablet,
+        // so #GetAffectedTablets cannot be used here.
+        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
             UnlockTablet(tablet);
         }
+        //transaction->TransientAffectedTabletIds().clear();
+        for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
+            UnlockTablet(tablet);
+        }
+        //transaction->PersistentAffectedTabletIds().clear();
     }
 
     TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const

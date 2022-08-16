@@ -1003,7 +1003,13 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        for (auto* tablet : transaction->LockedTablets()) {
+        const auto& tabletManager = Slot_->GetTabletManager();
+        for (auto tabletId : transaction->PersistentAffectedTabletIds()) {
+            auto* tablet = tabletManager->FindTablet(tabletId);
+            if (!tablet) {
+                continue;
+            }
+
             if (tablet->GetCommitOrdering() != ECommitOrdering::Strong) {
                 continue;
             }

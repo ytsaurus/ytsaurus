@@ -327,6 +327,12 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AbortPrelockedRows(transaction);
+
+        // If transaction is transient, it is going to be removed, so we drop its write states.
+        if (transaction->GetTransient()) {
+            YT_VERIFY(!TransactionIdToPersistentWriteState_.contains(transaction->GetId()));
+            TransactionIdToTransientWriteState_.erase(transaction->GetId());
+        }
     }
 
     void OnTransientGenerationPromoted(TTransaction* transaction) override
