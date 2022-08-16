@@ -71,6 +71,8 @@ struct IBootstrapBase
     virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const = 0;
 
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetUserJobContainerCreationThrottler() const = 0;
+
     virtual const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const = 0;
 
     // Config stuff.
@@ -219,6 +221,8 @@ public:
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
     const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const override;
+
+    const NConcurrency::IThroughputThrottlerPtr& GetUserJobContainerCreationThrottler() const override;
 
     const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
 

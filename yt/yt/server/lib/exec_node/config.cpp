@@ -474,6 +474,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
+    registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
+        .DefaultNew();
+
     registrar.Parameter("test_poll_job_shell", &TThis::TestPollJobShell)
         .Default(false);
 
@@ -501,6 +504,11 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("sensor_dump_timeout", &TThis::SensorDumpTimeout)
         .Default(TDuration::Seconds(5));
+
+    registrar.Preprocessor([] (TThis* config) {
+        // 10 user jobs containers per second by default.
+        config->UserJobContainerCreationThrottler->Limit = 10;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -579,6 +587,14 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
+
+    registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // 10 user jobs containers per second by default.
+        config->UserJobContainerCreationThrottler->Limit = 10;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

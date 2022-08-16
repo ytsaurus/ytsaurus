@@ -225,6 +225,20 @@ IThroughputThrottlerPtr CreateOutJobRpsThrottler(
         logger);
 }
 
+IThroughputThrottlerPtr CreateUserJobContainerCreationThrottler(
+    const TJobThrottlerConfigPtr& config,
+    const IChannelPtr& channel,
+    const TWorkloadDescriptor& descriptor,
+    TJobId jobId)
+{
+    return New<TJobBandwidthThrottler>(
+        config,
+        channel,
+        EJobThrottlerType::ContainerCreation,
+        descriptor,
+        jobId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

@@ -612,6 +612,9 @@ private:
 
     TFuture<void> SpawnUserProcess()
     {
+        WaitFor(Host_->GetUserJobContainerCreationThrottler()->Throttle(1))
+            .ThrowOnError();
+
         return UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},

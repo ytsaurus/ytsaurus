@@ -130,6 +130,8 @@ private:
                 return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
             case EJobThrottlerType::OutRps:
                 return Bootstrap_->GetReadRpsOutThrottler();
+            case EJobThrottlerType::ContainerCreation:
+                return Bootstrap_->GetUserJobContainerCreationThrottler();
             default:
                 THROW_ERROR_EXCEPTION("Unknown throttler type %Qlv", throttlerType);
         }

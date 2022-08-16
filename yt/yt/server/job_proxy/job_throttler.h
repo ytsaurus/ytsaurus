@@ -37,6 +37,12 @@ NConcurrency::IThroughputThrottlerPtr CreateOutJobRpsThrottler(
     NJobTrackerClient::TJobId jobId,
     const NLogging::TLogger& logger);
 
+NConcurrency::IThroughputThrottlerPtr CreateUserJobContainerCreationThrottler(
+    const TJobThrottlerConfigPtr& config,
+    const NRpc::IChannelPtr& channel,
+    const TWorkloadDescriptor& descriptor,
+    NJobTrackerClient::TJobId jobId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

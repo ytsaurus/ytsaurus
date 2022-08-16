@@ -93,6 +93,7 @@ struct IJobHost
     virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const = 0;
 
     virtual TString AdjustPath(const TString& path) const = 0;
 

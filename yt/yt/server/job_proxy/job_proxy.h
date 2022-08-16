@@ -70,6 +70,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
+    NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -139,6 +140,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr InBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UserJobContainerCreationThrottler_;
 
     NChunkClient::IBlockCachePtr ReaderBlockCache_;
 

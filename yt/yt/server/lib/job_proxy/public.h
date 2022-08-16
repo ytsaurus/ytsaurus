@@ -35,6 +35,9 @@ DEFINE_ENUM(EJobThrottlerType,
     (InBandwidth)
     (OutBandwidth)
     (OutRps)
+    // This throttler limits total rate of user job container creation on the node.
+    // It eliminates system overload due to extensive use of MTN-enabled user job containers.
+    (ContainerCreation)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

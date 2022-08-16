@@ -206,6 +206,11 @@ IThroughputThrottlerPtr TJobProxy::GetOutRpsThrottler() const
     return OutRpsThrottler_;
 }
 
+IThroughputThrottlerPtr TJobProxy::GetUserJobContainerCreationThrottler() const
+{
+    return UserJobContainerCreationThrottler_;
+}
+
 void TJobProxy::SendHeartbeat()
 {
     auto job = FindJob();
@@ -655,12 +660,19 @@ TJobResult TJobProxy::RunJob()
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_,
                 Logger);
+
+            UserJobContainerCreationThrottler_ = CreateUserJobContainerCreationThrottler(
+                Config_->JobThrottler,
+                supervisorChannel,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_);
         } else {
             YT_LOG_INFO("Job throttling disabled");
 
             InBandwidthThrottler_ = GetUnlimitedThrottler();
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
+            UserJobContainerCreationThrottler_ = GetUnlimitedThrottler();
         }
 
         const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();

@@ -337,6 +337,11 @@ public:
         return ReadRpsOutThrottler_;
     }
 
+    const NConcurrency::IThroughputThrottlerPtr& GetUserJobContainerCreationThrottler() const override
+    {
+        return UserJobContainerCreationThrottler_;
+    }
+
     const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const override
     {
         return AnnounceChunkReplicaRpsOutThrottler_;
@@ -675,6 +680,9 @@ private:
     IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
     IThroughputThrottlerPtr ReadRpsOutThrottler_;
 
+    IReconfigurableThroughputThrottlerPtr RawUserJobContainerCreationThrottler_;
+    IThroughputThrottlerPtr UserJobContainerCreationThrottler_;;
+
     IReconfigurableThroughputThrottlerPtr RawAnnounceChunkReplicaRpsOutThrottler_;
     IThroughputThrottlerPtr AnnounceChunkReplicaRpsOutThrottler_;
 
@@ -809,6 +817,13 @@ private:
                 ClusterNodeProfiler.WithPrefix("/throttlers"));
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
+
+        RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+            Config_->ExecNode->UserJobContainerCreationThrottler,
+            "UserJobContainerCreation",
+            ClusterNodeLogger,
+            ClusterNodeProfiler.WithPrefix("/user_job_container_creation_throttler"));
+        UserJobContainerCreationThrottler_ = IThroughputThrottlerPtr(RawUserJobContainerCreationThrottler_);
 
         RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->ReadRpsOutThrottler,
@@ -1236,6 +1251,9 @@ private:
         RawAnnounceChunkReplicaRpsOutThrottler_->Reconfigure(newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
                 ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
                 : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
+        RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler
+                ? newConfig->ExecNode->UserJobContainerCreationThrottler
+                : Config_->ExecNode->UserJobContainerCreationThrottler);
 
         ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
 
@@ -1357,6 +1375,11 @@ const IThroughputThrottlerPtr& TBootstrapBase::GetDefaultOutThrottler() const
 const IThroughputThrottlerPtr& TBootstrapBase::GetReadRpsOutThrottler() const
 {
     return Bootstrap_->GetReadRpsOutThrottler();
+}
+
+const NConcurrency::IThroughputThrottlerPtr& TBootstrapBase::GetUserJobContainerCreationThrottler() const
+{
+    return Bootstrap_->GetUserJobContainerCreationThrottler();
 }
 
 const IThroughputThrottlerPtr& TBootstrapBase::GetAnnounceChunkReplicaRpsOutThrottler() const
