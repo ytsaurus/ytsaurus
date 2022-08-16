@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/chyt/controller/internal/agent"
 	"a.yandex-team.ru/yt/chyt/controller/internal/sleep"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
@@ -29,17 +30,17 @@ func abortAll(t *testing.T, env *yttest.Env) {
 	}
 }
 
-func createAgent(env *yttest.Env, stage string) *strawberry.Agent {
+func createAgent(env *yttest.Env, stage string) *agent.Agent {
 	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
 
-	config := &strawberry.Config{
+	config := &agent.Config{
 		Root:                  helpers.StrawberryRoot,
 		PassPeriod:            yson.Duration(time.Millisecond * 500),
 		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
 		Stage:                 stage,
 	}
 
-	agent := strawberry.NewAgent(
+	agent := agent.NewAgent(
 		"test",
 		env.YT,
 		l,
@@ -53,7 +54,7 @@ func createAgent(env *yttest.Env, stage string) *strawberry.Agent {
 	return agent
 }
 
-func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
+func prepare(t *testing.T) (*yttest.Env, *agent.Agent) {
 	env, cancel := yttest.NewEnv(t)
 	t.Cleanup(cancel)
 

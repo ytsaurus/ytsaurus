@@ -153,6 +153,8 @@ type Revision uint64
 
 type OperationID guid.GUID
 
+var NullOperationID = OperationID(guid.FromHalves(0, 0))
+
 func (id OperationID) String() string {
 	return guid.GUID(id).String()
 }

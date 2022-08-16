@@ -7,6 +7,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/chyt/controller/internal/agent"
 	"a.yandex-team.ru/yt/chyt/controller/internal/api"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -33,7 +34,7 @@ type Config struct {
 	LocationProxies []string `yson:"location_proxies"`
 
 	// Strawberry contains strawberry-specific configuration.
-	Strawberry *strawberry.Config `yson:"strawberry"`
+	Strawberry *agent.Config `yson:"strawberry"`
 
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
@@ -44,7 +45,7 @@ type Config struct {
 // Location defines an operating cluster.
 type Location struct {
 	l   *logzap.Logger
-	a   *strawberry.Agent
+	a   *agent.Agent
 	c   strawberry.Controller
 	ytc yt.Client
 }
@@ -129,7 +130,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 		}
 
 		loc.c = cf(withName(loc.l, "c"), loc.ytc, config.Strawberry.Root, proxy, config.Controller)
-		loc.a = strawberry.NewAgent(proxy, loc.ytc, withName(loc.l, "a"), loc.c, config.Strawberry)
+		loc.a = agent.NewAgent(proxy, loc.ytc, withName(loc.l, "a"), loc.c, config.Strawberry)
 
 		app.locations = append(app.locations, loc)
 		l.Debug("location ready")

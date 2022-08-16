@@ -5,7 +5,6 @@ import (
 	"text/template"
 	"time"
 
-	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
@@ -26,14 +25,14 @@ func operationURL(cluster string, opID yt.OperationID) interface{} {
 	return ToYsonURL("https://yt.yandex-team.ru/" + cluster + "/operations/" + opID.String())
 }
 
-func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
+func (oplet *Oplet) OpAnnotations() map[string]interface{} {
 	return map[string]interface{}{
 		"strawberry_family":              oplet.c.Family(),
-		"strawberry_stage":               a.config.Stage,
-		"strawberry_operation_namespace": a.OperationNamespace(),
-		"strawberry_node":                a.opletNode(oplet),
+		"strawberry_stage":               oplet.agentInfo.Stage,
+		"strawberry_operation_namespace": oplet.agentInfo.OperationNamespace,
+		"strawberry_node":                oplet.cypressNode,
 		"strawberry_controller": map[string]interface{}{
-			"address": a.hostname,
+			"address": oplet.agentInfo.Hostname,
 			// TODO(max42): build Revision, etc.
 		},
 		"strawberry_incarnation":           oplet.NextIncarnationIndex(),
@@ -41,28 +40,28 @@ func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 	}
 }
 
-func opDescription(a *Agent, oplet *Oplet) map[string]interface{} {
+func (oplet *Oplet) OpDescription() map[string]interface{} {
 	desc := map[string]interface{}{
-		"strawberry_node":        navigationURL(a.proxy, a.opletNode(oplet)),
+		"strawberry_node":        navigationURL(oplet.agentInfo.Proxy, oplet.cypressNode),
 		"strawberry_incarnation": oplet.NextIncarnationIndex(),
 	}
-	if oplet.persistentState.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
-		desc["strawberry_previous_operation"] = operationURL(a.proxy, oplet.persistentState.YTOpID)
+	if oplet.persistentState.YTOpID != yt.NullOperationID {
+		desc["strawberry_previous_operation"] = operationURL(oplet.agentInfo.Proxy, oplet.persistentState.YTOpID)
 	}
 	return desc
 }
 
-func cypAnnotation(a *Agent, oplet *Oplet) string {
+func (oplet *Oplet) CypAnnotation() string {
 	data := struct {
-		Proxy             string
 		Alias             string
+		AgentInfo         AgentInfo
 		PersistentState   PersistentState
 		InfoState         InfoState
 		StrawberrySpeclet Speclet
 		Now               time.Time
 	}{
-		a.proxy,
 		oplet.alias,
+		oplet.agentInfo,
 		oplet.persistentState,
 		oplet.infoState,
 		oplet.strawberrySpeclet,
@@ -74,8 +73,8 @@ func cypAnnotation(a *Agent, oplet *Oplet) string {
 **Active**: {{.StrawberrySpeclet.ActiveOrDefault}}
 **Pool**: {{.StrawberrySpeclet.Pool}}
 
-**Current operation state**: {{.InfoState.YTOpState}}
-**Current operation id**: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.Proxy}}/operations/{{.PersistentState.YTOpID}})
+**Current operation state**: {{.PersistentState.YTOpState}}
+**Current operation id**: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.AgentInfo.Proxy}}/operations/{{.PersistentState.YTOpID}})
 **Current incarnation**: {{.PersistentState.IncarnationIndex}}
 **Curent operation speclet revision**: {{.PersistentState.OperationSpecletRevision}}
 
@@ -85,8 +84,9 @@ func cypAnnotation(a *Agent, oplet *Oplet) string {
 
 **Last updated time**: {{.Now}}
 
-{{if .InfoState.Error}}**Error**: {{.InfoState.Error}}{{end}}
-`))
+{{if .PersistentState.BackoffUntil}}**Backoff until**: {{.PersistentState.BackoffUntil}}
+{{end}}{{if .InfoState.Error}}**Error**: {{.InfoState.Error}}
+{{end}}`))
 
 	b := new(bytes.Buffer)
 	if err := t.Execute(b, &data); err != nil {

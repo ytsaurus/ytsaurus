@@ -13,7 +13,7 @@ import (
 // how operations should be started, which files to bring with them, how to check liveness, etc.
 type Controller interface {
 	// Prepare builds all necessary operation spec fields.
-	Prepare(ctx context.Context, oplet Oplet) (
+	Prepare(ctx context.Context, oplet *Oplet) (
 		spec map[string]interface{}, description map[string]interface{}, annotation map[string]interface{}, err error)
 
 	// Family returns short lowercase_with_underscore identifier which is included to all vanilla
