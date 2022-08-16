@@ -1032,7 +1032,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_pool_tree("other", config={"nodes_filter": "other"})
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{}/@user_tags".format(node), ["other"])
-        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu", default=None) == 1.0)
 
         op2 = run_sleeping_vanilla(spec={"pool_trees": ["other"]})
         wait(lambda: get(scheduler_orchid_operation_path(op2.id, tree="other") + "/resource_usage/cpu", default=None) == 1.0)
