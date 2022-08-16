@@ -1006,7 +1006,6 @@ public:
         auto invalidateCachedObjectAttributesCallback = [context, path = path.GetPath()] () {
             auto* queryContext = GetQueryContext(context);
             auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
-            auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
 
             if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
                 // Write in secondary query means distributed insert select.
@@ -1014,7 +1013,7 @@ public:
                 invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
             }
 
-            queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
+            InvalidateCache(queryContext, {path}, invalidateMode);
         };
 
         DB::BlockOutputStreamPtr outputStream;
@@ -1146,16 +1145,35 @@ public:
         preparer.Fire();
 
         // Callback to invalidate cached object attributes after the query is completed.
-        auto invalidateCachedObjectAttributesCallback = [queryContext, path = table->Path.GetPath()] () {
-            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
-            auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
-            queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
-        };
+        std::vector<TYPath> paths{table->GetPath()};
+        auto invalidateCachedObjectAttributesCallback = std::bind(InvalidateCache, queryContext, paths, /*invalidateMode*/ std::nullopt);
 
         // Finally, build pipeline of all those pipes.
         auto pipeline = preparer.ExtractPipeline(std::move(invalidateCachedObjectAttributesCallback));
 
         return std::move(pipeline);
+    }
+
+    void truncate(
+        const DB::ASTPtr& /*query*/,
+        const DB::StorageMetadataPtr& /*metadataSnapshot*/,
+        DB::ContextPtr context,
+        DB::TableExclusiveLockHolder&) override
+    {
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+
+        THROW_ERROR_EXCEPTION_IF(Tables_.size() != 1,
+            "Wrong number of tables for TRUNCATE: %v instead of 1",
+            Tables_.size());
+
+        const auto& table = Tables_.front();
+        THROW_ERROR_EXCEPTION_IF(table->Dynamic,
+            "TRUNCATE is not supported for dynamic tables");
+
+        EraseTable(context);
+
+        auto* queryContext = GetQueryContext(context);
+        InvalidateCache(queryContext, {table->GetPath()});
     }
 
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
