@@ -410,6 +410,8 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
+    bool EnableBlockTracker;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
