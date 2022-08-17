@@ -28,6 +28,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, DiskFamilyWhitelist);
+
 public:
     explicit TMedium(TMediumId id);
 
