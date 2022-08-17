@@ -1725,6 +1725,8 @@ class YTInstance(object):
         proxies_ports = []
         for proxy in self.configs["rpc_proxy"]:
             proxies_ports.append(proxy["rpc_port"])
+            if "tvm_only_rpc_port" in proxy:
+                proxies_ports.append(proxy["tvm_only_rpc_port"])
 
             discovery_service_config = get_value(proxy.get("discovery_service"), {})
             discovery_service_enabled = get_value(discovery_service_config.get("enable"), True)
