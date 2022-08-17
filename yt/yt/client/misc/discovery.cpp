@@ -146,10 +146,9 @@ TFuture<void> TDiscovery::StopPolling()
     return PeriodicExecutor_->Stop();
 }
 
-i64 TDiscovery::GetWeight()
+int TDiscovery::Version() const
 {
-    auto guard = ReaderGuard(Lock_);
-    return List_.size();
+    return 1;
 }
 
 void TDiscovery::DoEnter(TString name, IAttributeDictionaryPtr attributes)
@@ -329,6 +328,23 @@ void TDiscovery::DoRestoreTransaction(int epoch, const TError& error)
             TDelayedExecutor::WaitForDuration(Config_->TransactionPingPeriod);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDiscoveryPtr CreateDiscoveryV1(
+    TDiscoveryConfigPtr config,
+    NApi::IClientPtr client,
+    IInvokerPtr invoker,
+    std::vector<TString> extraAttributes,
+    NLogging::TLogger logger)
+{
+    return New<TDiscovery>(
+        std::move(config),
+        std::move(client),
+        std::move(invoker),
+        std::move(extraAttributes),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
