@@ -722,6 +722,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         logger.info("Spark Master's Web UI: http://{0}".format(master_address))
         return op
     except Exception as err:
+        logging.error(err, exc_info=True)
         abort_operation_silently(op_driver, client)
         abort_operation_silently(op_child, client)
         abort_operation_silently(op, client)
@@ -732,7 +733,7 @@ def abort_operation_silently(op_id, client):
         if op_id:
             abort_operation(op_id, client=client)
     except Exception as err:
-        logging.error("Failed to abort operation {0}".format(op_id))
+        logging.error("Failed to abort operation {0}".format(op_id), exc_info=True)
         return err
 
 
