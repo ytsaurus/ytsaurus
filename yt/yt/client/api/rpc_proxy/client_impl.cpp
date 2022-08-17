@@ -1,7 +1,6 @@
 #include "client_impl.h"
 
 #include "config.h"
-#include "credentials_injecting_channel.h"
 #include "helpers.h"
 #include "private.h"
 #include "table_mount_cache.h"
@@ -28,6 +27,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/dynamic_channel_pool.h>
@@ -45,6 +46,7 @@ namespace NYT::NApi::NRpcProxy {
 using NYT::ToProto;
 using NYT::FromProto;
 
+using namespace NAuth;
 using namespace NChaosClient;
 using namespace NObjectClient;
 using namespace NRpc;

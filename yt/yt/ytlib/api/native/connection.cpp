@@ -1,7 +1,6 @@
 #include "config.h"
 #include "connection.h"
 #include "client.h"
-#include "service_ticket_channel_factory.h"
 #include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
 #include "transaction_participant.h"
@@ -60,6 +59,8 @@
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
+
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
 
 #include <yt/yt/library/auth_server/tvm_service.h>
 
