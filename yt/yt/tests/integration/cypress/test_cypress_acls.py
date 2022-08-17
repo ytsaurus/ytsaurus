@@ -1,11 +1,13 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
     authors, create, ls, get, set, copy, move, remove,
     exists, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
     read_table, write_table, alter_table,
-    map, set_account_disk_space_limit, raises_yt_error,)
+    map, set_account_disk_space_limit, raises_yt_error,
+    gc_collect, build_snapshot,
+    create_access_control_object_namespace, create_access_control_object,)
 
 from yt_type_helpers import make_schema
 
@@ -1526,6 +1528,21 @@ class TestCypressAcls(CheckPermissionBase):
 
         self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
 
+    @authors("shakurov")
+    def test_special_acd_holders(self):
+        create_user("u1")
+
+        create_access_control_object_namespace("cats")
+        create_access_control_object("garfield", "cats")
+        set("//sys/access_control_object_namespaces/cats/garfield/@acl/end",
+            make_ace("allow", "u1", "read"))
+
+        remove("//sys/access_control_object_namespaces/cats/garfield")
+        gc_collect()
+
+        # Must not crash.
+        build_snapshot(cell_id=None, set_read_only=False)
+        get("//sys/users/u1/@")
 
 ##################################################################
 
@@ -1562,3 +1579,20 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         self._test_columnar_acl_copy_yt_12749("//tmp", "//portals/p")
         self._test_columnar_acl_copy_yt_12749("//portals/p", "//tmp")
+
+    @authors("shakurov")
+    def test_special_acd_holders(self):
+        super(TestCypressAclsPortal, self).test_special_acd_holders()
+
+        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 12})
+        set("//portals/p1&/@acl/end", make_ace("allow", "u1", "read"))
+        portal_exit_id = get("//portals/p1/@id")
+
+        remove("//portals/p1")
+        gc_collect()
+
+        wait(lambda: not exists("#" + portal_exit_id))
+
+        # Must not crash.
+        build_snapshot(cell_id=None, set_read_only=False)
+        get("//sys/users/u1/@")
