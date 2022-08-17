@@ -32,6 +32,7 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/ema_counter.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -40,14 +41,6 @@
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletPerformanceCounter
-{
-    i64 Count = 0;
-    double Rate = 0.0;
-    double Rate10 = 0.0;
-    double Rate60 = 0.0;
-};
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
     XX(dynamic_row_read,                        DynamicRowRead) \
@@ -72,8 +65,8 @@ struct TTabletPerformanceCounter
 
 struct TTabletPerformanceCounters
 {
-    TInstant Timestamp;
-    #define XX(name, Name) TTabletPerformanceCounter Name;
+    static const TEmaCounter::TWindowDurations TabletPerformanceWindowDurations;
+    #define XX(name, Name) TEmaCounter Name = TEmaCounter(TabletPerformanceWindowDurations);
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
 };
