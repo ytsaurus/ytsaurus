@@ -985,9 +985,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_nodes_with_unsupported_interruption_period", &TThis::CheckNodesWithUnsupportedInterruptionPeriod)
         .Default(TDuration::Minutes(1));
 
-    // TODO(eshcherbin): Change default to true. Don't forget to remove this option from tests.
     registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
-        .Default(false);
+        .Default(true);
     
     registrar.Parameter("crash_on_job_heartbeat_processing_exception", &TThis::CrashOnJobHeartbeatProcessingException)
         .Default(false);

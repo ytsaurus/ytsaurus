@@ -54,7 +54,6 @@ class TestPoolMetrics(YTEnvSetup):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
-            "wait_for_agent_heartbeat_during_operation_unregistration_at_controller": True,
         },
     }
 
