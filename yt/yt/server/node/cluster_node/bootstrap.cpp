@@ -503,7 +503,12 @@ public:
 
     const IBlockTrackerPtr& GetBlockTracker() const override
     {
-        return BlockTracker_;
+        if (EnableBlockTracker_.load()) {
+            return BlockTracker_;
+        } else {
+            static const IBlockTrackerPtr nullBlockTracker;
+            return nullBlockTracker;
+        }
     }
 
     const IClientBlockCachePtr& GetClientBlockCache() const override
@@ -700,6 +705,7 @@ private:
     IMasterConnectorPtr MasterConnector_;
 
     IBlockTrackerPtr BlockTracker_;
+    std::atomic<bool> EnableBlockTracker_ = {true};
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -1265,6 +1271,8 @@ private:
         }
 
         IOTracker_->SetConfig(newConfig->IOTracker);
+
+        EnableBlockTracker_ = newConfig->EnableBlockTracker;
 
     #ifdef __linux__
         if (InstanceLimitsTracker_) {
