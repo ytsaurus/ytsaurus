@@ -4,7 +4,8 @@ from .batch_response import apply_function_to_result
 from .config import get_config
 from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
                      get_value, unlist, get_started_by,
-                     parse_bool, is_prefix, require, YtError, update)
+                     parse_bool, is_prefix, require, YtError, update,
+                     underscore_case_to_camel_case)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
@@ -587,12 +588,13 @@ class UserJobSpecBuilder(object):
                         tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
                 local_files = file_manager.upload_files()
         else:
+            title = spec["command"].split(' ')[0] if isinstance(spec["command"], str) else None
             prepare_result = WrapResult(
                 cmd=spec["command"],
                 tmpfs_size=0,
                 environment={},
                 local_files_to_remove=[],
-                title=None)
+                title=title)
             local_files = file_manager.upload_files()
 
         tmpfs_size = prepare_result.tmpfs_size
@@ -1195,7 +1197,10 @@ class SpecBuilder(object):
     def build(self, client=None):
         """Builds final spec."""
         spec = self._do_build(client)
+
+        operation_title_parts = []
         for user_job_script_path in self._user_job_scripts:
+            user_job_title_parts = []
             task_spec = spec
             skip_script = False
             for part in user_job_script_path:
@@ -1203,14 +1208,37 @@ class SpecBuilder(object):
                     skip_script = True
                     break
                 task_spec = task_spec[part]
+                user_job_title_parts.append(part)
             if not skip_script:
                 self._apply_environment_patch(task_spec, client)
+
+                user_job_title = ""
+                if "title" in task_spec and task_spec["title"]:
+                    user_job_title = task_spec["title"]
+
+                for title_part in reversed(user_job_title_parts):
+                    if user_job_title:
+                        user_job_title = "{}[{}]".format(underscore_case_to_camel_case(title_part), user_job_title)
+                    else:
+                        user_job_title = underscore_case_to_camel_case(title_part)
+
+                if user_job_title:
+                    operation_title_parts.append(user_job_title)
+
         # For vanilla operation we should also visit all tasks from spec, as
         # they may be absent in _user_job_scripts in case of raw spec.
         # But be careful not to process same user job spec twice!
         for task_key, task_spec in spec.get("tasks", {}).items():
             if ("tasks", task_key) not in self._user_job_scripts:
                 self._apply_environment_patch(task_spec, client)
+
+                if "title" in task_spec and task_spec["title"]:
+                    operation_title_parts.append(task_spec["title"])
+
+        if "title" not in spec and operation_title_parts:
+            operation_title = ", ".join(operation_title_parts)
+            spec = update(spec, {"title": operation_title})
+
         return spec
 
     def supports_user_job_spec(self):

@@ -61,6 +61,7 @@ class CppJob:
     """
     def __init__(self, mapper_name=None, constructor_args=_CONSTRUCTOR_ARGS_SENTINEL):
         self._mapper_name = mapper_name if isinstance(mapper_name, bytes) else mapper_name.encode("utf-8")
+        self.__name__ = "CppJob[{}]".format(self._mapper_name.decode("utf-8"))
         self._constructor_args_yson = b""
         if constructor_args is not _CONSTRUCTOR_ARGS_SENTINEL:
             self._constructor_args_yson = yson.dumps(constructor_args)

@@ -5,6 +5,12 @@ from yt.wrapper.common import update, get_started_by
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
 
+try:
+    from yt.python.yt.cpp_wrapper import CppJob
+    _CPP_WRAPPER_AVAILABLE = True
+except ImportError:
+    _CPP_WRAPPER_AVAILABLE = False
+
 import yt.wrapper as yt
 
 import pytest
@@ -475,3 +481,42 @@ class TestSpecBuilders(object):
         with set_config_option("started_by_command_length_limit", limit):
             result_spec = deepcopy(vanilla_spec).build()
             assert result_spec["started_by"]["command"] == [sys.argv[0], sys.argv[1][0] + "...truncated"]
+
+    @authors("aleexfi")
+    def test_human_readable_operation_title(self):
+        spec = MapSpecBuilder() \
+            .begin_mapper() \
+                .command("cat") \
+            .end_mapper() \
+            .input_table_paths(["//tmp/t_in"]) \
+            .output_table_paths(["//tmp/t_out"]) \
+            .build()
+
+        assert "title" in spec
+        assert "Mapper" in spec["title"] and "cat" in spec["title"]
+
+        spec = VanillaSpecBuilder() \
+            .begin_task("sample") \
+                .command("cat") \
+            .job_count(1) \
+            .end_task() \
+            .build()
+
+        assert "title" in spec
+        assert "cat" in spec["title"] and "Sample" in spec["title"]
+
+        if _CPP_WRAPPER_AVAILABLE:
+            spec = MapReduceSpecBuilder() \
+                .begin_reduce_combiner() \
+                    .command(CppJob("cat")) \
+                .end_reduce_combiner() \
+                .begin_reducer() \
+                    .command(CppJob("cat")) \
+                .end_reducer() \
+                .reduce_by(["x"]) \
+                .sort_by(["x"]) \
+                .build()
+
+            assert "title" in spec
+            for part in ["Mapper", "Reducer", "cat"]:
+                assert part in spec["title"]
