@@ -1430,43 +1430,12 @@ class TestPortals(YTEnvSetup):
         assert "//tmp/d/p" == get("//tmp/d/p/@annotation_path")
 
     @authors("kvk1920")
-    def test_enable_effective_inherited_attributes(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
-        set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
-        create("map_node", "//tmp/d")
-        create("portal_entrance", "//tmp/d/p", attributes={"exit_cell_tag": 11})
-        set("//tmp/d/@compression_codec", "zstd_17")
-        create_tablet_cell_bundle("buggy_bundle")
-        set("//tmp/d/@tablet_cell_bundle", "buggy_bundle")
-
-        def check_inherited_bundle(bundle, codec):
-            create("table", "//tmp/d/p/t")
-            correct_tablet_cell_bundle = get("//tmp/d/p/t/@tablet_cell_bundle") == bundle
-            correct_compression_codec = get("//tmp/d/p/t/@compression_codec") == codec
-            remove("//tmp/d/p/t")
-            return correct_tablet_cell_bundle and correct_compression_codec
-
-        wait(lambda: check_inherited_bundle("buggy_bundle", "zstd_17"))
-        set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", False)
-        assert check_inherited_bundle("default", "lz4")
-        remove("//tmp/d/@tablet_cell_bundle")
-        assert check_inherited_bundle("default", "lz4")
-        set("//tmp/d/@tablet_cell_bundle", "buggy_bundle")
-        assert check_inherited_bundle("default", "lz4")
-        set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
-        remove("//tmp/d/@tablet_cell_bundle")
-        wait(lambda: check_inherited_bundle("default", "zstd_17"))
-        set("//tmp/d/@tablet_cell_bundle", "buggy_bundle")
-        wait(lambda: check_inherited_bundle("buggy_bundle", "zstd_17"))
-
-    @authors("kvk1920")
     def test_portal_creation_under_nested_transaction_is_forbidden(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
         with raises_yt_error('Portal creation under nested transaction is forbidden'):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx2)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx1)
-
 
 ##################################################################
 

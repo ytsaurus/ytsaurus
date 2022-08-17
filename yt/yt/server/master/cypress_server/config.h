@@ -82,11 +82,10 @@ public:
 
     double DefaultExternalCellBias;
 
-    std::optional<TDuration> PortalSynchronizationPeriod;
+    TDuration PortalSynchronizationPeriod;
 
     // COMPAT(kvk1920)
     bool EnablePortalSynchronization;
-    bool EnablePortalExitEffectiveInheritedAttributes;
 
     // COMPAT(kvk1920)
     bool EnableRevisionChangingForBuiltinAttributes;
