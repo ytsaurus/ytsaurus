@@ -66,26 +66,26 @@ object ClusterStateService extends LogLazy {
       }
 
       def stopJob(jobId: GUID): Unit = {
-        log.debug(s"Stopping job $jobId")
+        log.info(s"Stopping job $jobId")
         yt.abortJob(new AbortJob(jobId))
       }
 
       def suspendOperation(operationId: GUID): Unit = {
-        log.debug(s"Suspending operation $operationId")
-        yt.suspendOperation(new SuspendOperation(operationId).setAbortRunningJobs(false))
+        log.info(s"Suspending operation $operationId")
+        yt.suspendOperation(new SuspendOperation(operationId).setAbortRunningJobs(false)).join()
       }
 
       def resumeOperation(operationId: GUID): Unit = {
-        log.debug(s"Resuming operation $operationId")
-        yt.resumeOperation(new ResumeOperation(operationId))
+        log.info(s"Resuming operation $operationId")
+        yt.resumeOperation(new ResumeOperation(operationId)).join()
       }
 
       def updateUserSlots(operationId: GUID, userSlots: Long): Unit = {
-        log.debug(s"Updating operation parameters for $operationId: user_slots=$userSlots")
+        log.info(s"Updating operation parameters for $operationId: user_slots=$userSlots")
         val req = new UpdateOperationParameters(operationId)
           .addSchedulingOptions("physical",
             new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(userSlots)))
-        yt.updateOperationParameters(req)
+        yt.updateOperationParameters(req).join()
       }
 
       override def setUserSlots(slots: Long, stopWorkers: Set[String] = Set()): Unit = {
