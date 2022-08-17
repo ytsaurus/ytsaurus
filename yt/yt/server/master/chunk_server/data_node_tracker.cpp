@@ -7,6 +7,7 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -118,6 +119,9 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND_NO_PROPAGATE(&TDataNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
+
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND(&TDataNodeTracker::GetAlerts, MakeStrong(this)));
     }
 
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
@@ -140,6 +144,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto& statistics = *request->mutable_statistics();
         PopulateChunkLocationStatistics(node, statistics.chunk_locations());
+        
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -365,6 +370,23 @@ private:
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     THashMap<TChunkLocationUuid, TChunkLocation*> ChunkLocationUuidToLocation_;
 
+    THashMap<TChunkLocationUuid, TError> LocationAlerts_;
+
+
+    std::vector<TError> GetAlerts() const
+    {
+        std::vector<TError> alerts;
+        alerts.reserve(LocationAlerts_.size());
+        std::transform(
+            LocationAlerts_.begin(),
+            LocationAlerts_.end(),
+            std::back_inserter(alerts),
+            [] (const auto& alert) {
+                return alert.second;
+            }
+        );
+        return alerts;
+    }
 
     void HydraIncrementalDataNodeHeartbeat(
         const TCtxIncrementalHeartbeatPtr& /*context*/,
@@ -452,6 +474,41 @@ private:
         }
     }
 
+    void UpdateLocationDiskFamilyAlert(TChunkLocation* location)
+    {
+        int mediumIndex = location->Statistics().medium_index();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        auto locationUuid = location->GetUuid();
+        if (!medium) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Location medium is unknown (LocationUuid: %v, MediumIndex: %v)",
+                locationUuid,
+                mediumIndex);
+            return;
+        }
+        const auto& diskFamilyWhitelist = medium->DiskFamilyWhitelist();
+        auto diskFamily = location->Statistics().disk_family();
+        if (medium->DiskFamilyWhitelist() &&
+            !std::binary_search(
+                diskFamilyWhitelist->begin(),
+                diskFamilyWhitelist->end(),
+                diskFamily))
+        {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Inconsistent medium (LocationUuid: %v, DiskFamily: %v, Medium: %v, DiskFamilyWhitelist: %v)",
+                locationUuid, 
+                medium->GetName(),
+                diskFamilyWhitelist,
+                diskFamily);
+            LocationAlerts_[locationUuid] = TError("Inconsistent medium")
+                << TErrorAttribute("location_uuid", locationUuid)
+                << TErrorAttribute("medium_name", medium->GetName())
+                << TErrorAttribute("disk_family_whitelist", diskFamilyWhitelist)
+                << TErrorAttribute("disk_family", diskFamily);
+        } else {
+            LocationAlerts_.erase(locationUuid);
+        }
+    }
+
     void PopulateChunkLocationStatistics(TNode* node, const auto& statistics)
     {
         for (const auto& chunkLocationStatistics : statistics) {
@@ -464,6 +521,7 @@ private:
                 continue;
             }
             location->Statistics() = chunkLocationStatistics;
+            UpdateLocationDiskFamilyAlert(location);
         }
     }
 

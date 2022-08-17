@@ -5,6 +5,8 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMedium::TMedium(TMediumId id)
@@ -36,6 +38,7 @@ void TMedium::Save(NCellMaster::TSaveContext& context) const
     Save(context, Cache_);
     Save(context, *Config_);
     Save(context, Acd_);
+    Save(context, DiskFamilyWhitelist_);
 }
 
 void TMedium::Load(NCellMaster::TLoadContext& context)
@@ -50,6 +53,11 @@ void TMedium::Load(NCellMaster::TLoadContext& context)
     Load(context, Cache_);
     Load(context, *Config_);
     Load(context, Acd_);
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EMasterReign::DiskFamilyWhitelist) {
+        Load(context, DiskFamilyWhitelist_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

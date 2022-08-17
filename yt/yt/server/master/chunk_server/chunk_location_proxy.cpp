@@ -124,6 +124,18 @@ private:
                 auto mediumName = ConvertTo<TString>(value);
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+                const auto& whitelist = medium->DiskFamilyWhitelist();
+                if (whitelist.has_value() &&
+                    !std::binary_search(
+                        whitelist->begin(),
+                        whitelist->end(),
+                        location->Statistics().disk_family())) {
+                    THROW_ERROR_EXCEPTION("Inconsistent medium override: location's disk family %Qv is absent from medium %Qv whitelist",
+                        location->Statistics().disk_family(),
+                        mediumName)
+                        << TErrorAttribute("location_id", location->GetId())
+                        << TErrorAttribute("medium_family_whitelist", medium->DiskFamilyWhitelist());
+                }
                 location->MediumOverride() = TMediumPtr(medium);
                 return true;
             }

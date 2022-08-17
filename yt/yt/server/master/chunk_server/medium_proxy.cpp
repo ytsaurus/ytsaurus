@@ -32,6 +32,8 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        auto* medium = GetThisImpl();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
@@ -49,6 +51,11 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DiskFamilyWhitelist)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(medium->DiskFamilyWhitelist().has_value()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -85,6 +92,17 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(medium->Config());
                 return true;
+            
+            case EInternedAttributeKey::DiskFamilyWhitelist:
+                if (!medium->DiskFamilyWhitelist()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .DoListFor(*medium->DiskFamilyWhitelist(), [] (TFluentList fluent, const TString& diskFamily) {
+                        fluent.Item().Value(diskFamily);
+                    });
+                return true;
 
             default:
                 break;
@@ -117,11 +135,37 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::DiskFamilyWhitelist: {
+                auto whitelist = ConvertTo<std::vector<TString>>(value);
+                auto originalSize = whitelist.size();
+                SortUnique(whitelist);
+                if (whitelist.size() != originalSize) {
+                    THROW_ERROR_EXCEPTION("Disk family whitelist must not contain duplicates");
+                }
+                medium->DiskFamilyWhitelist() = std::move(whitelist);
+                return true;
+            }
+
             default:
                 break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override {
+        auto* medium = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::DiskFamilyWhitelist:
+                medium->DiskFamilyWhitelist().reset();
+                return true;
+
+            default:
+                break;
+        }
+
+        return TNonversionedObjectProxyBase::RemoveBuiltinAttribute(key);
     }
 };
 

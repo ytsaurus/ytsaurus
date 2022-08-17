@@ -129,6 +129,7 @@
     XX(DisableTabletBalancer, disable_tablet_balancer) \
     XX(DisableTabletCells, disable_tablet_cells) \
     XX(DisableWriteSessions, disable_write_sessions) \
+    XX(DiskFamilyWhitelist, disk_family_whitelist) \
     XX(DiskSpace, disk_space) \
     XX(Dynamic, dynamic) \
     XX(DynamicConfigVersion, dynamic_config_version) \

@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error)
+    authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
+    create_medium)
 from yt.environment.helpers import Restarter, NODES_SERVICE
 
 ##################################################################
@@ -103,3 +104,60 @@ class TestChunkLocations(YTEnvSetup):
 
 class TestChunkLocationsMulticell(TestChunkLocations):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+class TestMediumOverrideSafety(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NON_DEFAULT_MEDIUM = "ssd"
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestMediumOverrideSafety, cls).setup_class()
+        create_medium(cls.NON_DEFAULT_MEDIUM)
+        set("//sys/@config/cell_master/alert_update_period", 100)
+
+    @authors("kvk1920")
+    def test_set_medium_override(self):
+        location = ls("//sys/chunk_locations", attributes=["statistics"])[0]
+
+        def try_set_medium_override():
+            for medium in (self.NON_DEFAULT_MEDIUM, "default"):
+                set(f"//sys/chunk_locations/{location}/@medium_override", medium)
+
+        disk_family = location.attributes["statistics"]["disk_family"]
+        invalid_disk_family = "not_" + disk_family
+        set(f"//sys/media/{self.NON_DEFAULT_MEDIUM}/@disk_family_whitelist", [disk_family])
+        try_set_medium_override()
+        set(f"//sys/media/{self.NON_DEFAULT_MEDIUM}/@disk_family_whitelist", [invalid_disk_family])
+        with raises_yt_error("Inconsistent medium override"):
+            try_set_medium_override()
+        remove(f"//sys/media/{self.NON_DEFAULT_MEDIUM}/@disk_family_whitelist")
+        try_set_medium_override()
+
+    @authors("kvk1920")
+    def test_location_medium(self):
+        def has_alert():
+            for alert in get("//sys/@master_alerts"):
+                if alert["message"] == "Inconsistent medium":
+                    return True
+            return False
+
+        location = ls("//sys/chunk_locations", attributes=["statistics"])[0]
+        disk_family = location.attributes["statistics"]["disk_family"]
+        invalid_disk_family = "not_" + disk_family
+        set(f"//sys/chunk_locations/{location}/@medium_override", self.NON_DEFAULT_MEDIUM)
+        with Restarter(self.Env, NODES_SERVICE):
+            set(f"//sys/media/{self.NON_DEFAULT_MEDIUM}/@disk_family_whitelist", [invalid_disk_family])
+        wait(has_alert)
+        set(f"//sys/media/{self.NON_DEFAULT_MEDIUM}/@disk_family_whitelist", [invalid_disk_family, disk_family])
+        wait(lambda: not has_alert())

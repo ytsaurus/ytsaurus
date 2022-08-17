@@ -91,6 +91,7 @@ DEFINE_ENUM(EMasterReign,
     ((LinkHunkStorageNode)                                          (2108))  // aleksandra-zh
     ((AddPerUserChunkThrottlers)                                    (2109))  // h0pless
     ((RemoveLegacyHeartbeats)                                       (2110))  // gritukan
+    ((DiskFamilyWhitelist)                                          (2111))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
