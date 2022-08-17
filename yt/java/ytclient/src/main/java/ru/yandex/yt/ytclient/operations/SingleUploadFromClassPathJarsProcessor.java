@@ -173,6 +173,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                 }
 
                 writer.write(bytes, 0, count);
+                writer.readyEvent().join();
             }
             writer.close().join();
         } catch (IOException e) {
