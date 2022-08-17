@@ -1765,13 +1765,13 @@ void TJob::Cleanup()
 
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: do this after slot cleanup.
-    WaitFor(BIND([this_ = MakeStrong(this), this] () {
-        auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        delete schedulerJobSpecExt->release_input_node_directory();
-    })
-        .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
-        .Run())
-        .ThrowOnError();
+    {
+        auto inputNodeDirectory = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)
+            ->release_input_node_directory();
+        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] () {
+            delete inputNodeDirectory;
+        }));
+    }
 
     YT_VERIFY(JobResultWithoutExtension_);
 
