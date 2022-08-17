@@ -164,7 +164,20 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
     protected void writeFile(TransactionalClient yt, YPath path, InputStream data) {
         FileWriter writer = yt.writeFile(new WriteFile(path.toString()).setComputeMd5(true)).join();
-        // TODO: implement it
+        try {
+            byte[] bytes = new byte[0x10000];
+            for (; ; ) {
+                int count = data.read(bytes);
+                if (count < 0) {
+                    break;
+                }
+
+                writer.write(bytes, 0, count);
+            }
+            writer.close().join();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private YPath onFileChecked(TransactionalClient yt, @Nullable YPath path, String originalName, String md5,
@@ -654,7 +667,6 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private static void writeFileToJarStream(FileInputStream file, JarOutputStream jar) {
         try {
             byte[] bytes = new byte[0x10000];
-            long totalCopied = 0;
             for (; ; ) {
                 int count = file.read(bytes);
                 if (count < 0) {
@@ -662,7 +674,6 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                 }
 
                 jar.write(bytes, 0, count);
-                totalCopied += count;
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
