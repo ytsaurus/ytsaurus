@@ -93,10 +93,8 @@ object SparkStateService {
             val activeApps = appStatuses.filter(!_.state.isFinished)
             val maxAppWaitingTime = activeApps.filter(_.state == AppState.WAITING)
                 .map(_.runtime())
-                .map(y => { log.info(s"y=$y"); y })
                 .foldLeft(0L)(_ max _)
             val maxSubmissionWaitingTIme = submissionStatuses.map(_.runtime())
-                .map(x => { log.info(s"x=$x"); x })
                 .foldLeft(0L)(_ max _)
             log.debug(s"maxAppWaitingTime: $maxAppWaitingTime, maxSubmissionWaitingTime: $maxSubmissionWaitingTIme")
             AppStatusesStats(
