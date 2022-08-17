@@ -13,6 +13,20 @@ void TCpuLimits::Register(TRegistrar registrar)
         .Default(5);
 }
 
+void TMemoryLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tablet_static", &TThis::TabletStatic)
+        .Optional();
+    registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
+        .Optional();
+    registrar.Parameter("block_cache", &TThis::BlockCache)
+        .Optional();
+    registrar.Parameter("versioned_chunk_meta", &TThis::VersionedChunkMeta)
+        .Optional();
+    registrar.Parameter("lookup_row_cache", &TThis::LookupRowCache)
+        .Optional();
+}
+
 void TInstanceResources::Register(TRegistrar registrar)
 {
     registrar.Parameter("vcpu", &TThis::VCpu)
@@ -48,7 +62,7 @@ void TBundleConfig::Register(TRegistrar registrar)
     registrar.Parameter("cpu_limits", &TThis::CpuLimits)
         .DefaultNew();
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
-        .Default();
+        .DefaultNew();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)

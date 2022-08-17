@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -18,6 +16,7 @@ DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
+DECLARE_REFCOUNTED_STRUCT(TMemoryLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
 DECLARE_REFCOUNTED_STRUCT(TZoneInfo)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestSpec)
@@ -90,6 +89,24 @@ DEFINE_REFCOUNTED_TYPE(TCpuLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMemoryLimits
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> TabletStatic;
+    std::optional<int> TabletDynamic;
+    std::optional<int> BlockCache;
+    std::optional<int> VersionedChunkMeta;
+    std::optional<int> LookupRowCache;
+
+    REGISTER_YSON_STRUCT(TMemoryLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TInstanceResources
     : public NYTree::TYsonStruct
 {
@@ -111,7 +128,7 @@ struct TBundleConfig
     int TabletNodeCount;
     TInstanceResourcesPtr TabletNodeResourceGuarantee;
     TCpuLimitsPtr CpuLimits;
-    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
+    TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -445,8 +462,7 @@ struct TBundleDynamicConfig
     : public NYTree::TYsonStruct
 {
     TCpuLimitsPtr CpuLimits;
-
-    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
+    TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 
