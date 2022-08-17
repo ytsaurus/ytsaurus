@@ -478,21 +478,11 @@ class TestNodeDynamicConfig(YTEnvSetup):
                 "config_annotation": "nodeA",
                 "cpu_limits": {
                 },
-                "memory_limits": {
-                    "tablet_static": {
-                        "type" : "static",
-                        "value": 0,
-                    },
-                    "tablet_dynamic": {
-                        "type" : "static",
-                        "value": 0,
-                    },
-                }
+                "memory_limits": {}
             },
             "!nodeA": {
                 "config_annotation": "notNodeA",
                 "cpu_limits": {
-                    "write_thread_pool_size": 0,
                 },
             },
         }
@@ -511,8 +501,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         for patch in patches:
             bundle_dynamic_config["nodeA"]["cpu_limits"]["write_thread_pool_size"] = patch.slot_count
-            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_static"]["value"] = patch.tablet_static
-            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_dynamic"]["value"] = patch.tablet_dynamic
+            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_static"]= patch.tablet_static
+            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_dynamic"] = patch.tablet_dynamic
 
             set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
             wait(lambda: self._healthy_cell_count() == min(5, patch.slot_count))

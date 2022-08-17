@@ -14,6 +14,10 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TMemoryLimitsEnumIndexedVector = TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
@@ -101,6 +105,26 @@ struct TCpuLimits
 
 DEFINE_REFCOUNTED_TYPE(TCpuLimits)
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMemoryLimits
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> TabletStatic;
+    std::optional<int> TabletDynamic;
+    std::optional<int> BlockCache;
+    std::optional<int> VersionedChunkMeta;
+    std::optional<int> LookupRowCache;
+
+    TMemoryLimitsEnumIndexedVector AsEnumIndexedVector() const;
+
+    REGISTER_YSON_STRUCT(TMemoryLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TBundleDynamicConfig
@@ -108,7 +132,7 @@ struct TBundleDynamicConfig
 {
     TCpuLimitsPtr CpuLimits;
 
-    TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr> MemoryLimits;
+    TMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

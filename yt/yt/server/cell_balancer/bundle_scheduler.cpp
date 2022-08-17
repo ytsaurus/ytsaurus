@@ -948,10 +948,10 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         }
 
         auto bundleConfig = New<TBundleDynamicConfig>();
-        bundleConfig->CpuLimits = bundleInfo->TargetConfig->CpuLimits;
-        bundleConfig->MemoryLimits = bundleInfo->TargetConfig->MemoryLimits;
+        bundleConfig->CpuLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->CpuLimits);
+        bundleConfig->MemoryLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->MemoryLimits);
 
-        freshConfig[bundleInfo->NodeTagFilter] = NYTree::CloneYsonSerializable(bundleConfig);
+        freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 
     if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(freshConfig), ConvertTo<NYTree::IMapNodePtr>(input.DynamicConfig))) {
