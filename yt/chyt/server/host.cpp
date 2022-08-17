@@ -151,7 +151,7 @@ public:
         // Configure clique's directory.
         Config_->Discovery->Directory += "/" + ToString(Config_->CliqueId);
 
-        Discovery_ = New<TDiscovery>(
+        Discovery_ = CreateDiscoveryV1(
             Config_->Discovery,
             RootClient_,
             ControlInvoker_,
@@ -562,7 +562,7 @@ private:
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
 
-    TDiscoveryPtr Discovery_;
+    IDiscoveryPtr Discovery_;
     int InstanceCookie_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
@@ -649,7 +649,7 @@ private:
         NApi::TCreateNodeOptions createCliqueNodeOptions;
         createCliqueNodeOptions.IgnoreExisting = true;
         createCliqueNodeOptions.Recursive = true;
-        createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", TDiscovery::Version}});
+        createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", Discovery_->Version()}});
         WaitFor(RootClient_->CreateNode(
             Config_->Discovery->Directory,
             NObjectClient::EObjectType::MapNode,

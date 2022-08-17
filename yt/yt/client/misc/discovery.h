@@ -10,14 +10,61 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A data structure for keeping and updating a list of participants that are alive
-//! in the certain group (defined by its Cypress directory path) with their attributes.
-class TDiscovery
+//! An interaface for keeping and updating a list of participants that are alive
+//! in the certain group with their attributes.
+struct IDiscovery
     : public virtual TRefCounted
 {
-public:
-    static constexpr int Version = 1;
+    //! Make this participant exposed to the group.
+    //! It doesn't update the stored list of participants,
+    //! but will add {name, attributes} in every result of List().
+    virtual TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) = 0;
+    //! Make this participant unexposed to the group.
+    //! It doesn't update the stored list of participants.
+    virtual TFuture<void> Leave() = 0;
 
+    //! Return the list of participants stored in data structure.
+    virtual THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const = 0;
+    //! Temporary add |name| to the ban list (timeout is specified in discovery config).
+    //! Instances from the ban list are excluded from the list of available participants.
+    virtual void Ban(const TString& name) = 0;
+    virtual void Ban(const std::vector<TString>& names) = 0;
+    //! Remove |name| from the ban list.
+    virtual void Unban(const TString& name) = 0;
+    virtual void Unban(const::std::vector<TString>& names) = 0;
+
+    //! Force update the list of participants if stored data is older than |maxDivergency|.
+    //! Returns a future that becomes set when data is up to date.
+    virtual TFuture<void> UpdateList(TDuration maxDivergency = TDuration::Zero()) = 0;
+
+    //! Start updating the list of available participants.
+    //! Returns a future that becomes set after first update.
+    virtual TFuture<void> StartPolling() = 0;
+    //! Stop updating the list of available participants.
+    //! Returns a future that becomes set after stopping PeriodicExecutor.
+    virtual TFuture<void> StopPolling() = 0;
+
+    //! Returns a version of the discovery.
+    virtual int Version() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDiscovery)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDiscoveryPtr CreateDiscoveryV1(
+    TDiscoveryConfigPtr config,
+    NApi::IClientPtr client,
+    IInvokerPtr invoker,
+    std::vector<TString> extraAttributes,
+    NLogging::TLogger logger = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscovery
+    : public IDiscovery
+{
+public:
     TDiscovery(
         TDiscoveryConfigPtr config,
         NApi::IClientPtr client,
@@ -25,37 +72,21 @@ public:
         std::vector<TString> extraAttributes,
         NLogging::TLogger logger = {});
 
-    //! Make this participant exposed to the group.
-    //! It doesn't update the stored list of participants,
-    //! but will add {name, attributes} in every result of List().
-    TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes);
-    //! Make this participant unexposed to the group.
-    //! It doesn't update the stored list of participants.
-    TFuture<void> Leave();
+    TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) override;
+    TFuture<void> Leave() override;
 
-    //! Return the list of participants stored in data structure.
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const;
-    //! Temporary add |name| to the ban list (timeout is specified in discovery config).
-    //! Instances from the ban list are excluded from the list of available participants.
-    void Ban(const TString& name);
-    void Ban(const std::vector<TString>& names);
-    //! Remove |name| from the ban list.
-    void Unban(const TString& name);
-    void Unban(const::std::vector<TString>& names);
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const override;
+    void Ban(const TString& name) override;
+    void Ban(const std::vector<TString>& names) override;
+    void Unban(const TString& name) override;
+    void Unban(const::std::vector<TString>& names) override;
 
-    //! Force update the list of participants if stored data is older than |maxDivergency|.
-    //! Returns a future that becomes set when data is up to date.
-    TFuture<void> UpdateList(TDuration maxDivergency = TDuration::Zero());
+    TFuture<void> UpdateList(TDuration maxDivergency = TDuration::Zero()) override;
 
-    //! Start updating the list of available participants.
-    //! Returns a future that becomes set after first update.
-    TFuture<void> StartPolling();
-    //! Stop updating the list of available participants.
-    //! Returns a future that becomes set after stopping PeriodicExecutor.
-    TFuture<void> StopPolling();
+    TFuture<void> StartPolling() override;
+    TFuture<void> StopPolling() override;
 
-    //! Return weight of TDiscovery in units. Can be used in Cache.
-    i64 GetWeight();
+    int Version() const override;
 
 private:
     TDiscoveryConfigPtr Config_;

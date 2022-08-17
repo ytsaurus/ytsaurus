@@ -23,12 +23,12 @@ class TStorageSystemClique
     : public DB::IStorage
 {
 private:
-    TDiscoveryPtr Discovery_;
+    IDiscoveryPtr Discovery_;
     TGuid InstanceId_;
 
 public:
     TStorageSystemClique(
-        TDiscoveryPtr discovery,
+        IDiscoveryPtr discovery,
         TGuid instanceId)
         : DB::IStorage({"system", "clique"})
         , Discovery_(std::move(discovery))
@@ -96,7 +96,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageSystemClique(
-    TDiscoveryPtr discovery,
+    IDiscoveryPtr discovery,
     TGuid instanceId)
 {
     return std::make_shared<TStorageSystemClique>(
