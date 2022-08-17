@@ -1,12 +1,12 @@
 #include "credentials_injecting_channel.h"
 
+#include "tvm.h"
+
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/yt/library/auth/tvm.h>
-
-namespace NYT::NApi::NRpcProxy {
+namespace NYT::NAuth {
 
 using namespace NRpc;
 
@@ -177,4 +177,45 @@ NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi::NRpcProxy
+class TServiceTicketInjectingChannelFactory
+    : public IChannelFactory
+{
+public:
+    TServiceTicketInjectingChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        IServiceTicketAuthPtr serviceTicketAuth)
+        : UnderlyingFactory_(std::move(underlyingFactory))
+        , ServiceTicketAuth_(std::move(serviceTicketAuth))
+    { }
+
+    IChannelPtr CreateChannel(const TString& address) override
+    {
+        auto channel = UnderlyingFactory_->CreateChannel(address);
+        if (!ServiceTicketAuth_) {
+            return channel;
+        }
+        return CreateServiceTicketInjectingChannel(
+            std::move(channel),
+            /*user*/ std::nullopt,
+            ServiceTicketAuth_);
+    }
+
+private:
+    IChannelFactoryPtr UnderlyingFactory_;
+    IServiceTicketAuthPtr ServiceTicketAuth_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChannelFactoryPtr CreateServiceTicketInjectingChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    IServiceTicketAuthPtr serviceTicketAuth)
+{
+    return New<TServiceTicketInjectingChannelFactory>(
+        std::move(underlyingFactory),
+        std::move(serviceTicketAuth));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NAuth

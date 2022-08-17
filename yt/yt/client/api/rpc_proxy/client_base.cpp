@@ -2,7 +2,6 @@
 
 #include "api_service_proxy.h"
 #include "config.h"
-#include "credentials_injecting_channel.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "helpers.h"
@@ -29,6 +28,8 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
 
 #include <yt/yt/core/net/address.h>
 
