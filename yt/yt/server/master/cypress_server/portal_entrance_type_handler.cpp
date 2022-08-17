@@ -73,6 +73,10 @@ private:
             THROW_ERROR_EXCEPTION("Cell with tag %v cannot host Cypress nodes", exitCellTag);
         }
 
+        if (context.Transaction && context.Transaction->GetParent()) {
+            THROW_ERROR_EXCEPTION("Portal creation under nested transaction is forbidden");
+        }
+
         auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
         node->SetOpaque(true);

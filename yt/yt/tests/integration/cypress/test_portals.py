@@ -1459,6 +1459,14 @@ class TestPortals(YTEnvSetup):
         set("//tmp/d/@tablet_cell_bundle", "buggy_bundle")
         wait(lambda: check_inherited_bundle("buggy_bundle", "zstd_17"))
 
+    @authors("kvk1920")
+    def test_portal_creation_under_nested_transaction_is_forbidden(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        with raises_yt_error('Portal creation under nested transaction is forbidden'):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx2)
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx1)
+
 
 ##################################################################
 

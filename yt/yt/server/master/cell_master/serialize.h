@@ -92,6 +92,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddPerUserChunkThrottlers)                                    (2109))  // h0pless
     ((RemoveLegacyHeartbeats)                                       (2110))  // gritukan
     ((DiskFamilyWhitelist)                                          (2111))  // kvk1920
+    ((ForbidPortalCreationUnderNestedTransaction)                   (2112))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
