@@ -1079,7 +1079,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         # This throttler throttles based on request size, which is rather difficult to dynamically compute.
         # This constant was chosen empirically.
         # If this test becomes too flaky - tuning it might be a good place to start.
-        new_limit = 500.
+        new_limit = 300.
 
         print_debug("new limit:", new_limit, "bytes/sec")
 
@@ -1088,7 +1088,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         sleep(1)
 
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
-        assert self._measure_write_time(non_root_user) >= usual_time * 3
+        assert self._measure_write_time(non_root_user) >= usual_time * 2.5
 
         yield()
 
@@ -1098,7 +1098,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         self._measure_write_time("root")
         print_debug("--------->>> warmed up <<<---------")
 
-        assert self._measure_write_time(non_root_user) >= usual_time * 3
+        assert self._measure_write_time(non_root_user) >= usual_time * 2.5
 
         remove("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user))
         with pytest.raises(YtError, match="Error resolving path /limit"):
@@ -1111,7 +1111,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
 
     @authors("h0pless")
-    @flaky(max_runs=3)
+    @flaky(max_runs=5)
     def test_per_user_bytes_throttler_snapshot(self):
 
         checker_state = iter(self._check_per_user_throttler_after_snapshot_load())
@@ -1127,7 +1127,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
             next(checker_state)
 
     @authors("h0pless")
-    @flaky(max_runs=3)
+    @flaky(max_runs=5)
     def test_per_user_bytes_throttler_default(self):
         throttled_user = "juan"
         non_throttled_user = "not_juan"
@@ -1147,7 +1147,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         # This throttler throttles based on request size, which is rather difficult to dynamically compute.
         # This constant was chosen empirically.
         # If this test becomes too flaky - tuning it might be a good place to start.
-        new_general_limit = 500.
+        new_general_limit = 300.
         as_good_as_infinity = 100000000.
 
         print_debug("new limit:", new_general_limit, "bytes/sec")
@@ -1158,7 +1158,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
         assert get("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config/limit") == new_general_limit
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_throttled_user)) == as_good_as_infinity
-        assert self._measure_write_time(throttled_user) >= usual_time * 3
+        assert self._measure_write_time(throttled_user) >= usual_time * 2.5
         assert self._measure_write_time(root_user) < usual_time * 1.2
         assert self._measure_write_time(non_throttled_user) < usual_time * 1.2
 
@@ -1172,7 +1172,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         assert self._measure_write_time(throttled_user) < usual_time * 1.2
 
     @authors("h0pless")
-    @flaky(max_runs=3)
+    @flaky(max_runs=5)
     def test_per_user_bytes_throttler_operation(self):
         userName="GregorzBrzeczyszczykiewicz"
         create_user(userName)
