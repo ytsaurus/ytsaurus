@@ -160,8 +160,8 @@ public:
                 // 6) inherit_acl
                 // 7) direct acl
 
-                auto effectiveInheritableAttributes = New<TTransientInheritedAttributeDictionary>(Bootstrap_);
-                GatherTransientInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
+                auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
                 ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
                 auto effectiveAcl = securityManager->GetEffectiveAcl(node);
@@ -439,7 +439,7 @@ private:
                 }
 
                 // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
-                std::swap(exitNode->EffectiveInheritableAttributes().emplace(), inheritableAttributes->Attributes());
+                exitNode->EffectiveInheritableAttributes().emplace(inheritableAttributes->Attributes().ToPersistent());
 
                 exitNode->Acd().SetEntries(effectiveAcl);
                 exitNode->Acd().SetInherit(portalExitInfo.inherit_acl());
@@ -551,7 +551,7 @@ private:
 
         node->EffectiveAnnotationPath() = std::move(effectiveAnnotationPath);
         if (effectiveInheritableAttributes) {
-            node->EffectiveInheritableAttributes().emplace(std::move(effectiveInheritableAttributes->Attributes()));
+            node->EffectiveInheritableAttributes().emplace(effectiveInheritableAttributes->Attributes().ToPersistent());
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

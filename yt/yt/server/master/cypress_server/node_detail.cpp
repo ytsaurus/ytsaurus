@@ -27,6 +27,8 @@ using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NChaosServer;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,6 +525,80 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <bool Transient>
+void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCellMaster::TPersistenceContext& context)
+    requires (!Transient)
+{
+    using NCellMaster::EMasterReign;
+    using NYT::Persist;
+
+    Persist(context, CompressionCodec);
+    Persist(context, ErasureCodec);
+    Persist(context, HunkErasureCodec);
+    Persist(context, EnableStripedErasure);
+    Persist(context, ReplicationFactor);
+    Persist(context, Vital);
+    Persist(context, Atomicity);
+    Persist(context, CommitOrdering);
+    Persist(context, InMemoryMode);
+    Persist(context, OptimizeFor);
+    Persist(context, ProfilingMode);
+    Persist(context, ProfilingTag);
+    Persist(context, ChunkMergerMode);
+    Persist(context, PrimaryMediumIndex);
+    Persist(context, Media);
+    Persist(context, TabletCellBundle);
+    Persist(context, ChaosCellBundle);
+}
+
+template <bool Transient>
+void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCypressServer::TCopyPersistenceContext& context)
+    requires (!Transient)
+{
+    using NYT::Persist;
+#define XX(camelCaseName, snakeCaseName) \
+    Persist(context, camelCaseName);
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+#undef XX
+}
+
+template <bool Transient>
+bool TCompositeNodeBase::TAttributes<Transient>::AreFull() const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    && camelCaseName.IsSet()
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+#undef XX
+}
+
+template <bool Transient>
+bool TCompositeNodeBase::TAttributes<Transient>::AreEmpty() const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    && !camelCaseName.IsNull()
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+#undef XX
+}
+
+template <bool Transient>
+TCompositeNodeBase::TPersistentAttributes TCompositeNodeBase::TAttributes<Transient>::ToPersistent() const requires Transient
+{
+    TPersistentAttributes result;
+#define XX(camelCaseName, snakeCaseName) \
+    if (camelCaseName.IsSet()) { \
+        result.camelCaseName.Set(TVersionedBuiltinAttributeTraits<decltype(result.camelCaseName)::TValue>::FromRaw(camelCaseName.Unbox())); \
+    }
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+    return result;
+}
+
+template struct TCompositeNodeBase::TAttributes<true>;
+template struct TCompositeNodeBase::TAttributes<false>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNode::Save(context);
@@ -551,18 +627,17 @@ bool TCompositeNodeBase::HasInheritableAttributes() const
     return false;
 }
 
-const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() const
+const TCompositeNodeBase::TPersistentAttributes* TCompositeNodeBase::FindAttributes() const
 {
     return Attributes_.get();
 }
 
-void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes, bool /*legacyBehaviour*/) const
+void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (!attributes->camelCaseName.IsSet()) { \
         if (auto inheritedValue = TryGet##camelCaseName()) { \
-            using TValueType = TCompositeNodeBase::T##camelCaseName; \
-            attributes->camelCaseName.Set(TVersionedBuiltinAttributeTraits<TValueType>::FromRaw(std::move(*inheritedValue))); \
+            attributes->camelCaseName.Set(*inheritedValue); \
         } \
     }
 
@@ -572,31 +647,14 @@ void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes, bool
 #undef XX
 }
 
-void TCompositeNodeBase::FillTransientInheritableAttributes(TTransientAttributes* attributes) const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (!attributes->camelCaseName.IsSet()) { \
-        if (auto* inheritedValue = DoTryGet##camelCaseName()) { \
-            if (inheritedValue->IsSet()) { \
-                attributes->camelCaseName.Set(inheritedValue->Unbox()); \
-            } \
-        } \
-    }
-
-    if (HasInheritableAttributes()) {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-    }
-#undef  XX
-}
-
-void TCompositeNodeBase::SetAttributes(const TAttributes* attributes)
+void TCompositeNodeBase::SetAttributes(const TPersistentAttributes* attributes)
 {
     if (!attributes || attributes->AreEmpty()) {
         Attributes_.reset();
     } else if (Attributes_) {
         *Attributes_ = *attributes;
     } else {
-        Attributes_ = std::make_unique<TAttributes>(*attributes);
+        Attributes_ = std::make_unique<TPersistentAttributes>(*attributes);
     }
 }
 
@@ -626,14 +684,14 @@ void TCompositeNodeBase::MergeAttributesFrom(const TCompositeNodeBase* branchedN
 }
 
 #define XX(camelCaseName, snakeCaseName) \
-const decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)* TCompositeNodeBase::DoTryGet##camelCaseName() const \
+const decltype(std::declval<TCompositeNodeBase::TPersistentAttributes>().camelCaseName)* TCompositeNodeBase::DoTryGet##camelCaseName() const \
 { \
     return Attributes_ ? &Attributes_->camelCaseName : nullptr; \
 } \
 \
 auto TCompositeNodeBase::TryGet##camelCaseName() const -> std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> \
 { \
-    using TAttribute = decltype(TAttributes::camelCaseName); \
+    using TAttribute = decltype(TPersistentAttributes::camelCaseName); \
     return TAttribute::TryGet(&TCompositeNodeBase::DoTryGet##camelCaseName, this); \
 } \
 \
@@ -645,7 +703,7 @@ bool TCompositeNodeBase::Has##camelCaseName() const \
 void TCompositeNodeBase::Set##camelCaseName(TCompositeNodeBase::T##camelCaseName value) \
 { \
     if (!Attributes_) { \
-        Attributes_ = std::make_unique<TAttributes>(); \
+        Attributes_ = std::make_unique<TPersistentAttributes>(); \
     } \
     Attributes_->camelCaseName.Set(std::move(value)); \
 } \
@@ -671,17 +729,10 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes)
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes)
 {
     for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillTransientInheritableAttributes(attributes);
-    }
-}
-
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes, bool legacyBehaviour)
-{
-    for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, legacyBehaviour);
+        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes);
     }
 }
 
@@ -759,7 +810,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
 
     using NYT::Load;
     if (Load<bool>(*context)) {
-        auto attributes = Load<TCompositeNodeBase::TAttributes>(*context);
+        auto attributes = Load<TCompositeNodeBase::TPersistentAttributes>(*context);
         trunkNode->SetAttributes(&attributes);
     }
 }

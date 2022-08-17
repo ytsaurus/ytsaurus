@@ -93,6 +93,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveLegacyHeartbeats)                                       (2110))  // gritukan
     ((DiskFamilyWhitelist)                                          (2111))  // kvk1920
     ((ForbidPortalCreationUnderNestedTransaction)                   (2112))  // kvk1920
+    ((TransientInheritedAttributeDictionary)                        (2113))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

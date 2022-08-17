@@ -270,30 +270,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(kvk1920): Rename to TInheritedAttributeDictionary.
 //! A set of inheritable attributes represented as an attribute dictionary.
 //! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
-class TTransientInheritedAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    explicit TTransientInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
-
-    std::vector<TString> ListKeys() const override;
-    std::vector<TKeyValuePair> ListPairs() const override;
-    NYson::TYsonString FindYson(TStringBuf key) const override;
-    void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    bool Remove(const TString& key) override;
-
-    TCompositeNodeBase::TTransientAttributes& Attributes();
-
-private:
-    const NCellMaster::TBootstrap* Bootstrap_;
-    TCompositeNodeBase::TTransientAttributes InheritedAttributes_;
-    NYTree::IAttributeDictionaryPtr Fallback_;
-};
-
-// COMPAT(kvk1920): Replace with TTransientInheritedAttributeDictionary.
 class TInheritedAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
@@ -306,11 +284,11 @@ public:
     void SetYson(const TString& key, const NYson::TYsonString& value) override;
     bool Remove(const TString& key) override;
 
-    TCompositeNodeBase::TAttributes& Attributes();
+    TCompositeNodeBase::TTransientAttributes& Attributes();
 
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
-    TCompositeNodeBase::TAttributes InheritedAttributes_;
+    TCompositeNodeBase::TTransientAttributes InheritedAttributes_;
     NYTree::IAttributeDictionaryPtr Fallback_;
 };
 

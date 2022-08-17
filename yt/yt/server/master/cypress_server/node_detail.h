@@ -635,9 +635,9 @@ public:
 
     bool HasInheritableAttributes() const;
 
-    // TODO(kvk1920): Rename to TAttributes.
+private:
     template <bool Transient>
-    struct TGenericAttributes
+    struct TAttributes
     {
         template <class T>
         using TPtr = std::conditional_t<Transient, T*, NObjectServer::TStrongObjectPtr<T>>;
@@ -661,8 +661,8 @@ public:
         TVersionedBuiltinAttribute<bool> EnableChunkMerger;
         TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
-        void Persist(const NCypressServer::TCopyPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);
+        void Persist(const NCypressServer::TCopyPersistenceContext& context) requires (!Transient);
 
         // Are all attributes not null?
         bool AreFull() const;
@@ -670,30 +670,25 @@ public:
         // Are all attributes null?
         bool AreEmpty() const;
 
-        TGenericAttributes<false> ToPersistent() const requires Transient;
+        TAttributes<false> ToPersistent() const requires Transient;
     };
 
 public:
-    using TTransientAttributes = TGenericAttributes</*Transient*/ true>;
-    
-    // TODO(kvk1920): Rename to TPersistentAttributes.
-    using TAttributes = TGenericAttributes</*Transient*/ false>;
+    using TTransientAttributes = TAttributes</*Transient*/ true>;
+    using TPersistentAttributes = TAttributes</*Transient*/ false>;
 
-    virtual void FillTransientInheritableAttributes(TTransientAttributes* attributes) const;
-
-    // COMPAT(kvk1920)
-    virtual void FillInheritableAttributes(TAttributes* attributes, bool legacyBehaviour) const;
+    virtual void FillInheritableAttributes(TTransientAttributes* attributes) const;
 
 #define XX(camelCaseName, snakeCaseName) \
 public: \
-    using T##camelCaseName = decltype(std::declval<TAttributes>().camelCaseName)::TValue; \
+    using T##camelCaseName = decltype(std::declval<TPersistentAttributes>().camelCaseName)::TValue; \
     std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> TryGet##camelCaseName() const; \
     bool Has##camelCaseName() const; \
     void Remove##camelCaseName(); \
     void Set##camelCaseName(T##camelCaseName value); \
 \
 private: \
-    const decltype(std::declval<TAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
+    const decltype(std::declval<TPersistentAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
@@ -702,22 +697,20 @@ private: \
     friend class TCompositeNodeTypeHandler;
 public:
     // TODO(kvk1920): Consider accessing Attributes_ via type handler.
-    const TAttributes* FindAttributes() const;
+    const TPersistentAttributes* FindAttributes() const;
+
 private:
-    void SetAttributes(const TAttributes* attributes);
+    void SetAttributes(const TPersistentAttributes* attributes);
     void CloneAttributesFrom(const TCompositeNodeBase* sourceNode);
     void MergeAttributesFrom(const TCompositeNodeBase* branchedNode);
 
-    std::unique_ptr<TAttributes> Attributes_;
+    std::unique_ptr<TPersistentAttributes> Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(kvk1920): Rename to GatherInheritableAttributes.
 // Traverse all ancestors and collect inheritable attributes.
-void GatherTransientInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes);
-// COMPAT(kvk1920): Replace with GatherTransientInheritableAttributes.
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes, bool legacyBehaviour);
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -984,7 +977,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-
-#define NODE_DETAIL_INL_H_
-#include "node_detail-inl.h"
-#undef NODE_DETAIL_INL_H_

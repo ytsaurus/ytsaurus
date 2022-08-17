@@ -1539,8 +1539,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     GatherInheritableAttributes(
         intendedParentNode,
-        &inheritedAttributes->Attributes(),
-        !GetDynamicCypressManagerConfig()->EnablePortalExitEffectiveInheritedAttributes);
+        &inheritedAttributes->Attributes());
 
     std::optional<TYPath> optionalTargetPath;
     if (explicitAttributes) {
@@ -2152,7 +2151,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             { \
                 auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
                 auto* lockedNode = LockThisImpl<TCompositeNodeBase>(lockRequest); \
-                using TAttr = decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)::TValue; \
+                using TAttr = decltype(std::declval<TCompositeNodeBase::TPersistentAttributes>().camelCaseName)::TValue; \
                 lockedNode->Set##camelCaseName(ConvertTo<TAttr>(value)); \
             } \
             return true; \
@@ -2328,171 +2327,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransientInheritedAttributeDictionary::TTransientInheritedAttributeDictionary(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-std::vector<TString> TTransientInheritedAttributeDictionary::ListKeys() const
-{
-    std::vector<TString> result;
-#define XX(camelCaseName, snakeCaseName) \
-    if (InheritedAttributes_.camelCaseName.IsSet()) {  \
-        result.push_back(#snakeCaseName); \
-    }
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (Fallback_) {
-        auto fallbackKeys = Fallback_->ListKeys();
-        result.insert(result.end(), fallbackKeys.begin(), fallbackKeys.end());
-        SortUnique(result);
-    }
-
-    return result;
-}
-
-std::vector<IAttributeDictionary::TKeyValuePair> TTransientInheritedAttributeDictionary::ListPairs() const
-{
-    return ListAttributesPairs(*this);
-}
-
-TYsonString TTransientInheritedAttributeDictionary::FindYson(TStringBuf key) const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        auto optionalValue = InheritedAttributes_.camelCaseName.ToOptional(); \
-        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString(); \
-    } \
-
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-
-    if (key == "primary_medium") {
-        auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
-        if (!optionalPrimaryMediumIndex) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
-        return ConvertToYsonString(medium->GetName());
-    }
-
-    if (key == "media") {
-        auto optionalReplication = InheritedAttributes_.Media.ToOptional();
-        if (!optionalReplication) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
-    }
-
-    if (key == "tablet_cell_bundle") {
-        auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
-
-    if (key == "chaos_cell_bundle") {
-        auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
-
-    return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
-}
-
-void TTransientInheritedAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        if (key == "compression_codec") { \
-            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
-            ValidateCompressionCodec( \
-                value, \
-                chunkManagerConfig->DeprecatedCodecIds, \
-                chunkManagerConfig->DeprecatedCodecNameToAlias); \
-        } \
-        using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
-        InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \
-        return; \
-    }
-
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (key == "primary_medium") {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& mediumName = ConvertTo<TString>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
-        return;
-    }
-
-    if (key == "media") {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        replication.SetVital(true);
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.Media.Set(replication);
-        return;
-    }
-
-    if (key == "tablet_cell_bundle") {
-        auto bundleName = ConvertTo<TString>(value);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle.Set(bundle);
-        return;
-    }
-
-    if (key == "chaos_cell_bundle") {
-        auto bundleName = ConvertTo<TString>(value);
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
-        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.ChaosCellBundle.Set(bundle);
-        return;
-    }
-
-    if (!Fallback_) {
-        Fallback_ = CreateEphemeralAttributes();
-    }
-
-    Fallback_->SetYson(key, value);
-}
-
-bool TTransientInheritedAttributeDictionary::Remove(const TString& key)
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        InheritedAttributes_.camelCaseName.Reset(); \
-        return true; \
-    }
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (Fallback_) {
-        return Fallback_->Remove(key);
-    }
-
-    return false;
-}
-
-TCompositeNodeBase::TTransientAttributes& TTransientInheritedAttributeDictionary::Attributes()
-{
-    return InheritedAttributes_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
@@ -2614,7 +2448,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle.Set(TTabletCellBundlePtr(bundle));
+        InheritedAttributes_.TabletCellBundle.Set(bundle);
         return;
     }
 
@@ -2622,7 +2456,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         auto bundleName = ConvertTo<TString>(value);
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.ChaosCellBundle.Set(TChaosCellBundlePtr(bundle));
+        InheritedAttributes_.ChaosCellBundle.Set(bundle);
         return;
     }
 
@@ -2651,7 +2485,7 @@ bool TInheritedAttributeDictionary::Remove(const TString& key)
     return false;
 }
 
-TCompositeNodeBase::TAttributes& TInheritedAttributeDictionary::Attributes()
+TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::Attributes()
 {
     return InheritedAttributes_;
 }

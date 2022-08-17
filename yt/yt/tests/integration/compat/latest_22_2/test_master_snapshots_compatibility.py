@@ -1,5 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
-from yt_commands import (authors, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells)
+from yt_commands import (
+    authors, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
+    set, get)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -9,6 +11,15 @@ import pytest
 import yatest.common
 
 ##################################################################
+
+
+def check_portal_synchronization_config():
+    path = "//sys/@config/cypress_manager/portal_synchronization_period"
+    set(path, 1111)
+
+    yield
+
+    assert get(path) == 1111
 
 
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
@@ -52,6 +63,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     @pytest.mark.timeout(150)
     def test(self):
         CHECKER_LIST = [
+            check_portal_synchronization_config,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
