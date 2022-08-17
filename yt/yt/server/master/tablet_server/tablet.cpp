@@ -241,7 +241,7 @@ void TTablet::SetOwner(TTabletOwnerBase* owner)
 {
     if (auto* table = GetTable()) {
         YT_VERIFY(table->GetTrunkNode()->TabletCountByBackupState()[BackupState_] > 0);
-        table->GetTrunkNode()->MutableTabletCountByBackupState()[BackupState_];
+        --table->GetTrunkNode()->MutableTabletCountByBackupState()[BackupState_];
     }
 
     if (owner) {
