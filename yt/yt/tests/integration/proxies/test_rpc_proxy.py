@@ -238,7 +238,6 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
 
 class TestRpcProxyDiscovery(YTEnvSetup):
-    DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
@@ -297,6 +296,20 @@ class TestRpcProxyDiscovery(YTEnvSetup):
         proxies = discover_proxies(type_="rpc", driver=self.driver, network_name="invalid")
         assert len(proxies) == 0
 
+
+class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 2
+
+    def setup_method(self, method):
+        super(TestRpcProxyDiscoveryViaHttp, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
     def _create_yt_rpc_client_with_http_discovery(self, config=None):
         proxy = self.Env.get_proxy_address()
 
@@ -315,7 +328,7 @@ class TestRpcProxyDiscovery(YTEnvSetup):
         return YtClient(proxy=None, config=default_config)
 
     @authors("verytable")
-    def test_discovery_via_http(self):
+    def test_discovery(self):
         for test_name, config in [
             (
                 "defaults", {},
@@ -333,7 +346,7 @@ class TestRpcProxyDiscovery(YTEnvSetup):
             assert yc.get("//tmp/@"), test_name
 
     @authors("verytable")
-    def test_discovery_via_http_invalid_address_type(self):
+    def test_discovery_invalid_address_type(self):
         with pytest.raises(RuntimeError) as excinfo:
             yc = self._create_yt_rpc_client_with_http_discovery(config={"driver_config": {"proxy_address_type": "invalid"}})
             yc.get("//tmp/@")
@@ -341,7 +354,7 @@ class TestRpcProxyDiscovery(YTEnvSetup):
         assert "Error creating driver" in str(excinfo.value)
 
     @authors("verytable")
-    def test_discovery_via_http_invalid_network(self):
+    def test_discovery_invalid_network(self):
         with pytest.raises(YtError) as excinfo:
             yc = self._create_yt_rpc_client_with_http_discovery(config={"driver_config": {"proxy_network_name": "invalid"}})
             yc.get("//tmp/@")
