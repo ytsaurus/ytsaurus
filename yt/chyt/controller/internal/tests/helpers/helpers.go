@@ -22,7 +22,18 @@ const StrawberryRoot = ypath.Path("//tmp/strawberry")
 func PrepareEnv(t *testing.T) *yttest.Env {
 	env := yttest.New(t)
 
-	_, err := env.YT.CreateNode(env.Ctx, StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err := env.YT.CreateNode(env.Ctx, StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{
+		Recursive:      true,
+		IgnoreExisting: true,
+	})
+	require.NoError(t, err)
+
+	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name": "test_family",
+		},
+		IgnoreExisting: true,
+	})
 	require.NoError(t, err)
 
 	return env

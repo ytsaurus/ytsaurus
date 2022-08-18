@@ -63,6 +63,16 @@ func prepare(t *testing.T) (*yttest.Env, *agent.Agent) {
 	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
 
+	nsPath := strawberry.AccessControlNamespacesPath.Child("sleep")
+	err = env.YT.RemoveNode(env.Ctx, nsPath, &yt.RemoveNodeOptions{Force: true, Recursive: true})
+	require.NoError(t, err)
+	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name": "sleep",
+		},
+	})
+	require.NoError(t, err)
+
 	abortAll(t, env)
 
 	agent := createAgent(env, "default")
@@ -74,7 +84,12 @@ func createStrawberryOp(t *testing.T, env *yttest.Env, alias string) {
 	env.L.Debug("creating node", log.String("alias", alias))
 	_, err := env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias), yt.NodeMap, nil)
 	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access"), yt.NodeMap, nil)
+	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObject, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name":      alias,
+			"namespace": "sleep",
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("speclet"), yt.NodeDocument, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
@@ -144,17 +159,13 @@ func setAttr(t *testing.T, env *yttest.Env, alias string, attr string, value int
 
 func setSpecletOption(t *testing.T, env *yttest.Env, alias string, option string, value interface{}) {
 	env.L.Debug("setting speclet option", log.String("alias", alias), log.String("option", option), log.Any("value", value))
-	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("speclet").Child(option), value, nil)
+	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.JoinChild(alias, "speclet", option), value, nil)
 	require.NoError(t, err)
 }
 
 func setACL(t *testing.T, env *yttest.Env, alias string, acl []yt.ACE) {
-	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access").Attr("acl"), acl, nil)
-	require.NoError(t, err)
-	// TODO(dakovalkov): Changing ACL does not change the revision now.
-	// We set user attribute now to force changing the revision.
-	// Remove it after https://st.yandex-team.ru/YT-16169.
-	err = env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Child(alias).Child("access").Attr("_idm_integration"), true, nil)
+	aclPath := strawberry.AccessControlNamespacesPath.JoinChild("sleep", alias).Attr("principal_acl")
+	err := env.YT.SetNode(env.Ctx, aclPath, acl, nil)
 	require.NoError(t, err)
 }
 

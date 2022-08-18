@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
@@ -29,9 +31,31 @@ func NewAPI(ytc yt.Client, cfg APIConfig, l log.Logger) *API {
 func getUser(ctx context.Context) (string, error) {
 	user, ok := ythttputil.ContextRequester(ctx)
 	if !ok {
+		// Actually, should never happen.
 		return "", yterrors.Err("requester is missing in the request context")
 	}
 	return user, nil
+}
+
+func (a *API) CheckExistence(ctx context.Context, alias string, shouldExist bool) error {
+	exists, err := a.Exists(ctx, alias)
+	if err != nil {
+		return err
+	}
+	if exists != shouldExist {
+		if exists {
+			return yterrors.Err(
+				fmt.Sprintf("strawberry operation %v already exists", alias),
+				yterrors.CodeAlreadyExists,
+				yterrors.Attr("alias", alias))
+		} else {
+			return yterrors.Err(
+				fmt.Sprintf("strawberry operation %v does not exist", alias),
+				yterrors.CodeResolveError,
+				yterrors.Attr("alias", alias))
+		}
+	}
+	return nil
 }
 
 func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission yt.Permission) error {
@@ -41,13 +65,15 @@ func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission 
 		return err
 	}
 
-	response, err := a.ytc.CheckPermission(ctx, user, permission, a.cfg.Root.JoinChild(alias, "access"), nil)
+	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias)
+	response, err := a.ytc.CheckPermission(ctx, user, permission, accessNodePath, nil)
 	if err != nil {
 		return err
 	}
 
 	if response.Action != yt.ActionAllow {
-		return yterrors.Err("operation access denied",
+		return yterrors.Err(
+			fmt.Sprintf("%v access to strawberry operation %v denied for user %v", permission, alias, user),
 			yterrors.CodeAuthorizationError,
 			yterrors.Attr("alias", alias),
 			yterrors.Attr("permission", permission),
@@ -97,7 +123,8 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 	}
 
 	if response.Action != yt.ActionAllow {
-		return yterrors.Err("access for pool denied",
+		return yterrors.Err(
+			fmt.Sprintf("%v access to pool %v denied for user %v", permission, pool, user),
 			yterrors.CodeAuthorizationError,
 			yterrors.Attr("pool", pool),
 			yterrors.Attr("permission", permission),
@@ -107,11 +134,48 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 	return nil
 }
 
+// Create creates a new strawberry operation in cypress.
+// If the creation fails due to a transient error, the resulting state can be inconsistent,
+// because we can not create an access control object node in transactions.
+// Anyway, it's guaranteed that in such state the Create command can be retried
+// and that this state can be completely removed via Remove command.
 func (a *API) Create(ctx context.Context, alias string) error {
+	// It's not nessesary to check an operation existence, but we do it to provide better error messages.
+	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
+		return err
+	}
 	user, err := getUser(ctx)
 	if err != nil {
 		a.l.Error("failed to get user", log.Error(err))
 		return err
+	}
+
+	// Create "access" node.
+	_, err = a.ytc.CreateObject(ctx, yt.NodeAccessControlObject, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name":      alias,
+			"namespace": a.cfg.Family,
+			"principal_acl": []yt.ACE{
+				{
+					Action:      yt.ActionAllow,
+					Subjects:    []string{user},
+					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionUse, yt.PermissionManage},
+				},
+			},
+			// TODO(dakovalkov)
+			// "idm_initial_roles": ...
+		},
+	})
+
+	if err != nil {
+		if !yterrors.ContainsAlreadyExistsError(err) {
+			return yterrors.Err(fmt.Sprintf("failed to create strawberry operation %v", alias), err)
+		}
+		// If the previous creation of the op failed, the access node can exist without a strawberry node.
+		// In that case we check that user has proper access for an existing node and allow him to create a strawberry node.
+		if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+			return err
+		}
 	}
 
 	tx, err := a.ytc.BeginTx(ctx, &yt.StartTxOptions{})
@@ -135,22 +199,8 @@ func (a *API) Create(ctx context.Context, alias string) error {
 				"family": a.cfg.Family,
 				"stage":  a.cfg.Stage,
 			},
-		},
-		TransactionOptions: txOptions,
-	})
-	if err != nil {
-		return err
-	}
-
-	// Create "access" node.
-	_, err = a.ytc.CreateNode(ctx, a.cfg.Root.JoinChild(alias, "access"), yt.NodeMap, &yt.CreateNodeOptions{
-		Attributes: map[string]any{
-			"acl": []yt.ACE{
-				{
-					Action:      yt.ActionAllow,
-					Subjects:    []string{user},
-					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionUse, yt.PermissionManage},
-				},
+			"strawberry_persistent_state": map[string]any{
+				"creator": user,
 			},
 		},
 		TransactionOptions: txOptions,
@@ -162,21 +212,51 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	return tx.Commit()
 }
 
+// Remove deletes the strawberry operation from cypress.
+// If the deletion fails due to a transient error, the state can be partially removed,
+// but it's guaranteed that the Remove command can be retried to delete the state completely.
 func (a *API) Remove(ctx context.Context, alias string) error {
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRemove); err != nil {
+		if yterrors.ContainsResolveError(err) {
+			// In case of failed Create/Remove commands the strawberry operation can "partially" exists.
+			// In that case the access node exists, but the strawberry node does not.
+			// In order to allow removing the access node in that case,
+			// we check the existence only if the access node does not exist.
+			// Actually, CheckExistence is used only for producing better error messages.
+			if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+				return err
+			}
+		}
 		return err
 	}
-	return a.ytc.RemoveNode(ctx, a.cfg.Root.Child(alias), &yt.RemoveNodeOptions{Recursive: true})
+
+	err := a.ytc.RemoveNode(ctx, a.cfg.Root.Child(alias), &yt.RemoveNodeOptions{Force: true, Recursive: true})
+	if err != nil {
+		return err
+	}
+
+	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias)
+	return a.ytc.RemoveNode(ctx, accessNodePath, &yt.RemoveNodeOptions{Recursive: true})
+}
+
+func (a *API) Exists(ctx context.Context, alias string) (bool, error) {
+	return a.ytc.NodeExists(ctx, a.cfg.Root.Child(alias), nil)
 }
 
 func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
 	if key == "pool" {
 		pool, ok := value.(string)
 		if !ok {
-			return yterrors.Err("pool value has unexpected type", yterrors.Attr("type", reflect.TypeOf(value).String()))
+			typeName := reflect.TypeOf(value).String()
+			return yterrors.Err(
+				fmt.Sprintf("pool option has unexpected value type %v", typeName),
+				yterrors.Attr("type", typeName))
 		}
 		if err := a.CheckPermissionToPool(ctx, pool, yt.PermissionUse); err != nil {
 			return err
@@ -186,6 +266,9 @@ func (a *API) SetOption(ctx context.Context, alias, key string, value any) error
 }
 
 func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}

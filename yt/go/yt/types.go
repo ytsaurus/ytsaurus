@@ -34,6 +34,9 @@ const (
 	NodePortalExit        NodeType = "portal_exit"
 	NodeSchedulerPool     NodeType = "scheduler_pool"
 	NodeSchedulerPoolTree NodeType = "scheduler_pool_tree"
+
+	NodeAccessControlObject          NodeType = "access_control_object"
+	NodeAccessControlObjectNamespace NodeType = "access_control_object_namespace"
 )
 
 func (n NodeType) String() string {

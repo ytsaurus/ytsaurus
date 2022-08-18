@@ -28,6 +28,10 @@ type PersistentState struct {
 	BackoffDuration time.Duration `yson:"backoff_duration"`
 	// BackoffUntil is a time point until which oplet passes will be skipped due to previously failed passes.
 	BackoffUntil time.Time `yson:"backoff_until"`
+
+	// Creator is a user who created the strawberry operation.
+	// Creator will automatically gain access to the strawberry operation when the access control object is created.
+	Creator string `yson:"creator"`
 }
 
 const (

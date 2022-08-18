@@ -73,6 +73,34 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 }
 
+func TestHTTPAPIExists(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := guid.New().String()
+
+	r := c.MakeRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result any
+
+	err := yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"result": false}, result)
+
+	r = c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakeRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	err = yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"result": true}, result)
+}
+
 func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	t.Parallel()
 

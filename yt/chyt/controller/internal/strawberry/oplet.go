@@ -36,8 +36,10 @@ const (
 	StateOK = "ok"
 	// State is does not exist if there was a resolve error during update from cypress.
 	StateDoesNotExist = "does_not_exist"
-	// State is broken if the oplet has incorrect cypress state and can not be procceeded.
-	StateBroken = "broken"
+
+	StateAccessNodeMissing  = "access_node_missing"
+	StateSpecletNodeMissing = "speclet_node_missing"
+	StateInvalidSpeclet     = "invalid_speclet"
 )
 
 type Oplet struct {
@@ -65,9 +67,6 @@ type Oplet struct {
 	// pendingUpdateFromCypressNode is set when we know that the oplet cypress state has been changed
 	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
 	pendingUpdateFromCypressNode bool
-	// pendingUpdateACLFromNode is set when we know that the oplet acl is changed and we need to
-	// reload it from the access node during the next pass.
-	pendingUpdateACLFromNode bool
 	// pendingRestart is set when agent scheduled a restart of coresponding yt operation on the
 	// next pass. It should be set via setPendingRestart only for proper log information.
 	pendingRestart bool
@@ -92,7 +91,6 @@ func NewOplet(options OpletOptions) *Oplet {
 	oplet := &Oplet{
 		alias:                        options.Alias,
 		pendingUpdateFromCypressNode: true,
-		pendingUpdateACLFromNode:     true,
 		state:                        StateOK,
 		cypressNode:                  options.StrawberryRoot.Child(options.Alias),
 		l:                            log.With(options.Logger, log.String("alias", options.Alias)),
@@ -128,7 +126,9 @@ func (oplet *Oplet) CypressNode() ypath.Path {
 }
 
 func (oplet *Oplet) Broken() bool {
-	return oplet.state == StateBroken
+	return oplet.state == StateAccessNodeMissing ||
+		oplet.state == StateSpecletNodeMissing ||
+		oplet.state == StateInvalidSpeclet
 }
 
 func (oplet *Oplet) DoesNotExist() bool {
@@ -147,7 +147,7 @@ func (oplet *Oplet) HasYTOperation() bool {
 }
 
 func (oplet *Oplet) UpToDateWithCypress() bool {
-	return !oplet.pendingUpdateFromCypressNode && !oplet.pendingUpdateACLFromNode
+	return !oplet.pendingUpdateFromCypressNode
 }
 
 func (oplet *Oplet) OperationInfo() (yt.OperationID, yt.OperationState) {
@@ -168,8 +168,13 @@ func (oplet *Oplet) OnCypressNodeChanged() {
 	oplet.pendingUpdateFromCypressNode = true
 }
 
-func (oplet *Oplet) OnACLNodeChanged() {
-	oplet.pendingUpdateACLFromNode = true
+func (oplet *Oplet) SetACL(acl []yt.ACE) {
+	if !reflect.DeepEqual(oplet.acl, acl) {
+		if !reflect.DeepEqual(toOperationACL(oplet.acl), toOperationACL(acl)) {
+			oplet.setPendingUpdateOpParameters("ACL change")
+		}
+		oplet.acl = acl
+	}
 }
 
 func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
@@ -178,8 +183,8 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 			return err
 		}
 	}
-	if oplet.pendingUpdateACLFromNode {
-		if err := oplet.updateACLFromNode(ctx); err != nil {
+	if oplet.acl == nil {
+		if err := oplet.UpdateACLFromNode(ctx); err != nil {
 			return err
 		}
 	}
@@ -346,19 +351,19 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	// Validate operation node
 
 	if node.Speclet == nil {
-		oplet.SetState(StateBroken, "speclet node is missing")
+		oplet.SetState(StateSpecletNodeMissing, "speclet node is missing")
 		return yterrors.Err("speclet node is missing")
 	}
 
 	if node.Speclet.Value == nil {
-		oplet.SetState(StateBroken, "speclet node is empty")
+		oplet.SetState(StateInvalidSpeclet, "speclet node is empty")
 		return yterrors.Err("speclet node is empty")
 	}
 
 	var strawberrySpeclet Speclet
 	err = yson.Unmarshal(node.Speclet.Value, &strawberrySpeclet)
 	if err != nil {
-		oplet.SetState(StateBroken, "error parsing speclet node")
+		oplet.SetState(StateInvalidSpeclet, "error parsing speclet node")
 		err = yterrors.Err("error parsing speclet node", err,
 			yterrors.Attr("speclet_yson", string(node.Speclet.Value)),
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
@@ -435,35 +440,26 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 }
 
 func (oplet *Oplet) getACLFromNode(ctx context.Context) (acl []yt.ACE, err error) {
-	err = oplet.systemClient.GetNode(ctx, oplet.cypressNode.Child("access").Attr("acl"), &acl, nil)
+	aclPath := AccessControlNamespacesPath.JoinChild(oplet.c.Family(), oplet.alias).Attr("principal_acl")
+	err = oplet.systemClient.GetNode(ctx, aclPath, &acl, nil)
 	return
 }
 
-func (oplet *Oplet) updateACLFromNode(ctx context.Context) error {
+func (oplet *Oplet) UpdateACLFromNode(ctx context.Context) error {
 	oplet.l.Info("updating acl from access node")
 
-	newACL, err := oplet.getACLFromNode(ctx)
+	acl, err := oplet.getACLFromNode(ctx)
 	if yterrors.ContainsResolveError(err) {
-		oplet.SetState(StateBroken, "acl node is missing")
+		oplet.SetState(StateAccessNodeMissing, "acl node is missing")
 		return err
 	} else if err != nil {
 		oplet.l.Error("error geting acl from access node")
 		return err
 	}
 
-	if !reflect.DeepEqual(oplet.acl, newACL) {
-		oplet.l.Info("strawberry operation acl changed", log.Any("old_acl", oplet.acl), log.Any("new_acl", newACL))
-
-		if !reflect.DeepEqual(toOperationACL(oplet.acl), toOperationACL(newACL)) {
-			oplet.setPendingUpdateOpParameters("ACL change")
-		}
-	}
-
-	oplet.acl = newACL
+	oplet.SetACL(acl)
 
 	oplet.l.Info("acl updated from access node")
-
-	oplet.pendingUpdateACLFromNode = false
 
 	return nil
 }
