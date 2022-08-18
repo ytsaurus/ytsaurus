@@ -8,9 +8,9 @@ class TMockTvmService
     : public ITvmService
 {
 public:
-    MOCK_METHOD(ui32, GetSelfTvmId, (), (override));
+    MOCK_METHOD(TTvmId, GetSelfTvmId, (), (override));
     MOCK_METHOD(TString, GetServiceTicket, (const TString&), (override));
-    MOCK_METHOD(TString, GetServiceTicket, (ui32), (override));
+    MOCK_METHOD(TString, GetServiceTicket, (TTvmId), (override));
     MOCK_METHOD(TParsedTicket, ParseUserTicket, (const TString&), (override));
     MOCK_METHOD(TParsedServiceTicket, ParseServiceTicket, (const TString&), (override));
 };

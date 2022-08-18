@@ -60,7 +60,7 @@ public:
     bool UseTvmTool;
 
     // TvmClient settings
-    ui32 ClientSelfId = 0;
+    TTvmId ClientSelfId = 0;
     TString ClientDiskCacheDir;
 
     TString TvmHost;
