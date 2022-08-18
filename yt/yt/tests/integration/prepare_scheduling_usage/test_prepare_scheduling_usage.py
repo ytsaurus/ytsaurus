@@ -8,7 +8,9 @@ import yt.yson as yson
 from yt.environment import arcadia_interop
 
 import os
+import sys
 import subprocess
+import time
 
 
 PREPARE_SCHEDULING_USAGE_BINARY = arcadia_interop.search_binary_path("prepare_scheduling_usage")
@@ -22,6 +24,8 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
 
     USE_PORTO = True
+
+    LOG_WRITE_WAIT_TIME = 0.2
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -41,19 +45,26 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         with open(input_filepath, "wb") as fout:
             yson.dump(rows, fout, yson_type="list_fragment")
 
-        subprocess.check_call([
-            PREPARE_SCHEDULING_USAGE_BINARY,
-            "--cluster", self.Env.get_proxy_address(),
-            "--mode", "local",
-            "--input-path", input_filepath,
-            "--output-path", output_filepath
-        ])
+        subprocess.check_call(
+            [
+                PREPARE_SCHEDULING_USAGE_BINARY,
+                "--cluster", self.Env.get_proxy_address(),
+                "--mode", "local",
+                "--input-path", input_filepath,
+                "--output-path", output_filepath
+            ],
+            stderr=sys.stderr)
 
         with open(output_filepath, "rb") as fin:
-            return list(yson.load(fin, yson_type="list_fragment"))
+            output = list(yson.load(fin, yson_type="list_fragment"))
+
+        with open(output_filepath + ".pools", "rb") as fin:
+            pools = yson.load(fin)
+
+        return output, pools
 
     def test_scheduler_simulator(self):
-        create_pool("parent_pool", pool_tree="default")
+        create_pool("parent_pool", pool_tree="default", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
         create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
 
         scheduler_address = ls("//sys/scheduler/instances")[0]
@@ -68,6 +79,9 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             track=True)
 
         scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
+
         to_barrier = write_log_barrier(scheduler_address)
 
         structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
@@ -89,11 +103,22 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         structured_log_part1 = structured_log[min_operation_event_index:mid_index]
         structured_log_part2 = structured_log[mid_index:max_operation_event_index + 1]
 
-        rows1 = self._run_script(structured_log_part1)
+        rows1, pools1 = self._run_script(structured_log_part1)
         assert len(rows1) >= 1
 
-        rows2 = self._run_script(structured_log_part2)
+        rows2, pools2 = self._run_script(structured_log_part2)
         assert len(rows2) >= 1
+
+        assert pools1 == pools2
+        assert len(pools1) == 1
+        parent_pool_info_list = [
+            pool_info for pool_path, pool_info in pools1["local_cluster"]["default"]
+            if pool_path == "/parent_pool"
+        ]
+        assert len(parent_pool_info_list) == 1
+
+        parent_pool_info = parent_pool_info_list[0]
+        assert parent_pool_info["strong_guarantee_resources"]["cpu"] == 1.0
 
         rows = rows1 + rows2
 

@@ -12,6 +12,7 @@ import yt.wrapper as yt
 
 import argparse
 import collections
+import copy
 import dataclasses
 import json
 import itertools
@@ -127,7 +128,7 @@ class OperationInfo:
 class PoolsMapping:
     cluster: typing.Optional[str]
     pool_tree: typing.Optional[str]
-    pools_mapping: typing.Optional[typing.Dict[str, typing.List[str]]]
+    pools_mapping: typing.Optional[typing.Dict[str, typing.Optional[YsonBytes]]]
 
 
 def merge_info(info_base, info_update):
@@ -152,12 +153,14 @@ def merge_info(info_base, info_update):
 def build_pool_mapping(pools_info):
     def build_pool_mapping_recursive(self, pool, mapping_output):
         if pool == ROOT_POOL_NAME:
-            mapping_output[pool] = []
+            mapping_output[pool] = copy.deepcopy(pools_info[pool])
+            mapping_output[pool]["ancestor_pools"] = []
         else:
             parent_pool = pools_info[pool]["parent"]
             if parent_pool not in mapping_output:
                 build_pool_mapping_recursive(pools_info, parent_pool, mapping_output)
-            mapping_output[pool] = mapping_output[parent_pool] + [pool]
+            mapping_output[pool] = copy.deepcopy(pools_info[pool])
+            mapping_output[pool]["ancestor_pools"] = mapping_output[parent_pool]["ancestor_pools"] + [pool]
 
     mapping_output = {}
     for pool in pools_info:
@@ -168,14 +171,14 @@ def build_pool_mapping(pools_info):
 
 
 def convert_pools_mapping_to_pool_paths_info(cluster_and_tree_to_pools_mapping):
-    result = collections.defaultdict(lambda: collections.defaultdict(set))
+    result = collections.defaultdict(lambda: collections.defaultdict(dict))
     for cluster_and_tree, pools_mapping in cluster_and_tree_to_pools_mapping.items():
         cluster, pool_tree = cluster_and_tree
-        for pools in pools_mapping.values():
-            result[cluster][pool_tree].add(build_pool_path(pools))
+        for pool_info in pools_mapping.values():
+            result[cluster][pool_tree][build_pool_path(pool_info["ancestor_pools"])] = pool_info
     for cluster in result:
         for pool_tree in result[cluster]:
-            result[cluster][pool_tree] = list(result[cluster][pool_tree])
+            result[cluster][pool_tree] = list(result[cluster][pool_tree].items())
     return result
 
 
@@ -191,7 +194,7 @@ class ExtractPoolsMapping(TypedJob):
                 key = (row.other["cluster"], row.other["tree_id"])
                 # TODO(ignat): how is it possible?
                 if "pools" in row.other:
-                    cluster_and_tree_to_pools_mapping[key] = build_pool_mapping(row.other["pools"])
+                    cluster_and_tree_to_pools_mapping[key] = yson.dumps(build_pool_mapping(row.other["pools"]))
                 else:
                     print("XXX", row.other, file=sys.stderr)
 
@@ -214,7 +217,7 @@ class FilterAndNormalizeEvents(TypedJob):
     def _process_accumulated_usage_info(self, input_row):
         pools_mapping = build_pool_mapping(input_row["pools"])
         for operation_id, info in input_row["operations"].items():
-            pools = pools_mapping[info["pool"]]
+            pools = pools_mapping[info["pool"]]["ancestor_pools"]
             yield OperationInfo(
                 timestamp=date_string_to_timestamp(input_row["timestamp"]),
                 cluster=input_row["cluster"],
@@ -259,7 +262,8 @@ class FilterAndNormalizeEvents(TypedJob):
             else:
                 # COMPAT(ignat)
                 pool = runtime_parameters["scheduling_options_per_pool_tree"][pool_tree]["pool"]
-                pools = self._cluster_and_tree_to_pools_mapping[(input_row["cluster"], pool_tree)].get(pool, [pool])
+                pool_info = self._cluster_and_tree_to_pools_mapping[(input_row["cluster"], pool_tree)].get(pool)
+                pools = pool_info["ancestor_pools"] if pool_info else [pool]
 
             job_statistics = None \
                 if all_job_statistics is None \
@@ -333,7 +337,7 @@ def process_scheduler_log_locally(input_path, output_path):
 
     input_file = open(input_path, "rb")
     output_file = open(output_path, "wb")
-    output_pools_file = open(output_path + ".pools", "w")
+    output_pools_file = open(output_path + ".pools", "wb")
 
     rows = yson.load(input_file, yson_type="list_fragment")
     input_rows = list(map(lambda row: InputRow(other=OtherColumns(yson.dumps(row))), rows))
@@ -358,7 +362,7 @@ def process_scheduler_log_locally(input_path, output_path):
 
     yson.dump(map(dataclasses.asdict, reduced_rows), output_file, yson_type="list_fragment")
 
-    json.dump(pool_paths_info, output_pools_file)
+    yson.dump(pool_paths_info, output_pools_file)
 
 
 def extract_pools_mapping(client, input_table):
