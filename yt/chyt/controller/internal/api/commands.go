@@ -68,6 +68,31 @@ func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, struct{}{})
 }
 
+var ExistsCmdDescriptor = CmdDescriptor{
+	Name:        "exists",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "check the strawberry operation existence",
+}
+
+func (a HTTPAPI) HandleExists(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, ExistsCmdDescriptor)
+	if params == nil {
+		return
+	}
+
+	alias := params["alias"].(string)
+
+	ok, err := a.api.Exists(r.Context(), alias)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+
+	a.replyOK(w, map[string]any{
+		"result": ok,
+	})
+}
+
 var KeyParameter = CmdParameter{
 	Name:        "key",
 	Type:        TypeString,
@@ -166,6 +191,7 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 			r.Use(ythttputil.Auth(bb, l.Structured()))
 			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
+			r.Post("/"+ExistsCmdDescriptor.Name, api.HandleExists)
 			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 		})

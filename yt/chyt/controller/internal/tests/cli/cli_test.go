@@ -30,7 +30,7 @@ func NewCLIRunner(env *yttest.Env, t *testing.T) cliRunner {
 	}
 }
 
-func (r *cliRunner) RunYT(args ...string) error {
+func (r *cliRunner) RunYTWithOutput(args ...string) ([]byte, error) {
 	r.env.L.Debug("running command", log.Strings("args", args))
 	require.GreaterOrEqual(r.t, len(args), 1)
 
@@ -43,6 +43,11 @@ func (r *cliRunner) RunYT(args ...string) error {
 
 	output, err := cmd.CombinedOutput()
 	r.env.L.Debug("command finished", log.ByteString("output", output))
+	return output, err
+}
+
+func (r *cliRunner) RunYT(args ...string) error {
+	_, err := r.RunYTWithOutput(args...)
 	return err
 }
 
@@ -81,4 +86,17 @@ func TestCLIControllerUnavailable(t *testing.T) {
 	// Other commands should not depend on controller address.
 	err = r.RunYT("list", "/")
 	require.NoError(t, err)
+}
+
+func TestCLIYsonOutput(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	r := NewCLIRunner(env, t)
+
+	r.EnvVariables["CHYT_CTL_ADDRESS"] = c.Endpoint
+
+	output, err := r.RunYTWithOutput("clickhouse", "ctl", "exists", "this_clique_does_not_exist")
+	require.NoError(t, err)
+	require.Equal(t, []byte("%false\n"), output)
 }

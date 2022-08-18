@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
@@ -16,6 +17,8 @@ var (
 	aliasAlreadyUsedRE        = regexp.MustCompile("alias is already used by an operation")
 	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 )
+
+const AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
 
 func requiresRestart(state yt.OperationState) bool {
 	return state == yt.StateAborted ||

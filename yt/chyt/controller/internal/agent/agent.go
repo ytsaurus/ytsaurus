@@ -51,7 +51,41 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 	}
 }
 
-func (a *Agent) abortDangling() {
+func (a *Agent) updateACLs() error {
+	var result []struct {
+		Alias string   `yson:",value"`
+		ACL   []yt.ACE `yson:"principal_acl,attr"`
+	}
+
+	err := a.ytc.ListNode(a.ctx,
+		strawberry.AccessControlNamespacesPath.Child(a.controller.Family()),
+		&result,
+		&yt.ListNodeOptions{Attributes: []string{"principal_acl"}})
+
+	if err != nil {
+		return err
+	}
+
+	aclUpdated := make(map[string]bool)
+
+	for _, node := range result {
+		aclUpdated[node.Alias] = true
+		if oplet, ok := a.aliasToOp[node.Alias]; ok {
+			oplet.SetACL(node.ACL)
+		}
+	}
+
+	for alias, oplet := range a.aliasToOp {
+		if !aclUpdated[alias] {
+			a.l.Error("oplet is broken: missing acl node", log.String("alias", alias))
+			a.unregisterOplet(oplet)
+		}
+	}
+
+	return nil
+}
+
+func (a *Agent) abortDangling() error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 
@@ -75,6 +109,7 @@ func (a *Agent) abortDangling() {
 
 	if err != nil {
 		l.Error("error collecting running operations", log.Error(err))
+		return err
 	}
 
 	opIDStrs := make([]string, len(runningOps))
@@ -122,12 +157,19 @@ func (a *Agent) abortDangling() {
 			}
 		}
 	}
+
+	return nil
 }
 
 func (a *Agent) pass() {
 	startedAt := time.Now()
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
+
+	if err := a.updateACLs(); err != nil {
+		// TODO(dakovalkov): report controller unavailable.
+		return
+	}
 
 	for _, oplet := range a.aliasToOp {
 		_ = oplet.Pass(a.ctx)
@@ -139,7 +181,10 @@ func (a *Agent) pass() {
 	// Abort dangling operations. This results in fetching running operations
 	// and filtering those which are not listed in our idToOp.
 
-	a.abortDangling()
+	if err := a.abortDangling(); err != nil {
+		// TODO(dakovalkov): report controller unavailable.
+		return
+	}
 
 	// Sanity check.
 	for alias, oplet := range a.aliasToOp {
@@ -172,10 +217,6 @@ loop:
 							oplet.OnCypressNodeChanged()
 						} else {
 							a.registerNewOplet(alias)
-						}
-					case reflect.DeepEqual(subnodes, []string{"access"}):
-						if ok {
-							oplet.OnACLNodeChanged()
 						}
 					}
 				}

@@ -180,6 +180,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 		"commands": []CmdDescriptor{
 			CreateCmdDescriptor,
 			RemoveCmdDescriptor,
+			ExistsCmdDescriptor,
 			SetOptionCmdDescriptor,
 			RemoveOptionCmdDescriptor,
 		}})
