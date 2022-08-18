@@ -2683,8 +2683,13 @@ private:
                 .Item(id).BeginMap()
                     .Item("abc").Value(pool->GetConfig()->Abc)
                     .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
+                        auto burstRatio = pool->GetSpecifiedBurstRatio();
+                        auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
                         fluent
-                            .Item("parent").Value(pool->GetParent()->GetId());
+                            .Item("parent").Value(pool->GetParent()->GetId())
+                            .Item("strong_guarantee_resources").Value(pool->GetSpecifiedStrongGuaranteeResources())
+                            .Item("burst_guarantee_resources").Value(pool->GetTotalResourceLimits() * burstRatio)
+                            .Item("resource_flow").Value(pool->GetTotalResourceLimits() * resourceFlowRatio);
                     })
                 .EndMap();
         };
