@@ -1220,24 +1220,24 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 
     auto automatonVersion = GetAutomatonVersion();
 
+    auto mutationId = mutationContext->Request().MutationId;
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
         Automaton_->ApplyMutation(mutationContext);
+
+        if (Options_.ResponseKeeper &&
+            mutationId &&
+            !mutationContext->GetResponseKeeperSuppressed() &&
+            mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in.
+        {
+            Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
+        }
     }
 
     mutationContext->CombineStateHash(mutationContext->GetRandomSeed());
     StateHash_ = mutationContext->GetStateHash();
 
     Timestamp_ = mutationContext->GetTimestamp();
-
-    auto mutationId = mutationContext->Request().MutationId;
-    if (Options_.ResponseKeeper &&
-        mutationId &&
-        !mutationContext->GetResponseKeeperSuppressed() &&
-        mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in.
-    {
-        Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
-    }
 
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
