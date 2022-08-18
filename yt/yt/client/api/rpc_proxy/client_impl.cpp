@@ -67,21 +67,17 @@ IChannelPtr CreateCredentialsInjectingChannel(
     if (options.Token) {
         return CreateTokenInjectingChannel(
             underlying,
-            options.User,
-            *options.Token);
+            options);
     } else if (options.SessionId || options.SslSessionId) {
         return CreateCookieInjectingChannel(
             underlying,
-            options.User,
-            options.SessionId.value_or(TString()),
-            options.SslSessionId.value_or(TString()));
+            options);
     } else if (options.ServiceTicketAuth) {
         return CreateServiceTicketInjectingChannel(
             underlying,
-            options.User,
-            *options.ServiceTicketAuth);
+            options);
     } else {
-        return CreateUserInjectingChannel(underlying, options.User);
+        return CreateUserInjectingChannel(underlying, options);
     }
 }
 

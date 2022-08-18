@@ -16,8 +16,6 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/yt/library/auth/public.h>
-
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,32 +27,6 @@ struct TConnectionOptions
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TClientOptions
-{
-    static TClientOptions FromUser(const TString& user, const std::optional<TString>& userTag = {});
-    static TClientOptions FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity);
-    static TClientOptions FromToken(const TString& token);
-    static TClientOptions FromServiceTicketAuth(const NAuth::IServiceTicketAuthPtr& ticketAuth);
-
-    const TString& GetAuthenticatedUser() const;
-    NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const;
-
-    //! This field is not required for authentication.
-    //! When not specified, user is derived from credentials. When
-    //! specified, server additionally checks that #User is
-    //! matching user derived from credentials.
-    std::optional<TString> User;
-
-    //! Provides an additional annotation to differentiate between
-    //! various clients that authenticate via the same effective user.
-    std::optional<TString> UserTag;
-
-    std::optional<TString> Token;
-    std::optional<TString> SessionId;
-    std::optional<TString> SslSessionId;
-    std::optional<NAuth::IServiceTicketAuthPtr> ServiceTicketAuth;
-};
 
 struct TTransactionParticipantOptions
 {

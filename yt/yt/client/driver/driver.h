@@ -51,6 +51,10 @@ struct TDriverRequest
     //! Name of the user issuing the request.
     TString AuthenticatedUser = NSecurityClient::RootUserName;
 
+    //! Provides an additional annotation to differentiate between
+    //! various clients that authenticate via the same effective user.
+    std::optional<TString> UserTag;
+
     //! Filled in the context of http proxy.
     std::optional<NNet::TNetworkAddress> UserRemoteAddress;
 
