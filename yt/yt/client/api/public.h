@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/transaction_client/public.h>
 
+#include <yt/yt/library/auth/authentication_options.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NApi {
@@ -101,7 +103,8 @@ DECLARE_REFCOUNTED_STRUCT(TSkynetSharePartsLocations);
 
 struct TConnectionOptions;
 
-struct TClientOptions;
+using TClientOptions = NAuth::TAuthenticationOptions;
+
 struct TTransactionParticipantOptions;
 
 struct TTimeoutOptions;

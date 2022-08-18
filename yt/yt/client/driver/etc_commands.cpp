@@ -290,6 +290,7 @@ public:
             }
             driverRequest.Parameters = parameters->ToMap();
             driverRequest.AuthenticatedUser = Context_->Request().AuthenticatedUser;
+            driverRequest.UserTag = Context_->Request().UserTag;
             driverRequest.LoggingTags = Format("SubrequestIndex: %v", RequestIndex_);
 
             return driver->Execute(driverRequest).Apply(

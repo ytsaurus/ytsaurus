@@ -389,6 +389,10 @@ def execute_command(
     if "authenticated_user" in parameters:
         authenticated_user = parameters["authenticated_user"]
         del parameters["authenticated_user"]
+    user_tag = None
+    if "user_tag" in parameters:
+        user_tag = parameters["user_tag"]
+        del parameters["user_tag"]
 
     if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
@@ -435,6 +439,7 @@ def execute_command(
             input_stream=input_stream,
             output_stream=output_stream,
             user=authenticated_user,
+            user_tag=user_tag,
             trace_id=trace_id,
         )
     )

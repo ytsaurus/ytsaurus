@@ -113,8 +113,8 @@ public:
         , ProxyDiscoveryCache_(CreateProxyDiscoveryCache(
             Config_->ProxyDiscoveryCache,
             ClientCache_->Get(
-                NRpc::GetRootAuthenticationIdentity(),
-                TClientOptions::FromAuthenticationIdentity(NRpc::GetRootAuthenticationIdentity()))))
+                GetRootAuthenticationIdentity(),
+                TClientOptions::FromAuthenticationIdentity(GetRootAuthenticationIdentity()))))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         // Register all commands.
@@ -338,7 +338,9 @@ public:
         }
 
         const auto& entry = it->second;
-        const auto& user = request.AuthenticatedUser;
+        TAuthenticationIdentity identity(
+            request.AuthenticatedUser,
+            request.UserTag.value_or(""));
 
         YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
@@ -346,18 +348,13 @@ public:
         YT_LOG_DEBUG("Command received (RequestId: %" PRIx64 ", Command: %v, User: %v)",
             request.Id,
             request.CommandName,
-            request.AuthenticatedUser);
+            identity.User);
 
-        auto identity = NRpc::TAuthenticationIdentity(user);
-
-        TClientOptions options{
-            .User = request.AuthenticatedUser,
-            .Token = request.UserToken,
-            .ServiceTicketAuth = request.ServiceTicket
-                ? std::optional<NAuth::IServiceTicketAuthPtr>(
-                    New<NAuth::TServiceTicketFixedAuth>(*request.ServiceTicket))
-                : std::nullopt,
-        };
+        auto options = TClientOptions::FromAuthenticationIdentity(identity);
+        options.Token = request.UserToken;
+        options.ServiceTicketAuth = request.ServiceTicket
+            ? std::make_optional(New<NAuth::TServiceTicketFixedAuth>(*request.ServiceTicket))
+            : std::nullopt;
 
         auto client = ClientCache_->Get(identity, options);
 

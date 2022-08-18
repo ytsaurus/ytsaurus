@@ -202,6 +202,22 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         assert contains_entry(query, from_barrier=b1, to_barrier=b2)
         assert not contains_entry(query, from_barrier=b2, to_barrier=b3)
 
+    @authors("dgolear")
+    def test_user_tag_pass(self):
+        b1 = self._write_log_barrier()
+
+        query = "* from [//path/to/table]"
+        user_tag = "example_user"
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query, user_tag=user_tag)
+
+        b2 = self._write_log_barrier()
+
+        assert any(map(
+            lambda line: line.get("identity", {}).get("user_tag", "") == user_tag,
+            read_structured_log(self.rpc_proxy_log_file, from_barrier=b1, to_barrier=b2)
+        ))
+
     @authors("max42")
     def test_max_request_byte_size(self):
         long_table_name = "//" + "a" * 4096

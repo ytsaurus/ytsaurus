@@ -1,5 +1,6 @@
 #include "credentials_injecting_channel.h"
 
+#include "authentication_options.h"
 #include "tvm.h"
 
 #include <yt/yt/core/rpc/client.h>
@@ -16,9 +17,12 @@ class TUserInjectingChannel
     : public TChannelWrapper
 {
 public:
-    TUserInjectingChannel(IChannelPtr underlyingChannel, const std::optional<TString>& user)
+    TUserInjectingChannel(
+        IChannelPtr underlyingChannel,
+        const TAuthenticationOptions& options)
         : TChannelWrapper(std::move(underlyingChannel))
-        , User_(user)
+        , User_(options.User)
+        , UserTag_(options.UserTag)
     { }
 
     IClientRequestControlPtr Send(
@@ -40,16 +44,22 @@ protected:
         if (User_) {
             request->SetUser(*User_);
         }
+        if (UserTag_ && UserTag_ != User_) {
+            request->SetUserTag(*UserTag_);
+        }
     }
 
 private:
     const std::optional<TString> User_;
+    const std::optional<TString> UserTag_;
 };
 
-IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const std::optional<TString>& user)
+IChannelPtr CreateUserInjectingChannel(
+    IChannelPtr underlyingChannel,
+    const TAuthenticationOptions& options)
 {
     YT_VERIFY(underlyingChannel);
-    return New<TUserInjectingChannel>(std::move(underlyingChannel), user);
+    return New<TUserInjectingChannel>(std::move(underlyingChannel), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,10 +70,9 @@ class TTokenInjectingChannel
 public:
     TTokenInjectingChannel(
         IChannelPtr underlyingChannel,
-        const std::optional<TString>& user,
-        const TString& token)
-        : TUserInjectingChannel(std::move(underlyingChannel), user)
-        , Token_(token)
+        const TAuthenticationOptions& options)
+        : TUserInjectingChannel(std::move(underlyingChannel), options)
+        , Token_(*options.Token)
     { }
 
 protected:
@@ -81,14 +90,13 @@ private:
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& token)
+    const TAuthenticationOptions& options)
 {
     YT_VERIFY(underlyingChannel);
+    YT_VERIFY(options.Token);
     return New<TTokenInjectingChannel>(
         std::move(underlyingChannel),
-        user,
-        token);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,12 +107,10 @@ class TCookieInjectingChannel
 public:
     TCookieInjectingChannel(
         IChannelPtr underlyingChannel,
-        const std::optional<TString>& user,
-        const TString& sessionId,
-        const TString& sslSessionId)
-        : TUserInjectingChannel(std::move(underlyingChannel), user)
-        , SessionId_(sessionId)
-        , SslSessionId_(sslSessionId)
+        const TAuthenticationOptions& options)
+        : TUserInjectingChannel(std::move(underlyingChannel), options)
+        , SessionId_(options.SessionId.value_or(TString()))
+        , SslSessionId_(options.SslSessionId.value_or(TString()))
     { }
 
 protected:
@@ -124,16 +130,13 @@ private:
 
 IChannelPtr CreateCookieInjectingChannel(
     IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& sessionId,
-    const TString& sslSessionId)
+    const TAuthenticationOptions& options)
 {
     YT_VERIFY(underlyingChannel);
+    YT_VERIFY(options.SessionId.has_value() || options.SslSessionId.has_value());
     return New<TCookieInjectingChannel>(
         std::move(underlyingChannel),
-        user,
-        sessionId,
-        sslSessionId);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,10 +147,9 @@ class TServiceTicketInjectingChannel
 public:
     TServiceTicketInjectingChannel(
         IChannelPtr underlyingChannel,
-        const std::optional<TString>& user,
-        const NAuth::IServiceTicketAuthPtr& ticketAuth)
-        : TUserInjectingChannel(std::move(underlyingChannel), user)
-        , TicketAuth_(ticketAuth)
+        const TAuthenticationOptions& options)
+        : TUserInjectingChannel(std::move(underlyingChannel), options)
+        , TicketAuth_(*options.ServiceTicketAuth)
     { }
 
 protected:
@@ -165,14 +167,13 @@ private:
 
 NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const NAuth::IServiceTicketAuthPtr& serviceTicketAuth)
+    const TAuthenticationOptions& options)
 {
     YT_VERIFY(underlyingChannel);
+    YT_VERIFY(options.ServiceTicketAuth && *options.ServiceTicketAuth);
     return New<TServiceTicketInjectingChannel>(
         std::move(underlyingChannel),
-        user,
-        serviceTicketAuth);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,8 +197,7 @@ public:
         }
         return CreateServiceTicketInjectingChannel(
             std::move(channel),
-            /*user*/ std::nullopt,
-            ServiceTicketAuth_);
+            TAuthenticationOptions::FromServiceTicketAuth(ServiceTicketAuth_));
     }
 
 private:

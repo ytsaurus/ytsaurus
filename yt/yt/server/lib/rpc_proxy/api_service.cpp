@@ -685,7 +685,8 @@ public:
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
 
         if (!Bootstrap_->GetConfigAuthenticationManager()->RequireAuthentication) {
-            GetOrCreateClient(NSecurityClient::RootUserName);
+            GetOrCreateClient(
+                NRpc::TAuthenticationIdentity(NSecurityClient::RootUserName));
         }
     }
 
@@ -739,10 +740,8 @@ private:
 
     std::atomic<i64> NextSequenceNumberSourceId_ = 0;
 
-
-    NNative::IClientPtr GetOrCreateClient(const TString& user)
+    NNative::IClientPtr GetOrCreateClient(const TAuthenticationIdentity& identity)
     {
-        auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = TClientOptions::FromAuthenticationIdentity(identity);
         return AuthenticatedClientCache_->Get(identity, options);
     }
@@ -827,11 +826,11 @@ private:
     {
         SetupTracing(context);
 
-        const auto& user = context->GetAuthenticationIdentity().User;
+        const auto& identity = context->GetAuthenticationIdentity();
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->ValidateAccess(user));
+        THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->ValidateAccess(identity.User));
 
-        SecurityManager_.ValidateUser(user);
+        SecurityManager_.ValidateUser(identity.User);
 
         Coordinator_->ValidateOperable();
 
@@ -844,11 +843,9 @@ private:
                 request->ShortDebugString());
         }
 
-        auto client = GetOrCreateClient(user);
+        auto client = GetOrCreateClient(identity);
         if (!client) {
-            THROW_ERROR_EXCEPTION(
-                "No client found for user %Qv",
-                user);
+            THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
         }
 
         return client;

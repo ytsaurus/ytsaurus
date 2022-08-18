@@ -122,7 +122,6 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         throw Py::RuntimeError("Python response could not be initialized, it usually means that python interpreter is in finalization state");
     }
 
-
     TDriverRequest request(holder);
     request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
     request.Parameters = ConvertToNodeWithUtf8Decoding(GetAttr(pyRequest, "parameters"))->AsMap();
@@ -134,6 +133,11 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     auto user = GetAttr(pyRequest, "user");
     if (!user.isNone()) {
         request.AuthenticatedUser = ConvertStringObjectToString(user);
+    }
+
+    auto userTag = GetAttr(pyRequest, "user_tag");
+    if (!userTag.isNone()) {
+        request.UserTag = ConvertStringObjectToString(userTag);
     }
 
     // COMPAT: find may be replaced with get in the future.

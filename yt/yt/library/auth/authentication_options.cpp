@@ -1,47 +1,48 @@
-#include "connection.h"
+#include "authentication_options.h"
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT::NApi {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientOptions TClientOptions::FromUser(const TString& user, const std::optional<TString>& userTag)
+TAuthenticationOptions TAuthenticationOptions::FromUser(const TString& user, const std::optional<TString>& userTag)
 {
     return {
         .User = user,
-        .UserTag = userTag ? *userTag : user
+        .UserTag = userTag.value_or(user),
     };
 }
 
-TClientOptions TClientOptions::FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity)
+TAuthenticationOptions TAuthenticationOptions::FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity)
 {
     return FromUser(identity.User, identity.UserTag);
 }
 
-TClientOptions TClientOptions::FromToken(const TString& token)
+TAuthenticationOptions TAuthenticationOptions::FromToken(const TString& token)
 {
     return {
         .Token = token
     };
 }
     
-TClientOptions TClientOptions::FromServiceTicketAuth(const NAuth::IServiceTicketAuthPtr& ticketAuth)
+TAuthenticationOptions TAuthenticationOptions::FromServiceTicketAuth(const IServiceTicketAuthPtr& ticketAuth)
 {
     return {
         .ServiceTicketAuth = ticketAuth
     };
 }
 
-const TString& TClientOptions::GetAuthenticatedUser() const
+const TString& TAuthenticationOptions::GetAuthenticatedUser() const
 {
     static const TString UnknownUser("<unknown>");
+    User.value_or(UnknownUser);
     return User ? *User : UnknownUser;
 }
 
-NRpc::TAuthenticationIdentity TClientOptions::GetAuthenticationIdentity() const
+NRpc::TAuthenticationIdentity TAuthenticationOptions::GetAuthenticationIdentity() const
 {
     if (!User) {
         THROW_ERROR_EXCEPTION("Authenticated user is not specified in client options");
@@ -51,5 +52,5 @@ NRpc::TAuthenticationIdentity TClientOptions::GetAuthenticationIdentity() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi
+} // namespace NYT::NAuth
 

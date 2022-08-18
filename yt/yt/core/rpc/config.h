@@ -141,7 +141,7 @@ public:
 
     REGISTER_YSON_STRUCT(TRetryingChannelConfig)
 
-    static void Register(TRegistrar registarar);
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)

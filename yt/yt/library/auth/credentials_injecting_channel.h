@@ -12,28 +12,23 @@ namespace NYT::NAuth {
 
 NRpc::IChannelPtr CreateUserInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user);
+    const TAuthenticationOptions& options);
 
 NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& token);
+    const TAuthenticationOptions& options);
 
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& sessionId,
-    const TString& sslSessionId);
+    const TAuthenticationOptions& options);
 
 NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const TString& ticket);
+    const TAuthenticationOptions& options);
 
 NRpc::IChannelPtr CreateServiceTicketInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const std::optional<TString>& user,
-    const IServiceTicketAuthPtr& serviceTicketAuth);
+    const TAuthenticationOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
