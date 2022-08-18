@@ -5,7 +5,7 @@ export YT_PROXY=locke.yt.yandex.net
 export YT_TOKEN=${TEAMCITY_YT_TOKEN}
 export PYTHONPATH="."
 DEST="//home/files"
-YT="yt/wrapper/bin/yt"
+YT="$YT_SRC_DIR/ya tool yt"
 UBUNTU_VERSION="$(lsb_release --short --codename )"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 
