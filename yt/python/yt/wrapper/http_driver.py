@@ -110,7 +110,7 @@ class HeavyProxyProvider(ProxyProvider):
             "get",
             "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
             client=self.client).json()
-        return map(self._configure_proxy_port, heavy_proxies)
+        return list(map(self._configure_proxy_port, heavy_proxies))
 
 
 class TokenAuth(AuthBase):
