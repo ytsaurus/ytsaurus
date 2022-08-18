@@ -618,7 +618,7 @@ bool TYsonPullParserCursor::TryConsumeFragmentStart()
 
 [[noreturn]] void TYsonPullParserCursor::FailAsTryConsumeFragmentStartNotCalled()
 {
-    Y_FAIL("TryConsumeFragmentStart not called for list or map fragment");
+    Y_FAIL("TryConsumeFragmentStart must be called before anything else when parsing list or map fragment");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
