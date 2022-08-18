@@ -89,7 +89,7 @@ private:
         : public ITvmService
     {
     public:
-        ui32 GetSelfTvmId() override
+        TTvmId GetSelfTvmId() override
         {
             return 100500;
         }
@@ -99,7 +99,7 @@ private:
             return Format("ticket:%v", serviceAlias);
         }
 
-        TString GetServiceTicket(ui32 /*serviceId*/) override
+        TString GetServiceTicket(TTvmId /*serviceId*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }

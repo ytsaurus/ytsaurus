@@ -30,6 +30,8 @@
 
 #include <yt/yt/ytlib/chaos_client/config.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/compression/public.h>
@@ -209,7 +211,7 @@ public:
 
     //! TVM application id corresponding to the cluster.
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
-    std::optional<ui32> TvmId;
+    std::optional<NAuth::TTvmId> TvmId;
 
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.

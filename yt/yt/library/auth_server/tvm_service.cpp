@@ -141,7 +141,7 @@ public:
         , FailedParseServiceTicketCountCounter_(profiler.Counter("/failed_parse_service_ticket_count"))
     { }
 
-    ui32 GetSelfTvmId() override
+    TTvmId GetSelfTvmId() override
     {
         return Config_->ClientSelfId;
     }
@@ -156,7 +156,7 @@ public:
         return DoGetServiceTicket(serviceAlias);
     }
 
-    TString GetServiceTicket(ui32 serviceId) override
+    TString GetServiceTicket(TTvmId serviceId) override
     {
         if (!Config_->ClientEnableServiceTicketFetching) {
             THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
@@ -348,7 +348,7 @@ public:
         }
     }
 
-    void AddDestinationServiceIds(const std::vector<ui32>& serviceIds) override
+    void AddDestinationServiceIds(const std::vector<TTvmId>& serviceIds) override
     {
         NTvmApi::TDstSet dstSet(serviceIds.begin(), serviceIds.end());
         DynamicClient_->Add(std::move(dstSet));
@@ -394,7 +394,7 @@ class TServiceTicketAuth
 public:
     TServiceTicketAuth(
         ITvmServicePtr tvmService,
-        ui32 destServiceId)
+        TTvmId destServiceId)
         : TvmService_(std::move(tvmService))
         , DstServiceId_(destServiceId)
     { }
@@ -406,14 +406,14 @@ public:
 
 private:
     ITvmServicePtr TvmService_;
-    ui32 DstServiceId_;
+    TTvmId DstServiceId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IServiceTicketAuthPtr CreateServiceTicketAuth(
     ITvmServicePtr tvmService,
-    ui32 dstServiceId)
+    TTvmId dstServiceId)
 {
     return New<TServiceTicketAuth>(std::move(tvmService), dstServiceId);
 }

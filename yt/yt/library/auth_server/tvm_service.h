@@ -18,7 +18,7 @@ struct ITvmService
     : public virtual TRefCounted
 {
     //! Our TVM id.
-    virtual ui32 GetSelfTvmId() = 0;
+    virtual TTvmId GetSelfTvmId() = 0;
 
     //! Get TVM service ticket from us to serviceAlias. Service mapping must be in config.
     //! Throws on failure.
@@ -27,7 +27,7 @@ struct ITvmService
     //! Get TVM service ticket from us to serviceId. Service ID must be known (either during
     //! construction or explicitly added in dynamic service).
     //! Throws on failure.
-    virtual TString GetServiceTicket(ui32 serviceId) = 0;
+    virtual TString GetServiceTicket(TTvmId serviceId) = 0;
 
     //! Decode user ticket contents. Throws on failure.
     virtual TParsedTicket ParseUserTicket(const TString& ticket) = 0;
@@ -42,7 +42,7 @@ struct IDynamicTvmService
 public:
     //! Add destination service IDs to fetch. It is possible to add the same ID multiple
     //! times, though it will be added only once really.
-    virtual void AddDestinationServiceIds(const std::vector<ui32>& serviceIds) = 0;
+    virtual void AddDestinationServiceIds(const std::vector<TTvmId>& serviceIds) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITvmService)
@@ -62,7 +62,7 @@ IDynamicTvmServicePtr CreateDynamicTvmService(
 
 IServiceTicketAuthPtr CreateServiceTicketAuth(
     ITvmServicePtr tvmService,
-    ui32 dstServiceId);
+    TTvmId dstServiceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
