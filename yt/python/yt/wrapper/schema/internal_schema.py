@@ -171,6 +171,10 @@ def _get_primitive_type_origin_and_annotation(py_type):
     return origin, annotation
 
 
+def _get_annotation(py_type):
+    return _get_primitive_type_origin_and_annotation(py_type)[1]
+
+
 def _get_list_item_type(py_type):
     if _get_origin(py_type) is not list:
         return None
@@ -429,6 +433,11 @@ def _ti_type_to_wire_type(ti_type):
             ti.Uint16: "uint64",
             ti.Uint32: "uint64",
             ti.Uint64: "uint64",
+
+            ti.Date: "uint16",
+            ti.Datetime: "uint32",
+            ti.Timestamp: "uint64",
+            ti.Interval: "int64",
 
             ti.String: "string32",
             ti.Utf8: "string32",

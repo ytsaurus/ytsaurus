@@ -113,10 +113,22 @@ def _get_integer_info():
     return _get_integer_info._info
 
 
+def _get_time_types():
+    if hasattr(_get_time_types, "_info"):
+        return _get_time_types._info
+    check_schema_module_available()
+    return {
+        ti.Date,
+        ti.Datetime,
+        ti.Timestamp,
+        ti.Interval,
+    }
+
+
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     check_schema_module_available()
     if py_type is int:
-        return ti_type in _get_integer_info()["all"]
+        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
     elif py_type is str:
         return ti_type in (ti.Utf8, ti.String)
     elif py_type is bytes:
@@ -196,6 +208,11 @@ if is_schema_module_available():
     Uint16 = create_annotated_type(int, ti.Uint16)
     Uint32 = create_annotated_type(int, ti.Uint32)
     Uint64 = create_annotated_type(int, ti.Uint64)
+
+    Date = create_annotated_type(int, ti.Date)
+    Datetime = create_annotated_type(int, ti.Datetime)
+    Timestamp = create_annotated_type(int, ti.Timestamp)
+    Interval = create_annotated_type(int, ti.Interval)
 
     YsonBytes = create_annotated_type(bytes, ti.Yson)
 

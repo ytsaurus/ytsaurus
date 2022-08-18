@@ -13,12 +13,18 @@ from yt.wrapper.schema import (
     Uint16,
     Uint32,
     Uint64,
+    Date,
+    Datetime,
+    Timestamp,
+    Interval,
     YsonBytes,
     OtherColumns,
     RowIterator,
     Context,
     Variant,
 )
+
+from yt.wrapper.schema.internal_schema import _get_annotation
 
 from yt.wrapper.prepare_operation import TypedJob
 
@@ -895,8 +901,7 @@ class TestTypedApi(object):
 
             schema = TableSchema().add_column("field", ti_type)
             path = "//tmp/table"
-            yt.remove(path, force=True)
-            yt.create_table(path, attributes={"schema": schema})
+            yt.create("table", path, force=True, attributes={"schema": schema})
             if for_reading:
                 yt.write_table(path, [{"field": value}])
                 rows = list(yt.read_table_structured(path, Row1))
@@ -908,11 +913,31 @@ class TestTypedApi(object):
                 assert len(rows) == 1
                 return rows[0]["field"]
 
-        for py_type, ti_type in zip([Int8, Int16, Int32, Int64], [ti.Int8, ti.Int16, ti.Int32, ti.Int64]):
+        for py_type, ti_type in [
+            (Int8, ti.Int8),
+            (Int16, ti.Int16),
+            (Int32, ti.Int32),
+            (Int64, ti.Int64),
+            (Interval, ti.Interval),
+        ]:
             assert -10 == run_read_or_write(py_type, ti_type, -10, for_reading=True)
             assert -10 == run_read_or_write(py_type, ti_type, -10, for_reading=False)
 
-        for py_type, ti_type in zip([Uint8, Uint16, Uint32, Uint64], [ti.Uint8, ti.Uint16, ti.Uint32, ti.Uint64]):
+        for py_type, ti_type in [
+            (Int8, ti.Int8),
+            (Int16, ti.Int16),
+            (Int32, ti.Int32),
+            (Int64, ti.Int64),
+            (Interval, ti.Interval),
+
+            (Uint8, ti.Uint8),
+            (Uint16, ti.Uint16),
+            (Uint32, ti.Uint32),
+            (Uint64, ti.Uint64),
+            (Date, ti.Date),
+            (Datetime, ti.Datetime),
+            (Timestamp, ti.Timestamp),
+        ]:
             assert 10 == run_read_or_write(py_type, ti_type, 10, for_reading=True)
             assert 10 == run_read_or_write(py_type, ti_type, 10, for_reading=False)
 
@@ -927,19 +952,50 @@ class TestTypedApi(object):
 
         assert -10 == run_read_or_write(Int64, ti.Int32, -10, for_reading=True)
         with pytest.raises(yt.YtError, match="larger than destination"):
-            assert -10 == run_read_or_write(Int64, ti.Int32, -10, for_reading=False)
+            run_read_or_write(Int64, ti.Int32, -10, for_reading=False)
 
         assert -10 == run_read_or_write(Int32, ti.Int16, -10, for_reading=True)
         with pytest.raises(yt.YtError, match="larger than destination"):
-            assert -10 == run_read_or_write(Int32, ti.Int16, -10, for_reading=False)
+            run_read_or_write(Int32, ti.Int16, -10, for_reading=False)
 
         assert 10 == run_read_or_write(Uint64, ti.Uint32, 10, for_reading=True)
         with pytest.raises(yt.YtError, match="larger than destination"):
-            assert 10 == run_read_or_write(Uint64, ti.Uint32, 10, for_reading=False)
+            run_read_or_write(Uint64, ti.Uint32, 10, for_reading=False)
 
         assert 10 == run_read_or_write(Uint32, ti.Uint16, 10, for_reading=True)
         with pytest.raises(yt.YtError, match="larger than destination"):
-            assert 10 == run_read_or_write(Uint32, ti.Uint16, 10, for_reading=False)
+            run_read_or_write(Uint32, ti.Uint16, 10, for_reading=False)
+
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Date, ti.Uint64, 10, for_reading=False)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Date, ti.Uint64, 10, for_reading=True)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Datetime, ti.Uint64, 10, for_reading=False)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Datetime, ti.Uint64, 10, for_reading=True)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Timestamp, ti.Uint64, 10, for_reading=False)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Timestamp, ti.Uint64, 10, for_reading=True)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Interval, ti.Int64, 10, for_reading=False)
+        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+            run_read_or_write(Interval, ti.Int64, 10, for_reading=True)
+
+        # Check all time types are incompatible with each other
+        checks = 0
+        for py_type in [Date, Datetime, Timestamp, Interval]:
+            for ti_type in [ti.Date, ti.Datetime, ti.Timestamp, ti.Interval]:
+                if _get_annotation(py_type)._ti_type == ti_type:
+                    continue
+                with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+                    run_read_or_write(Interval, ti.Int64, 10, for_reading=False)
+                with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+                    run_read_or_write(Interval, ti.Int64, 10, for_reading=True)
+                checks += 1
+        # Double check that tests in the loop above have run
+        assert checks == 12
 
         string = "Привет"
         string_utf8 = string.encode("utf-8")
