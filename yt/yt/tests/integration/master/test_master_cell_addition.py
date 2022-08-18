@@ -18,7 +18,8 @@ from yt_commands import (
     assert_true_for_secondary_cells,
     build_snapshot, get_driver,
     create_user, make_ace,
-    create_access_control_object_namespace, create_access_control_object)
+    create_access_control_object_namespace, create_access_control_object,
+    print_debug)
 
 from yt.test_helpers import assert_items_equal
 
@@ -26,6 +27,7 @@ import pytest
 
 from copy import deepcopy
 import builtins
+import inspect
 
 ################################################################################
 
@@ -288,6 +290,10 @@ class TestMasterCellAddition(YTEnvSetup):
         set("//sys/hosts/{}/@rack".format(host), "r")
         set("//sys/racks/r/@data_center", "d")
 
+        set("//sys/cluster_nodes/{}/@decommissioned".format(host), True)
+        set("//sys/racks/r/@foo", "oof")
+        set("//sys/data_centers/d/@bar", "rab")
+
         def check_everything(driver=None):
             assert get("//sys/cluster_nodes/{}/@host".format(node), driver=driver) == host
             assert get("//sys/hosts/{}/@nodes".format(host), driver=driver) == [node]
@@ -295,6 +301,11 @@ class TestMasterCellAddition(YTEnvSetup):
             assert get("//sys/racks/r/@hosts", driver=driver) == [host]
             assert get("//sys/racks/r/@data_center", driver=driver) == "d"
             assert get("//sys/data_centers/d/@racks", driver=driver) == ["r"]
+
+            assert get("//sys/cluster_nodes/{}/@decommissioned".format(host), driver=driver)
+            assert get("//sys/racks/r/@foo", driver=driver) == "oof"
+            assert get("//sys/data_centers/d/@bar", driver=driver) == "rab"
+
             return True
 
         check_everything()
@@ -359,19 +370,12 @@ class TestMasterCellAddition(YTEnvSetup):
 
     @authors("shakurov")
     def test_add_new_cell(self):
-        CHECKER_LIST = [
-            self.check_media,
-            self.check_accounts,
-            self.check_sys_masters_node,
-            self.check_cluster_node_hierarchy,
-            self.check_chunk_locations,
-            self.check_transactions,
-            self.check_areas,
-            self.check_builtin_object_attributes,
-            self.check_access_control_objects,
-        ]
+        checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
 
-        checker_state_list = [iter(c()) for c in CHECKER_LIST]
+        print_debug("Checkers: ", checker_names)
+
+        checkers = [getattr(self, attr) for attr in checker_names]
+        checker_state_list = [iter(c()) for c in checkers]
         for s in checker_state_list:
             next(s)
 

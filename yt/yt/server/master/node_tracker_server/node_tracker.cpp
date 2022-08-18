@@ -1907,6 +1907,7 @@ private:
                 objectManager->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
             }
         };
+
         replicateKeys(HostMap_);
         replicateKeys(RackMap_);
         replicateKeys(DataCenterMap_);
@@ -1922,7 +1923,7 @@ private:
                 objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
             }
         };
-        replicateValues(NodeMap_);
+
         replicateValues(HostMap_);
         replicateValues(RackMap_);
         replicateValues(DataCenterMap_);
@@ -1948,6 +1949,8 @@ private:
                 multicellManager->PostToMaster(request, cellTag);
             }
         }
+
+        replicateValues(NodeMap_);
     }
 
     void InsertToAddressMaps(TNode* node)
