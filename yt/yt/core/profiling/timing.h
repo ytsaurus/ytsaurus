@@ -49,6 +49,9 @@ public:
     TCpuInstant GetStartCpuTime() const;
     TCpuDuration GetElapsedCpuTime() const;
 
+    //! Returns time since last Start() call if the timer is active.
+    TDuration GetCurrentDuration() const;
+
     void Start();
     void StartIfNotActive();
     void Stop();
@@ -57,7 +60,7 @@ public:
     void Persist(const TStreamPersistenceContext& context);
 
 private:
-    TCpuDuration GetCurrentDuration() const;
+    TCpuDuration GetCurrentCpuDuration() const;
 
     TCpuInstant StartTime_ = 0;
     TCpuDuration Duration_ = 0;
