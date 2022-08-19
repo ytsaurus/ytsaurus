@@ -98,28 +98,6 @@ NTvmApi::TClientSettings MakeTvmApiSettings(const TTvmServiceConfigPtr& config)
     return settings;
 }
 
-// NB(gepardo): We need to inherit from NDynamicClient::TTvmClient, as it's impossible to
-// create an instance otherwise.
-//
-// NDynamicClient::TTvmClient has Create, which returns pointer to base, and protected
-// constructor. So, we cannot create a NDynamicClient::TTvmClient instance directly and
-// need a way to overcome the limitation. Other users in Arcadia use inheritance for this,
-// so do the same thing.
-class TDynamicTvmClient
-    : public NDynamicClient::TTvmClient
-{
-public:
-    using NDynamicClient::TTvmClient::TTvmClient;
-
-    static ::TIntrusivePtr<TDynamicTvmClient> Create(const NTvmApi::TClientSettings& settings, TLoggerPtr logger)
-    {
-        ::TIntrusivePtr<TDynamicTvmClient> client(new TDynamicTvmClient(settings, std::move(logger)));
-        client->Init();
-        client->StartWorker();
-        return client;
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTvmServiceBase
@@ -361,7 +339,7 @@ protected:
     }
 
 private:
-    ::TIntrusivePtr<TDynamicTvmClient> DynamicClient_;
+    ::TIntrusivePtr<NDynamicClient::TTvmClient> DynamicClient_;
     std::unique_ptr<TTvmClient> Client_;
 
     void MakeClient()
@@ -372,7 +350,7 @@ private:
             THROW_ERROR_EXCEPTION("TVM tool is not supported for dynamic client");
         }
 
-        DynamicClient_ = TDynamicTvmClient::Create(MakeTvmApiSettings(Config_), MakeIntrusive<TTvmLoggerAdapter>());
+        DynamicClient_ = NDynamicClient::TTvmClient::Create(MakeTvmApiSettings(Config_), MakeIntrusive<TTvmLoggerAdapter>());
         Client_ = std::make_unique<TTvmClient>(TAsyncUpdaterPtr(DynamicClient_));
     }
 };
