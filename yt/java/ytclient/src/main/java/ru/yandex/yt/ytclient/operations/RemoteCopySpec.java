@@ -47,7 +47,7 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
                 .setIgnoreExisting(true)
         );
         return builder.beginMap()
-                .apply(super::toTree)
+                .apply(b -> toTree(b, context))
                 .key("cluster_name").value(cluster)
                 .when(network != null, b -> b.key("network_name").value(network))
                 .when(copyAttributes != null, b -> b.key("copy_attributes").value(copyAttributes))

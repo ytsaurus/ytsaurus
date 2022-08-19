@@ -83,7 +83,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
                 .apply(b -> SpecUtils.addMapperOrReducerTitle(b, mapperSpec))
                 .key("mapper").apply(b -> mapperSpec.prepare(b, yt, context, getOutputTables().size()))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
-                .apply(this::dumpToSpec)
+                .apply(b -> dumpToSpec(b, context))
                 .endMap();
     }
 

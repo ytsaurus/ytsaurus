@@ -91,9 +91,9 @@ public class SystemOperationSpecBase {
         return additionalSpecParameters;
     }
 
-    public YTreeBuilder toTree(YTreeBuilder mapBuilder) {
+    public YTreeBuilder toTree(YTreeBuilder mapBuilder, SpecPreparationContext context) {
         return mapBuilder
-                .key("started_by").apply(SpecUtils::startedBy)
+                .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
                 .key("input_table_paths").value(inputTables, (b, t) -> t.toTree(b))
                 .key("output_table_path").apply(outputTable::toTree)
                 .when(pool != null, b -> b.key("pool").value(pool))

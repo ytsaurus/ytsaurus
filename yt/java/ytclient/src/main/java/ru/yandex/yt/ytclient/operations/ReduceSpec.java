@@ -127,7 +127,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
                 .when(!joinBy.isEmpty(), b -> b.key("join_by").value(joinBy))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
                 .when(!enableKeyGuarantee, b -> b.key("enable_key_guarantee").value(false))
-                .apply(this::dumpToSpec)
+                .apply(b -> dumpToSpec(b, context))
                 .endMap();
     }
 

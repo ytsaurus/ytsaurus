@@ -108,7 +108,7 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
                         .value(maxDataSizePerUnorderedMergeJob.toBytes()))
                 .key("sort_by").value(sortBy, (b, t) -> t.toTree(b))
                 .when(mergeJobIo != null, b -> b.key("merge_job_io").value(mergeJobIo.prepare()))
-                .apply(super::toTree)
+                .apply(b -> toTree(b, context))
                 .endMap();
     }
 

@@ -37,15 +37,15 @@ public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
         return Optional.ofNullable(dataSizePerJob);
     }
 
-    protected YTreeBuilder dumpToSpec(YTreeBuilder mapBuilder) {
+    protected YTreeBuilder dumpToSpec(YTreeBuilder mapBuilder, SpecPreparationContext context) {
         return mapBuilder
-                .key("started_by").apply(SpecUtils::startedBy)
+                .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
                 .when(maxDataSizePerJob != null,
                         b -> b.key("max_data_size_per_job").value(maxDataSizePerJob.toBytes()))
                 .when(dataSizePerJob != null,
                         b -> b.key("data_size_per_job").value(dataSizePerJob.toBytes()))
-                .apply(super::toTree);
+                .apply(b -> toTree(b, context));
     }
 
     @NonNullApi

@@ -75,9 +75,9 @@ public class UserOperationSpecBase {
         return additionalSpecParameters;
     }
 
-    public YTreeBuilder toTree(YTreeBuilder mapBuilder) {
+    protected YTreeBuilder toTree(YTreeBuilder mapBuilder, SpecPreparationContext context) {
         mapBuilder
-                .key("started_by").apply(SpecUtils::startedBy)
+                .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
                 .key("input_table_paths").value(inputTables, (b, t) -> t.toTree(b))
                 .key("output_table_paths").value(outputTables, (b, t) -> t.toTree(b))
                 .when(pool != null, b -> b.key("pool").value(pool))
