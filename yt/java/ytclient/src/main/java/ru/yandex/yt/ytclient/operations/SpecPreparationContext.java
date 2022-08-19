@@ -19,6 +19,7 @@ public class SpecPreparationContext {
     private final List<String> javaOptions;
     private final Duration jarsUploadTimeout;
     private final int fileCacheReplicationFactor;
+    private final String version;
 
     SpecPreparationContext(Builder builder) {
         this.tmpDir = builder.tmpDir;
@@ -29,6 +30,7 @@ public class SpecPreparationContext {
         this.javaOptions = builder.javaOptions;
         this.jarsUploadTimeout = builder.jarsUploadTimeout;
         this.fileCacheReplicationFactor = builder.fileCacheReplicationFactor;
+        this.version = builder.version;
     }
 
     public static Builder builder() {
@@ -55,6 +57,10 @@ public class SpecPreparationContext {
         return javaOptions;
     }
 
+    public String getVersion() {
+        return version;
+    }
+
     @NonNullApi
     @NonNullFields
     public static class Builder {
@@ -68,6 +74,7 @@ public class SpecPreparationContext {
         private List<String> javaOptions = Arrays.asList(); // TODO
         private Duration jarsUploadTimeout = Duration.ofMinutes(10);
         private int fileCacheReplicationFactor = 10;
+        private String version = "java yt client";
 
         public Builder setTmpDir(YPath tmpDir) {
             this.tmpDir = tmpDir;
@@ -106,6 +113,11 @@ public class SpecPreparationContext {
 
         public Builder setFileCacheReplicationFactor(int fileCacheReplicationFactor) {
             this.fileCacheReplicationFactor = fileCacheReplicationFactor;
+            return this;
+        }
+
+        public Builder setVersion(String version) {
+            this.version = version;
             return this;
         }
 

@@ -106,7 +106,7 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
                 .when(maxDataSizePerJob != null, b -> b.key("max_data_size_per_job")
                         .value(maxDataSizePerJob.toBytes()))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
-                .apply(super::toTree)
+                .apply(b -> toTree(b, context))
                 .endMap();
     }
 

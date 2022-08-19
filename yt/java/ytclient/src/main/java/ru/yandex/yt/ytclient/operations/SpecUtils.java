@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.operations;
 
 
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -29,14 +30,31 @@ final class SpecUtils {
         }
     }
 
-    static YTreeBuilder startedBy(YTreeBuilder builder) {
-        return builder.beginMap()
+    static YTreeBuilder startedBy(YTreeBuilder builder, SpecPreparationContext context) {
+        YTreeBuilder result = builder.beginMap()
                 .key("user").value(System.getProperty("user.name"))
                 .key("command").beginList().value("command").endList()
                 .key("hostname").value(getLocalHostname())
-                //.key("pid").value(ProcessUtils.getPid()) TODO
-                //.key("wrapper_version").value(YtConfiguration.getVersion())
-                .endMap();
+                .key("wrapper_version").value(context.getVersion());
+        try {
+            result = result.key("pid").value(getPid());
+        } catch (RuntimeException ignored) {
+        }
+        return result.endMap();
+    }
+
+    private static int getPid() {
+        String name = ManagementFactory.getRuntimeMXBean().getName();
+        int index = name.indexOf('@');
+        if (index == -1) {
+            throw new RuntimeException("failed to get PID using JVM MX Beans");
+        }
+
+        try {
+            return Integer.parseInt(name.substring(0, index));
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("cannot parse PID from " + name);
+        }
     }
 
     private static String getLocalHostname() {
