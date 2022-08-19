@@ -14,25 +14,25 @@ namespace NYT::NLogging {
 namespace {
 
 // Ultra-fast specialized versions of AppendNumber.
-void AppendDigit(TBaseFormatter* out, int value)
+void AppendDigit(TBaseFormatter* out, ui32 value)
 {
     out->AppendChar('0' + value);
 }
 
-void AppendNumber2(TBaseFormatter* out, int value)
+void AppendNumber2(TBaseFormatter* out, ui32 value)
 {
     AppendDigit(out, value / 10);
     AppendDigit(out, value % 10);
 }
 
-void AppendNumber3(TBaseFormatter* out, int value)
+void AppendNumber3(TBaseFormatter* out, ui32 value)
 {
     AppendDigit(out, value / 100);
     AppendDigit(out, (value / 10) % 10);
     AppendDigit(out, value % 10);
 }
 
-void AppendNumber4(TBaseFormatter* out, int value)
+void AppendNumber4(TBaseFormatter* out, ui32 value)
 {
     AppendDigit(out, value / 1000);
     AppendDigit(out, (value / 100) % 10);
@@ -40,7 +40,7 @@ void AppendNumber4(TBaseFormatter* out, int value)
     AppendDigit(out, value % 10);
 }
 
-void AppendNumber6(TBaseFormatter* out, int value)
+void AppendNumber6(TBaseFormatter* out, ui32 value)
 {
     AppendDigit(out, value / 100000);
     AppendDigit(out, (value / 10000) % 10);
