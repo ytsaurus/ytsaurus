@@ -155,10 +155,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     @Override
     public YTreeBuilder prepare(
             YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
-        Set<YPath> autoDetectedResources = context.getJarsProcessor().uploadResources(
-                yt.getRootClient(), mapperOrReducer);
-        Set<YPath> files = new HashSet<>(autoDetectedResources);
-        files.addAll(additionalFiles);
+        Set<YPath> files = new HashSet<>(additionalFiles);
 
         boolean isLocalMode = context.isLocalMode();
         String classPath;
@@ -178,6 +175,10 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
 
             classPath = String.join(":", jarFileNames);
         }
+
+        Set<YPath> autoDetectedResources = context.getJarsProcessor().uploadResources(
+                yt.getRootClient(), mapperOrReducer);
+        files.addAll(autoDetectedResources);
 
         Optional<Resource> resource = detectResources(yt, mapperOrReducer, context);
 
