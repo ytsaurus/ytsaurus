@@ -277,6 +277,10 @@ std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<std::vector<TSharedRef>>& repairRowLists)
 {
+    if (erasedIndices.empty()) {
+        return {};
+    }
+
     i64 rowCount = repairRowLists[0].size();
     for (const auto& repairRows : repairRowLists) {
         YT_VERIFY(std::ssize(repairRows) == rowCount);
