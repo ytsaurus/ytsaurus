@@ -584,12 +584,12 @@ void TTask::ScheduleJob(
 
     AddJobTypeToJoblet(joblet);
     
-    joblet->IsJobInterruptible = IsJobInterruptible();
+    joblet->JobInterruptible = IsJobInterruptible();
 
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
         neededResources,
-        joblet->IsJobInterruptible);
+        joblet->JobInterruptible);
 
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
@@ -660,7 +660,7 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, joblet->OutputCookie, joblet->IsJobInterruptible);
+    JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, joblet->OutputCookie, joblet->JobInterruptible);
 
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
@@ -1613,7 +1613,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);
     ToProto(schedulerJobSpecExt->mutable_io_tags(), *ioTags);
 
-    schedulerJobSpecExt->set_interruptible(joblet->IsJobInterruptible);
+    schedulerJobSpecExt->set_interruptible(joblet->JobInterruptible);
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }

@@ -2965,7 +2965,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
         jobSummary->Abandoned,
         jobSummary->InterruptReason,
-        joblet->IsJobInterruptible);
+        joblet->JobInterruptible);
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
