@@ -29,6 +29,7 @@ import pytest
 
 from copy import deepcopy
 from random import shuffle
+import builtins
 import time
 import yt_error_codes
 
@@ -204,6 +205,9 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
     @authors("dgolear")
     def test_user_tag_pass(self):
+        set("//sys/rpc_proxies/@config", {})
+        time.sleep(0.5)
+
         b1 = self._write_log_barrier()
 
         query = "* from [//path/to/table]"
@@ -213,7 +217,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         b2 = self._write_log_barrier()
 
-        assert any(map(
+        assert any(builtins.map(
             lambda line: line.get("identity", {}).get("user_tag", "") == user_tag,
             read_structured_log(self.rpc_proxy_log_file, from_barrier=b1, to_barrier=b2)
         ))
