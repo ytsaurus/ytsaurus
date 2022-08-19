@@ -42,7 +42,7 @@ struct TJobInfoBase
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
 
-    bool IsJobInterruptible;
+    bool JobInterruptible;
 
     TJobNodeDescriptor NodeDescriptor;
 
