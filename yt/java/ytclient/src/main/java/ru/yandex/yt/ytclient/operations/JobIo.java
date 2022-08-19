@@ -43,6 +43,20 @@ public class JobIo {
         return enableRowIndex;
     }
 
+    public BuilderBase<?> toBuilder() {
+        BuilderBase<?> result = builder()
+                .setEnableRowIndex(isEnableRowIndex())
+                .setEnableTableIndex(isEnableTableIndex());
+        if (getTableWriter().isPresent()) {
+            result.setTableWriter(TableWriterOptions.builder()
+                    .setMaxRowWeight(getTableWriter().get().getMaxRowWeight().orElse(null))
+                    .setBlockSize(getTableWriter().get().getBlockSize().orElse(null))
+                    .setDesiredChunkSize(getTableWriter().get().getDesiredChunkSize().orElse(null))
+                    .build());
+        }
+        return result;
+    }
+
     public YTreeMapNode prepare() {
         return YTree.mapBuilder()
                 .when(tableWriter != null, b -> b.key("table_writer").value(tableWriter.prepare()))
