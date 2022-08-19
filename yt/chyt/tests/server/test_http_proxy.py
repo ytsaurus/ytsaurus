@@ -431,3 +431,18 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "http_code": 400,
                 "error_code": 1,
             })
+
+    @authors("gudqeit")
+    def test_http_proxy_banned_username(self):
+        patch = {
+            "yt": {
+                "user_name_blacklist": "banned_user"
+            }
+        }
+        create_user("banned_user")
+        access_control_entry = {"subjects": ["banned_user"], "action": "allow", "permissions": ["read"]}
+
+        with Clique(1, spec={"alias": "*alias", "acl": [access_control_entry]}, config_patch=patch) as clique:
+            response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
+            assert response.status_code == 403
+            assert "X-ClickHouse-Server-Display-Name" in response.headers

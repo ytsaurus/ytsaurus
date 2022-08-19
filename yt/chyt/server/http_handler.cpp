@@ -95,6 +95,8 @@ public:
 
         auto replyError = [&] (Poco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
             YT_LOG_INFO(error, "Replying with error");
+            // Without this header proxy thinks that the response is not from clickhouse instance.
+            response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(statusCode);
             (*response.send()) << ToString(error);
         };
