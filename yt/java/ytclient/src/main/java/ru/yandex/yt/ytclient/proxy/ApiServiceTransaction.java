@@ -128,6 +128,10 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         }
     }
 
+    @Override
+    public TransactionalClient getRootClient() {
+        return client;
+    }
 
     @Override
     public String toString() {

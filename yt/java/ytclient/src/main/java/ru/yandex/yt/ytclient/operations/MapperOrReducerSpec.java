@@ -156,7 +156,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     @Override
     public YTreeBuilder prepare(
             YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
-        Set<YPath> autoDetectedResources = context.getJarsProcessor().uploadResources(yt, mapperOrReducer);
+        Set<YPath> autoDetectedResources = context.getJarsProcessor().uploadResources(
+                yt.getRootClient(), mapperOrReducer);
         Set<YPath> files = new HashSet<>(autoDetectedResources);
         files.addAll(additionalFiles);
 
@@ -168,7 +169,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             classPath = canonizeJavaPath(System.getProperty("java.class.path"));
             libraryPath = canonizeJavaPath(System.getProperty("java.library.path"));
         } else {
-            Set<YPath> jars = context.getJarsProcessor().uploadJars(yt, mapperOrReducer, isLocalMode);
+            Set<YPath> jars = context.getJarsProcessor().uploadJars(yt.getRootClient(), mapperOrReducer, isLocalMode);
             files.addAll(jars);
             List<String> jarFileNames = jars.stream()
                     .map(x -> x.getAdditionalAttribute("file_name")

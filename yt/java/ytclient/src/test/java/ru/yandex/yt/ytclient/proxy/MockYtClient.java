@@ -51,6 +51,11 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
     }
 
     @Override
+    public TransactionalClient getRootClient() {
+        return this;
+    }
+
+    @Override
     public void close() {
     }
 

@@ -173,6 +173,11 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return "yt/java/ytclient@" + version.getProgramSvnRevision();
     }
 
+    @Override
+    public TransactionalClient getRootClient() {
+        return this;
+    }
+
     /**
      * Start new master or tablet transaction.
      * @see StartTransaction

@@ -44,6 +44,8 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
  * @see YtClient
  */
 public interface TransactionalClient extends ImmutableTransactionalClient {
+    TransactionalClient getRootClient();
+
     CompletableFuture<GUID> createNode(CreateNode req);
 
     CompletableFuture<Void> removeNode(RemoveNode req);
