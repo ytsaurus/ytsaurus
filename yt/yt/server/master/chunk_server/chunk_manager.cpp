@@ -3685,7 +3685,8 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), TError(errorMessage) << ex);
                     if (subresponse) {
-                        ToProto(subresponse->mutable_error(), TError(ex));
+                        auto error = SanitizeWithCurrentHydraContext(TError(ex));
+                        ToProto(subresponse->mutable_error(), error);
                     }
                 }
             }
