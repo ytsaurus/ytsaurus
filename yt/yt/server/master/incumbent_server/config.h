@@ -70,6 +70,9 @@ public:
     //! Peers listed here act like offline peers.
     THashSet<TString> BannedPeers;
 
+    //! Timeout for heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
     REGISTER_YSON_STRUCT(TIncumbentManagerConfig);
 
     static void Register(TRegistrar registrar);

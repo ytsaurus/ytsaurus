@@ -95,7 +95,8 @@ private:
 
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-            BIND(&TCellHydraJanitor::OnCleanup, MakeWeak(this)));
+            BIND(&TCellHydraJanitor::OnCleanup, MakeWeak(this)),
+            GetDynamicConfig()->TabletCellsCleanupPeriod);
         PeriodicExecutor_->Start();
     }
 
