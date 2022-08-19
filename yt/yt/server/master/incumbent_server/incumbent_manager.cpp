@@ -398,8 +398,10 @@ private:
 
             const auto& cellManager = Bootstrap_->GetCellManager();
             auto peerChannel = cellManager->GetPeerChannel(peerIndex);
+
             TIncumbentServiceProxy proxy(peerChannel);
             auto heartbeat = proxy.Heartbeat();
+            heartbeat->SetTimeout(Config_->HeartbeatTimeout);
 
             for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
                 const auto& descriptor = newIncumbents[incumbentType];

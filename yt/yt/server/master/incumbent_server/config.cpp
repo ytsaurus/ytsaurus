@@ -41,6 +41,10 @@ void TIncumbentManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("banned_peers", &TThis::BannedPeers)
         .Default();
+
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(30))
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
