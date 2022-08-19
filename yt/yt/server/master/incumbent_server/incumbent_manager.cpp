@@ -484,7 +484,6 @@ private:
             if (peerLeaseDeadline < now) {
                 if (peer.Lease) {
                     TLeaseManager::CloseLease(peer.Lease);
-                    peer.Lease.Reset();
                 }
 
                 OnPeerLeaseExpired(peerIndex);
@@ -556,6 +555,7 @@ private:
         }
 
         peer.Online = false;
+        peer.Lease.Reset();
 
         for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
             for (auto& address : CurrentIncumbentMap_[incumbentType].Addresses) {
