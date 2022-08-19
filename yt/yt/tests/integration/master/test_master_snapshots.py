@@ -637,3 +637,15 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+
+class TestMastersSnapshotsShardedTxOldHydra(TestMastersSnapshotsShardedTx):
+    DELTA_MASTER_CONFIG = {
+        "use_new_hydra": False
+    }
+
+
+class TestAllMastersSnapshotsOldHydra(TestAllMastersSnapshots):
+    DELTA_MASTER_CONFIG = {
+        "use_new_hydra": False
+    }

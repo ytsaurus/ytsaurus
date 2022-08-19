@@ -51,3 +51,9 @@ class TestResponseKeeper(YTEnvSetup):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         assert get("//tmp/t/@id") == table_id
+
+
+class TestResponseKeeperOldHydra(TestResponseKeeper):
+    DELTA_MASTER_CONFIG = {
+        "use_new_hydra": False
+    }
