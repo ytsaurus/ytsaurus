@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -227,7 +226,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                         .value(customStatisticsCountLimit))
                 .when(networkProject != null, b -> b.key("network_project").value(networkProject))
                 .when(prepareTimeLimit != null, b -> b.key("prepare_time_limit")
-                        .value(prepareTimeLimit.get(ChronoUnit.MILLIS)))
+                        .value(prepareTimeLimit.toMillis()))
                 .endMap();
     }
 
