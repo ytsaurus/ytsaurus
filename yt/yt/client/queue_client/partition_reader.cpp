@@ -202,6 +202,8 @@ private:
     // NB: Can throw.
     i64 FetchCurrentOffset() const
     {
+        TWallTimer timer;
+
         std::vector<int> partitionIndexesToFetch{PartitionIndex_};
         auto partitions = WaitFor(ConsumerClient_->CollectPartitions(Client_, partitionIndexesToFetch))
             .ValueOrThrow();
@@ -215,7 +217,7 @@ private:
             currentOffset = partitions[0].NextRowIndex;
         }
 
-        YT_LOG_DEBUG("Fetched current offset (Offset: %v)", currentOffset);
+        YT_LOG_DEBUG("Fetched current offset (Offset: %v, WallTime: %v)", currentOffset, timer.GetElapsedTime());
         return currentOffset;
     }
 

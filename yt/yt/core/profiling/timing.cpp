@@ -60,12 +60,17 @@ TCpuInstant TWallTimer::GetStartCpuTime() const
 
 TCpuDuration TWallTimer::GetElapsedCpuTime() const
 {
-    return Duration_ + GetCurrentDuration();
+    return Duration_ + GetCurrentCpuDuration();
 }
 
 TValue TWallTimer::GetElapsedValue() const
 {
     return DurationToValue(GetElapsedTime());
+}
+
+TDuration TWallTimer::GetCurrentDuration() const
+{
+    return CpuDurationToDuration(GetCurrentCpuDuration());
 }
 
 void TWallTimer::Start()
@@ -83,7 +88,7 @@ void TWallTimer::StartIfNotActive()
 
 void TWallTimer::Stop()
 {
-    Duration_ += GetCurrentDuration();
+    Duration_ += GetCurrentCpuDuration();
     StartTime_ = 0;
     Active_ = false;
 }
@@ -94,7 +99,7 @@ void TWallTimer::Restart()
     Start();
 }
 
-TCpuDuration TWallTimer::GetCurrentDuration() const
+TCpuDuration TWallTimer::GetCurrentCpuDuration() const
 {
     return Active_
         ? Max<TCpuDuration>(GetCpuInstant() - StartTime_, 0)
