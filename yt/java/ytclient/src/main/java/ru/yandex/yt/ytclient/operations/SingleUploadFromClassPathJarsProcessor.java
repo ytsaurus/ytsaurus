@@ -123,7 +123,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     public Set<YPath> uploadJars(TransactionalClient yt, MapperOrReducer<?, ?> mapperOrReducer, boolean isLocalMode) {
         synchronized (this) {
             try {
-                uploadIfNeeded(yt, isLocalMode);
+                uploadIfNeeded(yt.getRootClient(), isLocalMode);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
