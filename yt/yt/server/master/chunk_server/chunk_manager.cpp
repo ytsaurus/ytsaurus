@@ -4732,11 +4732,15 @@ private:
 
     void OnEpochStarted()
     {
+        ChunkPlacement_->Initialize();
+
         ChunkReplicator_->OnEpochStarted();
     }
 
     void OnEpochFinished()
     {
+        ChunkPlacement_->Clear();
+
         ChunkReplicator_->OnEpochFinished();
     }
 
