@@ -41,6 +41,9 @@ using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 struct TNullLiteralValue
 { };
 
+bool operator == (TNullLiteralValue, TNullLiteralValue);
+bool operator != (TNullLiteralValue, TNullLiteralValue);
+
 using TLiteralValue = std::variant<
     TNullLiteralValue,
     i64,
