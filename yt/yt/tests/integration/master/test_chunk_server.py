@@ -1170,29 +1170,3 @@ class TestChunkCreationThrottler(YTEnvSetup):
         remove("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config")
         sleep(1)
         assert self._measure_write_time(throttled_user) < usual_time * 1.2
-
-    @authors("h0pless")
-    @flaky(max_runs=5)
-    def test_per_user_bytes_throttler_operation(self):
-        userName="GregorzBrzeczyszczykiewicz"
-        create_user(userName)
-
-        create("table", "//tmp/in", attributes={"compression_codec": "none"})
-        create("table", "//tmp/out", attributes={"compression_codec": "none"})
-
-        row_count = 100
-        data = [{"index": "a" * i} for i in range(row_count)]
-        write_table("//tmp/in", data, authenticated_user=userName)
-        write_table("<append=%true>//tmp/in", {"index": "a" * 10000}, authenticated_user=userName)
-
-        usual_time = self._measure_operation_time(user=userName)
-        print_debug("Non-throttled time:", usual_time)
-
-        set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(userName), {"limit": 300})
-        sleep(1)
-
-        new_time = self._measure_operation_time(user=userName)
-        print_debug("New time:", new_time)
-
-        assert new_time >= usual_time * 2.5
