@@ -4,35 +4,33 @@ namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonFormatConfig::TJsonFormatConfig()
+void TJsonFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("format", Format)
+    registrar.Parameter("format", &TThis::Format)
         .Default(EJsonFormat::Text);
-    RegisterParameter("attributes_mode", AttributesMode)
+    registrar.Parameter("attributes_mode", &TThis::AttributesMode)
         .Default(EJsonAttributesMode::OnDemand);
-    RegisterParameter("plain", Plain)
+    registrar.Parameter("plain", &TThis::Plain)
         .Default(false);
-    RegisterParameter("encode_utf8", EncodeUtf8)
+    registrar.Parameter("encode_utf8", &TThis::EncodeUtf8)
         .Default(true);
-    RegisterParameter("string_length_limit", StringLengthLimit)
+    registrar.Parameter("string_length_limit", &TThis::StringLengthLimit)
         .Default();
-    RegisterParameter("stringify", Stringify)
+    registrar.Parameter("stringify", &TThis::Stringify)
         .Default(false);
-    RegisterParameter("annotate_with_types", AnnotateWithTypes)
+    registrar.Parameter("annotate_with_types", &TThis::AnnotateWithTypes)
         .Default(false);
-    RegisterParameter("support_infinity", SupportInfinity)
+    registrar.Parameter("support_infinity", &TThis::SupportInfinity)
         .Default(false);
-    RegisterParameter("stringify_nan_and_infinity", StringifyNanAndInfinity)
+    registrar.Parameter("stringify_nan_and_infinity", &TThis::StringifyNanAndInfinity)
         .Default(false);
-    RegisterParameter("buffer_size", BufferSize)
+    registrar.Parameter("buffer_size", &TThis::BufferSize)
         .Default(16 * 1024);
-    RegisterParameter("skip_null_values", SkipNullValues)
+    registrar.Parameter("skip_null_values", &TThis::SkipNullValues)
         .Default(false);
 
-    MemoryLimit = 256_MB;
-
-    RegisterPostprocessor([&] () {
-        if (SupportInfinity && StringifyNanAndInfinity) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->SupportInfinity && config->StringifyNanAndInfinity) {
             THROW_ERROR_EXCEPTION("\"support_infinity\" and \"stringify_nan_and_infinity\" "
                 "cannot be specified simultaneously");
         }

@@ -2,15 +2,15 @@
 
 namespace NYT::NProfiling {
 
-TProfileManagerConfig::TProfileManagerConfig() 
+void TProfileManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("global_tags", GlobalTags)
+    registrar.Parameter("global_tags", &TThis::GlobalTags)
             .Default();
-    RegisterParameter("max_keep_interval", MaxKeepInterval)
+    registrar.Parameter("max_keep_interval", &TThis::MaxKeepInterval)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("deque_period", DequeuePeriod)
+    registrar.Parameter("deque_period", &TThis::DequeuePeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("sample_rate_limit", SampleRateLimit)
+    registrar.Parameter("sample_rate_limit", &TThis::SampleRateLimit)
         .Default(TDuration::MilliSeconds(5));
 }
 

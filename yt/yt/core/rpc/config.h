@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -26,13 +25,15 @@ DEFINE_ENUM(ERequestTracingMode,
 ////////////////////////////////////////////////////////////////////////////////
 
 class THistogramExponentialBounds
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration Min;
     TDuration Max;
 
-    THistogramExponentialBounds();
+    REGISTER_YSON_STRUCT(THistogramExponentialBounds);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THistogramExponentialBounds)
@@ -40,13 +41,15 @@ DEFINE_REFCOUNTED_TYPE(THistogramExponentialBounds)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THistogramConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<THistogramExponentialBoundsPtr> ExponentialBounds;
     std::optional<std::vector<TDuration>> CustomBounds;
 
-    THistogramConfig();
+    REGISTER_YSON_STRUCT(THistogramConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THistogramConfig)
@@ -55,7 +58,7 @@ DEFINE_REFCOUNTED_TYPE(THistogramConfig)
 
 // Common options shared between all services in one server.
 class TServiceCommonConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnablePerUserProfiling;
@@ -63,7 +66,9 @@ public:
     bool EnableErrorCodeCounting;
     ERequestTracingMode TracingMode;
 
-    TServiceCommonConfig();
+    REGISTER_YSON_STRUCT(TServiceCommonConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceCommonConfig)
@@ -76,7 +81,9 @@ class TServerConfig
 public:
     THashMap<TString, NYTree::INodePtr> Services;
 
-    TServerConfig();
+    REGISTER_YSON_STRUCT(TServerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
@@ -84,7 +91,7 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<bool> EnablePerUserProfiling;
@@ -96,7 +103,9 @@ public:
     std::optional<TDuration> PendingPayloadsTimeout;
     std::optional<bool> Pooled;
 
-    TServiceConfig();
+    REGISTER_YSON_STRUCT(TServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceConfig)
@@ -104,7 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMethodConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<bool> Heavy;
@@ -118,7 +127,9 @@ public:
     std::optional<ERequestTracingMode> TracingMode;
     std::optional<bool> Pooled;
 
-    TMethodConfig();
+    REGISTER_YSON_STRUCT(TMethodConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMethodConfig)
@@ -242,7 +253,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChannelPoolConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceDiscoveryEndpointsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TString> Cluster;
@@ -251,7 +262,9 @@ public:
     TString EndpointSetId;
     TDuration UpdatePeriod;
 
-    TServiceDiscoveryEndpointsConfig();
+    REGISTER_YSON_STRUCT(TServiceDiscoveryEndpointsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceDiscoveryEndpointsConfig)
@@ -315,7 +328,7 @@ DEFINE_REFCOUNTED_TYPE(TThrottlingChannelDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResponseKeeperConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! For how long responses are kept in memory.
@@ -331,7 +344,9 @@ public:
     //! For how long the keeper remains passive after start and merely collects all responses.
     TDuration WarmupTime;
 
-    TResponseKeeperConfig();
+    REGISTER_YSON_STRUCT(TResponseKeeperConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
@@ -339,7 +354,7 @@ DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr int DefaultHeavyPoolSize = 16;
@@ -347,8 +362,11 @@ public:
     int HeavyPoolSize;
     int CompressionPoolSize;
 
-    TDispatcherConfig();
     TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
+
+    REGISTER_YSON_STRUCT(TDispatcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
@@ -356,13 +374,15 @@ DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<int> HeavyPoolSize;
     std::optional<int> CompressionPoolSize;
 
-    TDispatcherDynamicConfig();
+    REGISTER_YSON_STRUCT(TDispatcherDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)

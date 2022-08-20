@@ -8,90 +8,90 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THistogramExponentialBounds::THistogramExponentialBounds()
+void THistogramExponentialBounds::Register(TRegistrar registrar)
 {
-    RegisterParameter("min", Min).Default(TDuration::Zero());
-    RegisterParameter("max", Max).Default(TDuration::Seconds(2));
+    registrar.Parameter("min", &TThis::Min).Default(TDuration::Zero());
+    registrar.Parameter("max", &TThis::Max).Default(TDuration::Seconds(2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THistogramConfig::THistogramConfig()
+void THistogramConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("exponential_bounds", ExponentialBounds).Optional();
-    RegisterParameter("custom_bounds", CustomBounds).Optional();
+    registrar.Parameter("exponential_bounds", &TThis::ExponentialBounds).Optional();
+    registrar.Parameter("custom_bounds", &TThis::CustomBounds).Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceCommonConfig::TServiceCommonConfig()
+void TServiceCommonConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+    registrar.Parameter("enable_per_user_profiling", &TThis::EnablePerUserProfiling)
         .Default(false);
-    RegisterParameter("histogram_timer_profiling", HistogramTimerProfiling)
-        .Default(nullptr);
-    RegisterParameter("code_counting", EnableErrorCodeCounting)
+    registrar.Parameter("histogram_timer_profiling", &TThis::HistogramTimerProfiling)
+        .Default();
+    registrar.Parameter("code_counting", &TThis::EnableErrorCodeCounting)
         .Default(false);
-    RegisterParameter("tracing_mode", TracingMode)
+    registrar.Parameter("tracing_mode", &TThis::TracingMode)
         .Default(ERequestTracingMode::Enable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerConfig::TServerConfig()
+void TServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("services", Services)
+    registrar.Parameter("services", &TThis::Services)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceConfig::TServiceConfig()
+void TServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+    registrar.Parameter("enable_per_user_profiling", &TThis::EnablePerUserProfiling)
         .Optional();
-    RegisterParameter("code_counting", EnableErrorCodeCounting)
+    registrar.Parameter("code_counting", &TThis::EnableErrorCodeCounting)
         .Optional();
-    RegisterParameter("histogram_timer_profiling", HistogramTimerProfiling)
-        .Default(nullptr);
-    RegisterParameter("tracing_mode", TracingMode)
+    registrar.Parameter("histogram_timer_profiling", &TThis::HistogramTimerProfiling)
+        .Default();
+    registrar.Parameter("tracing_mode", &TThis::TracingMode)
         .Optional();
-    RegisterParameter("methods", Methods)
+    registrar.Parameter("methods", &TThis::Methods)
         .Optional();
-    RegisterParameter("authentication_queue_size_limit", AuthenticationQueueSizeLimit)
+    registrar.Parameter("authentication_queue_size_limit", &TThis::AuthenticationQueueSizeLimit)
         .Alias("max_authentication_queue_size")
         .Optional();
-    RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
+    registrar.Parameter("pending_payloads_timeout", &TThis::PendingPayloadsTimeout)
         .Optional();
-    RegisterParameter("pooled", Pooled)
+    registrar.Parameter("pooled", &TThis::Pooled)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMethodConfig::TMethodConfig()
+void TMethodConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heavy", Heavy)
+    registrar.Parameter("heavy", &TThis::Heavy)
         .Optional();
-    RegisterParameter("queue_size_limit", QueueSizeLimit)
+    registrar.Parameter("queue_size_limit", &TThis::QueueSizeLimit)
         .Alias("max_queue_size")
         .Optional();
-    RegisterParameter("concurrency_limit", ConcurrencyLimit)
+    registrar.Parameter("concurrency_limit", &TThis::ConcurrencyLimit)
         .Alias("max_concurrency")
         .Optional();
-    RegisterParameter("log_level", LogLevel)
+    registrar.Parameter("log_level", &TThis::LogLevel)
         .Optional();
-    RegisterParameter("request_bytes_throttler", RequestBytesThrottler)
+    registrar.Parameter("request_bytes_throttler", &TThis::RequestBytesThrottler)
         .Default();
-    RegisterParameter("request_weight_throttler", RequestWeightThrottler)
+    registrar.Parameter("request_weight_throttler", &TThis::RequestWeightThrottler)
         .Default();
-    RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
+    registrar.Parameter("logging_suppression_timeout", &TThis::LoggingSuppressionTimeout)
         .Optional();
-    RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
+    registrar.Parameter("logging_suppression_failed_request_throttler", &TThis::LoggingSuppressionFailedRequestThrottler)
         .Optional();
-    RegisterParameter("tracing_mode", TracingMode)
+    registrar.Parameter("tracing_mode", &TThis::TracingMode)
         .Optional();
-    RegisterParameter("pooled", Pooled)
+    registrar.Parameter("pooled", &TThis::Pooled)
         .Optional();
 }
 
@@ -165,24 +165,24 @@ void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceDiscoveryEndpointsConfig::TServiceDiscoveryEndpointsConfig()
+void TServiceDiscoveryEndpointsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cluster", Cluster)
+    registrar.Parameter("cluster", &TThis::Cluster)
         .Default();
-    RegisterParameter("clusters", Clusters)
+    registrar.Parameter("clusters", &TThis::Clusters)
         .Default();
-    RegisterParameter("endpoint_set_id", EndpointSetId);
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("endpoint_set_id", &TThis::EndpointSetId);
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(60));
 
-    RegisterPostprocessor([&] {
-        if (Cluster.has_value() == !Clusters.empty()) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Cluster.has_value() == !config->Clusters.empty()) {
             THROW_ERROR_EXCEPTION("Exactly one of \"cluster\" and \"clusters\" field must be set");
         }
 
-        if (Clusters.empty()) {
-            Clusters.push_back(*Cluster);
-            Cluster.reset();
+        if (config->Clusters.empty()) {
+            config->Clusters.push_back(*config->Cluster);
+            config->Cluster.reset();
         }
     });
 }
@@ -234,18 +234,18 @@ void TThrottlingChannelDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResponseKeeperConfig::TResponseKeeperConfig()
+void TResponseKeeperConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("expiration_time", ExpirationTime)
+    registrar.Parameter("expiration_time", &TThis::ExpirationTime)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("max_eviction_busy_time", MaxEvictionTickTime)
+    registrar.Parameter("max_eviction_busy_time", &TThis::MaxEvictionTickTime)
         .Default(TDuration::MilliSeconds(10));
-    RegisterParameter("enable_warmup", EnableWarmup)
+    registrar.Parameter("enable_warmup", &TThis::EnableWarmup)
         .Default(true);
-    RegisterParameter("warmup_time", WarmupTime)
+    registrar.Parameter("warmup_time", &TThis::WarmupTime)
         .Default(TDuration::Minutes(6));
-    RegisterPostprocessor([&] () {
-        if (EnableWarmup && WarmupTime < ExpirationTime) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableWarmup && config->WarmupTime < config->ExpirationTime) {
             THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
         }
     });
@@ -253,12 +253,12 @@ TResponseKeeperConfig::TResponseKeeperConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDispatcherConfig::TDispatcherConfig()
+void TDispatcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heavy_pool_size", HeavyPoolSize)
+    registrar.Parameter("heavy_pool_size", &TThis::HeavyPoolSize)
         .Default(DefaultHeavyPoolSize)
         .GreaterThan(0);
-    RegisterParameter("compression_pool_size", CompressionPoolSize)
+    registrar.Parameter("compression_pool_size", &TThis::CompressionPoolSize)
         .Default(DefaultCompressionPoolSize)
         .GreaterThan(0);
 }
@@ -274,12 +274,12 @@ TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDispatcherDynamicConfig::TDispatcherDynamicConfig()
+void TDispatcherDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heavy_pool_size", HeavyPoolSize)
+    registrar.Parameter("heavy_pool_size", &TThis::HeavyPoolSize)
         .Optional()
         .GreaterThan(0);
-    RegisterParameter("compression_pool_size", CompressionPoolSize)
+    registrar.Parameter("compression_pool_size", &TThis::CompressionPoolSize)
         .Optional()
         .GreaterThan(0);
 }

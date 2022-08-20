@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NJson {
 
@@ -18,14 +18,14 @@ DEFINE_ENUM(EJsonAttributesMode,
 );
 
 class TJsonFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
     bool Plain;
     bool EncodeUtf8;
-    i64 MemoryLimit;
+    i64 MemoryLimit = 256_MB;
 
     std::optional<int> StringLengthLimit;
 
@@ -43,7 +43,9 @@ public:
     //! Only works for tabular data.
     bool SkipNullValues;
 
-    TJsonFormatConfig();
+    REGISTER_YSON_STRUCT(TJsonFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)

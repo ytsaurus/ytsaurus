@@ -11,13 +11,15 @@ namespace NYT::NHttps {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerCredentialsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;
 
-    TServerCredentialsConfig();
+    REGISTER_YSON_STRUCT(TServerCredentialsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerCredentialsConfig)
@@ -30,7 +32,9 @@ class TServerConfig
 public:
     TServerCredentialsConfigPtr Credentials;
 
-    TServerConfig();
+    REGISTER_YSON_STRUCT(TServerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
@@ -38,13 +42,15 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientCredentialsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;
 
-    TClientCredentialsConfig();
+    REGISTER_YSON_STRUCT(TClientCredentialsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientCredentialsConfig)
@@ -58,7 +64,9 @@ public:
     // If missing then builtin certificate store is used.
     TClientCredentialsConfigPtr Credentials;
 
-    TClientConfig();
+    REGISTER_YSON_STRUCT(TClientConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientConfig)

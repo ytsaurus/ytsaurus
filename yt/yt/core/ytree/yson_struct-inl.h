@@ -171,9 +171,31 @@ TYsonStructRegistrar<TStruct>::operator TYsonStructRegistrar<TBase>()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
+TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
 {
     return NYTree::ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
+}
+
+template <class T>
+std::vector<TIntrusivePtr<T>> CloneYsonStructs(const std::vector<TIntrusivePtr<T>>& objs)
+{
+    std::vector<TIntrusivePtr<T>> clonedObjs;
+    clonedObjs.reserve(objs.size());
+    for (const auto& obj : objs) {
+        clonedObjs.push_back(CloneYsonStruct(obj));
+    }
+    return clonedObjs;
+}
+
+template <class T>
+THashMap<TString, TIntrusivePtr<T>> CloneYsonStructs(const THashMap<TString, TIntrusivePtr<T>>& objs)
+{
+    THashMap<TString, TIntrusivePtr<T>> clonedObjs;
+    clonedObjs.reserve(objs.size());
+    for (const auto& [key, obj] : objs) {
+        clonedObjs.emplace(key, CloneYsonStruct(obj));
+    }
+    return clonedObjs;
 }
 
 template <class T>

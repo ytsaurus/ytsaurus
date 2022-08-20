@@ -157,7 +157,7 @@ public:
         if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
             Underlying_->Reconfigure(std::move(config));
         } else {
-            ThrottlerConfig_.Store(CloneYsonSerializable(std::move(config)));
+            ThrottlerConfig_.Store(CloneYsonStruct(std::move(config)));
         }
     }
 
@@ -1180,7 +1180,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NLogging::TLogger logger)
 {
     return New<TDistributedThrottlerFactory>(
-        CloneYsonSerializable(std::move(config)),
+        CloneYsonStruct(std::move(config)),
         std::move(channelFactory),
         std::move(invoker),
         std::move(groupId),

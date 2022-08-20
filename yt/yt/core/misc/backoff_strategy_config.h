@@ -2,18 +2,20 @@
 
 #include "backoff_strategy.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableExponentialBackoffOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
     , public TExponentialBackoffOptions
 {
 public:
-    TSerializableExponentialBackoffOptions();
+    REGISTER_YSON_STRUCT(TSerializableExponentialBackoffOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableExponentialBackoffOptions)
@@ -21,11 +23,13 @@ DEFINE_REFCOUNTED_TYPE(TSerializableExponentialBackoffOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableConstantBackoffOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
     , public TConstantBackoffOptions
 {
 public:
-    TSerializableConstantBackoffOptions();
+    REGISTER_YSON_STRUCT(TSerializableConstantBackoffOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableConstantBackoffOptions)

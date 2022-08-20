@@ -4,18 +4,18 @@ namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPemBlobConfig::TPemBlobConfig()
+void TPemBlobConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("file_name", FileName)
+    registrar.Parameter("file_name", &TThis::FileName)
         .Optional();
-    RegisterParameter("value", Value)
+    registrar.Parameter("value", &TThis::Value)
         .Optional();
 
-    RegisterPostprocessor([&] {
-        if (FileName && Value) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->FileName && config->Value) {
             THROW_ERROR_EXCEPTION("Cannot specify both \"file_name\" and \"value\"");
         }
-        if (!FileName && !Value) {
+        if (!config->FileName && !config->Value) {
             THROW_ERROR_EXCEPTION("Must specify either \"file_name\" or \"value\"");
         }
     });

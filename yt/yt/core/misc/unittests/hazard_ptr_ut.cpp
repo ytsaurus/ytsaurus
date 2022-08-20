@@ -85,6 +85,9 @@ private:
 
 TEST(THazardPtrTest, RefCountedPtrBehavior)
 {
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -110,6 +113,9 @@ TEST(THazardPtrTest, RefCountedPtrBehavior)
 
 TEST(THazardPtrTest, DelayedDeallocation)
 {
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -139,6 +145,9 @@ TEST(THazardPtrTest, DelayedDeallocation)
 
 TEST(THazardPtrTest, CombinedLogic)
 {
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -218,6 +227,9 @@ private:
 
 TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
 {
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -247,6 +259,9 @@ NThreading::TEvent Finish;
 
 TEST(THazardPtrTest, SupportFork)
 {
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
     TStringStream output;
     TTestAllocator allocator(&output);
 

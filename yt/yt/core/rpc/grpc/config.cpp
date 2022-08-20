@@ -6,61 +6,61 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSslPemKeyCertPairConfig::TSslPemKeyCertPairConfig()
+void TSslPemKeyCertPairConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("private_key", PrivateKey)
+    registrar.Parameter("private_key", &TThis::PrivateKey)
         .Optional();
-    RegisterParameter("cert_chain", CertChain)
+    registrar.Parameter("cert_chain", &TThis::CertChain)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerCredentialsConfig::TServerCredentialsConfig()
+void TServerCredentialsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("pem_root_certs", PemRootCerts)
+    registrar.Parameter("pem_root_certs", &TThis::PemRootCerts)
         .Optional();
-    RegisterParameter("pem_key_cert_pairs", PemKeyCertPairs);
-    RegisterParameter("client_certificate_request", ClientCertificateRequest)
+    registrar.Parameter("pem_key_cert_pairs", &TThis::PemKeyCertPairs);
+    registrar.Parameter("client_certificate_request", &TThis::ClientCertificateRequest)
         .Default(EClientCertificateRequest::RequestAndRequireClientCertificateAndVerify);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerAddressConfig::TServerAddressConfig()
+void TServerAddressConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("address", Address);
-    RegisterParameter("credentials", Credentials)
+    registrar.Parameter("address", &TThis::Address);
+    registrar.Parameter("credentials", &TThis::Credentials)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerConfig::TServerConfig()
+void TServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("addresses", Addresses);
-    RegisterParameter("grpc_arguments", GrpcArguments)
+    registrar.Parameter("addresses", &TThis::Addresses);
+    registrar.Parameter("grpc_arguments", &TThis::GrpcArguments)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannelCredentialsConfig::TChannelCredentialsConfig()
+void TChannelCredentialsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("pem_root_certs", PemRootCerts)
+    registrar.Parameter("pem_root_certs", &TThis::PemRootCerts)
         .Optional();
-    RegisterParameter("pem_key_cert_pair", PemKeyCertPair)
+    registrar.Parameter("pem_key_cert_pair", &TThis::PemKeyCertPair)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannelConfig::TChannelConfig()
+void TChannelConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("address", Address);
-    RegisterParameter("credentials", Credentials)
+    registrar.Parameter("address", &TThis::Address);
+    registrar.Parameter("credentials", &TThis::Credentials)
         .Optional();
-    RegisterParameter("grpc_arguments", GrpcArguments)
+    registrar.Parameter("grpc_arguments", &TThis::GrpcArguments)
         .Default();
 }
 

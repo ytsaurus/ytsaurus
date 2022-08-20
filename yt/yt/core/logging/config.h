@@ -6,14 +6,14 @@
 #include <yt/yt/core/json/config.h>
 
 #include <yt/yt/core/ytree/public.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileLogWriterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr const TStringBuf Type = "file";
@@ -23,7 +23,9 @@ public:
     ECompressionMethod CompressionMethod;
     int CompressionLevel;
 
-    TFileLogWriterConfig();
+    REGISTER_YSON_STRUCT(TFileLogWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileLogWriterConfig)
@@ -31,10 +33,15 @@ DEFINE_REFCOUNTED_TYPE(TFileLogWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStderrLogWriterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr TStringBuf Type = "stderr";
+
+    REGISTER_YSON_STRUCT(TStderrLogWriterConfig);
+
+    static void Register(TRegistrar)
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TStderrLogWriterConfig)
@@ -42,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TStderrLogWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogWriterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Type;
@@ -68,7 +75,9 @@ public:
     template <class TTypedConfigPtr>
     NYTree::IMapNodePtr BuildFullConfig(const TTypedConfigPtr& typedConfig);
 
-    TLogWriterConfig();
+    REGISTER_YSON_STRUCT(TLogWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogWriterConfig)
@@ -76,7 +85,7 @@ DEFINE_REFCOUNTED_TYPE(TLogWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRuleConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<THashSet<TString>> IncludeCategories;
@@ -89,10 +98,12 @@ public:
 
     std::vector<TString> Writers;
 
-    TRuleConfig();
-
     bool IsApplicable(TStringBuf category, ELogFamily family) const;
     bool IsApplicable(TStringBuf category, ELogLevel level, ELogFamily family) const;
+
+    REGISTER_YSON_STRUCT(TRuleConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)
@@ -100,7 +111,7 @@ DEFINE_REFCOUNTED_TYPE(TRuleConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TDuration> FlushPeriod;
@@ -128,8 +139,6 @@ public:
 
     int CompressionThreadCount;
 
-    TLogManagerConfig();
-
     TLogManagerConfigPtr ApplyDynamic(const TLogManagerDynamicConfigPtr& dynamicConfig) const;
 
     static TLogManagerConfigPtr CreateStderrLogger(ELogLevel logLevel);
@@ -151,6 +160,10 @@ public:
     //! Applies #updater to each writer config in #Writers.
     //! If null is returned then the writer is removed, otherwise it is replaced.
     void UpdateWriters(const std::function<NYTree::IMapNodePtr(const NYTree::IMapNodePtr&)> updater);
+
+    REGISTER_YSON_STRUCT(TLogManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogManagerConfig)
@@ -158,7 +171,7 @@ DEFINE_REFCOUNTED_TYPE(TLogManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<i64> MinDiskSpace;
@@ -179,7 +192,9 @@ public:
 
     std::optional<int> CompressionThreadCount;
 
-    TLogManagerDynamicConfig();
+    REGISTER_YSON_STRUCT(TLogManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogManagerDynamicConfig)
