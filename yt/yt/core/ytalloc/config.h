@@ -2,14 +2,14 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYTAllocConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<bool> EnableAllocationProfiling;
@@ -27,18 +27,22 @@ public:
     std::optional<size_t> MinLargeUnreclaimableBytes;
     std::optional<size_t> MaxLargeUnreclaimableBytes;
 
-    TYTAllocConfig();
+    REGISTER_YSON_STRUCT(TYTAllocConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYTAllocConfig)
 
 class TYTProfilingConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<bool> EnableDetailedAllocationStatistics;
 
-    TYTProfilingConfig();
+    REGISTER_YSON_STRUCT(TYTProfilingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYTProfilingConfig)

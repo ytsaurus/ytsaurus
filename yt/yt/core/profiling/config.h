@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/public.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <optional>
 
@@ -12,7 +11,7 @@ namespace NYT::NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfileManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MaxKeepInterval;
@@ -21,7 +20,9 @@ public:
 
     THashMap<TString, TString> GlobalTags;
 
-    TProfileManagerConfig();
+    REGISTER_YSON_STRUCT(TProfileManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProfileManagerConfig);

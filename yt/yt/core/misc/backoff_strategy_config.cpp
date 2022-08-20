@@ -4,29 +4,29 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableExponentialBackoffOptions::TSerializableExponentialBackoffOptions()
+void TSerializableExponentialBackoffOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("retry_count", RetryCount)
+    registrar.BaseClassParameter("retry_count", &TThis::RetryCount)
         .Default(DefaultRetryCount);
-    RegisterParameter("min_backoff", MinBackoff)
+    registrar.BaseClassParameter("min_backoff", &TThis::MinBackoff)
         .Default(DefaultMinBackoff);
-    RegisterParameter("max_backoff", MaxBackoff)
+    registrar.BaseClassParameter("max_backoff", &TThis::MaxBackoff)
         .Default(DefaultMaxBackoff);
-    RegisterParameter("backoff_multiplier", BackoffMultiplier)
+    registrar.BaseClassParameter("backoff_multiplier", &TThis::BackoffMultiplier)
         .Default(DefaultBackoffMultiplier);
-    RegisterParameter("backoff_jitter", BackoffJitter)
+    registrar.BaseClassParameter("backoff_jitter", &TThis::BackoffJitter)
         .Default(DefaultBackoffJitter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableConstantBackoffOptions::TSerializableConstantBackoffOptions()
+void TSerializableConstantBackoffOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("retry_count", RetryCount)
+    registrar.BaseClassParameter("retry_count", &TThis::RetryCount)
         .Default(DefaultRetryCount);
-    RegisterParameter("backoff", Backoff)
+    registrar.BaseClassParameter("backoff", &TThis::Backoff)
         .Default(DefaultBackoff);
-    RegisterParameter("backoff_jitter", BackoffJitter)
+    registrar.BaseClassParameter("backoff_jitter", &TThis::BackoffJitter)
         .Default(DefaultBackoffJitter);
 }
 

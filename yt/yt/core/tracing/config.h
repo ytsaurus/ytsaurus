@@ -2,19 +2,21 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTracingConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool SendBaggage;
 
-    TTracingConfig();
+    REGISTER_YSON_STRUCT(TTracingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTracingConfig)

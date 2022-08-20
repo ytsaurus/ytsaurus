@@ -4,14 +4,14 @@
 
 #include <yt/yt/core/net/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpIOConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int ReadBufferSize;
@@ -23,7 +23,9 @@ public:
 
     TDuration WriteIdleTimeout;
 
-    THttpIOConfig();
+    REGISTER_YSON_STRUCT(THttpIOConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THttpIOConfig);
@@ -59,7 +61,9 @@ public:
     //! This field is not accessible from config.
     TString ServerName = "Http";
 
-    TServerConfig();
+    REGISTER_YSON_STRUCT(TServerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig);
@@ -73,7 +77,9 @@ public:
     int MaxIdleConnections;
     NNet::TDialerConfigPtr Dialer;
 
-    TClientConfig();
+    REGISTER_YSON_STRUCT(TClientConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientConfig);
@@ -81,14 +87,16 @@ DEFINE_REFCOUNTED_TYPE(TClientConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCorsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool DisableCorsCheck;
     std::vector<TString> HostAllowList;
     std::vector<TString> HostSuffixAllowList;
 
-    TCorsConfig();
+    REGISTER_YSON_STRUCT(TCorsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCorsConfig);

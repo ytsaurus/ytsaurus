@@ -6,72 +6,72 @@ namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpIOConfig::THttpIOConfig()
+void THttpIOConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_buffer_size", ReadBufferSize)
+    registrar.Parameter("read_buffer_size", &TThis::ReadBufferSize)
         .Default(128_KB);
 
-    RegisterParameter("connection_idle_timeout", ConnectionIdleTimeout)
+    registrar.Parameter("connection_idle_timeout", &TThis::ConnectionIdleTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("header_read_timeout", HeaderReadTimeout)
+    registrar.Parameter("header_read_timeout", &TThis::HeaderReadTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("body_read_idle_timeout", BodyReadIdleTimeout)
+    registrar.Parameter("body_read_idle_timeout", &TThis::BodyReadIdleTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("write_idle_timeout", WriteIdleTimeout)
+    registrar.Parameter("write_idle_timeout", &TThis::WriteIdleTimeout)
         .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerConfig::TServerConfig()
+void TServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("port", Port)
+    registrar.Parameter("port", &TThis::Port)
         .Default(80);
 
-    RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
+    registrar.Parameter("max_simultaneous_connections", &TThis::MaxSimultaneousConnections)
         .Default(50000);
 
-    RegisterParameter("max_backlog_size", MaxBacklogSize)
+    registrar.Parameter("max_backlog_size", &TThis::MaxBacklogSize)
         .Default(8192);
 
-    RegisterParameter("bind_retry_count", BindRetryCount)
+    registrar.Parameter("bind_retry_count", &TThis::BindRetryCount)
         .Default(5);
 
-    RegisterParameter("bind_retry_backoff", BindRetryBackoff)
+    registrar.Parameter("bind_retry_backoff", &TThis::BindRetryBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("enable_keep_alive", EnableKeepAlive)
+    registrar.Parameter("enable_keep_alive", &TThis::EnableKeepAlive)
         .Default(true);
 
-    RegisterParameter("cancel_fiber_on_connection_close", CancelFiberOnConnectionClose)
+    registrar.Parameter("cancel_fiber_on_connection_close", &TThis::CancelFiberOnConnectionClose)
         .Default(false);
 
-    RegisterParameter("nodelay", NoDelay)
+    registrar.Parameter("nodelay", &TThis::NoDelay)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientConfig::TClientConfig()
+void TClientConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_idle_connections", MaxIdleConnections)
+    registrar.Parameter("max_idle_connections", &TThis::MaxIdleConnections)
         .Default(0);
-    RegisterParameter("dialer", Dialer)
+    registrar.Parameter("dialer", &TThis::Dialer)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCorsConfig::TCorsConfig()
+void TCorsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("disable_cors_check", DisableCorsCheck)
+    registrar.Parameter("disable_cors_check", &TThis::DisableCorsCheck)
         .Default(false);
-    RegisterParameter("host_allow_list", HostAllowList)
+    registrar.Parameter("host_allow_list", &TThis::HostAllowList)
         .Default({"localhost"});
-    RegisterParameter("host_suffix_allow_list", HostSuffixAllowList)
+    registrar.Parameter("host_suffix_allow_list", &TThis::HostSuffixAllowList)
         .Default({".yandex-team.ru"});
 }
 

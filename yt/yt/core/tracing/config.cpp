@@ -4,9 +4,9 @@ namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTracingConfig::TTracingConfig()
+void TTracingConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("send_baggage", SendBaggage)
+    registrar.Parameter("send_baggage", &TThis::SendBaggage)
         .Default(true);
 }
 

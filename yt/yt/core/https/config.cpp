@@ -4,36 +4,36 @@ namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerCredentialsConfig::TServerCredentialsConfig()
+void TServerCredentialsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("private_key", PrivateKey)
+    registrar.Parameter("private_key", &TThis::PrivateKey)
         .Optional();
-    RegisterParameter("cert_chain", CertChain)
-        .Optional();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TServerConfig::TServerConfig()
-{
-    RegisterParameter("credentials", Credentials);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TClientCredentialsConfig::TClientCredentialsConfig()
-{
-    RegisterParameter("private_key", PrivateKey)
-        .Optional();
-    RegisterParameter("cert_chain", CertChain)
+    registrar.Parameter("cert_chain", &TThis::CertChain)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientConfig::TClientConfig()
+void TServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("credentials", Credentials)
+    registrar.Parameter("credentials", &TThis::Credentials);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClientCredentialsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("private_key", &TThis::PrivateKey)
+        .Optional();
+    registrar.Parameter("cert_chain", &TThis::CertChain)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClientConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("credentials", &TThis::Credentials)
         .Optional();
 }
 

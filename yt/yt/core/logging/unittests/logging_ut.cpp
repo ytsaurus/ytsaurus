@@ -887,14 +887,16 @@ TEST_F(TLoggingTest, Anchors)
 DECLARE_REFCOUNTED_CLASS(TTestWriterConfig)
 
 class TTestWriterConfig
-    : public TYsonSerializable
+    : public TYsonStruct
 {
 public:
     int Padding;
 
-    TTestWriterConfig()
+    REGISTER_YSON_STRUCT(TTestWriterConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("padding", Padding)
+        registrar.Parameter("padding", &TThis::Padding)
             .GreaterThanOrEqual(0)
             .Default(0);
     }
