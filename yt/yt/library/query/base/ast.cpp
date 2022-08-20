@@ -8,12 +8,12 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator==(TNullLiteralValue, TNullLiteralValue)
+bool operator == (TNullLiteralValue, TNullLiteralValue)
 {
     return true;
 }
 
-bool operator!=(TNullLiteralValue, TNullLiteralValue)
+bool operator != (TNullLiteralValue, TNullLiteralValue)
 {
     return false;
 }
