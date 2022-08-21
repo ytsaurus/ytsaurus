@@ -74,7 +74,7 @@ public:
         YT_LOG_INFO("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
             replicaId,
             result);
-        
+
         return result;
     }
 
@@ -278,7 +278,7 @@ private:
                     counters->ErrorCount.Increment();
                 }
             });
-            
+
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
             TPullRowsResult result;
@@ -325,7 +325,7 @@ private:
             auto resultRows = result.Rowset->GetSharedRange();
             const auto& progress = result.ReplicationProgress;
 
-            YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplictionRowIndexes: %v)",
+            YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v)",
                 rowCount,
                 dataWeight,
                 progress,

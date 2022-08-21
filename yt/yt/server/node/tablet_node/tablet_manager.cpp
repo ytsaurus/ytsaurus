@@ -2174,7 +2174,7 @@ private:
             LockTablet(tablet);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplictionRound: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
             round);
