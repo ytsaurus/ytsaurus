@@ -119,6 +119,11 @@ private:
         return [=] (TString userName, TRequestQueuePtr queue) {
             auto epochAutomatonInvoker = bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkService);
 
+            // NB: After recovery OnDynamicConfigChanged will be called and invoker will be present, so we can reconfigure there.
+            if (!epochAutomatonInvoker) {
+                return;
+            }
+
             epochAutomatonInvoker->Invoke(BIND([bootstrap, userName = std::move(userName), queue = std::move(queue)] {
                 const auto& securityManager = bootstrap->GetSecurityManager();
 
@@ -179,25 +184,33 @@ private:
 
         const auto& oldConfig = oldClusterConfig->ChunkService;
 
-        // Since ReconfigureDefaultUserThrottlers and EnableThrottling can create extra load on Automaton thread,
-        // we want to call them only when it's actually needed.
-        // TODO(h0pless): Use operator instead of comparing all fields individualy here.
-        if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Limit != config->DefaultPerUserRequestWeightThrottlerConfig->Limit ||
-        oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Limit != config->DefaultPerUserRequestBytesThrottlerConfig->Limit ||
-        oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Period != config->DefaultPerUserRequestWeightThrottlerConfig->Period ||
-        oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Period != config->DefaultPerUserRequestBytesThrottlerConfig->Period)
-        {
+        // Checking if OnDynamicConfigChanged was triggered by a change in epoch.
+        // At least one reconfiguration call is needed to guarantee correct values for throttlers.
+        if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
             ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
                 config->DefaultPerUserRequestWeightThrottlerConfig,
                 config->DefaultPerUserRequestBytesThrottlerConfig});
-        }
+        } else {
+            // Since ReconfigureDefaultUserThrottlers and EnableThrottling can create extra load on Automaton thread,
+            // we want to call them only when it's actually needed.
+            // TODO(h0pless): Use operator instead of comparing all fields individualy here.
+            if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Limit != config->DefaultPerUserRequestWeightThrottlerConfig->Limit ||
+                oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Limit != config->DefaultPerUserRequestBytesThrottlerConfig->Limit ||
+                oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Period != config->DefaultPerUserRequestWeightThrottlerConfig->Period ||
+                oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Period != config->DefaultPerUserRequestBytesThrottlerConfig->Period)
+            {
+                ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
+                    config->DefaultPerUserRequestWeightThrottlerConfig,
+                    config->DefaultPerUserRequestBytesThrottlerConfig});
+            }
 
-        if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
-            oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
-        {
-            ExecuteBatchRequestQueues_.EnableThrottling(
-                config->EnablePerUserRequestWeightThrottling,
-                config->EnablePerUserRequestBytesThrottling);
+            if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
+                oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
+            {
+                ExecuteBatchRequestQueues_.EnableThrottling(
+                    config->EnablePerUserRequestWeightThrottling,
+                    config->EnablePerUserRequestBytesThrottling);
+            }
         }
     }
 

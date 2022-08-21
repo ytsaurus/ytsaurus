@@ -80,10 +80,12 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkServiceRequestWeightThrottler)
             .SetWritable(true)
+            .SetRemovable(true)
             .SetReplicated(true)
             .SetPresent(chunkServiceWeightConfigPresent));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkServiceRequestBytesThrottler)
             .SetWritable(true)
+            .SetRemovable(true)
             .SetReplicated(true)
             .SetPresent(chunkServiceBytesConfigPresent));
     }
