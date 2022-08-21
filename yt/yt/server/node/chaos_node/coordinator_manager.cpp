@@ -385,7 +385,7 @@ private:
             THROW_ERROR_EXCEPTION("Shortcut for replication card has different era")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("shortcut_era", it->second.Era)
-                << TErrorAttribute("repliction_card_era", era);
+                << TErrorAttribute("replication_card_era", era);
         }
 
         InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
