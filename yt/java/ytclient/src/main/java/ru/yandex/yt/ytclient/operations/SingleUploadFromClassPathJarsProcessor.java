@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -67,7 +68,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SingleUploadFromClassPathJarsProcessor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SingleUploadFromClassPathJarsProcessor.class);
 
     private static final String NATIVE_FILE_EXTENSION = "so";
     protected static final int DEFAULT_JARS_REPLICATION_FACTOR = 10;
@@ -140,7 +141,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         return cacheDir != null;
     }
 
-    private void uploadIfNeeded(TransactionalClient yt, boolean isLocalMode) throws IOException {
+    private void uploadIfNeeded(TransactionalClient yt, boolean isLocalMode) {
         uploadMap.clear();
 
         yt.createNode(new CreateNode(jarsDir, CypressNodeType.MAP)
@@ -182,14 +183,13 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     private YPath onFileChecked(TransactionalClient yt, @Nullable YPath path, String originalName, String md5,
-                                Supplier<InputStream> fileContent) throws IOException {
+                                Supplier<InputStream> fileContent) {
         YPath res = path;
 
         if (res == null) {
-            YPath jarPath = jarsDir.child(calculateYPath(fileContent, originalName));
             YPath tmpPath = jarsDir.child(GUID.create().toString());
 
-            LOG.info(String.format("Uploading %s as %s", originalName, jarPath));
+            LOGGER.info("Uploading {} to cache", originalName);
 
             writeFile(yt, tmpPath, fileContent.get());
 
@@ -213,8 +213,11 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         final Map.Entry<String, Supplier<InputStream>> entry;
         @Nullable Future<YPath> result;
 
-        public CacheUploadTask(CompletableFuture<Optional<YPath>> cacheCheckResult,
-                               String md5, Map.Entry<String, Supplier<InputStream>> entry) {
+        public CacheUploadTask(
+                CompletableFuture<Optional<YPath>> cacheCheckResult,
+                String md5,
+                Map.Entry<String, Supplier<InputStream>> entry
+        ) {
             this.cacheCheckResult = cacheCheckResult;
             this.md5 = md5;
             this.entry = entry;
@@ -254,7 +257,9 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
             for (CacheUploadTask task : tasks) {
                 try {
-                    uploadedJars.put(task.entry.getKey(), task.result.get());
+                    // N.B. we filled `result` in the loop above.
+                    Future<YPath> result = Objects.requireNonNull(task.result);
+                    uploadedJars.put(task.entry.getKey(), result.get());
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
@@ -303,7 +308,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         }
     }
 
-    private void doUpload(TransactionalClient yt, boolean isLocalMode) throws IOException {
+    private void doUpload(TransactionalClient yt, boolean isLocalMode) {
         if (uploadMap.isEmpty()) {
             return;
         }
@@ -320,14 +325,14 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private static List<File> getFilesList(File file) {
         File[] files = file.listFiles();
         if (files == null) {
-            return Arrays.asList();
+            return Collections.emptyList();
         }
         return Arrays.asList(files);
     }
 
     private static Iterator<File> walk(File dir) {
         return append(
-                Arrays.asList(dir).iterator(),
+                Collections.singletonList(dir).iterator(),
                 flatMap(getFilesList(dir).iterator(), SingleUploadFromClassPathJarsProcessor::walk));
     }
 
@@ -349,7 +354,8 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
             @Override
             public T next() {
                 if (hasNext()) {
-                    return cur.next();
+                    // if hasNext() == true, then cur cannot be null
+                    return Objects.requireNonNull(cur).next();
                 }
                 throw new NoSuchElementException("next on empty iterator");
             }
@@ -387,7 +393,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         }
     }
 
-    private String toHex(byte[] data) {
+    private static String toHex(byte[] data) {
         StringBuilder result = new StringBuilder();
         for (byte b : data) {
             result.append(DIGITS[(0xF0 & b) >>> 4]);
@@ -473,7 +479,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         if (libPath == null) {
             throw new IllegalStateException("System property 'java.library.path' is null");
         }
-        LOG.info("Searching native libs in " + libPath);
+        LOGGER.info("Searching native libs in " + libPath);
 
         String[] classPathParts = libPath.split(File.pathSeparator);
         for (String classPathPart : classPathParts) {
@@ -509,7 +515,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         if (classPath == null) {
             throw new IllegalStateException("System property 'java.class.path' is null");
         }
-        LOG.info("Searching libs in " + classPath);
+        LOGGER.info("Searching libs in " + classPath);
 
         String[] classPathPartsRaw = classPath.split(File.pathSeparator);
 
@@ -541,7 +547,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                                     classPathParts.add(jarFileChild.getPath());
                                 }
                             } catch (Throwable e) {
-                                LOG.info(String.format("cannot open : %s ", entity), e);
+                                LOGGER.info(String.format("cannot open : %s ", entity), e);
                             }
                         }
                     }
@@ -581,7 +587,8 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
             TransactionalClient yt,
             Supplier<InputStream> fileContent,
             String originalName,
-            boolean isLocalMode) throws IOException {
+            boolean isLocalMode
+    ) {
         String md5 = calculateMd5(fileContent.get());
         YPath jarPath;
         if (originalName.endsWith(NATIVE_FILE_EXTENSION)) {
@@ -598,7 +605,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
         YPath tmpPath = jarsDir.child(GUID.create().toString());
 
-        LOG.info(String.format("Uploading %s as %s", originalName, jarPath));
+        LOGGER.info(String.format("Uploading %s as %s", originalName, jarPath));
 
         int actualFileCacheReplicationFactor = isLocalMode ? 1 : fileCacheReplicationFactor;
 
@@ -630,7 +637,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
             while (iter.hasNext()) {
                 File elm = iter.next();
                 String name = elm.getAbsolutePath().substring(dir.getAbsolutePath().length());
-                if (name != null && name.length() > 0) {
+                if (name.length() > 0) {
                     JarEntry entry = new JarEntry(name.substring(1).replace("\\", "/"));
                     jar.putNextEntry(entry);
                     if (elm.isFile()) {
