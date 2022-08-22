@@ -26,6 +26,7 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/yt/server/master/transaction_server/transaction_rotator.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
@@ -218,6 +219,7 @@ class TChunkAutotomizer
 public:
     explicit TChunkAutotomizer(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkAutotomizer)
+        , TransactionRotator_(bootstrap, "Chunk autotomizer transaction")
         , SuccessfulAutotomyCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/successful_autotomies"))
         , UnsuccessfulAutotomyCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/unsuccessful_autotomies"))
         , SpeculativeJobWinCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/speculative_job_wins"))
@@ -424,10 +426,8 @@ private:
     //! Set of all registered chunks.
     THashMap<TChunkId, TChunkAutotomyState> RegisteredChunks_;
 
-    //! Transaction used for tail chunk allocation.
-    TTransactionId TransactionId_ = NullTransactionId;
-    //! Transaction that was used for chunk allocation before current.
-    TTransactionId PreviousTransactionId_ = NullTransactionId;
+    //! Transactions used for tail chunk allocation.
+    TTransactionRotator TransactionRotator_;
 
     // Transient fields.
 
@@ -494,42 +494,16 @@ private:
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
             "Updating chunk autotomizer transactions "
             "(TransactionId: %v, PreviousTransactionId: %v)",
-            TransactionId_,
-            PreviousTransactionId_);
+            TransactionRotator_.GetTransactionId(),
+            TransactionRotator_.GetPreviousTransactionId());
 
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
-        // At first we destroy previous transaction.
-        if (PreviousTransactionId_) {
-            auto* previousTransaction = transactionManager->FindTransaction(PreviousTransactionId_);
-            if (IsObjectAlive(previousTransaction)) {
-                // We reset previous transaction id here, to prevent transaction commit callback
-                // of doing something.
-                PreviousTransactionId_ = {};
-                // Actually it doesn't matter whether to commit or abort previous transaction.
-                transactionManager->CommitTransaction(previousTransaction, /*commitOptions*/ {});
-            }
-        }
-
-        // Current transaction becomes previous...
-        PreviousTransactionId_ = TransactionId_;
-
-        // ... and new trasaction is started.
-        auto* transaction = transactionManager->StartTransaction(
-            /*parent*/ nullptr,
-            /*prerequisiteTransactions*/ {},
-            {},
-            /*timeout*/ std::nullopt,
-            /*deadline*/ std::nullopt,
-            "Chunk autotomizer transaction",
-            EmptyAttributes());
-        TransactionId_ = transaction->GetId();
+        TransactionRotator_.Rotate();
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
             "Chunk autotomizer transactions updated "
             "(TransactionId: %v, PreviousTransactionId: %v)",
-            TransactionId_,
-            PreviousTransactionId_);
+            TransactionRotator_.GetTransactionId(),
+            TransactionRotator_.GetPreviousTransactionId());
     }
 
     void HydraUpdateAutotomizerState(TReqUpdateAutotomizerState* request)
@@ -691,8 +665,12 @@ private:
         using NYT::Load;
 
         Load(context, RegisteredChunks_);
-        Load(context, TransactionId_);
-        Load(context, PreviousTransactionId_);
+        Load(context, TransactionRotator_);
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TransactionRotator_.OnAfterSnapshotLoaded();
     }
 
     void Save(NCellMaster::TSaveContext& context)
@@ -700,8 +678,7 @@ private:
         using NYT::Save;
 
         Save(context, RegisteredChunks_);
-        Save(context, TransactionId_);
-        Save(context, PreviousTransactionId_);
+        Save(context, TransactionRotator_);
     }
 
     void OnLeaderActive() override
@@ -897,26 +874,22 @@ private:
         YT_VERIFY(IsObjectAlive(transaction));
 
         // Persistent actions.
-        auto transactionId = transaction->GetId();
-        if (transactionId != TransactionId_ && transactionId != PreviousTransactionId_) {
+        auto transactionId = TransactionRotator_.GetTransactionId();
+        auto previousTransactionId = TransactionRotator_.GetPreviousTransactionId();
+
+        if (!TransactionRotator_.OnTransactionFinished(transaction)) {
             return;
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk autotomizer transaction finished "
             "(FinishedTransactionId: %v, ChunkAutotomizerTransactionId: %v, ChunkAutotomizerPreviousTransactionId: %v)",
+            transaction->GetId(),
             transactionId,
-            TransactionId_,
-            PreviousTransactionId_);
+            previousTransactionId);
 
-        if (transactionId == PreviousTransactionId_) {
-            PreviousTransactionId_ = NullTransactionId;
-        } else if (transactionId == TransactionId_) {
-            TransactionId_ = {};
-            // Transient actions.
-            if (IsLeader()) {
-                UpdateTransactions();
-            }
+        if (IsLeader() && transaction->GetId() == transactionId) {
+            UpdateTransactions();
         }
     }
 
@@ -929,8 +902,7 @@ private:
         auto* bodyChunk = chunkManager->FindChunk(bodyChunkId);
         YT_VERIFY(IsObjectAlive(bodyChunk));
 
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->FindTransaction(TransactionId_);
+        auto transaction = TransactionRotator_.GetTransaction();
         if (!IsObjectAlive(transaction)) {
             return NullChunkId;
         }

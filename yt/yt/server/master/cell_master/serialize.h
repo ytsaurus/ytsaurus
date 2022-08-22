@@ -95,6 +95,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidPortalCreationUnderNestedTransaction)                   (2112))  // kvk1920
     ((TransientInheritedAttributeDictionary)                        (2113))  // kvk1920
     ((MakeThrottlerAttributeRemovable)                              (2114))  // h0pless
+    ((TransactionRotator)                                           (2115))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
