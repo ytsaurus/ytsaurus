@@ -11,11 +11,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BundleController;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+static const auto& Logger = BundleControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,16 +25,7 @@ bool IsAllocationCompleted(const auto& requestInfo)
     return requestInfo->Status && requestInfo->Status->State == "COMPLETED";
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-TString GetBundleNameFor(const TString& /*name*/, const TTabletNodeInfoPtr& info)
-{
-    return info->Annotations->AllocatedForBundle;
-}
-
-TString GetPodIdForNode(const TString& name, const TTabletNodeInfoPtr& /*info*/)
+TString GetPodIdForInstance(const TString& name)
 {
     // TODO(capone212): Get pod_id from node cypress annotations.
 
@@ -52,53 +39,428 @@ TString GetPodIdForNode(const TString& name, const TTabletNodeInfoPtr& /*info*/)
     return podId;
 }
 
-TSchedulerInputState::TBundleToNodeMapping MapBundlesToTabletNodes(const TSchedulerInputState& input)
-{
-    TSchedulerInputState::TBundleToNodeMapping result;
+////////////////////////////////////////////////////////////////////////////////
 
-    for (const auto& [nodeName, nodeInfo] : input.TabletNodes) {
-        auto bundleName = GetBundleNameFor(nodeName, nodeInfo);
+template <typename TInstanceTypeAdapter>
+class TInstanceManager
+{
+public:
+    explicit TInstanceManager(NLogging::TLogger logger)
+        : Logger(std::move(logger))
+    { }
+
+    void ManageInstancies(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        ProcessExistingAllocations(bundleName, adapter, input, mutations);
+        InitNewAllocations(bundleName, adapter, input, mutations);
+        ProcessExistingDeallocations(bundleName, adapter, input, mutations);
+        InitNewDeallocations(bundleName, adapter, input, mutations);
+    }
+
+private:
+    NLogging::TLogger Logger;
+
+    void InitNewAllocations(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        // TODO(capone212): think about allocation/deallocation budget.
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        auto& allocationsState = adapter->AllocationsState();
+
+        YT_VERIFY(bundleInfo->EnableBundleController);
+
+        int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies());
+        int instanceCountToAllocate = adapter->GetTargetInstanceCount(bundleInfo) -
+            aliveInstanceCount -
+            std::ssize(allocationsState);
+
+        YT_LOG_DEBUG("Scheduling allocations (BundleName: %v, InstanceType: %v, InstanceCount: %v, "
+            "AliveInstanceCount: %v, RequestCount: %v, ExistingAllocations: %v)",
+            bundleName,
+            adapter->GetInstanceType(),
+            adapter->GetTargetInstanceCount(bundleInfo),
+            aliveInstanceCount,
+            instanceCountToAllocate,
+            std::ssize(allocationsState));
+
+        auto zoneIt = input.Zones.find(bundleInfo->Zone);
+
+        if (zoneIt == input.Zones.end()) {
+            YT_LOG_WARNING("Cannot locate zone for bundle (Bundle: %v, Zone: %v)",
+                bundleName,
+                bundleInfo->Zone);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "can_not_find_zone_for_bundle",
+                .Description = Format("Cannot locate zone %v for bundle %v.", bundleInfo->Zone, bundleName)
+            });
+            return;
+        }
+
+        const auto& zoneInfo = zoneIt->second;
+        if (instanceCountToAllocate > 0 && adapter->IsInstanceCountLimitReached(bundleInfo->Zone, zoneInfo, input)) {
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "zone_instance_limit_reached",
+                .Description = Format("Cannot allocate new %v at zone %v for bundle %v.",
+                    adapter->GetInstanceType(), bundleInfo->Zone, bundleName)
+            });
+            return;
+        }
+
+        for (int i = 0; i < instanceCountToAllocate; ++i) {
+            TString allocationId = ToString(TGuid::Create());
+
+            YT_LOG_INFO("Init allocation for bundle (BundleName: %v, InstanceType %v, AllocationId: %v)",
+                bundleName,
+                adapter->GetInstanceType(),
+                allocationId);
+
+            auto spec = New<TAllocationRequestSpec>();
+            spec->YPCluster = zoneInfo->YPCluster;
+            spec->NannyService = adapter->GetNannyService(zoneInfo);
+            *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
+            spec->PodIdTemplate = adapter->GetPodIdTemplate(input.Config->Cluster, bundleName);
+            spec->InstanceRole = adapter->GetInstanceRole();
+
+            auto request = New<TAllocationRequest>();
+            request->Spec = spec;
+            mutations->NewAllocations[allocationId] = request;
+            auto allocationState = New<TAllocationRequestState>();
+            allocationState->CreationTime = TInstant::Now();
+            allocationsState[allocationId] = allocationState;
+        }
+    }
+
+    void ProcessExistingAllocations(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        auto& allocationsState = adapter->AllocationsState();
+
+        TIndexedEntries<TAllocationRequestState> aliveAllocations;
+        for (const auto& [allocationId, allocationState] :allocationsState) {
+            auto it = input.AllocationRequests.find(allocationId);
+            if (it == input.AllocationRequests.end()) {
+                YT_LOG_WARNING("Cannot find allocation (AllocationId: %v, InstanceType: %v, BundleName: %v)",
+                    allocationId,
+                    adapter->GetInstanceType(),
+                    bundleName);
+
+                mutations->AlertsToFire.push_back(TAlert{
+                    .Id = "can_not_find_allocation_request",
+                    .Description = Format("Allocation request %v "
+                        "found in bundle state, but is absent in hulk allocations.",
+                        allocationId),
+                });
+                // It is better to keep this allocation, otherwise there is a chance to
+                // create create unbounded amount of new instancies.
+                aliveAllocations[allocationId] = allocationState;
+                continue;
+            }
+
+            const auto& allocationInfo = it->second;
+
+            if (IsAllocationFailed(allocationInfo)) {
+                YT_LOG_WARNING("Allocation Failed (AllocationId: %v, InstanceType: %v, BundleName: %v)",
+                    allocationId,
+                    adapter->GetInstanceType(),
+                    bundleName);
+
+                mutations->AlertsToFire.push_back(TAlert{
+                    .Id = "instance_allocation_failed",
+                    .Description = Format("Allocation request %v has failed.",
+                        allocationId),
+                });
+                continue;
+            }
+
+            auto instanceName = LocateAllocatedInstance(allocationInfo, input);
+            if (!instanceName.empty() && adapter->EnsureAllocatedInstanceTagsSet(instanceName, bundleName, allocationInfo, input, mutations)) {
+                YT_LOG_INFO("Instance allocation completed (Name: %v, AllocationId: %v, BundleName: %v)",
+                    instanceName,
+                    allocationId,
+                    bundleName);
+                continue;
+            }
+
+            auto allocationAge = TInstant::Now() - allocationState->CreationTime;
+            if (allocationAge > input.Config->HulkRequestTimeout) {
+                YT_LOG_WARNING("Allocation Request is stuck (AllocationId: %v, AllocationAge: %v, Threshold: %v)",
+                    allocationId,
+                    allocationAge,
+                    input.Config->HulkRequestTimeout);
+
+                mutations->AlertsToFire.push_back(TAlert{
+                    .Id = "stuck_instance_allocation",
+                    .Description = Format("Found stuck allocation %v and age %v which is more than threshold %v.",
+                        allocationId,
+                        allocationAge,
+                        input.Config->HulkRequestTimeout),
+                });
+                continue;
+            }
+
+            YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, Bundle: %v,  InstanceName: %v)",
+                allocationId,
+                bundleName,
+                instanceName);
+
+            aliveAllocations[allocationId] = allocationState;
+        }
+
+        allocationsState.swap(aliveAllocations);
+    }
+
+    // Returns false if current deallocation should not be tracked any more.
+    bool ProcessDeallocation(
+        TInstanceTypeAdapter* adapter,
+        const TString& deallocationId,
+        const TDeallocationRequestStatePtr& deallocationState,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
+        if (deallocationAge > input.Config->HulkRequestTimeout) {
+            YT_LOG_WARNING("Deallocation Request is stuck (DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
+                deallocationId,
+                deallocationAge,
+                input.Config->HulkRequestTimeout);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "stuck_instance_deallocation",
+                .Description = Format("Found stuck deallocation %v and age %v which is more than threshold %v.",
+                    deallocationId,
+                    deallocationAge,
+                    input.Config->HulkRequestTimeout),
+            });
+        }
+
+        const auto& instanceName = deallocationState->InstanceName;
+        if (!adapter->IsInstanceReadyToBeDeallocated(instanceName, deallocationId, input, mutations)) {
+            return true;
+        }
+
+        if (!deallocationState->HulkRequestCreated) {
+            CreateHulkDeallocationRequest(deallocationId, instanceName, adapter, input, mutations);
+            deallocationState->HulkRequestCreated = true;
+            return true;
+        }
+
+        auto it = input.DeallocationRequests.find(deallocationId);
+        if (it == input.DeallocationRequests.end()) {
+            YT_LOG_WARNING("Cannot find deallocation (DeallocationId: %v)",
+                deallocationId);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "can_not_find_deallocation_request",
+                .Description = Format("Deallocation request %v "
+                    "found in bundle state, but is absent in hulk deallocations.",
+                    deallocationId),
+            });
+            // Keep deallocation request and wait for an in duty person.
+            return true;
+        }
+
+        if (IsAllocationFailed(it->second)) {
+            YT_LOG_WARNING("Deallocation Failed (AllocationId: %v)",
+                deallocationId);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "instance_deallocation_failed",
+                .Description = Format("Deallocation request %v has failed.",
+                    deallocationId),
+            });
+            return false;
+        }
+
+        if (IsAllocationCompleted(it->second) && adapter->EnsureDeallocatedInstanceTagsSet(instanceName, input, mutations)) {
+            YT_LOG_INFO("Instance deallocation completed (InstanceName: %v, DeallocationId: %v)",
+                instanceName,
+                deallocationId);
+            return false;
+        }
+
+        YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v)",
+            deallocationId,
+            instanceName);
+        return true;
+    }
+
+    void ProcessExistingDeallocations(
+        const TString& /*bundleName*/,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        auto& deallocations = adapter->DeallocationsState();
+        TIndexedEntries<TDeallocationRequestState> aliveDeallocations;
+
+        for (const auto& [deallocationId, deallocationState] : deallocations) {
+            if (ProcessDeallocation(adapter, deallocationId, deallocationState, input, mutations)) {
+                aliveDeallocations[deallocationId] = deallocationState;
+            }
+        }
+
+        deallocations.swap(aliveDeallocations);
+    }
+
+    void CreateHulkDeallocationRequest(
+        const TString& deallocationId,
+        const TString& instanceName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
+        const auto& instanceAnnotations = instanceInfo->Annotations;
+        auto request = New<TDeallocationRequest>();
+        auto& spec = request->Spec;
+        spec->YPCluster = instanceAnnotations->YPCluster;
+        spec->PodId = GetPodIdForInstance(instanceName);
+        spec->InstanceRole = adapter->GetInstanceRole();
+        mutations->NewDeallocations[deallocationId] = request;
+    }
+
+    void InitNewDeallocations(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* /*mutations*/)
+    {
+        // TODO(capone212): think about allocation deallocation budget.
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        YT_VERIFY(bundleInfo->EnableBundleController);
+
+        if (!adapter->IsNewDeallocationAllowed(bundleInfo)) {
+            return;
+        }
+
+        auto aliveInstancies = adapter->GetAliveInstancies();
+        int instanceCountToDeallocate = std::ssize(aliveInstancies) - adapter->GetTargetInstanceCount(bundleInfo);
+        auto& deallocationsState = adapter->DeallocationsState();
+
+        YT_LOG_DEBUG("Scheduling deallocations (BundleName: %v, InstanceCount: %v, AliveInstances: %v, "
+            "RequestCount: %v, ExistingDeallocations: %v)",
+            bundleName,
+            adapter->GetTargetInstanceCount(bundleInfo),
+            std::ssize(aliveInstancies),
+            instanceCountToDeallocate,
+            std::ssize(deallocationsState));
+
+        if (instanceCountToDeallocate <= 0) {
+            return;
+        }
+
+        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(instanceCountToDeallocate, input);
+
+        for (const auto& instanceName : instanciesToRemove) {
+            TString deallocationId = ToString(TGuid::Create());
+            auto deallocationState = New<TDeallocationRequestState>();
+            deallocationState->CreationTime = TInstant::Now();
+            deallocationState->InstanceName = instanceName;
+            deallocationsState[deallocationId] = deallocationState;
+
+            YT_LOG_INFO("Init instance deallocation (BundleName: %v, InstanceName: %v, DeallocationId: %v)",
+                bundleName,
+                instanceName,
+                deallocationId);
+        }
+    }
+
+    TString LocateAllocatedInstance(
+        const TAllocationRequestPtr& requestInfo,
+        const TSchedulerInputState& input) const
+    {
+        if (!IsAllocationCompleted(requestInfo)) {
+            return {};
+        }
+
+        const auto& podId = requestInfo->Status->PodId;
+        auto it = input.PodIdToInstanceName.find(podId);
+        if (it != input.PodIdToInstanceName.end()) {
+            return it->second;
+        }
+
+        return {};
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TInstanceInfoPtr>
+TString GetBundleNameFor(const TString& /*name*/, const TInstanceInfoPtr& info)
+{
+    return info->Annotations->AllocatedForBundle;
+}
+
+template <typename TCollection>
+TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCollection& collection)
+{
+    TSchedulerInputState::TBundleToInstanceMapping result;
+
+    for (const auto& [instanceName, instanceInfo] : collection) {
+        auto bundleName = GetBundleNameFor(instanceName, instanceInfo);
         if (!bundleName.empty()) {
-            result[bundleName].push_back(nodeName);
+            result[bundleName].push_back(instanceName);
         }
     }
 
     return result;
 }
 
-TSchedulerInputState::TZoneToNodesMap MapZonesToTabletNodes(const TSchedulerInputState& input)
+template <typename TCollection>
+TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
+    const TSchedulerInputState& input,
+    const TCollection& collection)
 {
     THashMap<TString, TString> nannyServiceToZone;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
-        if (zoneInfo->NannyService.empty()) {
-            continue;
+        if (!zoneInfo->TabletNodeNannyService.empty()) {
+            nannyServiceToZone[zoneInfo->TabletNodeNannyService] = zoneName;
         }
-        nannyServiceToZone[zoneInfo->NannyService] = zoneName;
+
+        if (!zoneInfo->RpcProxyNannyService.empty()) {
+            nannyServiceToZone[zoneInfo->RpcProxyNannyService] = zoneName;
+        }
     }
 
-    TSchedulerInputState::TZoneToNodesMap result;
-    for (const auto& [nodeName, nodeInfo] : input.TabletNodes) {
-        if (!nodeInfo->Annotations->Allocated) {
+    TSchedulerInputState::TZoneToInstanceMap result;
+    for (const auto& [instanceName, instanceInfo] : collection) {
+        if (!instanceInfo->Annotations->Allocated) {
             continue;
         }
-        auto it = nannyServiceToZone.find(nodeInfo->Annotations->NannyService);
+        auto it = nannyServiceToZone.find(instanceInfo->Annotations->NannyService);
         if (it == nannyServiceToZone.end()) {
             continue;
         }
         const auto& zoneName = it->second;
-        result[zoneName].push_back(nodeName);
+        result[zoneName].push_back(instanceName);
     }
 
     return result;
 }
 
-THashMap<TString, TString> MapPodIdToNodeName(const TSchedulerInputState& input)
+THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& input)
 {
     THashMap<TString, TString> result;
 
-    for (const auto& [nodeName, nodeInfo] : input.TabletNodes) {
-        auto podId = GetPodIdForNode(nodeName, nodeInfo);
+    for (const auto& [nodeName, _] : input.TabletNodes) {
+        auto podId = GetPodIdForInstance(nodeName);
         result[podId] = nodeName;
+    }
+
+    for (const auto& [proxyName, _] : input.RpcProxies) {
+        auto podId = GetPodIdForInstance(proxyName);
+        result[podId] = proxyName;
     }
 
     return result;
@@ -128,103 +490,22 @@ THashSet<TString> GetAliveNodes(
     return aliveNodes;
 }
 
-TString GetPodIdTemplate(const TString& cluster, const TString& bundleName)
-{
-    return Format("<short-hostname>-%v-aa-tab-%v", bundleName, cluster);
-}
-
-bool MaxTabletNodesLimitReached(
-    const TString& zoneName,
-    const TZoneInfoPtr& zoneInfo,
+THashSet<TString> GetAliveProxies(
+    const std::vector<TString>& bundleProxies,
     const TSchedulerInputState& input)
 {
-    auto it = input.ZoneNodes.find(zoneName);
-    if (it == input.ZoneNodes.end()) {
-        // No allocated tablet nodes for this zone
-        return false;
+    THashSet<TString> aliveProxies;
+
+    for (const auto& proxyName : bundleProxies) {
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned || !proxyInfo->Alive) {
+            continue;
+        }
+
+        aliveProxies.insert(proxyName);
     }
 
-    int currentZoneNodeCount = std::ssize(it->second);
-    if (currentZoneNodeCount >= zoneInfo->MaxTabletNodeCount) {
-        YT_LOG_WARNING("Max nodes count limit reached"
-            " (Zone: %v, CurrentZoneNodeCount: %v, MaxTabletNodeCount: %v)",
-            zoneName,
-            currentZoneNodeCount,
-            zoneInfo->MaxTabletNodeCount);
-        return true;
-    }
-    return false;
-}
-
-void InitNewAllocations(
-    const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    // TODO(capone212): think about allocation/deallocation budget.
-    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    const auto& bundleState = mutations->ChangedStates[bundleName];
-
-    YT_VERIFY(bundleInfo->EnableBundleController);
-
-    int aliveNodeCount = std::ssize(GetAliveNodes(bundleName, bundleNodes, input));
-    int instanceCountToAllocate = bundleInfo->TargetConfig->TabletNodeCount -
-        aliveNodeCount -
-        std::ssize(bundleState->Allocations);
-
-    YT_LOG_DEBUG("Scheduling allocations (BundleName: %v, TabletNodeCount: %v, AliveNodes: %v, "
-        "RequestCount: %v, ExistingAllocations: %v)",
-        bundleName,
-        bundleInfo->TargetConfig->TabletNodeCount,
-        aliveNodeCount,
-        instanceCountToAllocate,
-        std::ssize(bundleState->Allocations));
-
-    auto zoneIt = input.Zones.find(bundleInfo->Zone);
-
-    if (zoneIt == input.Zones.end()) {
-        YT_LOG_WARNING("Cannot locate zone for bundle (Bundle: %v, Zone: %v)",
-            bundleName,
-            bundleInfo->Zone);
-
-        mutations->AlertsToFire.push_back(TAlert{
-            .Id = "can_not_find_zone_for_bundle",
-            .Description = Format("Cannot locate zone %v for bundle %v.", bundleInfo->Zone, bundleName)
-        });
-        return;
-    }
-
-    const auto& zoneInfo = zoneIt->second;
-    if (instanceCountToAllocate > 0 && MaxTabletNodesLimitReached(bundleInfo->Zone, zoneInfo, input)) {
-        mutations->AlertsToFire.push_back(TAlert{
-            .Id = "zone_nodes_limit_reached",
-            .Description = Format("Cannot allocate new tablet node at zone %v for bundle %v.", bundleInfo->Zone, bundleName)
-        });
-        return;
-    }
-
-    for (int i = 0; i < instanceCountToAllocate; ++i) {
-        TString allocationId = ToString(TGuid::Create());
-
-        YT_LOG_INFO("Init tablet node allocation for bundle (BundleName: %v, AllocationId: %v)",
-            bundleName,
-            allocationId);
-
-        auto spec = New<TAllocationRequestSpec>();
-        spec->YPCluster = zoneInfo->YPCluster;
-        spec->NannyService = zoneInfo->NannyService;
-        *spec->ResourceRequest = *bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
-        spec->PodIdTemplate = GetPodIdTemplate(input.Config->Cluster, bundleName);
-        spec->InstanceRole = YTRoleTypeTabNode;
-
-        auto request = New<TAllocationRequest>();
-        request->Spec = spec;
-        mutations->NewAllocations[allocationId] = request;
-        auto allocationState = New<TAllocationRequestState>();
-        allocationState->CreationTime = TInstant::Now();
-        bundleState->Allocations[allocationId] = allocationState;
-    }
+    return aliveProxies;
 }
 
 int GetUsedSlotCount(const TTabletNodeInfoPtr& nodeInfo)
@@ -252,249 +533,10 @@ struct TNodeRemoveOrder
     }
 };
 
-std::vector<TString> PeekNodesToDeallocate(
-    const THashSet<TString>& aliveNodes,
-    int nodeCountToRemove,
-    const TSchedulerInputState& input)
-{
-    std::vector<TNodeRemoveOrder> nodesOrder;
-    nodesOrder.reserve(aliveNodes.size());
-
-    for (auto nodeName : aliveNodes) {
-        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodesOrder.push_back({GetUsedSlotCount(nodeInfo), nodeName});
-    }
-
-    auto endIt = nodesOrder.end();
-    if (std::ssize(nodesOrder) > nodeCountToRemove) {
-        endIt = nodesOrder.begin() + nodeCountToRemove;
-        std::nth_element(nodesOrder.begin(), endIt, nodesOrder.end());
-    }
-
-    std::vector<TString> result;
-    result.reserve(std::distance(nodesOrder.begin(), endIt));
-    for (auto it = nodesOrder.begin(); it != endIt; ++it) {
-        result.push_back(it->NodeName);
-    }
-
-    return result;
-}
-
 int GetTargetCellCount(const TBundleInfoPtr& bundleInfo)
 {
     const auto& targetConfig = bundleInfo->TargetConfig;
     return targetConfig->TabletNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize;
-}
-
-void InitNewDeallocations(
-    const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    // TODO(capone212): think about allocation deallocation budget.
-    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    const auto& bundleState = mutations->ChangedStates[bundleName];
-    YT_VERIFY(bundleInfo->EnableBundleController);
-
-    if (!bundleState->Allocations.empty() ||
-        !bundleState->Deallocations.empty() ||
-        !bundleState->RemovingCells.empty())
-    {
-        // It is better not to mix allocation and deallocation requests.
-        return;
-    }
-
-    if (bundleInfo->EnableTabletCellManagement) {
-        if (GetTargetCellCount(bundleInfo) != std::ssize(bundleInfo->TabletCellIds)) {
-            // Wait for tablet cell management to complete.
-            return;
-        }
-    }
-
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
-    int instanceCountToDeallocate = std::ssize(aliveNodes) - bundleInfo->TargetConfig->TabletNodeCount;
-
-    YT_LOG_DEBUG("Scheduling deallocations (BundleName: %v, TabletNodeCount: %v, AliveNodes: %v, "
-        "RequestCount: %v, ExistingDeallocations: %v)",
-        bundleName,
-        bundleInfo->TargetConfig->TabletNodeCount,
-        std::ssize(aliveNodes),
-        instanceCountToDeallocate,
-        std::ssize(bundleState->Deallocations));
-
-    if (instanceCountToDeallocate <= 0) {
-        return;
-    }
-
-    const auto nodesToRemove = PeekNodesToDeallocate(aliveNodes, instanceCountToDeallocate, input);
-
-    for (const auto& nodeName : nodesToRemove) {
-        TString deallocationId = ToString(TGuid::Create());
-        auto deallocationState = New<TDeallocationRequestState>();
-        deallocationState->CreationTime = TInstant::Now();
-        deallocationState->NodeName = nodeName;
-        bundleState->Deallocations[deallocationId] = deallocationState;
-
-        YT_LOG_INFO("Init node deallocation (BundleName: %v, NodeName: %v, DeallocationId: %v)",
-            bundleName,
-            nodeName,
-            deallocationId);
-    }
-}
-
-TString LocateAllocatedTabletNode(
-    const TAllocationRequestPtr& requestInfo,
-    const TSchedulerInputState& input)
-{
-    if (!IsAllocationCompleted(requestInfo)) {
-        return {};
-    }
-
-    const auto& podId = requestInfo->Status->PodId;
-    auto it = input.PodIdToNodeName.find(podId);
-    if (it != input.PodIdToNodeName.end()) {
-        return it->second;
-    }
-
-    return {};
-}
-
-bool EnsureAllocatedNodeTagsSet(
-    const TString& nodeName,
-    const TString& bundleName,
-    const THashSet<TString>& aliveBundleNodes,
-    const TAllocationRequestPtr & allocationInfo,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-    if (nodeInfo->State != InstanceStateOnline) {
-        return false;
-    }
-
-    auto& annotations = nodeInfo->Annotations;
-    if (annotations->AllocatedForBundle.empty() || !annotations->Allocated) {
-        annotations->YPCluster = allocationInfo->Spec->YPCluster;
-        annotations->NannyService = allocationInfo->Spec->NannyService;
-        annotations->AllocatedForBundle = bundleName;
-        annotations->Allocated = true;
-        mutations->ChangeNodeAnnotations[nodeName] = annotations;
-        return false;
-    }
-
-    if (annotations->AllocatedForBundle != bundleName) {
-        YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, NodeName: %v)",
-            annotations->AllocatedForBundle,
-            bundleName,
-            nodeName);
-
-        mutations->AlertsToFire.push_back({
-            .Id = "inconsistent_allocation_state",
-            .Description = Format("Inconsistent allocation state: Node annotation bundle name %v, actual bundle name %v.",
-                annotations->AllocatedForBundle,
-                bundleName)
-        });
-    }
-
-    if (nodeInfo->Decommissioned) {
-        mutations->ChangedDecommissionedFlag[nodeName] = false;
-        return false;
-    }
-
-    if (aliveBundleNodes.count(nodeName) == 0) {
-        return false;
-    }
-
-    return true;
-}
-
-bool EnsureDeallocatedNodeTagsSet(
-    const TString& nodeName,
-    const TTabletNodeInfoPtr& nodeInfo,
-    TSchedulerMutations* mutations)
-{
-    const auto& annotations = nodeInfo->Annotations;
-    if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
-        mutations->ChangeNodeAnnotations[nodeName] = New<TTabletNodeAnnotationsInfo>();
-        return false;
-    }
-    return true;
-}
-
-void ProcessExistingAllocations(
-    const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    const auto& bundleState = mutations->ChangedStates[bundleName];
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
-
-    TIndexedEntries<TAllocationRequestState> aliveAllocations;
-    for (const auto& [allocationId, allocationState] : bundleState->Allocations) {
-        auto it = input.AllocationRequests.find(allocationId);
-        if (it == input.AllocationRequests.end()) {
-            YT_LOG_WARNING("Cannot find allocation (AllocationId: %v)",
-                allocationId);
-
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "can_not_find_allocation_request",
-                .Description = Format("Allocation request %v "
-                    "found in bundle state, but is absent in hulk allocations.",
-                    allocationId),
-            });
-            continue;
-        }
-
-        const auto& allocationInfo = it->second;
-
-        if (IsAllocationFailed(allocationInfo)) {
-            YT_LOG_WARNING("Allocation Failed (AllocationId: %v)",
-                allocationId);
-
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "table_node_allocation_failed",
-                .Description = Format("Allocation request %v has failed.",
-                    allocationId),
-            });
-            continue;
-        }
-
-        auto nodeName = LocateAllocatedTabletNode(allocationInfo, input);
-        if (!nodeName.empty() && EnsureAllocatedNodeTagsSet(nodeName, bundleName, aliveNodes, allocationInfo, input, mutations)) {
-            YT_LOG_INFO("Tablet node allocation completed (Node: %v, AllocationId: %v)",
-                nodeName,
-                allocationId);
-            continue;
-        }
-
-        auto allocationAge = TInstant::Now() - allocationState->CreationTime;
-        if (allocationAge > input.Config->HulkRequestTimeout) {
-            YT_LOG_WARNING("Allocation Request is stuck (AllocationId: %v, AllocationAge: %v, Threshold: %v)",
-                allocationId,
-                allocationAge,
-                input.Config->HulkRequestTimeout);
-
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "stuck_tablet_node_allocation",
-                .Description = Format("Found stuck allocation %v and age %v which is more than threshold %v.",
-                    allocationId,
-                    allocationAge,
-                    input.Config->HulkRequestTimeout),
-            });
-            continue;
-        }
-
-        YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, Bundle: %v,  Node: %v)",
-            allocationId,
-            bundleName,
-            nodeName);
-
-        aliveAllocations[allocationId] = allocationState;
-    }
-
-    bundleState->Allocations.swap(aliveAllocations);
 }
 
 bool EnsureNodeDecommissioned(
@@ -508,123 +550,6 @@ bool EnsureNodeDecommissioned(
     }
     // Wait tablet cells to migrate.
     return GetUsedSlotCount(nodeInfo) == 0;
-}
-
-void CreateHulkDeallocationRequest(
-    const TString& deallocationId,
-    const TString& nodeName,
-    const TTabletNodeInfoPtr& nodeInfo,
-    TSchedulerMutations* mutations)
-{
-    const auto& nodeAnnotations = nodeInfo->Annotations;
-    auto request = New<TDeallocationRequest>();
-    auto& spec = request->Spec;
-    spec->YPCluster = nodeAnnotations->YPCluster;
-    spec->PodId = GetPodIdForNode(nodeName, nodeInfo);
-    spec->InstanceRole = YTRoleTypeTabNode;
-    mutations->NewDeallocations[deallocationId] = request;
-}
-
-// Returns false if current deallocation should not be tracked any more.
-bool ProcessDeallocation(
-    const TString& deallocationId,
-    const TDeallocationRequestStatePtr& deallocationState,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
-    if (deallocationAge > input.Config->HulkRequestTimeout) {
-        YT_LOG_WARNING("Deallocation Request is stuck (DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
-            deallocationId,
-            deallocationAge,
-            input.Config->HulkRequestTimeout);
-
-        mutations->AlertsToFire.push_back(TAlert{
-            .Id = "stuck_tablet_node_deallocation",
-            .Description = Format("Found stuck deallocation %v and age %v which is more than threshold %v.",
-                deallocationId,
-                deallocationAge,
-                input.Config->HulkRequestTimeout),
-        });
-    }
-
-    const auto& nodeName = deallocationState->NodeName;
-
-    auto nodeIt = input.TabletNodes.find(nodeName);
-    if (nodeIt == input.TabletNodes.end()) {
-        YT_LOG_ERROR("Cannot find node from deallocation request state (DeallocationId: %v, Node: %v)",
-            deallocationId,
-            nodeName);
-        return true;
-    }
-
-    const auto& nodeInfo = nodeIt->second;
-
-    if (!EnsureNodeDecommissioned(nodeName, nodeInfo, mutations)) {
-        return true;
-    }
-
-    if (!deallocationState->HulkRequestCreated) {
-        CreateHulkDeallocationRequest(deallocationId, nodeName, nodeInfo, mutations);
-        deallocationState->HulkRequestCreated = true;
-        return true;
-    }
-
-    auto it = input.DeallocationRequests.find(deallocationId);
-    if (it == input.DeallocationRequests.end()) {
-        YT_LOG_WARNING("Cannot find deallocation (DeallocationId: %v)",
-            deallocationId);
-
-        mutations->AlertsToFire.push_back(TAlert{
-            .Id = "can_not_find_deallocation_request",
-            .Description = Format("Deallocation request %v "
-                "found in bundle state, but is absent in hulk deallocations.",
-                deallocationId),
-        });
-        return false;
-    }
-
-    if (IsAllocationFailed(it->second)) {
-        YT_LOG_WARNING("Deallocation Failed (AllocationId: %v)",
-            deallocationId);
-
-        mutations->AlertsToFire.push_back(TAlert{
-            .Id = "table_node_deallocation_failed",
-            .Description = Format("Deallocation request %v has failed.",
-                deallocationId),
-        });
-        return false;
-    }
-
-    if (IsAllocationCompleted(it->second) && EnsureDeallocatedNodeTagsSet(nodeName, nodeInfo, mutations)) {
-        YT_LOG_INFO("Tablet node deallocation completed (Node: %v, AllocationId: %v)",
-            nodeName,
-            deallocationId);
-        return false;
-    }
-
-    YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, NodeName: %v)",
-        deallocationId,
-        nodeName);
-    return true;
-}
-
-void ProcessExistingDeallocations(
-    const TString& bundleName,
-    const std::vector<TString>& /*bundleNodes*/,
-    const TSchedulerInputState& input,
-    TSchedulerMutations* mutations)
-{
-    const auto& bundleState = mutations->ChangedStates[bundleName];
-    TIndexedEntries<TDeallocationRequestState> aliveDeallocations;
-
-    for (const auto& [deallocationId, deallocationState] : bundleState->Deallocations) {
-        if (ProcessDeallocation(deallocationId, deallocationState, input, mutations)) {
-            aliveDeallocations[deallocationId] = deallocationState;
-        }
-    }
-
-    bundleState->Deallocations.swap(aliveDeallocations);
 }
 
 struct TTabletCellRemoveOrder
@@ -794,8 +719,8 @@ void CreateRemoveTabletCells(
     }
 
     if (std::ssize(aliveNodes) < bundleInfo->TargetConfig->TabletNodeCount ||
-        !bundleState->Allocations.empty() ||
-        !bundleState->Deallocations.empty())
+        !bundleState->NodeAllocations.empty() ||
+        !bundleState->NodeDeallocations.empty())
     {
         // It is better not to mix node allocations with tablet cell management.
         return;
@@ -845,7 +770,13 @@ TString GetSpareBundleName(const TString& /*zoneName*/)
     return "spare";
 }
 
-THashMap<TString, bool> GetZoneDisruptedState(TSchedulerInputState& input)
+struct TZoneDisruptedState
+{
+    bool NodesDisrupted = false;
+    bool ProxiesDisrupted = false;
+};
+
+THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputState& input)
 {
     THashMap<TString, int> zoneOfflineNodeCount;
     for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
@@ -863,27 +794,453 @@ THashMap<TString, bool> GetZoneDisruptedState(TSchedulerInputState& input)
         }
     }
 
-    THashMap<TString, bool> result;
+    THashMap<TString, int> zoneOfflineProxyCount;
+    for (const auto& [zoneName, zoneProxies] : input.ZoneProxies) {
+        for (const auto& proxyName : zoneProxies) {
+            const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+            if (proxyInfo->Alive) {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Proxy is offline (ProxyName: %v, NannyService: %v)",
+                proxyName,
+                proxyInfo->Annotations->NannyService);
+
+            ++zoneOfflineProxyCount[zoneName];
+        }
+    }
+
+    THashMap<TString, TZoneDisruptedState> result;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
         int disruptedThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor;
-        bool disrupted = disruptedThreshold > 0 && zoneOfflineNodeCount[zoneName] > disruptedThreshold;
+        bool nodesDisrupted = disruptedThreshold > 0 && zoneOfflineNodeCount[zoneName] > disruptedThreshold;
+        result[zoneName].NodesDisrupted = nodesDisrupted;
 
-        result[zoneName] = disrupted;
-
-        YT_LOG_WARNING_IF(disrupted, "Zone is in disrupted state"
+        YT_LOG_WARNING_IF(nodesDisrupted, "Zone is in disrupted state"
             " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineNodeCount: %v)",
             zoneName,
-            zoneInfo->NannyService,
+            zoneInfo->TabletNodeNannyService,
             disruptedThreshold,
             zoneOfflineNodeCount[zoneName]);
+
+        disruptedThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor;
+        bool proxiesDisrupted = disruptedThreshold > 0 && zoneOfflineProxyCount[zoneName] > disruptedThreshold;
+        result[zoneName].ProxiesDisrupted = proxiesDisrupted;
+
+        YT_LOG_WARNING_IF(proxiesDisrupted, "Zone is in disrupted state"
+            " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",
+            zoneName,
+            zoneInfo->RpcProxyNannyService,
+            disruptedThreshold,
+            zoneOfflineProxyCount[zoneName]);
     }
 
     return result;
 }
 
+
+TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
+    const TString& bundleName,
+    const TAllocationRequestPtr& allocationInfo,
+    const TInstanceAnnotationsPtr& annotations)
+{
+    if (!annotations->AllocatedForBundle.empty() && annotations->Allocated) {
+        return {};
+    }
+    auto result = NYTree::CloneYsonSerializable(annotations);
+    result->YPCluster = allocationInfo->Spec->YPCluster;
+    result->NannyService = allocationInfo->Spec->NannyService;
+    result->AllocatedForBundle = bundleName;
+    result->Allocated = true;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageNodesAndCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
+class TTabletNodeAllocatorAdapter
+{
+public:
+    TTabletNodeAllocatorAdapter(
+        TBundleControllerStatePtr state,
+        const THashSet<TString>& aliveBundleNodes)
+        : State_(std::move(state))
+        , AliveBundleNodes_(aliveBundleNodes)
+    { }
+
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& bundleInfo)
+    {
+        if (!State_->NodeAllocations.empty() ||
+            !State_->NodeDeallocations.empty() ||
+            !State_->RemovingCells.empty())
+        {
+            // It is better not to mix allocation and deallocation requests.
+            return false;
+        }
+
+        if (bundleInfo->EnableTabletCellManagement) {
+            if (GetTargetCellCount(bundleInfo) != std::ssize(bundleInfo->TabletCellIds)) {
+                // Wait for tablet cell management to complete.
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool IsInstanceCountLimitReached(
+        const TString& zoneName,
+        const TZoneInfoPtr& zoneInfo,
+        const TSchedulerInputState& input) const
+    {
+        auto it = input.ZoneNodes.find(zoneName);
+        if (it == input.ZoneNodes.end()) {
+            // No allocated tablet nodes for this zone
+            return false;
+        }
+
+        int currentZoneNodeCount = std::ssize(it->second);
+        if (currentZoneNodeCount >= zoneInfo->MaxTabletNodeCount) {
+            YT_LOG_WARNING("Max nodes count limit reached"
+                " (Zone: %v, CurrentZoneNodeCount: %v, MaxTabletNodeCount: %v)",
+                zoneName,
+                currentZoneNodeCount,
+                zoneInfo->MaxTabletNodeCount);
+            return true;
+        }
+        return false;
+    }
+
+    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo) const
+    {
+        return bundleInfo->TargetConfig->TabletNodeCount;
+    }
+
+    int GetInstanceRole() const
+    {
+        return YTRoleTypeTabNode;
+    }
+
+    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    {
+        return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
+    }
+
+    TString GetPodIdTemplate(const TString& cluster, const TString& bundleName) const
+    {
+        return Format("<short-hostname>-%v-aa-tab-%v", bundleName, cluster);
+    }
+
+    const TString GetInstanceType()
+    {
+        return "TabletNodes";
+    }
+
+    TIndexedEntries<TAllocationRequestState>& AllocationsState() const
+    {
+        return State_->NodeAllocations;
+    }
+
+    TIndexedEntries<TDeallocationRequestState>& DeallocationsState() const
+    {
+        return State_->NodeDeallocations;
+    }
+
+    const TTabletNodeInfoPtr& GetInstanceInfo(const TString& instanceName, const TSchedulerInputState& input)
+    {
+        return GetOrCrash(input.TabletNodes, instanceName);
+    }
+
+    bool IsInstanceReadyToBeDeallocated(
+        const TString& instanceName,
+        const TString& deallocationId,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations) const
+    {
+        auto nodeIt = input.TabletNodes.find(instanceName);
+        if (nodeIt == input.TabletNodes.end()) {
+            YT_LOG_ERROR("Cannot find node from deallocation request state (DeallocationId: %v, Node: %v)",
+                deallocationId,
+                instanceName);
+            return false;
+        }
+
+        const auto& nodeInfo = nodeIt->second;
+        return EnsureNodeDecommissioned(instanceName, nodeInfo, mutations);
+    }
+
+    TString GetNannyService(const TZoneInfoPtr& zoneInfo) const
+    {
+        return zoneInfo->TabletNodeNannyService;
+    }
+
+    bool EnsureAllocatedInstanceTagsSet(
+        const TString& nodeName,
+        const TString& bundleName,
+        const TAllocationRequestPtr& allocationInfo,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations) const
+    {
+        auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        if (nodeInfo->State != InstanceStateOnline) {
+            return false;
+        }
+
+        const auto& annotations = nodeInfo->Annotations;
+
+        if (auto changed = GetInstanceAnnotationsToSet(bundleName, allocationInfo, annotations)) {
+            mutations->ChangeNodeAnnotations[nodeName] = changed;
+            return false;
+        }
+
+        if (annotations->AllocatedForBundle != bundleName) {
+            YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, NodeName: %v)",
+                annotations->AllocatedForBundle,
+                bundleName,
+                nodeName);
+
+            mutations->AlertsToFire.push_back({
+                .Id = "inconsistent_allocation_state",
+                .Description = Format("Inconsistent allocation state: Node annotation bundle name %v, actual bundle name %v.",
+                    annotations->AllocatedForBundle,
+                    bundleName)
+            });
+
+            return false;
+        }
+
+        if (nodeInfo->Decommissioned) {
+            mutations->ChangedDecommissionedFlag[nodeName] = false;
+            return false;
+        }
+
+        if (AliveBundleNodes_.count(nodeName) == 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool EnsureDeallocatedInstanceTagsSet(
+        const TString& nodeName,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        const auto& instanceInfo = GetInstanceInfo(nodeName, input);
+        const auto& annotations = instanceInfo->Annotations;
+        if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
+            mutations->ChangeNodeAnnotations[nodeName] = New<TInstanceAnnotations>();
+            return false;
+        }
+        return true;
+    }
+
+    const THashSet<TString>& GetAliveInstancies() const
+    {
+        return AliveBundleNodes_;
+    }
+
+    std::vector<TString> PeekInstanciesToDeallocate(
+        int nodeCountToRemove,
+        const TSchedulerInputState& input) const
+    {
+        std::vector<TNodeRemoveOrder> nodesOrder;
+        nodesOrder.reserve(AliveBundleNodes_.size());
+
+        for (auto nodeName : AliveBundleNodes_) {
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            nodesOrder.push_back({GetUsedSlotCount(nodeInfo), nodeName});
+        }
+
+        auto endIt = nodesOrder.end();
+        if (std::ssize(nodesOrder) > nodeCountToRemove) {
+            endIt = nodesOrder.begin() + nodeCountToRemove;
+            std::nth_element(nodesOrder.begin(), endIt, nodesOrder.end());
+        }
+
+        std::vector<TString> result;
+        result.reserve(std::distance(nodesOrder.begin(), endIt));
+        for (auto it = nodesOrder.begin(); it != endIt; ++it) {
+            result.push_back(it->NodeName);
+        }
+
+        return result;
+    }
+
+private:
+    TBundleControllerStatePtr State_;
+    const THashSet<TString>& AliveBundleNodes_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcProxyAllocatorAdapter
+{
+public:
+    TRpcProxyAllocatorAdapter(
+        TBundleControllerStatePtr state,
+        const THashSet<TString>& aliveProxies)
+        : State_(std::move(state))
+        , AliveProxies_(aliveProxies)
+    { }
+
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/)
+    {
+        if (!State_->ProxyAllocations.empty() ||
+            !State_->ProxyDeallocations.empty())
+        {
+            // It is better not to mix allocation and deallocation requests.
+            return false;
+        }
+
+        return true;
+    }
+
+    bool IsInstanceCountLimitReached(
+        const TString& zoneName,
+        const TZoneInfoPtr& zoneInfo,
+        const TSchedulerInputState& input) const
+    {
+        auto it = input.ZoneProxies.find(zoneName);
+        if (it == input.ZoneProxies.end()) {
+            // No allocated rpc proxies for this zone
+            return false;
+        }
+
+        int currentZoneProxyCount = std::ssize(it->second);
+        if (currentZoneProxyCount >= zoneInfo->MaxRpcProxyCount) {
+            YT_LOG_WARNING("Max Rpc proxies count limit reached"
+                " (Zone: %v, CurrentZoneRpcProxyCount: %v, MaxRpcProxyCount: %v)",
+                zoneName,
+                currentZoneProxyCount,
+                zoneInfo->MaxRpcProxyCount);
+            return true;
+        }
+        return false;
+    }
+
+    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo) const
+    {
+        return bundleInfo->TargetConfig->RpcProxyCount;
+    }
+
+    int GetInstanceRole() const
+    {
+        return YTRoleTypeRpcProxy;
+    }
+
+    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    {
+        return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
+    }
+
+    TString GetPodIdTemplate(const TString& cluster, const TString& bundleName) const
+    {
+        return Format("<short-hostname>-%v-aa-rpc-%v", bundleName, cluster);
+    }
+
+    const TString GetInstanceType()
+    {
+        return "RpcProxy";
+    }
+
+    TIndexedEntries<TAllocationRequestState>& AllocationsState() const
+    {
+        return State_->ProxyAllocations;
+    }
+
+    TIndexedEntries<TDeallocationRequestState>& DeallocationsState() const
+    {
+        return State_->ProxyDeallocations;
+    }
+
+    const TRpcProxyInfoPtr& GetInstanceInfo(const TString& instanceName, const TSchedulerInputState& input)
+    {
+        return GetOrCrash(input.RpcProxies, instanceName);
+    }
+
+    bool IsInstanceReadyToBeDeallocated(
+        const TString& /*instanceName*/,
+        const TString& /*deallocationId*/,
+        const TSchedulerInputState& /*input*/,
+        TSchedulerMutations* /*mutations*/) const
+    {
+        return true;
+    }
+
+    TString GetNannyService(const TZoneInfoPtr& zoneInfo) const
+    {
+        return zoneInfo->RpcProxyNannyService;
+    }
+
+    bool EnsureAllocatedInstanceTagsSet(
+        const TString& proxyName,
+        const TString& bundleName,
+        const TAllocationRequestPtr& allocationInfo,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations) const
+    {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        if (!proxyInfo->Alive) {
+            return false;
+        }
+
+        const auto& annotations = proxyInfo->Annotations;
+        if (auto changed = GetInstanceAnnotationsToSet(bundleName, allocationInfo, annotations)) {
+            mutations->ChangedProxyAnnotations[proxyName] = changed;
+            return false;
+        }
+
+        if (annotations->AllocatedForBundle != bundleName) {
+            YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, ProxyName: %v)",
+                annotations->AllocatedForBundle,
+                bundleName,
+                proxyName);
+
+            return false;
+        }
+
+        if (AliveProxies_.count(proxyName) == 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool EnsureDeallocatedInstanceTagsSet(
+        const TString& proxyName,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        const auto& instanceInfo = GetInstanceInfo(proxyName, input);
+        const auto& annotations = instanceInfo->Annotations;
+        if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
+            mutations->ChangedProxyAnnotations[proxyName] = New<TInstanceAnnotations>();
+            return false;
+        }
+        return true;
+    }
+
+    const THashSet<TString>& GetAliveInstancies() const
+    {
+        return AliveProxies_;
+    }
+
+    std::vector<TString> PeekInstanciesToDeallocate(
+        int proxiesCountToRemove,
+        const TSchedulerInputState& /*input*/) const
+    {
+        YT_VERIFY(std::ssize(AliveProxies_) >= proxiesCountToRemove);
+        return {AliveProxies_.begin(), std::next(AliveProxies_.begin(), proxiesCountToRemove)};
+    }
+
+private:
+    TBundleControllerStatePtr State_;
+    const THashSet<TString>& AliveProxies_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     // For each zone create virtual spare bundles
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
@@ -898,16 +1255,11 @@ void ManageNodesAndCells(TSchedulerInputState& input, TSchedulerMutations* mutat
 
     auto zoneDisrupted = GetZoneDisruptedState(input);
 
+    TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger);
+    TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator(BundleControllerLogger);
+
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController) {
-            continue;
-        }
-
-        if (zoneDisrupted[bundleInfo->Zone]) {
-            YT_LOG_WARNING("Node and cells management skipped for bundle due zone unhealthy state"
-                " (BundleName: %v, Zone: %v)",
-                bundleName,
-                bundleInfo->Zone);
             continue;
         }
 
@@ -915,20 +1267,49 @@ void ManageNodesAndCells(TSchedulerInputState& input, TSchedulerMutations* mutat
         if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
             bundleState = NYTree::CloneYsonSerializable(it->second);
         }
-        const auto& bundleNodes = input.BundleNodes[bundleName];
         mutations->ChangedStates[bundleName] = bundleState;
 
-        ProcessExistingAllocations(bundleName, bundleNodes, input, mutations);
-        InitNewAllocations(bundleName, bundleNodes, input, mutations);
+        if (zoneDisrupted[bundleInfo->Zone].NodesDisrupted) {
+            YT_LOG_WARNING("Node management skipped for bundle due zone unhealthy state"
+                " (BundleName: %v, Zone: %v)",
+                bundleName,
+                bundleInfo->Zone);
+        } else {
+            const auto& bundleNodes = input.BundleNodes[bundleName];
+            auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
+            TTabletNodeAllocatorAdapter nodeAdapter(bundleState, aliveNodes);
+            nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
+        }
 
-        CreateRemoveTabletCells(bundleName, bundleNodes, input, mutations);
-        ProcessRemovingCells(bundleName, bundleNodes, input, mutations);
-
-        ProcessExistingDeallocations(bundleName, bundleNodes, input, mutations);
-        InitNewDeallocations(bundleName, bundleNodes, input, mutations);
+        if (zoneDisrupted[bundleInfo->Zone].ProxiesDisrupted) {
+            YT_LOG_WARNING("RpcProxies management skipped for bundle due zone unhealthy state"
+                " (BundleName: %v, Zone: %v)",
+                bundleName,
+                bundleInfo->Zone);
+        } else {
+            const auto& bundleProxies = input.BundleProxies[bundleName];
+            auto aliveProxies = GetAliveProxies(bundleProxies, input);
+            TRpcProxyAllocatorAdapter proxyAdapter(bundleState, aliveProxies);
+            proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations);
+        }
     }
 
     // TODO(capone212): cleanup stale instances: that are gone a lot of time ago (2 weeks)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ManageCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
+        const auto& bundleNodes = input.BundleNodes[bundleName];
+        CreateRemoveTabletCells(bundleName, bundleNodes, input, mutations);
+        ProcessRemovingCells(bundleName, bundleNodes, input, mutations);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -968,13 +1349,17 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
 
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
-    input.ZoneNodes = MapZonesToTabletNodes(input);
-    input.BundleNodes = MapBundlesToTabletNodes(input);
-    input.PodIdToNodeName = MapPodIdToNodeName(input);
+    input.ZoneNodes = MapZonesToInstancies(input, input.TabletNodes);
+    input.ZoneProxies = MapZonesToInstancies(input, input.RpcProxies);
+    input.BundleNodes = MapBundlesToInstancies(input.TabletNodes);
+    input.BundleProxies = MapBundlesToInstancies(input.RpcProxies);
+    input.PodIdToInstanceName = MapPodIdToInstanceName(input);
 
     ManageBundlesDynamicConfig(input, mutations);
-    ManageNodesAndCells(input, mutations);
+    ManageInstancies(input, mutations);
+    ManageCells(input, mutations);
     ManageNodeTagFilters(input, mutations);
+    ManageRpcProxyRoles(input, mutations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

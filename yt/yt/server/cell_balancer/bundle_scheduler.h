@@ -17,17 +17,20 @@ struct TSchedulerInputState
     TIndexedEntries<TBundleControllerState> BundleStates;
     TIndexedEntries<TTabletNodeInfo> TabletNodes;
     TIndexedEntries<TTabletCellInfo> TabletCells;
+    TIndexedEntries<TRpcProxyInfo> RpcProxies;
 
     TIndexedEntries<TAllocationRequest> AllocationRequests;
     TIndexedEntries<TDeallocationRequest> DeallocationRequests;
 
-    using TBundleToNodeMapping = THashMap<TString, std::vector<TString>>;
-    TBundleToNodeMapping BundleNodes;
+    using TBundleToInstanceMapping = THashMap<TString, std::vector<TString>>;
+    TBundleToInstanceMapping BundleNodes;
+    TBundleToInstanceMapping BundleProxies;
 
-    THashMap<TString, TString> PodIdToNodeName;
+    THashMap<TString, TString> PodIdToInstanceName;
 
-    using TZoneToNodesMap = THashMap<TString, std::vector<TString>>;
-    TZoneToNodesMap ZoneNodes;
+    using TZoneToInstanceMap = THashMap<TString, std::vector<TString>>;
+    TZoneToInstanceMap ZoneNodes;
+    TZoneToInstanceMap ZoneProxies;
 
     TBundlesDynamicConfig DynamicConfig;
 };
@@ -47,12 +50,15 @@ struct TSchedulerMutations
     TIndexedEntries<TAllocationRequest> NewAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TIndexedEntries<TTabletNodeAnnotationsInfo> ChangeNodeAnnotations;
+    TIndexedEntries<TInstanceAnnotations> ChangeNodeAnnotations;
+    TIndexedEntries<TInstanceAnnotations> ChangedProxyAnnotations;
 
     using TUserTags = THashSet<TString>;
     THashMap<TString, TUserTags> ChangedNodeUserTags;
 
     THashMap<TString, bool> ChangedDecommissionedFlag;
+
+    THashMap<TString, TString> ChangedProxyRole;
 
     std::vector<TString> CellsToRemove;
 
@@ -74,9 +80,15 @@ TString GetSpareBundleName(const TString& zoneName);
 
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
+void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
+
 THashSet<TString> GetAliveNodes(
     const TString& bundleName,
     const std::vector<TString>& bundleNodes,
+    const TSchedulerInputState& input);
+
+THashSet<TString> GetAliveProxies(
+    const std::vector<TString>& bundleProxies,
     const TSchedulerInputState& input);
 
 ////////////////////////////////////////////////////////////////////////////////
