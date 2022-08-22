@@ -1839,7 +1839,11 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             auto& mediumIndexSet = jt->second;
 
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-            if (IsObjectAlive(chunk) && !chunk->IsRefreshActual()) {
+            auto shardIndex = GetChunkShardIndex(chunkIdWithIndex.Id);
+
+            if (!RefreshRunning_.test(shardIndex) ||
+                (IsObjectAlive(chunk) && !chunk->IsRefreshActual()))
+            {
                 queue.erase(jt);
                 ++misscheduledRemovalJobs;
                 continue;
