@@ -57,8 +57,13 @@ void TBundleConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_node_count", &TThis::TabletNodeCount)
         .Default(0);
+    registrar.Parameter("rpc_proxy_count", &TThis::RpcProxyCount)
+        .Default(0);
     registrar.Parameter("tablet_node_resource_guarantee", &TThis::TabletNodeResourceGuarantee)
         .DefaultNew();
+    registrar.Parameter("rpc_proxy_resource_guarantee", &TThis::RpcProxyResourceGuarantee)
+        .DefaultNew();
+
     registrar.Parameter("cpu_limits", &TThis::CpuLimits)
         .DefaultNew();
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
@@ -111,6 +116,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "enable_tablet_node_dynamic_config", &TThis::EnableTabletNodeDynamicConfig)
         .Default(false);
+    RegisterAttribute(registrar, "enable_rpc_proxy_management", &TThis::EnableRpcProxyManagement)
+        .Default(false);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
@@ -127,7 +134,13 @@ void TZoneInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "max_tablet_node_count", &TThis::MaxTabletNodeCount)
         .Default(10);
 
-    RegisterAttribute(registrar, "nanny_service", &TThis::NannyService)
+    RegisterAttribute(registrar, "max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
+        .Default(10);
+
+    RegisterAttribute(registrar, "tablet_node_nanny_service", &TThis::TabletNodeNannyService)
+        .Default();
+
+    RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::RpcProxyNannyService)
         .Default();
 
     RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
@@ -196,11 +209,15 @@ void TDeallocationRequest::Register(TRegistrar registrar)
 
 void TBundleControllerState::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "allocation", &TThis::Allocations)
+    RegisterAttribute(registrar, "node_allocations", &TThis::NodeAllocations)
         .Default();
-    RegisterAttribute(registrar, "deallocations", &TThis::Deallocations)
+    RegisterAttribute(registrar, "node_deallocations", &TThis::NodeDeallocations)
         .Default();
     RegisterAttribute(registrar, "removing_cells", &TThis::RemovingCells)
+        .Default();
+    RegisterAttribute(registrar, "proxy_allocations", &TThis::ProxyAllocations)
+        .Default();
+    RegisterAttribute(registrar, "proxy_deallocations", &TThis::ProxyDeallocations)
         .Default();
 }
 
@@ -214,7 +231,7 @@ void TDeallocationRequestState::Register(TRegistrar registrar)
 {
     registrar.Parameter("creation_time", &TThis::CreationTime)
         .Default();
-    registrar.Parameter("node_name", &TThis::NodeName)
+    registrar.Parameter("instance_name", &TThis::InstanceName)
         .Default();
     registrar.Parameter("hulk_request_created", &TThis::HulkRequestCreated)
         .Default(false);
@@ -226,7 +243,7 @@ void TRemovingTabletCellInfo::Register(TRegistrar registrar)
         .Default();
 }
 
-void TTabletNodeAnnotationsInfo::Register(TRegistrar registrar)
+void TInstanceAnnotations::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "yp_cluster", &TThis::YPCluster)
         .Default();
@@ -278,6 +295,23 @@ void TBundleDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .Default();
+}
+
+void TRpcProxyAlive::Register(TRegistrar /*registrar*/)
+{
+}
+
+void TRpcProxyInfo::Register(TRegistrar registrar)
+{
+    RegisterAttribute(registrar, "banned", &TThis::Banned)
+        .Default();
+    RegisterAttribute(registrar, "role", &TThis::Role)
+        .Default();
+    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
+        .DefaultNew();
+
+    registrar.Parameter("alive", &TThis::Alive)
         .Default();
 }
 

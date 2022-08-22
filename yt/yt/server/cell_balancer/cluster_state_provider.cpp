@@ -182,7 +182,6 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         std::ssize(NodeMap_));
 }
 
-
 std::vector<TNodeHolder> TClusterStateProvider::GetNodes(NCellarClient::ECellarType cellarType)
 {
     auto isGood = [&] (const auto* node) {

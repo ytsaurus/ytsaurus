@@ -26,18 +26,21 @@ DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestStatus)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
-DECLARE_REFCOUNTED_STRUCT(TTabletNodeAnnotationsInfo)
+DECLARE_REFCOUNTED_STRUCT(TInstanceAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellStatus)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
 DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
+DECLARE_REFCOUNTED_STRUCT(TRpcProxyAlive)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
 
 constexpr int YTRoleTypeTabNode = 1;
+constexpr int YTRoleTypeRpcProxy = 3;
 
 inline static const TString InstanceStateOnline = "online";
 inline static const TString InstanceStateOffline = "offline";
@@ -126,7 +129,9 @@ struct TBundleConfig
     : public NYTree::TYsonStruct
 {
     int TabletNodeCount;
+    int RpcProxyCount;
     TInstanceResourcesPtr TabletNodeResourceGuarantee;
+    TInstanceResourcesPtr RpcProxyResourceGuarantee;
     TCpuLimitsPtr CpuLimits;
     TMemoryLimitsPtr MemoryLimits;
 
@@ -198,6 +203,7 @@ struct TBundleInfo
     bool EnableTabletCellManagement;
     bool EnableNodeTagFilterManagement;
     bool EnableTabletNodeDynamicConfig;
+    bool EnableRpcProxyManagement;
 
     TBundleConfigPtr TargetConfig;
     TBundleConfigPtr ActualConfig;
@@ -216,9 +222,11 @@ struct TZoneInfo
     : public TYsonStructAttributes<TZoneInfo>
 {
     TString YPCluster;
-    TString NannyService;
+    TString TabletNodeNannyService;
+    TString RpcProxyNannyService;
 
     int MaxTabletNodeCount;
+    int MaxRpcProxyCount;
 
     TBundleConfigPtr SpareTargetConfig;
     double DisruptedThresholdFactor;
@@ -360,7 +368,7 @@ struct TDeallocationRequestState
     : public NYTree::TYsonStruct
 {
     TInstant CreationTime;
-    TString NodeName;
+    TString InstanceName;
     bool HulkRequestCreated;
 
     REGISTER_YSON_STRUCT(TDeallocationRequestState);
@@ -389,9 +397,12 @@ DEFINE_REFCOUNTED_TYPE(TRemovingTabletCellInfo)
 struct TBundleControllerState
     : public TYsonStructAttributes<TBundleControllerState>
 {
-    TIndexedEntries<TAllocationRequestState> Allocations;
-    TIndexedEntries<TDeallocationRequestState> Deallocations;
+    TIndexedEntries<TAllocationRequestState> NodeAllocations;
+    TIndexedEntries<TDeallocationRequestState> NodeDeallocations;
     TIndexedEntries<TRemovingTabletCellInfo> RemovingCells;
+
+    TIndexedEntries<TAllocationRequestState> ProxyAllocations;
+    TIndexedEntries<TDeallocationRequestState> ProxyDeallocations;
 
     REGISTER_YSON_STRUCT(TBundleControllerState);
 
@@ -402,20 +413,20 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletNodeAnnotationsInfo
-    : public TYsonStructAttributes<TTabletNodeAnnotationsInfo>
+struct TInstanceAnnotations
+    : public TYsonStructAttributes<TInstanceAnnotations>
 {
     TString YPCluster;
     TString NannyService;
     TString AllocatedForBundle;
     bool Allocated;
 
-    REGISTER_YSON_STRUCT(TTabletNodeAnnotationsInfo);
+    REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletNodeAnnotationsInfo)
+DEFINE_REFCOUNTED_TYPE(TInstanceAnnotations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -446,7 +457,7 @@ struct TTabletNodeInfo
     TString State;
     THashSet<TString> Tags;
     THashSet<TString> UserTags;
-    TTabletNodeAnnotationsInfoPtr Annotations;
+    TInstanceAnnotationsPtr Annotations;
     std::vector<TTabletSlotPtr> TabletSlots;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
@@ -455,6 +466,35 @@ struct TTabletNodeInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletNodeInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRpcProxyAlive
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TRpcProxyAlive);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRpcProxyAlive)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRpcProxyInfo
+    : public TYsonStructAttributes<TRpcProxyInfo>
+{
+    bool Banned;
+    TString Role;
+    TInstanceAnnotationsPtr Annotations;
+    TRpcProxyAlivePtr Alive;
+
+    REGISTER_YSON_STRUCT(TRpcProxyInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRpcProxyInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 

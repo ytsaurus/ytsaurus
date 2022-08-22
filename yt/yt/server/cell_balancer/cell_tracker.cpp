@@ -80,7 +80,6 @@ private:
         }
     }
 
-
     bool IsLeader()
     {
         VERIFY_THREAD_AFFINITY_ANY();

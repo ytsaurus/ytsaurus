@@ -25,7 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger CellBalancerLogger("CellBalancer");
-inline const NLogging::TLogger BundleController("BundleController");
+inline const NLogging::TLogger BundleControllerLogger("BundleController");
 inline const NProfiling::TProfiler CellBalancerProfiler("/cell_balancer");
 
 ////////////////////////////////////////////////////////////////////////////////
