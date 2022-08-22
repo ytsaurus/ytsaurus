@@ -64,6 +64,8 @@ public:
 
     i64 ModifyRowsBatchCapacity;
 
+    NObjectClient::TCellTag ClockClusterTag;
+
     REGISTER_YSON_STRUCT(TConnectionConfig);
 
     static void Register(TRegistrar registrar);

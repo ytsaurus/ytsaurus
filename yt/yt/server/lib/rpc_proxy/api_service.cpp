@@ -1013,26 +1013,35 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto count = request->count();
+        auto clockClusterTag = request->has_clock_cluster_tag()
+            ? request->clock_cluster_tag()
+            : InvalidCellTag;
 
-        context->SetRequestInfo("Count: %v",
-            count);
+        context->SetRequestInfo("Count: %v, ClockClusterTag: %v",
+            count,
+            clockClusterTag);
 
         const auto& connection = Bootstrap_->GetNativeConnection();
-        connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
 
-        const auto& timestampProvider = connection->GetTimestampProvider();
+        if (clockClusterTag == InvalidCellTag) {
+            connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+            clockClusterTag = connection->GetClusterTag();
+        }
+
+        const auto& timestampProvider = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
 
         ExecuteCall(
             context,
             [=] {
                 return timestampProvider->GenerateTimestamps(count);
             },
-            [] (const auto& context, const TTimestamp& timestamp) {
+            [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {
                 auto* response = &context->Response();
                 response->set_timestamp(timestamp);
 
-                context->SetResponseInfo("Timestamp: %llx",
-                    timestamp);
+                context->SetResponseInfo("Timestamp: %llx@%v",
+                    timestamp,
+                    clockClusterTag);
             });
     }
 

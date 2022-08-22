@@ -23,6 +23,8 @@ from yt.common import YtError
 
 import yt.yson as yson
 
+from yt_driver_bindings import Driver
+
 import pytest
 import time
 from copy import deepcopy
@@ -2360,6 +2362,22 @@ class TestChaosClockRpcProxy(ChaosClockBase):
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/crt", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+    @authors("savrus")
+    def test_generate_timestamps(self):
+        drivers = self._get_drivers()
+        remote_clock_tag = get("//sys/@primary_cell_tag", driver=drivers[1])
+        self._set_proxies_clock_cluster_tag(remote_clock_tag)
+
+        with raises_yt_error("Unable to generate timestamps: clock source is configured to non-native clock"):
+            generate_timestamp()
+
+        config = deepcopy(self.Env.configs["rpc_driver"])
+        config["clock_cluster_tag"] = remote_clock_tag
+        config["api_version"] = 3
+
+        rpc_driver = Driver(config=config)
+        generate_timestamp(driver=rpc_driver)
 
 
 ##################################################################

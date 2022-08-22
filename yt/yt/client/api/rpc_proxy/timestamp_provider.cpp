@@ -7,6 +7,7 @@
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,15 +19,18 @@ public:
     TTimestampProvider(
         IChannelPtr channel,
         TDuration rpcTimeout,
-        TDuration latestTimestampUpdatePeriod)
+        TDuration latestTimestampUpdatePeriod,
+        TCellTag clockClusterTag)
         : TTimestampProviderBase(latestTimestampUpdatePeriod)
         , Channel_(std::move(channel))
         , RpcTimeout_(rpcTimeout)
+        , ClockClusterTag_(clockClusterTag)
     { }
 
 private:
     const IChannelPtr Channel_;
     const TDuration RpcTimeout_;
+    const TCellTag ClockClusterTag_;
 
     TFuture<NTransactionClient::TTimestamp> DoGenerateTimestamps(int count) override
     {
@@ -35,6 +39,9 @@ private:
         auto req = proxy.GenerateTimestamps();
         req->SetTimeout(RpcTimeout_);
         req->set_count(count);
+        if (ClockClusterTag_ != InvalidCellTag) {
+            req->set_clock_cluster_tag(ClockClusterTag_);
+        }
 
         return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGenerateTimestampsPtr& rsp) {
             return rsp->timestamp();
@@ -47,12 +54,14 @@ private:
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
     IChannelPtr channel,
     TDuration rpcTimeout,
-    TDuration latestTimestampUpdatePeriod)
+    TDuration latestTimestampUpdatePeriod,
+    TCellTag clockClusterTag)
 {
     return New<TTimestampProvider>(
         std::move(channel),
         rpcTimeout,
-        latestTimestampUpdatePeriod);
+        latestTimestampUpdatePeriod,
+        clockClusterTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

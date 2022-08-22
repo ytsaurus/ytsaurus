@@ -13,7 +13,8 @@ namespace NYT::NApi::NRpcProxy {
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
     NRpc::IChannelPtr channel,
     TDuration rpcTimeout,
-    TDuration latestTimestampUpdatePeriod);
+    TDuration latestTimestampUpdatePeriod,
+    NObjectClient::TCellTag clockClusterTag = NObjectClient::InvalidCellTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 
