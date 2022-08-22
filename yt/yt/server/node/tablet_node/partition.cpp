@@ -77,13 +77,17 @@ void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, SamplingTime_);
-    Save(context, SamplingRequestTime_);
+    // COMPAT(babenko): drop these
+    Save(context, TInstant::Zero());
+    Save(context, TInstant::Zero());
 
     TSizeSerializer::Save(context, Stores_.size());
-    // NB: This is not stable.
-    for (const auto& store : Stores_) {
-        Save(context, store->GetId());
+
+    auto storeIterators = GetSortedIterators(
+        Stores_,
+        [] (const auto& lhs, const auto& rhs) { return lhs->GetId() < rhs->GetId(); });
+    for (auto it : storeIterators) {
+        Save(context, (*it)->GetId());
     }
 }
 
@@ -91,6 +95,7 @@ void TPartition::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    // COMPAT(babenko): drop these
     Load(context, SamplingTime_);
     Load(context, SamplingRequestTime_);
 
@@ -98,9 +103,12 @@ void TPartition::Load(TLoadContext& context)
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < storeCount; ++index) {
-            auto storeId = Load<TStoreId>(context);
-            auto store = Tablet_->GetStore(storeId)->AsSorted();
-            YT_VERIFY(Stores_.insert(store).second);
+            SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+            SERIALIZATION_DUMP_INDENT(context) {
+                auto storeId = Load<TStoreId>(context);
+                auto store = Tablet_->GetStore(storeId)->AsSorted();
+                InsertOrCrash(Stores_, store);
+            }
         }
     }
 }

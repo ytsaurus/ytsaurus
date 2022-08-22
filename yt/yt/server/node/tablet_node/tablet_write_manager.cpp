@@ -460,9 +460,10 @@ public:
             transactions.emplace_back(transactionId, writeState->AsyncSave());
         }
 
-        return BIND([transactions = std::move(transactions)] (TSaveContext& context) {
+        return BIND([transactions = std::move(transactions)] (TSaveContext& context) mutable {
             using NYT::Save;
 
+            SortBy(transactions, [] (const auto& pair) { return pair.first; });
             for (const auto& [transactionId, callback] : transactions) {
                 Save(context, transactionId);
                 callback.Run(context);

@@ -36,8 +36,8 @@ void THunkTablet::Save(TSaveContext& context) const
 
     {
         TSizeSerializer::Save(context, IdToStore_.size());
-        // NB: This is not stable.
-        for (const auto& [storeId, store] : IdToStore_) {
+        for (auto it : GetSortedIterators(IdToStore_)) {
+            const auto& [storeId, store] = *it;
             Save(context, storeId);
             store->Save(context);
         }
