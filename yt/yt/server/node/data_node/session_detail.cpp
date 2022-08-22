@@ -25,7 +25,8 @@ TSessionBase::TSessionBase(
     TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
-    TLease lease)
+    TLease lease,
+    TLockedChunkGuard lockedChunkGuard)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SessionId_(sessionId)
@@ -37,10 +38,12 @@ TSessionBase::TSessionBase(
     , Logger(DataNodeLogger.WithTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
         SessionId_))
+    , LockedChunkGuard_(std::move(lockedChunkGuard))
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
     YT_VERIFY(Lease_);
+    YT_VERIFY(LockedChunkGuard_);
 }
 
 TChunkId TSessionBase::GetChunkId() const&

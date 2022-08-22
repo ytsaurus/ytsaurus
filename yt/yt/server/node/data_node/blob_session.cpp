@@ -292,14 +292,16 @@ TBlobSession::TBlobSession(
     TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
-    NConcurrency::TLease lease)
+    NConcurrency::TLease lease,
+    TLockedChunkGuard lockedChunkGuard)
     : TSessionBase(
         std::move(config),
         bootstrap,
         sessionId,
         options,
         std::move(location),
-        std::move(lease))
+        std::move(lease),
+        std::move(lockedChunkGuard))
     , Pipeline_(New<TBlobWritePipeline>(
         Location_,
         SessionInvoker_,
@@ -422,7 +424,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
                 Pipeline_->GetChunkMeta());
 
             const auto& chunkStore = Bootstrap_->GetChunkStore();
-            chunkStore->RegisterNewChunk(chunk, /*session*/ this);
+            chunkStore->RegisterNewChunk(chunk, /*session*/ this, std::move(LockedChunkGuard_));
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to finish session");
             Error_ = TError(ex);

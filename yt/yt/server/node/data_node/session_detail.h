@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "session.h"
+#include "location.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -25,7 +25,8 @@ public:
         TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
-        NConcurrency::TLease lease);
+        NConcurrency::TLease lease,
+        TLockedChunkGuard lockedChunkGuard);
 
     TChunkId GetChunkId() const& override;
     TSessionId GetId() const& override;
@@ -75,6 +76,8 @@ protected:
     const IInvokerPtr SessionInvoker_;
 
     const NLogging::TLogger Logger;
+
+    TLockedChunkGuard LockedChunkGuard_;
 
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();
 

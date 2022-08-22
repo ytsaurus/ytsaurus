@@ -152,6 +152,66 @@ void TLocationPerformanceCounters::ThrottleWrite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPendingIOGuard::TPendingIOGuard(
+    EIODirection direction,
+    EIOCategory category,
+    i64 size,
+    TChunkLocationPtr owner)
+    : Direction_(direction)
+    , Category_(category)
+    , Size_(size)
+    , Owner_(owner)
+{ }
+
+TPendingIOGuard::~TPendingIOGuard()
+{
+    Release();
+}
+
+void TPendingIOGuard::Release()
+{
+    if (Owner_) {
+        Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
+        Owner_.Reset();
+    }
+}
+
+TPendingIOGuard::operator bool() const
+{
+    return Owner_.operator bool();
+}
+
+i64 TPendingIOGuard::GetSize() const
+{
+    return Size_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLockedChunkGuard::TLockedChunkGuard(TChunkLocationPtr location, TChunkId chunkId)
+    : Location_(std::move(location))
+    , ChunkId_(chunkId)
+{ }
+
+TLockedChunkGuard::~TLockedChunkGuard()
+{
+    if (Location_) {
+        Location_->UnlockChunk(ChunkId_);
+    }
+}
+
+TLockedChunkGuard::operator bool() const
+{
+    return Location_.operator bool();
+}
+
+void TLockedChunkGuard::Release()
+{
+    Location_.Reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkLocation::TChunkLocation(
     ELocationType type,
     const TString& id,
@@ -603,9 +663,9 @@ void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
             }
         }
 
-        Unlock(chunkId);
-
         YT_LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
+
+        UnlockChunk(chunkId);
     } catch (const std::exception& ex) {
         auto error = TError(
             NChunkClient::EErrorCode::IOError,
@@ -793,28 +853,29 @@ bool TChunkLocation::IsSick() const
     return IOEngine_->IsSick();
 }
 
-bool TChunkLocation::TryLock(TChunkId chunkId, bool verbose)
+TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(LockedChunksLock_);
-    if (LockedChunkIds_.emplace(chunkId).second) {
-        if (verbose) {
-            YT_LOG_DEBUG("Locked chunk (ChunkId: %v)",
-                chunkId);
-        }
-        return true;
-    } else {
-        return false;
+    if (!LockedChunkIds_.insert(chunkId).second) {
+        return {};
     }
+    YT_LOG_DEBUG("Chunk locked (ChunkId: %v)",
+        chunkId);
+    return {this, chunkId};
 }
 
-void TChunkLocation::Unlock(TChunkId chunkId)
+void TChunkLocation::UnlockChunk(TChunkId chunkId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(LockedChunksLock_);
-    if (LockedChunkIds_.erase(chunkId)) {
-        YT_LOG_DEBUG("Unlocked chunk (ChunkId: %v)",
+    if (LockedChunkIds_.erase(chunkId) == 0) {
+        YT_LOG_ALERT("Attempt to unlock a non-locked chunk (ChunkId: %v)",
             chunkId);
     } else {
-        YT_LOG_WARNING("Attempted to unlock non-locked chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Chunk unlocked (ChunkId: %v)",
             chunkId);
     }
 }
@@ -880,7 +941,6 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
             }
 
             chunkIds.insert(chunkId);
-            TryLock(chunkId, /* verbose */ false);
         }
     }
 
@@ -1440,7 +1500,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 
         RegisterTrashChunk(chunkId);
 
-        Unlock(chunkId);
+        UnlockChunk(chunkId);
     } catch (const std::exception& ex) {
         auto error = TError(
             NChunkClient::EErrorCode::IOError,
@@ -1803,42 +1863,6 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
         default:
             YT_ABORT();
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPendingIOGuard::TPendingIOGuard(
-    EIODirection direction,
-    EIOCategory category,
-    i64 size,
-    TChunkLocationPtr owner)
-    : Direction_(direction)
-    , Category_(category)
-    , Size_(size)
-    , Owner_(owner)
-{ }
-
-TPendingIOGuard::~TPendingIOGuard()
-{
-    Release();
-}
-
-void TPendingIOGuard::Release()
-{
-    if (Owner_) {
-        Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
-        Owner_.Reset();
-    }
-}
-
-TPendingIOGuard::operator bool() const
-{
-    return Owner_.operator bool();
-}
-
-i64 TPendingIOGuard::GetSize() const
-{
-    return Size_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

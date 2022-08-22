@@ -104,6 +104,64 @@ DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPendingIOGuard
+{
+public:
+    TPendingIOGuard() = default;
+    TPendingIOGuard(TPendingIOGuard&& other) = default;
+    ~TPendingIOGuard();
+
+    void Release();
+
+    TPendingIOGuard& operator = (TPendingIOGuard&& other) = default;
+
+    explicit operator bool() const;
+    i64 GetSize() const;
+
+private:
+    friend class TChunkLocation;
+
+    TPendingIOGuard(
+        EIODirection direction,
+        EIOCategory category,
+        i64 size,
+        TChunkLocationPtr owner);
+
+    EIODirection Direction_;
+    EIOCategory Category_;
+    i64 Size_ = 0;
+    TChunkLocationPtr Owner_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockedChunkGuard
+{
+public:
+    TLockedChunkGuard() = default;
+    ~TLockedChunkGuard();
+
+    TLockedChunkGuard(const TLockedChunkGuard&) = delete;
+    TLockedChunkGuard& operator=(const TLockedChunkGuard&) = delete;
+
+    TLockedChunkGuard(TLockedChunkGuard&&) = default;
+    TLockedChunkGuard& operator=(TLockedChunkGuard&&) = default;
+
+    explicit operator bool() const;
+
+    void Release();
+
+private:
+    TLockedChunkGuard(TChunkLocationPtr location, TChunkId chunkId);
+
+    TChunkLocationPtr Location_;
+    TChunkId ChunkId_;
+
+    friend class TChunkLocation;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkLocation
     : public TDiskLocation
 {
@@ -279,12 +337,10 @@ public:
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
-    //! Returns |true| if location does not contain
-    //! files corresponding to given chunk id.
-    bool TryLock(TChunkId chunkId, bool verbose = true);
-
-    //! Called when all the chunk files are destroyed.
-    void Unlock(TChunkId chunkId);
+    //! If location does not contain files corresponding to given #chunkId, acquires the lock
+    //! and returns a non-null guard. Otherwise, returns a null guard.
+    [[nodiscard]]
+    TLockedChunkGuard TryLockChunk(TChunkId chunkId);
 
     const TChunkStorePtr& GetChunkStore() const;
 
@@ -295,6 +351,8 @@ protected:
     const IChunkStoreHostPtr ChunkStoreHost_;
 
     NProfiling::TProfiler Profiler_;
+
+    void UnlockChunk(TChunkId chunkId);
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
@@ -309,6 +367,7 @@ protected:
 
 private:
     friend class TPendingIOGuard;
+    friend class TLockedChunkGuard;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -508,37 +567,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPendingIOGuard
-{
-public:
-    TPendingIOGuard() = default;
-    TPendingIOGuard(TPendingIOGuard&& other) = default;
-    ~TPendingIOGuard();
-
-    void Release();
-
-    TPendingIOGuard& operator = (TPendingIOGuard&& other) = default;
-
-    explicit operator bool() const;
-    i64 GetSize() const;
-
-private:
-    friend class TChunkLocation;
-
-    TPendingIOGuard(
-        EIODirection direction,
-        EIOCategory category,
-        i64 size,
-        TChunkLocationPtr owner);
-
-    EIODirection Direction_;
-    EIOCategory Category_;
-    i64 Size_ = 0;
-    TChunkLocationPtr Owner_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

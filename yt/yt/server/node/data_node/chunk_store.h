@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "location.h"
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -68,7 +68,10 @@ public:
     void UpdateConfig(const TDataNodeDynamicConfigPtr& config);
 
     //! Registers a just-written chunk unless the chunk already exists or location is disabled.
-    void RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session);
+    void RegisterNewChunk(
+        const IChunkPtr& chunk,
+        const ISessionPtr& session,
+        TLockedChunkGuard lockedChunkGuard);
 
     //! Triggers another round of master notification for a chunk that is already registered.
     /*!
@@ -143,7 +146,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    TStoreLocationPtr GetNewChunkLocation(
+    std::tuple<TStoreLocationPtr, TLockedChunkGuard> AcquireNewChunkLocation(
         TSessionId sessionId,
         const TSessionOptions& options);
 
