@@ -184,7 +184,8 @@ ITimestampProviderPtr TClient::CreateTimestampProvider() const
     return NRpcProxy::CreateTimestampProvider(
         RetryingChannel_,
         Connection_->GetConfig()->RpcTimeout,
-        Connection_->GetConfig()->TimestampProviderLatestTimestampUpdatePeriod);
+        Connection_->GetConfig()->TimestampProviderLatestTimestampUpdatePeriod,
+        Connection_->GetConfig()->ClockClusterTag);
 }
 
 ITransactionPtr TClient::AttachTransaction(

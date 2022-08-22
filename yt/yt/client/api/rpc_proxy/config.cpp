@@ -96,6 +96,9 @@ void TConnectionConfig::Register(TRegistrar registrar)
         config->DynamicChannelPool->MaxPeerCount = 100;
     });
 
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default(NObjectClient::InvalidCellTag);
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->ProxyEndpoints && !config->ClusterUrl && !config->ProxyAddresses) {
             THROW_ERROR_EXCEPTION("Either \"endpoints\" or \"cluster_url\" or \"proxy_addresses\" must be specified");
