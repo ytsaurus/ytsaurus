@@ -45,21 +45,30 @@ def _flatten_dict(dict_):
 
 def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
                    pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None,
-                   ql_pool=None):
-    no_pool = dict(path=path, account=account, group=group,
-                   tablet_cell_bundle=tablet_cell_bundle,
-                   network_project=network_project,
-                   rpc_proxy_role=rpc_proxy_role,
-                   http_proxy_role=http_proxy_role,
-                   ql_pool=ql_pool)
-    exclusive = [dict(pool=pool, **no_pool), dict(pool_tree=pool_tree, **no_pool)]
+                   ql_pool=None, access_control_object=None, access_control_object_namespace=None):
+    no_additional_data = dict(path=path, account=account, group=group,
+                              tablet_cell_bundle=tablet_cell_bundle,
+                              network_project=network_project,
+                              rpc_proxy_role=rpc_proxy_role,
+                              http_proxy_role=http_proxy_role,
+                              ql_pool=ql_pool)
+    exclusive = [
+        dict(pool=pool, **no_additional_data),
+        dict(pool_tree=pool_tree, **no_additional_data),
+        dict(access_control_object=access_control_object, **no_additional_data),
+        dict(access_control_object_namespace=access_control_object_namespace, **no_additional_data),
+        dict(access_control_object=access_control_object, pool=pool),
+        dict(access_control_object_namespace=access_control_object_namespace, pool=pool),
+        dict(access_control_object=access_control_object, pool_tree=pool_tree),
+        dict(access_control_object_namespace=access_control_object_namespace, pool_tree=pool_tree),
+    ]
     for exclusive_group in exclusive:
         keys = [key for key, value in iteritems(exclusive_group) if value is not None]
         if len(keys) > 1:
             raise TypeError("mutually exclusive arguments: '{}'"
                             .format("', '".join(keys)))
 
-    for key, value in iteritems(no_pool):
+    for key, value in iteritems(no_additional_data):
         if value is not None:
             return dict(kind=key, name=value)
 
@@ -68,6 +77,11 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
             raise TypeError("expected both 'pool' and 'pool_tree'")
         return dict(kind="pool", name=pool, pool_tree=pool_tree)
 
+    if access_control_object is not None or access_control_object_namespace is not None:
+        if access_control_object is None or access_control_object_namespace is None:
+            raise TypeError("expected both 'access_control_object' and 'access_control_object_namespace'")
+        return dict(kind="access_control_object", name=access_control_object, namespace=access_control_object_namespace)
+
     args = sorted(set(key for group in exclusive for key in group))
     raise TypeError("expected one of: '{}'".format("', '".join(args)))
 
@@ -75,9 +89,12 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
 def _with_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
                 pool_tree=None, network_project=None,
-                rpc_proxy_role=None, http_proxy_role=None, ql_pool=None, *args, **kwargs):
+                rpc_proxy_role=None, http_proxy_role=None, ql_pool=None,
+                access_control_object=None, access_control_object_namespace=None,
+                *args, **kwargs):
         object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
-                                   network_project, rpc_proxy_role, http_proxy_role, ql_pool)
+                                   network_project, rpc_proxy_role, http_proxy_role, ql_pool,
+                                   access_control_object, access_control_object_namespace)
         return func(client, *args, object_id=object_id, **kwargs)
     wrapper.__doc__ = func.__doc__
     return wrapper
@@ -86,11 +103,13 @@ def _with_object_id(func):
 def _with_optional_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
                 pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None,
-                ql_pool=None, *args, **kwargs):
+                ql_pool=None, access_control_object=None, access_control_object_namespace=None, *args, **kwargs):
         if any((path, account, pool, group, tablet_cell_bundle, pool_tree, network_project,
-               rpc_proxy_role, http_proxy_role, ql_pool)):
+               rpc_proxy_role, http_proxy_role, ql_pool, access_control_object,
+               access_control_object_namespace)):
             object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
-                                       network_project, rpc_proxy_role, http_proxy_role, ql_pool)
+                                       network_project, rpc_proxy_role, http_proxy_role, ql_pool,
+                                       access_control_object, access_control_object_namespace)
         else:
             object_id = None
         return func(client, *args, object_id=object_id, **kwargs)
