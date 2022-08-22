@@ -369,6 +369,9 @@ void TEncodingWriterOptions::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::None);
     registrar.Parameter("chunks_eden", &TThis::ChunksEden)
         .Default(false);
+    registrar.Parameter("set_chunk_creation_time", &TThis::SetChunkCreationTime)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

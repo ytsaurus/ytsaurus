@@ -25,6 +25,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
           TMemoryUsageTrackerGuard::Acquire(
               options->MemoryTracker,
               /*size*/ 0)))
+    , Options_(options)
     , ChunkWriter_(std::move(chunkWriter))
     , EncodingWriter_(New<TEncodingWriter>(
         config,
@@ -65,7 +66,9 @@ void TEncodingChunkWriter::Close()
     MiscExt_.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
     MiscExt_.set_max_data_block_size(LargestBlockSize_);
     MiscExt_.set_meta_size(Meta_->ByteSize());
-    MiscExt_.set_creation_time(TInstant::Now().GetValue());
+    if (Options_->SetChunkCreationTime) {
+        MiscExt_.set_creation_time(TInstant::Now().GetValue());
+    }
     SetProtoExtension(Meta_->mutable_extensions(), MiscExt_);
 
     WaitFor(ChunkWriter_->Close(Meta_))

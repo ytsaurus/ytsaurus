@@ -661,16 +661,16 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, CumulativeDataWeight_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
-    // NB: This is not stable.
-    for (const auto& [storeId, store] : StoreIdMap_) {
+        for (auto it : GetSortedIterators(StoreIdMap_)) {
+        const auto& [storeId, store] = *it;
         Save(context, store->GetType());
         Save(context, storeId);
         store->Save(context);
     }
 
     TSizeSerializer::Save(context, HunkChunkMap_.size());
-    // NB: This is not stable.
-    for (const auto& [chunkId, hunkChunk] : HunkChunkMap_) {
+    for (auto it : GetSortedIterators(HunkChunkMap_)) {
+        const auto& [chunkId, hunkChunk] = *it;
         Save(context, chunkId);
         hunkChunk->Save(context);
     }
@@ -739,13 +739,16 @@ void TTablet::Load(TLoadContext& context)
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < storeCount; ++index) {
-            auto storeType = Load<EStoreType>(context);
-            auto storeId = Load<TStoreId> (context);
-            auto store = Context_->CreateStore(this, storeType, storeId, nullptr);
-            YT_VERIFY(StoreIdMap_.emplace(storeId, store).second);
-            store->Load(context);
-            if (store->IsChunk()) {
-                YT_VERIFY(store->AsChunk()->GetChunkId());
+            SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+            SERIALIZATION_DUMP_INDENT(context) {
+                auto storeType = Load<EStoreType>(context);
+                auto storeId = Load<TStoreId> (context);
+                auto store = Context_->CreateStore(this, storeType, storeId, nullptr);
+                EmplaceOrCrash(StoreIdMap_, storeId, store);
+                store->Load(context);
+                if (store->IsChunk()) {
+                    YT_VERIFY(store->AsChunk()->GetChunkId());
+                }
             }
         }
     }
@@ -756,7 +759,7 @@ void TTablet::Load(TLoadContext& context)
         for (int index = 0; index < hunkChunkCount; ++index) {
             auto chunkId = Load<TChunkId>(context);
             auto hunkChunk = Context_->CreateHunkChunk(this, chunkId, nullptr);
-            YT_VERIFY(HunkChunkMap_.emplace(chunkId, hunkChunk).second);
+            EmplaceOrCrash(HunkChunkMap_, chunkId, hunkChunk);
             hunkChunk->Load(context);
             hunkChunk->Initialize();
             UpdateDanglingHunkChunks(hunkChunk);
@@ -766,7 +769,7 @@ void TTablet::Load(TLoadContext& context)
     if (IsPhysicallyOrdered()) {
         for (const auto& [storeId, store] : StoreIdMap_) {
             auto orderedStore = store->AsOrdered();
-            YT_VERIFY(StoreRowIndexMap_.emplace(orderedStore->GetStartingRowIndex(), orderedStore).second);
+            EmplaceOrCrash(StoreRowIndexMap_, orderedStore->GetStartingRowIndex(), orderedStore);
         }
     }
 
@@ -802,7 +805,7 @@ void TTablet::Load(TLoadContext& context)
         int partitionCount = TSizeSerializer::LoadSuspended(context);
         for (int index = 0; index < partitionCount; ++index) {
             auto partition = loadPartition(index);
-            YT_VERIFY(PartitionMap_.emplace(partition->GetId(), partition.get()).second);
+            EmplaceOrCrash(PartitionMap_, partition->GetId(), partition.get());
             PartitionList_.push_back(std::move(partition));
         }
     }
@@ -875,7 +878,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             capturedEden = std::move(capturedEden),
             capturedPartitions = std::move(capturedPartitions),
             capturedTabletWriteManager = std::move(capturedTabletWriteManager)
-        ] (TSaveContext& context) {
+        ] (TSaveContext& context) mutable {
             using NYT::Save;
 
             Save(context, *snapshot->Settings.MountConfig);
@@ -901,7 +904,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 callback.Run(context);
             }
 
-            // NB: This is not stable.
+            SortBy(capturedStores, [] (const auto& pair) { return pair.first; });
             for (const auto& [storeId, callback] : capturedStores) {
                 Save(context, storeId);
                 callback(context);
@@ -954,7 +957,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", StoreIdMap_.size());
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < std::ssize(StoreIdMap_); ++index) {
-            auto storeId = Load<TStoreId>(context);
+            auto storeId = LoadSuspended<TStoreId>(context);
             SERIALIZATION_DUMP_WRITE(context, "%v =>", storeId);
             SERIALIZATION_DUMP_INDENT(context) {
                 auto store = GetStore(storeId);
@@ -1004,7 +1007,7 @@ void TTablet::CreateInitialPartition()
         static_cast<int>(PartitionList_.size()),
         PivotKey_,
         NextPivotKey_);
-    YT_VERIFY(PartitionMap_.emplace(partition->GetId(), partition.get()).second);
+    EmplaceOrCrash(PartitionMap_, partition->GetId(), partition.get());
     PartitionList_.push_back(std::move(partition));
 }
 
@@ -1068,7 +1071,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         for (const auto& store : existingPartition->Stores()) {
             YT_VERIFY(store->GetPartition() == existingPartition.get());
             store->SetPartition(mergedPartition.get());
-            YT_VERIFY(mergedPartition->Stores().insert(store).second);
+            InsertOrCrash(mergedPartition->Stores(), store);
         }
     }
 
@@ -1084,7 +1087,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     for (auto it = firstPartitionIt; it != lastPartitionIt + 1; ++it) {
         PartitionMap_.erase((*it)->GetId());
     }
-    YT_VERIFY(PartitionMap_.emplace(mergedPartition->GetId(), mergedPartition.get()).second);
+    EmplaceOrCrash(PartitionMap_, mergedPartition->GetId(), mergedPartition.get());
     PartitionList_.erase(firstPartitionIt, lastPartitionIt + 1);
     PartitionList_.insert(firstPartitionIt, std::move(mergedPartition));
 
@@ -1170,7 +1173,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
 
     PartitionMap_.erase(existingPartition->GetId());
     for (const auto& partition : splitPartitions) {
-        YT_VERIFY(PartitionMap_.emplace(partition->GetId(), partition.get()).second);
+        EmplaceOrCrash(PartitionMap_, partition->GetId(), partition.get());
     }
     PartitionList_.erase(PartitionList_.begin() + index);
     PartitionList_.insert(
@@ -1182,7 +1185,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         YT_VERIFY(store->GetPartition() == existingPartition.get());
         auto* newPartition = GetContainingPartition(store);
         store->SetPartition(newPartition);
-        YT_VERIFY(newPartition->Stores().insert(store).second);
+        InsertOrCrash(newPartition->Stores(), store);
     }
 
     StructuredLogger_->OnPartitionSplit(
@@ -1235,11 +1238,11 @@ const std::map<i64, IOrderedStorePtr>& TTablet::StoreRowIndexMap() const
 
 void TTablet::AddStore(IStorePtr store)
 {
-    YT_VERIFY(StoreIdMap_.emplace(store->GetId(), store).second);
+    EmplaceOrCrash(StoreIdMap_, store->GetId(), store);
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = GetContainingPartition(sortedStore);
-        YT_VERIFY(partition->Stores().insert(sortedStore).second);
+        InsertOrCrash(partition->Stores(), sortedStore);
         sortedStore->SetPartition(partition);
         UpdateOverlappingStoreCount();
 
@@ -1248,7 +1251,7 @@ void TTablet::AddStore(IStorePtr store)
         }
     } else {
         auto orderedStore = store->AsOrdered();
-        YT_VERIFY(StoreRowIndexMap_.emplace(orderedStore->GetStartingRowIndex(), orderedStore).second);
+        EmplaceOrCrash(StoreRowIndexMap_, orderedStore->GetStartingRowIndex(), orderedStore);
     }
 
     if (store->IsDynamic()) {
@@ -1262,11 +1265,11 @@ void TTablet::RemoveStore(IStorePtr store)
         --DynamicStoreCount_;
     }
 
-    YT_VERIFY(StoreIdMap_.erase(store->GetId()) == 1);
+    EraseOrCrash(StoreIdMap_, store->GetId());
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
-        YT_VERIFY(partition->Stores().erase(sortedStore) == 1);
+        EraseOrCrash(partition->Stores(), sortedStore);
         sortedStore->SetPartition(nullptr);
         UpdateOverlappingStoreCount();
 
@@ -1276,7 +1279,7 @@ void TTablet::RemoveStore(IStorePtr store)
         }
     } else {
         auto orderedStore = store->AsOrdered();
-        YT_VERIFY(StoreRowIndexMap_.erase(orderedStore->GetStartingRowIndex()) == 1);
+        EraseOrCrash(StoreRowIndexMap_, orderedStore->GetStartingRowIndex());
     }
 }
 
@@ -1309,12 +1312,12 @@ const THashMap<TChunkId, THunkChunkPtr>& TTablet::HunkChunkMap() const
 
 void TTablet::AddHunkChunk(THunkChunkPtr hunkChunk)
 {
-    YT_VERIFY(HunkChunkMap_.emplace(hunkChunk->GetId(), hunkChunk).second);
+    EmplaceOrCrash(HunkChunkMap_, hunkChunk->GetId(), hunkChunk);
 }
 
 void TTablet::RemoveHunkChunk(THunkChunkPtr hunkChunk)
 {
-    YT_VERIFY(HunkChunkMap_.erase(hunkChunk->GetId()) == 1);
+    EraseOrCrash(HunkChunkMap_, hunkChunk->GetId());
     // NB: May be missing.
     DanglingHunkChunks_.erase(hunkChunk);
 }
@@ -1640,7 +1643,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->TabletChaosData = ChaosData_;
 
     for (const auto& [replicaId, replicaInfo] : Replicas_) {
-        YT_VERIFY(snapshot->Replicas.emplace(replicaId, replicaInfo.BuildSnapshot()).second);
+        EmplaceOrCrash(snapshot->Replicas, replicaId, replicaInfo.BuildSnapshot());
     }
 
     UpdateUnflushedTimestamp();

@@ -423,6 +423,7 @@ class TEncodingWriterOptions
 public:
     NCompression::ECodec CompressionCodec;
     bool ChunksEden;
+    bool SetChunkCreationTime;
 
     REGISTER_YSON_STRUCT(TEncodingWriterOptions);
 

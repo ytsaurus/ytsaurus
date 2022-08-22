@@ -344,9 +344,13 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
         auto tableWriterConfig = New<TChunkWriterConfig>();
         tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
+        // Ensure deterministic snapshots.
+        tableWriterConfig->SampleRate = 0.0;
 
         auto tableWriterOptions = New<TChunkWriterOptions>();
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+         // Ensure deterministic snapshots.
+        tableWriterOptions->SetChunkCreationTime = false;
 
         auto tableWriter = CreateSchemalessChunkWriter(
             tableWriterConfig,

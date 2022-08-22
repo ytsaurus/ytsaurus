@@ -124,6 +124,7 @@ public:
         RegisterLoader(
             "TransactionManager.Values",
             BIND(&TImpl::LoadValues, Unretained(this)));
+        // COMPAT(gritukan)
         RegisterLoader(
             "TransactionManager.Async",
             BIND(&TImpl::LoadAsync, Unretained(this)));
