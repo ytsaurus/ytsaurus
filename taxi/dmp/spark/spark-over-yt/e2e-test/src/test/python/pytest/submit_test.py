@@ -235,7 +235,7 @@ def test_fct_extreme_user_order_act(submission_client, yt_client):
 def test_getting_active_drivers(submission_client):
     test_case = make_e2e_test_case("link_eda_user_appsession_request_id_no_output", ["appsession_id"],
                                    custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input")
-    with TimeoutExecution(120):
+    with TimeoutExecution(160):
         assert submission_client.get_active_drivers() == []
 
         job1_id = submit_job(submission_client, prepare_job_launcher(submission_client, test_case))
