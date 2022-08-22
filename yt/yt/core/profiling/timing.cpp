@@ -68,11 +68,6 @@ TValue TWallTimer::GetElapsedValue() const
     return DurationToValue(GetElapsedTime());
 }
 
-TDuration TWallTimer::GetCurrentDuration() const
-{
-    return CpuDurationToDuration(GetCurrentCpuDuration());
-}
-
 void TWallTimer::Start()
 {
     StartTime_ = GetCpuInstant();
