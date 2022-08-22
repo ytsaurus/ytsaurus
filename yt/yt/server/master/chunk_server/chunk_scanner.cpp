@@ -130,13 +130,20 @@ TChunk* TChunkScanner::DequeueChunk()
     }
 
     auto* chunk = Queue_.front().Chunk.Get();
-    bool alive = IsObjectAlive(chunk);
-    if (alive) {
-        YT_ASSERT(chunk->GetScanFlag(Kind_));
-        chunk->ClearScanFlag(Kind_);
+    auto relevant = false;
+    if (IsObjectAlive(chunk)) {
+        relevant = ActiveShardIndices_.test(chunk->GetShardIndex());
+        if (relevant) {
+            YT_ASSERT(chunk->GetScanFlag(Kind_));
+            chunk->ClearScanFlag(Kind_);
+        } else {
+            YT_ASSERT(!chunk->GetScanFlag(Kind_));
+        }
     }
+
     Queue_.pop();
-    if (alive && ActiveShardIndices_.test(chunk->GetShardIndex())) {
+
+    if (relevant) {
         return chunk;
     }
 
