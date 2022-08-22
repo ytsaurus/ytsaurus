@@ -535,7 +535,7 @@ private:
         auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
         auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
 
-        auto location = FindNewChunkLocation(chunkId);
+        auto [location, lockedChunkGuard] = AcquireNewChunkLocation(chunkId);
         if (!location) {
             auto error = TError("Cannot find a suitable location for artifact chunk");
             cookie.Cancel(error);
@@ -564,16 +564,17 @@ private:
             }
         }
 
-        TSessionCounterGuard guard(location);
+        TSessionCounterGuard sessionCounterGuard(location);
 
         auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker());
         invoker->Invoke(BIND(
             downloader,
             MakeStrong(this),
-            Passed(std::move(guard)),
             key,
             location,
             chunkId,
+            Passed(std::move(sessionCounterGuard)),
+            Passed(std::move(lockedChunkGuard)),
             artifactDownloadOptions,
             chunkReadOptions,
             Passed(std::move(cookie))));
@@ -719,6 +720,7 @@ private:
         const TCacheLocationPtr& location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
+        TLockedChunkGuard&& lockedChunkGuard = {},
         const NChunkClient::TRefCountedChunkMetaPtr& meta = nullptr)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -731,6 +733,7 @@ private:
             key,
             BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor));
         OnChunkCreated(location, descriptor);
+        lockedChunkGuard.Release();
         return chunk;
     }
 
@@ -768,6 +771,12 @@ private:
             chunkId,
             location->GetId(),
             descriptor.DiskSpace);
+
+        {
+            auto lockedChunkGuard = location->TryLockChunk(chunkId);
+            YT_VERIFY(lockedChunkGuard);
+            lockedChunkGuard.Release();
+        }
     }
 
 
@@ -801,7 +810,7 @@ private:
     }
 
 
-    TCacheLocationPtr FindNewChunkLocation(TChunkId chunkId) const
+    std::tuple<TCacheLocationPtr, TLockedChunkGuard> AcquireNewChunkLocation(TChunkId chunkId) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -829,12 +838,12 @@ private:
 
         for (const auto& candidate : candidates) {
             const auto& location = candidate.Location;
-            if (location->TryLock(chunkId)) {
-                return location;
+            if (auto guard = location->TryLockChunk(chunkId)) {
+                return {location, std::move(guard)};
             }
         }
 
-        return nullptr;
+        return {nullptr, TLockedChunkGuard()};
     }
 
     static TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
@@ -912,10 +921,11 @@ private:
 
 
     void DownloadChunk(
-        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
+        TSessionCounterGuard /*sessionCounterGuard*/,
+        TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
@@ -1058,9 +1068,8 @@ private:
 
             YT_LOG_INFO("Chunk is downloaded into cache");
 
-            TChunkDescriptor descriptor(chunkId);
-            descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-            auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
+            TChunkDescriptor descriptor(chunkId, chunkWriter->GetChunkInfo().disk_space());
+            auto chunk = CreateChunk(location,  key, descriptor, std::move(lockedChunkGuard), chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -1072,10 +1081,11 @@ private:
     }
 
     void DownloadAndConvertFile(
-        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
+        TSessionCounterGuard /*sessionCounterGuard*/,
+        TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
@@ -1105,14 +1115,16 @@ private:
                 chunkSpecs,
                 FromProto<NChunkClient::TDataSource>(key.data_source()));
 
-            auto produceFile = [&] (IOutputStream* /*output*/, const TString& filename) {
-                auto inputStream = CreateFileReaderAdapter(reader);
-
-                // TODO(prime@): throttle input stream
-                artifactDownloadOptions.Converter(inputStream, filename);
-            };
-
-            auto chunk = ProduceArtifactFile(key, location, chunkId, produceFile);
+            auto chunk = ProduceArtifactFile(
+                key,
+                location,
+                chunkId,
+                std::move(lockedChunkGuard),
+                [&] (IOutputStream* /*output*/, const TString& filename) {
+                    auto inputStream = CreateFileReaderAdapter(reader);
+                    // TODO(prime@): throttle input stream
+                    artifactDownloadOptions.Converter(inputStream, filename);
+                });
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file into cache")
@@ -1123,10 +1135,11 @@ private:
     }
 
     void DownloadFile(
-        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
+        TSessionCounterGuard /*sessionCounterGuard*/,
+        TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
@@ -1140,9 +1153,14 @@ private:
                 chunkReadOptions,
                 location->GetInThrottler());
 
-            auto chunk = ProduceArtifactFile(key, location, chunkId, [producer] (IOutputStream* output, const TString& /*filename*/) {
-                producer(output);
-            });
+            auto chunk = ProduceArtifactFile(
+                key,
+                location,
+                chunkId,
+                std::move(lockedChunkGuard),
+                [&] (IOutputStream* output, const TString& /*filename*/) {
+                    producer(output);
+                });
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
@@ -1198,10 +1216,11 @@ private:
     }
 
     void DownloadTable(
-        TSessionCounterGuard /*sessionCounterGuard*/,
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
+        TSessionCounterGuard /*sessionCounterGuard*/,
+        TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
@@ -1215,9 +1234,14 @@ private:
                 chunkReadOptions,
                 location->GetInThrottler());
 
-            auto chunk = ProduceArtifactFile(key, location, chunkId, [producer] (IOutputStream* output, const TString& /*filename*/) {
-                producer(output);
-            });
+            auto chunk = ProduceArtifactFile(
+                key,
+                location,
+                chunkId,
+                std::move(lockedChunkGuard),
+                [producer] (IOutputStream* output, const TString& /*filename*/) {
+                    producer(output);
+                });
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
@@ -1341,6 +1365,7 @@ private:
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
+        TLockedChunkGuard lockedChunkGuard,
         const std::function<void(IOutputStream*, const TString&)>& producer)
     {
         VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
@@ -1381,12 +1406,7 @@ private:
 
         PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
 
-        try {
-            producer(&checkedOutput, tempDataFileName);
-        } catch (const std::exception& ex) {
-            location->Unlock(chunkId);
-            throw;
-        }
+        producer(&checkedOutput, tempDataFileName);
 
         if (Bootstrap_->GetIOTracker()->IsEnabled()) {
             Bootstrap_->GetIOTracker()->Enqueue(
@@ -1421,7 +1441,7 @@ private:
 
         TChunkDescriptor descriptor(chunkId);
         descriptor.DiskSpace = chunkSize + metaBlob.Size();
-        return CreateChunk(location, key, descriptor);
+        return CreateChunk(location, key, descriptor, std::move(lockedChunkGuard));
     }
 
     std::optional<TArtifactKey> TryParseArtifactMeta(

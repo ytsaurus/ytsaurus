@@ -145,7 +145,7 @@ ISessionPtr TSessionManager::CreateSession(
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
-    auto location = chunkStore->GetNewChunkLocation(sessionId, options);
+    auto [location, lockedChunkGuard] = chunkStore->AcquireNewChunkLocation(sessionId, options);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,
@@ -162,7 +162,8 @@ ISessionPtr TSessionManager::CreateSession(
                 sessionId,
                 options,
                 location,
-                lease);
+                lease,
+                std::move(lockedChunkGuard));
             break;
 
         case EObjectType::JournalChunk:
@@ -173,7 +174,8 @@ ISessionPtr TSessionManager::CreateSession(
                 sessionId,
                 options,
                 location,
-                lease);
+                lease,
+                std::move(lockedChunkGuard));
             break;
 
         default:

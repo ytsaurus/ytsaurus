@@ -27,8 +27,8 @@ public:
 
 protected:
     const TString Id_;
+    const NLogging::TLogger Logger;
 
-    mutable NLogging::TLogger Logger;
     std::atomic<bool> Enabled_ = false;
 
     void ValidateMinimumSpace() const;

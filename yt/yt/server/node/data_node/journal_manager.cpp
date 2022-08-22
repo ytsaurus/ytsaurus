@@ -1160,9 +1160,13 @@ private:
                 return nullptr;
             }
 
+            const auto& location = Impl_->Location_;
+            auto lockedChunkGuard = location->TryLockChunk(chunkId);
+            YT_VERIFY(lockedChunkGuard);
+
             auto chunk = New<TJournalChunk>(
                 Impl_->ChunkContext_,
-                Impl_->Location_,
+                location,
                 TChunkDescriptor(chunkId));
 
             const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
@@ -1175,7 +1179,7 @@ private:
                 .ValueOrThrow();
 
             EmplaceOrCrash(IdToChangelog_, chunkId, changelog);
-            chunkStore->RegisterNewChunk(chunk, /*session*/ nullptr);
+            chunkStore->RegisterNewChunk(chunk, /*session*/ nullptr, std::move(lockedChunkGuard));
 
             return changelog;
         }

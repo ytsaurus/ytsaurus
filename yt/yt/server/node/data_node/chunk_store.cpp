@@ -197,9 +197,13 @@ void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
     location->Start();
 }
 
-void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session)
+void TChunkStore::RegisterNewChunk(
+    const IChunkPtr& chunk,
+    const ISessionPtr& session,
+    TLockedChunkGuard lockedChunkGuard)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YT_VERIFY(lockedChunkGuard);
 
     // NB: The location was surely enabled the moment the chunk was created
     // but it may have got disabled later.
@@ -229,6 +233,8 @@ void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& se
         // NB: This is multimap.
         ChunkMap_.emplace(chunk->GetId(), entry);
     }
+
+    lockedChunkGuard.Release();
 
     OnChunkRegistered(chunk);
 }
@@ -410,10 +416,18 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
     if (doRegister) {
         auto chunkEntry = BuildChunkEntry(chunk);
+
         {
             auto guard = WriterGuard(ChunkMapLock_);
             ChunkMap_.emplace(chunk->GetId(), chunkEntry);
         }
+
+        {
+            auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
+            YT_VERIFY(lockedChunkGuard);
+            lockedChunkGuard.Release();
+        }
+
         OnChunkRegistered(chunk);
     }
 }
@@ -588,42 +602,42 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
         BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
 }
 
-TStoreLocationPtr TChunkStore::GetNewChunkLocation(
+std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLocation(
     TSessionId sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    std::vector<int> candidates;
-    candidates.reserve(Locations_.size());
+    std::vector<int> candidateIndices;
+    candidateIndices.reserve(Locations_.size());
 
     int minCount = std::numeric_limits<int>::max();
-    for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
+    for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
         if (!CanStartNewSession(location, sessionId.MediumIndex)) {
             continue;
         }
         if (options.PlacementId) {
-            candidates.push_back(index);
+            candidateIndices.push_back(index);
         } else {
             int count = location->GetSessionCount();
             if (count < minCount) {
-                candidates.clear();
+                candidateIndices.clear();
                 minCount = count;
             }
             if (count == minCount) {
-                candidates.push_back(index);
+                candidateIndices.push_back(index);
             }
         }
     }
 
-    if (candidates.empty()) {
+    if (candidateIndices.empty()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoLocationAvailable,
             "No write location is available");
     }
 
-    TStoreLocationPtr result;
+    TStoreLocationPtr location;
     if (options.PlacementId) {
         auto guard = Guard(PlacementLock_);
         ExpirePlacementInfos();
@@ -634,26 +648,27 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             if (currentIndex >= std::ssize(Locations_)) {
                 currentIndex = 0;
             }
-        } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());
-        result = Locations_[currentIndex];
+        } while (std::find(candidateIndices.begin(), candidateIndices.end(), currentIndex) == candidateIndices.end());
+        location = Locations_[currentIndex];
         YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
             options.PlacementId,
             sessionId,
-            result->GetId());
+            location->GetId());
     } else {
-        result = Locations_[candidates[RandomNumber(candidates.size())]];
+        location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
         YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
             sessionId,
-            result->GetId());
+            location->GetId());
     }
 
-    if (!result->TryLock(sessionId.ChunkId)) {
-        YT_LOG_WARNING("Chunk was not locked in location (ChunkId: %v, LocationId: %v)",
+    auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
+    if (!lockedChunkGuard) {
+        THROW_ERROR_EXCEPTION("Failed to lock chunk %v at chosen location %Qv",
             sessionId,
-            result->GetId());
+            location->GetId());
     }
 
-    return result;
+    return {location, std::move(lockedChunkGuard)};
 }
 
 bool TChunkStore::CanStartNewSession(

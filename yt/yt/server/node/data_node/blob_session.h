@@ -37,7 +37,8 @@ public:
         TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
-        NConcurrency::TLease lease);
+        NConcurrency::TLease lease,
+        TLockedChunkGuard lockedChunkGuard);
 
 private:
     const TBlobWritePipelinePtr Pipeline_;
