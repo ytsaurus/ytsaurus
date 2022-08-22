@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
@@ -31,9 +32,15 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public abstract class CompoundClientImpl extends ApiServiceClientImpl implements CompoundClient {
     private final ScheduledExecutorService executorService;
 
-    public CompoundClientImpl(ScheduledExecutorService executorService, RpcOptions options, Executor heavyExecutor) {
-        super(options, heavyExecutor);
+    public CompoundClientImpl(
+            ScheduledExecutorService executorService, YtClientConfiguration configuration, Executor heavyExecutor) {
+        super(configuration, heavyExecutor);
         this.executorService = executorService;
+    }
+
+    public CompoundClientImpl(
+            ScheduledExecutorService executorService, RpcOptions rpcOptions, Executor heavyExecutor) {
+        this(executorService, YtClientConfiguration.builder().setRpcOptions(rpcOptions).build(), heavyExecutor);
     }
 
     @Override

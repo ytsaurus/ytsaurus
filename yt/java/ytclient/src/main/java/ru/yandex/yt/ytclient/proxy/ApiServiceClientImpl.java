@@ -45,6 +45,7 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
@@ -127,22 +128,32 @@ public class ApiServiceClientImpl implements ApiServiceClient {
 
     private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
+    final YtClientConfiguration configuration;
     final RpcOptions rpcOptions;
     private static final String USER_AGENT = calcUserAgent();
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
-            @Nonnull RpcOptions options,
+            @Nonnull YtClientConfiguration configuration,
             @Nonnull Executor heavyExecutor
     ) {
-        OutageController outageController = options.getTestingOptions().getOutageController();
+        OutageController outageController = configuration.getRpcOptions().getTestingOptions().getOutageController();
         if (client != null && outageController != null) {
             this.rpcClient = new OutageRpcClient(client, outageController);
         } else {
             this.rpcClient = client;
         }
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
-        this.rpcOptions = options;
+        this.configuration = configuration;
+        this.rpcOptions = configuration.getRpcOptions();
+    }
+
+    public ApiServiceClientImpl(
+            @Nullable RpcClient client,
+            @Nonnull RpcOptions options,
+            @Nonnull Executor heavyExecutor
+    ) {
+        this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor);
     }
 
     public ApiServiceClientImpl(
@@ -150,6 +161,10 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             @Nonnull RpcOptions options
     ) {
         this(client, options, ForkJoinPool.commonPool());
+    }
+
+    public ApiServiceClientImpl(YtClientConfiguration configuration, Executor heavyExecutor) {
+        this(null, configuration, heavyExecutor);
     }
 
     public ApiServiceClientImpl(RpcOptions options, Executor heavyExecutor) {
@@ -195,7 +210,7 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             if (startTransaction.getSticky() && (rpcClient == null || !rpcClient.equals(sender))) {
                 logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
-                        new ApiServiceClientImpl(Objects.requireNonNull(sender), rpcOptions, heavyExecutor),
+                        new ApiServiceClientImpl(Objects.requireNonNull(sender), configuration, heavyExecutor),
                         id,
                         startTimestamp,
                         startTransaction.getPing(),

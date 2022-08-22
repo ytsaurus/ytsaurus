@@ -355,7 +355,7 @@ class MultiExecutor {
         for (String cluster : clusters) {
             YtClient.Builder clientBuilder = YtClient.builder()
                     .setClusters(cluster)
-                    .setRpcOptions(builder.options)
+                    .setYtClientConfiguration(builder.configuration)
                     .setRpcCompression(builder.compression);
             if (builder.credentials != null) {
                 clientBuilder.setRpcCredentials(builder.credentials);

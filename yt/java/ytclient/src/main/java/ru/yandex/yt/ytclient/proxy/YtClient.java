@@ -26,6 +26,7 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
@@ -133,7 +134,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
     }
 
     private YtClient(BuilderWithDefaults builder) {
-        super(builder.busConnector.executorService(), builder.builder.options, builder.builder.heavyExecutor);
+        super(builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor);
 
         builder.builder.validate();
 
@@ -143,7 +144,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         this.clusters = builder.builder.clusters;
 
         OutageController outageController =
-                builder.builder.options.getTestingOptions().getOutageController();
+                builder.builder.configuration.getRpcOptions().getTestingOptions().getOutageController();
 
         final RpcClientFactory rpcClientFactory =
                 outageController != null
@@ -162,7 +163,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
                 builder.builder.proxyRole,
                 builder.credentials,
                 rpcClientFactory,
-                builder.builder.options,
+                builder.builder.configuration.getRpcOptions(),
                 builder.builder.heavyExecutor);
     }
 
@@ -449,7 +450,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
     public abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable RpcCredentials credentials;
         RpcCompression compression = new RpcCompression();
-        RpcOptions options = new RpcOptions();
+        YtClientConfiguration configuration = YtClientConfiguration.builder()
+                .setRpcOptions(new RpcOptions())
+                .build();
 
         /**
          * Set authentication information i.e. user name and user token.
@@ -476,9 +479,22 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
 
         /**
          * Set miscellaneous options.
+         * Part of YtClientConfiguration.
+         * @deprecated prefer to use {@link #setYtClientConfiguration(YtClientConfiguration)} ()}
          */
+        @Deprecated
         public T setRpcOptions(RpcOptions rpcOptions) {
-            this.options = rpcOptions;
+            this.configuration = YtClientConfiguration.builder()
+                    .setRpcOptions(rpcOptions)
+                    .build();
+            return self();
+        }
+
+        /**
+         * Set settings of YtClient.
+         */
+        public T setYtClientConfiguration(YtClientConfiguration configuration) {
+            this.configuration = configuration;
             return self();
         }
 
