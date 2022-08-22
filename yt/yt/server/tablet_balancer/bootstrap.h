@@ -15,6 +15,7 @@ namespace NYT::NTabletBalancer {
 struct IBootstrap
 {
     virtual ~IBootstrap() = default;
+
     virtual void Run() = 0;
 
     virtual const IInvokerPtr& GetControlInvoker() const = 0;

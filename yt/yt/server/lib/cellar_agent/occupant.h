@@ -39,10 +39,13 @@ struct ICellarOccupant
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const = 0;
 
     virtual void Initialize() = 0;
+
     virtual bool CanConfigure() const = 0;
     virtual void Configure(const NCellarNodeTrackerClient::NProto::TConfigureCellSlotInfo& configureInfo) = 0;
+
     virtual int GetDynamicConfigVersion() const = 0;
     virtual void UpdateDynamicConfig(const NCellarNodeTrackerClient::NProto::TUpdateCellSlotInfo& updateInfo) = 0;
+
     virtual TFuture<void> Finalize() = 0;
 
     virtual const NYTree::IYPathServicePtr& GetOrchidService() const = 0;
