@@ -227,6 +227,8 @@ public:
 
     TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot(int snapshotId, i64 sequenceNumber);
 
+    void CheckInvariants();
+
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
     void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations);

@@ -97,7 +97,7 @@ public:
         return it == CellIdToOccupant_.end() ? nullptr : it->second;
     }
 
-    ICellarOccupantPtr GetOccupantOrCrash(TCellId id) const override
+    ICellarOccupantPtr GetOccupant(TCellId id) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

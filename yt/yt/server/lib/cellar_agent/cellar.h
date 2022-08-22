@@ -31,7 +31,7 @@ struct ICellar
     virtual int GetOccupantCount() const = 0;
     virtual const std::vector<ICellarOccupantPtr>& Occupants() const = 0;
     virtual ICellarOccupantPtr FindOccupant(NElection::TCellId id) const = 0;
-    virtual ICellarOccupantPtr GetOccupantOrCrash(NElection::TCellId id) const = 0;
+    virtual ICellarOccupantPtr GetOccupant(NElection::TCellId id) const = 0;
 
     virtual void CreateOccupant(const NCellarNodeTrackerClient::NProto::TCreateCellSlotInfo& createInfo) = 0;
     virtual void ConfigureOccupant(

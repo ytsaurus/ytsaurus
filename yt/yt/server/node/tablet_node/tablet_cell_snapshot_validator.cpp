@@ -64,7 +64,7 @@ void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const NHydra::ISnapsh
         cellar->CreateOccupant(protoInfo);
     }
 
-    auto occupant = cellar->GetOccupantOrCrash(cellId);
+    auto occupant = cellar->GetOccupant(cellId);
 
     {
         TCellDescriptor cellDescriptor;

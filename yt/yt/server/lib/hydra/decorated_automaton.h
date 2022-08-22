@@ -201,6 +201,8 @@ public:
         TInstant timestamp,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
+    void CheckInvariants();
+
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);

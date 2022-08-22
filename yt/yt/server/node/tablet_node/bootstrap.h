@@ -13,8 +13,6 @@ namespace NYT::NTabletNode {
 struct IBootstrap
     : public virtual NClusterNode::IBootstrapBase
 {
-    virtual ~IBootstrap() = default;
-
     virtual void Initialize() = 0;
     virtual void Run() = 0;
 

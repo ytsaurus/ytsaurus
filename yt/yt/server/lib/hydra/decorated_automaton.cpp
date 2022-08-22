@@ -852,6 +852,15 @@ void TDecoratedAutomaton::LoadSnapshot(
     Timestamp_ = timestamp;
 }
 
+void TDecoratedAutomaton::CheckInvariants()
+{
+    YT_LOG_INFO("Invariants check started");
+
+    Automaton_->CheckInvariants();
+
+    YT_LOG_INFO("Invariants check completed");
+}
+
 void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1264,9 +1273,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
         StateHashChecker_->Report(SequenceNumber_.load(), StateHash_);
     }
 
-    if (const auto& invariantsCheckProbability = Config_->InvariantsCheckProbability) {
+    if (auto invariantsCheckProbability = Config_->InvariantsCheckProbability) {
         if (RandomNumber<double>() <= invariantsCheckProbability) {
-            Automaton_->CheckInvariants();
+            CheckInvariants();
         }
     }
 }
