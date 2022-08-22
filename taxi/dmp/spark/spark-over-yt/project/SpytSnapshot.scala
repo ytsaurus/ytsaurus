@@ -99,7 +99,7 @@ object SpytSnapshot {
 
     private def getVcsInfo(submodule: String = ""): Option[VcsInfo] = {
       if (isTeamCity) {
-        Some(VcsInfo("teamcity", getTeamcityBuildNumber, isGit = false))
+        Some(VcsInfo(getTeamcityBuildNumber, "teamcity", isGit = false))
       } else {
         try {
           val catchStderr: ProcessLogger = new ProcessLogger {

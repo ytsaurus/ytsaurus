@@ -67,14 +67,14 @@ object E2ETestPlugin extends AutoPlugin {
     e2ePreparation := Def.sequential(e2eConfigShow, publishYt, sparkAddCustomFiles).value,
     e2eScalaTest := Def.sequential(e2ePreparation, e2eScalaTestImpl).value,
     e2ePythonTest := Def.sequential(e2ePreparation, e2ePythonTestImpl).value,
-    e2eTest := Def.sequential(e2ePreparation, e2eScalaTestImpl, e2ePythonTestImpl).value,
+    e2eTest := Def.sequential(e2ePreparation, e2eScalaTestImpl.andFinally(e2ePythonTestImpl)).value,
     e2eScalaTestImpl := (Test / test).value,
     e2eClientVersion := {
       Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)
     },
     e2ePrepareEnv := {
       runProcess(
-        "tox",
+        "tox -e ALL --notest",
         streams.value.log,
         "PYTHON_CLIENT_VERSION" -> e2ePythonClientVersion.value
       )
