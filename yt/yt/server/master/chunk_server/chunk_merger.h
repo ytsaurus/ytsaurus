@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/security_server/account.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_rotator.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
@@ -127,10 +128,8 @@ public:
 
     void Initialize();
 
-    // TODO(shakurov): rename to "chunkOwnerId"
-    void ScheduleMerge(NCypressClient::TObjectId nodeId);
-    // TODO(shakurov): rename to "trunkChunkOwner"
-    void ScheduleMerge(TChunkOwnerBase* chunkOwner);
+    void ScheduleMerge(NCypressClient::TObjectId chunkOwnerId);
+    void ScheduleMerge(TChunkOwnerBase* trunkChunkOwner);
 
     bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
 
@@ -149,8 +148,6 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    NCellMaster::TBootstrap* const Bootstrap_;
-
     IChunkReplacerCallbacksPtr ChunkReplacerCallbacks_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleExecutor_;
@@ -163,8 +160,7 @@ private:
     bool Enabled_ = false;
 
     // Persistent fields.
-    TTransactionId TransactionId_;
-    TTransactionId PreviousTransactionId_;
+    NTransactionServer::TTransactionRotator TransactionRotator_;
     THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
     i64 ConfigVersion_ = 0;
 
@@ -274,6 +270,9 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    // COMPAT(kvk1920)
+    void OnAfterSnapshotLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMerger)

@@ -512,8 +512,8 @@ private:
 
 TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkMerger)
-    , Bootstrap_(bootstrap)
     , ChunkReplacerCallbacks_(New<TChunkReplacerCallbacks>(Bootstrap_))
+    , TransactionRotator_(bootstrap, "Chunk merger transaction")
 {
     YT_VERIFY(Bootstrap_);
 
@@ -540,22 +540,22 @@ void TChunkMerger::Initialize()
     configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-void TChunkMerger::ScheduleMerge(TObjectId nodeId)
+void TChunkMerger::ScheduleMerge(TObjectId chunkOwnerId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
-    if (auto* trunkNode = FindChunkOwner(nodeId)) {
+    if (auto* trunkNode = FindChunkOwner(chunkOwnerId)) {
         ScheduleMerge(trunkNode);
     }
 }
 
-void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
+void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
-    YT_VERIFY(trunkNode->IsTrunk());
+    YT_VERIFY(trunkChunkOwner->IsTrunk());
 
     const auto& config = GetDynamicConfig();
     if (!config->Enable) {
@@ -563,24 +563,24 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
         return;
     }
 
-    if (!IsObjectAlive(trunkNode)) {
+    if (!IsObjectAlive(trunkChunkOwner)) {
         return;
     }
 
-    if (trunkNode->GetType() != EObjectType::Table) {
+    if (trunkChunkOwner->GetType() != EObjectType::Table) {
         YT_LOG_DEBUG("Chunk merging is supported only for table types (ChunkOwnerId: %v)",
-            trunkNode->GetId());
+            trunkChunkOwner->GetId());
         return;
     }
 
-    auto* table = trunkNode->As<TTableNode>();
+    auto* table = trunkChunkOwner->As<TTableNode>();
     if (table->IsDynamic()) {
         YT_LOG_DEBUG("Chunk merging is not supported for dynamic tables (ChunkOwnerId: %v)",
-            trunkNode->GetId());
+            trunkChunkOwner->GetId());
         return;
     }
 
-    RegisterSession(trunkNode);
+    RegisterSession(trunkChunkOwner);
 }
 
 bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
@@ -797,8 +797,7 @@ void TChunkMerger::Clear()
 
     TMasterAutomatonPart::Clear();
 
-    TransactionId_ = {};
-    PreviousTransactionId_ = {};
+    TransactionRotator_.Clear();
     NodesBeingMerged_.clear();
     ConfigVersion_ = 0;
 }
@@ -819,13 +818,7 @@ bool TChunkMerger::IsMergeTransactionAlive() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!TransactionId_) {
-        return false;
-    }
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto* transaction = transactionManager->FindTransaction(TransactionId_);
-    return IsObjectAlive(transaction);
+    return IsObjectAlive(TransactionRotator_.GetTransaction());
 }
 
 bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
@@ -854,17 +847,10 @@ void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
-    auto transactionId = transaction->GetId();
+    TransactionRotator_.OnTransactionFinished(transaction);
 
-    if (transactionId == PreviousTransactionId_) {
-        PreviousTransactionId_ = {};
-    }
-
-    if (transactionId == TransactionId_) {
-        TransactionId_ = {};
-        if (IsLeader()) {
-            StartMergeTransaction();
-        }
+    if (IsLeader() && !IsObjectAlive(TransactionRotator_.GetTransaction())) {
+        StartMergeTransaction();
     }
 }
 
@@ -1168,7 +1154,7 @@ void TChunkMerger::CreateChunks()
     }
 
     TReqCreateChunks createChunksReq;
-    ToProto(createChunksReq.mutable_transaction_id(), TransactionId_);
+    ToProto(createChunksReq.mutable_transaction_id(), TransactionRotator_.GetTransactionId());
 
     const auto& config = GetDynamicConfig();
     for (auto index = 0; index < config->CreateChunksBatchSize && !JobsAwaitingChunkCreation_.empty(); ++index) {
@@ -1761,32 +1747,11 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
 void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* /*request*/)
 {
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    TransactionRotator_.Rotate();
 
-    if (PreviousTransactionId_) {
-        auto* previousTransaction = transactionManager->FindTransaction(PreviousTransactionId_);
-        if (IsObjectAlive(previousTransaction)) {
-            // It does not matter whether we commit or abort this transaction.
-            // (Except it does because of OnTransactionAborted.)
-            transactionManager->CommitTransaction(previousTransaction, /*options*/ {});
-        }
-    }
-
-    PreviousTransactionId_ = TransactionId_;
-
-    auto* transaction = transactionManager->StartTransaction(
-        /*parent*/ nullptr,
-        /*prerequisiteTransactions*/ {},
-        {},
-        /*timeout*/ std::nullopt,
-        /*deadline*/ std::nullopt,
-        "Chunk merger transaction",
-        EmptyAttributes());
-
-    TransactionId_ = transaction->GetId();
     YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Merge transaction updated (NewTransactionId: %v, PreviousTransactionId: %v)",
-        TransactionId_,
-        PreviousTransactionId_);
+        TransactionRotator_.GetTransactionId(),
+        TransactionRotator_.GetPreviousTransactionId());
 }
 
 void TChunkMerger::Save(NCellMaster::TSaveContext& context) const
@@ -1794,8 +1759,7 @@ void TChunkMerger::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     // Persist transactions so that we can commit them.
-    Save(context, TransactionId_);
-    Save(context, PreviousTransactionId_);
+    Save(context, TransactionRotator_);
     Save(context, NodesBeingMerged_);
     Save(context, ConfigVersion_);
 }
@@ -1804,10 +1768,14 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, TransactionId_);
-    Load(context, PreviousTransactionId_);
+    Load(context, TransactionRotator_);
     Load(context, NodesBeingMerged_);
     Load(context, ConfigVersion_);
+}
+
+void TChunkMerger::OnAfterSnapshotLoaded()
+{
+    TransactionRotator_.OnAfterSnapshotLoaded();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
