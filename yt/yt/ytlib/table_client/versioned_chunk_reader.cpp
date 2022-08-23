@@ -480,12 +480,13 @@ public:
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        if (!BlockReader_) {
-            // Nothing to read from chunk.
-            if (KeyIndex_ == std::ssize(Keys_)) {
-                return nullptr;
-            }
+        // Nothing to read from chunk.
+        if (KeyIndex_ == std::ssize(Keys_)) {
+            return nullptr;
+        }
 
+        // BlockReader_ is not set when there are no blocks.
+        if (!HasMoreBlocks_ || !BlockReader_) {
             while (rows.size() < rows.capacity()) {
                 YT_VERIFY(KeyIndex_ < std::ssize(Keys_));
                 rows.push_back(TVersionedRow());
@@ -495,12 +496,6 @@ public:
             PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
             PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-            return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
-        }
-
-        if (BlockEnded_) {
-            BlockReader_.reset();
-            OnBlockEnded();
             return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
 
@@ -515,7 +510,7 @@ public:
             } else {
                 const auto& key = Keys_[KeyIndex_];
                 if (!BlockReader_->SkipToKey(key)) {
-                    BlockEnded_ = true;
+                    HasMoreBlocks_ = OnBlockEnded();
                     break;
                 }
 
@@ -546,10 +541,6 @@ public:
             }
         }
 
-        if (KeyIndex_ == std::ssize(Keys_)) {
-            BlockEnded_ = true;
-        }
-
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
         PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
@@ -569,6 +560,7 @@ private:
 
     int NextBlockIndex_ = 0;
     i64 KeyIndex_ = 0;
+    bool HasMoreBlocks_ = true;
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
