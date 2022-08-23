@@ -11,7 +11,7 @@ struct IBundleController
 {
     virtual void Start() = 0;
 
-    // TODO(capone212): CreateOrchidService
+    virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBundleController)

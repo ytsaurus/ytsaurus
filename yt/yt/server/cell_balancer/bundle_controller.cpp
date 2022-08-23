@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "cypress_bindings.h"
+#include "orchid_bindings.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -31,6 +32,7 @@ static const TYPath TabletCellBundlesDynamicConfigPath("//sys/tablet_cell_bundle
 static const TYPath TabletNodesPath("//sys/tablet_nodes");
 static const TYPath TabletCellsPath("//sys/tablet_cells");
 static const TYPath RpcProxiesPath("//sys/rpc_proxies");
+static const TYPath BundleSystemQuotasPath("//sys/account_tree/bundle_system_quotas");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +67,7 @@ public:
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ProxyAllocationRequestAge_(Profiler.TimeGauge("/proxy_allocation_request_age"))
         , ProxyDeallocationRequestAge_(Profiler.TimeGauge("/proxy_deallocation_request_age"))
+        , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
     { }
 
     void Start() override
@@ -119,6 +122,9 @@ private:
     TCounter ChangedProxyAnnotationCounter_;
     TTimeGauge ProxyAllocationRequestAge_;
     TTimeGauge ProxyDeallocationRequestAge_;
+    TCounter ChangedSystemAccountLimitCounter_;
+
+    mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
 
     void ScanBundles() const
     {
@@ -131,6 +137,7 @@ private:
 
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
+                LinkOrchidService();
                 DoScanBundles();
                 SuccessfulScanBundleCounter_.Increment();
             }
@@ -138,6 +145,48 @@ private:
             YT_LOG_ERROR(ex, "Scanning bundles failed");
             FailedScanBundleCounter_.Increment();
         }
+    }
+
+    void LinkOrchidService() const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        static const TYPath LeaderOrchidServicePath = "//sys/bundle_controller/orchid";
+        static const TString AttributeRemoteAddress = "remote_addresses";
+
+        auto addresses = Bootstrap_->GetLocalAddresses();
+
+        auto client = Bootstrap_->GetClient();
+        auto exists = WaitFor(client->NodeExists(LeaderOrchidServicePath))
+            .ValueOrThrow();
+
+        if (!exists) {
+            YT_LOG_INFO("Creating bundle controller orchid node");
+
+            TCreateNodeOptions createOptions;
+            createOptions.IgnoreExisting = true;
+            createOptions.Recursive = true;
+            createOptions.Attributes = CreateEphemeralAttributes();
+            createOptions.Attributes->Set(AttributeRemoteAddress, ConvertToYsonString(addresses));
+
+            WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
+                .ThrowOnError();
+        }
+
+        auto remoteAddressPath = Format("%v&/@%v", LeaderOrchidServicePath, AttributeRemoteAddress);
+        auto currentRemoteAddress = WaitFor(client->GetNode(remoteAddressPath))
+            .ValueOrThrow();
+
+        if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(currentRemoteAddress), ConvertTo<NYTree::IMapNodePtr>(addresses))) {
+            return;
+        }
+
+        YT_LOG_INFO("Setting new remote address for orchid node (OldValue: %Qv, NewValue: %Qv)",
+            ConvertToYsonString(currentRemoteAddress, EYsonFormat::Text),
+            ConvertToYsonString(addresses, EYsonFormat::Text));
+
+        WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses)))
+            .ThrowOnError();
     }
 
     static std::vector<TString> GetAliveAllocationsId(const TSchedulerInputState& inputState)
@@ -179,18 +228,21 @@ private:
         auto transaction = CreateTransaction();
         auto inputState = GetInputState(transaction);
         TSchedulerMutations mutations;
-
         ScheduleBundles(inputState, &mutations);
         Mutate(transaction, mutations);
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
+
+        // Update input state for serving orchid requests.
+        OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState);
     }
 
     inline static const TString  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
     inline static const TString  NodeAttributeUserTags = "user_tags";
     inline static const TString  NodeAttributeDecommissioned = "decommissioned";
     inline static const TString  ProxyAttributeRole = "role";
+    inline static const TString  AccountAttributeResourceLimits = "resource_limits";
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
@@ -206,6 +258,9 @@ private:
 
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
         SetProxyAttributes(transaction, ProxyAttributeRole, mutations.ChangedProxyRole);
+
+        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.ChangedSystemAccountLimit);
+        SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit);
 
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
@@ -228,6 +283,7 @@ private:
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
+        ChangedSystemAccountLimitCounter_.Increment(mutations.ChangedSystemAccountLimit.size());
 
         int nodeAllocationCount = 0;
         int nodeDeallocationCount = 0;
@@ -300,6 +356,9 @@ private:
         inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath);
         inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath);
         inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
+        inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
+        inputState.RootSystemAccount = GetRootSystemAccount(transaction);
+        inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
 
         inputState.AllocationRequests = LoadHulkRequests<TAllocationRequest>(
             transaction,
@@ -315,7 +374,7 @@ private:
 
         YT_LOG_DEBUG("Bundle Controller input state loaded "
             "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount %v, TabletCellCount: %v, "
-            "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v)",
+            "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
             inputState.Zones.size(),
             inputState.Bundles.size(),
             inputState.BundleStates.size(),
@@ -323,7 +382,8 @@ private:
             inputState.TabletCells.size(),
             inputState.AllocationRequests.size(),
             inputState.DeallocationRequests.size(),
-            inputState.RpcProxies.size());
+            inputState.RpcProxies.size(),
+            inputState.SystemAccounts.size());
 
         return inputState;
     }
@@ -502,6 +562,26 @@ private:
         return {};
     }
 
+    static TSystemAccountPtr GetRootSystemAccount(const ITransactionPtr& transaction)
+    {
+        auto path = Format("%v/@", BundleSystemQuotasPath);
+        auto yson = WaitFor(transaction->GetNode(path))
+            .ValueOrThrow();
+        return ConvertTo<TSystemAccountPtr>(yson);
+    }
+
+    static void SetRootSystemAccountLimits(const ITransactionPtr& transaction, const TAccountResourcesPtr& limits)
+    {
+        if (!limits) {
+            return;
+        }
+
+        auto path = Format("%v/@%v", BundleSystemQuotasPath, AccountAttributeResourceLimits);
+        TSetNodeOptions setOptions;
+        WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions))
+            .ThrowOnError();
+    }
+
     static void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<TString, int>& cellsToCreate)
     {
         for (const auto& [bundleName, cellCount] : cellsToCreate) {
@@ -567,6 +647,30 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Format("%v/bundles_state", Config_->RootPath);
+    }
+
+    NYTree::IYPathServicePtr CreateOrchidService() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TBundleController::BuildOrchid, MakeStrong(this)))
+            ->Via(Bootstrap_->GetControlInvoker());
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer)
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("service").BeginMap()
+                    .Item("leader").Value(IsLeader())
+                .EndMap()
+                .Item("config").Value(Config_)
+                .Item("state").BeginMap()
+                    .Item("bundles").Value(OrchidBundlesInfo_)
+                .EndMap()
+            .EndMap();
     }
 };
 

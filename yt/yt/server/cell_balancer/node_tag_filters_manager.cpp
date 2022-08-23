@@ -7,15 +7,6 @@ namespace NYT::NCellBalancer {
 
 static const auto& Logger = BundleControllerLogger;
 
-///////////////////////////////////////////////////////////////
-
-struct TSpareNodesInfo
-{
-    std::vector<TString> FreeNodes;
-    THashMap<TString, std::vector<TString>> UsedByBundle;
-    THashMap<TString, std::vector<TString>> DecommissionedByBundle;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TString> GetBundlesByTag(
@@ -218,7 +209,8 @@ void SetNodeTagFilter(
 
     int slotsBallance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;
 
-    YT_LOG_DEBUG("Checking tablet cell slots for bundle (Bundle: %v, SlotsBallance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
+    YT_LOG_DEBUG("Checking tablet cell slots for bundle "
+        "(Bundle: %v, SlotsBallance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
         bundleName,
         slotsBallance,
         usedSpareSlotCount,
@@ -274,10 +266,8 @@ void CleanupSpareNodes(
 
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
-    THashMap<TString, TSpareNodesInfo> zoneToSpareNodes;
-
     for (const auto& [zoneName, _] : input.Zones) {
-        zoneToSpareNodes[zoneName] = GetSpareNodesInfo(zoneName, input, mutations);
+        input.ZoneToSpareNodes[zoneName] = GetSpareNodesInfo(zoneName, input, mutations);
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -285,12 +275,12 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
             continue;
         }
 
-        auto& spareNodes = zoneToSpareNodes[bundleInfo->Zone];
+        auto& spareNodes = input.ZoneToSpareNodes[bundleInfo->Zone];
         const auto& bundleNodes = input.BundleNodes[bundleName];
         SetNodeTagFilter(bundleName, bundleNodes, input, spareNodes, mutations);
     }
 
-    for (const auto& [_, spareNodes] : zoneToSpareNodes) {
+    for (const auto& [_, spareNodes] : input.ZoneToSpareNodes) {
         CleanupSpareNodes(input, spareNodes, mutations);
     }
 }

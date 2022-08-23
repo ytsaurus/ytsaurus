@@ -1,0 +1,55 @@
+#pragma once
+
+#include "bundle_scheduler.h"
+
+namespace NYT::NCellBalancer::Orchid {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TInstanceInfo)
+DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInstanceInfo
+    : public NYTree::TYsonStruct
+{
+    TInstanceResourcesPtr Resource;
+
+    REGISTER_YSON_STRUCT(TInstanceInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInstanceInfo);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleInfo
+    : public NYTree::TYsonStruct
+{
+    TInstanceResourcesPtr ResourceQuota;
+    TInstanceResourcesPtr ResourceAllocated;
+
+    THashMap<TString, TInstanceInfoPtr> AllocatedTabletNodes;
+    THashMap<TString, TInstanceInfoPtr> AllocatedRpcProxies;
+    
+    THashMap<TString, TInstanceInfoPtr> AssignedSpareTabletNodes;
+    THashMap<TString, TInstanceInfoPtr> AssignedSpareRpcProxies;
+
+    REGISTER_YSON_STRUCT(TBundleInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleInfo);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
+
+TBundlesInfo GetBundlesInfo(const TSchedulerInputState& schedulerState);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellBalancer::Orchid

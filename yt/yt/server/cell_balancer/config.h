@@ -63,6 +63,14 @@ public:
     NYPath::TYPath HulkDeallocationsPath;
     NYPath::TYPath HulkDeallocationsHistoryPath;
 
+    double QuotaMultiplier;
+    int NodeCountPerCell;
+    int ChunkCountPerCell;
+    i64 JournalDiskSpacePerCell;
+    i64 SnapshotDiskSpacePerCell;
+    int MinNodeCount;
+    int MinChunkCount;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);

@@ -8,6 +8,25 @@ namespace NYT::NCellBalancer {
 
 using TBundlesDynamicConfig = THashMap<TString, TBundleDynamicConfigPtr>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpareNodesInfo
+{
+    std::vector<TString> FreeNodes;
+    THashMap<TString, std::vector<TString>> UsedByBundle;
+    THashMap<TString, std::vector<TString>> DecommissionedByBundle;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpareProxiesInfo
+{
+    std::vector<TString> FreeProxies;
+    THashMap<TString, std::vector<TString>> UsedByBundle;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
@@ -22,6 +41,9 @@ struct TSchedulerInputState
     TIndexedEntries<TAllocationRequest> AllocationRequests;
     TIndexedEntries<TDeallocationRequest> DeallocationRequests;
 
+    TIndexedEntries<TSystemAccount> SystemAccounts;
+    TSystemAccountPtr RootSystemAccount;
+
     using TBundleToInstanceMapping = THashMap<TString, std::vector<TString>>;
     TBundleToInstanceMapping BundleNodes;
     TBundleToInstanceMapping BundleProxies;
@@ -33,6 +55,9 @@ struct TSchedulerInputState
     TZoneToInstanceMap ZoneProxies;
 
     TBundlesDynamicConfig DynamicConfig;
+
+    THashMap<TString, TSpareNodesInfo> ZoneToSpareNodes;
+    THashMap<TString, TSpareProxiesInfo> ZoneToSpareProxies;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +91,9 @@ struct TSchedulerMutations
     THashMap<TString, int> CellsToCreate;
 
     std::vector<TAlert> AlertsToFire;
+
+    THashMap<TString, TAccountResourcesPtr> ChangedSystemAccountLimit;
+    TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
 };

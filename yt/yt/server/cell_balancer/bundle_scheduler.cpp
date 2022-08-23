@@ -764,6 +764,144 @@ void CreateRemoveTabletCells(
     }
 }
 
+struct TQuotaDiff
+{
+    i64 ChunkCount = 0;
+    THashMap<TString, i64> DiskSpacePerMedium;
+    i64 NodeCount = 0;
+
+    bool Empty() const
+    {
+        return ChunkCount == 0 &&
+            NodeCount == 0 &&
+            std::all_of(DiskSpacePerMedium.begin(), DiskSpacePerMedium.end(), [] (const auto& pair) {
+                return pair.second == 0;
+            });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TQuotaChanges = THashMap<TString, TQuotaDiff>;
+
+void AddQuotaChanges(
+    const TString& bundleName,
+    const TBundleSystemOptionsPtr& bundleOptions,
+    const TSchedulerInputState& input,
+    int cellCount,
+    TQuotaChanges& changes)
+{
+    if (bundleOptions->SnapshotAccount != bundleOptions->ChangelogAccount) {
+        YT_LOG_DEBUG("Skip adjusting quota for bundle with different "
+            "snapshot and changelog accounts (BundleName: %v, SnapshotAccount: %v, ChangelogAccount: %v)",
+            bundleName,
+            bundleOptions->SnapshotAccount,
+            bundleOptions->ChangelogAccount);
+        return;
+    }
+
+    const auto accountName = bundleOptions->SnapshotAccount;
+    auto accountIt = input.SystemAccounts.find(accountName);
+    if (accountIt == input.SystemAccounts.end()) {
+        YT_LOG_DEBUG("Skip adjusting quota for bundle with custom account"
+            " (BundleName: %v, SnapshotAccount: %v, ChangelogAccount: %v)",
+            bundleName,
+            bundleOptions->SnapshotAccount,
+            bundleOptions->ChangelogAccount);
+        return;
+    }
+
+    const auto& currentLimit = accountIt->second->ResourceLimits;
+    const auto& config = input.Config;
+
+    cellCount = std::max(cellCount, 1);
+    auto multiplier = config->QuotaMultiplier * cellCount;
+
+    TQuotaDiff quotaDiff;
+
+    quotaDiff.ChunkCount = std::max<i64>(config->ChunkCountPerCell * multiplier, config->MinChunkCount) - currentLimit->ChunkCount;
+    quotaDiff.NodeCount = std::max<i64>(config->NodeCountPerCell * multiplier, config->MinNodeCount) - currentLimit->NodeCount;
+
+    auto getSpace = [&] (const TString& medium) -> i64 {
+        auto it = currentLimit->DiskSpacePerMedium.find(medium);
+        if (it == currentLimit->DiskSpacePerMedium.end()) {
+            return 0;
+        }
+        return it->second;
+    };
+
+    i64 snapshotSpace = config->SnapshotDiskSpacePerCell * multiplier;
+    i64 changelogSpace = config->JournalDiskSpacePerCell * multiplier;
+
+    if (bundleOptions->ChangelogPrimaryMedium == bundleOptions->SnapshotPrimaryMedium) {
+        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] = 
+            snapshotSpace + changelogSpace - getSpace(bundleOptions->ChangelogPrimaryMedium);
+    } else {
+        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] = 
+            changelogSpace - getSpace(bundleOptions->ChangelogPrimaryMedium);
+        quotaDiff.DiskSpacePerMedium[bundleOptions->SnapshotPrimaryMedium] = 
+            snapshotSpace - getSpace(bundleOptions->SnapshotPrimaryMedium);
+    }
+
+    if (!quotaDiff.Empty()) {
+        changes[accountName] = quotaDiff;
+    }
+}
+
+void ApplyQuotaChange(const TQuotaDiff& change, const TAccountResourcesPtr& limits)
+{
+    limits->ChunkCount += change.ChunkCount;
+    limits->NodeCount += change.NodeCount;
+
+    for (const auto& [medium, spaceDiff] : change.DiskSpacePerMedium) {
+        limits->DiskSpacePerMedium[medium] += spaceDiff;
+    }
+}
+
+void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    TQuotaChanges quotaChanges;
+
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController ||
+            !bundleInfo->EnableTabletCellManagement ||
+            !bundleInfo->EnableSystemAccountManagement)
+        {
+            continue;
+        }
+
+        int cellCount = std::max<int>(GetTargetCellCount(bundleInfo), std::ssize(bundleInfo->TabletCellIds));
+        AddQuotaChanges(bundleName, bundleInfo->Options, input, cellCount, quotaChanges);
+    }
+
+    if (quotaChanges.empty()) {
+        return;
+    }
+
+    auto rootQuota = CloneYsonSerializable(input.RootSystemAccount->ResourceLimits);
+
+    for (const auto& [accountName, quotaChange] : quotaChanges) {
+        const auto& accountInfo = GetOrCrash(input.SystemAccounts, accountName);
+        auto newQuota = CloneYsonSerializable(accountInfo->ResourceLimits);
+        ApplyQuotaChange(quotaChange, newQuota);
+        ApplyQuotaChange(quotaChange, rootQuota);
+
+        mutations->ChangedSystemAccountLimit[accountName] = newQuota;
+
+        YT_LOG_INFO("Adjusting system account resource limits (AccountName: %v, NewResourceLimit: %Qv, OldResourceLimit: %Qv)",
+            accountName,
+            ConvertToYsonString(newQuota, EYsonFormat::Text),
+            ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
+    }
+
+    mutations->ChangedRootSystemAccountLimit = rootQuota;
+    YT_LOG_INFO("Adjusting root system account resource limits(NewResourceLimit: %Qv, OldResourceLimit: %Qv)",
+        ConvertToYsonString(rootQuota, EYsonFormat::Text),
+        ConvertToYsonString(input.RootSystemAccount->ResourceLimits, EYsonFormat::Text));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString GetSpareBundleName(const TString& /*zoneName*/)
 {
     // TODO(capone212): consider adding zone name.
@@ -838,7 +976,6 @@ THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputStat
     return result;
 }
 
-
 TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     const TString& bundleName,
     const TAllocationRequestPtr& allocationInfo,
@@ -852,6 +989,7 @@ TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
     result->Allocated = true;
+    *result->Resource = *allocationInfo->Spec->ResourceRequest;
     return result;
 }
 
@@ -1358,6 +1496,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageBundlesDynamicConfig(input, mutations);
     ManageInstancies(input, mutations);
     ManageCells(input, mutations);
+    ManageSystemAccountLimit(input, mutations);
     ManageNodeTagFilters(input, mutations);
     ManageRpcProxyRoles(input, mutations);
 }

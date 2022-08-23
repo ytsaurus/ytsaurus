@@ -29,7 +29,7 @@ void TMemoryLimits::Register(TRegistrar registrar)
 
 void TInstanceResources::Register(TRegistrar registrar)
 {
-    registrar.Parameter("vcpu", &TThis::VCpu)
+    registrar.Parameter("vcpu", &TThis::Vcpu)
         .GreaterThan(0)
         .Default(18000);
     registrar.Parameter("memory", &TThis::Memory)
@@ -39,7 +39,7 @@ void TInstanceResources::Register(TRegistrar registrar)
 
 void THulkInstanceResources::Register(TRegistrar registrar)
 {
-    registrar.Parameter("vcpu", &TThis::VCpu)
+    registrar.Parameter("vcpu", &TThis::Vcpu)
         .Default();
     registrar.Parameter("memory_mb", &TThis::MemoryMb)
         .Default();
@@ -47,8 +47,16 @@ void THulkInstanceResources::Register(TRegistrar registrar)
 
 THulkInstanceResources& THulkInstanceResources::operator=(const TInstanceResources& resources)
 {
-    VCpu = resources.VCpu;
+    Vcpu = resources.Vcpu;
     MemoryMb = resources.Memory / 1_MB;
+
+    return *this;
+}
+
+TInstanceResources& TInstanceResources::operator=(const THulkInstanceResources& resources)
+{
+    Vcpu = resources.Vcpu;
+    Memory = resources.MemoryMb * 1_MB;
 
     return *this;
 }
@@ -118,12 +126,16 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "enable_rpc_proxy_management", &TThis::EnableRpcProxyManagement)
         .Default(false);
+    RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
+        .Default(false);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "tablet_cell_ids", &TThis::TabletCellIds)
         .Default();
+    RegisterAttribute(registrar, "options", &TThis::Options)
+        .DefaultNew();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)
@@ -245,14 +257,16 @@ void TRemovingTabletCellInfo::Register(TRegistrar registrar)
 
 void TInstanceAnnotations::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "yp_cluster", &TThis::YPCluster)
+    registrar.Parameter("yp_cluster", &TThis::YPCluster)
         .Default();
-    RegisterAttribute(registrar, "nanny_service", &TThis::NannyService)
+    registrar.Parameter("nanny_service", &TThis::NannyService)
         .Default();
-    RegisterAttribute(registrar, "allocated_for_bundle", &TThis::AllocatedForBundle)
+    registrar.Parameter("allocated_for_bundle", &TThis::AllocatedForBundle)
         .Default();
-    RegisterAttribute(registrar, "allocated", &TThis::Allocated)
+    registrar.Parameter("allocated", &TThis::Allocated)
         .Default(false);
+    registrar.Parameter("resources", &TThis::Resource)
+        .DefaultNew();
 }
 
 void TTabletSlot::Register(TRegistrar registrar)
@@ -312,6 +326,42 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("alive", &TThis::Alive)
+        .Default();
+}
+
+void TAccountResources::Register(TRegistrar registrar)
+{
+    registrar.Parameter("chunk_count", &TThis::ChunkCount)
+        .Default();
+
+    registrar.Parameter("disk_space_per_medium", &TThis::DiskSpacePerMedium)
+        .Default();
+
+    registrar.Parameter("node_count", &TThis::NodeCount)
+        .Default();
+}
+
+void TSystemAccount::Register(TRegistrar registrar)
+{
+    RegisterAttribute(registrar, "resource_limits", &TThis::ResourceLimits)
+        .DefaultNew();
+
+    RegisterAttribute(registrar, "resource_usage", &TThis::ResourceUsage)
+        .DefaultNew();
+}
+
+void TBundleSystemOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("changelog_account", &TThis::ChangelogAccount)
+        .Default();
+
+    registrar.Parameter("changelog_primary_medium", &TThis::ChangelogPrimaryMedium)
+        .Default();
+
+    registrar.Parameter("snapshot_account", &TThis::SnapshotAccount)
+        .Default();
+
+    registrar.Parameter("snapshot_primary_medium", &TThis::SnapshotPrimaryMedium)
         .Default();
 }
 
