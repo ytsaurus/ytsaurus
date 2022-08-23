@@ -140,9 +140,7 @@ TJob::TJob(
     , JobTestingOptions_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_testing_options()
         ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(SchedulerJobSpecExt_->testing_options()))
         : New<TJobTestingOptions>())
-    , Interruptible_(SchedulerJobSpecExt_->has_interruptible()
-        ? std::make_optional<bool>(SchedulerJobSpecExt_->interruptible())
-        : std::nullopt)
+    , Interruptible_(SchedulerJobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
     , Logger(ExecNodeLogger.WithTag("JobId: %v, OperationId: %v, JobType: %v",
         Id_,
@@ -1042,10 +1040,7 @@ void TJob::GuardedInterrupt(TDuration timeout, const std::optional<TString>& pre
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    // COMPAT(pogorelov): IsInterruptible returns nullopt in case when node is newer than scheduler and CA.
-    // That meens that this check is performed by scheduler.
-    bool shouldAbort = IsInterruptible().has_value() && !*IsInterruptible();
-    if (shouldAbort) {
+    if (!IsInterruptible()) {
         auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Abort uninterruptible job")
             << TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
 
@@ -1141,7 +1136,7 @@ bool TJob::IsJobProxyCompleted() const noexcept
     return JobProxyCompleted_;
 }
 
-std::optional<bool> TJob::IsInterruptible() const noexcept
+bool TJob::IsInterruptible() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

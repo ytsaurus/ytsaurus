@@ -189,7 +189,7 @@ public:
 
     bool IsJobProxyCompleted() const noexcept;
 
-    std::optional<bool> IsInterruptible() const noexcept;
+    bool IsInterruptible() const noexcept;
 
     void OnJobInterruptionTimeout();
 
@@ -222,7 +222,7 @@ private:
     const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
     const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
 
-    const std::optional<bool> Interruptible_;
+    const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
 
     const NLogging::TLogger Logger;

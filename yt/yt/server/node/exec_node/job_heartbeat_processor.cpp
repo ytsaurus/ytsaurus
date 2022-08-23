@@ -46,29 +46,11 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
         if (auto job = JobController_->FindJob(jobId)) {
             auto& schedulerJob = static_cast<TJob&>(*job);
 
-            YT_VERIFY(schedulerJob.IsInterruptible().has_value());
-
             std::optional<TString> preemptionReason;
             if (jobToInterrupt.has_preemption_reason()) {
                 preemptionReason = jobToInterrupt.preemption_reason();
             }
             schedulerJob.Interrupt(timeout, preemptionReason);
-        } else {
-            YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
-                jobId);
-        }
-    }
-
-    // COMPAT(pogorelov)
-    for (const auto& protoJobId : response->old_jobs_to_interrupt()) {
-        auto jobId = FromProto<TJobId>(protoJobId);
-
-        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-        if (auto job = JobController_->FindJob(jobId)) {
-            auto& schedulerJob = static_cast<TJob&>(*job);
-
-            schedulerJob.Interrupt(/*timeout*/ {}, /*preemptionReason*/ {});
         } else {
             YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                 jobId);

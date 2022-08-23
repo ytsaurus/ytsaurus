@@ -164,9 +164,7 @@ private:
 
         auto& schedulerJob = static_cast<TJob&>(*job);
 
-        // COMPAT(pogorelov)
-        bool interruptible = schedulerJob.IsInterruptible().value_or(true);
-        if (!interruptible) {
+        if (!schedulerJob.IsInterruptible()) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
                 "because it does not support interruption or \"interruption_signal\" is not set",
                 jobId,

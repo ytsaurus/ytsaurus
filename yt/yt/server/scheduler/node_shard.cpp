@@ -509,7 +509,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
     auto node = GetOrRegisterNode(nodeId, descriptor, ENodeState::Online);
-    node->SetSupportsInterruptionLogic(request->supports_interruption_logic());
 
     if (request->has_job_reporter_queue_is_too_large()) {
         auto oldValue = node->GetJobReporterQueueIsTooLarge();
@@ -1128,13 +1127,6 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
         ToProto(req->mutable_job_id(), jobId);
 
         req->set_timeout(ToProto<i64>(*interruptTimeout));
-        if (!job->GetNode()->GetSupportsInterruptionLogic().value_or(false)) {
-            if (!job->GetInterruptible()) {
-                THROW_ERROR_EXCEPTION("Cannot interrupt job %v "
-                    "because such job does not support interruption or \"interruption_signal\" is not set",
-                    jobId);
-            }
-        }
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job %v",
@@ -1510,20 +1502,6 @@ bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId)
 
     const auto& operationState = GetOperationState(operationId);
     return operationState.ForbidNewJobs;
-}
-
-std::vector<TString> TNodeShard::GetNodeAddressesWithUnsupportedInterruption() const
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    std::vector<TString> result;
-    for (const auto& [_, node] : IdToNode_) {
-        if (!node->GetSupportsInterruptionLogic().value_or(true)) {
-            result.push_back(node->GetDefaultAddress());
-        }
-    }
-
-    return result;
 }
 
 int TNodeShard::GetOnGoingHeartbeatsCount() const noexcept
@@ -2182,12 +2160,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     YT_ABORT();
             }
 
-            if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
-                // COMPAT(pogorelov)
-                YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
-                    CpuInstantToInstant(job->GetInterruptDeadline()));
-                AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
-            } else if (job->GetFailRequested()) {
+            if (job->GetFailRequested()) {
                 if (allocationState == EAllocationState::Running) {
                     YT_LOG_DEBUG("Job fail requested");
                     ToProto(response->add_jobs_to_fail(), jobId);
@@ -2196,8 +2169,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 SendPreemptedJobToNode(
                     response,
                     job,
-                    CpuDurationToDuration(job->GetInterruptionTimeout()),
-                    /*isJobInterruptible*/ true);
+                    CpuDurationToDuration(job->GetInterruptionTimeout()));
             }
 
             break;
@@ -2689,50 +2661,20 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
 void TNodeShard::SendPreemptedJobToNode(
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     const TJobPtr& job,
-    TDuration interruptTimeout,
-    bool isJobInterruptible) const
+    TDuration interruptTimeout) const
 {
-    auto nodeSupportsInterruptionLogic = job->GetNode()->GetSupportsInterruptionLogic();
-    YT_VERIFY(nodeSupportsInterruptionLogic);
-    if (Config_->HandleInterruptionAtNode && *nodeSupportsInterruptionLogic) {
-        YT_LOG_DEBUG(
-            "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
-            job->GetId(),
-            job->GetInterruptReason());
-        AddJobToInterrupt(response, job->GetId(), interruptTimeout, job->GetPreemptionReason());
-    } else {
-        if (isJobInterruptible) {
-            YT_LOG_DEBUG(
-                "Add job to interrupt using old format (JobId: %v, InterruptionReason: %v, ConfigEnabled: %v, NodeSupportsInterruptionLogic: %v)",
-                job->GetId(),
-                job->GetInterruptReason(),
-                Config_->HandleInterruptionAtNode,
-                job->GetNode()->GetSupportsInterruptionLogic());
-            ToProto(response->add_old_jobs_to_interrupt(), job->GetId());
-        } else {
-            YT_LOG_DEBUG(
-                "Add job to abort (JobId: %v, InterruptionReason: %v, ConfigEnabled: %v, NodeSupportsInterruptionLogic: %v)",
-                job->GetId(),
-                job->GetInterruptReason(),
-                Config_->HandleInterruptionAtNode,
-                job->GetNode()->GetSupportsInterruptionLogic());
-            AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
-        }
-    }
+    YT_LOG_DEBUG(
+        "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
+        job->GetId(),
+        job->GetInterruptReason());
+    AddJobToInterrupt(response, job->GetId(), interruptTimeout, job->GetPreemptionReason());
 }
 
 void TNodeShard::ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
 {
-    // COMPAT(pogorelov)
-    if (job->GetInterruptible() && interruptTimeout != TDuration::Zero()) {
-        if (!job->GetPreempted()) {
-            PreemptJob(job, DurationToCpuDuration(interruptTimeout));
-            SendPreemptedJobToNode(response, job, interruptTimeout, /*isJobInterruptible*/ true);
-        }
-        // Else do nothing: job was already interrupted, but deadline not reached yet.
-    } else {
-        PreemptJob(job, TCpuDuration{});
-        SendPreemptedJobToNode(response, job, interruptTimeout, /*isJobInterruptible*/ false);
+    if (!job->GetPreempted()) {
+        PreemptJob(job, DurationToCpuDuration(interruptTimeout));
+        SendPreemptedJobToNode(response, job, interruptTimeout);
     }
 }
 
@@ -2784,10 +2726,7 @@ void TNodeShard::DoInterruptJob(
     }
 
     if (interruptTimeout != 0) {
-        auto interruptDeadline = GetCpuInstant() + interruptTimeout;
-        if (job->GetInterruptDeadline() == 0) {
-            YT_VERIFY(job->GetInterruptionTimeout() == 0);
-            job->SetInterruptDeadline(interruptDeadline);
+        if (job->GetInterruptionTimeout() == 0) {
             job->SetInterruptionTimeout(interruptTimeout);
         } else {
             YT_LOG_DEBUG("Job is already interrupting (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v)",

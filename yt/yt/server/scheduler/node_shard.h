@@ -175,8 +175,6 @@ public:
     bool IsOperationRegistered(TOperationId operationId) const noexcept;
     bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
 
-    std::vector<TString> GetNodeAddressesWithUnsupportedInterruption() const;
-
     int GetOnGoingHeartbeatsCount() const noexcept;
 
 private:
@@ -385,8 +383,7 @@ private:
     void SendPreemptedJobToNode(
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         const TJobPtr& job,
-        TDuration interruptTimeout,
-        bool isJobInterruptible) const;
+        TDuration interruptTimeout) const;
 
     void DoInterruptJob(
         const TJobPtr& job,
