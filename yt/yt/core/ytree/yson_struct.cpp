@@ -92,6 +92,7 @@ void TYsonStructBase::Postprocess(const TYPath& path)
 
 void TYsonStructBase::SetDefaults()
 {
+    YT_VERIFY(Meta_);
     Meta_->SetDefaultsOfInitializedStruct(this);
 }
 
@@ -123,17 +124,6 @@ std::vector<TString> TYsonStructBase::GetAllParameterAliases(const TString& key)
     return result;
 }
 
-TYsonStructBase::TForbidCachedDynamicCastGuard::TForbidCachedDynamicCastGuard(TYsonStructBase* target)
-    : Target_(target)
-{
-    Target_->CachedDynamicCastAllowed_ = false;
-};
-
-TYsonStructBase::TForbidCachedDynamicCastGuard::~TForbidCachedDynamicCastGuard()
-{
-    Target_->CachedDynamicCastAllowed_ = true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TYsonStruct::InitializeRefCounted()
@@ -153,6 +143,17 @@ TYsonStructRegistry* TYsonStructRegistry::Get()
 bool TYsonStructRegistry::InitializationInProgress()
 {
     return CurrentlyInitializingMeta_ != nullptr;
+}
+
+TYsonStructRegistry::TForbidCachedDynamicCastGuard::TForbidCachedDynamicCastGuard(TYsonStructBase* target)
+    : Target_(target)
+{
+    Target_->CachedDynamicCastAllowed_ = false;
+};
+
+TYsonStructRegistry::TForbidCachedDynamicCastGuard::~TForbidCachedDynamicCastGuard()
+{
+    Target_->CachedDynamicCastAllowed_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
