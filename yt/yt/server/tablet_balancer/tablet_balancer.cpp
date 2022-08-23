@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
@@ -21,6 +23,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTracing;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
@@ -68,6 +71,7 @@ private:
     i64 IterationIndex_;
 
     void BalancerIteration();
+    void TryBalancerIteration();
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundle) const;
 
@@ -90,7 +94,7 @@ TTabletBalancer::TTabletBalancer(
     , ControlInvoker_(std::move(controlInvoker))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
-        BIND(&TTabletBalancer::BalancerIteration, MakeWeak(this)),
+        BIND(&TTabletBalancer::TryBalancerIteration, MakeWeak(this)),
         Config_->Period))
     , WorkerPool_(New<TThreadPool>(
         Config_->WorkerThreadPoolSize,
@@ -178,6 +182,17 @@ void TTabletBalancer::BalancerIteration()
     }
 
     ++IterationIndex_;
+}
+
+void TTabletBalancer::TryBalancerIteration()
+{
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TabletBalancer"));
+    try {
+        // TODO(alexelex): Add profile timing here.
+        BalancerIteration();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Balancer iteration failed");
+    }
 }
 
 bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundle) const
