@@ -88,17 +88,6 @@ public:
 
     std::vector<TString> GetAllParameterAliases(const TString& key) const;
 
-protected:
-    class TForbidCachedDynamicCastGuard
-    {
-    public:
-        explicit TForbidCachedDynamicCastGuard(TYsonStructBase* target);
-        ~TForbidCachedDynamicCastGuard();
-
-    private:
-        TYsonStructBase* const Target_;
-    };
-
 private:
     template <class TValue>
     friend class TYsonStructParameter;
@@ -144,7 +133,7 @@ public:
     static bool InitializationInProgress();
 
     template <class TStruct>
-    void Initialize(TStruct* target);
+    void InitializeStruct(TStruct* target);
 
 private:
     static inline thread_local IYsonStructMeta* CurrentlyInitializingMeta_ = nullptr;
@@ -167,6 +156,16 @@ private:
      */
     template <class TTargetStruct>
     TTargetStruct* CachedDynamicCast(const TYsonStructBase* source);
+
+    class TForbidCachedDynamicCastGuard
+    {
+    public:
+        explicit TForbidCachedDynamicCastGuard(TYsonStructBase* target);
+        ~TForbidCachedDynamicCastGuard();
+
+    private:
+        TYsonStructBase* const Target_;
+    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,8 +243,7 @@ bool ReconfigureYsonStruct(
 #define REGISTER_YSON_STRUCT_IMPL(TStruct) \
     TStruct() \
     { \
-        TForbidCachedDynamicCastGuard guard(this); \
-        ::NYT::NYTree::TYsonStructRegistry::Get()->Initialize(this); \
+        ::NYT::NYTree::TYsonStructRegistry::Get()->InitializeStruct(this); \
     } \
  \
 private: \

@@ -56,8 +56,10 @@ const std::type_info& CallCtor()
 // When it is first called for a particular struct it will initialize TYsonStructMeta for that struct.
 // Also this method initializes defaults for the struct.
 template <class TStruct>
-void TYsonStructRegistry::Initialize(TStruct* target)
+void TYsonStructRegistry::InitializeStruct(TStruct* target)
 {
+    TForbidCachedDynamicCastGuard guard(target);
+
     // It takes place only inside special constructor call inside lambda below.
     if (CurrentlyInitializingMeta_) {
         // TODO(renadeen): assert target is from the same type hierarchy.
