@@ -16,6 +16,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortJob;
+import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
 import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
@@ -225,6 +226,8 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
+
+    CompletableFuture<Void> abortOperation(AbortOperation req);
 
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 
