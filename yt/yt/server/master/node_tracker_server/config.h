@@ -103,6 +103,9 @@ public:
 
     TDuration ProfilingPeriod;
 
+    // COMPAT(gritukan): Drop it after 22.3.
+    bool UseResourceStatisticsFromClusterNodeHeartbeat;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

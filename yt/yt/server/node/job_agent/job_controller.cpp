@@ -146,6 +146,9 @@ public:
         const TRspHeartbeatPtr& response,
         EObjectType jobObjectType);
 
+    TFuture<void> PrepareHeartbeatRequest(
+        NNodeTrackerClient::NProto::TReqHeartbeat* request);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     TFuture<void> RequestJobSpecsAndStartJobs(
@@ -1389,6 +1392,21 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
     }
 }
 
+TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
+    NNodeTrackerClient::NProto::TReqHeartbeat* request)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return BIND([=, this_ = MakeStrong(this)] {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        *request->mutable_resource_limits() = GetResourceLimits();
+        *request->mutable_resource_usage() = GetResourceUsage(/*includeWaiting*/ true);
+    })
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run();
+}
+
 const THashMap<TJobId, TOperationId>& TJobController::TImpl::GetSpecFetchFailedJobIds() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1971,6 +1989,12 @@ TFuture<void> TJobController::ProcessHeartbeatResponse(
         jobTrackerAddress,
         response,
         jobObjectType);
+}
+
+TFuture<void> TJobController::PrepareHeartbeatRequest(
+    NNodeTrackerClient::NProto::TReqHeartbeat* heartbeat)
+{
+    return Impl_->PrepareHeartbeatRequest(heartbeat);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()
