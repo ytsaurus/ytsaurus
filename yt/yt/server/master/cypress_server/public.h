@@ -31,6 +31,8 @@ using TAccessControlObjectNamespaceId = NObjectServer::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr double MaxExternalCellBias = 16.0;
+
 DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)

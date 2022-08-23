@@ -1608,7 +1608,7 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
         with pytest.raises(YtError):
-            create("table", "//tmp/t", attributes={"external_cell_bias": 2.0})
+            create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
 
     @authors("babenko")
     def test_expiration_time_validation(self):
@@ -3556,6 +3556,12 @@ class TestCypressMulticell(TestCypress):
     def test_zero_external_cell_bias(self):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
+        assert not exists("//tmp/t/@external_cell_bias")
+
+    @authors("babenko", "shakurov")
+    def test_nonzero_external_cell_bias(self):
+        # Unfortunately, it's difficult to actually check anything here.
+        create("table", "//tmp/t", attributes={"external_cell_bias": 3.0})
         assert not exists("//tmp/t/@external_cell_bias")
 
 
