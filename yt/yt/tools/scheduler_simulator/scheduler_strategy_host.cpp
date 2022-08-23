@@ -58,7 +58,7 @@ IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
 {
     return GetCurrentInvoker();
 }
-    
+
 IInvokerPtr TSchedulerStrategyHost::GetBackgroundInvoker() const
 {
     return GetCurrentInvoker();
@@ -78,7 +78,7 @@ TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
 {
     return LogEventFluently(GetEventLogger(), ELogEventType::FairShareInfo, now);
 }
-    
+
 TFluentLogEvent TSchedulerStrategyHost::LogAccumulatedUsageEventFluently(TInstant /*now*/)
 {
     YT_UNIMPLEMENTED();
@@ -186,7 +186,7 @@ void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& re
 {
     return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);
 }
-    
+
 void TSchedulerStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const
 {
     return NScheduler::SerializeDiskQuota(diskQuota, MediumDirectory_, consumer);

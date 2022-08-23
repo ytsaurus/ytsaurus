@@ -571,7 +571,7 @@ public:
             const auto& newPool = GetOrCrash(newPools, treeId);
             auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPool.GetPool()) {
-                tree->ChangeOperationPool(operation->GetId(), state, newPool);
+                tree->ChangeOperationPool(operation->GetId(), newPool);
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);

@@ -376,6 +376,7 @@ public:
             runtimeParameters,
             state->GetController(),
             ControllerConfig_,
+            state,
             StrategyHost_,
             this,
             state->GetHost(),
@@ -465,16 +466,25 @@ public:
 
     void ChangeOperationPool(
         TOperationId operationId,
-        const TFairShareStrategyOperationStatePtr& state,
         const TPoolName& newPool) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
         auto element = FindOperationElement(operationId);
         if (!element) {
             THROW_ERROR_EXCEPTION("Operation element for operation %Qv not found", operationId);
         }
+
+        ChangeOperationPool(element, newPool);
+    }
+
+    void ChangeOperationPool(
+        const TSchedulerOperationElementPtr& element,
+        const TPoolName& newPool)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         bool operationWasRunning = element->IsOperationRunningInPool();
+
+        auto state = element->GetFairShareStrategyOperationState();
 
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
@@ -489,7 +499,7 @@ public:
         YT_VERIFY(OnOperationAddedToPool(state, element));
 
         if (!operationWasRunning) {
-            OperationRunning_.Fire(operationId);
+            OperationRunning_.Fire(element->GetOperationId());
         }
     }
 
@@ -774,6 +784,23 @@ public:
                     }
                     break;
                 }
+            }
+        }
+
+        std::vector<TSchedulerPoolElementPtr> staleEphemeralPools;
+        for (const auto& [poolName, pool] : Pools_) {
+            if (pool->IsDefaultConfigured() && pool->GetId().Contains(TPoolName::Delimiter) && !pool->GetParent()->IsEphemeralHub()) {
+                staleEphemeralPools.push_back(pool);
+            }
+        }
+        for (const auto& pool : staleEphemeralPools) {
+            YT_LOG_INFO("Stale user ephemeral pool found, moving all its operations to parent pool (EphemeralPool: %v, ParentPool: %v)",
+                pool->GetId(),
+                pool->GetParent()->GetId());
+            for (const auto& operation : pool->GetChildOperations()) {
+                ChangeOperationPool(
+                    operation->GetOperationId(),
+                    TPoolName(pool->GetParent()->GetId(), /*parent*/ std::nullopt));
             }
         }
 

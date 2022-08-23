@@ -1,5 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/server/scheduler/fair_share_tree.h>
 #include <yt/yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/yt/server/scheduler/fair_share_tree_job_scheduler.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
@@ -153,7 +154,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    
+
     const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -206,7 +207,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    
+
     void SerializeDiskQuota(const TDiskQuota& /*diskQuota*/, NYson::IYsonConsumer* /*consumer*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -576,6 +577,7 @@ protected:
             operationOptions,
             operationController,
             SchedulerConfig_,
+            New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers().size()),
             strategyHost,
             FairShareTreeElementHostMock_.Get(),
             operation,

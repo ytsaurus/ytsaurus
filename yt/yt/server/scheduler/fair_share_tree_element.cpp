@@ -1310,6 +1310,11 @@ bool TSchedulerPoolElement::AreImmediateOperationsForbidden() const
     return Config_->ForbidImmediateOperations;
 }
 
+bool TSchedulerPoolElement::IsEphemeralHub() const
+{
+    return Config_->CreateEphemeralSubpools;
+}
+
 THashSet<TString> TSchedulerPoolElement::GetAllowedProfilingTags() const
 {
     return Config_->AllowedProfilingTags;
@@ -1566,6 +1571,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    TFairShareStrategyOperationStatePtr state,
     ISchedulerStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
     IOperationStrategyHost* operation,
@@ -1583,6 +1589,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(std::move(spec))
     , Controller_(std::move(controller))
+    , FairShareStrategyOperationState_(std::move(state))
 { }
 
 TSchedulerOperationElement::TSchedulerOperationElement(
@@ -1722,6 +1729,11 @@ const NVectorHdrf::TJobResourcesConfig* TSchedulerOperationElement::GetStrongGua
 TResourceVector TSchedulerOperationElement::GetMaxShare() const
 {
     return TResourceVector::FromDouble(Spec_->MaxShareRatio.value_or(1.0));
+}
+
+const TFairShareStrategyOperationStatePtr& TSchedulerOperationElement::GetFairShareStrategyOperationState() const
+{
+    return FairShareStrategyOperationState_;
 }
 
 const TSchedulingTagFilter& TSchedulerOperationElement::GetSchedulingTagFilter() const
@@ -2229,6 +2241,11 @@ std::vector<EFifoSortParameter> TSchedulerRootElement::GetFifoSortParameters() c
 bool TSchedulerRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
+}
+
+bool TSchedulerRootElement::IsEphemeralHub() const
+{
+    return false;
 }
 
 THashSet<TString> TSchedulerRootElement::GetAllowedProfilingTags() const
