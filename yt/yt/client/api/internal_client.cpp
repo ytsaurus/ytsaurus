@@ -4,27 +4,22 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableHunkDescriptor::TSerializableHunkDescriptor()
+void TSerializableHunkDescriptor::Register(TRegistrar registrar)
 {
-    Initialize();
+    registrar.BaseClassParameter("chunk_id", &TThis::ChunkId);
+    registrar.BaseClassParameter("erasure_codec", &TThis::ErasureCodec)
+        .Optional();
+    registrar.BaseClassParameter("block_index", &TThis::BlockIndex);
+    registrar.BaseClassParameter("block_offset", &TThis::BlockOffset);
+    registrar.BaseClassParameter("block_size", &TThis::BlockSize)
+        .Optional();
+    registrar.BaseClassParameter("length", &TThis::Length);
 }
 
 TSerializableHunkDescriptor::TSerializableHunkDescriptor(const THunkDescriptor& descriptor)
     : THunkDescriptor(descriptor)
 {
-    Initialize();
-}
-
-void TSerializableHunkDescriptor::Initialize()
-{
-    RegisterParameter("chunk_id", ChunkId);
-    RegisterParameter("erasure_codec", ErasureCodec)
-        .Optional();
-    RegisterParameter("block_index", BlockIndex);
-    RegisterParameter("block_offset", BlockOffset);
-    RegisterParameter("block_size", BlockSize)
-        .Optional();
-    RegisterParameter("length", Length);
+    ::NYT::NYTree::TYsonStructRegistry::Get()->InitializeStruct(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

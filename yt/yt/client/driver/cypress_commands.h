@@ -83,12 +83,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCreateCommand
-     : public NYTree::TYsonSerializableLite
+     : public NYTree::TYsonStructLite
 {
 public:
-    TCreateCommand();
-
     void Execute(ICommandContextPtr context);
+
+    REGISTER_YSON_STRUCT_LITE(TCreateCommand);
+
+    static void Register(TRegistrar);
 
 private:
     NObjectClient::EObjectType Type;

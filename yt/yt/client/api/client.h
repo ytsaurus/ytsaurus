@@ -52,7 +52,7 @@
 
 #include <yt/yt/core/profiling/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -158,15 +158,17 @@ struct TMasterReadOptions
 };
 
 struct TPrerequisiteRevisionConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     NYTree::TYPath Path;
     NHydra::TRevision Revision;
 
-    TPrerequisiteRevisionConfig()
+    REGISTER_YSON_STRUCT(TPrerequisiteRevisionConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("path", Path);
-        RegisterParameter("revision", Revision);
+        registrar.Parameter("path", &TThis::Path);
+        registrar.Parameter("revision", &TThis::Revision);
     }
 };
 
@@ -956,7 +958,7 @@ struct TTableWriterOptions
     : public TTransactionalOptions
 {
     bool ValidateAnyIsValidYson = false;
-    
+
     NTableClient::TTableWriterConfigPtr Config;
 };
 
@@ -1076,7 +1078,7 @@ DEFINE_ENUM(EOperationSortDirection,
 );
 
 struct TListOperationsAccessFilter
-    : NYTree::TYsonSerializable
+    : NYTree::TYsonStruct
 {
     TString Subject;
     NYTree::EPermissionSet Permissions;
@@ -1084,10 +1086,12 @@ struct TListOperationsAccessFilter
     // This parameter cannot be set from YSON, it must be computed.
     THashSet<TString> SubjectTransitiveClosure;
 
-    TListOperationsAccessFilter()
+    REGISTER_YSON_STRUCT(TListOperationsAccessFilter);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("subject", Subject);
-        RegisterParameter("permissions", Permissions);
+        registrar.Parameter("subject", &TThis::Subject);
+        registrar.Parameter("permissions", &TThis::Permissions);
     }
 };
 
@@ -1469,17 +1473,19 @@ struct TResumeTabletCellsOptions
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct TTableBackupManifest
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     NYTree::TYPath SourcePath;
     NYTree::TYPath DestinationPath;
     NTabletClient::EOrderedTableBackupMode OrderedMode;
 
-    TTableBackupManifest()
+    REGISTER_YSON_STRUCT(TTableBackupManifest);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("source_path", SourcePath);
-        RegisterParameter("destination_path", DestinationPath);
-        RegisterParameter("ordered_mode", OrderedMode)
+        registrar.Parameter("source_path", &TThis::SourcePath);
+        registrar.Parameter("destination_path", &TThis::DestinationPath);
+        registrar.Parameter("ordered_mode", &TThis::OrderedMode)
             .Default(NTabletClient::EOrderedTableBackupMode::Exact);
     }
 };
@@ -1487,13 +1493,15 @@ struct TTableBackupManifest
 DEFINE_REFCOUNTED_TYPE(TTableBackupManifest)
 
 struct TBackupManifest
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     THashMap<TString, std::vector<TTableBackupManifestPtr>> Clusters;
 
-    TBackupManifest()
+    REGISTER_YSON_STRUCT(TBackupManifest);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("clusters", Clusters);
+        registrar.Parameter("clusters", &TThis::Clusters);
     }
 };
 

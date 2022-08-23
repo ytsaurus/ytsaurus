@@ -26,15 +26,14 @@ struct THunkDescriptor
 
 class TSerializableHunkDescriptor
     : public THunkDescriptor
-    , public NYTree::TYsonSerializable
+    , public NYTree::TYsonStruct
 {
 public:
-    TSerializableHunkDescriptor();
-
     TSerializableHunkDescriptor(const THunkDescriptor& descriptor);
 
-private:
-    void Initialize();
+    REGISTER_YSON_STRUCT(TSerializableHunkDescriptor);
+
+    static void Register(TRegistrar registrar);
 };
 
 using TSerializableHunkDescriptorPtr = TIntrusivePtr<TSerializableHunkDescriptor>;

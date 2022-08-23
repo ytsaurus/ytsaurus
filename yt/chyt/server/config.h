@@ -494,8 +494,9 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
+    static constexpr const char defaultChytPath[] = "//sys/clickhouse/cliques";
     //! Note that CliqueId will be added to Directory automatically.
-    TDiscoveryConfigPtr Discovery;
+    TIntrusivePtr<TTemplatedDiscoveryConfig<defaultChytPath>> Discovery;
 
     TGossipConfigPtr Gossip;
 

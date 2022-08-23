@@ -12,63 +12,63 @@ namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDriverConfig::TDriverConfig()
+void TDriverConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("file_reader", FileReader)
+    registrar.Parameter("file_reader", &TThis::FileReader)
         .DefaultNew();
-    RegisterParameter("file_writer", FileWriter)
+    registrar.Parameter("file_writer", &TThis::FileWriter)
         .DefaultNew();
-    RegisterParameter("table_reader", TableReader)
+    registrar.Parameter("table_reader", &TThis::TableReader)
         .DefaultNew();
-    RegisterParameter("table_writer", TableWriter)
+    registrar.Parameter("table_writer", &TThis::TableWriter)
         .DefaultNew();
-    RegisterParameter("journal_reader", JournalReader)
+    registrar.Parameter("journal_reader", &TThis::JournalReader)
         .DefaultNew();
-    RegisterParameter("journal_writer", JournalWriter)
+    registrar.Parameter("journal_writer", &TThis::JournalWriter)
         .DefaultNew();
-    RegisterParameter("fetcher", Fetcher)
+    registrar.Parameter("fetcher", &TThis::Fetcher)
         .DefaultNew();
-    RegisterParameter("chunk_fragment_reader", ChunkFragmentReader)
+    registrar.Parameter("chunk_fragment_reader", &TThis::ChunkFragmentReader)
         .DefaultNew();
 
-    RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
+    registrar.Parameter("read_buffer_row_count", &TThis::ReadBufferRowCount)
         .Default(10'000);
-    RegisterParameter("read_buffer_size", ReadBufferSize)
+    registrar.Parameter("read_buffer_size", &TThis::ReadBufferSize)
         .Default(1_MB);
-    RegisterParameter("write_buffer_size", WriteBufferSize)
+    registrar.Parameter("write_buffer_size", &TThis::WriteBufferSize)
         .Default(1_MB);
 
-    RegisterParameter("client_cache", ClientCache)
+    registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
-    RegisterParameter("api_version", ApiVersion)
+    registrar.Parameter("api_version", &TThis::ApiVersion)
         .Default(ApiVersion3)
         .GreaterThanOrEqual(ApiVersion3)
         .LessThanOrEqual(ApiVersion4);
 
-    RegisterParameter("token", Token)
+    registrar.Parameter("token", &TThis::Token)
         .Optional();
 
-    RegisterParameter("proxy_discovery_cache", ProxyDiscoveryCache)
+    registrar.Parameter("proxy_discovery_cache", &TThis::ProxyDiscoveryCache)
         .DefaultNew();
 
-    RegisterParameter("enable_internal_commands", EnableInternalCommands)
+    registrar.Parameter("enable_internal_commands", &TThis::EnableInternalCommands)
         .Default(false);
 
-    RegisterParameter("use_ws_hack_for_get_columnar_statistics", UseWsHackForGetColumnarStatistics)
+    registrar.Parameter("use_ws_hack_for_get_columnar_statistics", &TThis::UseWsHackForGetColumnarStatistics)
         .Default(true);
 
-    RegisterPreprocessor([&] {
-        ClientCache->Capacity = 1024_KB;
-        ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);
-        ProxyDiscoveryCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
-        ProxyDiscoveryCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
+    registrar.Preprocessor([] (TThis* config) {
+        config->ClientCache->Capacity = 1024_KB;
+        config->ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);
+        config->ProxyDiscoveryCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
+        config->ProxyDiscoveryCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
     });
 
-    RegisterPostprocessor([&] {
-        if (ApiVersion != ApiVersion3 && ApiVersion != ApiVersion4) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ApiVersion != ApiVersion3 && config->ApiVersion != ApiVersion4) {
             THROW_ERROR_EXCEPTION("Unsupported API version %v",
-                ApiVersion);
+                config->ApiVersion);
         }
     });
 }

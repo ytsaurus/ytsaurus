@@ -14,7 +14,7 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/backoff_strategy_api.h>
 
@@ -64,14 +64,16 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NTabletClient::TTableMountCacheDynamicConfigPtr TableMountCache;
 
     TSerializableExponentialBackoffOptionsPtr TabletWriteBackoff;
 
-    TConnectionDynamicConfig();
+    REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
@@ -79,7 +81,7 @@ DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentQueuePollerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Try to keep at most this many prefetched rows in memory. This limit is approximate.
@@ -113,7 +115,9 @@ public:
     //! For how long to backoff when a state conflict is detected.
     TDuration BackoffTime;
 
-    TPersistentQueuePollerConfig();
+    REGISTER_YSON_STRUCT(TPersistentQueuePollerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentQueuePollerConfig)

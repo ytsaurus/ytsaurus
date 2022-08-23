@@ -199,40 +199,40 @@ void TSchemafulDsvFormatConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtobufTypeConfig::TProtobufTypeConfig()
+void TProtobufTypeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("proto_type", ProtoType);
-    RegisterParameter("fields", Fields)
+    registrar.Parameter("proto_type", &TThis::ProtoType);
+    registrar.Parameter("fields", &TThis::Fields)
         .Default();
-    RegisterParameter("enumeration_name", EnumerationName)
+    registrar.Parameter("enumeration_name", &TThis::EnumerationName)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtobufColumnConfig::TProtobufColumnConfig()
+void TProtobufColumnConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("name", Name)
+    registrar.Parameter("name", &TThis::Name)
         .NonEmpty();
-    RegisterParameter("field_number", FieldNumber)
+    registrar.Parameter("field_number", &TThis::FieldNumber)
         .Optional();
-    RegisterParameter("repeated", Repeated)
+    registrar.Parameter("repeated", &TThis::Repeated)
         .Default(false);
-    RegisterParameter("packed", Packed)
+    registrar.Parameter("packed", &TThis::Packed)
         .Default(false);
 
-    RegisterParameter("type", Type)
+    registrar.Parameter("type", &TThis::Type)
         .Default();
 
-    RegisterParameter("proto_type", ProtoType)
+    registrar.Parameter("proto_type", &TThis::ProtoType)
         .Default();
-    RegisterParameter("fields", Fields)
+    registrar.Parameter("fields", &TThis::Fields)
         .Default();
-    RegisterParameter("enumeration_name", EnumerationName)
+    registrar.Parameter("enumeration_name", &TThis::EnumerationName)
         .Default();
 
-    RegisterPostprocessor([&] {
-        CustomPostprocess();
+    registrar.Postprocessor([] (TThis* config) {
+        config->CustomPostprocess();
     });
 }
 
@@ -261,13 +261,13 @@ void TProtobufColumnConfig::CustomPostprocess()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtobufTableConfig::TProtobufTableConfig()
+void TProtobufTableConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("columns", Columns);
+    registrar.Parameter("columns", &TThis::Columns);
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         bool hasOtherColumns = false;
-        for (const auto& column: Columns) {
+        for (const auto& column: config->Columns) {
             if (column->ProtoType == EProtobufType::OtherColumns) {
                 if (hasOtherColumns) {
                     THROW_ERROR_EXCEPTION("Multiple \"other_columns\" in protobuf config are not allowed");
@@ -278,70 +278,70 @@ TProtobufTableConfig::TProtobufTableConfig()
     });
 }
 
-TProtobufFormatConfig::TProtobufFormatConfig()
+void TProtobufFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("file_descriptor_set", FileDescriptorSet)
+    registrar.Parameter("file_descriptor_set", &TThis::FileDescriptorSet)
         .Default();
-    RegisterParameter("file_indices", FileIndices)
+    registrar.Parameter("file_indices", &TThis::FileIndices)
         .Default();
-    RegisterParameter("message_indices", MessageIndices)
+    registrar.Parameter("message_indices", &TThis::MessageIndices)
         .Default();
-    RegisterParameter("nested_messages_mode", NestedMessagesMode)
+    registrar.Parameter("nested_messages_mode", &TThis::NestedMessagesMode)
         .Default(ENestedMessagesMode::Protobuf);
-    RegisterParameter("enums_as_strings", EnumsAsStrings)
+    registrar.Parameter("enums_as_strings", &TThis::EnumsAsStrings)
         .Default();
 
-    RegisterParameter("tables", Tables)
+    registrar.Parameter("tables", &TThis::Tables)
         .Default();
-    RegisterParameter("enumerations", Enumerations)
-        .Default();
-
-    RegisterParameter("file_descriptor_set_text", FileDescriptorSetText)
-        .Default();
-    RegisterParameter("type_names", TypeNames)
+    registrar.Parameter("enumerations", &TThis::Enumerations)
         .Default();
 
-    RegisterParameter("complex_type_mode", ComplexTypeMode)
+    registrar.Parameter("file_descriptor_set_text", &TThis::FileDescriptorSetText)
+        .Default();
+    registrar.Parameter("type_names", &TThis::TypeNames)
+        .Default();
+
+    registrar.Parameter("complex_type_mode", &TThis::ComplexTypeMode)
         .Default(EComplexTypeMode::Named);
-    RegisterParameter("decimal_mode", DecimalMode)
+    registrar.Parameter("decimal_mode", &TThis::DecimalMode)
         .Default(EDecimalMode::Binary);
-    RegisterParameter("time_mode", TimeMode)
+    registrar.Parameter("time_mode", &TThis::TimeMode)
         .Default(ETimeMode::Binary);
-    RegisterParameter("uuid_mode", UuidMode)
+    registrar.Parameter("uuid_mode", &TThis::UuidMode)
         .Default(EUuidMode::Binary);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWebJsonFormatConfig::TWebJsonFormatConfig()
+void TWebJsonFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_selected_column_count", MaxSelectedColumnCount)
+    registrar.Parameter("max_selected_column_count", &TThis::MaxSelectedColumnCount)
         .Default(50)
         .GreaterThanOrEqual(0);
-    RegisterParameter("field_weight_limit", FieldWeightLimit)
+    registrar.Parameter("field_weight_limit", &TThis::FieldWeightLimit)
         .Default(1_KB)
         .GreaterThanOrEqual(0);
-    RegisterParameter("string_weight_limit", StringWeightLimit)
+    registrar.Parameter("string_weight_limit", &TThis::StringWeightLimit)
         .Default(200)
         .GreaterThanOrEqual(0);
-    RegisterParameter("max_all_column_names_count", MaxAllColumnNamesCount)
+    registrar.Parameter("max_all_column_names_count", &TThis::MaxAllColumnNamesCount)
         .Default(2000)
         .GreaterThanOrEqual(0);
-    RegisterParameter("column_names", ColumnNames)
+    registrar.Parameter("column_names", &TThis::ColumnNames)
         .Default();
-    RegisterParameter("value_format", ValueFormat)
+    registrar.Parameter("value_format", &TThis::ValueFormat)
         .Default(EWebJsonValueFormat::Schemaless);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSkiffFormatConfig::TSkiffFormatConfig()
+void TSkiffFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("skiff_schema_registry", SkiffSchemaRegistry)
+    registrar.Parameter("skiff_schema_registry", &TThis::SkiffSchemaRegistry)
         .Default();
-    RegisterParameter("table_skiff_schemas", TableSkiffSchemas);
+    registrar.Parameter("table_skiff_schemas", &TThis::TableSkiffSchemas);
 
-    RegisterParameter("override_intermediate_table_schema", OverrideIntermediateTableSchema)
+    registrar.Parameter("override_intermediate_table_schema", &TThis::OverrideIntermediateTableSchema)
         .Default();
 }
 

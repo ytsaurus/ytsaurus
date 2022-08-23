@@ -212,11 +212,11 @@ void TTransferPoolResourcesCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExecuteBatchCommand::TRequest::TRequest()
+void TExecuteBatchCommandRequest::Register(TRegistrar registrar)
 {
-    RegisterParameter("command", Command);
-    RegisterParameter("parameters", Parameters);
-    RegisterParameter("input", Input)
+    registrar.Parameter("command", &TThis::Command);
+    registrar.Parameter("parameters", &TThis::Parameters);
+    registrar.Parameter("input", &TThis::Input)
         .Default();
 }
 
