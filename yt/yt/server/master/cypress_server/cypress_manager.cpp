@@ -350,8 +350,9 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
         double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", dynamicConfig->DefaultExternalCellBias);
-        if (externalCellBias < 0.0 || externalCellBias > 1.0) {
-            THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
+        if (externalCellBias < 0.0 || externalCellBias > MaxExternalCellBias) {
+            THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, %v]",
+                MaxExternalCellBias);
         }
 
         auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");

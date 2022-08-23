@@ -96,6 +96,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransientInheritedAttributeDictionary)                        (2113))  // kvk1920
     ((MakeThrottlerAttributeRemovable)                              (2114))  // h0pless
     ((TransactionRotator)                                           (2115))  // kvk1920
+    ((MaxExternalCellBias)                                          (2116))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
