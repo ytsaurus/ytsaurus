@@ -998,11 +998,6 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::InitializeTimestampProvider()
 {
-    if (!Config_->EnableNetworking) {
-        TimestampProvider_ = CreateNoopTimestampProvider();
-        return;
-    }
-
     auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
     if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(

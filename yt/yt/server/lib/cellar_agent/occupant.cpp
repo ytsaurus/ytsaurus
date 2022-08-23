@@ -471,16 +471,7 @@ public:
 
             occupier->Configure(hydraManager);
 
-            std::vector<ITransactionParticipantProviderPtr> providers;
-
-            // NB: Should not start synchronizer while validating snapshot.
-            if (!NBus::TTcpDispatcher::Get()->IsNetworkingDisabled()) {
-                connection->GetClusterDirectorySynchronizer()->Start();
-                providers = {
-                    CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
-                };
-            }
+            connection->GetClusterDirectorySynchronizer()->Start();
 
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
@@ -493,7 +484,10 @@ public:
                 GetCellId(),
                 clockClusterTag,
                 GetTimestampProvider(),
-                std::move(providers));
+                {
+                    CreateTransactionParticipantProvider(connection),
+                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
+                });
 
             occupier->Initialize();
 
