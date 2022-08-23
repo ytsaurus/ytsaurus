@@ -50,6 +50,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortJob;
+import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
 import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
@@ -769,6 +770,14 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getMeta())
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> abortOperation(AbortOperation req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.ABORT_OPERATION.createRequestBuilder(rpcOptions)),
+                response -> null
         );
     }
 

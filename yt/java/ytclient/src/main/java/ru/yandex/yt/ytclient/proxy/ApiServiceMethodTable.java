@@ -10,6 +10,7 @@ import ru.yandex.yt.TRspDiscoverProxies;
 import ru.yandex.yt.rpc.TReqDiscover;
 import ru.yandex.yt.rpc.TRspDiscover;
 import ru.yandex.yt.rpcproxy.TReqAbortJob;
+import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
@@ -60,6 +61,7 @@ import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
+import ru.yandex.yt.rpcproxy.TRspAbortOperation;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
@@ -227,6 +229,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqGetOperation.Builder, TRspGetOperation> GET_OPERATION =
             apiServiceMethod("GetOperation", TReqGetOperation::newBuilder, TRspGetOperation.parser());
+
+    public static final RpcMethodDescriptor<TReqAbortOperation.Builder, TRspAbortOperation> ABORT_OPERATION =
+            apiServiceMethod("AbortOperation", TReqAbortOperation::newBuilder, TRspAbortOperation.parser());
 
     public static final RpcMethodDescriptor<TReqSuspendOperation.Builder, TRspSuspendOperation> SUSPEND_OPERATION =
             apiServiceMethod("SuspendOperation", TReqSuspendOperation::newBuilder, TRspSuspendOperation.parser());
