@@ -162,6 +162,10 @@ public:
 
         ToProto(heartbeat.mutable_alerts(), GetAlerts());
 
+        const auto& jobController = Bootstrap_->GetJobController();
+        WaitFor(jobController->PrepareHeartbeatRequest(&heartbeat))
+            .ThrowOnError();
+
         return heartbeat;
     }
 

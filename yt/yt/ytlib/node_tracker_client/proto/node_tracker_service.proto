@@ -68,6 +68,9 @@ message TReqHeartbeat
     required TClusterNodeStatistics statistics = 2;
 
     repeated NYT.NProto.TError alerts = 3;
+
+    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 4;
+    required NNodeTrackerClient.NProto.TNodeResources resource_limits = 5;
 }
 
 message TRspHeartbeat

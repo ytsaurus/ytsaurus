@@ -118,6 +118,9 @@ public:
         const TRspHeartbeatPtr& response,
         NObjectClient::EObjectType jobObjectType);
 
+    TFuture<void> PrepareHeartbeatRequest(
+        NNodeTrackerClient::NProto::TReqHeartbeat* request);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     DECLARE_SIGNAL(void(), ResourcesUpdated);

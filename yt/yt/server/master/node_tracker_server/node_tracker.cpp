@@ -1315,6 +1315,12 @@ private:
             }
         }
 
+        // COMPAT(gritukan)
+        if (GetDynamicConfig()->UseResourceStatisticsFromClusterNodeHeartbeat && request->has_resource_usage()) {
+            node->SetResourceUsage(request->resource_usage());
+            node->SetResourceLimits(request->resource_limits());
+        }
+
         auto rspTags = response->mutable_tags();
         TCompactVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
         std::sort(sortedTags.begin(), sortedTags.end());
