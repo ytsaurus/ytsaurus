@@ -2,6 +2,11 @@
 
 #include "codec_detail.h"
 
+#include <library/cpp/erasure/lrc_isa.h>
+#include <library/cpp/erasure/lrc_jerasure.h>
+#include <library/cpp/erasure/reed_solomon_isa.h>
+#include <library/cpp/erasure/reed_solomon_jerasure.h>
+
 namespace NYT::NErasure {
 
 using namespace ::NErasure;
