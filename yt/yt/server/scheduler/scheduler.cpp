@@ -319,12 +319,6 @@ public:
             Config_->SchedulingSegmentsManagePeriod);
         SchedulingSegmentsManagerExecutor_->Start();
 
-        CheckNodesWithUnsupportedInterruptionExecutor_ = New<TPeriodicExecutor>(
-            GetBackgroundInvoker(),
-            BIND(&TImpl::CheckNodesWithUnsupportedInterruption, MakeWeak(this)),
-            Config_->CheckNodesWithUnsupportedInterruptionPeriod);
-        CheckNodesWithUnsupportedInterruptionExecutor_->Start();
-
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
@@ -1788,7 +1782,6 @@ private:
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
     TPeriodicExecutorPtr SchedulingSegmentsManagerExecutor_;
-    TPeriodicExecutorPtr CheckNodesWithUnsupportedInterruptionExecutor_;
 
     TString ServiceAddress_;
 
@@ -2416,7 +2409,6 @@ private:
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
-            CheckNodesWithUnsupportedInterruptionExecutor_->SetPeriod(Config_->CheckNodesWithUnsupportedInterruptionPeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
                 OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
@@ -4057,69 +4049,6 @@ private:
         PersistOperationSchedulingSegmentModules();
 
         ManageNodeSchedulingSegments();
-    }
-
-    void CheckNodesWithUnsupportedInterruption()
-    {
-        VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
-
-        if (!IsConnected()) {
-            return;
-        }
-
-        auto setAlert = [&] (std::vector<TString> nodeSample, int nodeCount) {
-            auto error = WaitFor(
-                BIND(
-                    &TImpl::SetNodesWithUnsupportedInterruptionAlert,
-                    MakeWeak(this),
-                    Passed(std::move(nodeSample)),
-                    nodeCount)
-                .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
-                .Run());
-
-            YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while nodes with unsupported interruption alert setting");
-        };
-
-        if (!Config_->HandleInterruptionAtNode) {
-            YT_LOG_DEBUG("Handling interruption on nodes is disabled, skip nodes with unsupported interruption scanning");
-            setAlert({}, 0);
-            return;
-        }
-
-        auto nodesWithUnsupportedInterruption = NodeManager_->GetNodeAddressesWithUnsupportedInterruption();
-
-        constexpr int NodeSampleMaxSize = 15;
-        int nodeWithUnsupportedInterruptionCount = std::ssize(nodesWithUnsupportedInterruption);
-        if (nodeWithUnsupportedInterruptionCount > NodeSampleMaxSize) {
-            nodesWithUnsupportedInterruption.resize(NodeSampleMaxSize);
-        }
-
-        if (std::empty(nodesWithUnsupportedInterruption)) {
-            YT_LOG_DEBUG("All nodes support interruptions");
-        } else {
-            YT_LOG_DEBUG(
-                "Found nodes that don't support interruptions (TotalCount: %v, NodeSample: %v)",
-                nodeWithUnsupportedInterruptionCount,
-                nodesWithUnsupportedInterruption);
-        }
-
-        setAlert(std::move(nodesWithUnsupportedInterruption), nodeWithUnsupportedInterruptionCount);
-    }
-
-    void SetNodesWithUnsupportedInterruptionAlert(
-        const std::vector<TString>& nodeSample,
-        int nodeCount)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        TError error;
-        if (!std::empty(nodeSample)) {
-            error = TError("Found nodes that do not support interruption handling")
-                << TErrorAttribute("node_addresses_sample", nodeSample)
-                << TErrorAttribute("node_count", nodeCount);
-        }
-
-        SetSchedulerAlert(ESchedulerAlertType::FoundNodesWithUnsupportedInterruption, error);
     }
 
     // TODO(eshcherbin): Think about storing module in runtime parameters only.

@@ -99,8 +99,6 @@ public:
 
     void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments);
 
-    std::vector<TString> GetNodeAddressesWithUnsupportedInterruption() const;
-
     // TODO(eshcherbin): Think how to hide node shards behind node manager completely.
     // Invoker affinity: any.
     int GetNodeShardCount() const;

@@ -484,28 +484,6 @@ void TNodeManager::SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOption
         .ThrowOnError();
 }
 
-std::vector<TString> TNodeManager::GetNodeAddressesWithUnsupportedInterruption() const
-{
-    std::vector<TFuture<std::vector<TString>>> nodeShardFutures;
-    nodeShardFutures.reserve(std::size(NodeShards_));
-    for (const auto& nodeShard : NodeShards_) {
-        nodeShardFutures.push_back(BIND(&TNodeShard::GetNodeAddressesWithUnsupportedInterruption, nodeShard)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run());
-    }
-
-    auto nodesWithUnsupportedInterruptionPerShard = WaitFor(AllSucceeded(nodeShardFutures))
-        .ValueOrThrow();
-
-    std::vector<TString> nodesWithUnsupportedInterruption;
-    for (auto& nodes : nodesWithUnsupportedInterruptionPerShard) {
-        for (auto& node : nodes) {
-            nodesWithUnsupportedInterruption.push_back(std::move(node));
-        }
-    }
-
-    return nodesWithUnsupportedInterruption;
-}
 
 int TNodeManager::GetNodeShardCount() const
 {

@@ -620,6 +620,8 @@ class YTEnvSetup(object):
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_2", []):
+                config["scheduler"]["handle_interruption_at_node"] = True
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["queue_agent"]):

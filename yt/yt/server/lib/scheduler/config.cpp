@@ -972,9 +972,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_heavy_runtime_parameters", &TThis::EnableHeavyRuntimeParameters)
         .Default(false);
-    
-    registrar.Parameter("handle_interruption_at_node", &TThis::HandleInterruptionAtNode)
-        .Default(false);
 
     registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
         .Default(TDuration::Minutes(2));
