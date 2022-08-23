@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.operations;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -15,14 +15,11 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -31,7 +28,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -41,7 +37,6 @@ import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -322,62 +317,15 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         lastUploadTime = Instant.now();
     }
 
-    private static List<File> getFilesList(File file) {
-        File[] files = file.listFiles();
+    private static void walk(File dir, Consumer<File> consumer) {
+        consumer.accept(dir);
+        File[] files = dir.listFiles();
         if (files == null) {
-            return Collections.emptyList();
+            return;
         }
-        return Arrays.asList(files);
-    }
-
-    private static Iterator<File> walk(File dir) {
-        return append(
-                Collections.singletonList(dir).iterator(),
-                flatMap(getFilesList(dir).iterator(), SingleUploadFromClassPathJarsProcessor::walk));
-    }
-
-    private static <T> Iterator<T> flatMap(Iterator<T> source, Function<T, ? extends Iterator<T>> f) {
-        class FlatMappedIterator implements Iterator<T> {
-            @Nullable private Iterator<T> cur = null;
-
-            @Override
-            public boolean hasNext() {
-                while ((cur == null || !cur.hasNext()) && source.hasNext()) {
-                    cur = f.apply(source.next());
-                }
-                if (cur == null) {
-                    return false;
-                }
-                return cur.hasNext();
-            }
-
-            @Override
-            public T next() {
-                if (hasNext()) {
-                    // if hasNext() == true, then cur cannot be null
-                    return Objects.requireNonNull(cur).next();
-                }
-                throw new NoSuchElementException("next on empty iterator");
-            }
-
+        for (File file : files) {
+            walk(file, consumer);
         }
-        return new FlatMappedIterator();
-    }
-
-    private static <T> Iterator<T> append(Iterator<T> a, Iterator<T> b) {
-        return new Iterator<T>() {
-            public boolean hasNext() {
-                return a.hasNext() || b.hasNext();
-            }
-
-            public T next() {
-                if (a.hasNext()) {
-                    return a.next();
-                } else {
-                    return b.next();
-                }
-            }
-        };
     }
 
     private File getParentFile(File file) {
@@ -402,7 +350,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         return result.toString();
     }
 
-    protected String calculateMd5(InputStream stream) {
+    protected static String calculateMd5(InputStream stream) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] bytes = new byte[0x1000];
@@ -445,7 +393,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         Set<String> classPathParts = getClassPathParts();
         for (String classPathPart : classPathParts) {
             File classPathItem = new File(classPathPart);
-            if ("jar".equalsIgnoreCase(getFileExtension(classPathItem))) {
+            if (fileHasExtension(classPathItem, "jar")) {
                 if (!classPathItem.exists()) {
                     throw new IllegalStateException("Can't find " + classPathItem);
                 }
@@ -467,11 +415,9 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         }
     }
 
-    private static String getFileExtension(@Nonnull File file) {
-        return Optional.of(file.getName())
-                .filter(f -> f.contains("."))
-                .map(f -> f.substring(file.getName().lastIndexOf(".") + 1))
-                .orElse("");
+    private static boolean fileHasExtension(File file, String extension) {
+        String lowerExtension = "." + extension;
+        return file.getName().toLowerCase().endsWith(lowerExtension);
     }
 
     private void collectNativeLibs() {
@@ -485,11 +431,11 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         for (String classPathPart : classPathParts) {
             File classPathItem = new File(classPathPart);
             if (classPathItem.isDirectory()) {
-                Iterator<File> iter = walk(classPathItem);
-                while (iter.hasNext()) {
-                    File elm = iter.next();
-                    if (elm.isFile() && !Files.isSymbolicLink(elm.toPath())  && NATIVE_FILE_EXTENSION
-                            .equalsIgnoreCase(getFileExtension(elm))) {
+                walk(classPathItem, elm -> {
+                    if (elm.isFile() &&
+                            !Files.isSymbolicLink(elm.toPath()) &&
+                            fileHasExtension(elm, NATIVE_FILE_EXTENSION)
+                    ) {
                         withJar(elm, dll -> collectFile(
                                 () -> {
                                     try {
@@ -501,7 +447,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                                 dll.getName(),
                                 Collections.emptySet()));
                     }
-                }
+                });
             }
         }
     }
@@ -547,7 +493,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                                     classPathParts.add(jarFileChild.getPath());
                                 }
                             } catch (Throwable e) {
-                                LOGGER.info(String.format("cannot open : %s ", entity), e);
+                                LOGGER.warn("Cannot open : {}", entity, e);
                             }
                         }
                     }
@@ -558,7 +504,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         return classPathParts;
     }
 
-    private String calculateYPath(Supplier<InputStream> fileContent, String originalName) {
+    private static String calculateYPath(Supplier<InputStream> fileContent, String originalName) {
         String md5 = calculateMd5(fileContent.get());
         String[] parts = originalName.split("\\.");
         String ext = parts.length < 2 ? "" : parts[parts.length - 1];
@@ -566,8 +512,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         return md5 + "." + ext;
     }
 
-    private void collectFile(
-            Supplier<InputStream> fileContent, String originalName, Set<String> existsFiles) {
+    private void collectFile(Supplier<InputStream> fileContent, String originalName, Set<String> existsFiles) {
         String fileName = calculateYPath(fileContent, originalName);
         boolean exists = existsFiles.contains(fileName);
         if (isUsingFileCache() || !exists) {
@@ -605,7 +550,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
         YPath tmpPath = jarsDir.child(GUID.create().toString());
 
-        LOGGER.info(String.format("Uploading %s as %s", originalName, jarPath));
+        LOGGER.info("Uploading {} as {} using tmpPath {}", originalName, jarPath, tmpPath);
 
         int actualFileCacheReplicationFactor = isLocalMode ? 1 : fileCacheReplicationFactor;
 
@@ -622,69 +567,35 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     private static byte[] getClassPathDirJarBytes(File dir) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             JarOutputStream jar = new JarOutputStream(bytes) {
                 @Override
                 public void putNextEntry(ZipEntry ze) throws IOException {
-// makes resulting jar md5 predictable to allow jar hashing at yt side
-// https://stackoverflow.com/questions/26525936/java-creating-two-identical-zip-files-if-content-are-the-same
+                    // makes resulting jar md5 predictable to allow jar hashing at yt side
+                    // https://stackoverflow.com/questions/26525936
                     ze.setTime(-1);
                     super.putNextEntry(ze);
                 }
             };
-            Iterator<File> iter = walk(dir);
-            while (iter.hasNext()) {
-                File elm = iter.next();
+            walk(dir, elm -> {
                 String name = elm.getAbsolutePath().substring(dir.getAbsolutePath().length());
                 if (name.length() > 0) {
-                    JarEntry entry = new JarEntry(name.substring(1).replace("\\", "/"));
-                    jar.putNextEntry(entry);
-                    if (elm.isFile()) {
-                        FileInputStream file = new FileInputStream(elm);
-                        try {
-                            writeFileToJarStream(file, jar);
-                        } finally {
-                            closeQuietly(file);
+                    try {
+                        JarEntry entry = new JarEntry(name.substring(1).replace("\\", "/"));
+                        jar.putNextEntry(entry);
+                        if (elm.isFile()) {
+                            Files.copy(elm.toPath(), jar);
                         }
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
                     }
                 }
-            }
+            });
             jar.close();
-            return bytes.toByteArray();
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-    }
-
-    private static void closeQuietly(@Nullable Closeable closeable) {
-        if (closeable != null) {
-            try {
-                closeable.close();
-            } catch (Throwable ex) {
-                if (ex instanceof VirtualMachineError) {
-                    // outer instanceof for performance (to not make 3 comparisons for most cases)
-                    if (ex instanceof OutOfMemoryError || ex instanceof InternalError || ex instanceof UnknownError) {
-                        throw (VirtualMachineError) ex;
-                    }
-                }
-            }
-        }
-    }
-
-    private static void writeFileToJarStream(FileInputStream file, JarOutputStream jar) {
-        try {
-            byte[] bytes = new byte[0x10000];
-            for (; ; ) {
-                int count = file.read(bytes);
-                if (count < 0) {
-                    return;
-                }
-
-                jar.write(bytes, 0, count);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return bytes.toByteArray();
     }
 }
