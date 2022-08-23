@@ -49,8 +49,6 @@ public:
 
     void RegisterConnection(TTcpConnectionPtr connection);
 
-    void ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const;
-
     void CollectSensors(NProfiling::ISensorWriter* writer) override;
 
     NYTree::IYPathServicePtr GetOrchidService();

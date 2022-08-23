@@ -232,8 +232,8 @@ private:
     void Open();
     void Close();
 
-    void ResolveAddress();
     void Abort(const TError& error);
+    bool AbortIfNetworkingDisabled();
 
     void InitBuffers();
 
@@ -242,6 +242,7 @@ private:
     void ConnectSocket(const NNet::TNetworkAddress& address);
     void OnDialerFinished(const TErrorOr<SOCKET>& socketOrError);
 
+    void ResolveAddress();
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
     void OnAddressResolved(const NNet::TNetworkAddress& address);
     void SetupNetwork(const NNet::TNetworkAddress& address);

@@ -250,8 +250,6 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    bool EnableNetworking;
-
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     bool UseNewHydra;

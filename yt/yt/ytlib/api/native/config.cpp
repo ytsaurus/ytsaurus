@@ -250,9 +250,6 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_fetch_retries", &TThis::ChunkFetchRetries)
         .DefaultNew();
 
-    registrar.Parameter("enable_networking", &TThis::EnableNetworking)
-        .Default(true);
-
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
 

@@ -182,8 +182,12 @@ void TTcpConnection::Start()
     // Offline in PendingControl_ prevents retrying events until end of Open().
     YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
 
+    if (AbortIfNetworkingDisabled()) {
+        return;
+    }
+
     if (!Poller_->TryRegister(this)) {
-        Abort(TError("Cannot register connection pollable"));
+        Abort(TError(NBus::EErrorCode::TransportError, "Cannot register connection pollable"));
         return;
     }
 
@@ -476,6 +480,15 @@ void TTcpConnection::Abort(const TError& error)
     ReadyPromise_.TrySet(detailedError);
 }
 
+bool TTcpConnection::AbortIfNetworkingDisabled()
+{
+    if (!TTcpDispatcher::Get()->IsNetworkingDisabled()) {
+        return false;
+    }
+    Abort(TError(NBus::EErrorCode::TransportError, "Networking is disabled"));
+    return true;
+}
+
 void TTcpConnection::InitBuffers()
 {
     ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), ReadBufferSize, false);
@@ -596,7 +609,9 @@ TFuture<void> TTcpConnection::GetReadyFuture() const
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
 {
-    TTcpDispatcher::TImpl::Get()->ValidateNetworkingNotDisabled(EMessageDirection::Outcoming);
+    if (TTcpDispatcher::Get()->IsNetworkingDisabled()) {
+        return MakeFuture(TError(NBus::EErrorCode::TransportError, "Networking is disabled"));
+    }
 
     if (message.Size() > MaxMessagePartCount) {
         return MakeFuture<void>(TError(
@@ -747,6 +762,10 @@ void TTcpConnection::OnEvent(EPollControl control)
     // OnEvent should never be called for an offline socket.
     YT_VERIFY(None(action & EPollControl::Offline));
 
+    if (AbortIfNetworkingDisabled()) {
+        return;
+    }
+
     if (Any(action & EPollControl::Terminate)) {
         OnTerminate();
         // Leave Running flag set in PendingControl_ to drain further events and
@@ -808,8 +827,6 @@ void TTcpConnection::OnShutdown()
 void TTcpConnection::OnSocketRead()
 {
     YT_LOG_TRACE("Started serving read request");
-
-    TTcpDispatcher::TImpl::Get()->ValidateNetworkingNotDisabled(EMessageDirection::Incoming);
 
     size_t bytesReadTotal = 0;
     while (true) {

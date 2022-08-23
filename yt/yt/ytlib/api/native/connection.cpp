@@ -717,11 +717,6 @@ private:
 
     void InitializeTimestampProvider()
     {
-        if (!Config_->EnableNetworking) {
-            TimestampProvider_ = CreateNoopTimestampProvider();
-            return;
-        }
-
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
             timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->PrimaryMaster);

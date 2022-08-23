@@ -112,7 +112,6 @@ protected:
 
         if (dumpSnapshot || validateSnapshot || exportSnapshot) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
-            config->EnableNetworking = false;
         }
 
         if (dumpSnapshot) {

@@ -231,8 +231,6 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
-    registrar.Parameter("enable_networking", &TThis::EnableNetworking)
-        .Default(true);
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
         .Default(false);

@@ -122,8 +122,6 @@ protected:
         if (ValidateSnapshot_) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
 
-            config->ClusterConnection->EnableNetworking = false;
-
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }
 
