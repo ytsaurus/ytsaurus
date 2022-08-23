@@ -531,7 +531,7 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("check_disk_space_limit", &TThis::CheckDiskSpaceLimit)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("idle_cpu_fraction", &TThis::IdleCpuFraction)
         .Default();
