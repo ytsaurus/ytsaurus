@@ -47,6 +47,29 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .NonEmpty();
     registrar.Parameter("hulk_deallocations_history_path", &TThis::HulkDeallocationsHistoryPath)
         .NonEmpty();
+
+    registrar.Parameter("quota_multiplier", &TThis::QuotaMultiplier)
+        .GreaterThan(0)
+        .Default(1.3);
+    registrar.Parameter("node_count_per_cell", &TThis::NodeCountPerCell)
+        .GreaterThan(0)
+        .Default(25);
+    registrar.Parameter("chunk_count_per_cell", &TThis::ChunkCountPerCell)
+        .GreaterThan(0)
+        .Default(100);
+    registrar.Parameter("journal_disk_space_per_cell", &TThis::JournalDiskSpacePerCell)
+        .GreaterThan(0)
+        .Default(100_GB);
+    registrar.Parameter("snapshot_disk_space_per_cell", &TThis::SnapshotDiskSpacePerCell)
+        .GreaterThan(0)
+        .Default(15_GB);
+    registrar.Parameter("MinNodeCount", &TThis::MinNodeCount)
+        .GreaterThan(0)
+        .Default(1000);
+    registrar.Parameter("MinChunkCount", &TThis::MinChunkCount)
+        .GreaterThan(0)
+        .Default(1000);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

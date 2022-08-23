@@ -15,6 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
+DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
 DECLARE_REFCOUNTED_STRUCT(TMemoryLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
@@ -33,8 +34,10 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCellInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
 DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyAlive)
+DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
+DECLARE_REFCOUNTED_STRUCT(TAccountResources)
+DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -113,8 +116,10 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
 struct TInstanceResources
     : public NYTree::TYsonStruct
 {
-    int VCpu;
+    int Vcpu;
     i64 Memory;
+
+    TInstanceResources& operator=(const THulkInstanceResources& resources);
 
     REGISTER_YSON_STRUCT(TInstanceResources);
 
@@ -204,10 +209,13 @@ struct TBundleInfo
     bool EnableNodeTagFilterManagement;
     bool EnableTabletNodeDynamicConfig;
     bool EnableRpcProxyManagement;
+    bool EnableSystemAccountManagement;
 
     TBundleConfigPtr TargetConfig;
     TBundleConfigPtr ActualConfig;
     std::vector<TString> TabletCellIds;
+
+    TBundleSystemOptionsPtr Options;
 
     REGISTER_YSON_STRUCT(TBundleInfo);
 
@@ -243,7 +251,7 @@ DEFINE_REFCOUNTED_TYPE(TZoneInfo)
 struct THulkInstanceResources
     : public NYTree::TYsonStruct
 {
-    int VCpu;
+    int Vcpu;
     i64 MemoryMb;
 
     THulkInstanceResources& operator=(const TInstanceResources& resources);
@@ -414,12 +422,13 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInstanceAnnotations
-    : public TYsonStructAttributes<TInstanceAnnotations>
+    : public NYTree::TYsonStruct
 {
     TString YPCluster;
     TString NannyService;
     TString AllocatedForBundle;
     bool Allocated;
+    TInstanceResourcesPtr Resource;
 
     REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
@@ -510,6 +519,55 @@ struct TBundleDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAccountResources
+    : public NYTree::TYsonStruct
+{
+    i64 ChunkCount;
+    THashMap<TString, i64> DiskSpacePerMedium;
+    i64 NodeCount;
+
+    REGISTER_YSON_STRUCT(TAccountResources);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAccountResources)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSystemAccount
+    : public TYsonStructAttributes<TSystemAccount>
+{
+    TAccountResourcesPtr ResourceLimits;
+    TAccountResourcesPtr ResourceUsage;
+
+    REGISTER_YSON_STRUCT(TSystemAccount);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSystemAccount)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleSystemOptions
+    : public NYTree::TYsonStruct
+{
+    TString ChangelogAccount;
+    TString ChangelogPrimaryMedium;
+
+    TString SnapshotAccount;
+    TString SnapshotPrimaryMedium;
+
+    REGISTER_YSON_STRUCT(TBundleSystemOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleSystemOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

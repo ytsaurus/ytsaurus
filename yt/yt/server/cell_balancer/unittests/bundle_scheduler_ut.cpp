@@ -22,6 +22,37 @@ TString GetPodIdForInstance(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBundleInfoPtr SetBundleInfo(
+    TSchedulerInputState& input,
+    const TString& bundleName,
+    int nodeCount,
+    int writeThreadCount = 0,
+    int proxyCount = 0)
+{
+    auto bundleInfo = New<TBundleInfo>();
+    input.Bundles[bundleName] = bundleInfo;
+    bundleInfo->Health = NTabletClient::ETabletCellHealth::Good;
+    bundleInfo->Zone = "default-zone";
+    bundleInfo->NodeTagFilter = "default-zone/" + bundleName;
+    bundleInfo->EnableBundleController = true;
+    bundleInfo->EnableTabletCellManagement = true;
+
+    auto config = New<TBundleConfig>();
+    bundleInfo->TargetConfig = config;
+    config->TabletNodeCount = nodeCount;
+    config->RpcProxyCount = proxyCount;
+    config->TabletNodeResourceGuarantee = New<TInstanceResources>();
+    config->TabletNodeResourceGuarantee->Vcpu = 9999;
+    config->TabletNodeResourceGuarantee->Memory = 88_GB;
+    config->RpcProxyResourceGuarantee->Vcpu = 1111;
+    config->RpcProxyResourceGuarantee->Memory = 18_GB;
+    config->CpuLimits->WriteThreadPoolSize = writeThreadCount;
+
+    return bundleInfo;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCount = 0, int proxyCount = 0)
 {
     TSchedulerInputState input;
@@ -36,26 +67,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
         zoneInfo->RpcProxyNannyService = "nanny-bunny-rpc-proxies";
     }
 
-    {
-        auto bundleInfo = New<TBundleInfo>();
-        input.Bundles["default-bundle"] = bundleInfo;
-        bundleInfo->Health = NTabletClient::ETabletCellHealth::Good;
-        bundleInfo->Zone = "default-zone";
-        bundleInfo->NodeTagFilter = "default-zone/default-bundle";
-        bundleInfo->EnableBundleController = true;
-        bundleInfo->EnableTabletCellManagement = true;
-
-        auto config = New<TBundleConfig>();
-        bundleInfo->TargetConfig = config;
-        config->TabletNodeCount = nodeCount;
-        config->RpcProxyCount = proxyCount;
-        config->TabletNodeResourceGuarantee = New<TInstanceResources>();
-        config->TabletNodeResourceGuarantee->VCpu = 9999;
-        config->TabletNodeResourceGuarantee->Memory = 88_GB;
-        config->RpcProxyResourceGuarantee->VCpu = 1111;
-        config->RpcProxyResourceGuarantee->Memory = 18_GB;
-        config->CpuLimits->WriteThreadPoolSize = writeThreadCount;
-    }
+    SetBundleInfo(input, "default-bundle", nodeCount, writeThreadCount, proxyCount);
 
     return input;
 }
@@ -73,7 +85,7 @@ void VerifyNodeAllocationRequests(const TSchedulerMutations& mutations, int expe
         EXPECT_EQ(spec->NannyService, "nanny-bunny-tablet-nodes");
         EXPECT_FALSE(spec->PodIdTemplate.empty());
         EXPECT_TRUE(spec->InstanceRole == YTRoleTypeTabNode);
-        EXPECT_EQ(spec->ResourceRequest->VCpu, 9999);
+        EXPECT_EQ(spec->ResourceRequest->Vcpu, 9999);
         EXPECT_EQ(spec->ResourceRequest->MemoryMb, static_cast<i64>(88_GB / 1_MB));
     }
 }
@@ -91,7 +103,7 @@ void VerifyProxyAllocationRequests(const TSchedulerMutations& mutations, int exp
         EXPECT_EQ(spec->NannyService, "nanny-bunny-rpc-proxies");
         EXPECT_FALSE(spec->PodIdTemplate.empty());
         EXPECT_TRUE(spec->InstanceRole == YTRoleTypeRpcProxy);
-        EXPECT_EQ(spec->ResourceRequest->VCpu, 1111);
+        EXPECT_EQ(spec->ResourceRequest->Vcpu, 1111);
         EXPECT_EQ(spec->ResourceRequest->MemoryMb, static_cast<i64>(18_GB / 1_MB));
     }
 }
@@ -235,6 +247,8 @@ void GenerateNodeAllocationsForBundle(TSchedulerInputState& inputState, const TS
         auto& spec = inputState.AllocationRequests[requestId]->Spec;
         spec->NannyService = "nanny-bunny-tablet-nodes";
         spec->YPCluster = "pre-pre";
+        spec->ResourceRequest->Vcpu = 9999;
+        spec->ResourceRequest->MemoryMb = 88_GB / 1_MB;
     }
 }
 
@@ -253,6 +267,8 @@ void GenerateProxyAllocationsForBundle(TSchedulerInputState& inputState, const T
         auto& spec = inputState.AllocationRequests[requestId]->Spec;
         spec->NannyService = "nanny-bunny-rpc-proxies";
         spec->YPCluster = "pre-pre";
+        spec->ResourceRequest->Vcpu = 1111;
+        spec->ResourceRequest->MemoryMb = 18_GB / 1_MB;
     }
 }
 
@@ -400,6 +416,8 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->YPCluster, "pre-pre");
         EXPECT_EQ(annotations->AllocatedForBundle, "default-bundle");
         EXPECT_EQ(annotations->NannyService, "nanny-bunny-tablet-nodes");
+        EXPECT_EQ(annotations->Resource->Vcpu, 9999);
+        EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(88_GB));
         EXPECT_TRUE(annotations->Allocated);
 
         input.TabletNodes[nodeId]->Annotations = annotations;
@@ -1101,6 +1119,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->YPCluster, "pre-pre");
         EXPECT_EQ(annotations->AllocatedForBundle, "default-bundle");
         EXPECT_EQ(annotations->NannyService, "nanny-bunny-rpc-proxies");
+        EXPECT_EQ(annotations->Resource->Vcpu, 1111);
+        EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(18_GB));
         EXPECT_TRUE(annotations->Allocated);
 
         input.RpcProxies[proxyName]->Annotations = annotations;
@@ -1523,6 +1543,135 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
 
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TExpectedLimits
+{
+    i64 Nodes = 0;
+    i64 Chunks = 0;
+    i64 SsdBlobs = 0;
+    i64 Default = 0;
+    i64 SsdJournal = 0;
+};
+
+void CheckLimits(const TExpectedLimits& limits, const TAccountResourcesPtr& resource)
+{
+    ASSERT_EQ(limits.Chunks, resource->ChunkCount);
+    ASSERT_EQ(limits.Nodes, resource->NodeCount);
+    ASSERT_EQ(limits.SsdJournal, resource->DiskSpacePerMedium["ssd_journal"]);
+    ASSERT_EQ(limits.Default, resource->DiskSpacePerMedium["default"]);
+    ASSERT_EQ(limits.SsdBlobs, resource->DiskSpacePerMedium["ssd_blobs"]);
+}
+
+TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
+{
+    auto input = GenerateSimpleInputContext(2, 5);
+
+    input.RootSystemAccount = New<TSystemAccount>();
+    auto& bundleInfo1 = input.Bundles["default-bundle"];
+
+    bundleInfo1->Options->ChangelogAccount = "default-bundle-account";
+    bundleInfo1->Options->SnapshotAccount = "default-bundle-account";
+    bundleInfo1->Options->ChangelogPrimaryMedium = "ssd_journal";
+    bundleInfo1->Options->SnapshotPrimaryMedium = "default";
+    bundleInfo1->EnableSystemAccountManagement = true;
+
+    input.SystemAccounts["default-bundle-account"] = New<TSystemAccount>();
+
+    input.Config->QuotaMultiplier = 1.5;
+    input.Config->ChunkCountPerCell = 2;
+    input.Config->NodeCountPerCell = 3;
+    input.Config->JournalDiskSpacePerCell = 5_MB;
+    input.Config->SnapshotDiskSpacePerCell = 7_MB;
+    input.Config->MinNodeCount = 9;
+    input.Config->MinChunkCount = 7;
+
+    GenerateNodesForBundle(input, "default-bundle", 2);
+    {
+        auto& limits = input.RootSystemAccount->ResourceLimits;
+        limits->NodeCount = 1000;
+        limits->ChunkCount = 2000;
+        limits->DiskSpacePerMedium["default"] = 1_MB;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedSystemAccountLimit));
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 45,
+            .Chunks = 30,
+            .Default = 105_MB,
+            .SsdJournal = 75_MB,
+        },
+        mutations.ChangedSystemAccountLimit["default-bundle-account"]);
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 1045,
+            .Chunks = 2030,
+            .Default = 106_MB,
+            .SsdJournal = 75_MB
+        },
+        mutations.ChangedRootSystemAccountLimit);
+
+    SetBundleInfo(input, "default-bundle2", 10, 20);
+    auto& bundleInfo2 = input.Bundles["default-bundle2"];
+    bundleInfo2->EnableSystemAccountManagement = true;
+    bundleInfo2->Options->ChangelogAccount = "default-bundle2-account";
+    bundleInfo2->Options->SnapshotAccount = "default-bundle2-account";
+    bundleInfo2->Options->ChangelogPrimaryMedium = "ssd_journal";
+    bundleInfo2->Options->SnapshotPrimaryMedium = "ssd_blobs";
+    input.SystemAccounts["default-bundle2-account"] = New<TSystemAccount>();
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ChangedSystemAccountLimit));
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 45,
+            .Chunks = 30,
+            .Default = 105_MB,
+            .SsdJournal = 75_MB
+        },
+        mutations.ChangedSystemAccountLimit["default-bundle-account"]);
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 900,
+            .Chunks = 600,
+            .SsdBlobs = 2100_MB,
+            .SsdJournal = 1500_MB
+        },
+        mutations.ChangedSystemAccountLimit["default-bundle2-account"]);
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 1945,
+            .Chunks = 2630,
+            .SsdBlobs = 2100_MB,
+            .Default = 106_MB,
+            .SsdJournal = 1575_MB
+        },
+        mutations.ChangedRootSystemAccountLimit);
+
+    // Test account actual cells count
+    GenerateTabletCellsForBundle(input, "default-bundle2", 300);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckLimits(
+        TExpectedLimits{
+            .Nodes = 1350,
+            .Chunks = 900,
+            .SsdBlobs = 3150_MB,
+            .SsdJournal = 2250_MB
+        },
+        mutations.ChangedSystemAccountLimit["default-bundle2-account"]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

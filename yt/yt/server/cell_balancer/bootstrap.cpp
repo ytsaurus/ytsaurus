@@ -190,6 +190,10 @@ private:
         SetBuildAttributes(
             OrchidRoot_,
             "cell_balancer");
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/bundle_controller",
+            CreateVirtualNode(BundleController_->CreateOrchidService()->Via(GetControlInvoker())));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,

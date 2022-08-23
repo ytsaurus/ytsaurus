@@ -11,14 +11,6 @@ static const auto& Logger = BundleControllerLogger;
 
 ///////////////////////////////////////////////////////////////
 
-struct TSpareProxiesInfo
-{
-    std::vector<TString> FreeProxies;
-    THashMap<TString, std::vector<TString>> UsedByBundle;
-};
-
-///////////////////////////////////////////////////////////////
-
 TSpareProxiesInfo GetSpareProxiesInfo(
     const TString& zoneName,
     const TSchedulerInputState& input)
@@ -142,10 +134,8 @@ void SetProxyRole(
 
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
-    THashMap<TString, TSpareProxiesInfo> zoneToSpareProxies;
-
     for (const auto& [zoneName, _] : input.Zones) {
-        zoneToSpareProxies[zoneName] = GetSpareProxiesInfo(zoneName, input);
+        input.ZoneToSpareProxies[zoneName] = GetSpareProxiesInfo(zoneName, input);
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -153,7 +143,7 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
             continue;
         }
 
-        auto& spareProxies = zoneToSpareProxies[bundleInfo->Zone];
+        auto& spareProxies = input.ZoneToSpareProxies[bundleInfo->Zone];
         const auto& bundleProxies = input.BundleProxies[bundleName];
         SetProxyRole(bundleName, bundleProxies, input, spareProxies, mutations);
     }
