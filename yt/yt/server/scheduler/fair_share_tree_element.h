@@ -433,6 +433,7 @@ public:
     virtual bool IsExplicit() const;
     virtual bool IsDefaultConfigured() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
+    virtual bool IsEphemeralHub() const = 0;
 
     bool IsEmpty() const;
 
@@ -587,6 +588,7 @@ public:
     bool IsExplicit() const override;
     bool IsDefaultConfigured() const override;
     bool AreImmediateOperationsForbidden() const override;
+    bool IsEphemeralHub() const override;
 
     std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
 
@@ -717,6 +719,7 @@ public:
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+        TFairShareStrategyOperationStatePtr state,
         ISchedulerStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
         IOperationStrategyHost* operation,
@@ -746,6 +749,8 @@ public:
 
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
     TResourceVector GetMaxShare() const override;
+
+    const TFairShareStrategyOperationStatePtr& GetFairShareStrategyOperationState() const;
 
     //! Trunk node interface.
     int GetSlotIndex() const;
@@ -841,9 +846,10 @@ protected:
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
 private:
-    std::optional<double> GetSpecifiedWeight() const override;
-
     const TFairShareStrategyOperationControllerPtr Controller_;
+    const TFairShareStrategyOperationStatePtr FairShareStrategyOperationState_;
+
+    std::optional<double> GetSpecifiedWeight() const override;
 
     //! Pre fair share update methods.
     void DisableNonAliveElements() override;
@@ -907,6 +913,7 @@ public:
 
     bool IsDefaultConfigured() const override;
     bool AreImmediateOperationsForbidden() const override;
+    bool IsEphemeralHub() const override;
 
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 

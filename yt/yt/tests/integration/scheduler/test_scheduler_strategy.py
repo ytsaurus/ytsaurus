@@ -1824,6 +1824,21 @@ class TestEphemeralPools(YTEnvSetup):
         with pytest.raises(YtError):
             set("//sys/pools/ephemeral_hub/@mode", "fifo")
 
+    @authors("renadeen")
+    def test_destroy_user_ephemeral_pools_on_config_change(self):
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "ephemeral_hub"})
+        wait_breakpoint()
+
+        set("//sys/pools/ephemeral_hub/@create_ephemeral_subpools", False)
+        set("//sys/pools/ephemeral_hub/@mode", "fifo")
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool") == "ephemeral_hub")
+
+        release_breakpoint()
+        op.track()
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1
