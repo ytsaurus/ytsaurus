@@ -152,6 +152,19 @@ struct TExecuteBatchOptions
     int Concurrency;
 };
 
+class TExecuteBatchCommandRequest
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Command;
+    NYTree::IMapNodePtr Parameters;
+    NYTree::INodePtr Input;
+
+    REGISTER_YSON_STRUCT(TExecuteBatchCommandRequest);
+
+    static void Register(TRegistrar registrar);
+};
+
 class TExecuteBatchCommand
     : public TTypedCommand<TExecuteBatchOptions>
 {
@@ -159,18 +172,7 @@ public:
     TExecuteBatchCommand();
 
 private:
-    class TRequest
-        : public NYTree::TYsonSerializable
-    {
-    public:
-        TString Command;
-        NYTree::IMapNodePtr Parameters;
-        NYTree::INodePtr Input;
-
-        TRequest();
-    };
-
-    using TRequestPtr = TIntrusivePtr<TRequest>;
+    using TRequestPtr = TIntrusivePtr<TExecuteBatchCommandRequest>;
 
     std::vector<TRequestPtr> Requests;
 

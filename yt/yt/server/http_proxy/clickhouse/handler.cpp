@@ -604,7 +604,8 @@ private:
 
                 YT_LOG_DEBUG("Fetched discovery version (Version: %v)", version);
 
-                auto config = New<TDiscoveryConfig>(path);
+                auto config = New<TTemplatedDiscoveryConfig<>>();
+                config->Directory = path;
                 config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
                 config->ReadFrom = NApi::EMasterChannelKind::Cache;
                 config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;

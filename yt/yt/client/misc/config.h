@@ -4,7 +4,6 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
@@ -27,7 +26,7 @@ DEFINE_REFCOUNTED_TYPE(TWorkloadConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NYPath::TYPath Directory;
@@ -45,12 +44,30 @@ public:
     //! Used only for ReadFrom == Cache.
     TDuration MasterCacheExpireTime;
 
-    TDiscoveryConfig() = default;
+protected:
+    using TRegistrar = NYT::NYTree::TYsonStructRegistrar<TDiscoveryConfig>;
+    using TThis = TDiscoveryConfig;
 
-    explicit TDiscoveryConfig(NYPath::TYPath directoryPath);
+    static void DoRegister(TRegistrar registrar, NYPath::TYPath directoryPath);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr const char EmptyPath[] = "";
+
+template <char const* Path = EmptyPath>
+class TTemplatedDiscoveryConfig
+    : public TDiscoveryConfig
+{
+    REGISTER_YSON_STRUCT(TTemplatedDiscoveryConfig);
+
+    static void Register(TRegistrar registrar)
+    {
+        DoRegister(registrar, Path);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

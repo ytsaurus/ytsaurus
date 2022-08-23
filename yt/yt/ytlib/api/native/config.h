@@ -40,7 +40,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NApi::NNative {
 
@@ -231,7 +231,9 @@ public:
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
-    TConnectionDynamicConfig();
+    REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)

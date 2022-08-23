@@ -5,7 +5,7 @@
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFormats {
 
@@ -259,20 +259,22 @@ DEFINE_ENUM(EProtobufType,
 );
 
 class TProtobufTypeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     EProtobufType ProtoType;
     std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
 
-    TProtobufTypeConfig();
+    REGISTER_YSON_STRUCT(TProtobufTypeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufTypeConfig)
 
 class TProtobufColumnConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
@@ -286,7 +288,9 @@ public:
     std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
 
-    TProtobufColumnConfig();
+    REGISTER_YSON_STRUCT(TProtobufColumnConfig);
+
+    static void Register(TRegistrar registrar);
 public:
     void CustomPostprocess();
 };
@@ -296,12 +300,14 @@ DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProtobufTableConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TProtobufColumnConfigPtr> Columns;
 
-    TProtobufTableConfig();
+    REGISTER_YSON_STRUCT(TProtobufTableConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufTableConfig)
@@ -312,7 +318,7 @@ DEFINE_ENUM(ENestedMessagesMode,
 );
 
 class TProtobufFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString FileDescriptorSet; // deprecated
@@ -332,7 +338,9 @@ public:
     ETimeMode TimeMode;
     EUuidMode UuidMode;
 
-    TProtobufFormatConfig();
+    REGISTER_YSON_STRUCT(TProtobufFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)
@@ -360,7 +368,7 @@ DEFINE_ENUM(EWebJsonValueFormat,
 );
 
 class TWebJsonFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxSelectedColumnCount;
@@ -373,7 +381,9 @@ public:
     // Intentionally do not reveal following options to user.
     bool SkipSystemColumns = true;
 
-    TWebJsonFormatConfig();
+    REGISTER_YSON_STRUCT(TWebJsonFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TWebJsonFormatConfig)
@@ -381,7 +391,7 @@ DEFINE_REFCOUNTED_TYPE(TWebJsonFormatConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NYTree::IMapNodePtr SkiffSchemaRegistry;
@@ -390,7 +400,9 @@ public:
     // This is temporary configuration until we support schema on mapreduce operations fully.
     std::optional<NTableClient::TTableSchema> OverrideIntermediateTableSchema;
 
-    TSkiffFormatConfig();
+    REGISTER_YSON_STRUCT(TSkiffFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSkiffFormatConfig)

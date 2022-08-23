@@ -32,52 +32,52 @@ void TConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionDynamicConfig::TConnectionDynamicConfig()
+void TConnectionDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_mount_cache", TableMountCache)
+    registrar.Parameter("table_mount_cache", &TThis::TableMountCache)
         .DefaultNew();
-    RegisterParameter("tablet_write_backoff", TabletWriteBackoff)
+    registrar.Parameter("tablet_write_backoff", &TThis::TabletWriteBackoff)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TThis* config) {
         // TODO(gritukan): Enable tablet retries by default one day.
-        TabletWriteBackoff = New<TSerializableExponentialBackoffOptions>();
-        TabletWriteBackoff->RetryCount = 1;
+        config->TabletWriteBackoff = New<TSerializableExponentialBackoffOptions>();
+        config->TabletWriteBackoff->RetryCount = 1;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentQueuePollerConfig::TPersistentQueuePollerConfig()
+void TPersistentQueuePollerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_prefetch_row_count", MaxPrefetchRowCount)
+    registrar.Parameter("max_prefetch_row_count", &TThis::MaxPrefetchRowCount)
         .GreaterThan(0)
         .Default(1024);
-    RegisterParameter("max_prefetch_data_weight", MaxPrefetchDataWeight)
+    registrar.Parameter("max_prefetch_data_weight", &TThis::MaxPrefetchDataWeight)
         .GreaterThan(0)
         .Default((i64) 16 * 1024 * 1024);
-    RegisterParameter("max_rows_per_fetch", MaxRowsPerFetch)
+    registrar.Parameter("max_rows_per_fetch", &TThis::MaxRowsPerFetch)
         .GreaterThan(0)
         .Default(512);
-    RegisterParameter("max_rows_per_poll", MaxRowsPerPoll)
+    registrar.Parameter("max_rows_per_poll", &TThis::MaxRowsPerPoll)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("max_fetched_untrimmed_row_count", MaxFetchedUntrimmedRowCount)
+    registrar.Parameter("max_fetched_untrimmed_row_count", &TThis::MaxFetchedUntrimmedRowCount)
         .GreaterThan(0)
         .Default(40000);
-    RegisterParameter("untrimmed_data_rows_low", UntrimmedDataRowsLow)
+    registrar.Parameter("untrimmed_data_rows_low", &TThis::UntrimmedDataRowsLow)
         .Default(0);
-    RegisterParameter("untrimmed_data_rows_high", UntrimmedDataRowsHigh)
+    registrar.Parameter("untrimmed_data_rows_high", &TThis::UntrimmedDataRowsHigh)
         .Default(std::numeric_limits<i64>::max());
-    RegisterParameter("data_poll_period", DataPollPeriod)
+    registrar.Parameter("data_poll_period", &TThis::DataPollPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("state_trim_period", StateTrimPeriod)
+    registrar.Parameter("state_trim_period", &TThis::StateTrimPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("backoff_time", BackoffTime)
+    registrar.Parameter("backoff_time", &TThis::BackoffTime)
         .Default(TDuration::Seconds(5));
 
-    RegisterPostprocessor([&] {
-        if (UntrimmedDataRowsLow > UntrimmedDataRowsHigh) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->UntrimmedDataRowsLow > config->UntrimmedDataRowsHigh) {
             THROW_ERROR_EXCEPTION("\"untrimmed_data_rows_low\" must not exceed \"untrimmed_data_rows_high\"");
         }
     });

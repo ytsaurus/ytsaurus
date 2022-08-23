@@ -311,11 +311,11 @@ void TConnectionConfig::OverrideMasterAddresses(const std::vector<TString>& addr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionDynamicConfig::TConnectionDynamicConfig()
+void TConnectionDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_replica_cache", SyncReplicaCache)
+    registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
-    RegisterParameter("clock_manager", ClockManager)
+    registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
 }
 

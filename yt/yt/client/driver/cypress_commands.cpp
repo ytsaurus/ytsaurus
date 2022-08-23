@@ -142,9 +142,9 @@ void TListCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCreateCommand::TCreateCommand()
+void TCreateCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("type", Type);
+    registrar.Parameter("type", &TThis::Type);
 }
 
 void TCreateCommand::Execute(ICommandContextPtr context)

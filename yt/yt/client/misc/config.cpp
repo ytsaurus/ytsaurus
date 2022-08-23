@@ -12,29 +12,29 @@ void TWorkloadConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryConfig::TDiscoveryConfig(NYPath::TYPath directoryPath)
+void TDiscoveryConfig::DoRegister(TRegistrar registrar, NYPath::TYPath directoryPath)
 {
-    RegisterParameter("directory", Directory)
+    registrar.Parameter("directory", &TThis::Directory)
         .Default(directoryPath);
 
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("ban_timeout", BanTimeout)
+    registrar.Parameter("ban_timeout", &TThis::BanTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("transaction_timeout", TransactionTimeout)
+    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("transaction_ping_period", TransactionPingPeriod)
+    registrar.Parameter("transaction_ping_period", &TThis::TransactionPingPeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("skip_unlocked_participants", SkipUnlockedParticipants)
+    registrar.Parameter("skip_unlocked_participants", &TThis::SkipUnlockedParticipants)
         .Default(true);
 
-    RegisterParameter("lock_node_timeout", LockNodeTimeout)
+    registrar.Parameter("lock_node_timeout", &TThis::LockNodeTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("read_from", ReadFrom)
+    registrar.Parameter("read_from", &TThis::ReadFrom)
         .Default(NApi::EMasterChannelKind::Follower);
-    RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)
+    registrar.Parameter("master_cache_expire_time", &TThis::MasterCacheExpireTime)
         .Default(TDuration::Seconds(15));
 }
 

@@ -391,7 +391,7 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("discovery", &TThis::Discovery)
-        .DefaultNew("//sys/clickhouse/cliques");
+        .DefaultNew();
 
     registrar.Parameter("gossip", &TThis::Gossip)
         .DefaultNew();

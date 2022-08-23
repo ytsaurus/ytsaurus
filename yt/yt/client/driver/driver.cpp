@@ -451,8 +451,13 @@ private:
         TCommandEntry entry;
         entry.Descriptor = descriptor;
         entry.Execute = BIND_NO_PROPAGATE([] (ICommandContextPtr context) {
-            TCommand command;
-            command.Execute(context);
+            if constexpr (std::is_convertible<TCommand*, TYsonStructLite*>::value) {
+                TCommand command = TCommand::Create();
+                command.Execute(context);
+            } else {
+                TCommand command;
+                command.Execute(context);
+            }
         });
         YT_VERIFY(CommandNameToEntry_.emplace(descriptor.CommandName, entry).second);
     }
