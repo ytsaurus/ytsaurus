@@ -588,11 +588,16 @@ bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
     return NodesBeingMerged_.contains(nodeId);
 }
 
-void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
+void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(IsMasterJobType(jobType));
 
     if (!IsLeader()) {
+        return;
+    }
+
+    if (jobType != EJobType::MergeChunks) {
         return;
     }
 

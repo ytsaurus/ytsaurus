@@ -246,11 +246,16 @@ public:
 
     // IJobController implementation.
 
-    void ScheduleJobs(IJobSchedulingContext* context) override
+    void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsMasterJobType(jobType));
 
         if (!IsLeader()) {
+            return;
+        }
+
+        if (jobType != EJobType::AutotomizeChunk) {
             return;
         }
 

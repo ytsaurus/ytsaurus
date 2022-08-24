@@ -204,8 +204,14 @@ public:
     }
 
     // IJobController implementation.
-    void ScheduleJobs(IJobSchedulingContext* context) override
+    void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override
     {
+        YT_VERIFY(IsMasterJobType(jobType));
+
+        if (jobType != EJobType::SealChunk) {
+            return;
+        }
+
         auto* node = context->GetNode();
         const auto& resourceUsage = context->GetNodeResourceUsage();
         const auto& resourceLimits = context->GetNodeResourceLimits();

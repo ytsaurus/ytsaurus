@@ -1994,7 +1994,25 @@ public:
             &resourceLimits,
             JobRegistry_);
 
-        JobController_->ScheduleJobs(&schedulingContext);
+        if (JobRegistry_->IsOverdraft()) {
+            YT_LOG_ERROR("Job throttler is overdrafted, skipping job scheduling (Address: %v)",
+                node->GetDefaultAddress());
+        } else {
+            for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+                if (!IsMasterJobType(jobType)) {
+                    continue;
+                }
+
+                if (JobRegistry_->IsOverdraft(jobType)) {
+                    YT_LOG_ERROR("Job throttler is overdrafted for job type, skipping job scheduling (Address: %v, JobType: %v)",
+                        node->GetDefaultAddress(),
+                        jobType);
+                    continue;
+                }
+
+                JobController_->ScheduleJobs(jobType, &schedulingContext);
+            }
+        }
 
         for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
             auto* jobInfo = response->add_jobs_to_start();

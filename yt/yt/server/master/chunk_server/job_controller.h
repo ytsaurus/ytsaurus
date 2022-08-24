@@ -36,7 +36,7 @@ struct IJobControllerCallbacks
 struct IJobController
     : public virtual TRefCounted
 {
-    virtual void ScheduleJobs(IJobSchedulingContext* context) = 0;
+    virtual void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) = 0;
 
     virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) = 0;
     virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) = 0;

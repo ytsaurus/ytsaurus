@@ -398,27 +398,18 @@ void TChunkReplicator::OnEpochFinished()
 
     ChunkListIdsWithFinishedRequisitionTraverse_.clear();
 
-    for (auto& queue : MissingPartChunkRepairQueues_) {
-        for (auto chunkWithIndexes : queue) {
-            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
-                chunkWithIndexes.GetMediumIndex(),
-                EChunkRepairQueue::Missing,
-                TChunkRepairQueueIterator());
+    for (auto queueKind : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+        for (auto& queue : ChunkRepairQueues(queueKind)) {
+            for (auto chunkWithIndexes : queue) {
+                chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
+                    chunkWithIndexes.GetMediumIndex(),
+                    EChunkRepairQueue::Missing,
+                    TChunkRepairQueueIterator());
+            }
+            queue.clear();
         }
-        queue.clear();
+        ChunkRepairQueueBalancer(queueKind).ResetWeights();
     }
-    MissingPartChunkRepairQueueBalancer_.ResetWeights();
-
-    for (auto& queue : DecommissionedPartChunkRepairQueues_) {
-        for (auto chunkWithIndexes : queue) {
-            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
-                chunkWithIndexes.GetMediumIndex(),
-                EChunkRepairQueue::Decommissioned,
-                TChunkRepairQueueIterator());
-        }
-        queue.clear();
-    }
-    DecommissionedPartChunkRepairQueueBalancer_.ResetWeights();
 
     ChunkIdsPendingEndorsementRegistration_.clear();
 
@@ -476,22 +467,7 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
         return;
     }
 
-    const auto replication = GetChunkAggregatedReplication(chunk);
-
-    for (auto& entry : replication) {
-        auto mediumIndex = entry.GetMediumIndex();
-        for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-            auto repairIt = chunk->GetRepairQueueIterator(mediumIndex, queue);
-            if (repairIt == TChunkRepairQueueIterator()) {
-                continue;
-            }
-            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
-            chunkRepairQueue.erase(repairIt);
-            TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-            auto newRepairIt = chunkRepairQueue.insert(chunkRepairQueue.begin(), chunkWithIndexes);
-            chunk->SetRepairQueueIterator(mediumIndex, queue, newRepairIt);
-        }
-    }
+    TouchChunkInRepairQueues(chunk);
 }
 
 TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(TChunk* chunk)
@@ -1610,19 +1586,36 @@ bool TChunkReplicator::TryScheduleRepairJob(
     return true;
 }
 
-void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
+void TChunkReplicator::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
 {
+    YT_VERIFY(IsMasterJobType(jobType));
+
     if (!IsReplicatorEnabled()) {
         return;
     }
 
+    switch (jobType) {
+        case EJobType::ReplicateChunk:
+            ScheduleReplicationJobs(context);
+            break;
+        case EJobType::RemoveChunk:
+            ScheduleRemovalJobs(context);
+            break;
+        case EJobType::RepairChunk:
+            ScheduleRepairJobs(context);
+            break;
+        default:
+            break;
+    }
+}
+
+void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
+{
     auto* node = context->GetNode();
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
     int misscheduledReplicationJobs = 0;
-    int misscheduledRepairJobs = 0;
-    int misscheduledRemovalJobs = 0;
 
     // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
     auto hasSpareReplicationResources = [&] {
@@ -1630,20 +1623,6 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
             resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
             (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
-    };
-
-    // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
-    auto hasSpareRepairResources = [&] {
-        return
-            misscheduledRepairJobs < GetDynamicConfig()->MaxMisscheduledRepairJobsPerHeartbeat &&
-            resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
-            (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
-    };
-
-    auto hasSpareRemovalResources = [&] {
-        return
-            misscheduledRemovalJobs < GetDynamicConfig()->MaxMisscheduledRemovalJobsPerHeartbeat &&
-            resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
     auto hasSparePullReplicationResources = [&] {
@@ -1735,56 +1714,62 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         }
     }
 
-    // Schedule repair jobs.
-    // NB: the order of the enum items is crucial! Part-missing chunks must
-    // be repaired before part-decommissioned chunks.
-    for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-        TMediumMap<std::pair<TChunkRepairQueue::iterator, TChunkRepairQueue::iterator>> iteratorPerRepairQueue;
-        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
-            if (!chunkRepairQueue.empty()) {
-                iteratorPerRepairQueue[mediumIndex] = std::make_pair(chunkRepairQueue.begin(), chunkRepairQueue.end());
-            }
-        }
-
-        while (hasSpareRepairResources()) {
-            auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
-                [&] (int mediumIndex) {
-                    // Don't repair chunks on nodes without relevant medium.
-                    // In particular, this avoids repairing non-cloud tables in the cloud.
-                    const auto it = iteratorPerRepairQueue.find(mediumIndex);
-                    return node->HasMedium(mediumIndex)
-                        && it != iteratorPerRepairQueue.end()
-                        && it->second.first != it->second.second;
-                });
-
-            if (!winner) {
-                break; // Nothing to repair on relevant media.
+    // Schedule balancing jobs.
+    // TODO(gritukan): YT-17358, balancing jobs are probably not needed and are hard to
+    // implement with sharded replicator.
+    if (RefreshRunning_.all()) {
+        for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
+            auto* medium = mediumIdAndPtrPair.second;
+            if (medium->GetCache()) {
+                continue;
             }
 
-            auto mediumIndex = *winner;
-            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
-            auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
-            auto chunkWithIndexes = *chunkIt;
-            auto* chunk = chunkWithIndexes.GetPtr();
+            auto mediumIndex = medium->GetIndex();
+            auto sourceFillFactor = node->GetFillFactor(mediumIndex);
+            if (!sourceFillFactor) {
+                continue; // No storage of this medium on this node.
+            }
 
-            auto removeFromQueue = [&] {
-                chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
-                chunkRepairQueue.erase(chunkIt);
-            };
+            double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
+            if (hasSpareReplicationResources() &&
+                *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
+                ChunkPlacement_->HasBalancingTargets(
+                    medium,
+                    targetFillFactor))
+            {
+                int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
+                auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
+                for (auto chunkWithIndexes : chunksToBalance) {
+                    if (!hasSpareReplicationResources()) {
+                        break;
+                    }
 
-            // NB: Repair queues are not cleared when shard processing is stopped,
-            // so we have to handle chunks replicator should not process.
-            if (!chunk->IsRefreshActual()) {
-                removeFromQueue();
-                ++misscheduledRepairJobs;
-            } else if (TryScheduleRepairJob(context, queue, chunkWithIndexes)) {
-                removeFromQueue();
-            } else {
-                ++misscheduledRepairJobs;
+                    if (!TryScheduleBalancingJob(context, chunkWithIndexes, targetFillFactor)) {
+                        ++misscheduledReplicationJobs;
+                    }
+                }
             }
         }
     }
+
+    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledReplicationJobs;
+}
+
+void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
+{
+    auto* node = context->GetNode();
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
+
+    int misscheduledRemovalJobs = 0;
+
+    auto hasSpareRemovalResources = [&] {
+        return
+            misscheduledRemovalJobs < GetDynamicConfig()->MaxMisscheduledRemovalJobsPerHeartbeat &&
+            resourceUsage.removal_slots() < resourceLimits.removal_slots();
+    };
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     // Schedule removal jobs.
     const auto& nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
@@ -1876,47 +1861,78 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         }
     }
 
-    // Schedule balancing jobs.
-    // TODO(gritukan): YT-17358, balancing jobs are probably not needed and are hard to
-    // implement with sharded replicator.
-    if (RefreshRunning_.all()) {
-        for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-            auto* medium = mediumIdAndPtrPair.second;
-            if (medium->GetCache()) {
-                continue;
+
+    MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
+}
+
+void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
+{
+    auto* node = context->GetNode();
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
+
+    int misscheduledRepairJobs = 0;
+
+    // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
+    auto hasSpareRepairResources = [&] {
+        return
+            misscheduledRepairJobs < GetDynamicConfig()->MaxMisscheduledRepairJobsPerHeartbeat &&
+            resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
+            (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
+    };
+
+    // Schedule repair jobs.
+    // NB: the order of the enum items is crucial! Part-missing chunks must
+    // be repaired before part-decommissioned chunks.
+    for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+        TMediumMap<std::pair<TChunkRepairQueue::iterator, TChunkRepairQueue::iterator>> iteratorPerRepairQueue;
+        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
+            if (!chunkRepairQueue.empty()) {
+                iteratorPerRepairQueue[mediumIndex] = std::make_pair(chunkRepairQueue.begin(), chunkRepairQueue.end());
+            }
+        }
+
+        while (hasSpareRepairResources()) {
+            auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
+                [&] (int mediumIndex) {
+                    // Don't repair chunks on nodes without relevant medium.
+                    // In particular, this avoids repairing non-cloud tables in the cloud.
+                    const auto it = iteratorPerRepairQueue.find(mediumIndex);
+                    return node->HasMedium(mediumIndex)
+                        && it != iteratorPerRepairQueue.end()
+                        && it->second.first != it->second.second;
+                });
+
+            if (!winner) {
+                break; // Nothing to repair on relevant media.
             }
 
-            auto mediumIndex = medium->GetIndex();
-            auto sourceFillFactor = node->GetFillFactor(mediumIndex);
-            if (!sourceFillFactor) {
-                continue; // No storage of this medium on this node.
-            }
+            auto mediumIndex = *winner;
+            auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
+            auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
+            auto chunkWithIndexes = *chunkIt;
+            auto* chunk = chunkWithIndexes.GetPtr();
 
-            double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
-            if (hasSpareReplicationResources() &&
-                *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
-                ChunkPlacement_->HasBalancingTargets(
-                    medium,
-                    targetFillFactor))
-            {
-                int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
-                auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
-                for (auto chunkWithIndexes : chunksToBalance) {
-                    if (!hasSpareReplicationResources()) {
-                        break;
-                    }
+            auto removeFromQueue = [&] {
+                chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
+                chunkRepairQueue.erase(chunkIt);
+            };
 
-                    if (!TryScheduleBalancingJob(context, chunkWithIndexes, targetFillFactor)) {
-                        ++misscheduledReplicationJobs;
-                    }
-                }
+            // NB: Repair queues are not cleared when shard processing is stopped,
+            // so we have to handle chunks replicator should not process.
+            if (!chunk->IsRefreshActual()) {
+                removeFromQueue();
+                ++misscheduledRepairJobs;
+            } else if (TryScheduleRepairJob(context, queue, chunkWithIndexes)) {
+                removeFromQueue();
+            } else {
+                ++misscheduledRepairJobs;
             }
         }
     }
 
-    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledReplicationJobs;
     MisscheduledJobs_[EJobType::RepairChunk] += misscheduledRepairJobs;
-    MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
 }
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)
@@ -2190,18 +2206,7 @@ void TChunkReplicator::RemoveChunkFromQueuesOnRefresh(TChunk* chunk)
         node->RemoveFromChunkRemovalQueue(chunkIdWithIndexes);
     }
 
-    const auto& requisition = chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
-    for (const auto& entry : requisition) {
-        const auto& mediumIndex = entry.MediumIndex;
-        const auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
-        if (medium->GetCache()) {
-            continue;
-        }
-
-        // Remove from repair queue.
-        TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-        RemoveFromChunkRepairQueues(chunkWithIndexes);
-    }
+    RemoveFromChunkRepairQueues(chunk);
 }
 
 void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
@@ -2222,15 +2227,7 @@ void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
         node->RemoveFromChunkSealQueue(chunkWithIndexes);
     }
 
-    // Remove chunk from repair queues.
-    if (chunk->IsErasure()) {
-        const auto& requisition = chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
-        for (const auto& entry : requisition) {
-            auto mediumIndex = entry.MediumIndex;
-            TChunkPtrWithIndexes chunkPtrWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-            RemoveFromChunkRepairQueues(chunkPtrWithIndexes);
-        }
-    }
+    RemoveFromChunkRepairQueues(chunk);
 }
 
 bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndexes replica)
@@ -3046,17 +3043,49 @@ void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndex
     chunk->SetRepairQueueIterator(mediumIndex, queue, it);
 }
 
-void TChunkReplicator::RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes)
+void TChunkReplicator::RemoveFromChunkRepairQueues(TChunk* chunk)
 {
-    YT_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
-    YT_ASSERT(chunkWithIndexes.GetState() == EChunkReplicaState::Generic);
-    auto* chunk = chunkWithIndexes.GetPtr();
-    int mediumIndex = chunkWithIndexes.GetMediumIndex();
+    if (!chunk->IsErasure()) {
+        return;
+    }
+
+    // NB: when a chunk requisition (and replication) changes, there's a delay
+    // before the subsequent refresh. Which means that the requisition and
+    // replication/repair/etc. queues may be inconsistent. Do not rely on the
+    // requisition when dealing with replicator queues!
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-        auto it = chunk->GetRepairQueueIterator(mediumIndex, queue);
-        if (it != TChunkRepairQueueIterator()) {
-            ChunkRepairQueue(mediumIndex, queue).erase(it);
+        auto* queueIterators = chunk->SelectRepairQueueIteratorMap(queue);
+        for (auto [mediumIndex, repairIt] : *queueIterators) {
+            if (repairIt == TChunkRepairQueueIterator()) {
+                continue;
+            }
+            auto& repairQueue = ChunkRepairQueue(mediumIndex, queue);
+            repairQueue.erase(repairIt);
+            // Just to be safe.
             chunk->SetRepairQueueIterator(mediumIndex, queue, TChunkRepairQueueIterator());
+        }
+    }
+}
+
+void TChunkReplicator::TouchChunkInRepairQueues(TChunk* chunk)
+{
+    if (!chunk->IsErasure()) {
+        return;
+    }
+
+    // NB: see RemoveFromChunkRepairQueues for the comment on why the chunk's
+    // requisition should not be used here.
+    for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+        auto* queueIterators = chunk->SelectRepairQueueIteratorMap(queue);
+        for (auto [mediumIndex, repairIt] : *queueIterators) {
+            if (repairIt == TChunkRepairQueueIterator()) {
+                continue;
+            }
+            auto& repairQueue = ChunkRepairQueue(mediumIndex, queue);
+            repairQueue.erase(repairIt);
+            TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
+            auto newRepairIt = repairQueue.insert(repairQueue.begin(), chunkWithIndexes);
+            chunk->SetRepairQueueIterator(mediumIndex, queue, newRepairIt);
         }
     }
 }
