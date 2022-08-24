@@ -971,6 +971,7 @@ private:
     TStoreSessionList DynamicEdenSessions_;
     TStoreSessionList ChunkEdenSessions_;
 
+    int RecursionDepth_ = 0;
     int CurrentPartitionSessionIndex_ = 0;
     std::vector<TPartitionSession> PartitionSessions_;
 
@@ -1743,12 +1744,30 @@ TFuture<void> TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
             } else {
                 // NB: When sessions become prepared we read row in OnStoreSessionsPrepared
                 // and move to the next key with call to DoLookupInCurrentPartition.
-                return AllSucceeded(std::move(futures)).Apply(BIND([
+
+                static constexpr int RecursionDepthLimit = 100;
+                bool breakRecursion = ++RecursionDepth_ > RecursionDepthLimit;
+                if (breakRecursion) {
+                    RecursionDepth_ = 0;
+                }
+
+                auto future = AllSucceeded(std::move(futures)).Apply(BIND([
                     =,
                     this_ = MakeStrong(this)
                 ] {
                     OnStoreSessionsPrepared();
                     return DoLookupInCurrentPartition();
+                })
+                    .AsyncVia(GetInvoker()));
+
+                if (!breakRecursion) {
+                    return future;
+                }
+
+                // This helps to break chain of recursive promise setters.
+                return future.Apply(BIND([this_ = MakeStrong(this)] (const TError& error) {
+                    error.ThrowOnError();
+                    return;
                 })
                     .AsyncVia(GetInvoker()));
             }

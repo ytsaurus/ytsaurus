@@ -625,6 +625,26 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         wait(lambda: request_counter.get_delta() > 0)
 
+    @authors("akozhikhov")
+    def test_lookup_overflow(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", chunk_reader={
+            "prefer_local_replicas": False,
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "window_size": 5,
+            "group_size": 5,
+        })
+        set("//tmp/t/@chunk_writer", {"block_size": 5})
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(2000)]
+        rows = [{"key": i, "value": str(i)} for i in range(2000)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys) == rows
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2
