@@ -509,7 +509,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
@@ -1212,10 +1212,10 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
 }
 
 TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
