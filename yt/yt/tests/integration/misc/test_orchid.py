@@ -84,6 +84,15 @@ class TestOrchid(YTEnvSetup):
         with raises_yt_error("Missing required parameter /remote_addresses"):
             exists("//tmp/orchid/foo")
 
+    @authors("shakurov")
+    def test_missing_default_address(self):
+        create("orchid", "//tmp/orchid", attributes={"remote_addresses": {"hello": "127.0.0.1"}})
+
+        assert get("//tmp")["orchid"] == yson.YsonEntity()
+        with raises_yt_error("Cannot select address"):
+            # Must not crash.
+            get("//tmp/orchid")
+
 
 ##################################################################
 

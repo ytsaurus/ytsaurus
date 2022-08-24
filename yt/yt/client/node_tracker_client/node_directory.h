@@ -95,6 +95,7 @@ void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor,
 TString ToString(const TNodeDescriptor& descriptor);
 
 // Accessors for some well-known addresses.
+std::optional<TString> FindDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
