@@ -206,7 +206,6 @@ private:
                         allocationAge,
                         input.Config->HulkRequestTimeout),
                 });
-                continue;
             }
 
             YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, Bundle: %v,  InstanceName: %v)",
