@@ -101,12 +101,6 @@ public:
     TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
     ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(TChunk* chunk);
 
-    void ScheduleJobs(
-        TNode* node,
-        NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart);
-
     bool IsReplicatorEnabled();
     bool IsSealerEnabled();
     bool IsRefreshEnabled();
@@ -123,7 +117,7 @@ public:
     void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
     // IJobController implementation.
-    void ScheduleJobs(IJobSchedulingContext* context) override;
+    void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override;
 
     void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
     void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
@@ -226,6 +220,10 @@ private:
 
     std::bitset<ChunkShardCount> RefreshRunning_;
     bool RequisitionUpdateRunning_ = false;
+
+    void ScheduleReplicationJobs(IJobSchedulingContext* context);
+    void ScheduleRemovalJobs(IJobSchedulingContext* context);
+    void ScheduleRepairJobs(IJobSchedulingContext* context);
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
@@ -331,7 +329,8 @@ private:
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
-    void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
+    void TouchChunkInRepairQueues(TChunk* chunk);
+    void RemoveFromChunkRepairQueues(TChunk* chunk);
 
     void FlushEndorsementQueue();
 

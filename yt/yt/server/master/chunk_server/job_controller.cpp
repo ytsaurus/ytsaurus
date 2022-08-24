@@ -8,10 +8,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCompositeJobController
     : public ICompositeJobController
 {
@@ -19,26 +15,10 @@ public:
     // IJobController implementation.
     TCompositeJobController() = default;
 
-    void ScheduleJobs(IJobSchedulingContext* context) override
+    void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override
     {
-        auto jobRegistry = context->GetJobRegistry();
-        if (jobRegistry->IsOverdraft()) {
-            YT_LOG_ERROR("Job throttler is overdrafted, skipping job scheduling (Address: %v)",
-                context->GetNode()->GetDefaultAddress());
-            return;
-        }
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (IsMasterJobType(jobType)) {
-                if (jobRegistry->IsOverdraft(jobType)) {
-                    YT_LOG_ERROR("Job throttler is overdrafted for job type, skipping job scheduling (Address: %v, JobType: %v)",
-                        context->GetNode()->GetDefaultAddress(),
-                        jobType);
-                    continue;
-                }
-                const auto& jobController = GetControllerForJobType(jobType);
-                jobController->ScheduleJobs(context);
-            }
-        }
+        const auto& jobController = GetControllerForJobType(jobType);
+        jobController->ScheduleJobs(jobType, context);
     }
 
     void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override

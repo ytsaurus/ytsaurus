@@ -136,7 +136,7 @@ public:
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
     // IJobController implementation.
-    void ScheduleJobs(IJobSchedulingContext* context) override;
+    void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override;
 
     void OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks) override;
     void OnJobRunning(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks) override;

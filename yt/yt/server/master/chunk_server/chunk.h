@@ -203,6 +203,7 @@ public:
 
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
+    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
 
     const TChunkDynamicData::TJobSet& GetJobs() const;
 
@@ -460,7 +461,6 @@ private:
     std::unique_ptr<TReplicasDataBase> ReplicasData_;
 
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
-    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
 
     const TReplicasDataBase& ReplicasData() const;
     TReplicasDataBase* MutableReplicasData();
