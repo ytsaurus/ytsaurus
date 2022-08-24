@@ -209,6 +209,18 @@ TString ToString(const TNodeDescriptor& descriptor)
     return ToStringViaBuilder(descriptor);
 }
 
+std::optional<TString> FindDefaultAddress(const TAddressMap& addresses)
+{
+    if (addresses.empty()) {
+        return NullNodeAddress();
+    }
+
+    if (auto it = addresses.find(DefaultNetworkName); it != addresses.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
 const TString& GetDefaultAddress(const TAddressMap& addresses)
 {
     if (addresses.empty()) {
@@ -696,7 +708,7 @@ const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPre
     }
 
     THROW_ERROR_EXCEPTION("Cannot select address for host %v since there is no compatible network",
-        GetDefaultAddress(addresses))
+        FindDefaultAddress(addresses))
         << TErrorAttribute("remote_networks", GetKeys(addresses))
         << TErrorAttribute("local_networks", networks);
 }
