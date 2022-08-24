@@ -274,3 +274,9 @@ func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
 	}
 	return a.ytc.RemoveNode(ctx, a.cfg.Root.JoinChild(alias, "speclet", key), &yt.RemoveNodeOptions{Recursive: true, Force: true})
 }
+
+func (a *API) List(ctx context.Context) ([]string, error) {
+	var aliases []string
+	err := a.ytc.ListNode(ctx, a.cfg.Root, &aliases, nil)
+	return aliases, err
+}

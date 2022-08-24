@@ -321,3 +321,24 @@ func TestHTTPAPIDescribeAndPing(t *testing.T) {
 	}
 	require.True(t, deletePresent)
 }
+
+func TestHTTPAPIList(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := guid.New().String()
+
+	r := c.MakeRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakeRequest("list", api.RequestParams{})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result map[string][]string
+
+	err := yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Contains(t, result["result"], alias)
+}
