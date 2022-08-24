@@ -53,6 +53,8 @@ public:
     TDuration MaxResolveTimeout;
     double Jitter;
     TDuration WarningTimeout;
+    //! Used to check that bootstrap is being initialized from a correct container.
+    std::optional<TString> ExpectedLocalHostName;
 
     REGISTER_YSON_STRUCT(TAddressResolverConfig);
 

@@ -50,6 +50,8 @@ void TAddressResolverConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(3));
     registrar.Parameter("jitter", &TThis::Jitter)
         .Default(0.5);
+    registrar.Parameter("expected_localhost_name", &TThis::ExpectedLocalHostName)
+        .Default();
 
     registrar.Preprocessor([] (TThis* config) {
         config->RefreshTime = TDuration::Seconds(60);
