@@ -112,6 +112,7 @@ protected:
 
         if (dumpSnapshot || validateSnapshot || exportSnapshot) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
+            config->SnapshotValidation->EnableHostNameValidation = false;
         }
 
         if (dumpSnapshot) {

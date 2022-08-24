@@ -619,7 +619,23 @@ void TBootstrap::DoInitialize()
         cellConfig->ValidateAllPeersPresent();
     }
 
-    auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+    auto actualLocalHostName = GetLocalHostName();
+
+    // Override value always takes priority.
+    // If expected local host name is not set we just skip host name validation.
+    auto expectedLocalHostName = Config_->AddressResolver->LocalHostNameOverride.value_or(
+        Config_->AddressResolver->ExpectedLocalHostName.value_or(actualLocalHostName));
+
+    if (Config_->SnapshotValidation->EnableHostNameValidation &&
+        expectedLocalHostName != actualLocalHostName)
+    {
+        THROW_ERROR_EXCEPTION("Local address differs from expected address specified in config")
+            << TErrorAttribute("local_address", actualLocalHostName)
+            << TErrorAttribute("localhost_name", Config_->AddressResolver->ExpectedLocalHostName)
+            << TErrorAttribute("localhost_name_override", Config_->AddressResolver->LocalHostNameOverride);
+    }
+
+    auto localAddress = BuildServiceAddress(expectedLocalHostName, Config_->RpcPort);
 
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;

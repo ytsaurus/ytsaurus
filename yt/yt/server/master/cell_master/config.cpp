@@ -189,6 +189,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("snapshots", &TThis::Snapshots);
     registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
+    registrar.Parameter("snapshot_validation", &TThis::SnapshotValidation)
+        .DefaultNew();
     registrar.Parameter("cell_directory", &TThis::CellDirectory)
         .DefaultNew();
     registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
@@ -331,6 +333,14 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
                 "enable_descending_sort_order to be set");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMasterSnapshotValidationConfig::TMasterSnapshotValidationConfig()
+{
+    RegisterParameter("enable_host_name_validation", EnableHostNameValidation)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
