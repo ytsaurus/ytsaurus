@@ -39,6 +39,7 @@ public:
 
     TJobResources() = default;
     TJobResources(const TJobResources&) = default;
+    TJobResources& operator=(const TJobResources& other) = default;
 
     static TJobResources Infinite();
 };
