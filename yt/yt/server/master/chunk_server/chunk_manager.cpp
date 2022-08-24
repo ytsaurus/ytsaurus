@@ -738,7 +738,7 @@ public:
             auto* subresponse = &request->SequoiaResponse.CreateChunkSubresponses[index];
 
             auto future = CreateChunk(subrequest)
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TCreateChunkResponse& response) {
+                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TCreateChunkResponse& response) {
                     *subresponse = response;
                 }));
             futures.push_back(future);
@@ -750,7 +750,7 @@ public:
             auto* subresponse = &request->SequoiaResponse.ConfirmChunkSubresponses[index];
 
             auto future = ConfirmChunk(subrequest)
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TConfirmChunkResponse& response) {
+                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TConfirmChunkResponse& response) {
                     *subresponse = response;
                 }));
             futures.push_back(future);
