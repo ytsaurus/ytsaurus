@@ -178,6 +178,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 	body, err := yson.Marshal(map[string]any{
 		"clusters": clusters,
 		"commands": []CmdDescriptor{
+			ListCmdDescriptor,
 			CreateCmdDescriptor,
 			RemoveCmdDescriptor,
 			ExistsCmdDescriptor,

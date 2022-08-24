@@ -22,6 +22,29 @@ var AliasParameter = CmdParameter{
 	EnvVariable: "ALIAS",
 }
 
+var ListCmdDescriptor = CmdDescriptor{
+	Name:        "list",
+	Parameters:  []CmdParameter{},
+	Description: "list all strawberry operations on the cluster",
+}
+
+func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, ListCmdDescriptor)
+	if params == nil {
+		return
+	}
+
+	aliases, err := a.api.List(r.Context())
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+
+	a.replyOK(w, map[string]any{
+		"result": aliases,
+	})
+}
+
 var CreateCmdDescriptor = CmdDescriptor{
 	Name:        "create",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
@@ -189,6 +212,7 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 		r.Route("/"+cluster, func(r chi.Router) {
 			r.Use(ythttputil.CORS())
 			r.Use(ythttputil.Auth(bb, l.Structured()))
+			r.Post("/"+ListCmdDescriptor.Name, api.HandleList)
 			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
 			r.Post("/"+ExistsCmdDescriptor.Name, api.HandleExists)
