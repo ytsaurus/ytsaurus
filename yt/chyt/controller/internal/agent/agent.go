@@ -236,6 +236,7 @@ func (a *Agent) getAgentInfo() strawberry.AgentInfo {
 		Stage:              a.config.Stage,
 		Proxy:              a.proxy,
 		OperationNamespace: a.OperationNamespace(),
+		RobotUsername:      a.config.RobotUsername,
 	}
 }
 
