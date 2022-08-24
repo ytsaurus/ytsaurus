@@ -44,16 +44,6 @@ TNode TSortColumn::ToNode() const
     return BuildYsonNodeFluently().Value(*this);
 }
 
-bool TSortColumn::operator == (const TSortColumn& rhs) const
-{
-    return Name() == rhs.Name() && SortOrder() == rhs.SortOrder();
-}
-
-bool TSortColumn::operator != (const TSortColumn& rhs) const
-{
-    return !(*this == rhs);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Below lie backward compatibility methods.
 ////////////////////////////////////////////////////////////////////////////////

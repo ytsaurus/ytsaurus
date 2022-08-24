@@ -11,6 +11,7 @@
 
 #include <variant>
 
+/// @cond Doxygen_Suppress
 namespace google::protobuf {
     class Message;
 }
@@ -385,3 +386,4 @@ namespace NYT {
     class IRetryConfigProvider;
     using IRetryConfigProviderPtr = ::TIntrusivePtr<IRetryConfigProvider>;
 }
+/// @endcond
