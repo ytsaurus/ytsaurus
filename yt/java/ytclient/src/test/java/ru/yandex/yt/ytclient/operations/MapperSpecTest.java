@@ -19,7 +19,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.proxy.MockYtClient;
 
 public class MapperSpecTest {
-    MockYtClient client = new MockYtClient("test");
+    private final MockYtClient client = new MockYtClient("test");
 
     @Test
     public void testBasic() {
