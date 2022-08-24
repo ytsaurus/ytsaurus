@@ -19,6 +19,10 @@ type AgentInfo struct {
 	Stage              string
 	Proxy              string
 	OperationNamespace string
+	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
+	//
+	// TODO(dakovalkov): remove after YT-17557
+	RobotUsername string
 }
 
 type OpletOptions struct {
@@ -555,11 +559,20 @@ func (oplet *Oplet) restartOp(ctx context.Context) error {
 func (oplet *Oplet) updateOpParameters(ctx context.Context) error {
 	oplet.l.Info("updating operation parameters")
 
+	acl := toOperationACL(oplet.acl)
+	if oplet.agentInfo.RobotUsername != "" {
+		acl = append(acl, yt.ACE{
+			Action:      yt.ActionAllow,
+			Subjects:    []string{oplet.agentInfo.RobotUsername},
+			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
+		})
+	}
+
 	err := oplet.userClient.UpdateOperationParameters(
 		ctx,
 		oplet.persistentState.YTOpID,
 		map[string]interface{}{
-			"acl":  toOperationACL(oplet.acl),
+			"acl":  acl,
 			"pool": oplet.strawberrySpeclet.Pool,
 		},
 		nil)

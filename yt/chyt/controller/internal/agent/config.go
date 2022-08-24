@@ -17,4 +17,7 @@ type Config struct {
 
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
+
+	// TODO(dakovalkov): remove after YT-17557
+	RobotUsername string `yson:"robot_username"`
 }
