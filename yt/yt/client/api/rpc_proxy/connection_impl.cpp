@@ -209,11 +209,6 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
     }
 
     if (Config_->ProxyAddresses) {
-        auto address = (*Config_->ProxyAddresses)[RandomNumber(Config_->ProxyAddresses->size())];
-        DiscoveryChannel_ = CachingChannelFactory_->CreateChannel(address);
-    }
-
-    if (Config_->ProxyAddresses) {
         ChannelPool_->SetPeers(*Config_->ProxyAddresses);
     }
 }
@@ -300,38 +295,6 @@ void TConnection::Terminate()
 const TConnectionConfigPtr& TConnection::GetConfig()
 {
     return Config_;
-}
-
-std::vector<TString> TConnection::DiscoverProxiesViaRpc()
-{
-    try {
-        YT_LOG_DEBUG("Updating proxy list via RPC");
-
-        TDiscoveryServiceProxy proxy(DiscoveryChannel_);
-
-        auto req = proxy.DiscoverProxies();
-        if (Config_->ProxyRole) {
-            req->set_role(*Config_->ProxyRole);
-        }
-        req->SetTimeout(Config_->RpcTimeout);
-
-        if (Config_->ProxyNetworkName) {
-            req->set_network_name(*Config_->ProxyNetworkName);
-        }
-
-        if (Config_->ProxyAddressType) {
-            req->set_address_type(static_cast<NProto::EAddressType>(*Config_->ProxyAddressType));
-        }
-
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
-
-        return FromProto<std::vector<TString>>(rsp->addresses());
-    } catch (const std::exception& ex) {
-        DiscoveryChannel_.Reset();
-        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via RPC")
-            << ex;
-    }
 }
 
 std::vector<TString> TConnection::DiscoverProxiesViaHttp()
@@ -439,7 +402,7 @@ void TConnection::OnProxyListUpdate()
     } else if (Config_->ClusterUrl) {
         attributes->Set("cluster_url", Config_->ClusterUrl);
     } else {
-        attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
+        YT_ABORT();
     }
     attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultProxyRole));
 
@@ -451,8 +414,8 @@ void TConnection::OnProxyListUpdate()
                 proxies = DiscoverProxiesViaServiceDiscovery();
             } else if (Config_->ClusterUrl) {
                 proxies = DiscoverProxiesViaHttp();
-            } else if (Config_->ProxyAddresses) {
-                proxies = DiscoverProxiesViaRpc();
+            } else {
+                YT_ABORT();
             }
 
             if (proxies.empty()) {

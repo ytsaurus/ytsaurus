@@ -69,14 +69,11 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
 
-    NRpc::IChannelPtr DiscoveryChannel_;
-
     // TODO(prime@): Create HTTP endpoint for discovery that works without authentication.
     TAtomicObject<TString> DiscoveryToken_;
 
     NServiceDiscovery::IServiceDiscoveryPtr ServiceDiscovery_;
 
-    std::vector<TString> DiscoverProxiesViaRpc();
     std::vector<TString> DiscoverProxiesViaHttp();
     std::vector<TString> DiscoverProxiesViaServiceDiscovery();
 
