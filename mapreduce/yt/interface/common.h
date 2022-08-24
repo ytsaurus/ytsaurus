@@ -29,7 +29,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// @cond Doxygen_Suppress
-
 #define FLUENT_FIELD(type, name) \
     type name##_; \
     TSelf& name(const type& value) \
@@ -191,57 +190,80 @@ public: \
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Convenience class that keeps sequence of items.
+///
+/// Designed to be used as function paramenter.
+///
+/// Users of such function can then pass:
+///  - single item,
+///  - initializer list of items,
+///  - vector of items;
+/// as argument to this function.
+///
+/// Example:
+///   ```
+///   void Foo(const TOneOrMany<int>& arg);
+///   ...
+///   Foo(1); // ok
+///   Foo({1, 2, 3}); // ok
+///   ```
 template <class T, class TDerived>
 struct TOneOrMany
 {
+    /// @cond Doxygen_Suppress
     using TSelf = std::conditional_t<std::is_void_v<TDerived>, TOneOrMany, TDerived>;
+    /// @endcond
 
+    /// Initialize with empty sequence.
     TOneOrMany()
     { }
 
+    // Initialize from initalizer list.
     template<class U>
     TOneOrMany(std::initializer_list<U> il)
     {
         Parts_.assign(il.begin(), il.end());
     }
 
-    template <class U, class... TArgs, std::enable_if_t<std::is_convertible<U, T>::value, int> = 0>
+    /// Put arguments to sequence
+    template <class U, class... TArgs>
+        requires std::is_convertible_v<U, T>
     TOneOrMany(U&& arg, TArgs&&... args)
     {
         Add(arg, std::forward<TArgs>(args)...);
     }
 
+    /// Initialize from vector.
     TOneOrMany(TVector<T> args)
         : Parts_(std::move(args))
     { }
 
-    bool operator==(const TOneOrMany& rhs) const {
-        return Parts_ == rhs.Parts_;
-    }
+    /// @brief Order is defined the same way as in TVector
+    bool operator<=>(const TOneOrMany& rhs) const = default;
 
+    ///
+    /// @{
+    ///
+    /// @brief Add all agruments to sequence
     template <class U, class... TArgs>
+        requires std::is_convertible_v<U, T>
     TSelf& Add(U&& part, TArgs&&... args) &
     {
         Parts_.push_back(std::forward<U>(part));
-        return Add(std::forward<TArgs>(args)...);
-    }
-
-    template <class... TArgs>
-    TSelf Add(TArgs&&... args) &&
-    {
-        return std::move(Add(std::forward<TArgs>(args)...));
-    }
-
-    TSelf& Add() &
-    {
+        [[maybe_unused]] int dummy[sizeof...(args)] = {(Parts_.push_back(std::forward<TArgs>(args)), 0) ... };
         return static_cast<TSelf&>(*this);
     }
 
-    TSelf Add() &&
+    template <class U, class... TArgs>
+        requires std::is_convertible_v<U, T>
+    TSelf Add(U&& part, TArgs&&... args) &&
     {
-        return std::move(static_cast<TSelf&&>(*this));
+        return std::move(Add(std::forward<U>(part), std::forward<TArgs>(args)...));
     }
+    /// @}
 
+    /// Content of sequence.
     TVector<T> Parts_;
 };
 
@@ -251,39 +273,60 @@ struct TOneOrMany
 /// @brief Type of the value that can occur in YT table.
 ///
 /// @ref NYT::TTableSchema
+/// https://yt.yandex-team.ru/docs/description/storage/data_types
 enum EValueType : int
 {
-/// @cond Doxygen_Suppress
+    /// Int64, signed integer of 64 bits.
     VT_INT64,
 
+    /// Uint64, unsigned integer of 64 bits.
     VT_UINT64,
 
+    /// Double, floating point number of double precision (64 bits).
     VT_DOUBLE,
+    /// Boolean, `true` or `false`.
     VT_BOOLEAN,
 
+    /// String, arbitrary byte sequence.
     VT_STRING,
 
+    /// Any, arbitrary yson document.
     VT_ANY,
 
+    /// Int8, signed integer of 8 bits.
     VT_INT8,
+    /// Int16, signed integer of 16 bits.
     VT_INT16,
+    /// Int32, signed integer of 32 bits.
     VT_INT32,
 
+    /// Uint8, unsigned integer of 8 bits.
     VT_UINT8,
+    /// Uint16, unsigned integer of 16 bits.
     VT_UINT16,
+    /// Uint32, unsigned integer of 32 bits.
     VT_UINT32,
 
+    /// Utf8, byte sequnce that is valid utf8.
     VT_UTF8,
 
+    /// Null, absence of value (almost never used in schemas)
     VT_NULL,
+    /// Void, absence of value (almost never used in schemas) the difference between null, and void is yql-specific.
     VT_VOID,
 
+    /// Date, number of days since Unix epoch (unsigned)
     VT_DATE,
+    /// Datetime, number of seconds since Unix epoch (unsigned)
     VT_DATETIME,
+    /// Timestamp, number of milliseconds since Unix epoch (unsigned)
     VT_TIMESTAMP,
+    /// Interval, difference between two timestamps (signed)
     VT_INTERVAL,
 
+    /// Float, floating point number (32 bits)
     VT_FLOAT,
+    /// Json, sequence of bytes that is valid json.
     VT_JSON,
 /// @endcond
 };
@@ -306,7 +349,10 @@ enum ESortOrder : int
 /// @ref NYT::TRichYPath
 enum EOptimizeForAttr : i8
 {
+    /// Optimize for scan
     OF_SCAN_ATTR    /* "scan" */,
+
+    /// Optimize for lookup
     OF_LOOKUP_ATTR  /* "lookup" */,
 };
 
@@ -327,36 +373,63 @@ enum EErasureCodecAttr : i8
 ///
 /// @brief Description of the column table is sorted by
 ///
-/// Includes column name and sort order
+/// Includes column name and sort order.
+///
+/// @anchor TSortOrder_backward_compatibility
+/// @note
+/// Many functions that use `TSortOrder` as argument used to take `TString`
+/// (the only allowed sort order was "ascending" and user didn't have to specify it).
+/// @note
+/// This class is designed to provide backward compatibility for such code and therefore
+/// objects of this class can be constructed and assigned from TString-like objects only.
 ///
 /// @see NYT::TSortOperationSpec
 class TSortColumn
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TSortColumn;
+    /// @endcond
 
     /// Column name
-    FLUENT_FIELD_DEFAULT_ENCAPSULATED(TString, Name, "");
+    FLUENT_FIELD_ENCAPSULATED(TString, Name);
 
     /// Sort order
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(ESortOrder, SortOrder, ESortOrder::SO_ASCENDING);
 
-    // Intentionally implicit constructors.
-    TSortColumn(TStringBuf name = "", ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    ///
+    /// @{
+    ///
+    /// @brief Construct object from name and sort order
+    ///
+    /// Constructors are intentionally implicit so `TSortColumn` can be compatible with old code.
+    /// @ref TSortOrder_backward_compatibility
+    TSortColumn(TStringBuf name = {}, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
     TSortColumn(const TString& name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
     TSortColumn(const char* name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    /// @}
 
-    /// Make sure that sort order is ascending, throw exception otherwise
+    /// Check that sort order is ascending, throw exception otherwise.
     const TSortColumn& EnsureAscending() const;
+
+    /// @brief Convert sort to yson representation as YT API expects it.
     TNode ToNode() const;
 
-    bool operator == (const TSortColumn& rhs) const;
-    bool operator != (const TSortColumn& rhs) const;
+    /// @brief Comparison is default and checks both name and sort order.
+    bool operator == (const TSortColumn& rhs) const = default;
 
-    // The following methods are for backward compatibility
+    ///
+    /// @{
+    ///
+    /// @brief Assign object from column name, and set sort order to `ascending`.
+    ///
+    /// This is backward compatibility methods.
+    ///
+    /// @ref TSortOrder_backward_compatibility
     TSortColumn& operator = (TStringBuf name);
     TSortColumn& operator = (const TString& name);
     TSortColumn& operator = (const char* name);
+    /// @}
 
     bool operator == (const TStringBuf rhsName) const;
     bool operator != (const TStringBuf rhsName) const;
