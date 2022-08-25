@@ -122,8 +122,6 @@ void TProgram::HandleVersionAndBuild()
 
 int TProgram::Run(int argc, const char** argv)
 {
-    ::TThread::SetCurrentThreadName("ProgramMain");
-
     ::srand(time(nullptr));
 
     auto run = [&] {
