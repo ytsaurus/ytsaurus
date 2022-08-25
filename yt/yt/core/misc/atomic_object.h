@@ -29,7 +29,7 @@ public:
     //! Otherwise, copies it into #expected and returns |false|.
     bool CompareExchange(T& expected, const T& desired);
 
-    //! Atomically transforms the value with function func.
+    //! Atomically transforms the value with function #func.
     template <class F>
     void Transform(const F& func);
 
