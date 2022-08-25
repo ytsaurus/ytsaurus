@@ -1,6 +1,7 @@
 #include "connection_pool.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/net/connection.h>
 
 namespace NYT::NHttp {
@@ -10,70 +11,61 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-TReusableConnectionState::TReusableConnectionState(
-    NNet::IConnectionPtr connection, 
-    TConnectionPoolPtr owningPool)
-    : Reusable(true)
-    , Connection(std::move(connection))
-    , OwningPool(std::move(owningPool))
-{ }
-
-TReusableConnectionState::~TReusableConnectionState()
+TDuration TIdleConnection::GetIdleTime() const
 {
-    if (Reusable && OwningPool && Connection->IsIdle()) {
-        OwningPool->Release(std::move(Connection));
-    }
+    return TInstant::Now() - InsertionTime;
 }
-
-DEFINE_REFCOUNTED_TYPE(TReusableConnectionState)
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnectionPool::TConnectionPool(
-    const IDialerPtr& dialer, 
-    const TClientConfigPtr& config,
-    const IInvokerPtr& invoker)
-    : Dialer_(dialer)
-    , Config_(config)
-    , Connections_(config->MaxIdleConnections)
-    , ExpiredConnectionsCollector_(New<TPeriodicExecutor>(
-        invoker, 
-        BIND([this] { DropExpiredConnections(); }),
-        TPeriodicExecutorOptions::WithJitter(config->ConnectionIdleTimeout)))
+    IDialerPtr dialer,
+    TClientConfigPtr config,
+    IInvokerPtr invoker)
+    : Dialer_(std::move(dialer))
+    , Config_(std::move(config))
+    , Connections_(Config_->MaxIdleConnections)
+    , ExpiredConnectionsCollector_(
+          New<TPeriodicExecutor>(
+            std::move(invoker),
+            BIND([weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                if (this_) {
+                    this_->DropExpiredConnections();
+                }
+            }),
+            TPeriodicExecutorOptions::WithJitter(
+                Config_->ConnectionIdleTimeout)))
 {
     if (Config_->MaxIdleConnections > 0) {
         ExpiredConnectionsCollector_->Start();
     }
 }
 
-IConnectionPtr TConnectionPool::Connect(const TNetworkAddress& address)
+TConnectionPool::~TConnectionPool()
+{
+    ExpiredConnectionsCollector_->Stop();
+}
+
+TFuture<IConnectionPtr> TConnectionPool::Connect(const TNetworkAddress& address)
 {
     {
         auto guard = Guard(SpinLock_);
-        
+
         while (auto item = Connections_.Extract(address)) {
-            if (item->IdleTime() < Config_->ConnectionIdleTimeout) {
-                return std::move(item->Connection);
-            }       
+            if (item->GetIdleTime() < Config_->ConnectionIdleTimeout) {
+                return MakeFuture<IConnectionPtr>(std::move(item->Connection));
+            }
         }
     }
 
-    return WaitFor(Dialer_->Dial(address)).ValueOrThrow();
+    return Dialer_->Dial(address);
 }
 
-void TConnectionPool::Release(IConnectionPtr connection)
+void TConnectionPool::Release(const IConnectionPtr& connection)
 {
     auto guard = Guard(SpinLock_);
     Connections_.Insert(connection->RemoteAddress(), {connection, TInstant::Now()});
-}
-
-TDuration TConnectionPool::TIdleConnection::IdleTime() const
-{
-    return TInstant::Now() - InsertionTime;
 }
 
 void TConnectionPool::DropExpiredConnections()
@@ -84,9 +76,9 @@ void TConnectionPool::DropExpiredConnections()
         Config_->MaxIdleConnections);
 
     while (Connections_.GetSize() > 0) {
-        auto idleConn = Connections_.Pop();
-        if (idleConn.IdleTime() < Config_->ConnectionIdleTimeout) {
-            validConnections.Insert(idleConn.Connection->RemoteAddress(), idleConn);
+        auto idleConnection = Connections_.Pop();
+        if (idleConnection.GetIdleTime() < Config_->ConnectionIdleTimeout) {
+            validConnections.Insert(idleConnection.Connection->RemoteAddress(), idleConnection);
         }
     }
 

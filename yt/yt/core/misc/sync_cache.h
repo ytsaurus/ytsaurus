@@ -188,7 +188,6 @@ template <class TKey, class TValue, class THash = THash<TKey>>
 class TMultiLruCache
 {
 public:
-
     explicit TMultiLruCache(size_t maxWeight);
 
     size_t GetSize() const;

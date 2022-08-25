@@ -17,7 +17,7 @@ public:
     MOCK_METHOD(TFuture<IConnectionPtr>, Dial, (const TNetworkAddress& remote), (override));
 
 private:
-    IDialerPtr Underlying_;
+    const IDialerPtr Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDialerMock)
