@@ -1849,6 +1849,37 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/t", keys) == []
         assert select_rows("* from [//tmp/t]") == []
 
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_dual_replica_placement(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        amode = {"sync": "async", "async": "sync"}[mode]
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": mode, "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": amode, "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": amode, "enabled": True, "replica_path": "//tmp/s"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": i, "value": str(i)} for i in range(10)]
+        keys = [{"key": i} for i in range(10)]
+
+        tx = start_transaction(type="tablet")
+        for i in range(10):
+            insert_rows("//tmp/t", values[i:i+1], tx=tx)
+            time.sleep(1)
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
+        assert select_rows("* from [//tmp/t]", replica_consistency="sync") == values
+        versined_rows = lookup_rows("//tmp/t", keys, replica_consistency="sync", versioned=True)
+        rows = [{"key": row["key"], "value": str(row["value"][0])} for row in versined_rows]
+        assert rows == values
+        ts = versined_rows[0].attributes["write_timestamps"][0]
+        assert all(row.attributes["write_timestamps"][0] == ts for row in versined_rows)
+
     @authors("shakurov")
     def test_chaos_cell_peer_snapshot_loss(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")

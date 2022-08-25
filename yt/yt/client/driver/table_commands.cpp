@@ -923,6 +923,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         versionedOptions.Timestamp = Options.Timestamp;
         versionedOptions.CachedSyncReplicasTimeout = Options.CachedSyncReplicasTimeout;
         versionedOptions.RetentionConfig = RetentionConfig;
+        versionedOptions.ReplicaConsistency = Options.ReplicaConsistency;
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();

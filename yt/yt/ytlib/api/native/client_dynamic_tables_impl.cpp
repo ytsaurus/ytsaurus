@@ -634,7 +634,7 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
             replicaFallbackInfo.Path,
             nameTable,
             keys,
-            options);
+            unresolveOptions);
     };
 
     std::optional<TString> retentionConfig;
@@ -688,7 +688,7 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                         replicaFallbackInfo.Path,
                         subrequest.NameTable,
                         subrequest.Keys,
-                        lookupRowsOptions);
+                        unresolveOptions);
                 };
 
                 return CallAndRetryIfMetadataCacheIsInconsistent(

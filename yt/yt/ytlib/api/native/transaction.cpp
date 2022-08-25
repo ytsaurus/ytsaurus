@@ -584,7 +584,11 @@ private:
             , Modifications_(std::move(modifications))
             , Options_(options)
             , Logger(transaction->Logger)
-            , TableSession_(transaction->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId, Options_.ReplicationCard))
+            , TableSession_(transaction->GetOrCreateTableSession(
+                Path_,
+                Options_.UpstreamReplicaId,
+                Options_.ReplicationCard,
+                Options_.TopmostTransaction))
         { }
 
         std::optional<TMultiSlidingWindowSequenceNumber> GetSequenceNumber()
@@ -1266,7 +1270,8 @@ private:
     TTableCommitSessionPtr GetOrCreateTableSession(
         const TYPath& path,
         TTableReplicaId upstreamReplicaId,
-        const TReplicationCardPtr& replicationCard)
+        const TReplicationCardPtr& replicationCard,
+        bool topmostTransaction)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1278,11 +1283,13 @@ private:
         } else {
             const auto& session = it->second;
 
-            // TODO(savrus): It may happen that in topmost transaction we already have session with upstream replica id resolved.
-            // (Consider direct writing into several replicas of chaos table).
-            // Need to make error message more understandable.
+            // For topmost transaction user-provided upstream replica id could be zero. However if we write to sync chaos replica
+            // session->UpstreamReplicaId will be resolved as soon as replication card is fetched. Since there could be several
+            // modification requests to the same table we don't validate upstream replica id matching in this case.
 
-            if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
+            // For a nested transaction (typically sync replicas write) this upstream replica mismatch is more likely a bug.
+
+            if ((!topmostTransaction || upstreamReplicaId) && session->GetUpstreamReplicaId() != upstreamReplicaId) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::UpstreamReplicaMismatch,
                     "Mismatched upstream replica is specified for modifications to table %v: %v != %v",
