@@ -26,6 +26,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,11 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
             if (jobToInterrupt.has_preemption_reason()) {
                 preemptionReason = jobToInterrupt.preemption_reason();
             }
-            schedulerJob.Interrupt(timeout, preemptionReason);
+            std::optional<EInterruptReason> interruptionReason;
+            if (jobToInterrupt.has_interruption_reason()) {
+                interruptionReason = CheckedEnumCast<EInterruptReason>(jobToInterrupt.interruption_reason());
+            }
+            schedulerJob.Interrupt(timeout, interruptionReason, preemptionReason);
         } else {
             YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                 jobId);
@@ -245,7 +250,7 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
 
         TJobResult jobResult;
         auto error = TError("Failed to get job spec")
-            << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
+            << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed);
         ToProto(jobResult.mutable_error(), error);
         *jobStatus->mutable_result() = jobResult;
     }

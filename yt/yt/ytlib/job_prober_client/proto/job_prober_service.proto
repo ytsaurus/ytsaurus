@@ -71,6 +71,7 @@ message TReqInterrupt
 {
     required NYT.NProto.TGuid job_id = 1;
     optional int64 timeout = 2;
+    optional int32 interruption_reason = 3;
 }
 
 message TRspInterrupt

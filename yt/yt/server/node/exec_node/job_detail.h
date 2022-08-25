@@ -177,7 +177,10 @@ public:
 
     void ReportProfile() override;
 
-    void GuardedInterrupt(TDuration timeout, const std::optional<TString>& preemptionReason);
+    void GuardedInterrupt(
+        TDuration timeout,
+        std::optional<NScheduler::EInterruptReason> interruptionReason,
+        const std::optional<TString>& preemptionReason);
 
     void GuardedFail();
 
@@ -197,9 +200,14 @@ public:
 
     const NLogging::TLogger& GetLogger() const noexcept;
 
-    void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason);
+    void Interrupt(
+        TDuration timeout,
+        std::optional<NScheduler::EInterruptReason> interruptionReason,
+        const std::optional<TString>& preemptionReason);
 
     void Fail();
+
+    std::optional<NScheduler::EInterruptReason> GetInterruptionReason() const noexcept;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -306,6 +314,8 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     NJobAgent::TJobEvents JobEvents_;
+
+    std::optional<NScheduler::EInterruptReason> InterruptionReason_;
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;

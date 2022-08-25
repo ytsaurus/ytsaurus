@@ -97,11 +97,13 @@ void AddJobToInterrupt(
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobId jobId,
     TDuration duration,
+    EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason)
 {
     auto jobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(jobToInterrupt->mutable_job_id(), jobId);
     jobToInterrupt->set_timeout(ToProto<i64>(duration));
+    jobToInterrupt->set_interruption_reason(static_cast<int>(interruptionReason));
 
     if (preemptionReason) {
         jobToInterrupt->set_preemption_reason(*preemptionReason);
@@ -1127,6 +1129,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
         ToProto(req->mutable_job_id(), jobId);
 
         req->set_timeout(ToProto<i64>(*interruptTimeout));
+        req->set_interruption_reason(static_cast<int>(EInterruptReason::UserRequest));
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job %v",
@@ -2657,7 +2660,6 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
     operationState->RecentlyFinishedJobIds.clear();
 }
 
-// COMPAT(pogorelov)
 void TNodeShard::SendPreemptedJobToNode(
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     const TJobPtr& job,
@@ -2667,7 +2669,12 @@ void TNodeShard::SendPreemptedJobToNode(
         "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
         job->GetId(),
         job->GetInterruptReason());
-    AddJobToInterrupt(response, job->GetId(), interruptTimeout, job->GetPreemptionReason());
+    AddJobToInterrupt(
+        response,
+        job->GetId(),
+        interruptTimeout,
+        job->GetInterruptReason(),
+        job->GetPreemptionReason());
 }
 
 void TNodeShard::ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)

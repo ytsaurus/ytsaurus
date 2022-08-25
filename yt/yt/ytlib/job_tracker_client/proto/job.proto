@@ -58,6 +58,8 @@ message TJobStatus
     optional bytes statistics = 9;
     optional int64 stderr_size = 13;
 
+    optional int32 interruption_reason = 18;
+
     required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
     optional bool job_execution_completed = 17 [default = false];

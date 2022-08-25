@@ -20,6 +20,7 @@ using namespace NJobProberClient;
 using namespace NConcurrency;
 using namespace NJobAgent;
 using namespace NYson;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +172,12 @@ private:
                 job->GetType());
         }
 
-        schedulerJob.Interrupt(timeout, /*preemptionReason*/ {});
+        std::optional<EInterruptReason> interruptionReason;
+        if (request->has_interruption_reason()) {
+            interruptionReason = CheckedEnumCast<EInterruptReason>(request->interruption_reason());
+        }
+
+        schedulerJob.Interrupt(timeout, interruptionReason, /*preemptionReason*/ {});
 
         context->Reply();
     }
