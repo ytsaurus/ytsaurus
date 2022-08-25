@@ -1646,7 +1646,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto* chunk = chunkManager->FindChunk(chunkId);
             auto& mediumIndexSet = jt->second;
 
-            if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
+            if (!chunk->IsRefreshActual()) {
                 queue.erase(jt);
                 ++misscheduledReplicationJobs;
                 continue;
@@ -3282,7 +3282,7 @@ void TChunkReplicator::StartRequisitionUpdate()
 
 void TChunkReplicator::StopRequisitionUpdate()
 {
-    if (std::exchange(RequisitionUpdateRunning_, false)) {
+    if (!std::exchange(RequisitionUpdateRunning_, false)) {
         return;
     }
 
