@@ -34,7 +34,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
 
     public CompoundClientImpl(
             ScheduledExecutorService executorService, YtClientConfiguration configuration, Executor heavyExecutor) {
-        super(null, configuration, heavyExecutor);
+        super(null, configuration, heavyExecutor, executorService);
         this.executorService = executorService;
     }
 

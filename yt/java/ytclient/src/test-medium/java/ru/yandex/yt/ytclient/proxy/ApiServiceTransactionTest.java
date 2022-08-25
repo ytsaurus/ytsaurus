@@ -21,7 +21,7 @@ public class ApiServiceTransactionTest {
         private int pingCount = 0;
 
         public ApiServiceClientStub() {
-            super(null, new RpcOptions(), ForkJoinPool.commonPool());
+            super(null, new RpcOptions(), ForkJoinPool.commonPool(), null);
         }
 
         @Override
