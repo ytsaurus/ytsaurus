@@ -38,7 +38,8 @@ public class DefaultRpcBusClientTest {
                 var api = new ApiServiceClientImpl(
                         rpcClient,
                         YtClientConfiguration.builder().setRpcOptions(options).build(),
-                        ForkJoinPool.commonPool());
+                        ForkJoinPool.commonPool(),
+                        connector.executorService());
                 var listNodeFuture = api.listNode("/");
 
                 waitFuture(listNodeFuture, 5000);

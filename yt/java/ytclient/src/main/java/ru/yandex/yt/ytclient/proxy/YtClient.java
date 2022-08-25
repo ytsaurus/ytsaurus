@@ -288,6 +288,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         final String localDcName;
         final RpcOptions options;
         final Executor heavyExecutor;
+        final ScheduledExecutorService executorService;
 
         @SuppressWarnings("checkstyle:ParameterNumber")
         ClientPoolProvider(
@@ -303,6 +304,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
             this.options = options;
             this.localDcName = localDataCenterName;
             this.heavyExecutor = heavyExecutor;
+            this.executorService = connector.executorService();
 
             final EventLoopGroup eventLoopGroup = connector.eventLoopGroup();
             final Random random = new Random();
@@ -402,7 +404,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
                         clients.add(new ApiServiceClientImpl(
                                 curClient,
                                 YtClientConfiguration.builder().setRpcOptions(options).build(),
-                                heavyExecutor));
+                                heavyExecutor,
+                                executorService
+                        ));
                     }
                 }
             } finally {

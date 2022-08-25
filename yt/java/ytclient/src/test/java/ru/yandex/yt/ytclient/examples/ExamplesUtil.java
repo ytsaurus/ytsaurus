@@ -135,7 +135,8 @@ public final class ExamplesUtil {
                                 .setRpcOptions(
                                         new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15))
                                 ).build(),
-                        ForkJoinPool.commonPool());
+                        ForkJoinPool.commonPool(),
+                        connector.executorService());
                 consumer.accept(serviceClient);
             }
         }

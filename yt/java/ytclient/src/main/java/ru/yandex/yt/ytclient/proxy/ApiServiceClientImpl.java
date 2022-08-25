@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -126,6 +127,7 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 public class ApiServiceClientImpl implements ApiServiceClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClientImpl.class);
 
+    private final ScheduledExecutorService executorService;
     private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
     final YtClientConfiguration configuration;
@@ -135,8 +137,9 @@ public class ApiServiceClientImpl implements ApiServiceClient {
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
             @Nonnull YtClientConfiguration configuration,
-            @Nonnull Executor heavyExecutor
-    ) {
+            @Nonnull Executor heavyExecutor,
+            @Nonnull ScheduledExecutorService executorService
+            ) {
         OutageController outageController = configuration.getRpcOptions().getTestingOptions().getOutageController();
         if (client != null && outageController != null) {
             this.rpcClient = new OutageRpcClient(client, outageController);
@@ -146,14 +149,16 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
         this.configuration = configuration;
         this.rpcOptions = configuration.getRpcOptions();
+        this.executorService = executorService;
     }
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
             @Nonnull RpcOptions options,
-            @Nonnull Executor heavyExecutor
+            @Nonnull Executor heavyExecutor,
+            @Nonnull ScheduledExecutorService executorService
     ) {
-        this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor);
+        this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor, executorService);
     }
 
     static String calcUserAgent() {
@@ -183,7 +188,8 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             if (startTransaction.getSticky() && (rpcClient == null || !rpcClient.equals(sender))) {
                 logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
-                        new ApiServiceClientImpl(Objects.requireNonNull(sender), configuration, heavyExecutor),
+                        new ApiServiceClientImpl(
+                                Objects.requireNonNull(sender), configuration, heavyExecutor, executorService),
                         id,
                         startTimestamp,
                         startTransaction.getPing(),
