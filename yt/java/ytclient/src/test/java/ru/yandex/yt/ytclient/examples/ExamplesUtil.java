@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
@@ -128,8 +129,13 @@ public final class ExamplesUtil {
     public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials, String host) {
         try (BusConnector connector = createConnector()) {
             try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
-                ApiServiceClient serviceClient = new ApiServiceClientImpl(rpcClient,
-                        new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15)), ForkJoinPool.commonPool());
+                ApiServiceClient serviceClient = new ApiServiceClientImpl(
+                        rpcClient,
+                        YtClientConfiguration.builder()
+                                .setRpcOptions(
+                                        new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15))
+                                ).build(),
+                        ForkJoinPool.commonPool());
                 consumer.accept(serviceClient);
             }
         }

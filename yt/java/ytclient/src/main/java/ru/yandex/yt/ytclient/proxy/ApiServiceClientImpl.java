@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -155,33 +154,6 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             @Nonnull Executor heavyExecutor
     ) {
         this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor);
-    }
-
-    public ApiServiceClientImpl(
-            @Nullable RpcClient client,
-            @Nonnull RpcOptions options
-    ) {
-        this(client, options, ForkJoinPool.commonPool());
-    }
-
-    public ApiServiceClientImpl(YtClientConfiguration configuration, Executor heavyExecutor) {
-        this(null, configuration, heavyExecutor);
-    }
-
-    public ApiServiceClientImpl(RpcOptions options, Executor heavyExecutor) {
-        this(null, options, heavyExecutor);
-    }
-
-    public ApiServiceClientImpl(RpcClient client, Executor heavyExecutor) {
-        this(client, new RpcOptions(), heavyExecutor);
-    }
-
-    public ApiServiceClientImpl(RpcOptions options) {
-        this(null, options, ForkJoinPool.commonPool());
-    }
-
-    public ApiServiceClientImpl(RpcClient client) {
-        this(client, new RpcOptions(), ForkJoinPool.commonPool());
     }
 
     static String calcUserAgent() {
