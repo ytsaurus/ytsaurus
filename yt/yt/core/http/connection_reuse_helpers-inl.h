@@ -1,7 +1,7 @@
-#ifndef CONNECTION_POOL_INL_H
-#error "Direct inclusion of this file is not allowed, include connection_pool.h"
+#ifndef CONNECTION_REUSE_HELPERS_INL_H
+#error "Direct inclusion of this file is not allowed, include connection_reuse_helpers.h"
 // For the sake of sane code completion.
-#include "connection_pool.h"
+#include "connection_reuse_helpers.h"
 #endif
 
 namespace NYT::NHttp::NDetail {
