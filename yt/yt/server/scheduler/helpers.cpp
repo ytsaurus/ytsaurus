@@ -355,8 +355,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/pipes/input/busy_time", "Time during which the job proxy wrote data to the stdin of the user job", "ms"},
 
         {"user_job/pipes/output/*/bytes", "Number of bytes written by the user process to the corresponding descriptor", "bytes"},
-        {"user_job/pipes/output/*/idle_time", "Time during which the job proxy process did not read from the stream corresponding to the kth output table, because it was writing data already subtracted from there", "ms"},
-        {"user_job/pipes/output/*/busy_time", "Time during which the job proxy process read from the stream corresponding to the kth output table", "ms"},
+        {"user_job/pipes/output/*/idle_time", "Time during which the job proxy process did not read from the stream corresponding to the k-th output table, because it was writing data already subtracted from there", "ms"},
+        {"user_job/pipes/output/*/busy_time", "Time during which the job proxy process read from the stream corresponding to the k-th output table", "ms"},
 
         {"user_job/gpu/utilization_gpu", "Net time during which GPU calculations were performed", "ms"},
         {"user_job/gpu/utilization_memory", "Net time during which GPU memory accesses were performed", "ms"},
