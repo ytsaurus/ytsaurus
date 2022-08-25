@@ -3117,10 +3117,11 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx, ReplicaConsistency: %v",
             request->path(),
             keys.Size(),
-            options.Timestamp);
+            options.Timestamp,
+            options.ReplicaConsistency);
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("yt.table_path", path);
         });
@@ -3177,10 +3178,11 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx, ReplicaConsistency: %v",
             request->path(),
             keys.Size(),
-            options.Timestamp);
+            options.Timestamp,
+            options.ReplicaConsistency);
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("yt.table_path", path);
         });
@@ -3275,8 +3277,9 @@ private:
                 request->Attachments().size());
         }
 
-        context->SetRequestInfo("Timestamp: %llx, Subrequests: %v",
+        context->SetRequestInfo("Timestamp: %llx, ReplicaConsistency: %v, Subrequests: %v",
             options.Timestamp,
+            options.ReplicaConsistency,
             MakeFormattableView(
                 subrequests,
                 [&] (auto* builder, const TMultiLookupSubrequest& request) {
