@@ -1227,15 +1227,13 @@ private:
             } else {
                 runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             }
+
+            auto baseAcl = operationBaseAcl;
             if (spec->AddAuthenticatedUserToAcl) {
-                TSerializableAccessControlEntry ace(
+                baseAcl.Entries.emplace_back(
                     ESecurityAction::Allow,
                     std::vector<TString>{user},
                     EPermissionSet(EPermission::Read | EPermission::Manage));
-                auto it = std::find(runtimeParameters->Acl.Entries.begin(), runtimeParameters->Acl.Entries.end(), ace);
-                if (it == runtimeParameters->Acl.Entries.end()) {
-                    runtimeParameters->Acl.Entries.push_back(std::move(ace));
-                }
             }
 
             auto operation = New<TOperation>(
@@ -1250,7 +1248,7 @@ private:
                 std::move(preprocessedSpec.VanillaTaskNames),
                 secureVault,
                 runtimeParameters,
-                operationBaseAcl,
+                std::move(baseAcl),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 cancelableOperationInvoker,

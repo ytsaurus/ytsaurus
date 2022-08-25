@@ -9,7 +9,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, remove,
     exists, create_user,
     create_pool, add_member, read_table, write_table, map, run_test_vanilla, run_sleeping_vanilla,
-    update_op_parameters, create_test_tables, execute_command)
+    update_op_parameters, create_test_tables, execute_command, make_ace)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -458,6 +458,33 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/cpu") == 1.0)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_limits/cpu") == 0.5)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/cpu") == 0.5)
+
+    @authors("dakovalkov")
+    def test_acl_change(self):
+        create_user("u1")
+        create_user("u2")
+
+        op = run_sleeping_vanilla()
+        op.ensure_running()
+
+        acl_path = op.get_path() + "/@runtime_parameters/acl"
+        root_ace = make_ace("allow", "root", ["read", "manage"])
+        u1_ace = make_ace("allow", "u1", "read")
+        u2_ace = make_ace("allow", "u1", "read")
+
+        assert get(acl_path) == [root_ace]
+
+        update_op_parameters(op.id, parameters={"acl": [u1_ace]})
+        assert get(acl_path) == [u1_ace, root_ace]
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        op.ensure_running()
+
+        assert get(acl_path) == [u1_ace, root_ace]
+
+        update_op_parameters(op.id, parameters={"acl": [u2_ace]})
+        assert get(acl_path) == [u2_ace, root_ace]
 
 
 class TestRuntimeParametersWithRecentResourceUsage(TestRuntimeParameters):
