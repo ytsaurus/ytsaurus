@@ -9,7 +9,9 @@ public enum RpcMessageType {
     RESPONSE(0x6f637072),
 
     STREAMING_PAYLOAD(0x70637072),
-    STREAMING_FEEDBACK(0x66637072);
+    STREAMING_FEEDBACK(0x66637072),
+
+    HANDSHAKE(0x68737562);
 
     private static final Map<Integer, RpcMessageType> TYPES = new HashMap<>();
 

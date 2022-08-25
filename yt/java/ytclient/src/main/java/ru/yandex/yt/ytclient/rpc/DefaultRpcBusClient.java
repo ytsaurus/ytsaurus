@@ -229,6 +229,11 @@ public class DefaultRpcBusClient implements RpcClient {
 
                     break;
                 }
+
+                case HANDSHAKE: {
+                    // Ignoring handshakes.
+                    break;
+                }
                 default:
                     throw new IllegalStateException("Unexpected " + type + " message in a client connection");
             }
