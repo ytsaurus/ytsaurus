@@ -83,7 +83,9 @@ struct TCompletedJobSummary
     void Persist(const TPersistenceContext& context);
 
     bool Abandoned = false;
-    EInterruptReason InterruptReason = EInterruptReason::None;
+    EInterruptReason InterruptReason;
+    // COMPAT(pogorelov)
+    const bool InterruptionReasonReceivedFromNode = false;
 
     // These fields are for controller's use only.
     std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
@@ -140,6 +142,7 @@ struct TFinishedJobSummary
     TJobId Id;
     TInstant FinishTime;
     bool JobExecutionCompleted;
+    // COMPAT(pogorelov)
     std::optional<EInterruptReason> InterruptReason;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
     bool Preempted;

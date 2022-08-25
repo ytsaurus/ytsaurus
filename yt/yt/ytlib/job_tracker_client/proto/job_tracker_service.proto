@@ -70,6 +70,7 @@ message TJobToInterrupt
     required NYT.NProto.TGuid job_id = 1;
     required int64 timeout = 2;
     optional string preemption_reason = 3;
+    optional int32 interruption_reason = 4; // NScheduler::EInterruptReason
 }
 
 message TRspHeartbeat

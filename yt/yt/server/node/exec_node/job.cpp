@@ -1036,7 +1036,10 @@ void TJob::ReportProfile()
     }
 }
 
-void TJob::GuardedInterrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
+void TJob::GuardedInterrupt(
+    TDuration timeout,
+    std::optional<EInterruptReason> interruptionReason,
+    const std::optional<TString>& preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1053,6 +1056,8 @@ void TJob::GuardedInterrupt(TDuration timeout, const std::optional<TString>& pre
         Abort(error);
         return;
     }
+
+    InterruptionReason_ = interruptionReason;
 
     if (InterruptionTimeoutCookie_) {
         YT_LOG_DEBUG("Job interruption is already requested, ignore");
@@ -1164,14 +1169,17 @@ const NLogging::TLogger& TJob::GetLogger() const noexcept
     return Logger;
 }
 
-void TJob::Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
+void TJob::Interrupt(
+    TDuration timeout,
+    std::optional<EInterruptReason> interruptionReason,
+    const std::optional<TString>& preemptionReason)
 {
     YT_LOG_INFO("Interrupting job (PreemptionReason: %v, Timeout: %v)",
         preemptionReason,
         timeout);
 
     try {
-        GuardedInterrupt(timeout, preemptionReason);
+        GuardedInterrupt(timeout, interruptionReason, preemptionReason);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to interrupt job");
     }
@@ -1186,6 +1194,11 @@ void TJob::Fail()
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to fail job");
     }
+}
+
+std::optional<NScheduler::EInterruptReason> TJob::GetInterruptionReason() const noexcept
+{
+    return InterruptionReason_;
 }
 
 // Helpers.
@@ -2912,6 +2925,9 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
 {
     FillJobStatus(jobStatus, schedulerJob);
     jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
+    if (auto interruptionReason = schedulerJob->GetInterruptionReason()) {
+        jobStatus->set_interruption_reason(static_cast<int>(*interruptionReason));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2925,7 +2941,7 @@ void InterruptSchedulerJobs(std::vector<NJobAgent::IJobPtr> jobs, TError error)
             const auto& Logger = schedulerJob.GetLogger();
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");
-                schedulerJob.Interrupt(/*timeout*/ {}, /*preemptionReason*/ {});
+                schedulerJob.Interrupt(/*timeout*/ {}, EInterruptReason::Unknown, /*preemptionReason*/ {});
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to interrupt job");
             }

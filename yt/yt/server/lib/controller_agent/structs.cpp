@@ -159,6 +159,10 @@ const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
 
 TCompletedJobSummary::TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
     : TJobSummary(status)
+    , InterruptReason(status->has_interruption_reason()
+        ? CheckedEnumCast<EInterruptReason>(status->interruption_reason())
+        : EInterruptReason::None)
+    , InterruptionReasonReceivedFromNode(status->has_interruption_reason())
 {
     YT_VERIFY(State == ExpectedState);
 }
@@ -398,10 +402,27 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
 std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
     std::unique_ptr<TCompletedJobSummary> nodeJobSummary,
     TFinishedJobSummary&& schedulerJobSummary,
-    const TLogger& /*Logger*/)
+    const TLogger& Logger)
 {
-    nodeJobSummary->InterruptReason = schedulerJobSummary.InterruptReason.value_or(EInterruptReason::None);
     MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
+
+    if (nodeJobSummary->InterruptionReasonReceivedFromNode && schedulerJobSummary.InterruptReason) {
+        YT_LOG_FATAL_IF(
+            nodeJobSummary->InterruptReason != *schedulerJobSummary.InterruptReason,
+            "Interruption reasons received from scheduler and node differ (JobId: %v, SchedulerInterruptionREason: %v, NodeInterruptionReason: %v)",
+            schedulerJobSummary.Id,
+            schedulerJobSummary.InterruptReason,
+            nodeJobSummary->InterruptReason);
+    }
+
+    if (!schedulerJobSummary.InterruptReason && nodeJobSummary->InterruptionReasonReceivedFromNode) {
+        YT_LOG_FATAL(
+            "Scheduler did not send interruption reason but node did (JobId: %v, NodeInterruptionReason: %v)",
+            schedulerJobSummary.Id,
+            nodeJobSummary->InterruptReason);
+    }
+
+    nodeJobSummary->InterruptReason = schedulerJobSummary.InterruptReason.value_or(EInterruptReason::None);
 
     return nodeJobSummary;
 }
