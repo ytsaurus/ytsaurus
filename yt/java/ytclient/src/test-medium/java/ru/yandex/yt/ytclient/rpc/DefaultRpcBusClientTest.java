@@ -12,6 +12,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
 
@@ -34,7 +35,10 @@ public class DefaultRpcBusClientTest {
                     new InetSocketAddress("localhost", server.getPort()));
 
             try (rpcClient) {
-                var api = new ApiServiceClientImpl(rpcClient, options, ForkJoinPool.commonPool());
+                var api = new ApiServiceClientImpl(
+                        rpcClient,
+                        YtClientConfiguration.builder().setRpcOptions(options).build(),
+                        ForkJoinPool.commonPool());
                 var listNodeFuture = api.listNode("/");
 
                 waitFuture(listNodeFuture, 5000);

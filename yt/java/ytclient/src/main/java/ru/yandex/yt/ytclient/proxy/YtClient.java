@@ -399,7 +399,10 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
                     List<ApiServiceClient> clients =
                             result.computeIfAbsent(clientPoolService.getDataCenterName(), k -> new ArrayList<>());
                     for (RpcClient curClient : aliveClients) {
-                        clients.add(new ApiServiceClientImpl(curClient, options, heavyExecutor));
+                        clients.add(new ApiServiceClientImpl(
+                                curClient,
+                                YtClientConfiguration.builder().setRpcOptions(options).build(),
+                                heavyExecutor));
                     }
                 }
             } finally {
