@@ -397,8 +397,12 @@ inline void TChunk::OnRefresh()
 
 inline bool TChunk::IsRefreshActual() const
 {
-    auto* data = GetDynamicData();
-    return data->LastRefreshEpoch == GetRefreshEpoch(ShardIndex_);
+    if (auto* data = GetDynamicData()) {
+        return data->LastRefreshEpoch == GetRefreshEpoch(ShardIndex_);
+    } else {
+        YT_VERIFY(!NObjectServer::IsObjectAlive(this));
+        return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
