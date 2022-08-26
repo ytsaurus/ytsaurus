@@ -4,7 +4,6 @@ TAG(
     ya:sys_info
     ya:force_sandbox
     ya:sandbox_coverage
-    ya:nofuse
     ya:noretries
     ya:yt
     ya:relwithdebinfo
