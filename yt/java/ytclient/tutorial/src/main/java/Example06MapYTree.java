@@ -45,22 +45,18 @@ public class Example06MapYTree {
         YPath outputTable = YPath.simple("//tmp/" + System.getProperty("user.name") + "-tutorial-emails-123");
 
         try (client) {
-            Operation op = client.startMap(
+           Operation op = client.map(
                     MapOperation.builder()
                             .setSpec(MapSpec.builder()
                                     .setInputTables(YPath.simple("//home/tutorial/staff_unsorted").withRange(0, 2))
                                     .setOutputTables(outputTable)
                                     .setMapperSpec(new MapperSpec(new SimpleMapper()))
                                     .build())
-                            .build()).join();
+                            .build()
+           ).join();
 
-            System.err.println("Operation map was started: " + op.getId());
-
+            System.err.println("Operation map was finished: " + op.getId());
             System.err.println("Status: " + op.getStatus().join());
-
-            op.watch().join();
-
-            System.err.println("Status after watch: " + op.getStatus().join());
         }
     }
 }

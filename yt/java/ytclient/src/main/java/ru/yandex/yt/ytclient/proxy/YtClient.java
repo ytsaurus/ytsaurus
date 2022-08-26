@@ -192,6 +192,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         if (isBusConnectorOwner) {
             busConnector.close();
         }
+        super.close();
     }
 
     public Map<String, List<ApiServiceClient>> getAliveDestinations() {

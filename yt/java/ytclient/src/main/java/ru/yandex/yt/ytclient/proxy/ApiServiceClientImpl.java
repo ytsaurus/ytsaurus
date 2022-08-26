@@ -1,12 +1,14 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
@@ -139,13 +141,13 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
  * Клиент для высокоуровневой работы с ApiService
  */
 @NonNullFields
-public class ApiServiceClientImpl implements ApiServiceClient {
+public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClientImpl.class);
     private static final List<String> JOB_TYPES = Arrays.asList("mapper", "reducer", "reduce_combiner");
 
     private final ScheduledExecutorService executorService;
     private final Executor heavyExecutor;
-    private final Executor prepareSpecExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService prepareSpecExecutor = Executors.newSingleThreadExecutor();
     @Nullable private final RpcClient rpcClient;
     final YtClientConfiguration configuration;
     final RpcOptions rpcOptions;
@@ -155,7 +157,7 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             @Nonnull YtClientConfiguration configuration,
             @Nonnull Executor heavyExecutor,
             @Nonnull ScheduledExecutorService executorService
-            ) {
+    ) {
         OutageController outageController = configuration.getRpcOptions().getTestingOptions().getOutageController();
         if (client != null && outageController != null) {
             this.rpcClient = new OutageRpcClient(client, outageController);
@@ -175,6 +177,11 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             @Nonnull ScheduledExecutorService executorService
     ) {
         this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor, executorService);
+    }
+
+    @Override
+    public void close() {
+        prepareSpecExecutor.shutdown();
     }
 
     @Override
