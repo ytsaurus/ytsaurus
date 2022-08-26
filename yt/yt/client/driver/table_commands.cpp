@@ -1412,6 +1412,10 @@ void TGetTabletErrorsCommand::DoExecute(ICommandContextPtr context)
                             fluent.Item().Value(error);
                         });
                 })
+                .DoIf(errors.Incomplete, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("incomplete").Value(errors.Incomplete);
+                })
             .EndMap();
     });
 }

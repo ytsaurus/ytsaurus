@@ -711,6 +711,7 @@ message TRspGetTabletErrors
     repeated TErrorList tablet_errors = 2;
     repeated NYT.NProto.TGuid replica_ids = 3;
     repeated TErrorList replication_errors = 4;
+    optional bool incomplete = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

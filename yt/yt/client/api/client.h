@@ -331,6 +331,7 @@ struct TGetTabletErrorsOptions
 
 struct TGetTabletErrorsResult
 {
+    bool Incomplete = false;
     THashMap<NTabletClient::TTabletId, std::vector<TError>> TabletErrors;
     THashMap<NTabletClient::TTableReplicaId, std::vector<TError>> ReplicationErrors;
 };

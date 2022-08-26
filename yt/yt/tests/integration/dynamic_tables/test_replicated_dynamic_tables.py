@@ -280,6 +280,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if len(actual_tablet_ids) != tablet_with_error_count:
                 return False
 
+            limit = limit if limit is not None else 5
+            if (limit < len(tablet_ids)) != errors.get("incomplete", False):
+                return False
+
             for error in replica_errors:
                 if not YtError.from_dict(error).contains_text(expected_error_message):
                     return False

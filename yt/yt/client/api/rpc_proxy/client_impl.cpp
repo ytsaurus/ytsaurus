@@ -645,6 +645,9 @@ TFuture<TGetTabletErrorsResult> TClient::GetTabletErrors(
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetTabletErrorsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
         TGetTabletErrorsResult tabletErrors;
+        if (rsp->has_incomplete() && rsp->incomplete()) {
+            tabletErrors.Incomplete = rsp->incomplete();
+        }
 
         for (i64 index = 0; index != rsp->tablet_ids_size(); ++index) {
             std::vector<TError> errors;

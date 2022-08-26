@@ -3641,6 +3641,9 @@ private:
                     ToProto(response->add_replica_ids(), replicaId);
                     ToProto(response->add_replication_errors()->mutable_errors(), errors);
                 }
+                if (tabletErrors.Incomplete) {
+                    response->set_incomplete(tabletErrors.Incomplete);
+                }
             });
     }
 

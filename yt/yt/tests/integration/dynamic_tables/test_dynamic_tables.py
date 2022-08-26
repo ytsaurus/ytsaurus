@@ -1793,23 +1793,26 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 and errors[0]["attributes"]["tablet_id"] == tablet
             )
 
-        def check_get_tablet_errors(tablet_index, limit=None):
+        def check_get_tablet_errors(tablet_index, limit=None, expected_incomplete=False):
             tablet = get("//tmp/t/@tablets/{}/tablet_id".format(tablet_index))
             if limit is not None:
-                tablet_errors = get_tablet_errors("//tmp/t", limit=limit)["tablet_errors"]
+                response = get_tablet_errors("//tmp/t", limit=limit)
             else:
-                tablet_errors = get_tablet_errors("//tmp/t")["tablet_errors"]
+                response = get_tablet_errors("//tmp/t")
+            tablet_errors = response["tablet_errors"]
             return (
                 len(tablet_errors) == (tablet_count if limit is None else limit)
                 and tablet in tablet_errors
                 and len(tablet_errors[tablet]) == 1
                 and tablet_errors[tablet][0]["attributes"]["background_activity"] == "flush"
                 and tablet_errors[tablet][0]["attributes"]["tablet_id"] == tablet
+                and response.get("incomplete", False) == expected_incomplete
             )
 
         wait(lambda: all(check_orchid(idx) for idx in range(tablet_count)))
         wait(lambda: all(check_get_tablet_infos(idx) for idx in range(tablet_count)))
         assert all(check_get_tablet_errors(idx) for idx in range(tablet_count))
+        assert check_get_tablet_errors(tablet_index=0, limit=1, expected_incomplete=True)
 
     @authors("ifsmirnov")
     @pytest.mark.timeout(150)

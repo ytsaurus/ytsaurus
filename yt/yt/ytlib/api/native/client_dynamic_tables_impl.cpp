@@ -479,6 +479,7 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
     i64 errorCount = 0;
     i64 replicationErrorCount = 0;
     i64 limit = options.Limit.value_or(Connection_->GetConfig()->DefaultGetTabletErrorsLimit);
+    bool incomplete = false;
     std::vector<TTabletId> tabletIdsToRequest;
     for (const auto& tablet : tabletsNode->GetChildren()) {
         auto tabletNode = tablet->AsMap();
@@ -488,23 +489,31 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
 
         auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
 
-        if (errorCount < limit &&
+        if (errorCount <= limit &&
             tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
         {
+            if (errorCount < limit) {
+                tabletIdsToRequest.push_back(tabletId);
+            } else { 
+                incomplete = true;
+            }
             ++errorCount;
-            tabletIdsToRequest.push_back(tabletId);
         }
 
-        if (replicationErrorCount < limit &&
+        if (replicationErrorCount <= limit &&
             tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
         {
-            ++replicationErrorCount;
-            if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
-                tabletIdsToRequest.push_back(tabletId);
+            if (replicationErrorCount < limit) {
+                if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+                    tabletIdsToRequest.push_back(tabletId);
+                }
+            } else {
+                incomplete = true;
             }
+            ++replicationErrorCount;
         }
 
-        if (replicationErrorCount == limit && errorCount == limit) {
+        if (replicationErrorCount >= limit && errorCount >= limit && incomplete) {
             break;
         }
     }
@@ -514,7 +523,7 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
         tabletIdsToRequest,
         TGetTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true});
 
-    TGetTabletErrorsResult result;
+    TGetTabletErrorsResult result{.Incomplete = incomplete};
     for (int resultIndex = 0; resultIndex < std::ssize(tabletInfos); ++resultIndex) {
         if (!tabletInfos[resultIndex].TabletErrors.empty()) {
             result.TabletErrors[tabletIdsToRequest[resultIndex]] = std::move(tabletInfos[resultIndex].TabletErrors);
