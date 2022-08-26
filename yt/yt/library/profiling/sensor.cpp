@@ -549,6 +549,11 @@ void TProfiler::AddProducer(
     Impl_->RegisterProducer(Namespace_ + Prefix_ + prefix, Tags_, Options_, producer);
 }
 
+const IRegistryImplPtr& TProfiler::GetRegistry() const
+{
+    return Impl_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling
