@@ -82,6 +82,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<Operation> startMap(MapOperation req);
 
+    default CompletableFuture<Operation> map(MapOperation req) {
+        return startMap(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
 
     CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req);
