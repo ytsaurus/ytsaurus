@@ -19,7 +19,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	t.Parallel()
 
 	env, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
@@ -51,7 +51,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 	r = c.MakeRequest("create", api.RequestParams{
 		Params: map[string]any{
-			"alias": guid.New().String(),
+			"alias": helpers.GenerateAlias(),
 			"xxx":   "yyy",
 		},
 	})
@@ -77,7 +77,7 @@ func TestHTTPAPIExists(t *testing.T) {
 	t.Parallel()
 
 	_, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -105,7 +105,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	t.Parallel()
 
 	env, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -190,7 +190,7 @@ func TestHTTPAPIParseParams(t *testing.T) {
 	t.Parallel()
 
 	env, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
@@ -219,13 +219,34 @@ func TestHTTPAPIParseParams(t *testing.T) {
 			},
 		},
 		speclet)
+
+	badAliases := []string{"9alias", "ali*s", "@alias"}
+	for _, badAlias := range badAliases {
+		r = c.MakeRequest("create", api.RequestParams{
+			Params: map[string]any{"alias": badAlias},
+		})
+		require.Equal(t, http.StatusBadRequest, r.StatusCode)
+	}
+
+	badOptions := []string{"@option", "op*tion", "very/@option"}
+	for _, badOption := range badOptions {
+		r = c.MakeRequest("set_option", api.RequestParams{
+			Params: map[string]any{
+				"alias": alias,
+				"key":   badOption,
+				"value": "1234",
+			},
+			Unparsed: true,
+		})
+		require.Equal(t, http.StatusBadRequest, r.StatusCode)
+	}
 }
 
 func TestHTTPAPISetPool(t *testing.T) {
 	t.Parallel()
 
 	env, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
@@ -326,7 +347,7 @@ func TestHTTPAPIList(t *testing.T) {
 	t.Parallel()
 
 	_, c := helpers.PrepareAPI(t)
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 
 	r := c.MakeRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},

@@ -20,6 +20,7 @@ var AliasParameter = CmdParameter{
 	Required:    true,
 	Description: "alias for the operation",
 	EnvVariable: "ALIAS",
+	Validator:   ValidateAlias,
 }
 
 var ListCmdDescriptor = CmdDescriptor{
@@ -121,6 +122,7 @@ var KeyParameter = CmdParameter{
 	Type:        TypeString,
 	Required:    true,
 	Description: "speclet option name",
+	Validator:   ValidateOption,
 }
 
 var ValueParameter = CmdParameter{

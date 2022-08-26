@@ -11,6 +11,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/api"
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
@@ -37,6 +38,10 @@ func PrepareEnv(t *testing.T) *yttest.Env {
 	require.NoError(t, err)
 
 	return env
+}
+
+func GenerateAlias() string {
+	return "chyt" + guid.New().String()
 }
 
 type APIClient struct {
