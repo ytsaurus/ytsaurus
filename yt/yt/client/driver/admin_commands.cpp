@@ -12,6 +12,8 @@ namespace NYT::NDriver {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NChaosClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +126,24 @@ TResumeCoordinatorCommand::TResumeCoordinatorCommand()
 void TResumeCoordinatorCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->ResumeCoordinator(CoordinatorCellId_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMigrateReplicationCardsCommand::TMigrateReplicationCardsCommand()
+{
+    RegisterParameter("chaos_cell_id", ChaosCellId_);
+    RegisterParameter("destination_cell_id", Options.DestinationCellId)
+        .Optional();
+    RegisterParameter("replication_card_ids", Options.ReplicationCardIds);
+}
+
+void TMigrateReplicationCardsCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->MigrateReplicationCards(ChaosCellId_, Options))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

@@ -46,6 +46,11 @@ TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstr
         : TReplicationCardId();
 }
 
+TCellTag GetSiblingChaosCellTag(TCellTag cellTag)
+{
+    return cellTag ^ 1;
+}
+
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress)
 {
     const auto& segments = progress.Segments;

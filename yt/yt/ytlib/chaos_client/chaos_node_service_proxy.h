@@ -19,10 +19,12 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCard);
+    DEFINE_RPC_PROXY_METHOD(NProto, FindReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, AlterTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateTableReplicaProgress);
+    DEFINE_RPC_PROXY_METHOD(NProto, MigrateReplicationCards);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

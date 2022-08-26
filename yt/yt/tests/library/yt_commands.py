@@ -1640,6 +1640,16 @@ def resume_coordinator(coordinator_cell_id, **kwargs):
     return execute_command("resume_coordinator", parameters, **kwargs)
 
 
+def migrate_replication_cards(chaos_cell_id, replication_card_ids, **kwargs):
+    parameters = {
+        "chaos_cell_id": chaos_cell_id,
+        "replication_card_ids": replication_card_ids
+    }
+    if "destination_cell_id" in kwargs:
+        parameters["destination_cell_id"] = kwargs.pop("destination_cell_id")
+    return execute_command("migrate_replication_cards", parameters, **kwargs)
+
+
 def set_node_resource_targets(address, cpu_limit, memory_limit):
     _get_driver(driver=None).set_node_resource_targets(
         address=address,
@@ -2231,6 +2241,13 @@ def _generate_chaos_cell_tag():
 
 def generate_chaos_cell_id():
     return _format_chaos_cell_id(_generate_chaos_cell_tag())
+
+
+def align_chaos_cell_tag():
+    global _current_chaos_cell_tag
+    if (_current_chaos_cell_tag & 1) != 1:
+        _current_chaos_cell_tag += 1
+    return
 
 
 ##################################################################

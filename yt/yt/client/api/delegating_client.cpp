@@ -746,6 +746,13 @@ TFuture<void> TDelegatingClient::ResumeCoordinator(
     return Underlying_->ResumeCoordinator(coordinatorCellId, options);
 }
 
+TFuture<void> TDelegatingClient::MigrateReplicationCards(
+    NObjectClient::TCellId chaosCellId,
+    const TMigrateReplicationCardsOptions& options)
+{
+    return Underlying_->MigrateReplicationCards(chaosCellId, options);
+}
+
 TFuture<void> TDelegatingClient::SuspendTabletCells(
     const std::vector<NObjectClient::TCellId>& cellIds,
     const TSuspendTabletCellsOptions& options)

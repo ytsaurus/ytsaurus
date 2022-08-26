@@ -11,6 +11,8 @@ TReplicaId MakeReplicaId(TReplicationCardId replicationCardId, TReplicaIdIndex i
 TReplicationCardId ReplicationCardIdFromReplicaId(TReplicaId replicaId);
 TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstreamReplicaId);
 
+NObjectClient::TCellTag GetSiblingChaosCellTag(NObjectClient::TCellTag cellTag);
+
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress);
 
 ////////////////////////////////////////////////////////////////////////////////

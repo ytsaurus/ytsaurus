@@ -18,9 +18,10 @@
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
+using namespace NCellarClient;
 using namespace NChaosClient;
-using namespace NObjectClient;
 using namespace NHiveClient;
+using namespace NObjectClient;
 using namespace NRpc;
 
 using NYT::FromProto;
@@ -45,6 +46,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptorsByCellBundle)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptors)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
+            .SetHeavy(true));
+        // COMPAT(savrus)
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindCellDescriptorsByCellTags)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
@@ -106,6 +111,20 @@ private:
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(cellBundleName, /*activeLifeStageOnly*/ true);
         for (const auto* cell : cellBundle->Cells()) {
+            ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
+        }
+
+        context->SetResponseInfo("CellCount: %v",
+            response->cell_descriptors_size());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptors)
+    {
+        context->SetRequestInfo();
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (const auto* cell : cellManager->Cells(ECellarType::Chaos)) {
             ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }
 

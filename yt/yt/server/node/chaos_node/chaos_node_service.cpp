@@ -52,10 +52,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FindReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableReplicaProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
     }
 
 private:
@@ -100,7 +102,7 @@ private:
             fetchOptions);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
+        auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
 
         auto* protoReplicationCard = response->mutable_replication_card();
         protoReplicationCard->set_era(replicationCard->GetEra());
@@ -129,6 +131,22 @@ private:
             replicationCardId,
             coordinators,
             *replicationCard);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindReplicationCard)
+    {
+        SyncWithUpstream();
+
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+
+        context->SetRequestInfo("ReplicationCardId: %v",
+            replicationCardId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
+        Y_UNUSED(replicationCard);
 
         context->Reply();
     }
@@ -201,6 +219,17 @@ private:
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->UpdateTableReplicaProgress(std::move(context));
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, MigrateReplicationCards)
+    {
+        auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+
+        context->SetRequestInfo("ReplicationCardIds: %v", replicationCardIds);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->MigrateReplicationCards(std::move(context));
+    }
+
 };
 
 IServicePtr CreateChaosNodeService(IChaosSlotPtr slot)

@@ -128,6 +128,9 @@ struct ICellDirectory
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
     virtual TCellDescriptor GetDescriptorOrThrow(TCellId cellId) = 0;
 
+    //! Similar to #FindDescriptor but relies on cell tag rather than full cell id.
+    virtual std::optional<TCellDescriptor> FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
+
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
     virtual std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId) = 0;
 

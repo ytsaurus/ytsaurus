@@ -1,5 +1,6 @@
 package NYT.NChaosNode.NProto;
 
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,6 +73,24 @@ message TExpiredReplicaHistory
 message TReqRemoveExpiredReplicaHistory
 {
     repeated TExpiredReplicaHistory expired_replica_histories = 1;
+}
+
+message TReqMigrateReplicationCards
+{
+    message TMigrationCard
+    {
+        required NYT.NProto.TGuid origin_cell_id = 1;
+        required NYT.NProto.TGuid replication_card_id = 2;
+        required NYT.NChaosClient.NProto.TReplicationCard replication_card = 3;
+    }
+
+    required NYT.NProto.TGuid emmigrated_from_cell_id = 1;
+    repeated TMigrationCard migration_cards = 2;
+}
+
+message TReqRemoveReplicationCard
+{
+    required NYT.NProto.TGuid replication_card_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

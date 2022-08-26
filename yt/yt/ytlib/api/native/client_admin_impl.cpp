@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
@@ -33,6 +34,8 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
+#include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -325,6 +328,36 @@ void TClient::DoResumeCoordinator(
 
     auto req = proxy.ResumeCoordinator();
     SetMutationId(req, options);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoMigrateReplicationCards(
+    TCellId chaosCellId,
+    const TMigrateReplicationCardsOptions& options)
+{
+    auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+    auto destinationCellId = options.DestinationCellId;
+    if (!destinationCellId) {
+        auto siblingCellTag = GetSiblingChaosCellTag(CellTagFromId(chaosCellId));
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
+        if (!descriptor) {
+            THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
+                << TErrorAttribute("chaos_cell_id", chaosCellId)
+                << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+        }
+
+        destinationCellId = descriptor->CellId;
+    }
+
+    auto req = proxy.MigrateReplicationCards();
+    SetMutationId(req, options);
+    ToProto(req->mutable_migrate_to_cell_id(), destinationCellId);
+    ToProto(req->mutable_replication_card_ids(), options.ReplicationCardIds);
 
     WaitFor(req->Invoke())
         .ThrowOnError();

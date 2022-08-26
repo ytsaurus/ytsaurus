@@ -16,6 +16,7 @@ from yt_commands import (
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
+    align_chaos_cell_tag, migrate_replication_cards,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
@@ -1630,7 +1631,7 @@ class TestChaos(ChaosTestBase):
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
 
         def _get_orchid(cell_id, path):
-            address = get("#{0}/@peers/0/address".format(coordinator_cell_id))
+            address = get("#{0}/@peers/0/address".format(cell_id))
             return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path))
 
         def _get_shortcuts(cell_id):
@@ -2179,6 +2180,37 @@ class TestChaosMulticell(TestChaos):
 class TestChaosMetaCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 3
 
+    def _create_dedicated_areas_and_cells(self, name="c"):
+        align_chaos_cell_tag()
+
+        cluster_names = self.get_cluster_names()
+        meta_cluster_names = cluster_names[:-2] + cluster_names[-1:]
+        peer_cluster_names = cluster_names[-2:-1]
+        create_chaos_cell_bundle(
+            name,
+            peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            independent_peers=False)
+        default_cell_id = self._sync_create_chaos_cell(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names)
+
+        meta_cluster_names = cluster_names[:-1]
+        peer_cluster_names = cluster_names[-1:]
+        create_chaos_area(
+            "beta",
+            name,
+            peer_cluster_names,
+            meta_cluster_names=meta_cluster_names)
+        beta_cell_id = self._sync_create_chaos_cell(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            area="beta")
+
+        return [default_cell_id, beta_cell_id]
+
     @authors("babenko")
     def test_meta_cluster(self):
         cluster_names = self.get_cluster_names()
@@ -2200,6 +2232,141 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert card["type"] == "replication_card"
         assert card["id"] == card_id
         assert len(card["replicas"]) == 3
+
+    @authors("savrus")
+    def test_dedicated_areas(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        def _is_alien(cell, driver):
+            return "alien" in get("//sys/chaos_cells/{0}/@peers/0".format(cell), driver=driver)
+
+        assert _is_alien(cells[0], drivers[-1])
+        assert _is_alien(cells[1], drivers[-2])
+        assert not _is_alien(cells[0], drivers[-2])
+        assert not _is_alien(cells[1], drivers[-1])
+
+        areas = get("//sys/chaos_cell_bundles/c/@areas")
+        assert len(areas) == 2
+        assert all(area["cell_count"] == 1 for area in areas.values())
+
+        def _get_coordinators(cell, driver):
+            peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
+            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
+
+        assert len(_get_coordinators(cells[0], drivers[-2])) == 2
+        assert len(_get_coordinators(cells[1], drivers[-1])) == 2
+
+    @authors("savrus")
+    def test_dedicated_chaos_table(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cells[0], replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
+
+    @authors("savrus")
+    def test_replication_card_migration(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cells[0], replicas)
+
+        migrate_replication_cards(cells[0], [card_id])
+
+        def _get_orchid_path(cell_id, driver=None):
+            address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+        migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
+        wait(lambda: get(migration_path, driver=drivers[-2]) == "migrated")
+
+        migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[1], driver=drivers[-1]), card_id)
+        wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
+
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
+
+        migrate_replication_cards(cells[1], [card_id])
+        wait(lambda: get(migration_path, driver=drivers[-2]) == "normal")
+        wait(lambda: get("{0}/state".format(migrated_card_path), driver=drivers[-1]) == "migrated")
+
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=drivers[2]) == values)
+
+    @authors("savrus")
+    def test_remove_migrated_replication_card(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cells[0], replicas, create_replica_tables=False, sync_replication_era=False)
+        self._sync_replication_card(card_id)
+
+        migrate_replication_cards(cells[0], [card_id])
+
+        def _get_orchid_path(cell_id, driver=None):
+            address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+        migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
+        wait(lambda: get(migration_path, driver=drivers[-2]) == "migrated")
+
+        migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[1], driver=drivers[-1]), card_id)
+        wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
+
+        area_id = get("#{0}/@area_id".format(cells[0]), driver=drivers[-2])
+        set("#{0}/@node_tag_filter".format(area_id), "invalid", driver=drivers[-2])
+
+        remove("#{0}".format(card_id))
+        with pytest.raises(YtError):
+            exists("#{0}".format(card_id))
+
+        set("#{0}/@node_tag_filter".format(area_id), "", driver=drivers[-2])
+        cluster_names = self.get_cluster_names()
+        wait_for_chaos_cell(cells[0], cluster_names[-2:-1])
+
+        def _check():
+            try:
+                return not exists("#{0}".format(card_id))
+            except YtError as err:
+                print_debug("Checking if replication card {0} exists failed".format(card_id), err)
+                return False
+        wait(_check)
+
+
+##################################################################
+
+
+class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
 
 ##################################################################
@@ -2409,81 +2576,3 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
         rpc_driver = Driver(config=config)
         generate_timestamp(driver=rpc_driver)
-
-
-##################################################################
-
-
-class TestChaosDedicated(ChaosTestBase):
-    NUM_REMOTE_CLUSTERS = 3
-
-    def _create_dedicated_areas_and_cells(self, name="c"):
-        cluster_names = self.get_cluster_names()
-        meta_cluster_names = cluster_names[:-2] + cluster_names[-1:]
-        peer_cluster_names = cluster_names[-2:-1]
-        create_chaos_cell_bundle(
-            name,
-            peer_cluster_names,
-            meta_cluster_names=meta_cluster_names,
-            independent_peers=False)
-        default_cell_id = self._sync_create_chaos_cell(
-            name=name,
-            peer_cluster_names=peer_cluster_names,
-            meta_cluster_names=meta_cluster_names)
-
-        meta_cluster_names = cluster_names[:-1]
-        peer_cluster_names = cluster_names[-1:]
-        create_chaos_area(
-            "beta",
-            name,
-            peer_cluster_names,
-            meta_cluster_names=meta_cluster_names)
-        beta_cell_id = self._sync_create_chaos_cell(
-            name=name,
-            peer_cluster_names=peer_cluster_names,
-            meta_cluster_names=meta_cluster_names,
-            area="beta")
-
-        return [default_cell_id, beta_cell_id]
-
-    @authors("savrus")
-    def test_dedicated_areas(self):
-        cells = self._create_dedicated_areas_and_cells()
-        drivers = self._get_drivers()
-
-        def _is_alien(cell, driver):
-            return "alien" in get("//sys/chaos_cells/{0}/@peers/0".format(cell), driver=driver)
-
-        assert _is_alien(cells[0], drivers[-1])
-        assert _is_alien(cells[1], drivers[-2])
-        assert not _is_alien(cells[0], drivers[-2])
-        assert not _is_alien(cells[1], drivers[-1])
-
-        areas = get("//sys/chaos_cell_bundles/c/@areas")
-        assert len(areas) == 2
-        assert all(area["cell_count"] == 1 for area in areas.values())
-
-        def _get_coordinators(cell, driver):
-            peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
-            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
-
-        assert len(_get_coordinators(cells[0], drivers[-2])) == 2
-        assert len(_get_coordinators(cells[1], drivers[-1])) == 2
-
-    @authors("savrus")
-    def test_dedicated_chaos_table(self):
-        cells = self._create_dedicated_areas_and_cells()
-        drivers = self._get_drivers()
-
-        replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
-        ]
-        self._create_chaos_tables(cells[0], replicas)
-
-        values = [{"key": 0, "value": "0"}]
-        insert_rows("//tmp/t", values)
-
-        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
-        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)

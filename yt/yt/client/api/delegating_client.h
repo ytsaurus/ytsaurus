@@ -469,6 +469,10 @@ public:
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options = {}) override;
 
+    TFuture<void> MigrateReplicationCards(
+        NObjectClient::TCellId chaosCellId,
+        const TMigrateReplicationCardsOptions& options = {}) override;
+
     TFuture<void> SuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options = {}) override;

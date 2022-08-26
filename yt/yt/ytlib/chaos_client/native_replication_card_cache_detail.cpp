@@ -23,6 +23,7 @@
 #include <yt/yt/core/rpc/balancing_channel.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

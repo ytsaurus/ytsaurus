@@ -1543,6 +1543,22 @@ TFuture<void> TClient::ResumeCoordinator(
     return req->Invoke().As<void>();
 }
 
+TFuture<void> TClient::MigrateReplicationCards(
+    TCellId chaosCellId,
+    const TMigrateReplicationCardsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.MigrateReplicationCards();
+    ToProto(req->mutable_chaos_cell_id(), chaosCellId);
+    ToProto(req->mutable_replication_card_ids(), options.ReplicationCardIds);
+    if (options.DestinationCellId) {
+        ToProto(req->mutable_destination_cell_id(), options.DestinationCellId);
+    }
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<void> TClient::SuspendTabletCells(
     const std::vector<TCellId>& /*cellIds*/,
     const TSuspendTabletCellsOptions& /*options*/)

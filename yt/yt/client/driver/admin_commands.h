@@ -87,6 +87,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMigrateReplicationCardsCommand
+    : public TTypedCommand<NApi::TMigrateReplicationCardsOptions>
+{
+public:
+    TMigrateReplicationCardsCommand();
+
+private:
+    NObjectClient::TCellId ChaosCellId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSuspendTabletCellsCommand
     : public TTypedCommand<NApi::TSuspendTabletCellsOptions>
 {
