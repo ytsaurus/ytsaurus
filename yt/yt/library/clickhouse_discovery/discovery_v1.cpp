@@ -1,9 +1,8 @@
-#include "discovery.h"
-#include <yt/yt/client/api/transaction.h>
+#include "discovery_v1.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -14,21 +13,14 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiscovery::TDiscovery(
-    TDiscoveryConfigPtr config,
+    TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
     NLogging::TLogger logger)
-    : Config_(config)
+    : TDiscoveryBase(config, std::move(invoker), std::move(logger))
+    , Config_(std::move(config))
     , Client_(client)
-    , Invoker_(invoker)
-    , PeriodicExecutor_(New<TPeriodicExecutor>(
-        invoker,
-        BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
-        Config_->UpdatePeriod))
-    , Logger(logger.WithTag("Group: %v, DiscoveryId: %v",
-        Config_->Directory,
-        TGuid::Create()))
     , Epoch_(0)
 {
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
@@ -53,97 +45,6 @@ TFuture<void> TDiscovery::Leave()
     return BIND(&TDiscovery::DoLeave, MakeStrong(this))
         .AsyncVia(Invoker_)
         .Run();
-}
-
-TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
-{
-    auto guard = WriterGuard(Lock_);
-    if (LastUpdate_ + ageThreshold >= TInstant::Now()) {
-        return VoidFuture;
-    }
-    if (!ScheduledForceUpdate_ || ScheduledForceUpdate_.IsSet()) {
-        ScheduledForceUpdate_ = BIND(&TDiscovery::GuardedUpdateList, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run();
-        YT_LOG_DEBUG("Force update scheduled");
-    }
-    return ScheduledForceUpdate_;
-}
-
-THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) const
-{
-    THashMap<TString, IAttributeDictionaryPtr> result;
-    THashMap<TString, TInstant> bannedUntil;
-    decltype(NameAndAttributes_) nameAndAttributes;
-    {
-        auto guard = ReaderGuard(Lock_);
-        result = List_;
-        bannedUntil = BannedUntil_;
-        nameAndAttributes = NameAndAttributes_;
-    }
-    auto now = TInstant::Now();
-    if (nameAndAttributes) {
-        result.insert(*nameAndAttributes);
-    }
-    if (!includeBanned) {
-        for (auto it = result.begin(); it != result.end();) {
-            auto banIt = bannedUntil.find(it->first);
-            if (banIt != bannedUntil.end() && now < banIt->second) {
-                result.erase(it++);
-            } else {
-                ++it;
-            }
-        }
-    }
-    return result;
-}
-
-void TDiscovery::Ban(const TString& name)
-{
-    Ban(std::vector{name});
-}
-
-void TDiscovery::Ban(const std::vector<TString>& names)
-{
-    if (names.empty()) {
-        return;
-    }
-    auto guard = WriterGuard(Lock_);
-    auto banDeadline = TInstant::Now() + Config_->BanTimeout;
-    for (const auto& name : names) {
-        BannedUntil_[name] = banDeadline;
-    }
-    YT_LOG_INFO("Participants banned (Names: %v, Until: %v)", names, banDeadline);
-}
-
-void TDiscovery::Unban(const TString& name)
-{
-    Unban(std::vector{name});
-}
-
-void TDiscovery::Unban(const std::vector<TString>& names)
-{
-    if (names.empty()) {
-        return;
-    }
-    auto guard = WriterGuard(Lock_);
-    for (const auto& name : names) {
-        if (auto it = BannedUntil_.find(name); it != BannedUntil_.end()) {
-            BannedUntil_.erase(it);
-            YT_LOG_INFO("Participant unbanned (Name: %v)", name);
-        }
-    }
-}
-
-TFuture<void> TDiscovery::StartPolling()
-{
-    PeriodicExecutor_->Start();
-    return PeriodicExecutor_->GetExecutedEvent();
-}
-
-TFuture<void> TDiscovery::StopPolling()
-{
-    return PeriodicExecutor_->Stop();
 }
 
 int TDiscovery::Version() const
@@ -198,7 +99,7 @@ void TDiscovery::DoLeave()
     Transaction_.Reset();
 }
 
-void TDiscovery::GuardedUpdateList()
+void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
         .ValueOrThrow());
@@ -236,15 +137,6 @@ void TDiscovery::GuardedUpdateList()
         LastUpdate_ = TInstant::Now();
     }
     YT_LOG_DEBUG("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
-}
-
-void TDiscovery::DoUpdateList()
-{
-    try {
-        GuardedUpdateList();
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to update discovery");
-    }
 }
 
 void TDiscovery::DoCreateNode(int epoch)
@@ -333,7 +225,7 @@ void TDiscovery::DoRestoreTransaction(int epoch, const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDiscoveryPtr CreateDiscoveryV1(
-    TDiscoveryConfigPtr config,
+    TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
@@ -349,4 +241,4 @@ IDiscoveryPtr CreateDiscoveryV1(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

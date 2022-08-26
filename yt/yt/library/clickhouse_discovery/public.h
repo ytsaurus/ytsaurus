@@ -1,17 +1,19 @@
 #pragma once
 
-#include <yt/yt/library/clickhouse_discovery/public.h>
-
-#include <Storages/IStorage_fwd.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageSystemClique(
-    IDiscoveryPtr discovery,
-    TGuid InstanceId_);
+DECLARE_REFCOUNTED_STRUCT(IDiscovery)
+DECLARE_REFCOUNTED_CLASS(TDiscovery)
+
+DECLARE_REFCOUNTED_CLASS(TDiscoveryBaseConfig)
+DECLARE_REFCOUNTED_CLASS(TDiscoveryV1Config)
+DECLARE_REFCOUNTED_CLASS(TDiscoveryV2Config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
+

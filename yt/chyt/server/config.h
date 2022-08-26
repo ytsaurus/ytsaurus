@@ -14,8 +14,6 @@
 
 #include <yt/yt/ytlib/security_client/config.h>
 
-#include <yt/yt/client/misc/config.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -27,6 +25,8 @@
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/library/clickhouse_discovery/config.h>
 
 #include <yt/yt/library/re2/public.h>
 
@@ -494,9 +494,8 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
-    static constexpr const char defaultChytPath[] = "//sys/clickhouse/cliques";
     //! Note that CliqueId will be added to Directory automatically.
-    TIntrusivePtr<TTemplatedDiscoveryConfig<defaultChytPath>> Discovery;
+    TDiscoveryV1ConfigPtr Discovery;
 
     TGossipConfigPtr Gossip;
 

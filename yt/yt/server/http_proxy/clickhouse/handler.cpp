@@ -37,6 +37,7 @@
 namespace NYT::NHttpProxy::NClickHouse {
 
 using namespace NApi;
+using namespace NClickHouseServer;
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
@@ -604,7 +605,7 @@ private:
 
                 YT_LOG_DEBUG("Fetched discovery version (Version: %v)", version);
 
-                auto config = New<TTemplatedDiscoveryConfig<>>();
+                auto config = New<TDiscoveryV1Config>();
                 config->Directory = path;
                 config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
                 config->ReadFrom = NApi::EMasterChannelKind::Cache;

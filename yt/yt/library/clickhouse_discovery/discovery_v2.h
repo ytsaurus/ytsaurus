@@ -1,16 +1,17 @@
 #pragma once
 
-#include <yt/yt/library/clickhouse_discovery/public.h>
-
-#include <Storages/IStorage_fwd.h>
+#include "config.h"
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageSystemClique(
-    IDiscoveryPtr discovery,
-    TGuid InstanceId_);
+IDiscoveryPtr CreateDiscoveryV2(
+    TDiscoveryV2ConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
+    IInvokerPtr invoker,
+    std::vector<TString> extraAttributes,
+    NLogging::TLogger logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
