@@ -1683,6 +1683,11 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto* chunk = chunkManager->FindChunk(chunkId);
             auto& mediumIndexSet = jt->second;
 
+            if (!chunk) {
+                // NB: zombie chunks are handled below.
+                continue;
+            }
+
             if (!chunk->IsRefreshActual()) {
                 queue.erase(jt);
                 ++misscheduledReplicationJobs;
