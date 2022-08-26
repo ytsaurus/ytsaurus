@@ -447,3 +447,5 @@ class TestDynamicTableCommands(object):
         assert len(errors["replication_errors"]) == 0
         assert len(errors_with_limit["tablet_errors"]) == 0
         assert len(errors_with_limit["replication_errors"]) == 0
+        assert "incomplete" not in errors
+        assert "incomplete" not in errors_with_limit
