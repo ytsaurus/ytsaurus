@@ -16,6 +16,7 @@ import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.proxy.MockYtClient;
 
 public class MapperSpecTest {
@@ -58,10 +59,11 @@ public class MapperSpecTest {
         Map<String, YTreeNode> node = spec.prepare(
                 builder,
                 client,
-                SpecPreparationContext.builder()
-                        .setJarsProcessor(new DummyJarsProcessor())
-                        .setJavaBinary("java")
-                        .build(),
+                new SpecPreparationContext(
+                        YtClientConfiguration.builder()
+                            .setJarsProcessor(new DummyJarsProcessor())
+                            .setJavaBinary("java")
+                            .build()),
                 1
         ).build().mapNode().asMap();
 

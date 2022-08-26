@@ -29,9 +29,13 @@ import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderr;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
+import ru.yandex.yt.ytclient.proxy.request.ListJobs;
+import ru.yandex.yt.ytclient.proxy.request.ListJobsResult;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
@@ -236,6 +240,10 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<YTreeNode> getJob(GetJob req);
 
     CompletableFuture<Void> abortJob(AbortJob req);
+
+    CompletableFuture<ListJobsResult> listJobs(ListJobs req);
+
+    CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req);
 
     CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
 

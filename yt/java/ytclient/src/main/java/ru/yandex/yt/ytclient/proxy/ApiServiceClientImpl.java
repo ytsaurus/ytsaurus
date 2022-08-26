@@ -1,10 +1,13 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,14 +23,18 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.library.svnversion.VcsVersion;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
+import ru.yandex.yt.rpcproxy.EOperationType;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
@@ -48,6 +55,9 @@ import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
+import ru.yandex.yt.ytclient.operations.Operation;
+import ru.yandex.yt.ytclient.operations.OperationImpl;
+import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortJob;
 import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
@@ -71,15 +81,20 @@ import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderr;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
+import ru.yandex.yt.ytclient.proxy.request.ListJobs;
+import ru.yandex.yt.ytclient.proxy.request.ListJobsResult;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
+import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutateNode;
@@ -126,13 +141,14 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 @NonNullFields
 public class ApiServiceClientImpl implements ApiServiceClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClientImpl.class);
+    private static final List<String> JOB_TYPES = Arrays.asList("mapper", "reducer", "reduce_combiner");
 
     private final ScheduledExecutorService executorService;
     private final Executor heavyExecutor;
+    private final Executor prepareSpecExecutor = Executors.newSingleThreadExecutor();
     @Nullable private final RpcClient rpcClient;
     final YtClientConfiguration configuration;
     final RpcOptions rpcOptions;
-    private static final String USER_AGENT = calcUserAgent();
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
@@ -159,11 +175,6 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             @Nonnull ScheduledExecutorService executorService
     ) {
         this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor, executorService);
-    }
-
-    static String calcUserAgent() {
-        VcsVersion version = new VcsVersion(ApiServiceClientImpl.class);
-        return "yt/java/ytclient@" + version.getProgramSvnRevision();
     }
 
     @Override
@@ -743,6 +754,68 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                 response -> RpcUtil.fromProto(response.body().getOperationId()));
     }
 
+    private YTreeMapNode patchSpec(YTreeMapNode spec) {
+        YTreeMapNode resultingSpec = spec;
+
+        for (String op : JOB_TYPES) {
+            if (resultingSpec.containsKey(op) && configuration.getJobSpecPatch().isPresent()) {
+                YTreeNode patch = YTree.builder()
+                        .beginMap()
+                        .key(op).value(configuration.getJobSpecPatch().get())
+                        .endMap()
+                        .build();
+                YTreeBuilder b = YTree.builder();
+                YTreeNodeUtils.merge(resultingSpec, patch, b, true);
+                resultingSpec = b.build().mapNode();
+            }
+        }
+
+        if (resultingSpec.containsKey("tasks") && configuration.getJobSpecPatch().isPresent()) {
+            for (Map.Entry<String, YTreeNode> entry
+                    : resultingSpec.getOrThrow("tasks").asMap().entrySet()
+            ) {
+                YTreeNode patch = YTree.builder()
+                        .beginMap()
+                        .key("tasks")
+                        .beginMap()
+                        .key(entry.getKey()).value(configuration.getJobSpecPatch().get())
+                        .endMap()
+                        .endMap()
+                        .build();
+
+                YTreeBuilder b = YTree.builder();
+                YTreeNodeUtils.merge(resultingSpec, patch, b, true);
+                resultingSpec = b.build().mapNode();
+            }
+        }
+
+        if (configuration.getSpecPatch().isPresent()) {
+            YTreeBuilder b = YTree.builder();
+            YTreeNodeUtils.merge(resultingSpec, configuration.getSpecPatch().get(), b, true);
+            resultingSpec = b.build().mapNode();
+        }
+        return resultingSpec;
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMap(MapOperation req) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    YTreeBuilder builder = YTree.builder();
+                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
+                    return patchSpec(builder.build().mapNode());
+                },
+                prepareSpecExecutor
+        ).thenCompose(
+                preparedSpec -> startOperation(
+                        new StartOperation(EOperationType.OT_MAP, preparedSpec)
+                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setMutatingOptions(req.getMutatingOptions())
+                ).thenApply(operationId ->
+                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
+        );
+    }
+
     @Override
     public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
         return RpcUtil.apply(
@@ -781,6 +854,21 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                 sendRequest(req, ApiServiceMethodTable.GET_JOB.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getInfo())
         );
+    }
+
+    @Override
+    public CompletableFuture<ListJobsResult> listJobs(ListJobs req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.LIST_JOBS.createRequestBuilder(rpcOptions)),
+                response -> new ListJobsResult(response.body())
+        );
+    }
+
+    @Override
+    public CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_JOB_STDERR.createRequestBuilder(rpcOptions)),
+                response -> new GetJobStderrResult(response.attachments()));
     }
 
     @Override
@@ -958,10 +1046,13 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         }
 
         if (req instanceof RequestBase) {
-            ((RequestBase<?>) req).setUserAgent(USER_AGENT);
+            ((RequestBase<?>) req).setUserAgent(configuration.getVersion());
         }
 
-        logger.debug("Starting request {}; {}; User-Agent: {}", builder, req.getArgumentsLogString(), USER_AGENT);
+        logger.debug("Starting request {}; {}; User-Agent: {}",
+                builder,
+                req.getArgumentsLogString(),
+                configuration.getVersion());
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
         return invoke(builder);

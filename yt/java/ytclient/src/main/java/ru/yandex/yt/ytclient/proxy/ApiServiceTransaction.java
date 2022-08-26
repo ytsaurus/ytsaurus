@@ -22,6 +22,7 @@ import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
+import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
@@ -34,6 +35,7 @@ import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
+import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
@@ -416,6 +418,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     public CompletableFuture<GUID> startOperation(StartOperation req) {
         return client.startOperation(req.setTransactionOptions(transactionalOptions));
     }
+
+    @Override
+    public CompletableFuture<Operation> startMap(MapOperation req) {
+        return client.startMap(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
 
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
