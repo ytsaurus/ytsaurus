@@ -34,7 +34,7 @@
 
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
-#include <yt/yt/client/misc/discovery.h>
+#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
 
 #include <yt/yt/library/clickhouse_functions/functions.h>
 

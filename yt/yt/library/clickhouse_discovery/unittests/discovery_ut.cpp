@@ -1,7 +1,7 @@
+#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
-
-#include <yt/yt/client/misc/discovery.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -24,6 +24,7 @@ using ::testing::_;
 using namespace NApi;
 using namespace NYTree;
 using namespace NYson;
+using namespace NClickHouseServer;
 using namespace NConcurrency;
 using namespace NLogging;
 
@@ -42,12 +43,11 @@ std::vector<TString> GetNames(const THashMap<TString, IAttributeDictionaryPtr>& 
     return result;
 }
 
-constexpr const char path[] = "/test/1234";
-
 TEST(TDiscoveryTest, Simple)
 {
     auto MockClient = New<TStrictMockClient>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {"lock_count"};
     NApi::TListNodeOptions options;
     options.Attributes = keys;
@@ -57,7 +57,8 @@ TEST(TDiscoveryTest, Simple)
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(listRet)));
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    config->Directory = path;
     config->UpdatePeriod = TDuration::Seconds(1);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -96,6 +97,7 @@ TEST(TDiscoveryTest, Enter)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
     bool locked = false;
@@ -109,14 +111,14 @@ TEST(TDiscoveryTest, Enter)
     EXPECT_CALL(*MockClient, StartTransaction(_, _))
         .WillOnce(Return(MakeFuture(MockTransaction).As<ITransactionPtr>()));
 
-    EXPECT_CALL(*MockClient, CreateNode(NYPath::TYPath(path) + "/test_node", _, _))
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
             }
         ));
 
-    EXPECT_CALL(*MockTransaction, LockNode(NYPath::TYPath(path) + "/test_node", _, _))
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
                 locked = true;
                 return MakeFuture(TLockNodeResult());
@@ -125,7 +127,8 @@ TEST(TDiscoveryTest, Enter)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -163,6 +166,7 @@ TEST(TDiscoveryTest, Leave) {
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
     auto attrs = CreateEphemeralAttributes();
@@ -183,14 +187,14 @@ TEST(TDiscoveryTest, Leave) {
     EXPECT_CALL(*MockClient, StartTransaction(_, _))
         .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
 
-    EXPECT_CALL(*MockClient, CreateNode(NYPath::TYPath(path) + "/test_node", _, ResultOf(TransformAttributes, comparableAttrs)))
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, ResultOf(TransformAttributes, comparableAttrs)))
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
             }
         ));
 
-    EXPECT_CALL(*MockTransaction, LockNode(NYPath::TYPath(path) + "/test_node", _, _))
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
                 locked = true;
                 return MakeFuture(TLockNodeResult());
@@ -208,7 +212,8 @@ TEST(TDiscoveryTest, Leave) {
     EXPECT_CALL(*MockTransaction, UnsubscribeAborted(_))
         .Times(1);
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -236,6 +241,7 @@ TEST(TDiscoveryTest, Ban)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
@@ -248,7 +254,8 @@ TEST(TDiscoveryTest, Ban)
 
     std::vector<TString> expected = {"alive_node1", "alive_node2"};
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     config->BanTimeout = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -285,6 +292,7 @@ TEST(TDiscoveryTest, Attributes)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {"a1", "a2"};
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
@@ -311,7 +319,8 @@ TEST(TDiscoveryTest, Attributes)
                     .Value("alive_node2")
             .EndList())));
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -331,6 +340,7 @@ TEST(TDiscoveryTest, CreationRace)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
     bool locked = false;
@@ -347,14 +357,14 @@ TEST(TDiscoveryTest, CreationRace)
     EXPECT_CALL(*MockClient, StartTransaction(_, _))
         .WillOnce(Return(MakeFuture(MockTransaction).As<ITransactionPtr>()));
 
-    EXPECT_CALL(*MockClient, CreateNode(NYPath::TYPath(path) + "/test_node", _, _))
+    EXPECT_CALL(*MockClient, CreateNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
             }
         ));
 
-    EXPECT_CALL(*MockTransaction, LockNode(NYPath::TYPath(path) + "/test_node", _, _))
+    EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
                 WaitFor(lockWait)
                     .ThrowOnError();
@@ -365,7 +375,7 @@ TEST(TDiscoveryTest, CreationRace)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    auto config = New<TTemplatedDiscoveryConfig<path>>();
+    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
 

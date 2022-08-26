@@ -4,13 +4,14 @@
 
 namespace NYT::NHttpProxy::NClickHouse {
 
+using namespace NClickHouseServer;
 using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedDiscovery::TCachedDiscovery(
     TOperationId operationId,
-    TDiscoveryConfigPtr config,
+    TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,

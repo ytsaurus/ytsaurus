@@ -466,6 +466,7 @@ void TYtConfig::Register(TRegistrar registrar)
         config->TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);
         config->TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
 
+        config->Discovery->Directory = "//sys/clickhouse/cliques";
     });
 
     registrar.Postprocessor([] (TThis* config) {
