@@ -216,6 +216,7 @@ private:
         lsmPartition->SetState(partition->GetState());
         lsmPartition->SetCompactionTime(partition->GetCompactionTime());
         lsmPartition->SetAllowedSplitTime(partition->GetAllowedSplitTime());
+        lsmPartition->SetAllowedMergeTime(partition->GetAllowedMergeTime());
         lsmPartition->SetSamplingRequestTime(partition->GetSamplingRequestTime());
         lsmPartition->SetSamplingTime(partition->GetSamplingTime());
         lsmPartition->SetIsImmediateSplitRequested(partition->IsImmediateSplitRequested());

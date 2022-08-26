@@ -27,6 +27,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedMergeTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingTime);
 

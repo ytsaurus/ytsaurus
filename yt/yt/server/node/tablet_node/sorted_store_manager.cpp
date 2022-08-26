@@ -1111,7 +1111,8 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
 void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector<TLegacyOwningKey>& pivotKeys)
 {
-    Tablet_->SplitPartition(partitionIndex, pivotKeys);
+    auto backoff = Config_->PartitionSplitMergeBackoffTime;
+    Tablet_->SplitPartition(partitionIndex, pivotKeys, backoff);
     if (!IsRecovery()) {
         for (int currentIndex = partitionIndex; currentIndex < partitionIndex + std::ssize(pivotKeys); ++currentIndex) {
             Tablet_->PartitionList()[currentIndex]->StartEpoch();
@@ -1121,7 +1122,8 @@ void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector
 
 void TSortedStoreManager::DoMergePartitions(int firstPartitionIndex, int lastPartitionIndex)
 {
-    Tablet_->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+    auto backoff = Config_->PartitionSplitMergeBackoffTime;
+    Tablet_->MergePartitions(firstPartitionIndex, lastPartitionIndex, backoff);
     if (!IsRecovery()) {
         Tablet_->PartitionList()[firstPartitionIndex]->StartEpoch();
     }

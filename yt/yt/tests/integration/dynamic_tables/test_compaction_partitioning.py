@@ -15,6 +15,8 @@ import yt.yson as yson
 
 import pytest
 
+import builtins
+
 from time import sleep, time
 
 ################################################################################
@@ -462,6 +464,48 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         wait(lambda: _get_running_compaction_count() == 0.0)
         assert get_singular_chunk_id("//tmp/t") == chunk_id
+
+    @authors("zvank")
+    def test_delay_between_split_and_merge(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        # Such numbers are chosen that greater chunk is less than max partition data size,
+        # but both chunks combined are greater.
+        set("//tmp/t/@max_partition_data_size", 74000)
+        set("//tmp/t/@desired_partition_data_size", 63000)
+        set("//tmp/t/@min_partition_data_size", 6400)
+        set("//tmp/t/@chunk_writer", {"block_size": 64})
+        set("//tmp/t/@compression_codec", "none")
+        set("//tmp/t/@dynamic_store_auto_flush_period", yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        orchid = self._find_tablet_orchid(address, tablet_id)
+        assert len(orchid["partitions"]) == 1
+
+        # We want the partition to split right in between these two chunks.
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(24)])
+        sync_flush_table("//tmp/t")
+
+        # 73124 bytes.
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(24, 1000)])
+        sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+
+        initial_chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(initial_chunk_ids) == 3
+        set("//tmp/t/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+
+        def check():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            intersection = builtins.set(chunk_ids[:-1]) & builtins.set(initial_chunk_ids[:-1])
+            return len(intersection) == 0
+
+        wait(check)
 
 ################################################################################
 

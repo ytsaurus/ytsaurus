@@ -212,13 +212,18 @@ private:
     {
         const auto* tablet = partition->GetTablet();
 
-        if (!immediateSplit && CurrentTime_ < partition->GetAllowedSplitTime()) {
-            return false;
-        }
-
         auto Logger = BuildLogger(partition);
 
         const auto& mountConfig = tablet->GetMountConfig();
+        if (!immediateSplit && CurrentTime_ < partition->GetAllowedSplitTime()) {
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                "Will not split partition: too early "
+                "(CurrentTime: %v, AllowedSplitTime: %v)",
+                CurrentTime_,
+                partition->GetAllowedSplitTime());
+            return false;
+        }
+
         if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->Eden()->GetState() == EPartitionState::Partitioning)
         {
@@ -290,6 +295,9 @@ private:
             std::vector<TPartitionId> partitionIds;
             for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
                 partitionIds.push_back(tablet->Partitions()[index]->GetId());
+                if (!ValidateMerge(tablet->Partitions()[index].get())) {
+                    return {};
+                }
             }
 
             if (estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount) {
@@ -304,7 +312,22 @@ private:
         return {};
     }
 
-    std::optional<TSamplePartitionRequest> ScanPartitionToSample(TPartition* partition)
+    bool ValidateMerge(TPartition* partition) const
+    {
+        auto Logger = BuildLogger(partition);
+
+        const auto& mountConfig = partition->GetTablet()->GetMountConfig();
+        if (CurrentTime_ < partition->GetAllowedMergeTime()) {
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                "Will not merge partition: too early "
+                "(CurrentTime: %v, AllowedMergeTime: %v)",
+                CurrentTime_, partition->GetAllowedSplitTime());
+            return false;
+        }
+        return true;
+    }
+
+    std::optional<TSamplePartitionRequest> ScanPartitionToSample(TPartition* partition) const
     {
         if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
             partition->GetSamplingTime() < CurrentTime_ - ResamplingPeriod_)

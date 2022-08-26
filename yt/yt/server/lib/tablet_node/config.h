@@ -334,6 +334,7 @@ public:
 
     TDuration PreloadBackoffTime;
     TDuration CompactionBackoffTime;
+    TDuration PartitionSplitMergeBackoffTime;
     TDuration FlushBackoffTime;
 
     TDuration MaxBlockedRowWaitTime;
