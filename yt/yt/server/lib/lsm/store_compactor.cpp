@@ -76,12 +76,20 @@ private:
         if (auto request = ScanEdenForPartitioning(tablet->Eden().get())) {
             batch.Partitionings.push_back(std::move(*request));
         }
-        if (auto request = ScanPartitionForCompaction(tablet->Eden().get())) {
+
+        bool allowForcedCompaction = true;
+
+        if (auto request = ScanPartitionForCompaction(tablet->Eden().get(), /*allowForcedCompaction*/ true)) {
             batch.Compactions.push_back(std::move(*request));
+            if (request->Reason == EStoreCompactionReason::Forced &&
+                config->PrioritizeEdenForcedCompaction)
+            {
+                allowForcedCompaction = false;
+            }
         }
 
         for (const auto& partition : tablet->Partitions()) {
-            if (auto request = ScanPartitionForCompaction(partition.get())) {
+            if (auto request = ScanPartitionForCompaction(partition.get(), allowForcedCompaction)) {
                 batch.Compactions.push_back(std::move(*request));
             }
         }
@@ -184,7 +192,7 @@ private:
             partition->Stores().size());
     }
 
-    std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition)
+    std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition, bool allowForcedCompaction)
     {
         if (partition->GetState() != EPartitionState::Normal ||
             partition->GetIsImmediateSplitRequested() ||
@@ -199,8 +207,7 @@ private:
             return request;
         }
 
-
-        auto [reason, stores] = PickStoresForCompaction(partition);
+        auto [reason, stores] = PickStoresForCompaction(partition, allowForcedCompaction);
         if (stores.empty()) {
             return {};
         }
@@ -312,7 +319,7 @@ private:
     }
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>>
-        PickStoresForCompaction(TPartition* partition)
+        PickStoresForCompaction(TPartition* partition, bool allowForcedCompaction)
     {
         std::vector<TStoreId> finalists;
 
@@ -372,6 +379,11 @@ private:
         } else if (*std::max_element(storeCountByReason.begin(), storeCountByReason.end()) > 0) {
             for (auto* candidate : candidates) {
                 auto compactionReason = GetStoreCompactionReason(candidate);
+
+                if (compactionReason == EStoreCompactionReason::Forced && !allowForcedCompaction) {
+                    continue;
+                }
+
                 if (compactionReason != EStoreCompactionReason::None) {
                     finalistCompactionReason = compactionReason;
                     finalists.push_back(candidate->GetId());

@@ -207,6 +207,7 @@ public:
 
     bool EnablePartitionSplitWhileEdenPartitioning;
     bool EnableDiscardingExpiredPartitions;
+    bool PrioritizeEdenForcedCompaction;
 
     bool EnableDataNodeLookup;
     std::optional<int> MaxParallelPartitionLookups;
