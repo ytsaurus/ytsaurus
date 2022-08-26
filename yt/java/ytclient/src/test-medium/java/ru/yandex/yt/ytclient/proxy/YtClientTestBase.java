@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,19 +11,33 @@ import org.junit.rules.TestName;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.testlib.LocalYt;
+import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class YtClientTestBase {
-    static class YtFixture {
+    protected static class YtFixture {
         final HostPort address;
         final YtClient yt;
         final YPath testDirectory;
+
+        public YtClient getYt() {
+            return yt;
+        }
+
+        public YPath getTestDirectory() {
+            return testDirectory;
+        }
 
         YtFixture(HostPort address, YtClient yt, YPath testDirectory) {
             this.address = address;
@@ -44,7 +60,15 @@ public class YtClientTestBase {
         var address = LocalYt.getAddress();
         var yt = YtClient.builder()
                 .setCluster(address)
-                .setRpcOptions(rpcOptions)
+                .setYtClientConfiguration(
+                        YtClientConfiguration.builder()
+                                .setRpcOptions(rpcOptions)
+                                .setJavaBinary(System.getProperty("java.home") + "/bin/java")
+                                .setJobSpecPatch(null)
+                                .setSpecPatch(null)
+                                .setOperationPingPeriod(Duration.ofMillis(500))
+                                .build()
+                )
                 .setRpcCredentials(new RpcCredentials("root", ""))
                 .build();
 
@@ -60,6 +84,37 @@ public class YtClientTestBase {
         YtFixture result = new YtFixture(HostPort.parse(address), yt, testDirectory);
         ytFixtures.add(result);
         return result;
+    }
+
+    protected void writeTable(YtClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
+        yt.createNode(path.toString(), ObjectType.Table).join();
+
+        TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(path, YTreeMapNode.class)).join();
+        try {
+            writer.write(data, tableSchema);
+            writer.close().join();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    protected List<YTreeMapNode> readTable(YtClient yt, YPath path) {
+        TableReader<YTreeMapNode> reader = yt.readTable(
+                new ReadTable<>(path, YTreeObjectSerializerFactory.forClass(YTreeMapNode.class))).join();
+        List<YTreeMapNode> result = new ArrayList<>();
+        List<YTreeMapNode> rows;
+        try {
+            while (reader.canRead()) {
+                while ((rows = reader.read()) != null) {
+                    result.addAll(rows);
+                }
+                reader.readyEvent().join();
+            }
+            reader.close().join();
+            return result;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @After

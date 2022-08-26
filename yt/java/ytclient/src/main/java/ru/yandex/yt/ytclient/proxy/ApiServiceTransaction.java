@@ -41,8 +41,10 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
@@ -424,6 +426,15 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return client.startMap(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
+    @Override
+    public CompletableFuture<Operation> startReduce(ReduceOperation req) {
+        return client.startReduce(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<Operation> startSort(SortOperation req) {
+        return client.startSort(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
 
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {

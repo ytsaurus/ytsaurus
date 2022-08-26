@@ -42,7 +42,7 @@ public class Example06MapYTree {
         // Выходная таблица лежит в `//tmp` и содержит имя текущего пользователя
         // Имя пользователя нужно на тот случай, если два человека одновременно запустят этот пример,
         // мы не хотим, чтобы они столкнулись на одной выходной таблице.
-        YPath outputTable = YPath.simple("//tmp/" + System.getProperty("user.name") + "-tutorial-emails-123");
+        YPath outputTable = YPath.simple("//tmp/" + System.getProperty("user.name") + "-tutorial-emails");
 
         try (client) {
            Operation op = client.map(
@@ -55,8 +55,12 @@ public class Example06MapYTree {
                             .build()
            ).join();
 
-            System.err.println("Operation map was finished: " + op.getId());
+            System.err.println("Operation was finished (OperationId: " + op.getId() + ")");
             System.err.println("Status: " + op.getStatus().join());
         }
+
+        System.err.println(
+                "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" + outputTable
+        );
     }
 }

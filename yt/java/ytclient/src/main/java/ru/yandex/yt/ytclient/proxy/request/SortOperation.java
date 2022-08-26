@@ -5,18 +5,16 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.MapSpec;
+import ru.yandex.yt.ytclient.operations.SortSpec;
 
-@NonNullApi
-@NonNullFields
-public class MapOperation {
-    private final MapSpec spec;
+public class SortOperation {
+    private final SortSpec spec;
 
     @Nullable
     private final TransactionalOptions transactionalOptions;
     private final MutatingOptions mutatingOptions;
 
-    MapOperation(Builder builder) {
+    SortOperation(Builder builder) {
         if (builder.spec == null) {
             throw new IllegalStateException("Spec wasn't set");
         }
@@ -32,7 +30,7 @@ public class MapOperation {
                 .setTransactionalOptions(transactionalOptions);
     }
 
-    public MapSpec getSpec() {
+    public SortSpec getSpec() {
         return spec;
     }
 
@@ -52,12 +50,12 @@ public class MapOperation {
     @NonNullFields
     public static class Builder {
         @Nullable
-        private MapSpec spec;
+        private SortSpec spec;
         private MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
         @Nullable
         private TransactionalOptions transactionalOptions;
 
-        public Builder setSpec(MapSpec spec) {
+        public Builder setSpec(SortSpec spec) {
             this.spec = spec;
             return this;
         }
@@ -72,8 +70,8 @@ public class MapOperation {
             return this;
         }
 
-        public MapOperation build() {
-            return new MapOperation(this);
+        public SortOperation build() {
+            return new SortOperation(this);
         }
     }
 }

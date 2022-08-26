@@ -223,6 +223,16 @@ public class YtClientConfiguration {
             return this;
         }
 
+        public Builder setJobSpecPatch(@Nullable YTreeNode jobSpecPatch) {
+            this.jobSpecPatch = jobSpecPatch;
+            return this;
+        }
+
+        public Builder setSpecPatch(@Nullable YTreeNode specPatch) {
+            this.specPatch = specPatch;
+            return this;
+        }
+
         public Builder withPorto() {
             javaOptions = JavaOptions.empty().withOption("-XX:+UseParallelGC");
 
