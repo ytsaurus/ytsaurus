@@ -28,6 +28,7 @@ object E2ETestPlugin extends AutoPlugin {
     lazy val e2eScalaTestImpl = taskKey[Unit]("Run scala e2e tests process")
     lazy val e2ePythonTestImpl = taskKey[Unit]("Run python e2e tests process")
     lazy val e2eFullCircleTest = taskKey[Unit]("Build e2e environment and run all tests")
+    lazy val e2eTestImpl = taskKey[Unit]("")
     lazy val e2ePrepareEnv = taskKey[Unit]("")
     lazy val e2eLaunchCluster = taskKey[Unit]("")
     lazy val e2eDiscoveryCluster = taskKey[Unit]("")
@@ -67,7 +68,16 @@ object E2ETestPlugin extends AutoPlugin {
     e2ePreparation := Def.sequential(e2eConfigShow, publishYt, sparkAddCustomFiles).value,
     e2eScalaTest := Def.sequential(e2ePreparation, e2eScalaTestImpl).value,
     e2ePythonTest := Def.sequential(e2ePreparation, e2ePythonTestImpl).value,
-    e2eTest := Def.sequential(e2ePreparation, e2eScalaTestImpl.andFinally(e2ePythonTestImpl)).value,
+    e2eTestImpl := Def.taskDyn {
+      val scalaTestSuccess = e2eScalaTestImpl.result.value.toEither.isRight
+      Def.task {
+        val pythonTestSuccess = e2ePythonTestImpl.result.value.toEither.isRight
+        if (!scalaTestSuccess || !pythonTestSuccess) {
+          throw new IllegalStateException("Tests are failed")
+        }
+      }
+    }.value,
+    e2eTest := Def.sequential(e2ePreparation, e2eTestImpl).value,
     e2eScalaTestImpl := (Test / test).value,
     e2eClientVersion := {
       Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)
