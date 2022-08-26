@@ -418,7 +418,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestQueuePtr CreateRequestQueue(TString name);
+TRequestQueuePtr CreateRequestQueue(TString name, const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -919,7 +919,7 @@ class TRequestQueue
     : public TRefCounted
 {
 public:
-    explicit TRequestQueue(TString name);
+    explicit TRequestQueue(TString name, NProfiling::TProfiler profiler);
 
     bool Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo);
     void Configure(const TMethodConfigPtr& config);

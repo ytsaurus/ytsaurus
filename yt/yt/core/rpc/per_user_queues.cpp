@@ -7,6 +7,7 @@ static const auto InfiniteRequestThrottlerConfig = New<NConcurrency::TThroughput
 ////////////////////////////////////////////////////////////////////////////////
 
 TPerUserRequestQueues::TPerUserRequestQueues()
+    : ThrottlerProfiler_()
 {
     TRequestQueueThrottlerConfigs configs = {
         InfiniteRequestThrottlerConfig,
@@ -15,12 +16,15 @@ TPerUserRequestQueues::TPerUserRequestQueues()
     DefaultConfigs_.Store(std::move(configs));
 }
 
-TPerUserRequestQueues::TPerUserRequestQueues(TReconfigurationCallback reconfigurationCallback)
+TPerUserRequestQueues::TPerUserRequestQueues(
+    TReconfigurationCallback reconfigurationCallback,
+    NProfiling::TProfiler throttlerProfiler)
     : ReconfigurationCallback_(std::move(reconfigurationCallback))
+    , ThrottlerProfiler_(std::move(throttlerProfiler))
 {
     // Creating pool for the root user to make sure it won't be throttled.
     RequestQueues_.FindOrInsert(RootUserName, [&] {
-        auto queue = CreateRequestQueue(RootUserName);
+        auto queue = CreateRequestQueue(RootUserName, ThrottlerProfiler_);
 
         auto config = InfiniteRequestThrottlerConfig;
 
@@ -43,7 +47,7 @@ TRequestQueuePtr TPerUserRequestQueues::GetOrCreateUserQueue(const TString& user
     auto configs = DefaultConfigs_.Load();
 
     auto queue = RequestQueues_.FindOrInsert(userName, [&] {
-        auto queue = CreateRequestQueue(userName);
+        auto queue = CreateRequestQueue(userName, ThrottlerProfiler_);
 
         auto guard = ReaderGuard(ThrottlingEnabledFlagsSpinLock_);
         if (WeightThrottlingEnabled_) {
