@@ -9,7 +9,6 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
-	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -62,7 +61,7 @@ func TestCLISimple(t *testing.T) {
 	err := r.RunYT("clickhouse", "ctl", "-h")
 	require.NoError(t, err)
 
-	alias := guid.New().String()
+	alias := helpers.GenerateAlias()
 	err = r.RunYT("clickhouse", "ctl", "create", alias)
 	require.NoError(t, err)
 

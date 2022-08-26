@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -68,12 +69,13 @@ const (
 )
 
 type CmdParameter struct {
-	Name        string    `yson:"name"`
-	Aliases     []string  `yson:"aliases,omitempty"`
-	Type        ParamType `yson:"type"`
-	Required    bool      `yson:"required"`
-	Description string    `yson:"description,omitempty"`
-	EnvVariable string    `yson:"env_variable,omitempty"`
+	Name        string          `yson:"name"`
+	Aliases     []string        `yson:"aliases,omitempty"`
+	Type        ParamType       `yson:"type"`
+	Required    bool            `yson:"required"`
+	Description string          `yson:"description,omitempty"`
+	EnvVariable string          `yson:"env_variable,omitempty"`
+	Validator   func(any) error `yson:"-"`
 }
 
 // AsExplicit returns a copy of the parameter with empty EnvVariable field,
@@ -150,7 +152,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Validate params' types.
+	// Validate params' types and values.
 	for _, param := range cmd.Parameters {
 		if value, ok := params[param.Name]; ok {
 			switch param.Type {
@@ -159,10 +161,24 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 			}
 
 			if !ok {
-				a.replyWithError(w, yterrors.Err("invalid parameter type",
+				a.replyWithError(w, yterrors.Err(fmt.Sprintf("parameter %v has unexpected type: expected %v, got %v",
+					param.Name,
+					param.Type,
+					reflect.TypeOf(value).String()),
 					yterrors.Attr("param_name", param.Name),
 					yterrors.Attr("expected_type", param.Type),
 					yterrors.Attr("actual_type", reflect.TypeOf(value).String())))
+				return nil
+			}
+
+			if param.Validator != nil {
+				if err := param.Validator(value); err != nil {
+					a.replyWithError(w, yterrors.Err(fmt.Sprintf("failed to validate parameter %v", param.Name),
+						err,
+						yterrors.Attr("param_name", param.Name),
+						yterrors.Attr("param_value", value)))
+					return nil
+				}
 			}
 		}
 	}
