@@ -19,6 +19,17 @@ void TCoordinatorInfo::Persist(const TPersistenceContext& context)
     Persist(context, State);
 }
 
+void TMigration::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, OriginCellId);
+    Persist(context, ImmigratedToCellId);
+    Persist(context, EmmigratedFromCellId);
+    Persist(context, ImmigrationTime);
+    Persist(context, EmmigrationTime);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
@@ -48,6 +59,8 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, TablePath_);
     Save(context, TableClusterName_);
     Save(context, CurrentTimestamp_);
+    Save(context, Migration_);
+    Save(context, State_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -64,6 +77,11 @@ void TReplicationCard::Load(TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= EChaosReign::CurrentTimestamp) {
         Load(context, CurrentTimestamp_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EChaosReign::Migration) {
+        Load(context, Migration_);
+        Load(context, State_);
     }
 }
 

@@ -212,6 +212,10 @@ public:
         NObjectClient::TCellId coordinatorCellid,
         const TResumeCoordinatorOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, MigrateReplicationCards, (
+        NObjectClient::TCellId chaosCellid,
+        const TMigrateReplicationCardsOptions& options), (override));
+
     MOCK_METHOD(TFuture<void>, SuspendTabletCells, (
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options), (override));

@@ -136,67 +136,46 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing chaos cells in cell directory");
 
-            std::vector<TCellTag> cellTags;
-            {
-                auto guard = Guard(SpinLock_);
-
-                if (ObservedCells_.empty()) {
-                    return;
-                }
-
-                cellTags.reserve(ObservedCells_.size());
-                for (auto [cellTag, cellId] : ObservedCells_) {
-                    cellTags.push_back(cellTag);
-                }
-            }
-
             auto connection = Connection_.Lock();
             if (!connection) {
-                THROW_ERROR_EXCEPTION("Unable to synchronize chaos cells in cell directory: сonnection terminated");
+                THROW_ERROR_EXCEPTION("Unable to synchronize chaos cells in cell directory: connection terminated");
             }
 
             auto masterChannel = connection->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
             auto proxy = TChaosMasterServiceProxy(std::move(masterChannel));
-
-            auto req = proxy.FindCellDescriptorsByCellTags();
-            for (auto cellTag : cellTags) {
-                req->add_cell_tags(cellTag);
-            }
+            auto req = proxy.GetCellDescriptors();
 
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
 
-            YT_VERIFY(std::ssize(cellTags) == rsp->cell_descriptors_size());
+            auto cellDescriptors = FromProto<std::vector<TCellDescriptor>>(rsp->cell_descriptors());
 
-            for (int index = 0; index < std::ssize(cellTags); ++index) {
-                auto descriptor = FromProto<TCellDescriptor>(rsp->cell_descriptors(index));
-                auto cellTag = cellTags[index];
-                auto cellId = ObservedCells_[cellTag];
+            THashMap<TCellTag, TCellId> observedCells;
+            {
+                auto guard = Guard(SpinLock_);
+                observedCells = ObservedCells_;
+            }
 
-                if (!descriptor.CellId) {
-                    YT_LOG_DEBUG("Forgetting cell tag in chaos cell synchronizer (CellTag: %v)",
-                        cellTag);
-
+            for (auto descriptor : cellDescriptors) {
+                auto cellTag = CellTagFromId(descriptor.CellId);
+                TCellId cellId;
+                {
                     auto guard = Guard(SpinLock_);
-                    EraseOrCrash(ObservedCells_, cellTag);
-                    continue;
-                }
-
-                if (!cellId) {
-                    auto guard = Guard(SpinLock_);
-                    auto it = ObservedCells_.find(cellTag);
-                    if (it->second) {
+                    if (auto it = ObservedCells_.find(cellTag)) {
                         cellId = it->second;
-                    } else {
-                        cellId = descriptor.CellId;
-                        it->second = cellId;
                     }
                 }
 
-                ValidateChaosCellIdDuplication(cellTag, descriptor.CellId, cellId);
+                if (cellId) {
+                    ValidateChaosCellIdDuplication(cellTag, descriptor.CellId, cellId);
+                } else {
+                    auto guard = Guard(SpinLock_);
+                    ObservedCells_[cellTag] = descriptor.CellId;
+                }
 
                 CellDirectory_->ReconfigureCell(descriptor);
             }
+
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing chaos cells in cell directory")
                 << ex;

@@ -19,9 +19,28 @@ DEFINE_ENUM(EShortcutState,
     ((Revoked)      (3))
 );
 
+DEFINE_ENUM(EReplicationCardState,
+    ((Normal)                        (0))
+    ((RevokingShortcutsForAlter)     (1))
+    ((GeneratingTimestampForNewEra)  (2))
+    ((RevokingShortcutsForMigration) (3))
+    ((Migrated)                      (4))
+);
+
 struct TCoordinatorInfo
 {
     EShortcutState State;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TMigration
+{
+    NObjectClient::TCellId OriginCellId;
+    NObjectClient::TCellId ImmigratedToCellId;
+    NObjectClient::TCellId EmmigratedFromCellId;
+    TInstant ImmigrationTime;
+    TInstant EmmigrationTime;
 
     void Persist(const TPersistenceContext& context);
 };
@@ -44,6 +63,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(TString, TableClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentTimestamp);
+
+    DEFINE_BYREF_RW_PROPERTY(TMigration, Migration);
+    DEFINE_BYVAL_RW_PROPERTY(EReplicationCardState, State);
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);

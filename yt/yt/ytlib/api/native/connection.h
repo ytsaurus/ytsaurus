@@ -82,6 +82,7 @@ struct IConnection
         NObjectClient::TCellId cellId) = 0;
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
+    virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;
 
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
 

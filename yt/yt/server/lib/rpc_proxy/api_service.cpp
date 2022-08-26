@@ -642,6 +642,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -3894,6 +3895,30 @@ private:
             context,
             [=] {
                 return client->ResumeCoordinator(coordinatorCellId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MigrateReplicationCards)
+    {
+        TMigrateReplicationCardsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto chaosCellId = FromProto<TCellId>(request->chaos_cell_id());
+        FromProto(&options.ReplicationCardIds, request->replication_card_ids());
+        if (request->has_destination_cell_id()) {
+            options.DestinationCellId = FromProto<TCellId>(request->destination_cell_id());
+        }
+
+        context->SetRequestInfo("ChaosCellId: %v, DestinationCellId: %v, ReplicationCardIds: %v",
+            chaosCellId,
+            options.DestinationCellId,
+            options.ReplicationCardIds);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->MigrateReplicationCards(chaosCellId, options);
             });
     }
 

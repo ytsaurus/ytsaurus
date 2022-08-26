@@ -140,6 +140,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GCCollect);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SuspendCoordinator);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ResumeCoordinator);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MigrateReplicationCards);
 
     // Security
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);

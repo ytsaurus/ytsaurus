@@ -101,6 +101,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
@@ -113,6 +114,8 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
     }
 
     void Initialize() override
@@ -200,6 +203,16 @@ public:
         mutation->CommitAndReply(context);
     }
 
+    void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraMigrateReplicationCards,
+            this);
+        mutation->CommitAndReply(context);
+    }
+
 
     const std::vector<TCellId>& CoordinatorCellIds() override
     {
@@ -216,12 +229,25 @@ public:
     TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) override
     {
         auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+
         if (!replicationCard) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "No such replication card")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+            // Only replication card origin cell can answer if replication card exists.
+            if (IsDomesticReplicationCard(replicationCardId)) {
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such replication card")
+                    << TErrorAttribute("replication_card_id", replicationCardId);
+            } else {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Replication card is not known")
+                    << TErrorAttribute("replication_card_id", replicationCardId);
+            }
         }
+
+        if (IsReplicationCardMigrated(replicationCard)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Replication card has been migrated")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("immigrated_to_cell_id", replicationCard->Migration().ImmigratedToCellId)
+                << TErrorAttribute("immigration_time", replicationCard->Migration().ImmigrationTime);
+        }
+
         return replicationCard;
     }
 
@@ -289,6 +315,7 @@ private:
     std::vector<TCellId> CoordinatorCellIds_;
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
 
+    bool NeedRecomputeReplicationCardState_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -327,6 +354,31 @@ private:
         ReplicationCardMap_.LoadValues(context);
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
+
+        NeedRecomputeReplicationCardState_ = context.GetVersion() < EChaosReign::Migration;
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TChaosAutomatonPart::OnAfterSnapshotLoaded();
+
+        if (NeedRecomputeReplicationCardState_) {
+            for (auto& [_, replicationCard] : ReplicationCardMap_) {
+                bool alterInProgress = false;
+                for (const auto& [_, replica] : replicationCard->Replicas()) {
+                    if (!IsStableReplicaState(replica.State) || !IsStableReplicaMode(replica.Mode)) {
+                        alterInProgress = true;
+                        break;
+                    }
+                }
+
+                replicationCard->SetState(alterInProgress
+                    ? EReplicationCardState::RevokingShortcutsForAlter
+                    : EReplicationCardState::Normal);
+            }
+        }
     }
 
     void Clear() override
@@ -338,6 +390,7 @@ private:
         ReplicationCardMap_.Clear();
         CoordinatorCellIds_.clear();
         SuspendedCoordinators_.clear();
+        NeedRecomputeReplicationCardState_ = false;
     }
 
 
@@ -388,6 +441,13 @@ private:
         if (tableId && TypeFromId(tableId) != EObjectType::ChaosReplicatedTable) {
             THROW_ERROR_EXCEPTION("Malformed chaos replicated table id %v",
                 tableId);
+        }
+
+        if (CellTagFromId(replicationCardId) != CellTagFromId(Slot_->GetCellId())) {
+            THROW_ERROR_EXCEPTION("Could not create replication card with id %v: expected cell tag %v, got %v",
+                replicationCardId,
+                CellTagFromId(Slot_->GetCellId()),
+                CellTagFromId(replicationCardId));
         }
 
         auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
@@ -450,6 +510,55 @@ private:
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         RevokeShortcuts(replicationCard);
+
+        if (!IsDomesticReplicationCard(replicationCardId)) {
+            const auto& hiveManager = Slot_->GetHiveManager();
+            NChaosNode::NProto::TReqRemoveReplicationCard req;
+            ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
+
+            auto* mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
+            hiveManager->PostMessage(mailbox, req);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
+                replicationCardId,
+                replicationCard->Migration().OriginCellId);
+        }
+
+        ReplicationCardMap_.Remove(replicationCardId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
+            replicationCardId);
+    }
+
+    void HydraChaosNodeRemoveReplicationCard(NChaosNode::NProto::TReqRemoveReplicationCard *request)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto* replicationCard = FindReplicationCard(replicationCardId);
+
+        if (!replicationCard) {
+            YT_LOG_ALERT("Trying to remove emmigrated replication card but it does not exist"
+                "(ReplicationCardId: %v)",
+                replicationCardId);
+            return;
+        }
+
+        if (replicationCard->GetState() != EReplicationCardState::Migrated) {
+            YT_LOG_ALERT("Trying to remove emmigrated replication card in unexpected state "
+                "(ReplicationCardId: %v, ReplicationCardState: %v)",
+                replicationCardId,
+                replicationCard->GetState());
+
+            return;
+        }
+
+        if (!IsDomesticReplicationCard(replicationCard->GetId())) {
+            YT_LOG_ALERT("Trying to remove emmigrated replication card but it is not domestic "
+                "(ReplicationCardId: %v, OriginCellId: %v)",
+                replicationCardId,
+                replicationCard->Migration().OriginCellId);
+
+            return;
+        }
 
         ReplicationCardMap_.Remove(replicationCardId);
 
@@ -554,7 +663,7 @@ private:
             replicaInfo);
 
         if (replicaInfo.State == ETableReplicaState::Enabling) {
-            RevokeShortcuts(replicationCard);
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
         }
 
         ToProto(response->mutable_replica_id(), newReplicaId);
@@ -656,7 +765,7 @@ private:
             *replicaInfo);
 
         if (revoke) {
-            RevokeShortcuts(replicationCard);
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
         }
     }
 
@@ -678,7 +787,7 @@ private:
             }
 
             if (replicationCard->GetEra() != era) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Got grant shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
+                YT_LOG_ALERT("Got grant shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
                     replicationCardId,
                     replicationCard->GetEra(),
                     era);
@@ -729,7 +838,7 @@ private:
             }
 
             if (replicationCard->GetEra() != era) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
+                YT_LOG_ALERT("Got revoke shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
                     replicationCardId,
                     replicationCard->GetEra(),
                     era);
@@ -749,14 +858,13 @@ private:
 
             replicationCardIds.push_back(replicationCardId);
             EraseOrCrash(replicationCard->Coordinators(), coordinatorCellId);
-            ScheduleNewEraIfReplicationCardIsReady(replicationCard);
+            HandleReplicationCardStateTransition(replicationCard);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
             coordinatorCellId,
             replicationCardIds);
     }
-
 
     void RevokeShortcuts(TReplicationCard* replicationCard)
     {
@@ -807,7 +915,7 @@ private:
             // Need to make a better protocol (YT-16072).
             if (replicationCard->Coordinators().contains(cellId)) {
                 if (strict) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Will not grant shortcut since it already is in replication card "
+                    YT_LOG_ALERT("Will not grant shortcut since it already is in replication card "
                         "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, CoordinatorState: %v)",
                         replicationCard->GetId(),
                         replicationCard->GetEra(),
@@ -827,6 +935,153 @@ private:
                 replicationCard->GetEra(),
                 cellId);
         }
+    }
+
+    void HydraMigrateReplicationCards(
+        const TCtxMigrateReplicationCardsPtr& /*context*/,
+        NChaosClient::NProto::TReqMigrateReplicationCards* request,
+        NChaosClient::NProto::TRspMigrateReplicationCards* /*response*/)
+    {
+        auto migrateToCellId = FromProto<TCellId>(request->migrate_to_cell_id());
+        auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+
+        if (std::find(CoordinatorCellIds_.begin(), CoordinatorCellIds_.end(), migrateToCellId) == CoordinatorCellIds_.end()) {
+            THROW_ERROR_EXCEPTION("Trying to migrate replication card to unknown cell %v",
+                migrateToCellId);
+        }
+
+        for (auto replicationCardId : replicationCardIds) {
+            auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
+            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+                THROW_ERROR_EXCEPTION("Trying to migrate replication card %v while it is in %v state",
+                    replicationCardId,
+                    replicationCard->GetState());
+            }
+        }
+
+        for (auto replicationCardId : replicationCardIds) {
+            auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
+            replicationCard->Migration().ImmigratedToCellId = migrateToCellId;
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForMigration);
+        }
+    }
+
+    void HydraChaosNodeMigrateReplicationCards(NChaosNode::NProto::TReqMigrateReplicationCards* request)
+    {
+        auto emmigratedFromCellId = FromProto<TCellId>(request->emmigrated_from_cell_id());
+        auto now = GetCurrentMutationContext()->GetTimestamp();
+
+        for (const auto& protoMigrationCard : request->migration_cards()) {
+            auto replicationCardId = FromProto<TReplicationCardId>(protoMigrationCard.replication_card_id());
+            const auto& protoReplicationCard = protoMigrationCard.replication_card();
+
+            auto* replicationCard = FindReplicationCard(replicationCardId);
+            if (!replicationCard) {
+                if (IsDomesticReplicationCard(replicationCardId)) {
+                    // Seems like card has been removed.
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected replication card returned from emmigration (ReplicationCardId: %v)",
+                        replicationCardId);
+                    continue;
+                }
+
+                auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
+                replicationCard = replicationCardHolder.get();
+
+                ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created for immigration (ReplicationCardId: %v)",
+                    replicationCardId);
+            }
+
+            replicationCard->SetTableId(FromProto<TTableId>(protoReplicationCard.table_id()));
+            replicationCard->SetTablePath(protoReplicationCard.table_path());
+            replicationCard->SetTableClusterName(protoReplicationCard.table_cluster_name());
+            replicationCard->SetEra(protoReplicationCard.era());
+
+            YT_VERIFY(replicationCard->Coordinators().empty());
+
+            replicationCard->Replicas().clear();
+            for (auto protoReplica : protoReplicationCard.replicas()) {
+                auto replicaId = FromProto<TReplicaId>(protoReplica.id());
+                auto replicaInfo = FromProto<TReplicaInfo>(protoReplica.info());
+                EmplaceOrCrash(replicationCard->Replicas(), replicaId, replicaInfo);
+            }
+
+            auto& migration = replicationCard->Migration();
+            if (IsDomesticReplicationCard(replicationCardId)) {
+                migration.ImmigratedToCellId = TCellId();
+                migration.ImmigrationTime = TInstant();
+            } else {
+                migration.OriginCellId = FromProto<TCellId>(protoMigrationCard.origin_cell_id());
+                migration.EmmigratedFromCellId = emmigratedFromCellId;
+                migration.EmmigrationTime = now;
+            }
+
+            replicationCard->SetState(EReplicationCardState::GeneratingTimestampForNewEra);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card migration started (ReplicationCardId: %v, Domestic: %v, ReplicationCard: %v)",
+                replicationCardId,
+                IsDomesticReplicationCard(replicationCardId),
+                *replicationCard);
+
+            HandleReplicationCardStateTransition(replicationCard);
+        }
+    }
+
+    void MigrateReplicationCard(TReplicationCard* replicationCard)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(replicationCard->Coordinators().empty());
+        auto immigratedToCellId = replicationCard->Migration().ImmigratedToCellId;
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Migrating replication card to different cell "
+            "(ReplicationCardId: %v, ImmigratedToCellId: %v, Domestic: %v)",
+            replicationCard->GetId(),
+            immigratedToCellId,
+            IsDomesticReplicationCard(replicationCard->GetId()));
+
+        NChaosNode::NProto::TReqMigrateReplicationCards req;
+        ToProto(req.mutable_emmigrated_from_cell_id(), Slot_->GetCellId());
+        auto protoMigrationCard = req.add_migration_cards();
+        auto originCellId = IsDomesticReplicationCard(replicationCard->GetId())
+            ? Slot_->GetCellId()
+            : replicationCard->Migration().OriginCellId;
+        ToProto(protoMigrationCard->mutable_origin_cell_id(), originCellId);
+        ToProto(protoMigrationCard->mutable_replication_card_id(), replicationCard->GetId());
+        auto* protoReplicationCard = protoMigrationCard->mutable_replication_card();
+
+        ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
+        protoReplicationCard->set_table_path(replicationCard->GetTablePath());
+        protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
+        protoReplicationCard->set_era(replicationCard->GetEra());
+
+        TReplicationCardFetchOptions fetchOptions{
+            .IncludeProgress = true,
+            .IncludeHistory = true
+        };
+
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            auto* protoEntry = protoReplicationCard->add_replicas();
+            ToProto(protoEntry->mutable_id(), replicaId);
+            ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
+        }
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(immigratedToCellId);
+        hiveManager->PostMessage(mailbox, req);
+
+        replicationCard->SetState(EReplicationCardState::Migrated);
+        replicationCard->Migration().ImmigrationTime = GetCurrentMutationContext()->GetTimestamp();
+    }
+
+    bool IsDomesticReplicationCard(TReplicationCardId replicationCardId)
+    {
+        return CellTagFromId(replicationCardId) == CellTagFromId(Slot_->GetCellId());
+    }
+
+    bool IsReplicationCardMigrated(TReplicationCard* replicationCard)
+    {
+        return replicationCard->GetState() == EReplicationCardState::Migrated;
     }
 
     void PeriodicCurrentTimestampPropagation(void)
@@ -871,6 +1126,10 @@ private:
             timestamp);
 
         for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            if (IsReplicationCardMigrated(replicationCard)) {
+                continue;
+            }
+
             MaybeCommenceNewReplicationEra(replicationCard, timestamp);
         }
 
@@ -878,39 +1137,64 @@ private:
             timestamp);
     }
 
-    bool IsReplicationCardInCataclysm(TReplicationCard* replicationCard)
+    void UpdateReplicationCardState(TReplicationCard* replicationCard, EReplicationCardState newState)
     {
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            if (!IsStableReplicaMode(replicaInfo.Mode) || !IsStableReplicaState(replicaInfo.State)) {
-                return true;
+        switch (newState) {
+            case EReplicationCardState::RevokingShortcutsForMigration:
+                YT_VERIFY(replicationCard->GetState() == EReplicationCardState::Normal);
+                replicationCard->SetState(EReplicationCardState::RevokingShortcutsForMigration);
+                RevokeShortcuts(replicationCard);
+                HandleReplicationCardStateTransition(replicationCard);
+                break;
+
+            case EReplicationCardState::RevokingShortcutsForAlter:
+                if (replicationCard->GetState() == EReplicationCardState::Normal) {
+                    replicationCard->SetState(EReplicationCardState::RevokingShortcutsForAlter);
+                    RevokeShortcuts(replicationCard);
+                    HandleReplicationCardStateTransition(replicationCard);
+                } else {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Skipping replication card state update (ReplicationCardId: %v, State: %v, NewState: %v)",
+                        replicationCard->GetId(),
+                        replicationCard->GetState(),
+                        newState);
+                }
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void HandleReplicationCardStateTransition(TReplicationCard* replicationCard)
+    {
+        while (true) {
+            switch(replicationCard->GetState()) {
+                case EReplicationCardState::RevokingShortcutsForMigration:
+                    if (replicationCard->Coordinators().empty()) {
+                        MigrateReplicationCard(replicationCard);
+                    }
+                    return;
+
+                case EReplicationCardState::RevokingShortcutsForAlter:
+                    if (replicationCard->Coordinators().empty()) {
+                        replicationCard->SetState(EReplicationCardState::GeneratingTimestampForNewEra);
+                        continue;
+                    }
+                    return;
+
+                case EReplicationCardState::GeneratingTimestampForNewEra:
+                    GenerateTimestampForNewEra(replicationCard);
+                    return;
+
+                default:
+                    YT_ABORT();
             }
         }
-        return false;
     }
 
-    bool IsReplicationCardAtTheBeginningOfNewEra(TReplicationCard* replicationCard, TTimestamp timestamp = NullTimestamp)
-    {
-        auto isCoordinatorListEmpty = replicationCard->Coordinators().empty();
-        auto isCardInCataclysm = IsReplicationCardInCataclysm(replicationCard);
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Checking if replication card needs era update "
-            "(ReplicationCardId: %v, Era: %v, IsCoordinatorListEmpty: %v, IsCardInCataclysm: %v, Timestamp: %llx)",
-            replicationCard->GetId(),
-            replicationCard->GetEra(),
-            isCoordinatorListEmpty,
-            isCardInCataclysm,
-            timestamp);
-
-        return isCoordinatorListEmpty && isCardInCataclysm;
-    }
-
-    void ScheduleNewEraIfReplicationCardIsReady(TReplicationCard* replicationCard)
+    void GenerateTimestampForNewEra(TReplicationCard* replicationCard)
     {
         if (!IsLeader()) {
-            return;
-        }
-
-        if (!IsReplicationCardAtTheBeginningOfNewEra(replicationCard)) {
             return;
         }
 
@@ -966,6 +1250,12 @@ private:
             return;
         }
 
+        if (IsReplicationCardMigrated(replicationCard)) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication card era since replication card has been migrated (ReplicationCardId: %v)",
+                replicationCardId);
+            return;
+        }
+
         if (replicationCard->GetEra() != era) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication card era because of era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
                 era,
@@ -983,9 +1273,10 @@ private:
 
         bool willUpdate = timestamp > replicationCard->GetCurrentTimestamp();
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication card current timestamp "
-            "(ReplicationCardId: %v, Era: %v, CurrentTimestamp: %llx, NewTimestamp: %llx, WillUpdate: %v)",
+            "(ReplicationCardId: %v, Era: %v, State: %v, CurrentTimestamp: %llx, NewTimestamp: %llx, WillUpdate: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
+            replicationCard->GetState(),
             replicationCard->GetCurrentTimestamp(),
             timestamp,
             willUpdate);
@@ -996,7 +1287,7 @@ private:
 
         replicationCard->SetCurrentTimestamp(timestamp);
 
-        if (!IsReplicationCardAtTheBeginningOfNewEra(replicationCard, timestamp)) {
+        if (replicationCard->GetState() != EReplicationCardState::GeneratingTimestampForNewEra) {
             return;
         }
 
@@ -1050,6 +1341,8 @@ private:
                 replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
             }
         }
+
+        replicationCard->SetState(EReplicationCardState::Normal);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %llx)",
             *replicationCard,
@@ -1119,7 +1412,7 @@ private:
         std::sort(newCells.begin(), newCells.end());
 
         for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
-            if (!IsReplicationCardInCataclysm(replicationCard)) {
+            if (replicationCard->GetState() == EReplicationCardState::Normal) {
                 GrantShortcuts(replicationCard, newCells, /*strict*/ false);
             }
         }
@@ -1170,7 +1463,7 @@ private:
         for (const auto [replicaId, retainTimestamp] : expires) {
             auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
             auto* replicationCard = FindReplicationCard(replicationCardId);
-            if (!replicationCard) {
+            if (!replicationCard || IsReplicationCardMigrated(replicationCard)) {
                 continue;
             }
 
@@ -1255,12 +1548,37 @@ private:
 
     void BuildReplicationCardOrchidYson(TReplicationCard* card, IYsonConsumer* consumer)
     {
+        const auto& migration = card->Migration();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("replication_card_id").Value(card->GetId())
+                .Item("era").Value(card->GetEra())
+                .Item("state").Value(card->GetState())
+                .Item("coordinators").DoMapFor(card->Coordinators(), [] (TFluentMap fluent, const auto& pair) {
+                    fluent
+                        .Item(ToString(pair.first)).Value(pair.second.State);
+                })
                 .Item("replicas").DoListFor(card->Replicas(), [] (TFluentList fluent, const auto& replicaInfo) {
                     Serialize(replicaInfo, fluent.GetConsumer());
                 })
+                .Item("migration")
+                    .BeginMap()
+                        .DoIf(static_cast<bool>(migration.OriginCellId), [&] (TFluentMap fluent) {
+                            fluent.Item("origin_cell_id").Value(migration.OriginCellId);
+                        })
+                        .DoIf(static_cast<bool>(migration.ImmigratedToCellId), [&] (TFluentMap fluent) {
+                            fluent.Item("immigrated_to_cell_id").Value(migration.ImmigratedToCellId);
+                        })
+                        .DoIf(static_cast<bool>(migration.EmmigratedFromCellId), [&] (TFluentMap fluent) {
+                            fluent.Item("emmigrated_from_cell_id").Value(migration.EmmigratedFromCellId);
+                        })
+                        .DoIf(static_cast<bool>(migration.ImmigrationTime), [&] (TFluentMap fluent) {
+                            fluent.Item("immigration_time").Value(migration.ImmigrationTime);
+                        })
+                        .DoIf(static_cast<bool>(migration.EmmigrationTime), [&] (TFluentMap fluent) {
+                            fluent.Item("emmigration_time").Value(migration.EmmigrationTime);
+                        })
+                    .EndMap()
             .EndMap();
     }
 };

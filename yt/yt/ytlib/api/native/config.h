@@ -197,7 +197,7 @@ public:
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
 
-    NRpc::TRetryingChannelConfigPtr ChaosCellChannel;
+    NChaosClient::TReplicationCardChannelConfigPtr ChaosCellChannel;
 
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 
@@ -209,6 +209,8 @@ public:
     //! TVM application id corresponding to the cluster.
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
     std::optional<NAuth::TTvmId> TvmId;
+
+    NChaosClient::TReplicationCardResidencyCacheConfigPtr ReplicationCardResidencyCache;
 
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.

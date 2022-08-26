@@ -7,8 +7,10 @@
 #include "transaction.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -223,6 +225,15 @@ public:
             this,
             Logger);
         ChaosCellDirectorySynchronizer_->Start();
+
+        ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
+            CellDirectory_,
+            CreateReplicationCardResidencyCache(
+                Config_->ReplicationCardResidencyCache,
+                this,
+                Logger),
+            ChaosCellDirectorySynchronizer_,
+            Config_->ChaosCellChannel);
 
         if (Options_.BlockCache) {
             BlockCache_ = Options_.BlockCache;
@@ -476,6 +487,11 @@ public:
         return ChaosCellDirectorySynchronizer_;
     }
 
+    const IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() override
+    {
+        return ReplicationCardChannelFactory_;
+    }
+
     const TNodeDirectoryPtr& GetNodeDirectory() override
     {
         return NodeDirectory_;
@@ -515,7 +531,6 @@ public:
     {
         return MediumDirectorySynchronizer_;
     }
-
 
     IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
@@ -666,6 +681,8 @@ private:
     IChunkReplicaCachePtr ChunkReplicaCache_;
 
     TThreadPoolPtr ConnectionThreadPool_;
+
+    IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
 
     std::atomic<bool> Terminated_ = false;
 

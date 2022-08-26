@@ -18,6 +18,7 @@ DEFINE_ENUM(EChaosReign,
     ((LetTheChaosBegin)             (300001)) // savrus
     ((CurrentTimestamp)             (300002)) // savrus
     ((RemoveCommitted)              (300003)) // savrus
+    ((Migration)                    (300004)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

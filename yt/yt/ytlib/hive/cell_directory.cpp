@@ -240,6 +240,13 @@ public:
         return it == CellIdToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
+    std::optional<TCellDescriptor> FindDescriptorByCellTag(TCellTag cellTag) override
+    {
+        auto guard = ReaderGuard(SpinLock_);
+        auto it = CellTagToEntry_.find(cellTag);
+        return it == CellTagToEntry_.end() ? std::nullopt : std::make_optional(it->second->Descriptor);
+    }
+
     TCellDescriptor GetDescriptorOrThrow(TCellId cellId) override
     {
         auto result = FindDescriptor(cellId);

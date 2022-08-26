@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -2652,8 +2653,8 @@ IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardI
             replicationCardId);
     }
 
-    auto cellTag = CellTagFromId(replicationCardId);
-    return GetChaosChannelByCellTag(cellTag, peerKind);
+    auto connection = GetNativeConnection();
+    return WrapChaosChannel(connection->GetReplicationCardChannelFactory()->CreateChannel(replicationCardId, peerKind));
 }
 
 TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& tableInfo)

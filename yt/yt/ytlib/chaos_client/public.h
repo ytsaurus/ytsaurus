@@ -11,7 +11,11 @@ struct TAlienPeerDescriptor;
 struct TAlienCellDescriptor;
 
 DECLARE_REFCOUNTED_STRUCT(IChaosCellDirectorySynchronizer)
+DECLARE_REFCOUNTED_STRUCT(IReplicationCardChannelFactory)
+DECLARE_REFCOUNTED_STRUCT(IReplicationCardResidencyCache)
 DECLARE_REFCOUNTED_CLASS(TChaosCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicationCardResidencyCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicationCardChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

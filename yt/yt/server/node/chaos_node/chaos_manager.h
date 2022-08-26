@@ -49,6 +49,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqUpdateTableReplicaProgress,
         NChaosClient::NProto::TRspUpdateTableReplicaProgress
     >>;
+    using TCtxMigrateReplicationCardsPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqMigrateReplicationCards,
+        NChaosClient::NProto::TRspMigrateReplicationCards
+    >>;
 
     virtual void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) = 0;
     virtual void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) = 0;
@@ -57,6 +61,7 @@ struct IChaosManager
     virtual void RemoveTableReplica(const TCtxRemoveTableReplicaPtr& context) = 0;
     virtual void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) = 0;
     virtual void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) = 0;
+    virtual void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;

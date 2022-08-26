@@ -1460,6 +1460,14 @@ struct TResumeCoordinatorOptions
     , public TMutatingOptions
 { };
 
+struct TMigrateReplicationCardsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    NObjectClient::TCellId DestinationCellId;
+    std::vector<NChaosClient::TReplicationCardId> ReplicationCardIds;
+};
+
 struct TSuspendTabletCellsOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -2007,6 +2015,10 @@ struct IClient
     virtual TFuture<void> ResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options = {}) = 0;
+
+    virtual TFuture<void> MigrateReplicationCards(
+        NObjectClient::TCellId chaosCellId,
+        const TMigrateReplicationCardsOptions& options = {}) = 0;
 
     virtual TFuture<void> SuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,

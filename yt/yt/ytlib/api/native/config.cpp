@@ -270,6 +270,9 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_id", &TThis::TvmId)
         .Default();
 
+    registrar.Parameter("replication_card_residency_cache", &TThis::ReplicationCardResidencyCache)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
 

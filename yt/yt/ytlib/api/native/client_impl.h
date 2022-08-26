@@ -542,6 +542,10 @@ public:
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options),
         (coordinatorCellId, options))
+    IMPLEMENT_METHOD(void, MigrateReplicationCards, (
+        NObjectClient::TCellId chaosCellId,
+        const TMigrateReplicationCardsOptions& options),
+        (chaosCellId, options))
     IMPLEMENT_METHOD(void, SuspendTabletCells, (
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options),
@@ -1411,6 +1415,9 @@ private:
     void DoResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options);
+    void DoMigrateReplicationCards(
+        NObjectClient::TCellId chaosCellId,
+        const TMigrateReplicationCardsOptions& options);
     void DoSuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options);
