@@ -240,7 +240,13 @@ struct TOneOrMany
     { }
 
     /// @brief Order is defined the same way as in TVector
-    bool operator<=>(const TOneOrMany& rhs) const = default;
+    bool operator==(const TOneOrMany& rhs) const
+    {
+        // N.B. We would like to make this method to be `= default`,
+        // but this breaks MSVC compiler for the cases when T doesn't
+        // support comparison.
+        return Parts_ == rhs.Parts_;
+    }
 
     ///
     /// @{
@@ -251,7 +257,9 @@ struct TOneOrMany
     TSelf& Add(U&& part, TArgs&&... args) &
     {
         Parts_.push_back(std::forward<U>(part));
-        [[maybe_unused]] int dummy[sizeof...(args)] = {(Parts_.push_back(std::forward<TArgs>(args)), 0) ... };
+        if constexpr (sizeof...(args) > 0) {
+            [[maybe_unused]] int dummy[sizeof...(args)] = {(Parts_.push_back(std::forward<TArgs>(args)), 0) ... };
+        }
         return static_cast<TSelf&>(*this);
     }
 
