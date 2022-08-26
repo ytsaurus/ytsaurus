@@ -489,6 +489,7 @@
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
     XX(UsableTabletCellBundles, usable_tablet_cell_bundles) \
+    XX(UseImaginaryChunkLocations, use_imaginary_chunk_locations) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \

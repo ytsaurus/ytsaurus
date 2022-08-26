@@ -224,7 +224,7 @@ struct IChunkManager
     virtual void UnstageChunk(TChunk* chunk) = 0;
     virtual void UnstageChunkList(TChunkList* chunkList, bool recursive) = 0;
 
-    virtual TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes) = 0;
+    virtual TNodePtrWithReplicaIndexList LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;
     virtual void TouchChunk(TChunk* chunk) = 0;
 
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
@@ -299,7 +299,7 @@ struct IChunkManager
 
     //! Returns chunk replicas "ideal" from CRP point of view.
     //! This reflects the target chunk placement, not the actual one.
-    virtual TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const = 0;
+    virtual TNodePtrWithReplicaInfoAndMediumIndexList GetConsistentChunkReplicas(TChunk* chunk) const = 0;
 
     //! Returns global chunk scan descriptor for journal chunks.
     virtual TGlobalChunkScanDescriptor GetGlobalJournalChunkScanDescriptor(int shardIndex) const = 0;

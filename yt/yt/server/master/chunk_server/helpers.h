@@ -135,8 +135,6 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
 
 std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
 
-NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes);
-
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
     const IChunkManagerPtr& chunkManager);

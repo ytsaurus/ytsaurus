@@ -106,6 +106,9 @@ public:
     // COMPAT(gritukan): Drop it after 22.3.
     bool UseResourceStatisticsFromClusterNodeHeartbeat;
 
+    // COMPAT(kvk1920)
+    bool EnableRealChunkLocations;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

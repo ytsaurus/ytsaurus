@@ -263,7 +263,7 @@ public:
             }
         }
 
-        for (auto* location : node->ChunkLocations()) {
+        for (auto* location : node->RealChunkLocations()) {
             location->SetState(EChunkLocationState::Dangling);
         }
 
@@ -286,7 +286,7 @@ public:
                 }
             } else {
                 location->SetNode(node);
-                node->ChunkLocations().push_back(location);
+                node->AddRealChunkLocation(location);
             }
 
             location->SetState(EChunkLocationState::Online);
@@ -301,27 +301,32 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TChunkLocation)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation)
 
-    TEntityMap<TChunkLocation>* MutableChunkLocations() override
+    TEntityMap<TRealChunkLocation>* MutableChunkLocations() override
     {
         return &ChunkLocationMap_;
     }
 
-    TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) override
     {
         auto it = ChunkLocationUuidToLocation_.find(locationUuid);
         return it == ChunkLocationUuidToLocation_.end() ? nullptr : it->second;
     }
 
-    TChunkLocation* CreateChunkLocation(
+    TRealChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    {
+        return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
+    }
+
+    TRealChunkLocation* CreateChunkLocation(
         TChunkLocationUuid locationUuid,
         TObjectId hintId) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto locationId = objectManager->GenerateId(EObjectType::ChunkLocation, hintId);
 
-        auto locationHolder = TPoolAllocator::New<TChunkLocation>(locationId);
+        auto locationHolder = TPoolAllocator::New<TRealChunkLocation>(locationId);
         auto* location = ChunkLocationMap_.Insert(locationId, std::move(locationHolder));
         location->SetUuid(locationUuid);
 
@@ -340,7 +345,7 @@ public:
         return location;
     }
 
-    void DestroyChunkLocation(TChunkLocation* location) override
+    void DestroyChunkLocation(TRealChunkLocation* location) override
     {
         auto* node = location->GetNode();
 
@@ -356,7 +361,7 @@ public:
                     location->GetUuid(),
                     node->GetDefaultAddress());
             }
-            std::erase(node->ChunkLocations(), location);
+            node->RemoveRealChunkLocation(location);
             location->SetNode(nullptr);
         }
 
@@ -367,8 +372,8 @@ private:
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
-    THashMap<TChunkLocationUuid, TChunkLocation*> ChunkLocationUuidToLocation_;
+    NHydra::TEntityMap<TRealChunkLocation> ChunkLocationMap_;
+    THashMap<TChunkLocationUuid, TRealChunkLocation*> ChunkLocationUuidToLocation_;
 
     THashMap<TChunkLocationUuid, TError> LocationAlerts_;
 
@@ -454,27 +459,29 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        for (auto* location : node->ChunkLocations()) {
+        for (auto* location : node->RealChunkLocations()) {
             location->SetState(EChunkLocationState::Offline);
         }
     }
 
     void OnNodeZombified(TNode* node)
     {
-        auto locations = std::exchange(node->ChunkLocations(), {});
-        for (auto* location : locations) {
+        auto& realLocations = node->RealChunkLocations();
+        for (auto* location : realLocations) {
             location->SetNode(nullptr);
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* location : locations) {
+            for (auto* location : realLocations) {
                 objectManager->RemoveObject(location);
             }
         }
+
+        node->ClearChunkLocations();
     }
 
-    void UpdateLocationDiskFamilyAlert(TChunkLocation* location)
+    void UpdateLocationDiskFamilyAlert(TRealChunkLocation* location)
     {
         int mediumIndex = location->Statistics().medium_index();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -626,7 +633,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TChunkLocation, ChunkLocationMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TRealChunkLocation, ChunkLocationMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

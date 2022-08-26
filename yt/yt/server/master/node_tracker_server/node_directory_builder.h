@@ -20,9 +20,10 @@ public:
         NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
     void Add(const TNode* node);
-    void Add(NChunkServer::TNodePtrWithIndexes node);
-    void Add(TRange<NChunkServer::TNodePtrWithIndexes> nodes);
-    void Add(const NChunkServer::TNodePtrWithIndexesList& nodes);
+    void Add(NChunkServer::TNodePtrWithReplicaAndMediumIndex node);
+    void Add(TRange<NChunkServer::TNodePtrWithReplicaAndMediumIndex> nodeList);
+    void Add(NChunkServer::TChunkLocationPtrWithReplicaInfo location);
+    void Add(TRange<NChunkServer::TChunkLocationPtrWithReplicaInfo> locationList);
 
 private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;

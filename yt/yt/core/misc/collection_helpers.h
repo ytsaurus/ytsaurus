@@ -82,6 +82,16 @@ auto InsertOrCrash(TContainer& container, TArg&& arg);
 template <class TContainer, class... TArgs>
 auto EmplaceOrCrash(TContainer& container, TArgs&&... args);
 
+/*!
+ * This function is supposed to replace std::get<T>(variant)
+ * for those cases when exception should not be throwed.
+ */
+template <class T, class... TVariantArgs>
+T& GetOrCrash(std::variant<TVariantArgs...>& variant);
+
+template <class T, class... TVariantArgs>
+const T& GetOrCrash(const std::variant<TVariantArgs...>& variant);
+
 template <class... Ts>
 auto MakeArray(
     const Ts&... values)

@@ -533,6 +533,8 @@ private:
 
         req->set_exec_node_is_not_data_node(Bootstrap_->GetConfig()->ExecNodeIsNotDataNode);
 
+        req->set_chunk_locations_supported(true);
+
         if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& storeLocations = Bootstrap_
                 ->GetDataNodeBootstrap()

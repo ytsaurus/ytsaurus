@@ -8,6 +8,7 @@ import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,19 +243,13 @@ message TReqExecuteBatch
 
     message TConfirmChunkSubrequest
     {
-        message TReplicaInfo
-        {
-            required fixed64 replica = 1;
-            required NYT.NProto.TGuid location_uuid = 2;
-        }
-
         reserved 2;
         required NYT.NProto.TGuid chunk_id = 1;
         // COMPAT(kvk1920)
         repeated fixed64 legacy_replicas = 6;
         // COMPAT(kvk1920)
         optional bool location_uuids_supported = 7 [default = false];
-        repeated TReplicaInfo replicas = 9;
+        repeated TConfirmChunkReplicaInfo replicas = 9;
 
         required TChunkMeta chunk_meta = 3;
         required TChunkInfo chunk_info = 4;

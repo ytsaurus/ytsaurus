@@ -189,6 +189,22 @@ auto EmplaceOrCrash(TContainer& container, TArgs&&... args)
     return it;
 }
 
+template <class T, class... TVariantArgs>
+T& GetOrCrash(std::variant<TVariantArgs...>& variant)
+{
+    auto* item = get_if<T>(&variant);
+    YT_VERIFY(item);
+    return *item;
+}
+
+template <class T, class... TVariantArgs>
+const T& GetOrCrash(const std::variant<TVariantArgs...>& variant)
+{
+    const auto* item = get_if<T>(&variant);
+    YT_VERIFY(item);
+    return *item;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index, class... Ts>

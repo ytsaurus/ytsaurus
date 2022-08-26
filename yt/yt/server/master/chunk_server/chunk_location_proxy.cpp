@@ -24,13 +24,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocationProxy
-    : public TNonversionedObjectProxyBase<TChunkLocation>
+    : public TNonversionedObjectProxyBase<TRealChunkLocation>
 {
 public:
     using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
-    using TBase = TNonversionedObjectProxyBase<TChunkLocation>;
+    using TBase = TNonversionedObjectProxyBase<TRealChunkLocation>;
 
     void ValidateRemoval() override
     {
@@ -169,7 +169,7 @@ private:
 IObjectProxyPtr CreateChunkLocationProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TChunkLocation* location)
+    TRealChunkLocation* location)
 {
     return New<TChunkLocationProxy>(bootstrap, metadata, location);
 }

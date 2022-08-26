@@ -1136,6 +1136,22 @@ private:
             RegisterLeaseTransaction(node);
         }
 
+        // COMPAT(kvk1920)
+        if (GetDynamicConfig()->EnableRealChunkLocations) {
+            if (!request->chunk_locations_supported() &&
+                !request->suppress_unsupported_chunk_locations_alert())
+            {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Real chunk locations are enabled but node does not support them "
+                    "(NodeId: %v, NodeAddress: %v)",
+                    node->GetId(),
+                    address);
+            }
+            node->UseImaginaryChunkLocations() = !request->chunk_locations_supported();
+        } else {
+            node->UseImaginaryChunkLocations() = true;
+        }
+
         NodeRegistered_.Fire(node);
 
         if (node->IsDataNode() || (node->IsExecNode() && !execNodeIsNotDataNode)) {
@@ -1143,12 +1159,16 @@ private:
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, Flavors: %v, LeaseTransactionId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+            "Node registered "
+            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
+            "LeaseTransactionId: %v, UseImaginaryChunkLocations: %v)",
             node->GetId(),
             address,
             tags,
             flavors,
-            leaseTransactionId);
+            leaseTransactionId,
+            node->UseImaginaryChunkLocations());
 
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
@@ -1340,6 +1360,17 @@ private:
         RackMap_.SaveKeys(context);
         DataCenterMap_.SaveKeys(context);
         HostMap_.SaveKeys(context);
+
+        // COMPAT(kvk1920): Remove after real chunk locations are enabled everywhere.
+        // We need to know if node uses imaginary chunk locations before loading TChunkLocationPtrWithSomething
+        // but the order of different LoadValues() is unspecified. So we just load this information
+        // during keys loading.
+        THashMap<TObjectId, bool> useImaginaryLocationsMap;
+        useImaginaryLocationsMap.reserve(NodeMap_.size());
+        for (auto [nodeId, node] : NodeMap_) {
+            useImaginaryLocationsMap[nodeId] = node->UseImaginaryChunkLocations();
+        }
+        Save(context, useImaginaryLocationsMap);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1359,6 +1390,19 @@ private:
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
         HostMap_.LoadKeys(context);
+
+        // COMPAT(kvk1920)
+        if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
+            for (auto& [nodeId, node] : NodeMap_) {
+                node->UseImaginaryChunkLocations() = true;
+            }
+        } else {
+            auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
+            for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
+                auto* node = NodeMap_.Get(nodeId);
+                node->UseImaginaryChunkLocations() = useImaginaryLocations;
+            }
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1680,8 +1724,6 @@ private:
         node->SetNodeAddresses(nodeAddresses);
         InsertToAddressMaps(node);
 
-        node->ResetDestroyedReplicasIterator();
-
         return node;
     }
 
@@ -1846,7 +1888,7 @@ private:
             request.add_flavors(static_cast<int>(flavor));
         }
 
-        for (const auto* location : node->ChunkLocations()) {
+        for (const auto* location : node->RealChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
 
@@ -1855,6 +1897,8 @@ private:
         request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
 
         request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
+
+        request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
@@ -1943,6 +1987,7 @@ private:
                 TReqRegisterNode request;
                 request.set_node_id(node->GetId());
                 ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
+                request.set_suppress_unsupported_chunk_locations_alert(true);
 
                 // NB: Hosts must be replicated prior to node replication.
                 request.set_host_name(node->GetHost()->GetName());

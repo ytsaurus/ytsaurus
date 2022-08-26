@@ -69,8 +69,9 @@ struct IDataNodeTracker
         NNodeTrackerClient::NProto::TReqRegisterNode* request,
         NNodeTrackerClient::NProto::TRspRegisterNode* response) = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TChunkLocation)
-    virtual TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TRealChunkLocation)
+    virtual TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
+    virtual TRealChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

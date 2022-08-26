@@ -257,16 +257,14 @@ private:
                 continue;
             }
 
-            TChunkPtrWithIndexes chunkWithIndexes(
+            TChunkPtrWithReplicaIndex chunkWithReplicaIndex(
                 chunk,
-                chunkIdWithIndex.ReplicaIndex,
-                AllMediaIndex);
-            auto replicas = chunkManager->LocateChunk(chunkWithIndexes);
-
-            ToProto(subresponse->mutable_replicas(), replicas);
+                chunkIdWithIndex.ReplicaIndex);
             subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+            auto replicas = chunkManager->LocateChunk(chunkWithReplicaIndex);
             for (auto replica : replicas) {
-                nodeDirectoryBuilder.Add(replica);
+                subresponse->add_replicas(ToProto<ui32>(replica));
+                nodeDirectoryBuilder.Add(replica.GetPtr());
             }
 
             // NB: LocateChunk also touches chunk if its replicator is local.
@@ -372,9 +370,9 @@ private:
 
                 ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
                 if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-                    auto replica = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, GenericMediumIndex);
-                    nodeDirectoryBuilder.Add(replica);
-                    chunkSpec->add_replicas(ToProto<ui64>(replica));
+                    nodeDirectoryBuilder.Add(node);
+                    auto replica = TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex);
+                    chunkSpec->add_replicas(ToProto<ui32>(replica));
                 }
                 ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
             }
@@ -463,8 +461,8 @@ private:
 
                 for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
                     auto* target = targets[index];
-                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
-                    builder.Add(replica);
+                    builder.Add(target);
+                    auto replica = TNodePtrWithReplicaAndMediumIndex(target, GenericChunkReplicaIndex, medium->GetIndex());
                     subresponse->add_replicas(ToProto<ui64>(replica));
                 }
 

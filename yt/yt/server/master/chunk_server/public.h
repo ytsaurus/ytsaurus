@@ -52,6 +52,7 @@ using NChunkClient::TMediumIntMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
 using NChunkClient::NullConsistentReplicaPlacementHash;
 using NChunkClient::ChunkReplicaIndexBound;
+using NChunkClient::TChunkReplicaWithLocationList;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -73,20 +74,24 @@ using TChunkLocationId = NObjectClient::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TChunkLocation, TChunkLocationId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TRealChunkLocation, TChunkLocationId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
-DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
+DECLARE_MASTER_OBJECT_TYPE(TRealChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 DECLARE_MASTER_OBJECT_TYPE(TMedium)
 
 class TChunkLocation;
+class TRealChunkLocation;
+class TImaginaryChunkLocation;
+
+using TChunkLocationList = TCompactVector<TChunkLocation*, TypicalReplicaCount>;
 
 class TChunkTree;
 class TChunkOwnerBase;
@@ -97,19 +102,6 @@ class TChunkViewModifier;
 class TChunkReplication;
 class TChunkRequisition;
 class TChunkRequisitionRegistry;
-
-template <class T>
-class TPtrWithIndex;
-template <class T>
-class TPtrWithIndexes;
-
-using TNodePtrWithIndexes = TPtrWithIndexes<NNodeTrackerServer::TNode>;
-using TNodePtrWithIndexesList = TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount>;
-
-using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
-using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
-
-using TChunkReplicaIndexList = TCompactVector<int, ChunkReplicaIndexBound>;
 
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
@@ -216,6 +208,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
     ((Sealed)                (3))
 );
 
+//! Typical chunk location count on data node.
+constexpr int TypicalLocationCount = 20;
+
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
     ((Offline) (0))
@@ -239,9 +234,6 @@ DEFINE_ENUM(EChunkDetachPolicy,
     ((OrderedTabletSuffix) (2))
     ((HunkTablet)          (3))
 );
-
-using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;
-using TChunkRepairQueueIterator = TChunkRepairQueue::iterator;
 
 using TFillFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
 using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;

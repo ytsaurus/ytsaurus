@@ -8,6 +8,14 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TConfirmChunkReplicaInfo;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(ui64* value, TChunkReplicaWithMedium replica);
 void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
 
@@ -44,10 +52,17 @@ private:
 
     friend void ToProto(ui64* value, TChunkReplicaWithMedium replica);
     friend void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
+    friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
+    friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
 };
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithMedium replica, TStringBuf spec);
 TString ToString(TChunkReplicaWithMedium replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
+void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,9 +81,15 @@ public:
 
     TChunkLocationUuid GetChunkLocationUuid() const;
 
+    friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
+    friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
+
 private:
     TChunkLocationUuid ChunkLocationUuid_;
 };
+
+void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithLocation replica, TStringBuf spec);
+TString ToString(TChunkReplicaWithLocation replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 

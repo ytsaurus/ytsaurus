@@ -13,71 +13,122 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, TNodePtrWithIndexes replica, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaIndex value, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v", replica.GetPtr()->GetDefaultAddress());
-    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
-        builder->AppendFormat("/%v", replica.GetReplicaIndex());
-    }
-    if (replica.GetMediumIndex() == AllMediaIndex) {
-        builder->AppendString("@all");
-    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
-        builder->AppendFormat("@%v", replica.GetMediumIndex());
-    }
-    if (replica.GetState() != EChunkReplicaState::Generic) {
-        builder->AppendFormat(":%v", replica.GetState());
+    builder->AppendFormat("%v", value.GetPtr()->GetId());
+    if (value.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", value.GetReplicaIndex());
     }
 }
 
-TString ToString(TNodePtrWithIndexes value)
+void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaInfo value, TStringBuf spec)
 {
-    return ToStringViaBuilder(value);
-}
-
-void FormatValue(TStringBuilderBase* builder, TChunkPtrWithIndexes replica, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("%v", replica.GetPtr()->GetId());
-    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
-        builder->AppendFormat("/%v", replica.GetReplicaIndex());
-    }
-    if (replica.GetMediumIndex() == AllMediaIndex) {
-        builder->AppendString("@all");
-    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
-        builder->AppendFormat("@%v", replica.GetMediumIndex());
-    }
-    if (replica.GetState() != EChunkReplicaState::Generic) {
-        builder->AppendFormat(":%v", replica.GetState());
+    FormatValue(builder, TChunkPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()), spec);
+    if (value.GetReplicaState() != EChunkReplicaState::Generic) {
+        builder->AppendFormat(":%v", value.GetReplicaState());
     }
 }
 
-TString ToString(TChunkPtrWithIndexes value)
+void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaAndMediumIndex value, TStringBuf spec)
 {
-    return ToStringViaBuilder(value);
+    FormatValue(builder, TChunkPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()), spec);
+    if (value.GetMediumIndex() == AllMediaIndex) {
+        builder->AppendString("@*");
+    } else if (value.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", value.GetMediumIndex());
+    }
 }
 
-void ToProto(ui64* protoValue, TNodePtrWithIndexes value)
+void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaIndex value, TStringBuf /*spec*/)
 {
-    NChunkClient::TChunkReplicaWithMedium clientReplica(
+    if (value.GetPtr()->IsImaginary()) {
+        builder->AppendFormat("%v(%v)",
+            GetChunkLocationNodeId(value),
+            value.GetPtr()->GetEffectiveMediumIndex());
+    } else {
+        builder->AppendFormat("%v(%v)",
+            GetChunkLocationNodeId(value),
+            static_cast<TRealChunkLocation*>(value.GetPtr())->GetUuid());
+    }
+    if (value.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", value.GetReplicaIndex());
+    }
+}
+void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaInfo value, TStringBuf spec)
+{
+    FormatValue(builder, TChunkLocationPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()), spec);
+    if (value.GetReplicaState() != EChunkReplicaState::Generic) {
+        builder->AppendFormat(":%v", value.GetReplicaState());
+    }
+}
+
+#define DEFINE_TO_STRING(TType) \
+TString ToString(TType value) \
+{ \
+    return ToStringViaBuilder(value); \
+}
+
+DEFINE_TO_STRING(TChunkPtrWithReplicaIndex)
+DEFINE_TO_STRING(TChunkPtrWithReplicaInfo)
+DEFINE_TO_STRING(TChunkPtrWithReplicaAndMediumIndex)
+DEFINE_TO_STRING(TChunkLocationPtrWithReplicaIndex)
+DEFINE_TO_STRING(TChunkLocationPtrWithReplicaInfo)
+#undef DEFINE_TO_STRING
+
+void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value)
+{
+    TChunkReplicaWithMedium replica(
         value.GetPtr()->GetId(),
         value.GetReplicaIndex(),
         value.GetMediumIndex());
-    NChunkClient::ToProto(protoValue, clientReplica);
+    NChunkClient::ToProto(protoValue, replica);
 }
 
-void ToProto(ui32* protoValue, TNodePtrWithIndexes value)
+void ToProto(ui32* protoValue, TNodePtrWithReplicaIndex value)
 {
-    NChunkClient::TChunkReplica clientReplica(
-        value.GetPtr()->GetId(),
-        value.GetReplicaIndex());
-    NChunkClient::ToProto(protoValue, clientReplica);
+    TChunkReplica replica(value.GetPtr()->GetId(), value.GetReplicaIndex());
+    NChunkClient::ToProto(protoValue, replica);
 }
 
-TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndexes)
+void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaIndex value)
+{
+    TNodePtrWithReplicaAndMediumIndex replica(
+        value.GetPtr()->GetNode(),
+        value.GetReplicaIndex(),
+        value.GetPtr()->GetEffectiveMediumIndex());
+    ToProto(protoValue, replica);
+}
+
+void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaInfo value)
+{
+    ToProto(protoValue, TChunkLocationPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()));
+}
+
+void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaIndex value)
+{
+    TNodePtrWithReplicaIndex replica(value.GetPtr()->GetNode(), value.GetReplicaIndex());
+    ToProto(protoValue, replica);
+}
+
+void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaInfo value)
+{
+    ToProto(protoValue, TChunkLocationPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkIdWithIndex ToChunkIdWithIndex(TChunkPtrWithReplicaIndex chunkWithIndex)
+{
+    auto* chunk = chunkWithIndex.GetPtr();
+    YT_VERIFY(chunk);
+    return TChunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetReplicaIndex());
+}
+
+TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
-    return chunk->IsErasure()
-        ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndexes.GetReplicaIndex())
-        : chunk->GetId();
+    YT_VERIFY(chunk);
+    return {chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

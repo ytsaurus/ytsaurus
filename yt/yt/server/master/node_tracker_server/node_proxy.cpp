@@ -12,9 +12,9 @@
 #include <yt/yt/server/master/cell_server/cell_base.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
-#include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -154,6 +154,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::ChunkLocations);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::JobProxyVersion)
             .SetPresent(node->JobProxyVersion().has_value()));
+        descriptors->push_back(EInternedAttributeKey::UseImaginaryChunkLocations);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -594,7 +595,7 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
                 BuildYsonFluently(consumer)
-                    .DoMapFor(node->ChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
+                    .DoMapFor(node->RealChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
                         fluent
                             .Item(ToString(location->GetUuid()))
                             .BeginMap()
@@ -614,6 +615,13 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(jobProxyVersion);
+                return true;
+            }
+
+            case EInternedAttributeKey::UseImaginaryChunkLocations: {
+                BuildYsonFluently(consumer)
+                    .Value(GetThisImpl()->UseImaginaryChunkLocations());
+
                 return true;
             }
 
@@ -721,7 +729,7 @@ private:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* location : node->ChunkLocations()) {
+        for (auto* location : node->RealChunkLocations()) {
             objectManager->ValidateObjectLifeStage(location);
         }
     }
