@@ -433,6 +433,8 @@ void TTabletManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("compaction_backoff_time", &TThis::CompactionBackoffTime)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("partition_split_merge_backoff_time", &TThis::PartitionSplitMergeBackoffTime)
+        .Default(TDuration::Minutes(1));
     registrar.Parameter("flush_backoff_time", &TThis::FlushBackoffTime)
         .Default(TDuration::Minutes(1));
 

@@ -1026,7 +1026,7 @@ TPartition* TTablet::GetPartition(TPartitionId partitionId)
     return partition;
 }
 
-void TTablet::MergePartitions(int firstIndex, int lastIndex)
+void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDelay)
 {
     YT_VERIFY(IsPhysicallySorted());
 
@@ -1040,6 +1040,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         firstIndex,
         PartitionList_[firstIndex]->GetPivotKey(),
         PartitionList_[lastIndex]->GetNextPivotKey());
+
+    mergedPartition->SetAllowedSplitTime(TInstant::Now() + splitDelay);
 
     std::vector<TLegacyKey> mergedSampleKeys;
     auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
@@ -1098,7 +1100,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     UpdateOverlappingStoreCount();
 }
 
-void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys)
+void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys, TDuration mergeDelay)
 {
     YT_VERIFY(IsPhysicallySorted());
 
@@ -1167,6 +1169,8 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
                 partition->RequestImmediateSplit(std::move(immediateSplitKeys));
             }
         }
+
+        partition->SetAllowedMergeTime(TInstant::Now() + mergeDelay);
 
         splitPartitions.push_back(std::move(partition));
     }

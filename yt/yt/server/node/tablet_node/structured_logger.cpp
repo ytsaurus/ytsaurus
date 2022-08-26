@@ -496,6 +496,7 @@ private:
             .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
             .Item("compaction_time").Value(partition->GetCompactionTime())
             .Item("allowed_split_time").Value(partition->GetAllowedSplitTime())
+            .Item("allowed_merge_time").Value(partition->GetAllowedMergeTime())
             .Item("stores").DoMapFor(partition->Stores(), [&] (auto fluent, const IStorePtr& store) {
                 fluent
                     .Item(ToString(store->GetId()))

@@ -590,8 +590,8 @@ public:
     void CreateInitialPartition();
     TPartition* FindPartition(TPartitionId partitionId);
     TPartition* GetPartition(TPartitionId partitionId);
-    void MergePartitions(int firstIndex, int lastIndex);
-    void SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys);
+    void MergePartitions(int firstIndex, int lastIndex, TDuration splitDelay);
+    void SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys, TDuration mergeDelay);
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
     //! Returns the Eden if no such partition exists.
     TPartition* GetContainingPartition(const TLegacyOwningKey& minKey, const TLegacyOwningKey& maxKey);

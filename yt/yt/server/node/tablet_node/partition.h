@@ -64,6 +64,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedMergeTime);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TLegacyOwningKey>, PivotKeysForImmediateSplit);
 
