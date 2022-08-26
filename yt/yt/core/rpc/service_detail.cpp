@@ -53,9 +53,9 @@ constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestQueuePtr CreateRequestQueue(TString name)
+TRequestQueuePtr CreateRequestQueue(TString name, const NProfiling::TProfiler& profiler)
 {
-    return New<TRequestQueue>(std::move(name));
+    return New<TRequestQueue>(std::move(name), profiler.WithTag("user", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1163,10 +1163,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestQueue::TRequestQueue(TString name)
+TRequestQueue::TRequestQueue(TString name, NProfiling::TProfiler profiler)
     : Name_(std::move(name))
-    , BytesThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig)}
-    , WeightThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig)}
+    , BytesThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig,
+        NLogging::TLogger(),
+        profiler.WithPrefix("/bytes_throttler"))}
+    , WeightThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig,
+        NLogging::TLogger(),
+        profiler.WithPrefix("/weight_throttler"))}
 { }
 
 bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo)

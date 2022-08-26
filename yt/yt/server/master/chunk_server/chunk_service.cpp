@@ -73,7 +73,9 @@ public:
             TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger)
-        , ExecuteBatchRequestQueues_(CreateReconfigurationCallback(bootstrap))
+        , ExecuteBatchRequestQueues_(
+            CreateReconfigurationCallback(bootstrap),
+            ChunkServiceProfiler.WithDefaultDisabled())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))

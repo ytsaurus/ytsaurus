@@ -13,7 +13,9 @@ public:
 
     TPerUserRequestQueues();
 
-    TPerUserRequestQueues(TReconfigurationCallback reconfigurationCallback);
+    TPerUserRequestQueues(
+        TReconfigurationCallback reconfigurationCallback,
+        NProfiling::TProfiler throttlerProfiler = {});
 
     TRequestQueueProvider GetProvider();
 
@@ -35,6 +37,8 @@ private:
     NThreading::TReaderWriterSpinLock ThrottlingEnabledFlagsSpinLock_;
     bool WeightThrottlingEnabled_ = false;
     bool BytesThrottlingEnabled_ = true;
+
+    NProfiling::TProfiler ThrottlerProfiler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
