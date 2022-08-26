@@ -714,6 +714,7 @@ private:
     const TGauge FeasibleCompactionsCounter_ = Profiler_.Gauge("/feasible_compactions");
     const TCounter ScheduledPartitioningsCounter_ = Profiler_.Counter("/scheduled_partitionings");
     const TCounter ScheduledCompactionsCounter_ = Profiler_.Counter("/scheduled_compactions");
+    const TCounter FutureEffectMismatchesCounter_ = Profiler_.Counter("/future_effect_mismatches");
     const TEventTimer ScanTimer_ = Profiler_.Timer("/scan_time");
 
     const TThreadPoolPtr ThreadPool_;
@@ -1200,6 +1201,8 @@ private:
         const TCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
     {
+        const auto& Logger = TabletNodeLogger;
+
         auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
@@ -1220,6 +1223,13 @@ private:
                 auto guard = ReaderGuard(FutureEffectLock_);
                 auto&& firstTask = tasks->at(0);
                 if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->TabletId)) {
+                    FutureEffectMismatchesCounter_.Increment();
+                    YT_LOG_DEBUG("Remaking compaction task heap due to future effect mismatch "
+                        "(TabletId: %v, TaskFutureEffect: %v, TabletFutureEffect: %v)",
+                        firstTask->TabletId,
+                        firstTask->FutureEffect,
+                        LockedGetFutureEffect(guard, firstTask->TabletId));
+
                     for (size_t i = 0; i < *index; ++i) {
                         auto&& task = (*tasks)[i];
                         task->FutureEffect = LockedGetFutureEffect(guard, task->TabletId);
