@@ -167,10 +167,6 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
             return setReducerSpec(new CommandSpec(command));
         }
 
-        public T setReducer(Reducer<?, ?> reducer) {
-            return setReducerSpec(new ReducerSpec(reducer));
-        }
-
         public T setReduceBy(List<String> reduceBy) {
             this.reduceBy = new ArrayList<>(reduceBy);
             return self();
