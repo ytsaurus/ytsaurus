@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "chunk_autotomizer.h"
 #include "chunk_list.h"
+#include "chunk_location.h"
 #include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
@@ -13,6 +14,7 @@
 #include "chunk_scanner.h"
 #include "job.h"
 #include "job_registry.h"
+#include "private.h"
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h>
 
@@ -76,14 +78,17 @@ public:
         TJobId jobId,
         TJobEpoch jobEpoch,
         TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes)
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes)
         : TJob(
             jobId,
             EJobType::SealChunk,
             jobEpoch,
             node,
             TSealJob::GetResourceUsage(),
-            ToChunkIdWithIndexes(chunkWithIndexes))
+            TChunkIdWithIndexes(
+                chunkWithIndexes.GetPtr()->GetId(),
+                chunkWithIndexes.GetReplicaIndex(),
+                chunkWithIndexes.GetMediumIndex()))
         , ChunkWithIndexes_(chunkWithIndexes)
     { }
 
@@ -101,11 +106,16 @@ public:
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
         const auto& replicas = chunk->StoredReplicas();
         builder.Add(replicas);
-        ToProto(jobSpecExt->mutable_source_replicas(), replicas);
+        for (auto replica : replicas) {
+            TNodePtrWithReplicaIndex nodeWithReplicaIndex(
+                replica.GetPtr()->GetNode(),
+                replica.GetReplicaIndex());
+            jobSpecExt->add_source_replicas(ToProto<ui32>(nodeWithReplicaIndex));
+        }
     }
 
 private:
-    const TChunkPtrWithIndexes ChunkWithIndexes_;
+    const TChunkPtrWithReplicaAndMediumIndex ChunkWithIndexes_;
 
     static TNodeResources GetResourceUsage()
     {
@@ -228,12 +238,11 @@ public:
         auto it = queue.begin();
         while (it != queue.end() && hasSpareSealResources()) {
             auto jt = it++;
-            auto chunkWithIndexes = *jt;
-            auto* chunk = chunkWithIndexes.GetPtr();
+            auto* chunk = jt->GetPtr();
             if (!chunk->IsRefreshActual()) {
                 queue.erase(jt);
                 ++misscheduledSealJobs;
-            } else if (TryScheduleSealJob(context, chunkWithIndexes)) {
+            } else if (TryScheduleSealJob(context, *jt)) {
                 queue.erase(jt);
             } else {
                 ++misscheduledSealJobs;
@@ -613,7 +622,7 @@ private:
 
     bool TryScheduleSealJob(
         IJobSchedulingContext* context,
-        TChunkPtrWithIndexes chunkWithIndexes)
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         YT_VERIFY(chunk->IsJournal());

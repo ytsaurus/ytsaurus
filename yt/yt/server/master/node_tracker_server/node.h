@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/chunk_server/chunk_replica.h>
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
@@ -82,13 +82,13 @@ class TNode
 {
 public:
     // Import third-party types into the scope.
-    using TChunkPtrWithIndexes = NChunkServer::TChunkPtrWithIndexes;
-    using TChunkPtrWithIndex = NChunkServer::TChunkPtrWithIndex;
+    using TChunkPtrWithReplicaInfo = NChunkServer::TChunkPtrWithReplicaInfo;
+    using TChunkPtrWithReplicaAndMediumIndex = NChunkServer::TChunkPtrWithReplicaAndMediumIndex;
     using TChunkId = NChunkServer::TChunkId;
     using TChunk = NChunkServer::TChunk;
     template <typename T>
     using TMediumMap = NChunkClient::TMediumMap<T>;
-    using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
+    using TMediumSet = NChunkServer::TMediumSet;
 
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<double>, IOWeights);
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<i64>, TotalSpace);
@@ -155,7 +155,20 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
+    DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TRealChunkLocation*>, RealChunkLocations);
+    void ClearChunkLocations();
+
+    // COMPAT(kvk1920)
+    void AddRealChunkLocation(NChunkServer::TRealChunkLocation* location);
+    void RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location);
+
+    // COMPAT(kvk1920)
+    // NB: This field is loaded during TNodeTracker::LoadKeys().
+    DEFINE_BYREF_RW_PROPERTY(bool, UseImaginaryChunkLocations);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
+    // Transient.
+    DEFINE_BYREF_RW_PROPERTY(TMediumMap<std::unique_ptr<NChunkServer::TImaginaryChunkLocation>>, ImaginaryChunkLocations);
+    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringShanpshotLoading = false);
 
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
 
@@ -208,32 +221,19 @@ public:
     bool IsValidWriteTarget() const;
     bool WasValidWriteTarget(EWriteTargetValidityChange change) const;
 
-    // NB: Randomize replica hashing to avoid collisions during balancing.
-    using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
-    using TReplicaSet = TMediumMap<TMediumReplicaSet>;
-    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
-
-    //! Maps replicas to the leader timestamp when this replica was registered by a client.
-    using TUnapprovedReplicaMap = THashMap<TChunkPtrWithIndexes, TInstant>;
-    DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
-
-    using TDestroyedReplicaSet = THashSet<NChunkClient::TChunkIdWithIndexes>;
-    DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
-    DEFINE_BYVAL_RO_PROPERTY(TDestroyedReplicaSet::iterator, DestroyedReplicasIterator);
-
     //! Indexed by priority. Each map is as follows:
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
     //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithIndexes, TMediumIndexSet>;
+    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithReplicaAndMediumIndex, TMediumSet>;
     using TChunkPushReplicationQueues = std::vector<TChunkPushReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPushReplicationQueues, ChunkPushReplicationQueues);
 
     //! Has the same structure as push replication queues, but uses chunk ids instead
     //! of chunk pointers to prevent danging pointers after chunk destruction.
-    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndexes, TMediumIndexSet>;
+    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndexes, TMediumSet>;
     using TChunkPullReplicationQueues = std::vector<TChunkPullReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationQueues, ChunkPullReplicationQueues);
 
@@ -244,20 +244,13 @@ public:
 
     // A set of chunk ids with an ongoing replication to this node as a destination.
     // Used for CRP-enabled chunks only.
-    using TChunkPullReplicationSet = THashMap<TChunkId, TMediumIndexSet>;
+    using TChunkPullReplicationSet = THashMap<TChunkId, TMediumSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
-
-    //! Key:
-    //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
-    //! Value:
-    //!   Indicates media where removal of this chunk is scheduled.
-    using TChunkRemovalQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
     //! Key:
     //!   Indicates an unsealed chunk.
     //!   Medium index indicates the medium where this replica is being stored.
-    using TChunkSealQueue = THashSet<TChunkPtrWithIndexes>;
+    using TChunkSealQueue = THashSet<TChunkPtrWithReplicaAndMediumIndex>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
@@ -351,30 +344,13 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    // Chunk Manager stuff.
-    void ReserveReplicas(int mediumIndex, int sizeHint);
-    //! Returns |true| if the replica was actually added.
-    bool AddReplica(TChunkPtrWithIndexes replica);
-    //! Returns |true| if the replica was approved
-    bool RemoveReplica(TChunkPtrWithIndexes replica);
 
-    bool HasReplica(TChunkPtrWithIndexes) const;
-    TChunkPtrWithIndexes PickRandomReplica(int mediumIndex);
+    // Chunk Manager stuff.
+    TChunkPtrWithReplicaInfo PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
-    void AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp);
-    bool HasUnapprovedReplica(TChunkPtrWithIndexes replica) const;
-    void ApproveReplica(TChunkPtrWithIndexes replica);
-
-    bool AddDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
-    bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
-
-    void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
-    void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
-
-    void AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
-    void AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
-
+    void AddToChunkPushReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
+    void AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
     void AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
     void RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
 
@@ -383,10 +359,10 @@ public:
     void RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
     TNodeId GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
 
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica);
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaAndMediumIndex replica);
 
-    void AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
-    void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
+    void AddToChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
+    void RemoveFromChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex);
 
     void ClearSessionHints();
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
@@ -442,10 +418,11 @@ public:
 
     void ClearCellStatistics();
 
-    void ClearDestroyedReplicas();
+    // NB: Handles AllMediaIndex correctly.
+    i64 ComputeTotalReplicaCount(int mediumIndex) const;
 
-    void AdvanceDestroyedReplicasIterator();
-    void ResetDestroyedReplicasIterator();
+    i64 ComputeTotalChunkRemovalQueuesSize() const;
+    i64 ComputeTotalDestroyedReplicaCount() const;
 
 private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
@@ -458,8 +435,6 @@ private:
     int TotalHintedUserSessionCount_;
     int TotalHintedReplicationSessionCount_;
     int TotalHintedRepairSessionCount_;
-
-    TMediumMap<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
     TMediumMap<ui64> VisitMarks_{};
 
@@ -477,11 +452,6 @@ private:
     void ComputeDefaultAddress();
     void ComputeFillFactorsAndTotalSpace();
     void ComputeSessionCount();
-
-    bool DoAddReplica(TChunkPtrWithIndexes replica);
-    bool DoRemoveReplica(TChunkPtrWithIndexes replica);
-    void DoRemoveJournalReplicas(TChunkPtrWithIndexes replica);
-    bool DoHasReplica(TChunkPtrWithIndexes replica) const;
 
     // Private accessors for TNodeTracker.
     friend class TNodeTracker;

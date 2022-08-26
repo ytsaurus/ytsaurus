@@ -1192,19 +1192,12 @@ std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
     std::vector<TChunkReplicaDescriptor> replicas;
     for (auto replica : chunk->StoredReplicas()) {
         replicas.push_back({
-            replica.GetPtr()->GetDescriptor(),
+            GetChunkLocationNode(replica)->GetDescriptor(),
             replica.GetReplicaIndex(),
-            replica.GetMediumIndex()
+            replica.GetPtr()->GetEffectiveMediumIndex(),
         });
     }
     return replicas;
-}
-
-TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes)
-{
-    auto* chunk = chunkWithIndexes.GetPtr();
-    YT_VERIFY(chunk);
-    return {chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()};
 }
 
 void SerializeMediumDirectory(
@@ -1223,7 +1216,7 @@ void SerializeMediumOverrides(
     TNode* node,
     NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides)
 {
-    for (auto* location : node->ChunkLocations()) {
+    for (auto* location : node->RealChunkLocations()) {
         if (const auto& mediumOverride = location->MediumOverride()) {
             auto* protoMediumOverride = protoMediumOverrides->add_overrides();
             ToProto(protoMediumOverride->mutable_location_uuid(), location->GetUuid());

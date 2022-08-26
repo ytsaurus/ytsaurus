@@ -1,6 +1,6 @@
 #include "node_directory_builder.h"
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
+#include "node.h"
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h>
 
@@ -27,21 +27,28 @@ void TNodeDirectoryBuilder::Add(const TNode* node)
     ToProto(item->mutable_node_descriptor(), node->GetDescriptor(AddressType_));
 }
 
-void TNodeDirectoryBuilder::Add(TNodePtrWithIndexes node)
+void TNodeDirectoryBuilder::Add(TNodePtrWithReplicaAndMediumIndex node)
 {
     Add(node.GetPtr());
 }
 
-void TNodeDirectoryBuilder::Add(TRange<TNodePtrWithIndexes> nodes)
+void TNodeDirectoryBuilder::Add(TChunkLocationPtrWithReplicaInfo location)
+{
+    Add(GetChunkLocationNode(location));
+}
+
+void TNodeDirectoryBuilder::Add(TRange<TNodePtrWithReplicaAndMediumIndex> nodes)
 {
     for (auto node : nodes) {
         Add(node);
     }
 }
 
-void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexesList& nodes)
+void TNodeDirectoryBuilder::Add(TRange<TChunkLocationPtrWithReplicaInfo> locationList)
 {
-    Add(MakeRange(nodes));
+    for (auto location : locationList) {
+        Add(location);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

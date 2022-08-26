@@ -32,6 +32,12 @@ message TReqRegisterNode
     // COMPAT(gritukan)
     optional bool exec_node_is_not_data_node = 12;
 
+    // COMPAT(kvk1920)
+    optional bool chunk_locations_supported = 13;
+    // COMPAT(kvk1920)
+    // This flag is only needed for replication nodes to secondary cells.
+    optional bool suppress_unsupported_chunk_locations_alert = 14;
+
     reserved 2;
 }
 

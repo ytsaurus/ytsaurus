@@ -158,20 +158,22 @@ public:
     int GetParentCount() const;
     bool HasParents() const;
 
-    using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
+    // COMPAT(kvk1920)
+    using TCompatCachedReplicas = THashSet<TCompatPtrWithIndexes<TNode>>;
+    using TCachedReplicas = THashSet<TChunkLocationPtrWithReplicaInfo>;
     const TCachedReplicas& CachedReplicas() const;
 
-    TRange<TNodePtrWithIndexes> StoredReplicas() const;
+    TRange<TChunkLocationPtrWithReplicaInfo> StoredReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
 
-    void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
-    void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
-    TNodePtrWithIndexesList GetReplicas(std::optional<int> maxCachedReplicas = std::nullopt) const;
+    void AddReplica(TChunkLocationPtrWithReplicaInfo replica, const TMedium* medium, bool approved);
+    void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMedium* medium, bool approved);
+    TChunkLocationPtrWithReplicaInfoList GetReplicas(std::optional<int> maxCachedReplicas = std::nullopt) const;
 
-    void ApproveReplica(TNodePtrWithIndexes replica);
+    void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;
 
     // COMPAT(ifsmirnov)
@@ -362,6 +364,9 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
+    // COMPAT(kvk1920)
+    void TransformOldReplicas();
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -393,8 +398,15 @@ private:
     struct TReplicasDataBase
         : public TPoolAllocator::TObjectBase
     {
+        // COMPAT(kvk1920)
+        using TCachedReplicasVariant = std::variant<
+            TCachedReplicas,
+            // NB: CompatReplicas is used until TransformOldReplicas() is called.
+            TCompatCachedReplicas>;
+
+        // COMPAT(kvk1920): Replicas cannot be converted while loading.
         //! This set is usually empty. Keeping a holder is very space efficient.
-        std::unique_ptr<TCachedReplicas> CachedReplicas;
+        std::unique_ptr<TCachedReplicasVariant> CachedReplicas;
 
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;
@@ -406,24 +418,34 @@ private:
 
         virtual void Initialize() = 0;
 
-        virtual TRange<TNodePtrWithIndexes> GetStoredReplicas() const = 0;
-        virtual TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() = 0;
-        virtual void AddStoredReplica(TNodePtrWithIndexes replica) = 0;
+        virtual TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const = 0;
+        virtual TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() = 0;
+        virtual void AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica) = 0;
         virtual void RemoveStoredReplica(int replicaIndex) = 0;
 
         //! Null entries are InvalidNodeId.
         virtual TRange<TNodeId> GetLastSeenReplicas() const = 0;
         virtual TMutableRange<TNodeId> MutableLastSeenReplicas() = 0;
 
+        TCachedReplicas& GetOrCreateCachedReplicas();
+        TCachedReplicas* FindCachedReplicas();
+
         virtual void Load(NCellMaster::TLoadContext& context) = 0;
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
+
+        // COMPAT(kvk1920)
+        virtual void TransformOldReplicas() = 0;
     };
 
     template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
     struct TReplicasData
         : public TReplicasDataBase
     {
-        TCompactVector<TNodePtrWithIndexes, TypicalStoredReplicaCount> StoredReplicas;
+        // COMPAT(kvk1920)
+        using TCompatStoredReplicas = TCompactVector<TCompatPtrWithIndexes<TNode>, TypicalStoredReplicaCount>;
+        using TStoredReplicas = TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalStoredReplicaCount>;
+
+        std::variant<TStoredReplicas, TCompatStoredReplicas> StoredReplicas;
 
         std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
 
@@ -433,13 +455,15 @@ private:
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
 
         //! Null entries are InvalidNodeId.
-        TRange<TNodePtrWithIndexes> GetStoredReplicas() const override;
-        TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() override;
-        void AddStoredReplica(TNodePtrWithIndexes replica) override;
+        TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const override;
+        TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() override;
+        void AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica) override;
         void RemoveStoredReplica(int replicaIndex) override;
 
         void Load(NCellMaster::TLoadContext& context) override;
         void Save(NCellMaster::TSaveContext& context) const override;
+
+        void TransformOldReplicas() override;
     };
 
     constexpr static int RegularChunkTypicalReplicaCount = 5;

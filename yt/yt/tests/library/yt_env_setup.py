@@ -275,6 +275,9 @@ class YTEnvSetup(object):
     # COMPAT(ignat)
     UPLOAD_DEBUG_ARTIFACT_CHUNKS = False
 
+    # COMPAT(kvk1920)
+    TEST_LOCATION_AWARE_REPLICATOR = False
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -1084,6 +1087,9 @@ class YTEnvSetup(object):
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
             dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
+
+        if self.TEST_LOCATION_AWARE_REPLICATOR:
+            assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
 
         default_pool_tree_config = {
             "nodes_filter": "",

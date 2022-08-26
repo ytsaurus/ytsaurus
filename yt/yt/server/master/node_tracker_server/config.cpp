@@ -91,6 +91,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         &TThis::UseResourceStatisticsFromClusterNodeHeartbeat)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_real_chunk_locations", &TThis::EnableRealChunkLocations)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

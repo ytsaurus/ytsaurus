@@ -567,7 +567,10 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
         insert_rows(table_path, [row])
         sync_unmount_table(table_path)
 
-    def _create_table_with_two_consistently_placed_chunks(self, table_path, attributes={}):
+    def _create_table_with_two_consistently_placed_chunks(self, table_path, attributes=None):
+        if attributes is None:
+            attributes = {}
+
         schema = [
             {"name": "key", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string"}

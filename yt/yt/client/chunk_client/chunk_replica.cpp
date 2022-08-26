@@ -7,6 +7,9 @@
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.pb.h>
 
 namespace NYT::NChunkClient {
 
@@ -14,6 +17,38 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica)
+{
+    using NYT::ToProto;
+
+    value->set_replica(replica.Value);
+    ToProto(value->mutable_location_uuid(), replica.ChunkLocationUuid_);
+}
+
+void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value)
+{
+    using NYT::FromProto;
+
+    replica->Value = value.replica();
+    replica->ChunkLocationUuid_ = FromProto<TGuid>(value.location_uuid());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithLocation replica, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", replica.GetNodeId());
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
+    }
+    builder->AppendFormat("@%v", replica.GetChunkLocationUuid());
+}
+
+TString ToString(TChunkReplicaWithLocation replica)
+{
+    return ToStringViaBuilder(replica);
+}
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithMedium replica, TStringBuf /*spec*/)
 {

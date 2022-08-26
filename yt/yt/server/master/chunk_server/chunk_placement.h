@@ -121,15 +121,17 @@ public:
         int minCount,
         std::optional<int> replicationFactorOverride,
         NChunkClient::ESessionType sessionType,
-        TNodePtrWithIndexes unsafelyPlacedReplica = TNodePtrWithIndexes());
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
     TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex);
 
-    TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
+    // NB: Removal queue is stored in chunk location but actual deletion may happen
+    // on different location of the same node.
+    TChunkLocation* GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex replica);
 
     bool HasBalancingTargets(TMedium* medium, double maxFillFactor);
 
-    std::vector<TChunkPtrWithIndexes> GetBalancingChunks(
+    std::vector<TChunkPtrWithReplicaInfo> GetBalancingChunks(
         TMedium* medium,
         TNode* node,
         int replicaCount);
@@ -207,7 +209,7 @@ private:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
         const std::optional<TString>& preferredHostName = std::nullopt,
-        TNodePtrWithIndexes unsafelyPlacedReplica = TNodePtrWithIndexes());
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TMedium* medium,

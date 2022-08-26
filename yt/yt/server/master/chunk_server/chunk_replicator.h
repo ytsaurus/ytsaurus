@@ -85,8 +85,8 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
-        TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes,
+        TChunkLocation* chunkLocation,
+        TChunkPtrWithReplicaIndex chunkWithIndexes,
         ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(TChunk* chunk);
@@ -109,6 +109,7 @@ public:
     //! Returns true if chunk replicator is processing
     //! shard |chunk| belongs to and false otherwise.
     bool ShouldProcessChunk(TChunk* chunk);
+    bool ShouldProcessChunk(TChunkId chunkId);
 
     TJobEpoch GetJobEpoch(TChunk* chunk) const;
 
@@ -145,15 +146,15 @@ private:
         //! Decommissioned replicas whose removal is advised.
         // NB: there's no actual need to have medium index in context of this
         // per-medium class. This is just for convenience.
-        TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> DecommissionedRemovalReplicas;
-        //! Indexes of replicas whose removal is advised for balancing.
+        TChunkLocationPtrWithReplicaIndexList DecommissionedRemovalReplicas;
+         //! Indexes of replicas whose removal is advised for balancing.
         TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
 
         //! Any replica that violates failure domain placement.
-        TNodePtrWithIndexes UnsafelyPlacedReplica;
+        TChunkLocationPtrWithReplicaInfo UnsafelyPlacedReplica;
 
         //! Missing chunk replicas for CRP-enabled chunks.
-        TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> MissingReplicas;
+        TNodePtrWithReplicaAndMediumIndexList MissingReplicas;
     };
 
     struct TChunkStatistics
@@ -227,20 +228,21 @@ private:
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
-        TChunkPtrWithIndexes chunkWithIndex,
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndex,
         TMedium* targetMedium,
         TNodeId targetNodeId);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,
-        TChunkPtrWithIndexes chunkWithIndex,
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndex,
         double maxFillCoeff);
     bool TryScheduleRemovalJob(
         IJobSchedulingContext* context,
-        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex);
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex,
+        TRealChunkLocation* location);
     bool TryScheduleRepairJob(
         IJobSchedulingContext* context,
         EChunkRepairQueue repairQueue,
-        TChunkPtrWithIndexes chunkWithIndexes);
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
@@ -260,12 +262,13 @@ private:
         TReplicationPolicy replicationPolicy,
         int replicaCount,
         int decommissionedReplicaCount,
-        const TNodePtrWithIndexesList& decommissionedReplicas,
+        const TChunkLocationPtrWithReplicaIndexList& decommissionedReplicas,
         bool hasSealedReplica,
         bool totallySealed,
-        TNodePtrWithIndexes unsafelyPlacedReplica,
-        TNodePtrWithIndexes inconsistentlyPlacedReplica,
-        const TNodePtrWithIndexesList& missingReplicas);
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica,
+        TChunkLocationPtrWithReplicaIndex inconsistentlyPlacedReplica,
+        const TNodePtrWithReplicaAndMediumIndexList& missingReplicas);
+
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
         const TChunk* chunk,
@@ -284,8 +287,8 @@ private:
         TPerMediumChunkStatistics& result,
         NErasure::ICodec* codec,
         TReplicationPolicy replicationPolicy,
-        const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
-        TNodePtrWithIndexes unsafelyPlacedSealedReplica,
+        const std::array<TChunkLocationList, ChunkReplicaIndexBound>& decommissionedReplicas,
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedSealedReplica,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);
     void ComputeErasureChunkStatisticsCrossMedia(
@@ -299,7 +302,7 @@ private:
         const NErasure::TPartIndexSet& replicaIndexes,
         bool totallySealed);
 
-    bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
+    bool IsReplicaDecommissioned(TChunkLocation* replica);
 
     //! Same as corresponding #TChunk method but
     //!   - replication factors are capped by medium-specific bounds;
@@ -328,9 +331,9 @@ private:
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
-    void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
+    void AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndexes, EChunkRepairQueue queue);
     void TouchChunkInRepairQueues(TChunk* chunk);
-    void RemoveFromChunkRepairQueues(TChunk* chunk);
+    void RemoveFromChunkRepairQueues(TChunk* chunkWithIndexes);
 
     void FlushEndorsementQueue();
 
@@ -353,7 +356,7 @@ private:
 
     void RemoveFromChunkReplicationQueues(
         TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes);
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
     void RemoveChunkFromPullReplicationQueue(const TJobPtr& job);
     void MaybeRemoveFromPullReplicationSet(
         TNodeId nodeId,

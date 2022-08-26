@@ -70,7 +70,7 @@ class TMergeJob
     : public TJob
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithReplicaAndMediumIndexList, TargetReplicas);
 
     DEFINE_BYREF_RO_PROPERTY(TMergeJobInfo, JobInfo);
 
@@ -84,7 +84,7 @@ public:
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
         TChunkVector inputChunks,
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
-        TNodePtrWithIndexesList targetReplicas,
+        TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         bool validateShallowMerge);
 
     void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;

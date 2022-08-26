@@ -76,6 +76,7 @@ def get_dynamic_master_config():
         total_node_statistics_update_period = 1000;
         use_new_heartbeats = %true;
         enable_node_cpu_statistics = %true;
+        enable_real_chunk_locations = %true;
     };
 
     object_manager = {

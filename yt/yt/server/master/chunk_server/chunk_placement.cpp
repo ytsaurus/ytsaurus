@@ -4,6 +4,7 @@
 #include "chunk_manager.h"
 #include "config.h"
 #include "job.h"
+#include "chunk_location.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -45,7 +46,7 @@ public:
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
-        TNodePtrWithIndexes unsafelyPlacedReplica)
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
@@ -59,19 +60,18 @@ public:
 
         int mediumIndex = medium->GetIndex();
         for (auto replica : chunk->StoredReplicas()) {
-            if (replica.GetMediumIndex() == mediumIndex) {
-                auto* node = replica.GetPtr();
+            if (replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex) {
+                auto* node = GetChunkLocationNode(replica);
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
-
                 // NB: When running replication job for unsafely placed chunk we do not increment
                 // counters for unsafely placed replica because it will be removed anyway. Otherwise
                 // it is possible that no feasible replica will be found. Consider case with three
                 // storage data centers and RS(3, 3) chunk. Data center replica count limit forbids to
                 // put more than two replicas in every data center, so it's impossible to allocate extra
                 // replica to move unsafely placed replica there.
-                if (!replica.GetPtr()->GetDecommissioned() && replica != unsafelyPlacedReplica) {
+                if (!node->GetDecommissioned() && replica != unsafelyPlacedReplica) {
                     IncreaseRackUsage(node);
                     IncreaseDataCenterUsage(node);
                 }
@@ -418,7 +418,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const std::optional<TString>& preferredHostName,
-    TNodePtrWithIndexes unsafelyPlacedReplica)
+    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
 
@@ -633,16 +633,16 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
         for (auto replica : chunk->StoredReplicas()) {
-            if (replica.GetMediumIndex() != mediumIndex) {
+            if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
                 continue;
             }
 
             if (replicaIndex == GenericChunkReplicaIndex) {
-                if (replica.GetPtr() == node) {
+                if (GetChunkLocationNode(replica) == node) {
                     return true;
                 }
             } else if (replica.GetReplicaIndex() == replicaIndex) {
-                return replica.GetPtr() == node;
+                return GetChunkLocationNode(replica) == node;
             }
         }
 
@@ -721,7 +721,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     std::optional<int> replicationFactorOverride,
     ESessionType sessionType,
-    TNodePtrWithIndexes unsafelyPlacedReplica)
+    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
 {
     auto targetNodes = GetWriteTargets(
         medium,
@@ -742,7 +742,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
+TChunkLocation* TChunkPlacement::GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
@@ -754,11 +754,11 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     TCompactFlatMap<const TDataCenter*, i8, 4> perDataCenterCounters;
 
     for (auto replica : chunk->StoredReplicas()) {
-        if (replica.GetMediumIndex() != mediumIndex) {
+        if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
             continue;
         }
 
-        if (const auto* rack = replica.GetPtr()->GetRack()) {
+        if (const auto* rack = GetChunkLocationNode(replica)->GetRack()) {
             ++perRackCounters[rack->GetIndex()];
             if (const auto* dataCenter = rack->GetDataCenter()) {
                 ++perDataCenterCounters[dataCenter];
@@ -767,13 +767,13 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     }
 
     // An arbitrary node that violates consistent placement requirements.
-    TNode* consistentPlacementWinner = nullptr;
+    TChunkLocation* consistentPlacementWinner = nullptr;
     // An arbitrary node from a rack with too many replicas.
-    TNode* rackWinner = nullptr;
+    TChunkLocation* rackWinner = nullptr;
     // An arbitrary node from a data center with too many replicas.
-    TNode* dataCenterWinner = nullptr;
+    TChunkLocation* dataCenterWinner = nullptr;
     // A node with the largest fill factor.
-    TNode* fillFactorWinner = nullptr;
+    TChunkLocation* fillFactorWinner = nullptr;
 
     TNodeList consistentPlacementNodes;
     if (chunk->HasConsistentReplicaPlacementHash() && IsConsistentChunkPlacementEnabled()) {
@@ -808,11 +808,11 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     };
 
     for (auto replica : chunk->StoredReplicas()) {
-        if (chunk->IsJournal() && replica.GetState() != EChunkReplicaState::Sealed) {
+        if (chunk->IsJournal() && replica.GetReplicaState() != EChunkReplicaState::Sealed) {
             continue;
         }
 
-        if (replica.GetMediumIndex() != mediumIndex) {
+        if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
             continue;
         }
 
@@ -820,24 +820,25 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
             continue;
         }
 
-        auto* node = replica.GetPtr();
+        auto* location = replica.GetPtr();
+        auto* node = location->GetNode();
         if (!IsValidRemovalTarget(node)) {
             continue;
         }
 
         if (isInconsistentlyPlaced(node)) {
-            consistentPlacementWinner = node;
+            consistentPlacementWinner = location;
         }
 
         if (const auto* rack = node->GetRack()) {
             if (perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
-                rackWinner = node;
+                rackWinner = location;
             }
 
             if (const auto* dataCenter = rack->GetDataCenter()) {
                 auto maxReplicasPerDataCenter = GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
                 if (perDataCenterCounters[dataCenter] > maxReplicasPerDataCenter) {
-                    dataCenterWinner = node;
+                    dataCenterWinner = location;
                 }
             }
         }
@@ -846,9 +847,9 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
 
         if (nodeFillFactor &&
             (!fillFactorWinner ||
-                *nodeFillFactor > *fillFactorWinner->GetFillFactor(mediumIndex)))
+                *nodeFillFactor > *fillFactorWinner->GetNode()->GetFillFactor(mediumIndex)))
         {
-            fillFactorWinner = node;
+            fillFactorWinner = location;
         }
     }
 
@@ -906,7 +907,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         /*replicationFactorOverride*/ std::nullopt,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         nullptr,
-        /*unsafelyPlacedReplica*/ TNodePtrWithIndexes());
+        /*unsafelyPlacedReplica*/ {});
 
     PrepareFillFactorIterator(medium);
     for ( ; FillFactorToNodeIterator_.IsValid(); ++FillFactorToNodeIterator_) {
@@ -1060,22 +1061,23 @@ bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
     return true;
 }
 
-std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
+std::vector<TChunkPtrWithReplicaInfo> TChunkPlacement::GetBalancingChunks(
     TMedium* medium,
     TNode* node,
     int replicaCount)
 {
-    std::vector<TChunkPtrWithIndexes> result;
+    std::vector<TChunkPtrWithReplicaInfo> result;
     result.reserve(replicaCount);
 
     // Let's bound the number of iterations somehow.
     // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
     int mediumIndex = medium->GetIndex();
-    auto replicas = node->Replicas().find(mediumIndex);
-    int iterationCount = std::min(replicaCount * 2, static_cast<int>(replicas == node->Replicas().end() ? 0 : replicas->second.size()));
+    auto iterationCount = std::min<int>(replicaCount * 2, node->ComputeTotalReplicaCount(mediumIndex));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
-        YT_ASSERT(replica.GetMediumIndex() == mediumIndex);
+        if (!replica.GetPtr()) {
+            break;
+        }
         auto* chunk = replica.GetPtr();
         if (!IsObjectAlive(chunk)) {
             break;
@@ -1095,7 +1097,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (chunk->HasJobs()) {
             continue;
         }
-        if (chunk->IsJournal() && replica.GetState() == EChunkReplicaState::Unsealed) {
+        if (chunk->IsJournal() && replica.GetReplicaState() == EChunkReplicaState::Unsealed) {
             continue;
         }
         if (chunk->HasConsistentReplicaPlacementHash()) {

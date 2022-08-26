@@ -96,7 +96,7 @@ TMergeJob::TMergeJob(
     TChunkIdWithIndexes chunkIdWithIndexes,
     TChunkVector inputChunks,
     TChunkMergerWriterOptions chunkMergerWriterOptions,
-    TNodePtrWithIndexesList targetReplicas,
+    TNodePtrWithReplicaAndMediumIndexList targetReplicas,
     bool validateShallowMerge)
     : TJob(
         jobId,
@@ -1271,7 +1271,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         return false;
     }
 
-    TNodePtrWithIndexesList targetReplicas;
+    TNodePtrWithReplicaAndMediumIndexList targetReplicas;
     int targetIndex = 0;
     for (auto* node : targetNodes) {
         targetReplicas.emplace_back(

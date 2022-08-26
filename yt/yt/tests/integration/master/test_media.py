@@ -729,6 +729,17 @@ class TestDynamicMedia(YTEnvSetup):
                 return location_uuid
         assert False, "BINGO!!!"
 
+    def _create_medium(self, medium):
+        if not exists(f"//sys/media/{medium}"):
+            create_medium(medium)
+
+    def _sync_set_medium_overrides(self, overrides):
+        for location, medium in overrides:
+            path = f"//sys/chunk_locations/{location}/@medium_override"
+            set(path, medium)
+        for location, medium in overrides:
+            wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
+
     @authors("kvk1920")
     def test_medium_change_simple(self):
         self._validate_empty_medium_overrides()
@@ -792,19 +803,16 @@ class TestDynamicMedia(YTEnvSetup):
         wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default")
 
     @authors("kvk1920")
-    @flaky(max_runs=2)
-    def test_replica_collision(self):
+    def test_replica_collision1(self):
         self._validate_empty_medium_overrides()
         medium = "testmedium"
-        if not exists(f"//sys/media/{medium}"):
-            create_medium(medium)
-        tumbstone = "tumbstone"
-        if not exists(f"//sys/media/{tumbstone}"):
-            create_medium(tumbstone)
+        self._create_medium("testmedium")
+        tombstone = "tombstone"
+        self._create_medium("tombstone")
 
         locations = ls("//sys/chunk_locations")
         location = locations[0]
-        self._set_medium_override_and_wait(location, medium)
+        self._sync_set_medium_overrides([(location, medium)])
         create("table", "//tmp/t", attributes={"media": {
             "default": {"replication_factor": 1, "data_parts_only": False},
             medium: {"replication_factor": 1, "data_parts_only": False},
@@ -830,10 +838,52 @@ class TestDynamicMedia(YTEnvSetup):
             "default": {"replication_factor": 1, "data_parts_only": False},
             medium: {"replication_factor": 1, "data_parts_only": False},
         })
-        self._set_medium_override_and_wait(location, medium)
-        self._set_medium_override_and_wait(locations[1], tumbstone)
-        self._set_medium_override_and_wait(locations[1], "default")
+        self._sync_set_medium_overrides([(location, medium)])
+        self._sync_set_medium_overrides([(locations[1], tombstone)])
+        self._sync_set_medium_overrides([(locations[1], "default")])
         wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 2)
         assert read_table("//tmp/t") == [{"foo": "bar"}]
         # NB: Total used space should not change.
         wait(lambda: get_used_space() == used_space)
+
+    @authors("kvk1920")
+    @flaky(max_runs=2)
+    def test_replica_collision2(self):
+        self._validate_empty_medium_overrides()
+        m1, m2 = "m1", "m2"
+        self._create_medium(m1)
+        self._create_medium(m2)
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        for m in (m1, m2):
+            set_account_disk_space_limit("tmp", disk_space_limit, m)
+        loc1, loc2 = ls("//sys/chunk_locations")[:2]
+        self._sync_set_medium_overrides([(loc1, m1), (loc2, m2)])
+        t = "//tmp/t"
+        create("table", t, attributes={
+            "media": {
+                m1: {"replication_factor": 1, "data_parts_only": False},
+                m2: {"replication_factor": 1, "data_parts_only": False},
+            },
+            "primary_medium": m1
+        })
+        content = [{"foo": 1, "bar": "123"}, {"foo": 42, "bar": "321"}]
+        write_table(t, content)
+        chunk = get_singular_chunk_id(t)
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 2)
+
+        def get_used_space():
+            return [
+                get(f"//sys/chunk_locations/{loc}/@statistics/used_space")
+                for loc in (loc1, loc2)
+            ]
+
+        used_space = get_used_space()
+        self._sync_set_medium_overrides([(loc1, m1), (loc2, m1)])
+        replicas = get(f"#{chunk}/@stored_replicas")
+        assert len(replicas) == 2
+        assert all([replica.attributes["medium"] == m1 for replica in replicas])
+        assert used_space == get_used_space()
+        assert read_table(t) == content
+
+        set(f"{t}/@media", {m1: {"replication_factor": 1, "data_parts_only": False}})
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)

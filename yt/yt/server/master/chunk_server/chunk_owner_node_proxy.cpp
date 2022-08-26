@@ -167,17 +167,20 @@ void BuildChunkSpec(
     }
 
     auto erasureCodecId = chunk->GetErasureCodec();
-    int firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
+    auto firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
+    auto maxCachedReplicasPerFetch = dynamicConfig->MaxCachedReplicasPerFetch;
 
-    auto addReplica = [&] (TNodePtrWithIndexes replica)  {
+    TNodePtrWithReplicaIndexList replicas;
+    replicas.reserve(chunk->StoredReplicas().size() + std::min<int>(maxCachedReplicasPerFetch, chunk->CachedReplicas().size()));
+
+    auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        replicas.push_back(replica);
+        replicas.emplace_back(replica.GetPtr()->GetNode(), replica.GetReplicaIndex());
         nodeDirectoryBuilder->Add(replica);
         return true;
     };
@@ -188,7 +191,7 @@ void BuildChunkSpec(
 
     int cachedReplicaCount = 0;
     for (auto replica : chunk->CachedReplicas()) {
-        if (cachedReplicaCount >= dynamicConfig->MaxCachedReplicasPerFetch) {
+        if (cachedReplicaCount >= maxCachedReplicasPerFetch) {
             break;
         }
         if (addReplica(replica)) {
@@ -285,9 +288,9 @@ void BuildDynamicStoreSpec(
     // 2) we cannot determine it at master when there are multiple consecutive dynamic stores.
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-        auto replica = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, DefaultStoreMediumIndex);
-        nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(ToProto<ui64>(replica));
+        auto replica = TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex);
+        nodeDirectoryBuilder->Add(node);
+        chunkSpec->add_replicas(ToProto<ui32>(replica));
     }
 
     if (!lowerLimit.IsTrivial()) {

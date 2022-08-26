@@ -239,7 +239,7 @@ private:
 
         auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
 
-        auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+        auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithReplicaInfoAndMediumIndex replica) {
             auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
             fluent.Item()
                 .BeginAttributes()
@@ -250,17 +250,17 @@ private:
                     })
                     .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
                         fluent
-                            .Item("state").Value(replica.GetState());
+                            .Item("state").Value(replica.GetReplicaState());
                     })
                 .EndAttributes()
                 .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
-        auto serializePhysicalReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexesList& replicas) {
+        auto serializePhysicalReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithReplicaInfoAndMediumIndexList& replicas) {
             std::sort(
                 replicas.begin(),
                 replicas.end(),
-                [] (TNodePtrWithIndexes lhs, TNodePtrWithIndexes rhs) {
+                [] (TNodePtrWithReplicaInfoAndMediumIndex lhs, TNodePtrWithReplicaInfoAndMediumIndex rhs) {
                     if (lhs.GetReplicaIndex() != rhs.GetReplicaIndex()) {
                         return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
                     }
@@ -270,7 +270,7 @@ private:
                 .DoListFor(replicas, serializePhysicalReplica);
         };
 
-        auto serializeLastSeenReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+        auto serializeLastSeenReplica = [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
             fluent.Item()
                 .BeginAttributes()
                     .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
@@ -281,7 +281,7 @@ private:
                 .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
-        auto serializeLastSeenReplicas = [&] (IYsonConsumer* consumer, const TNodePtrWithIndexesList& replicas) {
+        auto serializeLastSeenReplicas = [&] (IYsonConsumer* consumer, const TNodePtrWithReplicaIndexList& replicas) {
             BuildYsonFluently(consumer)
                 .DoListFor(replicas, serializeLastSeenReplica);
         };
@@ -291,7 +291,15 @@ private:
                 if (isForeign) {
                     break;
                 }
-                TNodePtrWithIndexesList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
+                TNodePtrWithReplicaInfoAndMediumIndexList replicas;
+                replicas.reserve(chunk->CachedReplicas().size());
+                for (auto replica : chunk->CachedReplicas()) {
+                    replicas.emplace_back(
+                        replica.GetPtr()->GetNode(),
+                        replica.GetReplicaIndex(),
+                        replica.GetPtr()->GetEffectiveMediumIndex(),
+                        replica.GetReplicaState());
+                }
                 serializePhysicalReplicas(consumer, replicas);
                 return true;
             }
@@ -300,7 +308,15 @@ private:
                 if (isForeign) {
                     break;
                 }
-                TNodePtrWithIndexesList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
+                TNodePtrWithReplicaInfoAndMediumIndexList replicas;
+                replicas.reserve(chunk->StoredReplicas().Size());
+                for (auto replica : chunk->StoredReplicas()) {
+                    replicas.emplace_back(
+                        replica.GetPtr()->GetNode(),
+                        replica.GetReplicaIndex(),
+                        replica.GetPtr()->GetEffectiveMediumIndex(),
+                        replica.GetReplicaState());
+                }
                 serializePhysicalReplicas(consumer, replicas);
                 return true;
             }
@@ -310,13 +326,12 @@ private:
                     break;
                 }
 
-                TNodePtrWithIndexesList replicas;
+                TNodePtrWithReplicaIndexList replicas;
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
                     auto* node = nodeTracker->FindNode(nodeId);
                     if (IsObjectAlive(node)) {
-                        // NB: Medium index is irrelevant.
-                        replicas.push_back(TNodePtrWithIndexes(node, replicaIndex, DefaultStoreMediumIndex));
+                        replicas.emplace_back(node, replicaIndex);
                     }
                 };
                 if (chunk->IsErasure()) {
@@ -911,8 +926,8 @@ private:
                     break;
                 }
 
-                auto replicas = chunkManager->GetConsistentChunkReplicas(chunk);
-                serializePhysicalReplicas(consumer, replicas);
+                auto consistentReplicas = chunkManager->GetConsistentChunkReplicas(chunk);
+                serializePhysicalReplicas(consumer, consistentReplicas);
                 return true;
             }
 

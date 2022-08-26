@@ -233,11 +233,11 @@ public:
                 break;
             }
             YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
-            auto removeChunkInfo = BuildRemoveChunkInfo(chunk);
+            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, /*onMediumChange*/ true);
             removeChunkInfo.set_medium_index(oldMediumIndex);
             *heartbeat.add_removed_chunks() = removeChunkInfo;
             ++chunkEventCount;
-            *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk);
+            *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk, /*onMediumChange*/ true);
             ++chunkEventCount;
         }
 
@@ -954,7 +954,7 @@ private:
         return true;
     }
 
-    TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk)
+    TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk, bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -964,11 +964,14 @@ private:
         chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
         chunkAddInfo.set_active(chunk->IsActive());
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
+        ToProto(chunkAddInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        chunkAddInfo.set_caused_by_medium_change(onMediumChange);
 
         return chunkAddInfo;
     }
 
-    TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk)
+    TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk, bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -976,6 +979,9 @@ private:
 
         ToProto(chunkRemoveInfo.mutable_chunk_id(), chunk->GetId());
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        ToProto(chunkRemoveInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        chunkRemoveInfo.set_caused_by_medium_change(onMediumChange);
 
         return chunkRemoveInfo;
     }
@@ -1053,6 +1059,7 @@ private:
             chunk->GetLocation()->GetId());
     }
 
+    // TODO(kvk1920): Do not send every replica.
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
     {
         auto* delta = GetChunksDelta(chunk->GetId());

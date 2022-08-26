@@ -55,6 +55,7 @@ using namespace NCellarNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NProfiling;
 
+using NHydra::HasMutationContext;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,6 +427,47 @@ TString TNode::GetCapitalizedObjectName() const
     return Format("Node %v", GetDefaultAddress());
 }
 
+void TNode::AddRealChunkLocation(NChunkServer::TRealChunkLocation* location)
+{
+    RealChunkLocations_.push_back(location);
+    if (!UseImaginaryChunkLocations_) {
+        ChunkLocations_.push_back(location);
+    }
+}
+
+void TNode::RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location)
+{
+    std::erase(RealChunkLocations_, location);
+    if (!UseImaginaryChunkLocations_) {
+        std::erase(ChunkLocations_, location);
+    }
+}
+
+void TNode::ClearChunkLocations()
+{
+    ImaginaryChunkLocations_.shrink_and_clear();
+    ChunkLocations_ = {};
+}
+
+TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringSnapshotLoading)
+{
+    YT_VERIFY(duringSnapshotLoading || NHydra::HasHydraContext());
+    YT_VERIFY(UseImaginaryChunkLocations_);
+
+    auto [it, inserted] = ImaginaryChunkLocations_.emplace(
+        mediumIndex,
+        std::unique_ptr<TImaginaryChunkLocation>());
+
+    auto& location = it->second;
+
+    if (inserted) {
+        location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
+        ChunkLocations_.push_back(location.get());
+    }
+
+    return location.get();
+}
+
 void TNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);
@@ -449,7 +491,7 @@ void TNode::Save(TSaveContext& context) const
     }
     Save(context, UserTags_);
     Save(context, NodeTags_);
-    Save(context, ChunkLocations_);
+    Save(context, RealChunkLocations_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, ClusterNodeStatistics_);
@@ -463,28 +505,6 @@ void TNode::Save(TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Host_);
     Save(context, LeaseTransaction_);
-    Save(context, DestroyedReplicas_);
-
-    // The is the replica statistics section; the format is as folows:
-    // (replicaCount, mediumIndex) for each medium with non-empty set of replicas
-    // 0
-    {
-        TCompactVector<int, 8> mediumIndexes;
-        for (const auto& [mediumIndex, replicas] : Replicas_) {
-            if (!replicas.empty()) {
-                mediumIndexes.push_back(mediumIndex);
-            }
-        }
-        std::sort(mediumIndexes.begin(), mediumIndexes.end());
-        for (auto mediumIndex : mediumIndexes) {
-            const auto& replicas = GetOrCrash(Replicas_, mediumIndex);
-            TSizeSerializer::Save(context, replicas.size());
-            Save(context, mediumIndex);
-        }
-        TSizeSerializer::Save(context, 0);
-    }
-
-    Save(context, UnapprovedReplicas_);
     Save(context, Cellars_);
     Save(context, Annotations_);
     Save(context, Version_);
@@ -522,7 +542,14 @@ void TNode::Load(TLoadContext& context)
     Load(context, UserTags_);
     Load(context, NodeTags_);
 
-    Load(context, ChunkLocations_);
+    Load(context, RealChunkLocations_);
+    if (!UseImaginaryChunkLocations_) {
+        ChunkLocations_.reserve(RealChunkLocations_.size());
+        std::copy(
+            RealChunkLocations_.begin(),
+            RealChunkLocations_.end(),
+            std::back_inserter(ChunkLocations_));
+    }
 
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
@@ -547,22 +574,37 @@ void TNode::Load(TLoadContext& context)
 
     Load(context, LeaseTransaction_);
 
-    Load(context, DestroyedReplicas_);
-
-    // NB: This code does not load the replicas per se; it just
-    // reserves the appropriate hashtables. Once the snapshot is fully loaded,
-    // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
-    // Cf. TNode::Load.
-    while (true) {
-        auto replicaCount = TSizeSerializer::Load(context);
-        if (replicaCount == 0) {
-            break;
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
+        auto destroyedReplicas = Load<THashSet<TChunkIdWithIndexes>>(context);
+        for (auto replica : destroyedReplicas) {
+            auto* location = GetOrCreateImaginaryChunkLocation(replica.MediumIndex, /*duringSnapshotLoading*/ true);
+            location->AddDestroyedReplica(replica);
         }
-        auto mediumIndex = Load<int>(context);
-        ReserveReplicas(mediumIndex, replicaCount);
+
+        // NB: This code does not load the replicas per se; it just
+        // reserves the appropriate hashtables. Once the snapshot is fully loaded,
+        // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
+        // Cf. TNode::Load.
+        while (true) {
+            auto replicaCount = TSizeSerializer::Load(context);
+            if (replicaCount == 0) {
+                break;
+            }
+            auto mediumIndex = Load<int>(context);
+            GetOrCreateImaginaryChunkLocation(mediumIndex, /*duringSnapshotLoading*/ true)->ReserveReplicas(replicaCount);
+        }
+
+        using TUnapprovedReplicas = THashMap<TCompatPtrWithIndexes<TChunk>, TInstant>;;
+        auto unapprovedReplicas = Load<TUnapprovedReplicas>(context);
+        for (auto [legacyReplica, instant] : unapprovedReplicas) {
+            TChunkPtrWithReplicaIndex replica(legacyReplica.GetPtr(), legacyReplica.GetReplicaIndex());
+            auto mediumIndex = legacyReplica.GetMediumIndex();
+            auto* location = GetOrCreateImaginaryChunkLocation(mediumIndex, /*duringSnapshotLoading*/ true);
+            location->AddUnapprovedReplica(replica, instant);
+        }
     }
 
-    Load(context, UnapprovedReplicas_);
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
@@ -574,157 +616,52 @@ void TNode::Load(TLoadContext& context)
     Load(context, ConsistentReplicaPlacementTokenCount_);
 
     ComputeDefaultAddress();
-    ResetDestroyedReplicasIterator();
     ComputeFillFactorsAndTotalSpace();
 }
 
-void TNode::ReserveReplicas(int mediumIndex, int sizeHint)
+TChunkPtrWithReplicaInfo TNode::PickRandomReplica(int mediumIndex)
 {
-    Replicas_[mediumIndex].reserve(sizeHint);
-    RandomReplicaIters_[mediumIndex] = Replicas_[mediumIndex].end();
-}
+    YT_VERIFY(!HasMutationContext());
 
-bool TNode::AddReplica(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    if (chunk->IsJournal()) {
-        DoRemoveJournalReplicas(replica);
-    }
-    // NB: For journal chunks result is always true.
-    return DoAddReplica(replica);
-}
-
-bool TNode::RemoveReplica(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    if (chunk->IsJournal()) {
-        DoRemoveJournalReplicas(replica);
-    } else {
-        DoRemoveReplica(replica);
-    }
-    return UnapprovedReplicas_.erase(replica.ToGenericState()) == 0;
-}
-
-bool TNode::HasReplica(TChunkPtrWithIndexes replica) const
-{
-    auto* chunk = replica.GetPtr();
-    if (chunk->IsJournal()) {
-        auto replicaIndex = replica.GetReplicaIndex();
-        auto mediumIndex = replica.GetMediumIndex();
-        for (auto state : TEnumTraits<EChunkReplicaState>::GetDomainValues()) {
-            if (DoHasReplica(TChunkPtrWithIndexes(chunk, replicaIndex, mediumIndex, state))) {
-                return true;
-            }
+    if (UseImaginaryChunkLocations_) {
+        auto it = ImaginaryChunkLocations_.find(mediumIndex);
+        if (it == ImaginaryChunkLocations_.end()) {
+            return TChunkPtrWithReplicaInfo();
         }
-        return false;
-    } else {
-        return DoHasReplica(replica);
-    }
-}
-
-TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
-{
-    auto it = Replicas_.find(mediumIndex);
-    if (it == Replicas_.end() || it->second.empty()) {
-        return TChunkPtrWithIndexes();
+        return it->second->PickRandomReplica();
     }
 
-    auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
-
-    if (randomReplicaIt == it->second.end()) {
-        randomReplicaIt = it->second.begin();
+    TCompactVector<TRealChunkLocation*, TypicalLocationCount> feasibleLocations;
+    std::copy_if(
+        RealChunkLocations_.begin(),
+        RealChunkLocations_.end(),
+        std::back_inserter(feasibleLocations),
+        [&] (TRealChunkLocation* location) {
+            return
+                location->GetEffectiveMediumIndex() == mediumIndex &&
+                !location->Replicas().empty();
+        });
+    if (feasibleLocations.empty()) {
+        return TChunkPtrWithReplicaInfo();
     }
 
-    return *(randomReplicaIt++);
+    return feasibleLocations[RandomNumber(feasibleLocations.size())]->PickRandomReplica();
 }
 
 void TNode::ClearReplicas()
 {
-    Replicas_.clear();
-    UnapprovedReplicas_.clear();
-    RandomReplicaIters_.clear();
-    ClearDestroyedReplicas();
-}
-
-void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
-{
-    YT_VERIFY(UnapprovedReplicas_.emplace(replica.ToGenericState(), timestamp).second);
-}
-
-bool TNode::HasUnapprovedReplica(TChunkPtrWithIndexes replica) const
-{
-    return UnapprovedReplicas_.find(replica.ToGenericState()) != UnapprovedReplicas_.end();
-}
-
-void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
-{
-    YT_VERIFY(UnapprovedReplicas_.erase(replica.ToGenericState()) == 1);
-    auto* chunk = replica.GetPtr();
-    if (chunk->IsJournal()) {
-        DoRemoveJournalReplicas(replica);
-        YT_VERIFY(DoAddReplica(replica));
+    for (auto* location : ChunkLocations_) {
+        location->ClearReplicas();
     }
 }
 
-void TNode::ClearDestroyedReplicas()
-{
-    DestroyedReplicas_.clear();
-    ResetDestroyedReplicasIterator();
-}
-
-bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
-{
-    RemoveFromChunkRemovalQueue(replica);
-
-    auto [it, inserted] = DestroyedReplicas_.insert(replica);
-    if (!inserted) {
-        return false;
-    }
-    DestroyedReplicasIterator_ = it;
-    return true;
-}
-
-bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
-{
-    if (!DestroyedReplicas_.empty() && *DestroyedReplicasIterator_ == replica) {
-        if (DestroyedReplicas_.size() == 1) {
-            DestroyedReplicasIterator_ = DestroyedReplicas_.end();
-        } else {
-            AdvanceDestroyedReplicasIterator();
-        }
-    }
-    return DestroyedReplicas_.erase(replica) > 0;
-}
-
-void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
+void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
-
-    if (DestroyedReplicas_.contains(replica)) {
-        return;
-    }
-
-    ChunkRemovalQueue_[replica].set(replica.MediumIndex);
+    ChunkPushReplicationQueues_[priority][replica].set(targetMediumIndex);
 }
 
-void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
-{
-    auto it = ChunkRemovalQueue_.find(replica);
-    if (it != ChunkRemovalQueue_.end()) {
-        it->second.reset(replica.MediumIndex);
-        if (it->second.none()) {
-            ChunkRemovalQueue_.erase(it);
-        }
-    }
-}
-
-void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
-{
-    YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunkPushReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
-}
-
-void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
 
@@ -797,13 +734,14 @@ void TNode::RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex
     }
 }
 
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaAndMediumIndex replica)
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
-        if (auto it = queue.find(replica.ToGenericState()); it != queue.end()) {
+        if (auto it = queue.find(replica); it != queue.end()) {
             queue.erase(it);
         }
     }
+
     for (auto& queue : ChunkPullReplicationQueues_) {
         if (auto it = queue.find(ToChunkIdWithIndexes(replica)); it != queue.end()) {
             queue.erase(it);
@@ -818,13 +756,13 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
     }
 }
 
-void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes replica)
+void TNode::AddToChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex replica)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkSealQueue_.insert(replica);
 }
 
-void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes replica)
+void TNode::RemoveFromChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex replica)
 {
     ChunkSealQueue_.erase(replica);
 }
@@ -925,12 +863,6 @@ void TNode::DetachCell(const TCellBase* cell)
 
 void TNode::ShrinkHashTables()
 {
-    for (auto& [mediumIndex, replicas] : Replicas_) {
-        if (ShrinkHashTable(&replicas)) {
-            RandomReplicaIters_[mediumIndex] = replicas.end();
-        }
-    }
-    ShrinkHashTable(&UnapprovedReplicas_);
     for (auto& queue : ChunkPushReplicationQueues_) {
         ShrinkHashTable(&queue);
     }
@@ -938,15 +870,17 @@ void TNode::ShrinkHashTables()
         ShrinkHashTable(&queue);
     }
     ShrinkHashTable(&ChunksBeingPulled_);
-    ShrinkHashTable(&ChunkRemovalQueue_);
     ShrinkHashTable(&ChunkSealQueue_);
+    ShrinkHashTable(&ChunkSealQueue_);
+    for (auto* location : ChunkLocations_) {
+        location->ShrinkHashTables();
+    }
 }
 
 void TNode::Reset()
 {
     LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
-    ChunkRemovalQueue_.clear();
     for (auto& queue : ChunkPushReplicationQueues_) {
         queue.clear();
     }
@@ -961,7 +895,9 @@ void TNode::Reset()
     DisableWriteSessionsSentToNode_ = false;
     DisableWriteSessionsReportedByNode_ = false;
     ClearCellStatistics();
-    ResetDestroyedReplicasIterator();
+    for (auto* location : ChunkLocations_) {
+        location->Reset();
+    }
 }
 
 ui64 TNode::GenerateVisitMark()
@@ -1047,53 +983,6 @@ void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
 bool TNode::IsWriteEnabled(int mediumIndex) const
 {
     return IOWeights_.lookup(mediumIndex) > 0;
-}
-
-bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)
-{
-    auto mediumIndex = replica.GetMediumIndex();
-    auto [it, inserted] = Replicas_[mediumIndex].insert(replica);
-    if (!inserted) {
-        return false;
-    }
-    RandomReplicaIters_[mediumIndex] = it;
-    return true;
-}
-
-bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
-{
-    auto mediumIndex = replica.GetMediumIndex();
-    if (Replicas_.find(mediumIndex) == Replicas_.end()) {
-        return false;
-    }
-    auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
-    auto& mediumStoredReplicas = Replicas_[mediumIndex];
-    if (randomReplicaIt != mediumStoredReplicas.end() &&
-        *randomReplicaIt == replica)
-    {
-        ++randomReplicaIt;
-    }
-    return mediumStoredReplicas.erase(replica) == 1;
-}
-
-void TNode::DoRemoveJournalReplicas(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    auto replicaIndex = replica.GetReplicaIndex();
-    auto mediumIndex = replica.GetMediumIndex();
-    for (auto state : TEnumTraits<EChunkReplicaState>::GetDomainValues()) {
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, replicaIndex, mediumIndex, state));
-    }
-}
-
-bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
-{
-    auto mediumIndex = replica.GetMediumIndex();
-    auto it = Replicas_.find(mediumIndex);
-    if (it == Replicas_.end()) {
-        return false;
-    }
-    return it->second.find(replica) != it->second.end();
 }
 
 void TNode::SetHost(THost* host)
@@ -1307,10 +1196,10 @@ int TNode::GetTotalSlotCount(ECellarType cellarType) const
 TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
     TCellNodeStatistics result = TCellNodeStatistics();
-    for (const auto& [mediumIndex, replicas] :  Replicas_) {
-        result.ChunkReplicaCount[mediumIndex] = replicas.size();
+    for (auto* location : ChunkLocations_) {
+        result.ChunkReplicaCount[location->GetEffectiveMediumIndex()] += std::ssize(location->Replicas());
+        result.DestroyedChunkReplicaCount += std::ssize(location->DestroyedReplicas());
     }
-    result.DestroyedChunkReplicaCount = std::ssize(DestroyedReplicas_);
     for (const auto& queue : ChunkPushReplicationQueues_) {
         result.ChunkPushReplicationQueuesSize += std::ssize(queue);
     }
@@ -1339,18 +1228,19 @@ void TNode::ClearCellStatistics()
     }
 }
 
-void TNode::AdvanceDestroyedReplicasIterator()
+i64 TNode::ComputeTotalReplicaCount(int mediumIndex) const
 {
-    YT_VERIFY(!DestroyedReplicas_.empty() && DestroyedReplicasIterator_ != DestroyedReplicas_.end());
-    ++DestroyedReplicasIterator_;
-    if (DestroyedReplicasIterator_ == DestroyedReplicas_.end()) {
-        DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
-    }
-}
-
-void TNode::ResetDestroyedReplicasIterator()
-{
-    DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
+    return std::transform_reduce(
+        ChunkLocations_.begin(),
+        ChunkLocations_.end(),
+        i64(0),
+        std::plus<i64>{},
+        [&] (auto* location) {
+            if (mediumIndex != AllMediaIndex && mediumIndex != location->GetEffectiveMediumIndex()) {
+                return i64(0);
+            }
+            return std::ssize(location->Replicas());
+        });
 }
 
 bool TNode::TCellSlot::IsWarmedUp() const
@@ -1359,6 +1249,30 @@ bool TNode::TCellSlot::IsWarmedUp() const
         PreloadPendingStoreCount == 0 &&
         PreloadFailedStoreCount == 0 &&
         (PeerState == EPeerState::Leading || PeerState == EPeerState::Following);
+}
+
+i64 TNode::ComputeTotalChunkRemovalQueuesSize() const
+{
+    return std::transform_reduce(
+        ChunkLocations_.begin(),
+        ChunkLocations_.end(),
+        i64(0),
+        std::plus<i64>{},
+        [] (auto* location) {
+            return std::ssize(location->ChunkRemovalQueue());
+        });
+}
+
+i64 TNode::ComputeTotalDestroyedReplicaCount() const
+{
+    return std::transform_reduce(
+        ChunkLocations_.begin(),
+        ChunkLocations_.end(),
+        0,
+        std::plus<i64>{},
+        [] (auto* location) {
+            return std::ssize(location->DestroyedReplicas());
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

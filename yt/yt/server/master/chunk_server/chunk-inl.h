@@ -14,11 +14,14 @@ namespace NYT::NChunkServer {
 
 inline const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
 {
-    const auto& data = ReplicasData();
-    return data.CachedReplicas ? *data.CachedReplicas : EmptyCachedReplicas;
+    if (auto* data = ReplicasData().CachedReplicas.get()) {
+        return GetOrCrash<TCachedReplicas>(*data);
+    }
+
+    return EmptyCachedReplicas;
 }
 
-inline TRange<TNodePtrWithIndexes> TChunk::StoredReplicas() const
+inline TRange<TChunkLocationPtrWithReplicaInfo> TChunk::StoredReplicas() const
 {
     const auto& data = ReplicasData();
     return data.GetStoredReplicas();

@@ -97,6 +97,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakeThrottlerAttributeRemovable)                              (2114))  // h0pless
     ((TransactionRotator)                                           (2115))  // kvk1920
     ((MaxExternalCellBias)                                          (2116))  // babenko
+    ((ChunkLocationInReplica)                                       (2117))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
