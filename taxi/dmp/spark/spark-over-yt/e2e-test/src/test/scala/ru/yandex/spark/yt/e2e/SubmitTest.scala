@@ -70,16 +70,18 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
   }
 
   it should "kill driver" in {
-    val testCase = jobNoOutput
-    val jobId = submitJob(testCase)
-    log.info(s"Started job ${testCase.name} (id: $jobId)")
+    measure({
+      val testCase = jobNoOutput
+      val jobId = submitJob(testCase)
+      log.info(s"Started job ${testCase.name} (id: $jobId)")
 
-    submitClient.kill(jobId) shouldBe true
-    log.info(s"Job kill requested")
-    Thread.sleep((2 seconds).toMillis)
+      submitClient.kill(jobId) shouldBe true
+      log.info(s"Job kill requested")
+      Thread.sleep((2 seconds).toMillis)
 
-    val status = submitClient.getStatus(jobId)
-    status shouldBe DriverState.KILLED
+      val status = submitClient.getStatus(jobId)
+      status shouldBe DriverState.KILLED
+    }, 30 seconds)
   }
 
   it should "process failed job" in {
