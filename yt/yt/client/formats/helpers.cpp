@@ -34,7 +34,7 @@ void WriteInt(T value, IOutputStream* output)
 {
     char buf[64];
     char* end = buf + 64;
-    char* start = WriteIntToBufferBackwards(end, value);
+    char* start = WriteDecIntToBufferBackwards(end, value);
     output->Write(start, end - start);
 }
 

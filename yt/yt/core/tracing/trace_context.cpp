@@ -416,7 +416,7 @@ void TTraceContext::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TTraceContext* context, TStringBuf /*spec*/)
 {
     if (context) {
         builder->AppendFormat("%v %v",
@@ -425,6 +425,16 @@ void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, T
     } else {
         builder->AppendString(TStringBuf("<null>"));
     }
+}
+
+TString ToString(const TTraceContext* context)
+{
+    return ToStringViaBuilder(context);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf spec)
+{
+    FormatValue(builder, context.Get(), spec);
 }
 
 TString ToString(const TTraceContextPtr& context)

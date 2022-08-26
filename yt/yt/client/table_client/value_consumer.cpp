@@ -56,7 +56,7 @@ void TValueConsumerBase::ProcessIntegralValue(const TUnversionedValue& value, EV
     if (TypeConversionConfig_->EnableAllToStringConversion && columnType == EValueType::String) {
         char buf[64];
         char* end = buf + 64;
-        char* start = WriteIntToBufferBackwards(end, integralValue);
+        char* start = WriteDecIntToBufferBackwards(end, integralValue);
         OnMyValue(MakeUnversionedStringValue(TStringBuf(start, end), value.Id));
     } else if (TypeConversionConfig_->EnableIntegralToDoubleConversion && columnType == EValueType::Double) {
         OnMyValue(MakeUnversionedDoubleValue(static_cast<double>(integralValue), value.Id));

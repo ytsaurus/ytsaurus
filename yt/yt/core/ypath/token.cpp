@@ -74,8 +74,8 @@ void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value)
             builder->AppendChar(ch);
         } else if (ch < 32 || ch > 127) {
             builder->AppendString(TStringBuf("\\x"));
-            builder->AppendChar(Int2Hex[ch >> 4]);
-            builder->AppendChar(Int2Hex[ch & 0xf]);
+            builder->AppendChar(IntToHexLowercase[ch >> 4]);
+            builder->AppendChar(IntToHexLowercase[ch & 0xf]);
         } else {
             builder->AppendChar(ch);
         }

@@ -188,7 +188,7 @@ static Y_FORCE_INLINE TStringBuf PlaceOnBuffer(TStringBuf value, char* buffer)
     return TStringBuf(buffer, value.Size());
 }
 
-// TODO(ermolovd): make it FASTER (check NYT::WriteIntToBufferBackwards)
+// TODO(ermolovd): make it FASTER (check NYT::WriteDecIntToBufferBackwards)
 template<typename T>
 static TStringBuf WriteTextDecimalUnchecked(T decodedValue, int scale, char* buffer)
 {

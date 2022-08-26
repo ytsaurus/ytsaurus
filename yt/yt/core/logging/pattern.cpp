@@ -103,8 +103,8 @@ void FormatMessage(TBaseFormatter* out, TStringBuf message)
         } else if (ch < PrintableASCIILow || ch > PrintableASCIIHigh) {
             unsigned char unsignedCh = ch;
             out->AppendString("\\x");
-            out->AppendChar(Int2Hex[unsignedCh >> 4]);
-            out->AppendChar(Int2Hex[unsignedCh & 15]);
+            out->AppendChar(IntToHexLowercase[unsignedCh >> 4]);
+            out->AppendChar(IntToHexLowercase[unsignedCh & 15]);
         } else {
             out->AppendChar(ch);
         }

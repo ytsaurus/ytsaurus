@@ -207,8 +207,8 @@ inline TString DumpRangeToHex(TRef data)
     builder.AppendChar('<');
     for (const char* ptr = data.Begin(); ptr != data.End(); ++ptr) {
         ui8 ch = *ptr;
-        builder.AppendChar(Int2Hex[ch >> 4]);
-        builder.AppendChar(Int2Hex[ch & 0xf]);
+        builder.AppendChar(IntToHexLowercase[ch >> 4]);
+        builder.AppendChar(IntToHexLowercase[ch & 0xf]);
     }
     builder.AppendChar('>');
     return builder.Flush();

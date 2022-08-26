@@ -233,7 +233,9 @@ private:
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
 
 void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TTraceContext* context, TStringBuf spec);
 TString ToString(const TTraceContextPtr& context);
+TString ToString(const TTraceContextPtr* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
