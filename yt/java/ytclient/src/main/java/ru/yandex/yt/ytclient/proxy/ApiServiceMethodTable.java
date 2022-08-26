@@ -29,11 +29,13 @@ import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
+import ru.yandex.yt.rpcproxy.TReqGetJobStderr;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
+import ru.yandex.yt.rpcproxy.TReqListJobs;
 import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
@@ -80,11 +82,13 @@ import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetJob;
+import ru.yandex.yt.rpcproxy.TRspGetJobStderr;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
 import ru.yandex.yt.rpcproxy.TRspGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
+import ru.yandex.yt.rpcproxy.TRspListJobs;
 import ru.yandex.yt.rpcproxy.TRspListNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
@@ -245,6 +249,12 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqGetJob.Builder, TRspGetJob> GET_JOB =
             apiServiceMethod("GetJob", TReqGetJob::newBuilder, TRspGetJob.parser());
+
+    public static final RpcMethodDescriptor<TReqListJobs.Builder, TRspListJobs> LIST_JOBS =
+            apiServiceMethod("ListJobs", TReqListJobs::newBuilder, TRspListJobs.parser());
+
+    public static final RpcMethodDescriptor<TReqGetJobStderr.Builder, TRspGetJobStderr> GET_JOB_STDERR =
+            apiServiceMethod("GetJobStderr", TReqGetJobStderr::newBuilder, TRspGetJobStderr.parser());
 
     public static final RpcMethodDescriptor<TReqAbortJob.Builder, TRspAbortJob> ABORT_JOB =
             apiServiceMethod("AbortJob", TReqAbortJob::newBuilder, TRspAbortJob.parser());

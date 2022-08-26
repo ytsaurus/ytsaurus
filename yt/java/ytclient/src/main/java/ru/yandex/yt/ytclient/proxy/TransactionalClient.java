@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
+import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
@@ -22,6 +23,7 @@ import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
+import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
@@ -77,6 +79,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<FileWriter> writeFile(WriteFile req);
 
     CompletableFuture<GUID> startOperation(StartOperation req);
+
+    CompletableFuture<Operation> startMap(MapOperation req);
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
 

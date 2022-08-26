@@ -159,6 +159,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     protected void writeFile(TransactionalClient yt, YPath path, InputStream data) {
+        yt.createNode(new CreateNode(path, ObjectType.File)).join();
         FileWriter writer = yt.writeFile(new WriteFile(path.toString()).setComputeMd5(true)).join();
         try {
             byte[] bytes = new byte[0x10000];

@@ -112,7 +112,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             byte[] bytes = baos.toByteArray();
             args.add("serializable");
 
-            YPath path = context.getTmpDir().child(fileName);
+            YPath path = context.getConfiguration().getTmpDir().child(fileName);
 
             FileWriter writer = yt.writeFile(new WriteFile(path.toString())).join();
             writer.write(bytes);
@@ -157,7 +157,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
         Set<YPath> files = new HashSet<>(additionalFiles);
 
-        boolean isLocalMode = context.isLocalMode();
+        boolean isLocalMode = context.getConfiguration().isLocalMode();
         String classPath;
         String libraryPath = null;
 
@@ -165,7 +165,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             classPath = canonizeJavaPath(System.getProperty("java.class.path"));
             libraryPath = canonizeJavaPath(System.getProperty("java.library.path"));
         } else {
-            Set<YPath> jars = context.getJarsProcessor().uploadJars(yt.getRootClient(), mapperOrReducer, isLocalMode);
+            Set<YPath> jars = context.getConfiguration().getJarsProcessor().uploadJars(
+                    yt.getRootClient(), mapperOrReducer, isLocalMode);
             files.addAll(jars);
             List<String> jarFileNames = jars.stream()
                     .map(x -> x.getAdditionalAttribute("file_name")
@@ -176,7 +177,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             classPath = String.join(":", jarFileNames);
         }
 
-        Set<YPath> autoDetectedResources = context.getJarsProcessor().uploadResources(
+        Set<YPath> autoDetectedResources = context.getConfiguration().getJarsProcessor().uploadResources(
                 yt.getRootClient(), mapperOrReducer);
         files.addAll(autoDetectedResources);
 
@@ -193,10 +194,10 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             files.add(resource.get().path);
         }
 
-        String javaBinary = context.getJavaBinary();
+        String javaBinary = context.getConfiguration().getJavaBinary();
         JavaOptions resultJavaOptions = JavaOptions.empty();
 
-        for (String option : context.getJavaOptions()) {
+        for (String option : context.getConfiguration().getJavaOptions()) {
             resultJavaOptions = resultJavaOptions.withOption(option);
         }
 

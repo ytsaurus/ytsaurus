@@ -1,12 +1,15 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EOperationType;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
@@ -14,21 +17,24 @@ import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
+@NonNullApi
+@NonNullFields
 public class StartOperation
         extends RequestBase<StartOperation>
         implements HighLevelRequest<TReqStartOperation.Builder> {
     private final EOperationType type;
     private final YTreeNode spec;
 
+    @Nullable
     private TransactionalOptions transactionalOptions;
-    @Nonnull private MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
+    private MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
 
     public StartOperation(EOperationType type, YTreeNode spec) {
         this.type = type;
         this.spec = spec;
     }
 
-    public StartOperation setTransactionOptions(TransactionalOptions transactionalOptions) {
+    public StartOperation setTransactionOptions(@Nullable TransactionalOptions transactionalOptions) {
         this.transactionalOptions = transactionalOptions;
         return this;
     }
@@ -37,7 +43,6 @@ public class StartOperation
         this.mutatingOptions = mutatingOptions;
         return this;
     }
-
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqStartOperation.Builder, ?> requestBuilder) {
