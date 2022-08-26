@@ -106,12 +106,14 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
@@ -816,6 +818,44 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         ).thenCompose(
                 preparedSpec -> startOperation(
                         new StartOperation(EOperationType.OT_MAP, preparedSpec)
+                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setMutatingOptions(req.getMutatingOptions())
+                ).thenApply(operationId ->
+                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
+        );
+    }
+
+    @Override
+    public CompletableFuture<Operation> startReduce(ReduceOperation req) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    YTreeBuilder builder = YTree.builder();
+                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
+                    return patchSpec(builder.build().mapNode());
+                },
+                prepareSpecExecutor
+        ).thenCompose(
+                preparedSpec -> startOperation(
+                        new StartOperation(EOperationType.OT_REDUCE, preparedSpec)
+                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setMutatingOptions(req.getMutatingOptions())
+                ).thenApply(operationId ->
+                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
+        );
+    }
+
+    @Override
+    public CompletableFuture<Operation> startSort(SortOperation req) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    YTreeBuilder builder = YTree.builder();
+                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
+                    return patchSpec(builder.build().mapNode());
+                },
+                prepareSpecExecutor
+        ).thenCompose(
+                preparedSpec -> startOperation(
+                        new StartOperation(EOperationType.OT_SORT, preparedSpec)
                                 .setTransactionOptions(req.getTransactionalOptions())
                                 .setMutatingOptions(req.getMutatingOptions())
                 ).thenApply(operationId ->

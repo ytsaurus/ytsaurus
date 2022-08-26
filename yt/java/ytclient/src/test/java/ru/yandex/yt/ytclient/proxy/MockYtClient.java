@@ -34,8 +34,10 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
@@ -97,10 +99,12 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
         return executor;
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
         return (CompletableFuture<UnversionedRowset>) callMethod("lookupRows");
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
@@ -108,10 +112,12 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
     }
 
+    @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request) {
         return (CompletableFuture<VersionedRowset>) callMethod("versionedLookupRows");
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> versionedLookupRows(
             AbstractLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
@@ -119,10 +125,12 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
         return (CompletableFuture<List<T>>) callMethod("versionedLookupRows");
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return (CompletableFuture<UnversionedRowset>) callMethod("selectRows");
     }
 
+    @Override
     public <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest request,
             YTreeObjectSerializer<T> serializer
@@ -130,88 +138,119 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
         return (CompletableFuture<List<T>>) callMethod("selectRows");
     }
 
+    @Override
     public CompletableFuture<SelectRowsResult> selectRowsV2(
             SelectRowsRequest request
     ) {
         return (CompletableFuture<SelectRowsResult>) callMethod("selectRowsV2");
     }
 
+    @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
         return (CompletableFuture<GUID>) callMethod("createNode");
     }
 
+    @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         return (CompletableFuture<Void>) callMethod("removeNode");
     }
 
+    @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         return (CompletableFuture<Void>) callMethod("setNode");
     }
 
+    @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         return (CompletableFuture<YTreeNode>) callMethod("getNode");
     }
 
+    @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return (CompletableFuture<YTreeNode>) callMethod("listNode");
     }
 
+    @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         return (CompletableFuture<LockNodeResult>) callMethod("lockNode");
     }
 
+    @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         return (CompletableFuture<GUID>) callMethod("copyNode");
     }
 
+    @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         return (CompletableFuture<GUID>) callMethod("linkNode");
     }
 
+    @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         return (CompletableFuture<GUID>) callMethod("modeNode");
     }
 
+    @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return (CompletableFuture<Boolean>) callMethod("existsNode");
     }
 
+    @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return (CompletableFuture<Void>) callMethod("concatenateNodes");
     }
 
+    @Override
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
         return (CompletableFuture<TableReader<T>>) callMethod("readTable");
     }
 
+    @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         return (CompletableFuture<TableWriter<T>>) callMethod("writeTable");
     }
 
+    @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
         return (CompletableFuture<FileReader>) callMethod("readFile");
     }
 
+    @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
         return (CompletableFuture<FileWriter>) callMethod("writeFile");
     }
 
+    @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
         return (CompletableFuture<GUID>) callMethod("startOperation");
     }
 
+    @Override
     public CompletableFuture<Operation> startMap(MapOperation req) {
         return (CompletableFuture<Operation>) callMethod("startMap");
     }
 
+    @Override
+    public CompletableFuture<Operation> startReduce(ReduceOperation req) {
+        return (CompletableFuture<Operation>) callMethod("startReduce");
+    }
+
+    @Override
+    public CompletableFuture<Operation> startSort(SortOperation req) {
+        return (CompletableFuture<Operation>) callMethod("startSort");
+    }
+
+    @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return (CompletableFuture<TCheckPermissionResult>) callMethod("checkPermission");
     }
 
+    @Override
     public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
         return (CompletableFuture<GetFileFromCacheResult>) callMethod("getFileFromCache");
     }
 
+    @Override
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
         return (CompletableFuture<PutFileToCacheResult>) callMethod("putFileToCache");
     }

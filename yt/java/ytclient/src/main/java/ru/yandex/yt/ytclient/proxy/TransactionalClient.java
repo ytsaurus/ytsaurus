@@ -30,8 +30,10 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
@@ -84,6 +86,18 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     default CompletableFuture<Operation> map(MapOperation req) {
         return startMap(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startReduce(ReduceOperation req);
+
+    default CompletableFuture<Operation> reduce(ReduceOperation req) {
+        return startReduce(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startSort(SortOperation req);
+
+    default CompletableFuture<Operation> sort(SortOperation req) {
+        return startSort(req).thenCompose(op -> op.watch().thenApply(unused -> op));
     }
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
