@@ -340,6 +340,8 @@ public:
         const TString& prefix,
         const ISensorProducerPtr& producer) const;
 
+    const IRegistryImplPtr& GetRegistry() const;
+
 private:
     friend struct TTesting;
 
