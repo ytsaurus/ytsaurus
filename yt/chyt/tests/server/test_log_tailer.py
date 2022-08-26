@@ -80,6 +80,7 @@ class TestLogTailer(YTEnvSetup):
                 ],
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
 
@@ -108,6 +109,7 @@ class TestLogTailer(YTEnvSetup):
                 ],
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
 
@@ -234,6 +236,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
                 ],
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
 

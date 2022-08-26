@@ -572,7 +572,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             create(
                 "table",
                 "//tmp/test_dir/table_3",
-                attributes={"dynamic": True, "schema": [{"name": "i", "type": "int64"}]},
+                attributes={
+                    "dynamic": True,
+                    "schema": [{"name": "i", "type": "int64"}],
+                    "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                },
             )
             sync_mount_table("//tmp/test_dir/table_3")
             insert_rows("//tmp/test_dir/table_3", [{"i": 3}])
@@ -582,7 +586,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             create(
                 "table",
                 "//tmp/dir_with_dynamic_table/table_4",
-                attributes={"dynamic": True, "schema": [{"name": "i", "type": "int64"}]},
+                attributes={
+                    "dynamic": True,
+                    "schema": [{"name": "i", "type": "int64"}],
+                    "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                },
             )
             sync_mount_table("//tmp/dir_with_dynamic_table/table_4", sync=True)
             insert_rows("//tmp/dir_with_dynamic_table/table_4", [{"i": 4}])
@@ -1384,6 +1392,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                         {"name": "value", "type": "int64"},
                     ],
                     "enable_dynamic_store_read": True,
+                    "dynamic_store_auto_flush_period": yson.YsonEntity(),
                 },
             )
             sync_mount_table(table_path)
