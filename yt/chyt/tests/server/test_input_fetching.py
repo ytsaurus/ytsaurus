@@ -113,6 +113,7 @@ class TestInputFetching(ClickHouseTestBase):
                 ],
                 "dynamic": True,
                 "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         tablet_count = 100
@@ -155,6 +156,7 @@ class TestInputFetching(ClickHouseTestBase):
                 ],
                 "dynamic": True,
                 "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         tablet_count = 100
@@ -490,6 +492,7 @@ class TestInputFetching(ClickHouseTestBase):
                 ],
                 "dynamic": True,
                 "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
 

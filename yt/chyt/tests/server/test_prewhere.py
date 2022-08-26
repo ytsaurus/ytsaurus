@@ -1,5 +1,6 @@
 from yt_commands import (authors, create, write_table, insert_rows, get, print_debug, sync_mount_table,
                          sync_unmount_table)
+from yt.wrapper import yson
 
 from base import ClickHouseTestBase, Clique
 
@@ -175,6 +176,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                        {"name": "light", "type": "int64"}],
             "dynamic": True,
             "enable_dynamic_store_read": True,
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
         })
         sync_mount_table("//tmp/t")
 

@@ -35,6 +35,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
     @staticmethod
     def _create_simple_dynamic_table(path, sort_order="ascending", **attributes):
+        attributes["dynamic_store_auto_flush_period"] = yson.YsonEntity()
         if "schema" not in attributes:
             attributes.update(
                 {
@@ -58,6 +59,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                     {"name": "value", "type": "string"},
                 ],
                 "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         sync_mount_table("//tmp/dt")

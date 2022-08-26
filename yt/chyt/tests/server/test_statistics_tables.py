@@ -178,6 +178,7 @@ class TestStatistisTables(ClickHouseTestBase):
                     {"name": "secondary_query_ids", "type": "any"},
                     {"name": "proxy_address", "type": "string"},
                 ],
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         sync_mount_table("//tmp/distributed_queries")
@@ -200,6 +201,7 @@ class TestStatistisTables(ClickHouseTestBase):
                     {"name": "select_query_index", "type": "int64"},
                     {"name": "statistics", "type": "any"},
                 ],
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         sync_mount_table("//tmp/secondary_queries")
@@ -216,6 +218,7 @@ class TestStatistisTables(ClickHouseTestBase):
                     {"name": "parent_query_id", "type": "string"},
                     {"name": "initial_query_id", "type": "string"},
                 ],
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
         sync_mount_table("//tmp/ancestor_query_ids")
