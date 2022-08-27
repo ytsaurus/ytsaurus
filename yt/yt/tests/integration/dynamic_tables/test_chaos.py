@@ -12,7 +12,7 @@ from yt_commands import (
     get, set, ls, create, exists, remove, copy, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
-    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows,
+    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
@@ -125,7 +125,7 @@ class ChaosTestBase(DynamicTablesBase):
             if mount_tables:
                 sync_mount_table(path, driver=driver)
 
-    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False):
+    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -134,8 +134,10 @@ class ChaosTestBase(DynamicTablesBase):
                 create_table = self._create_ordered_table
             elif replica["content_type"] == "data":
                 create_table = self._create_sorted_table
-
-            create_table(path, driver=driver, upstream_replica_id=replica_id)
+            kwargs = {"driver": driver, "upstream_replica_id": replica_id}
+            if schema:
+                kwargs["schema"] = schema
+            create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
     def _sync_replication_era(self, card_id, replicas):
@@ -146,11 +148,11 @@ class ChaosTestBase(DynamicTablesBase):
             check_write = replica["mode"] == "sync" and replica["enabled"]
             self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
 
-    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False):
+    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         if create_replica_tables:
-            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables, ordered)
+            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables, ordered, schema=schema)
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
@@ -2127,6 +2129,64 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
         insert_rows("//tmp/t", values[2:3])
         wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("with_data", [True, False])
+    @pytest.mark.parametrize("write_target", ["t", "q"])
+    def test_locks_replication(self, with_data, write_target):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "string", "lock": "a"},
+            {"name": "b", "type": "string", "lock": "b"},
+            {"name": "c", "type": "string", "lock": "c"},
+        ]
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/r"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/s"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, schema=schema)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        path = "//tmp/" + write_target
+        if with_data:
+            insert_rows(path, [{"key": 1, "a": "1"}], update=True, tx=tx1)
+        lock_rows(path, [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        insert_rows(path, [{"key": 1, "b": "2"}], update=True, tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        def _pull_rows():
+            rows = pull_rows(
+                replicas[3]["replica_path"],
+                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_ids[3],
+                driver=get_driver(cluster=replicas[3]["cluster_name"]))
+            def _unversion(row):
+                result = {"key": row["key"]}
+                for value in "a", "b":
+                    if value in row:
+                        result[value] = str(row[value][0])
+                return result
+            return [_unversion(row) for row in rows]
+        def _check():
+            rows = _pull_rows()
+            return len(rows) > 0 and "b" in rows[-1]
+        wait(_check)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+
+        expected = [{"key": 1, "a": "1", "b": "2", "c": None}] if with_data else [{"key": 1, "a": None, "b": "2", "c": None}]
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 1}]) == expected)
 
 
 ##################################################################
