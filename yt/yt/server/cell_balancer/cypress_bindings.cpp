@@ -237,6 +237,9 @@ void TAllocationRequestState::Register(TRegistrar registrar)
 {
     registrar.Parameter("creation_time", &TThis::CreationTime)
         .Default();
+
+    registrar.Parameter("pod_id_template", &TThis::PodIdTemplate)
+        .Default();
 }
 
 void TDeallocationRequestState::Register(TRegistrar registrar)

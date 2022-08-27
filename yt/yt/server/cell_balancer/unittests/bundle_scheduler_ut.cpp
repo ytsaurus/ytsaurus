@@ -155,15 +155,17 @@ THashSet<TString> GenerateNodesForBundle(
     const TString& bundleName,
     int nodeCount,
     bool setFilterTag = false,
-    int slotCount = 5)
+    int slotCount = 5,
+    int instanceIndex = 170)
 {
     THashSet<TString> result;
 
     for (int index = 0; index < nodeCount; ++index) {
         int nodeIndex = std::ssize(inputState.TabletNodes);
-        auto nodeId = Format("seneca-ayt-%v-%v-aa-tab-node-%v.search.yandex.net",
+        auto nodeId = Format("seneca-ayt-%v-%v-%v-tab-%v.search.yandex.net",
             nodeIndex,
             bundleName,
+            instanceIndex,
             inputState.Config->Cluster);
         auto nodeInfo = New<TTabletNodeInfo>();
         nodeInfo->Banned = false;
@@ -240,15 +242,21 @@ void GenerateNodeAllocationsForBundle(TSchedulerInputState& inputState, const TS
     }
 
     for (int index = 0; index < count; ++index) {
+        auto podIdTemplate = GetInstancePodIdTemplate(inputState.Config->Cluster, bundleName, "tab", index + 1);
         auto requestId = Format("alloc-%v", state->NodeAllocations.size());
-        state->NodeAllocations[requestId] = New<TAllocationRequestState>();
-        state->NodeAllocations[requestId]->CreationTime = TInstant::Now();
+
+        auto requestState = New<TAllocationRequestState>();
+        requestState->CreationTime = TInstant::Now();
+        requestState->PodIdTemplate = podIdTemplate;
+        state->NodeAllocations[requestId] = requestState;
+
         inputState.AllocationRequests[requestId] = New<TAllocationRequest>();
         auto& spec = inputState.AllocationRequests[requestId]->Spec;
         spec->NannyService = "nanny-bunny-tablet-nodes";
         spec->YPCluster = "pre-pre";
         spec->ResourceRequest->Vcpu = 9999;
         spec->ResourceRequest->MemoryMb = 88_GB / 1_MB;
+        spec->PodIdTemplate = podIdTemplate;
     }
 }
 
@@ -260,15 +268,22 @@ void GenerateProxyAllocationsForBundle(TSchedulerInputState& inputState, const T
     }
 
     for (int index = 0; index < count; ++index) {
+        auto podIdTemplate = GetInstancePodIdTemplate(inputState.Config->Cluster, bundleName, "rpc", index);
+
         auto requestId = Format("proxy-alloc-%v", state->ProxyAllocations.size());
-        state->ProxyAllocations[requestId] = New<TAllocationRequestState>();
-        state->ProxyAllocations[requestId]->CreationTime = TInstant::Now();
+
+        auto requestState = New<TAllocationRequestState>();
+        requestState->CreationTime = TInstant::Now();
+        requestState->PodIdTemplate = podIdTemplate;
+        state->ProxyAllocations[requestId] = requestState;
+
         inputState.AllocationRequests[requestId] = New<TAllocationRequest>();
         auto& spec = inputState.AllocationRequests[requestId]->Spec;
         spec->NannyService = "nanny-bunny-rpc-proxies";
         spec->YPCluster = "pre-pre";
         spec->ResourceRequest->Vcpu = 1111;
         spec->ResourceRequest->MemoryMb = 18_GB / 1_MB;
+        spec->PodIdTemplate = podIdTemplate;
     }
 }
 
@@ -370,7 +385,7 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     auto input = GenerateSimpleInputContext(5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "default-bundle", 1, false, 5, 2);
     GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
 
     ScheduleBundles(input, &mutations);
@@ -380,6 +395,16 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     VerifyNodeAllocationRequests(mutations, 3);
 
     EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+
+    THashSet<TString> templates;
+    for (auto& [_, request] : mutations.NewAllocations) {
+        templates.insert(request->Spec->PodIdTemplate);
+    }
+
+    EXPECT_EQ(templates.size(), 3u);
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 3)));
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 4)));
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 5)));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
@@ -1672,6 +1697,50 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
             .SsdJournal = 2250_MB
         },
         mutations.ChangedSystemAccountLimit["default-bundle2-account"]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(SchedulerUtilsTest, CheckGetIndexFromPodId)
+{
+    static const TString Cluster = "hume";
+    static const TString InstanceType = "tab";
+    static const TString Bundle = "venus212";
+
+    EXPECT_EQ(1, FindNextInstanceId({}, Cluster, InstanceType));
+    EXPECT_EQ(1, FindNextInstanceId({"sas4-5335-venus212-0aa-tab-hume"}, Cluster, InstanceType));
+    EXPECT_EQ(1, FindNextInstanceId({"sas4-5335-venus212-000-tab-hume"}, Cluster, InstanceType));
+    EXPECT_EQ(2, FindNextInstanceId({"sas4-5335-venus212-001-tab-hume", "trash"}, Cluster, InstanceType));
+
+    EXPECT_EQ(4, FindNextInstanceId(
+        {
+            "sas4-5335-venus212-001-tab-hume",
+            "sas4-5335-venus212-002-tab-hume",
+            "sas4-5335-venus212-002-tab-hume",
+            "sas4-5335-venus212-002-tab-hume",
+            "sas4-5335-venus212-003-tab-hume",
+            "sas4-5335-venus212-005-tab-hume",
+        }, 
+        Cluster,
+        InstanceType));
+
+    EXPECT_EQ(6, FindNextInstanceId(
+        {
+            "sas4-5335-venus212-001-tab-hume",
+            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 2),
+            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 3),
+            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 4),
+            "sas4-5335-venus212-005-tab-hume",
+            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 7),
+        }, 
+        Cluster,
+        InstanceType));
+}
+
+TEST(SchedulerUtilsTest, CheckGeneratePodTemplate)
+{
+    EXPECT_EQ("<short-hostname>-venus212-0ab-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 171));
+    EXPECT_EQ("<short-hostname>-venus212-2710-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 10000));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

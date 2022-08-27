@@ -119,6 +119,17 @@ THashSet<TString> GetAliveProxies(
     const std::vector<TString>& bundleProxies,
     const TSchedulerInputState& input);
 
+TString GetInstancePodIdTemplate(
+    const TString& cluster,
+    const TString& bundleName,
+    const TString& instanceType,
+    int index);
+
+int FindNextInstanceId(
+    const std::vector<TString>& instanceNames,
+    const TString& cluster,
+    const TString& instanceType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer
