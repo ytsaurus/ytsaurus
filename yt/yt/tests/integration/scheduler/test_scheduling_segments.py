@@ -77,7 +77,7 @@ class TestSchedulingSegments(YTEnvSetup):
                 },
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
@@ -155,15 +155,15 @@ class TestSchedulingSegments(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 20,
         })
 
     @authors("eshcherbin")
     def test_large_gpu_segment_extended(self):
         blocking_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -431,9 +431,9 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
 
         blocking_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -462,9 +462,9 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + timeout_attribute_path) == 1000000000)
 
         blocking_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -521,9 +521,9 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
 
         blocking_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -569,9 +569,9 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: current_resource_amount_large_sensor.get() == 0)
 
         blocking_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -610,9 +610,9 @@ class TestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_revive_operation_segments_from_scratch(self):
         small_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         large_op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -648,9 +648,9 @@ class TestSchedulingSegments(YTEnvSetup):
         update_controller_agent_config("snapshot_period", 300)
 
         small_op = run_sleeping_vanilla(
-            job_count=80,
+            job_count=20,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         large_op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -696,7 +696,7 @@ class TestSchedulingSegments(YTEnvSetup):
         for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
             wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
 
-        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
         run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
 
@@ -902,7 +902,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 },
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,
@@ -1033,7 +1033,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 20,
         })
 
     @authors("eshcherbin")
@@ -1748,7 +1748,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 20,
         })
 
     @authors("eshcherbin")
