@@ -796,6 +796,12 @@ private:
 
                         auto modificationType = modification.Type;
                         if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
+                            if (tableInfo->IsChaosReplica() &&
+                                capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
+                            {
+                                break;
+                            }
+
                             modificationType = ERowModificationType::Write;
                         }
 
