@@ -131,6 +131,9 @@ public:
         if (options.Atomicity) {
             req->set_atomicity(static_cast<int>(*options.Atomicity));
         }
+        if (options.EnableReplicatedTableTracker) {
+            req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+        }
 
         auto cellTag = CellTagFromId(replicaId);
         auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(cellTag);

@@ -48,6 +48,12 @@ bool IsAlienType(EObjectType type);
 //! Checks if the given type is a tablet.
 bool IsTabletType(EObjectType type);
 
+//! Checks if the given type holds replication metadata.
+bool IsReplicatedTableType(EObjectType);
+
+//! Checks if the given type is a table replica.
+bool IsTableReplicaType(EObjectType type);
+
 //! Extracts the type component from #id.
 EObjectType TypeFromId(TObjectId id);
 

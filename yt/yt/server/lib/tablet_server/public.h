@@ -14,7 +14,6 @@ DECLARE_REFCOUNTED_STRUCT(IReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(IReplicatedTableTrackerHost)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicReplicatedTableTrackerConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

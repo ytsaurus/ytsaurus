@@ -61,6 +61,9 @@ public:
         if (options.Enabled) {
             req->set_enabled(*options.Enabled);
         }
+        if (options.EnableReplicatedTableTracker) {
+            req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+        }
 
         WaitFor(req->Invoke())
             .ThrowOnError();
@@ -119,6 +122,7 @@ private:
         auto enabled = attributes->Get<bool>("enabled", false);
         auto catchup = attributes->Get<bool>("catchup", true);
         auto replicationProgress = attributes->Find<TReplicationProgress>("replication_progress");
+        auto enableReplicatedTableTracker = attributes->Get<bool>("enable_replicated_table_tracker", false);
 
         auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
@@ -132,6 +136,7 @@ private:
         req->set_mode(ToProto<int>(mode));
         req->set_enabled(enabled);
         req->set_catchup(catchup);
+        req->set_enable_replicated_table_tracker(enableReplicatedTableTracker);
         if (replicationProgress) {
             ToProto(req->mutable_replication_progress(), *replicationProgress);
         }

@@ -10,6 +10,7 @@
 #include "coordinator_manager.h"
 #include "coordinator_service.h"
 #include "transaction_manager.h"
+#include "replicated_table_tracker.h"
 
 #include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -19,11 +20,18 @@
 #include <yt/yt/server/lib/hydra_common/public.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
+#include <yt/yt/server/lib/tablet_server/config.h>
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/ytlib/api/public.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -41,6 +49,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
@@ -238,6 +247,10 @@ public:
             this,
             clockClusterTag,
             Bootstrap_);
+
+        ReplicatedTableTracker_ = CreateReplicatedTableTracker(
+            CreateReplicatedTableTrackerHost(this),
+            Bootstrap_->GetReplicatedTableTrackerConfig());
     }
 
     void Initialize() override
@@ -270,8 +283,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ReplicatedTableTracker_.Reset();
         ChaosManager_.Reset();
-
         TransactionManager_.Reset();
 
         if (ChaosNodeService_) {
@@ -334,6 +347,26 @@ public:
         return IChaosSlot::CellarType;
     }
 
+    NApi::IClientPtr CreateClusterClient(const TString& clusterName) const override
+    {
+        const auto& clusterDirectory = Bootstrap_->GetClusterConnection()->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(clusterName);
+        // TODO(savrus): Consider employing specific user.
+        return connection
+            ? connection->CreateClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName))
+            : nullptr;
+    }
+
+    const NTabletServer::IReplicatedTableTrackerPtr& GetReplicatedTableTracker() const override
+    {
+        return ReplicatedTableTracker_;
+    }
+
+    void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const override
+    {
+        Bootstrap_->SubscribeReplicatedTableTrackerConfigChanged(std::move(callback));
+    }
+
 private:
     const TChaosNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -350,6 +383,8 @@ private:
     ICoordinatorManagerPtr CoordinatorManager_;
 
     ITransactionManagerPtr TransactionManager_;
+
+    IReplicatedTableTrackerPtr ReplicatedTableTracker_;
 
     NRpc::IServicePtr ChaosNodeService_;
     NRpc::IServicePtr CoordinatorService_;

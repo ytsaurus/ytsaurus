@@ -41,6 +41,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (Mutation)
     (EraCommencer)
+    (ReplicatedTableTracker)
 );
 
 using TReplicationCardId = NChaosClient::TReplicationCardId;

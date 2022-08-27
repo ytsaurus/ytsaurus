@@ -105,7 +105,7 @@ class ChaosTestBase(DynamicTablesBase):
         attributes = {
             "enabled": replica.get("enabled", False)
         }
-        for key in ["content_type", "mode", "replication_card_id", "table_path", "catchup", "replication_progress"]:
+        for key in ["content_type", "mode", "replication_card_id", "table_path", "catchup", "replication_progress", "enable_replicated_table_tracker"]:
             if key in replica:
                 attributes[key] = replica[key]
             if kwargs.get(key, None) is not None:
@@ -243,12 +243,14 @@ class ChaosTestBase(DynamicTablesBase):
         create("replication_log_table", path, attributes=attributes, driver=driver)
 
     def _insistent_insert_rows(self, table, rows, driver=None):
-        try:
-            insert_rows(table, rows, driver=driver)
-            return True
-        except YtError as err:
-            print_debug("Insert into {0} failed: ".format(table), err)
-            return False
+        def _do():
+            try:
+                insert_rows(table, rows, driver=driver)
+                return True
+            except YtError as err:
+                print_debug("Insert into {0} failed: ".format(table), err)
+                return False
+        wait(_do)
 
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
@@ -784,7 +786,7 @@ class TestChaos(ChaosTestBase):
         _check_lookup([{"key": 0}], values[:1], old_mode)
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=new_mode)
 
-        wait(lambda: self._insistent_insert_rows("//tmp/t", values[1:]))
+        self._insistent_insert_rows("//tmp/t", values[1:])
         _check_lookup([{"key": 1}], values[1:], new_mode)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
@@ -1026,11 +1028,14 @@ class TestChaos(ChaosTestBase):
         crt_replicas = get("//tmp/crt/@replicas")
         assert len(crt_replicas) == 2
 
+        def _assert_replicas_equal(lhs, rhs):
+            return all(lhs[key] == rhs[key] for key in ("cluster_name", "replica_path", "mode", "state", "content_type"))
+
         for replica_id in replica_ids:
             replica = card["replicas"][replica_id]
             del replica["history"]
             del replica["replication_progress"]
-            assert replica == crt_replicas[replica_id]
+            _assert_replicas_equal(replica, crt_replicas[replica_id])
 
     @authors("babenko")
     def test_chaos_replicated_table_replication_card_ownership(self):
@@ -1420,7 +1425,7 @@ class TestChaos(ChaosTestBase):
 
         rows = [{"key": 1, "value": "1"}]
         keys = [{"key": 1}]
-        wait(lambda: self._insistent_insert_rows("//tmp/t", rows))
+        self._insistent_insert_rows("//tmp/t", rows)
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
     @authors("savrus")
@@ -2187,6 +2192,61 @@ class TestChaos(ChaosTestBase):
 
         expected = [{"key": 1, "a": "1", "b": "2", "c": None}] if with_data else [{"key": 1, "a": None, "b": "2", "c": None}]
         wait(lambda: lookup_rows("//tmp/r", [{"key": 1}]) == expected)
+
+    @authors("savrus")
+    def test_replicated_table_tracker(self):
+        for driver in self._get_drivers():
+            set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
+            set("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache", {
+                "expire_after_successful_update_time": 100,
+                "expire_after_failed_update_time": 100,
+                "expire_after_access_time": 100,
+                "refresh_time": 50,
+            },
+            driver=driver)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replicated_table_options": {
+                "enable_replicated_table_tracker": True,
+                "min_sync_replica_count": 1,
+                "tablet_cell_bundle_name_ttl": 1000,
+                "tablet_cell_bundle_name_failure_interval": 100,
+            },
+        })
+        card_id = get("//tmp/crt/@replication_card_id")
+        options = get("//tmp/crt/@replicated_table_options")
+        assert options["enable_replicated_table_tracker"]
+        assert options["min_sync_replica_count"] == 1
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t", "enable_replicated_table_tracker": True},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1", "enable_replicated_table_tracker": True}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids)
+        self._sync_replication_era(card_id, replicas)
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "failed")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
+
+        values = [{"key": 0, "value": "0"}]
+        keys = [{"key": 0}]
+        self._insistent_insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+
+        cypress_replicas = get("//tmp/crt/@replicas")
+        assert [cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids] == [True, False, True]
+
+        alter_table_replica(replica_ids[0], enable_replicated_table_tracker=False)
+        assert not get("//tmp/crt/@replicas/{0}/replicated_table_tracker_enabled".format(replica_ids[0]))
 
 
 ##################################################################

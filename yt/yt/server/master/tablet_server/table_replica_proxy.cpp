@@ -248,9 +248,16 @@ private:
             ? std::make_optional(request->preserve_timestamps())
             : std::nullopt;
 
-        context->SetRequestInfo("Enabled: %v, Mode: %v",
+        auto enableReplicatedTableTracker = request->has_enable_replicated_table_tracker()
+            ? std::make_optional(request->enable_replicated_table_tracker())
+            : std::nullopt;
+
+        context->SetRequestInfo("Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v",
             enabled,
-            mode);
+            mode,
+            atomicity,
+            preserveTimestamps,
+            enableReplicatedTableTracker);
 
         auto* replica = GetThisImpl();
 
@@ -261,7 +268,8 @@ private:
                 std::move(enabled),
                 std::move(mode),
                 std::move(atomicity),
-                std::move(preserveTimestamps));
+                std::move(preserveTimestamps),
+                std::move(enableReplicatedTableTracker));
         }
 
         context->Reply();

@@ -10,12 +10,13 @@ namespace NYT::NTableServer {
 using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NCellMaster;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicatedTableNode::TReplicatedTableNode(TVersionedNodeId id)
     : TTableNode(id)
-    , ReplicatedTableOptions_(New<NTabletServer::TReplicatedTableOptions>())
+    , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
 void TReplicatedTableNode::Save(TSaveContext& context) const

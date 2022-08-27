@@ -649,6 +649,10 @@ def get_chaos_node_config():
             era_commencing_period = 100;
         };
         snapshot_store_read_pool_size = 1;
+        replicated_table_tracker_config_fetcher = {
+            update_period = 100;
+            enable_unrecognized_options_alert = %true;
+        };
     };
 
     cellar_node = {

@@ -1248,6 +1248,8 @@ TAlterTableReplicaCommand::TAlterTableReplicaCommand()
         .Optional();
     RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
+    RegisterParameter("enable_replicated_table_tracker", Options.EnableReplicatedTableTracker)
+        .Optional();
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)

@@ -557,7 +557,8 @@ public:
         std::optional<bool> enabled,
         std::optional<ETableReplicaMode> mode,
         std::optional<EAtomicity> atomicity,
-        std::optional<bool> preserveTimestamps)
+        std::optional<bool> preserveTimestamps,
+        std::optional<bool> enableReplicatedTableTracker)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -632,13 +633,14 @@ public:
             preserveTimestamps = std::nullopt;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v)",
             table->GetId(),
             replica->GetId(),
             enabled,
             mode,
             atomicity,
-            preserveTimestamps);
+            preserveTimestamps,
+            enableReplicatedTableTracker);
 
         if (mode) {
             replica->SetMode(*mode);
@@ -651,6 +653,10 @@ public:
 
         if (preserveTimestamps) {
             replica->SetPreserveTimestamps(*preserveTimestamps);
+        }
+
+        if (enableReplicatedTableTracker) {
+            replica->SetEnableReplicatedTableTracker(*enableReplicatedTableTracker);
         }
 
         if (enabled) {
@@ -8837,14 +8843,16 @@ void TTabletManager::AlterTableReplica(
     std::optional<bool> enabled,
     std::optional<ETableReplicaMode> mode,
     std::optional<EAtomicity> atomicity,
-    std::optional<bool> preserveTimestamps)
+    std::optional<bool> preserveTimestamps,
+    std::optional<bool> enableReplicatedTableTracker)
 {
     Impl_->AlterTableReplica(
         replica,
         std::move(enabled),
         std::move(mode),
         std::move(atomicity),
-        std::move(preserveTimestamps));
+        std::move(preserveTimestamps),
+        std::move(enableReplicatedTableTracker));
 }
 
 std::vector<TTabletActionId> TTabletManager::SyncBalanceCells(

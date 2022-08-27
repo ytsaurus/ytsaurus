@@ -30,7 +30,7 @@ TString ToString(const TChangeReplicaModeCommand& command);
 struct TReplicatedTableData
 {
     NTableClient::TTableId Id;
-    TReplicatedTableOptionsPtr Options;
+    NTabletClient::TReplicatedTableOptionsPtr Options;
     NProfiling::TCounter ReplicaModeSwitchCounter;
 };
 
@@ -61,8 +61,7 @@ struct TReplicatedTableTrackerSnapshot
 using TReplicaLagTimes = std::vector<
     std::pair<NTabletClient::TTableReplicaId, std::optional<TDuration>>>;
 
-using TApplyChangeReplicaCommandResults = std::vector<
-    TErrorOr<NTabletClient::TTableReplicaYPathProxy::TRspAlterPtr>>;
+using TApplyChangeReplicaCommandResults = std::vector<TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +85,7 @@ struct IReplicatedTableTrackerHost
     virtual void SubscribeReplicatedTableCreated(TCallback<void(TReplicatedTableData)> callback) = 0;
     virtual void SubscribeReplicatedTableDestroyed(TCallback<void(NTableClient::TTableId)> callback) = 0;
     virtual void SubscribeReplicatedTableOptionsUpdated(
-        TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> callback) = 0;
+        TCallback<void(NTableClient::TTableId, NTabletClient::TReplicatedTableOptionsPtr)> callback) = 0;
 
     virtual void SubscribeReplicaCreated(TCallback<void(TReplicaData)> callback) = 0;
     virtual void SubscribeReplicaDestroyed(

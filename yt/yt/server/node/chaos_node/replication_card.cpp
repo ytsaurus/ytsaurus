@@ -1,14 +1,22 @@
 #include "replication_card.h"
 
+#include "replication_card_serialization.h"
 #include "serialize.h"
 
 #include <yt/yt/client/chaos_client/public.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 #include <yt/yt/core/misc/format.h>
+
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NChaosNode {
 
 using namespace NChaosClient;
+using namespace NObjectClient;
+using namespace NTabletClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +39,11 @@ void TMigration::Persist(const TPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TReplicationCard::TReplicationCard(TObjectId id)
+    : TObjectBase(id)
+    , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
+{ }
 
 TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
 {
@@ -61,6 +74,7 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, CurrentTimestamp_);
     Save(context, Migration_);
     Save(context, State_);
+    Save(context, *ReplicatedTableOptions_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -83,18 +97,28 @@ void TReplicationCard::Load(TLoadContext& context)
         Load(context, Migration_);
         Load(context, State_);
     }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EChaosReign::ReplicatedTableOptions) {
+        Load(context, *ReplicatedTableOptions_);
+    }
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x}",
+    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, ReplicatedTableOptions: %v}",
         replicationCard.GetId(),
         replicationCard.Replicas(),
         replicationCard.GetEra(),
         replicationCard.GetTableId(),
         replicationCard.GetTablePath(),
         replicationCard.GetTableClusterName(),
-        replicationCard.GetCurrentTimestamp());
+        replicationCard.GetCurrentTimestamp(),
+        ConvertToYsonString(replicationCard.GetReplicatedTableOptions(), EYsonFormat::Text).AsStringBuf());
+}
+
+bool TReplicationCard::IsMigrated() const
+{
+    return GetState() == EReplicationCardState::Migrated;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

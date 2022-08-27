@@ -1526,6 +1526,7 @@ message TReqAlterTableReplica
     optional ETableReplicaMode mode = 3;
     optional bool preserve_timestamps = 4;
     optional EAtomicity atomicity = 5;
+    optional bool enable_replicated_table_tracker = 6;
 
     optional TMutatingOptions mutating_options = 100;
 }

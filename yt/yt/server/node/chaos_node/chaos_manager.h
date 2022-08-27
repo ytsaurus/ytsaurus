@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -62,9 +64,21 @@ struct IChaosManager
     virtual void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) = 0;
     virtual void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) = 0;
     virtual void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) = 0;
+    virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicatedTableData), ReplicatedTableCreated);
+    DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId), ReplicatedTableDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId, NTabletClient::TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicaData), ReplicaCreated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode), ReplicaModeUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, bool), ReplicaEnablementUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCard, TReplicationCard);
     virtual TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) = 0;

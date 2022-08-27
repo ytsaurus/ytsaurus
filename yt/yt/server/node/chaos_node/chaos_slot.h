@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "bootstrap.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -10,6 +11,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
+#include <yt/yt/server/lib/tablet_server/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -18,6 +21,8 @@
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
+
+#include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -62,6 +67,10 @@ struct IChaosSlot
     virtual const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
+
+    virtual NApi::IClientPtr CreateClusterClient(const TString& clusterName) const = 0;
+    virtual const NTabletServer::IReplicatedTableTrackerPtr& GetReplicatedTableTracker() const = 0;
+    virtual void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosSlot)

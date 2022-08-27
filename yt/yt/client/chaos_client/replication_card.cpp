@@ -131,19 +131,6 @@ void TReplicaHistoryItem::Persist(const TStreamPersistenceContext& context)
     Persist(context, State);
 }
 
-void TReplicaInfo::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, ClusterName);
-    Persist(context, ReplicaPath);
-    Persist(context, ContentType);
-    Persist(context, Mode);
-    Persist(context, State);
-    Persist(context, History);
-    Persist(context, ReplicationProgress);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 int TReplicaInfo::FindHistoryItemIndex(TTimestamp timestamp)
