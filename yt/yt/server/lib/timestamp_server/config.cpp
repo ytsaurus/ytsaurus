@@ -11,8 +11,6 @@ void TTimestampManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("timestamp_preallocation_interval", &TThis::TimestampPreallocationInterval)
         .Alias("commit_advance")
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("timestamp_reserve_interval", &TThis::TimestampReserveInterval)
-        .Default(TDuration::Seconds(1));
     registrar.Parameter("max_timestamps_per_request", &TThis::MaxTimestampsPerRequest)
         .GreaterThan(0)
         .Default(1000000);

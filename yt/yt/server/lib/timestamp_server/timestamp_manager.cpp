@@ -192,7 +192,7 @@ private:
         context->Reply();
     }
 
-    static ui64 GetCurrentTime()
+    static ui64 GetCurrentUnixTime()
     {
         return ::time(nullptr);
     }
@@ -205,32 +205,33 @@ private:
             return;
         }
 
-        ui64 currentTime = GetCurrentTime();
-        ui64 prevTime = UnixTimeFromTimestamp(CurrentTimestamp_);
-        if (currentTime == prevTime) {
-            return;
-        }
-        if (currentTime < prevTime) {
-            YT_LOG_WARNING("Clock went back, keeping current timestamp (PrevTime: %v, NowTime: %v)",
-                prevTime,
-                currentTime);
+        ui64 clockUnixTime = GetCurrentUnixTime();
+        ui64 currentTimestampUnixTime = UnixTimeFromTimestamp(CurrentTimestamp_);
+
+        if (clockUnixTime == currentTimestampUnixTime) {
             return;
         }
 
-        ui64 committedTime = UnixTimeFromTimestamp(CommittedTimestamp_);
-        ui64 timestampReserve = Config_->TimestampReserveInterval.Seconds();
-        if (committedTime >= timestampReserve) {
-            ui64 reserveLimitTime = committedTime - timestampReserve;
-            ui64 newCurrentTimestamp = TimestampFromUnixTime(std::min(currentTime, reserveLimitTime));
-            if (Config_->EmbedCellTag) {
-                newCurrentTimestamp = EmbedCellTagIntoTimestamp(newCurrentTimestamp, CellTag_);
-            }
-            if (newCurrentTimestamp > CurrentTimestamp_) {
-                CurrentTimestamp_ = newCurrentTimestamp;
-            }
+        if (clockUnixTime < currentTimestampUnixTime) {
+            YT_LOG_WARNING("Clock went back, keeping current timestamp (CurrentTimestampUnixTime: %v, ClockUnixTime: %v)",
+                currentTimestampUnixTime,
+                clockUnixTime);
+            return;
         }
 
-        auto proposedTimestamp = TimestampFromUnixTime(currentTime + Config_->TimestampPreallocationInterval.Seconds());
+        YT_VERIFY(clockUnixTime > currentTimestampUnixTime);
+
+        ui64 newCurrentTimestamp = TimestampFromUnixTime(clockUnixTime);
+        if (Config_->EmbedCellTag) {
+            newCurrentTimestamp = EmbedCellTagIntoTimestamp(newCurrentTimestamp, CellTag_);
+        }
+
+        // NB: the check is for sanity.
+        if (newCurrentTimestamp > CurrentTimestamp_) {
+            CurrentTimestamp_ = newCurrentTimestamp;
+        }
+
+        auto proposedTimestamp = TimestampFromUnixTime(clockUnixTime + Config_->TimestampPreallocationInterval.Seconds());
 
         YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %x, ProposedTimestamp: %x)",
             CurrentTimestamp_,
@@ -317,7 +318,7 @@ private:
         }).Via(invoker);
 
         ui64 deadlineTime = UnixTimeFromTimestamp(PersistentTimestamp_);
-        ui64 currentTime = GetCurrentTime();
+        ui64 currentTime = GetCurrentUnixTime();
         if (currentTime > deadlineTime) {
             callback.Run();
         } else {
