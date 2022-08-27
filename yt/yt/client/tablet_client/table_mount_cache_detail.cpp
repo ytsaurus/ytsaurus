@@ -47,7 +47,7 @@ TTabletInfoPtr TTabletInfoCache::Insert(const TTabletInfoPtr& tabletInfo)
             if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::InvalidMountRevision,
-                    "Tablet mount revision %llx is outdated",
+                    "Tablet mount revision %x is outdated",
                     tabletInfo->MountRevision)
                     << TErrorAttribute("tablet_id", tabletInfo->TabletId);
             }
@@ -212,7 +212,7 @@ std::pair<std::optional<TErrorCode>, TTabletInfoPtr> TTableMountCacheBase::Inval
                 if (tabletInfo) {
                     YT_LOG_DEBUG(error,
                         "Invalidating tablet in table mount cache "
-                        "(TabletId: %v, CellId: %v, MountRevision: %llx, IsTabletUnmounted: %v, Owners: %v)",
+                        "(TabletId: %v, CellId: %v, MountRevision: %x, IsTabletUnmounted: %v, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,

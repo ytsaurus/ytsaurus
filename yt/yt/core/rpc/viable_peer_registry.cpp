@@ -155,7 +155,7 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Sticky peer selected (RequestId: %v, RequestHash: %llx, RandomIndex: %v/%v, Address: %v)",
+            "Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
             request->GetRequestId(),
             hash,
             randomIndex,

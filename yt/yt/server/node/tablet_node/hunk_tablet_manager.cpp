@@ -322,7 +322,7 @@ private:
         ScheduleScanTablet(tablet->GetId());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Hunk tablet mounted (TabletId: %v, MountRevision: %llx)",
+            "Hunk tablet mounted (TabletId: %v, MountRevision: %x)",
             tabletId,
             mountRevision);
 

@@ -1088,7 +1088,7 @@ public:
             }),
             MakeFormatterWrapper([&] (auto* builder) {
                 if (consistentReplicaPlacementHash != NullConsistentReplicaPlacementHash) {
-                    builder->AppendFormat(", ConsistentReplicaPlacementHash: %llx",
+                    builder->AppendFormat(", ConsistentReplicaPlacementHash: %x",
                         consistentReplicaPlacementHash);
                 }
             }));

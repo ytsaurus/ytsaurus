@@ -1607,7 +1607,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
         if (trunkNode->GetRevision() != revision) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: node %v revision mismatch: expected %llx, found %llx",
+                "Prerequisite check failed: node %v revision mismatch: expected %x, found %x",
                 path,
                 revision,
                 trunkNode->GetRevision());

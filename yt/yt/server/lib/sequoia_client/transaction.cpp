@@ -373,7 +373,7 @@ private:
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
-        YT_LOG_DEBUG("Transaction started (StartTimestamp: %llx)",
+        YT_LOG_DEBUG("Transaction started (StartTimestamp: %x)",
             Transaction_->GetStartTimestamp());
     }
 

@@ -229,7 +229,7 @@ public:
             entry.Future = entry.Promise.ToFuture();
             entry.LastAccessTime = now;
 
-            YT_LOG_DEBUG("Chunk replicas updated (ChunkId: %v, Replicas: %v, Revision: %llx)",
+            YT_LOG_DEBUG("Chunk replicas updated (ChunkId: %v, Replicas: %v, Revision: %x)",
                 chunkId,
                 MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
                 replicas.Revision);

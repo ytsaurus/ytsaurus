@@ -366,7 +366,7 @@ protected:
         const auto& Logger = CypressServerLogger;
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
-            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %llx)",
+            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %x)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             lockRequest.Mode,

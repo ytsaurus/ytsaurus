@@ -163,7 +163,7 @@ private:
     };
 
     // Session state.
-    
+
     TObjectMap ClusterToDynamicStateObjects_;
     TObjectMap ClusterToModifiedObjects_;
     std::vector<TObject> ObjectsToDelete_;
@@ -242,7 +242,7 @@ private:
                 }
                 if (!object.Revision || *object.Revision < *revision) {
                     YT_LOG_DEBUG(
-                        "Object Cypress revision changed (Object: %v, Revision: %llx -> %llx)",
+                        "Object Cypress revision changed (Object: %v, Revision: %x -> %x)",
                         object.Object,
                         object.Revision,
                         revision);
@@ -334,7 +334,7 @@ private:
                 if (cypressObjectIt != relevantCypressWatchlist.end()) {
                     if (!object.Revision || cypressObjectIt->second > *object.Revision) {
                         YT_LOG_DEBUG(
-                            "Object Cypress revision changed (Object: %v, Revision: %llx -> %llx)",
+                            "Object Cypress revision changed (Object: %v, Revision: %x -> %x)",
                             object.Object,
                             object.Revision,
                             cypressObjectIt->second);
@@ -356,7 +356,7 @@ private:
             for (const auto& [object, revision] : cypressWatchlist.ObjectsByType(type)) {
                 TCrossClusterReference objectRef{cluster, object};
                 YT_LOG_DEBUG(
-                    "Discovered object (Object: %v, Revision: %llx)",
+                    "Discovered object (Object: %v, Revision: %x)",
                     objectRef,
                     revision);
                 ClusterToModifiedObjects_[cluster].push_back({

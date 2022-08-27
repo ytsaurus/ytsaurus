@@ -215,7 +215,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     bool cacheHit = false;
     if (entry) {
         if (refreshRevision && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= refreshRevision) {
-            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
+            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
                 requestId,
                 key,
                 entry->GetRevision(),
@@ -223,7 +223,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
 
             tryRemove();
         } else if (IsExpired(entry, expireAfterSuccessfulUpdateTime, expireAfterFailedUpdateTime)) {
-            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
+            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
                 requestId,
                 key,
                 entry->GetRevision(),
@@ -232,7 +232,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
             tryRemove();
         } else {
             cacheHit = true;
-            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
+            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
                 requestId,
                 key,
                 entry->GetRevision(),
@@ -286,7 +286,7 @@ void TObjectServiceCache::EndLookup(
 {
     const auto& key = cookie.GetKey();
 
-    YT_LOG_DEBUG("Cache population request succeeded (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
+    YT_LOG_DEBUG("Cache population request succeeded (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
         requestId,
         key,
         revision,
@@ -367,7 +367,7 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
     TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",
+    YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
         key,
         entry->GetRevision(),
         entry->GetSuccess(),
@@ -381,7 +381,7 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
     TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",
+    YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
         key,
         entry->GetRevision(),
         entry->GetSuccess(),

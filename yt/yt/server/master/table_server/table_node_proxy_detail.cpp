@@ -1887,7 +1887,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
 
     auto timestamp = request->timestamp();
 
-    context->SetRequestInfo("Timestamp: %llx",
+    context->SetRequestInfo("Timestamp: %x",
         timestamp);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -1932,7 +1932,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartBackup)
     auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
         request->replicas());
 
-    context->SetRequestInfo("Timestamp: %llx, BackupMode: %v, ClockClusterTag: %v",
+    context->SetRequestInfo("Timestamp: %x, BackupMode: %v, ClockClusterTag: %v",
         timestamp,
         backupMode,
         clockClusterTag);

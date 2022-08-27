@@ -137,7 +137,7 @@ protected:
             IsMutationLoggingEnabled(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
             "PrimaryMedium: %v, Replication: %v, ErasureCodec: %v, ReadQuorum: %v, WriteQuorum: %v, "
-            "Mode: %v, LockTimestamp: %llx)",
+            "Mode: %v, LockTimestamp: %x)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),

@@ -183,7 +183,7 @@ private:
         };
 
         YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
-            "PartitionMaxTimestamp: %llx, MajorTimestamp: %llx, StoreCount: %v)",
+            "PartitionMaxTimestamp: %x, MajorTimestamp: %x, StoreCount: %v)",
             tablet->GetLoggingTag(),
             partition->GetId(),
             partition->GetIndex(),

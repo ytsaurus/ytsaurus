@@ -429,7 +429,7 @@ private:
 
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
-                "(%v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
+                "(%v, TransactionId: %v, MutationMountRevision: %x, CurrentMountRevision: %x)",
                 tablet->GetLoggingTag(),
                 transactionId,
                 mountRevision,
@@ -676,7 +676,7 @@ private:
             YT_LOG_DEBUG_IF(
                 IsMutationLoggingEnabled(),
                 "Received delayed rows with invalid mount revision; ignored "
-                "(TabletId: %v, TransactionId: %v, TabletMountRevision: %llx, RequestMountRevision: %llx)",
+                "(TabletId: %v, TransactionId: %v, TabletMountRevision: %x, RequestMountRevision: %x)",
                 tabletId,
                 transactionId,
                 tablet->GetMountRevision(),
@@ -701,7 +701,7 @@ private:
         if (!transaction) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                 "Delayed rows sent for absent transaction, ignored "
-                "(TransactionId: %v, TabletId: %v, RowCount: %v, DataWeight: %v, CommitSignature: %llx)",
+                "(TransactionId: %v, TabletId: %v, RowCount: %v, DataWeight: %v, CommitSignature: %x)",
                 transactionId,
                 tablet->GetId(),
                 rowCount,
@@ -712,7 +712,7 @@ private:
 
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
-            "Writing transaction delayed rows (TabletId: %v, TransactionId: %v, RowCount: %v, Lockless: %v, CommitSignature: %llx)",
+            "Writing transaction delayed rows (TabletId: %v, TransactionId: %v, RowCount: %v, Lockless: %v, CommitSignature: %x)",
             tablet->GetId(),
             transaction->GetId(),
             writeRecord.RowCount,

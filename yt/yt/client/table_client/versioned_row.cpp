@@ -516,7 +516,7 @@ void FormatValue(TStringBuilderBase* builder, const TVersionedValue& value, TStr
 {
     Format(
         builder,
-        "%v@%llx",
+        "%v@%x",
         static_cast<TUnversionedValue>(value),
         value.Timestamp);
 }
@@ -544,7 +544,7 @@ void FormatValue(TStringBuilderBase* builder, TVersionedRow row, TStringBuf /*fo
         row.BeginWriteTimestamps(),
         row.EndWriteTimestamps(),
         [] (TStringBuilderBase* builder, TTimestamp timestamp) {
-            builder->AppendFormat("%llx", timestamp);
+            builder->AppendFormat("%x", timestamp);
         });
     builder->AppendString(" | ");
     JoinToString(
@@ -552,7 +552,7 @@ void FormatValue(TStringBuilderBase* builder, TVersionedRow row, TStringBuf /*fo
         row.BeginDeleteTimestamps(),
         row.EndDeleteTimestamps(),
         [] (TStringBuilderBase* builder, TTimestamp timestamp) {
-            builder->AppendFormat("%llx", timestamp);
+            builder->AppendFormat("%x", timestamp);
         });
     builder->AppendChar(']');
 }

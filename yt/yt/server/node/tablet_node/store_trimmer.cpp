@@ -249,7 +249,7 @@ private:
                 trimTimestamp,
                 chunkReadOptions);
 
-            YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %llx, TrimRowCount: %v)",
+            YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %x, TrimRowCount: %v)",
                 tabletId,
                 trimTimestamp,
                 startRowIndex);

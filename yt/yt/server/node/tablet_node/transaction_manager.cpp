@@ -228,7 +228,7 @@ public:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %x, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -388,7 +388,7 @@ public:
             RunPrepareTransactionActions(transaction, options);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
-                "PrepareTimestamp: %llx@%v)",
+                "PrepareTimestamp: %x@%v)",
                 transactionId,
                 persistent,
                 options.PrepareTimestamp,
@@ -504,7 +504,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %x@%v)",
             transactionId,
             options.CommitTimestamp,
             options.CommitTimestampClusterTag);
@@ -596,7 +596,7 @@ public:
             const auto& commitOptions = transaction->CommitOptions();
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Transaction commit signature is completed; committing transaction "
-                "(TransactionId: %v, CommitTimestamp: %llx@%v)",
+                "(TransactionId: %v, CommitTimestamp: %x@%v)",
                 transaction->GetId(),
                 commitOptions.CommitTimestamp,
                 commitOptions.CommitTimestampClusterTag);
@@ -1016,7 +1016,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Handling transaction barrier (Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Handling transaction barrier (Timestamp: %x)",
             barrierTimestamp);
 
         for (auto& [_, heap ]: SerializingTransactionHeaps_) {
@@ -1030,7 +1030,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %x)",
                     transaction->GetId(),
                     commitTimestamp);
 
@@ -1091,7 +1091,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
+        YT_LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %x, MinPrepareTimestamp: %x)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
@@ -1111,7 +1111,7 @@ private:
 
         NTracing::TNullTraceContextGuard guard;
 
-        YT_LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
+        YT_LOG_DEBUG("Committing transaction barrier (Timestamp: %x -> %x)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);
 

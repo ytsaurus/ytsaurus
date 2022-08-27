@@ -1057,7 +1057,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
         RandomSeed_ != mutationContext->GetPrevRandomSeed() && mutationContext->GetPrevRandomSeed() != 0,
-        "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationPrevRandomSeed: %llx, MutationRandomSeed: %llx, MutationSequenceNumber: %v)",
+        "Mutation random seeds differ (AutomatonRandomSeed: %x, MutationPrevRandomSeed: %x, MutationRandomSeed: %x, MutationSequenceNumber: %v)",
         RandomSeed_.load(),
         mutationContext->GetPrevRandomSeed(),
         mutationContext->GetRandomSeed(),

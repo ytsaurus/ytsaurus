@@ -759,7 +759,7 @@ void TBackupSession::RunCreate()
         options.CheckpointTimestampDelay);
     Timestamp_ = InstantToTimestamp(TInstant::Now() + options.CheckpointTimestampDelay).second;
 
-    YT_LOG_DEBUG("Generated checkpoint timestamp for backup (Timestamp: %llx)",
+    YT_LOG_DEBUG("Generated checkpoint timestamp for backup (Timestamp: %x)",
         Timestamp_);
 
     InitializeAndLockTables(EBackupDirection::Backup);

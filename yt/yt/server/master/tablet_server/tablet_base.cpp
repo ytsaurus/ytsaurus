@@ -157,7 +157,7 @@ void TTabletBase::ValidateMountRevision(NHydra::TRevision mountRevision)
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
-            "Invalid mount revision of tablet %v: expected %llx, received %llx",
+            "Invalid mount revision of tablet %v: expected %x, received %x",
             Id_,
             MountRevision_,
             mountRevision);

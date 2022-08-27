@@ -80,7 +80,7 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
 
     const auto* header = reinterpret_cast<const TChangelogIndexHeader*>(current);
     if (header->Signature != TChangelogIndexHeader::ExpectedSignature) {
-        YT_LOG_WARNING("Changelog index file signature mismatch, recreating (ExpectedSignature: %llx, ActualSignature: %llx)",
+        YT_LOG_WARNING("Changelog index file signature mismatch, recreating (ExpectedSignature: %x, ActualSignature: %x)",
             TChangelogIndexHeader::ExpectedSignature,
             header->Signature);
         return recreate(EFileChangelogIndexOpenResult::ExistingRecreatedBrokenIndexHeader);

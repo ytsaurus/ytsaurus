@@ -153,11 +153,11 @@ public:
         }
 
         if (future) {
-            YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
+            YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %x)",
                 FiberId_);
             future.Cancel(error);
         } else {
-            YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
+            YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %x)",
                 FiberId_);
         }
     }
@@ -441,7 +441,7 @@ public:
     ~TResumeGuard()
     {
         if (Fiber_) {
-            YT_LOG_TRACE("Unwinding fiber (TargetFiberId: %llx)", Canceler_->GetFiberId());
+            YT_LOG_TRACE("Unwinding fiber (TargetFiberId: %x)", Canceler_->GetFiberId());
 
             Canceler_->Run(TError("Fiber resumer is lost"));
             Canceler_.Reset();
@@ -501,7 +501,7 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
                 fiber = std::move(fiber),
                 canceler = std::move(canceler)
             ] (const TError&) mutable {
-                YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
+                YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %x)",
                     canceler->GetFiberId());
 
                 invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(TResumeGuard{std::move(fiber), std::move(canceler)}));

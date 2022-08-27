@@ -270,7 +270,7 @@ void TLeaderCommitter::Start()
     auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     YT_VERIFY(CommittedState_.SequenceNumber == sequenceNumber);
 
-    YT_LOG_INFO("Leader committer started (LastRandomSeed: %llx, LoggedVersion: %v)",
+    YT_LOG_INFO("Leader committer started (LastRandomSeed: %x, LoggedVersion: %v)",
         LastRandomSeed_,
         NextLoggedVersion_);
 
@@ -517,7 +517,7 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
                     YT_VERIFY(currentChecksum == checksum);
                 } else {
                     currentChecksum = checksum;
-                    YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %llx)",
+                    YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %x)",
                         snapshotId,
                         followerId,
                         checksum);
@@ -746,7 +746,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
         for (auto id = 0; id < std::ssize(LastSnapshotInfo_->Checksums); ++id) {
             auto checksum = LastSnapshotInfo_->Checksums[id];
             if (checksum) {
-                YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
+                YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %x)",
                     LastSnapshotInfo_->SnapshotId,
                     id,
                     *checksum);
@@ -958,7 +958,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
         NextLoggedVersion_ = NextLoggedVersion_.Advance();
         ++NextLoggedSequenceNumber_;
 
-        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandomSeed: %llx, MutationType: %v, MutationId: %v)",
+        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandomSeed: %x, MutationType: %v, MutationId: %v)",
             mutation->SequenceNumber,
             mutation->Version,
             mutation->RandomSeed,
