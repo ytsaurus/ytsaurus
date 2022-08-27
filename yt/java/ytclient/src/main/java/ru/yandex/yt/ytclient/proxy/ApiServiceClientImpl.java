@@ -59,6 +59,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.operations.OperationImpl;
+import ru.yandex.yt.ytclient.operations.Spec;
 import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortJob;
@@ -97,6 +98,7 @@ import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
+import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutateNode;
@@ -806,19 +808,22 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return resultingSpec;
     }
 
-    @Override
-    public CompletableFuture<Operation> startMap(MapOperation req) {
+    private CompletableFuture<YTreeNode> prepareSpec(Spec spec) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     YTreeBuilder builder = YTree.builder();
-                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
+                    spec.prepare(builder, this, new SpecPreparationContext(configuration));
                     return patchSpec(builder.build().mapNode());
                 },
-                prepareSpecExecutor
-        ).thenCompose(
+                prepareSpecExecutor);
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMap(MapOperation req) {
+        return prepareSpec(req.getSpec()).thenCompose(
                 preparedSpec -> startOperation(
                         new StartOperation(EOperationType.OT_MAP, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
                                 .setMutatingOptions(req.getMutatingOptions())
                 ).thenApply(operationId ->
                         new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
@@ -827,17 +832,10 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<Operation> startReduce(ReduceOperation req) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    YTreeBuilder builder = YTree.builder();
-                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
-                    return patchSpec(builder.build().mapNode());
-                },
-                prepareSpecExecutor
-        ).thenCompose(
+        return prepareSpec(req.getSpec()).thenCompose(
                 preparedSpec -> startOperation(
                         new StartOperation(EOperationType.OT_REDUCE, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
                                 .setMutatingOptions(req.getMutatingOptions())
                 ).thenApply(operationId ->
                         new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
@@ -846,17 +844,22 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<Operation> startSort(SortOperation req) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    YTreeBuilder builder = YTree.builder();
-                    req.getSpec().prepare(builder, this, new SpecPreparationContext(configuration));
-                    return patchSpec(builder.build().mapNode());
-                },
-                prepareSpecExecutor
-        ).thenCompose(
+        return prepareSpec(req.getSpec()).thenCompose(
                 preparedSpec -> startOperation(
                         new StartOperation(EOperationType.OT_SORT, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions())
+                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
+                                .setMutatingOptions(req.getMutatingOptions())
+                ).thenApply(operationId ->
+                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
+        );
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMapReduce(MapReduceOperation req) {
+        return prepareSpec(req.getSpec()).thenCompose(
+                preparedSpec -> startOperation(
+                        new StartOperation(EOperationType.OT_MAP_REDUCE, preparedSpec)
+                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
                                 .setMutatingOptions(req.getMutatingOptions())
                 ).thenApply(operationId ->
                         new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))

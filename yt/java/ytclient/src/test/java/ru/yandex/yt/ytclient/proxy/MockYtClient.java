@@ -29,6 +29,7 @@ import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
+import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
@@ -238,6 +239,11 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
     @Override
     public CompletableFuture<Operation> startSort(SortOperation req) {
         return (CompletableFuture<Operation>) callMethod("startSort");
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMapReduce(MapReduceOperation req) {
+        return (CompletableFuture<Operation>) callMethod("startMapReduce");
     }
 
     @Override

@@ -24,6 +24,7 @@ import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
+import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
@@ -98,6 +99,12 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     default CompletableFuture<Operation> sort(SortOperation req) {
         return startSort(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startMapReduce(MapReduceOperation req);
+
+    default CompletableFuture<Operation> mapReduce(MapReduceOperation req) {
+        return startMapReduce(req).thenCompose(op -> op.watch().thenApply(unused -> op));
     }
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
