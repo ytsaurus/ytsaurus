@@ -1422,7 +1422,7 @@ public:
         std::vector<TChangeReplicaModeCommand> commands) override
     {
         return BIND([bootstrap = Bootstrap_, commands = std::move(commands)] {
-            std::vector<TFuture<TTableReplicaYPathProxy::TRspAlterPtr>> futures;
+            std::vector<TFuture<void>> futures;
             futures.reserve(commands.size());
 
             for (const auto& command : commands) {
@@ -1432,7 +1432,7 @@ public:
 
                 const auto& objectManager = bootstrap->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
-                futures.push_back(ExecuteVerb(rootService, req));
+                futures.push_back(ExecuteVerb(rootService, req).AsVoid());
             }
 
             return AllSet(std::move(futures));

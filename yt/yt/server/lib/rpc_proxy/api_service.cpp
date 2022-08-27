@@ -2308,11 +2308,17 @@ private:
         if (request->has_atomicity()) {
             options.Atomicity = CheckedEnumCast<EAtomicity>(request->atomicity());
         }
+        if (request->has_enable_replicated_table_tracker()) {
+            options.EnableReplicatedTableTracker = request->enable_replicated_table_tracker();
+        }
 
-        context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v",
+        context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v",
             replicaId,
             options.Enabled,
-            options.Mode);
+            options.Mode,
+            options.Atomicity,
+            options.PreserveTimestamps,
+            options.EnableReplicatedTableTracker);
 
         ExecuteCall(
             context,

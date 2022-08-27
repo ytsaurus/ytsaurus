@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
+#include <yt/yt/server/lib/dynamic_config/public.h>
+
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +105,8 @@ public:
     TDuration SlotScanPeriod;
 
     int SnapshotStoreReadPoolSize;
+
+    NDynamicConfig::TDynamicConfigManagerConfigPtr ReplicatedTableTrackerConfigFetcher;
 
     REGISTER_YSON_STRUCT(TChaosNodeConfig);
 

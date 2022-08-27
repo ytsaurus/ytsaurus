@@ -63,6 +63,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(TString, TableClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TReplicatedTableOptionsPtr, ReplicatedTableOptions);
 
     DEFINE_BYREF_RW_PROPERTY(TMigration, Migration);
     DEFINE_BYVAL_RW_PROPERTY(EReplicationCardState, State);
@@ -71,10 +72,12 @@ public:
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);
 
 public:
-    using TObjectBase::TObjectBase;
+    TReplicationCard(NObjectClient::TObjectId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    bool IsMigrated() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/);

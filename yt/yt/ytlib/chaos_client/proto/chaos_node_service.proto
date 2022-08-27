@@ -21,6 +21,7 @@ message TReqCreateReplicationCard
     optional NYT.NProto.TGuid table_id = 2; // NTableClient::TTableId
     optional string table_path = 3;
     optional string table_cluster_name = 4;
+    optional string replicated_table_options = 5; // NTabletClient::TReplicatedTableOptions
 }
 
 message TRspCreateReplicationCard
@@ -74,6 +75,7 @@ message TReqCreateTableReplica
     optional bool enabled = 6;
     optional bool catchup = 7 [default = true];
     optional TReplicationProgress replication_progress = 8;
+    optional bool enable_replicated_table_tracker = 9;
 }
 
 message TRspCreateTableReplica
@@ -100,6 +102,7 @@ message TReqAlterTableReplica
     required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId
     optional int32 mode = 3; // NTabletClient::ETableReplicaMode
     optional bool enabled = 4;
+    optional bool enable_replicated_table_tracker = 5;
 }
 
 message TRspAlterTableReplica

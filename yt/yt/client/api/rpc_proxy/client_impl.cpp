@@ -494,6 +494,9 @@ TFuture<void> TClient::AlterTableReplica(
     if (options.Atomicity) {
         req->set_atomicity(static_cast<NProto::EAtomicity>(*options.Atomicity));
     }
+    if (options.EnableReplicatedTableTracker) {
+        req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+    }
 
     ToProto(req->mutable_mutating_options(), options);
 

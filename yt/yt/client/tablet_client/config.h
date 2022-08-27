@@ -84,4 +84,35 @@ DEFINE_REFCOUNTED_TYPE(TRetryingRemoteDynamicStoreReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicatedTableOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableReplicatedTableTracker;
+
+    std::optional<int> MaxSyncReplicaCount;
+    std::optional<int> MinSyncReplicaCount;
+
+    TDuration SyncReplicaLagThreshold;
+
+    // TODO(akozhikhov): We probably do not need these in this per-table config.
+    TDuration TabletCellBundleNameTtl;
+    TDuration RetryOnFailureInterval;
+
+    bool EnablePreloadStateCheck;
+    TDuration IncompletePreloadGracePeriod;
+
+    std::optional<std::vector<TString>> PreferredSyncReplicaClusters;
+
+    std::tuple<int, int> GetEffectiveMinMaxReplicaCount(int replicaCount) const;
+
+    REGISTER_YSON_STRUCT(TReplicatedTableOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletClient

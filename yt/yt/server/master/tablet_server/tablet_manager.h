@@ -127,7 +127,8 @@ public:
         std::optional<bool> enabled,
         std::optional<ETableReplicaMode> mode,
         std::optional<NTransactionClient::EAtomicity> atomicity,
-        std::optional<bool> preserveTimestamps);
+        std::optional<bool> preserveTimestamps,
+        std::optional<bool> enableReplicatedTableTracker);
 
     void LockDynamicTable(
         NTableServer::TTableNode* table,
@@ -200,7 +201,7 @@ public:
 
     DECLARE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
     DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId), ReplicatedTableDestroyed);
-    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
+    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId, NTabletClient::TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
 
     DECLARE_SIGNAL(void(TReplicaData), ReplicaCreated);
     DECLARE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);

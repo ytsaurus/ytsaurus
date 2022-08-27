@@ -44,6 +44,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletServer;
+using namespace NTabletClient;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;

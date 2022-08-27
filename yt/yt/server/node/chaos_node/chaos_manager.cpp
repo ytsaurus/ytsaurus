@@ -25,6 +25,9 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 
+#include <yt/yt/server/lib/tablet_server/config.h>
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -51,6 +54,7 @@ using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletServer;
 using namespace NTabletNode;
 using namespace NTransactionSupervisor;
 
@@ -63,6 +67,17 @@ class TChaosManager
     : public IChaosManager
     , public TChaosAutomatonPart
 {
+    DEFINE_SIGNAL_OVERRIDE(void(TReplicatedTableData), ReplicatedTableCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableId), ReplicatedTableDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TReplicaData), ReplicaCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId), ReplicaDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, bool), ReplicaEnablementUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
+
 public:
     TChaosManager(
         TChaosManagerConfigPtr config,
@@ -213,6 +228,17 @@ public:
         mutation->CommitAndReply(context);
     }
 
+    TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            request,
+            &TChaosManager::HydraExecuteAlterTableReplica,
+            this);
+        return mutation
+            ->CommitAndLog(Logger)
+            .AsVoid();
+    }
 
     const std::vector<TCellId>& CoordinatorCellIds() override
     {
@@ -403,6 +429,7 @@ private:
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
         ReplicationCardObserver_->Start();
+        Slot_->GetReplicatedTableTracker()->EnableTracking();
     }
 
     void OnStopLeading() override
@@ -414,8 +441,17 @@ private:
         ChaosCellSynchronizer_->Stop();
         CommencerExecutor_->Stop();
         ReplicationCardObserver_->Stop();
+        Slot_->GetReplicatedTableTracker()->DisableTracking();
     }
 
+    void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TChaosAutomatonPart::OnRecoveryComplete();
+
+        Slot_->GetReplicatedTableTracker()->Initialize();
+    }
 
     void HydraGenerateReplicationCardId(
         const TCtxGenerateReplicationCardIdPtr& context,
@@ -443,12 +479,16 @@ private:
                 tableId);
         }
 
-        if (CellTagFromId(replicationCardId) != CellTagFromId(Slot_->GetCellId())) {
+        if (!IsDomesticReplicationCard(replicationCardId)) {
             THROW_ERROR_EXCEPTION("Could not create replication card with id %v: expected cell tag %v, got %v",
                 replicationCardId,
                 CellTagFromId(Slot_->GetCellId()),
                 CellTagFromId(replicationCardId));
         }
+
+        auto options = request->has_replicated_table_options()
+            ? SafeDeserializeReplicatedTableOptions(replicationCardId, TYsonString(request->replicated_table_options()))
+            : New<TReplicatedTableOptions>();
 
         auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
 
@@ -456,12 +496,18 @@ private:
         replicationCard->SetTableId(tableId);
         replicationCard->SetTablePath(request->table_path());
         replicationCard->SetTableClusterName(request->table_cluster_name());
+        replicationCard->SetReplicatedTableOptions(std::move(options));
 
         ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created (ReplicationCardId: %v, ReplicationCard: %v)",
             replicationCardId,
             *replicationCard);
+
+        ReplicatedTableCreated_.Fire(TReplicatedTableData{
+            .Id = replicationCardId,
+            .Options = replicationCard->GetReplicatedTableOptions()
+        });
 
         return replicationCardId;
     }
@@ -483,9 +529,14 @@ private:
 
     void HydraPrepareCreateReplicationCard(
         TTransaction* /*transaction*/,
-        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* request,
         const TTransactionPrepareOptions& /*options*/)
-    { }
+    {
+        if (request->has_replicated_table_options()) {
+            auto options = ConvertTo<TReplicatedTableOptionsPtr>(TYsonString(request->replicated_table_options()));
+            Y_UNUSED(options);
+        }
+    }
 
     void HydraCommitCreateReplicationCard(
         TTransaction* /*transaction*/,
@@ -524,7 +575,12 @@ private:
                 replicationCard->Migration().OriginCellId);
         }
 
+        for (const auto& [replicaId, _] : replicationCard->Replicas()) {
+            ReplicaDestroyed_.Fire(replicaId);
+        }
+
         ReplicationCardMap_.Remove(replicationCardId);
+        ReplicatedTableDestroyed_.Fire(replicationCardId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
@@ -560,7 +616,12 @@ private:
             return;
         }
 
+        for (const auto& [replicaId, _] : replicationCard->Replicas()) {
+            ReplicaDestroyed_.Fire(replicaId);
+        }
+
         ReplicationCardMap_.Remove(replicationCardId);
+        ReplicatedTableDestroyed_.Fire(replicationCardId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
@@ -581,9 +642,17 @@ private:
         auto replicationProgress = request->has_replication_progress()
             ? std::make_optional(FromProto<TReplicationProgress>(request->replication_progress()))
             : std::nullopt;
+        auto enableReplicatedTableTracker = request->has_enable_replicated_table_tracker()
+            ? request->enable_replicated_table_tracker()
+            : false;
 
         if (!IsStableReplicaMode(mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", mode);
+            THROW_ERROR_EXCEPTION("Invalid replica mode %v", mode);
+        }
+
+        if (contentType == ETableReplicaContentType::Queue && enableReplicatedTableTracker) {
+            THROW_ERROR_EXCEPTION("Replicated table tracker is not supported for %v replicas",
+                contentType);
         }
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
@@ -645,6 +714,7 @@ private:
         replicaInfo.State = enabled ? ETableReplicaState::Enabling : ETableReplicaState::Disabled;
         replicaInfo.Mode = mode;
         replicaInfo.ReplicationProgress = std::move(*replicationProgress);
+        replicaInfo.EnableReplicatedTableTracker = enableReplicatedTableTracker;
 
         if (catchup) {
             replicaInfo.History.push_back({
@@ -667,6 +737,16 @@ private:
         }
 
         ToProto(response->mutable_replica_id(), newReplicaId);
+
+        ReplicaCreated_.Fire(TReplicaData{
+            .TableId = replicationCardId,
+            .Id = newReplicaId,
+            .Mode = mode,
+            .Enabled = enabled,
+            .ClusterName = clusterName,
+            .TablePath = replicaPath,
+            .TrackingEnabled = enableReplicatedTableTracker
+        });
 
         if (context) {
             context->SetResponseInfo("ReplicaId: %v",
@@ -694,6 +774,8 @@ private:
 
         EraseOrCrash(replicationCard->Replicas(), replicaId);
 
+        ReplicaDestroyed_.Fire(replicaId);
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica removed (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
             replicaId);
@@ -704,20 +786,26 @@ private:
         NChaosClient::NProto::TReqAlterTableReplica* request,
         NChaosClient::NProto::TRspAlterTableReplica* /*response*/)
     {
+        HydraExecuteAlterTableReplica(request);
+    }
+
+    void HydraExecuteAlterTableReplica(NChaosClient::NProto::TReqAlterTableReplica* request)
+    {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TTableId>(request->replica_id());
-
-        std::optional<ETableReplicaMode> mode;
-        if (request->has_mode()) {
-            mode = FromProto<ETableReplicaMode>(request->mode());
-            if (!IsStableReplicaMode(*mode)) {
-                THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
-            }
-        }
-
+        auto mode = request->has_mode()
+            ? std::make_optional(FromProto<ETableReplicaMode>(request->mode()))
+            : std::nullopt;
         auto enabled = request->has_enabled()
             ? std::make_optional(request->enabled())
             : std::nullopt;
+        auto enableReplicatedTableTracker = request->has_enable_replicated_table_tracker()
+            ? std::make_optional(request->enable_replicated_table_tracker())
+            : std::nullopt;
+
+        if (mode && !IsStableReplicaMode(*mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+        }
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
@@ -736,27 +824,53 @@ private:
                 << TErrorAttribute("state", replicaInfo->State);
         }
 
+        if (replicaInfo->ContentType == ETableReplicaContentType::Queue && enableReplicatedTableTracker) {
+            THROW_ERROR_EXCEPTION("Replicated table tracker is not supported for %v replicas",
+                ETableReplicaContentType::Queue);
+        }
+
         bool revoke = false;
 
         if (mode && replicaInfo->Mode != *mode) {
-            if (replicaInfo->Mode == ETableReplicaMode::Sync) {
-                replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
-                revoke = true;
-            } else if (replicaInfo->Mode == ETableReplicaMode::Async) {
-                replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
-                revoke = true;
+            switch (replicaInfo->Mode) {
+                case ETableReplicaMode::Sync:
+                    replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
+                    break;
+
+                case ETableReplicaMode::Async:
+                    replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
+                    break;
+
+                default:
+                    YT_ABORT();
             }
+
+            revoke = true;
+            ReplicaModeUpdated_.Fire(replicaId, *mode);
         }
 
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
         if (enabled && *enabled != currentlyEnabled) {
-            if (replicaInfo->State == ETableReplicaState::Disabled) {
-                replicaInfo->State = ETableReplicaState::Enabling;
-                revoke = true;
-            } else if (replicaInfo->State == ETableReplicaState::Enabled) {
-                replicaInfo->State = ETableReplicaState::Disabling;
-                revoke = true;
+            switch (replicaInfo->State) {
+                case ETableReplicaState::Disabled:
+                    replicaInfo->State = ETableReplicaState::Enabling;
+                    break;
+
+                case ETableReplicaState::Enabled:
+                    replicaInfo->State = ETableReplicaState::Disabling;
+                    break;
+
+                default:
+                    YT_ABORT();
             }
+
+            revoke = true;
+            ReplicaEnablementUpdated_.Fire(replicaId, *enabled);
+        }
+
+        if (enableReplicatedTableTracker && replicaInfo->EnableReplicatedTableTracker != *enableReplicatedTableTracker) {
+            replicaInfo->EnableReplicatedTableTracker = *enableReplicatedTableTracker;
+            ReplicaTrackingPolicyUpdated_.Fire(replicaId, *enableReplicatedTableTracker);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
@@ -993,10 +1107,15 @@ private:
                     replicationCardId);
             }
 
+            auto options = protoReplicationCard.has_replicated_table_options()
+                ? SafeDeserializeReplicatedTableOptions(replicationCardId, TYsonString(protoReplicationCard.replicated_table_options()))
+                : New<TReplicatedTableOptions>();
+
             replicationCard->SetTableId(FromProto<TTableId>(protoReplicationCard.table_id()));
             replicationCard->SetTablePath(protoReplicationCard.table_path());
             replicationCard->SetTableClusterName(protoReplicationCard.table_cluster_name());
             replicationCard->SetEra(protoReplicationCard.era());
+            replicationCard->SetReplicatedTableOptions(std::move(options));
 
             YT_VERIFY(replicationCard->Coordinators().empty());
 
@@ -1023,6 +1142,11 @@ private:
                 replicationCardId,
                 IsDomesticReplicationCard(replicationCardId),
                 *replicationCard);
+
+            ReplicatedTableCreated_.Fire(TReplicatedTableData{
+                .Id = replicationCardId,
+                .Options = replicationCard->GetReplicatedTableOptions()
+            });
 
             HandleReplicationCardStateTransition(replicationCard);
         }
@@ -1054,6 +1178,8 @@ private:
         protoReplicationCard->set_table_path(replicationCard->GetTablePath());
         protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
         protoReplicationCard->set_era(replicationCard->GetEra());
+        protoReplicationCard->set_replicated_table_options(
+            ConvertToYsonString(replicationCard->GetReplicatedTableOptions()).ToString());
 
         TReplicationCardFetchOptions fetchOptions{
             .IncludeProgress = true,
@@ -1072,6 +1198,8 @@ private:
 
         replicationCard->SetState(EReplicationCardState::Migrated);
         replicationCard->Migration().ImmigrationTime = GetCurrentMutationContext()->GetTimestamp();
+
+        ReplicatedTableDestroyed_.Fire(replicationCard->GetId());
     }
 
     bool IsDomesticReplicationCard(TReplicationCardId replicationCardId)
@@ -1081,7 +1209,7 @@ private:
 
     bool IsReplicationCardMigrated(TReplicationCard* replicationCard)
     {
-        return replicationCard->GetState() == EReplicationCardState::Migrated;
+        return replicationCard->IsMigrated();
     }
 
     void PeriodicCurrentTimestampPropagation(void)
@@ -1581,6 +1709,18 @@ private:
                     .EndMap()
             .EndMap();
     }
+
+    TReplicatedTableOptionsPtr SafeDeserializeReplicatedTableOptions(TReplicationCardId replicationCardId, const TYsonString& serializedOptions)
+    {
+        try {
+            return ConvertTo<TReplicatedTableOptionsPtr>(serializedOptions);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to parse replicated table options (ReplicationCardId: %v)",
+                replicationCardId);
+        }
+        return New<TReplicatedTableOptions>();
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_)

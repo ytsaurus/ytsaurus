@@ -25,6 +25,11 @@
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -74,6 +79,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Era);
         descriptors->push_back(EInternedAttributeKey::CoordinatorCellIds);
         descriptors->push_back(EInternedAttributeKey::Replicas);
+        descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true));
@@ -150,6 +156,7 @@ private:
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* table = GetThisImpl();
+        const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
         switch (key) {
             case EInternedAttributeKey::Era:
@@ -166,12 +173,38 @@ private:
                             .Value(card->CoordinatorCellIds);
                     }));
 
-            case EInternedAttributeKey::Replicas:
-                return GetReplicationCard()
-                    .Apply(BIND([] (const TReplicationCardPtr& card) {
+            case EInternedAttributeKey::Replicas: {
+                auto options = TReplicationCardFetchOptions{
+                    .IncludeProgress = true,
+                    .IncludeReplicatedTableOptions = true,
+                };
+                auto latestTimestamp = timestampProvider->GetLatestTimestamp();
+
+                return GetReplicationCard(options)
+                    .Apply(BIND([&] (const TReplicationCardPtr& card) {
                         return BuildYsonStringFluently()
-                            .Value(card->Replicas);
+                            .DoMapFor(card->Replicas, [&] (TFluentMap fluent, const auto& pair) {
+                                const auto& [replicaId, replica] = pair;
+                                auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+                                auto replicaLagTime = minTimestamp < latestTimestamp
+                                    ? NTransactionClient::TimestampDiffToDuration(minTimestamp, latestTimestamp).second
+                                    : TDuration::Zero();
+
+                                fluent
+                                    .Item(ToString(replicaId))
+                                    .BeginMap()
+                                        .Item("cluster_name").Value(replica.ClusterName)
+                                        .Item("replica_path").Value(replica.ReplicaPath)
+                                        .Item("state").Value(replica.State)
+                                        .Item("mode").Value(replica.Mode)
+                                        .Item("content_type").Value(replica.ContentType)
+                                        .Item("replication_lag_time").Value(replicaLagTime)
+                                        .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
+                                    .EndMap();
+
+                            });
                     }));
+            }
 
             case EInternedAttributeKey::Schema:
                 if (!table->GetSchema()) {
@@ -179,6 +212,12 @@ private:
                 }
                 return table->GetSchema()->AsYsonAsync();
 
+            case EInternedAttributeKey::ReplicatedTableOptions:
+                return GetReplicationCard({.IncludeReplicatedTableOptions = true})
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
+                        return BuildYsonStringFluently()
+                            .Value(card->ReplicatedTableOptions);
+                    }));
 
             default:
                 break;

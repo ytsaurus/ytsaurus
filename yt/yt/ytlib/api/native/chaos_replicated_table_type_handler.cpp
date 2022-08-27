@@ -9,16 +9,20 @@
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NChaosClient;
 using namespace NCypressClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +52,8 @@ public:
             THROW_ERROR_EXCEPTION("\"owns_replication_card\" cannot be false while \"replication_card_id\" is missing");
         }
 
+        auto replicatedTableOptions = attributes->FindAndRemove<TReplicatedTableOptionsPtr>("replicated_table_options");
+
         auto clusterName = GetClusterName();
 
         auto transaction = StartTransaction(tablePath);
@@ -69,6 +75,7 @@ public:
             tableId,
             tablePath,
             clusterName,
+            replicatedTableOptions,
             replicationCardId,
             chaosMetadataCellId);
 
@@ -166,6 +173,7 @@ private:
         TTableId tableId,
         const TYPath& tablePath,
         const TString& tableClusterName,
+        TReplicatedTableOptionsPtr replicatedTableOptions,
         TReplicationCardId replicationCardId,
         TCellId metadataChaosCellId)
     {
@@ -174,6 +182,9 @@ private:
         ToProto(request.mutable_table_id(), tableId);
         request.set_table_path(tablePath);
         request.set_table_cluster_name(tableClusterName);
+        if (replicatedTableOptions) {
+            request.set_replicated_table_options(ConvertToYsonString(replicatedTableOptions).ToString());
+        }
 
         const auto& connection = Client_->GetNativeConnection();
         auto nodeCellTag = CellTagFromId(tableId);

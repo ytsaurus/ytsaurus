@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/config.h>
 
+#include <yt/yt/server/lib/dynamic_config/config.h>
+
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +63,8 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("snapshot_store_read_pool_size", &TThis::SnapshotStoreReadPoolSize)
         .Default(8);
+    registrar.Parameter("replicated_table_tracker_config_fetcher", &TThis::ReplicatedTableTrackerConfigFetcher)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

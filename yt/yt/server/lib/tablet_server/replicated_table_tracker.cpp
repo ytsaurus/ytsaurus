@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
@@ -24,6 +26,7 @@ using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NApi;
 using namespace NObjectClient;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +191,7 @@ struct TBundleHealthKey
     bool operator == (const TBundleHealthKey& other) const
     {
         return Client == other.Client &&
+            ClusterName == other.ClusterName &&
             BundleName == other.BundleName;
     }
 
@@ -195,6 +199,7 @@ struct TBundleHealthKey
     {
         return MultiHash(
             Client,
+            ClusterName,
             BundleName);
     }
 };
@@ -233,7 +238,7 @@ protected:
         return key.Client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health")
             // TODO(akozhikhov): Get rid of ToUncancelable here?
             .ToUncancelable()
-            .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
+            .Apply(BIND([=] (const TErrorOr<TYsonString>& error) {
                 return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
             }));
     }
@@ -693,7 +698,7 @@ public:
 
     TReplica* GetReplica(TTableReplicaId replicaId)
     {
-        YT_VERIFY(TypeFromId(replicaId) == EObjectType::TableReplica);
+        YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
         return &GetOrCrash(IdToReplica_, replicaId);
     }
 
@@ -854,12 +859,14 @@ private:
 
         TErrorOr<TValue> Get(const TKey& key)
         {
-            if (Future_.IsSet()) {
-                CurrentError_ = Future_.Get();
-                Future_ = Cache_->Get(key);
+            auto& state = States_[key];
+
+            if (state.Future.IsSet()) {
+                state.CurrentError = state.Future.Get();
+                state.Future = Cache_->Get(key);
             }
 
-            return CurrentError_;
+            return state.CurrentError;
         }
 
         void Reconfigure(const TAsyncExpiringCacheConfigPtr& config) const
@@ -868,10 +875,14 @@ private:
         }
 
     private:
-        const TIntrusivePtr<TCache> Cache_;
+        struct TState
+        {
+            TFuture<TValue> Future = MakeFuture<TValue>(TError("No result yet"));
+            TErrorOr<TValue> CurrentError;
+        };
 
-        TFuture<TValue> Future_ = MakeFuture<TValue>(TError("No result yet"));
-        TErrorOr<TValue> CurrentError_;
+        const TIntrusivePtr<TCache> Cache_;
+        THashMap<TKey, TState> States_;
     };
 
     TCacheSynchronousAdapter<TClusterLivenessCheckCache> ClusterLivenessChecker_;
@@ -908,20 +919,24 @@ private:
             return;
         }
 
-        try {
-            DrainActionQueue();
+        {
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("NewRTT"));
 
-            if (TrackingEnabled_.load() &&
-                Config_->EnableReplicatedTableTracker)
-            {
-                UpdateReplicaLagTimes();
-                UpdateReplicaStates();
-                UpdateReplicaModes();
-            } else {
-                YT_LOG_INFO("Replicated table tracker is disabled");
+            try {
+                DrainActionQueue();
+
+                if (TrackingEnabled_.load() &&
+                    Config_->EnableReplicatedTableTracker)
+                {
+                    UpdateReplicaLagTimes();
+                    UpdateReplicaStates();
+                    UpdateReplicaModes();
+                } else {
+                    YT_LOG_INFO("Replicated table tracker is disabled");
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Replicated table tracker iteration failed");
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Replicated table tracker iteration failed");
         }
 
         ScheduleTrackerIteration();
@@ -1176,7 +1191,7 @@ private:
 
     TReplicatedTable* GetTable(TTableId tableId)
     {
-        YT_VERIFY(TypeFromId(tableId) == EObjectType::ReplicatedTable);
+        YT_VERIFY(IsReplicatedTableType(TypeFromId(tableId)));
         return &GetOrCrash(IdToTable_, tableId);
     }
 
@@ -1212,7 +1227,7 @@ private:
             YT_LOG_DEBUG("Replicated table created (TableId: %v)",
                 tableId);
 
-            YT_VERIFY(TypeFromId(tableId) == EObjectType::ReplicatedTable);
+            YT_VERIFY(IsReplicatedTableType(TypeFromId(tableId)));
 
             EmplaceOrCrash(
                 IdToTable_,
@@ -1263,7 +1278,7 @@ private:
                 data.ClusterName,
                 data.TablePath);
 
-            YT_VERIFY(TypeFromId(replicaId) == EObjectType::TableReplica);
+            YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
 
             auto* table = GetTable(tableId);
             EmplaceOrCrash(
@@ -1280,7 +1295,7 @@ private:
             YT_LOG_DEBUG("Table replica destroyed (ReplicaId: %v)",
                 replicaId);
 
-            YT_VERIFY(TypeFromId(replicaId) == EObjectType::TableReplica);
+            YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
             auto tableId = GetReplica(replicaId)->GetReplicatedTableId();
 
             EraseOrCrash(*GetTable(tableId)->GetReplicaIds(), replicaId);
@@ -1403,9 +1418,9 @@ private:
 
         for (auto& replicaData : snapshot.Replicas) {
             auto tableId = replicaData.TableId;
-            YT_VERIFY(TypeFromId(tableId) == EObjectType::ReplicatedTable);
+            YT_VERIFY(IsReplicatedTableType(TypeFromId(tableId)));
             auto replicaId = replicaData.Id;
-            YT_VERIFY(TypeFromId(replicaId) == EObjectType::TableReplica);
+            YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
 
             auto* table = GetTable(tableId);
             EmplaceOrCrash(

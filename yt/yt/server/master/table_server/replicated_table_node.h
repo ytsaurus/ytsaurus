@@ -12,7 +12,7 @@ class TReplicatedTableNode
     : public TTableNode
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TReplicatedTableOptionsPtr, ReplicatedTableOptions);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TReplicatedTableOptionsPtr, ReplicatedTableOptions);
 
 public:
     using TTableNode::TTableNode;

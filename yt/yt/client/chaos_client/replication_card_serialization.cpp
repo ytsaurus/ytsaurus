@@ -2,8 +2,12 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -72,6 +76,7 @@ struct TSerializableReplicaInfo
     NTabletClient::ETableReplicaMode Mode;
     NTabletClient::ETableReplicaState State;
     TReplicationProgress ReplicationProgress;
+    bool EnableReplicatedTableTracker;
 
     REGISTER_YSON_STRUCT(TSerializableReplicaInfo);
 
@@ -88,6 +93,8 @@ struct TSerializableReplicaInfo
             .Default(ETableReplicaState::Disabled);
         registrar.Parameter("replication_progress", &TThis::ReplicationProgress)
             .Default();
+        registrar.Parameter("enable_replicated_table_tracker", &TThis::EnableReplicatedTableTracker)
+            .Default(false);
     }
 };
 
@@ -107,6 +114,7 @@ struct TSerializableReplicationCard
     TYPath TablePath;
     TString TableClusterName;
     NTransactionClient::TTimestamp CurrentTimestamp;
+    NTabletClient::TReplicatedTableOptionsPtr ReplicatedTableOptions;
 
     REGISTER_YSON_STRUCT(TSerializableReplicationCard);
 
@@ -124,6 +132,8 @@ struct TSerializableReplicationCard
         registrar.Parameter("table_cluster_name", &TThis::TableClusterName)
             .Default();
         registrar.Parameter("current_timestamp", &TThis::CurrentTimestamp)
+            .Default();
+        registrar.Parameter("replicated_table_options", &TThis::ReplicatedTableOptions)
             .Default();
     }
 };
@@ -167,6 +177,7 @@ void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplication
     replicationCard.TablePath = serializable->TablePath;
     replicationCard.TableClusterName = serializable->TableClusterName;
     replicationCard.CurrentTimestamp = serializable->CurrentTimestamp;
+    replicationCard.ReplicatedTableOptions = serializable->ReplicatedTableOptions;
 }
 
 void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
@@ -245,6 +256,10 @@ void Serialize(
         .DoIf(options.IncludeHistory, [&] (auto fluent) {
             fluent
                 .Item("history").Value(replicaInfo.History);
+        })
+        .DoIf(options.IncludeReplicatedTableOptions, [&] (auto fluent) {
+            fluent
+                .Item("enable_replicated_table_tracker").Value(replicaInfo.EnableReplicatedTableTracker);
         });
 }
 
@@ -289,6 +304,10 @@ void Serialize(
         .DoIf(options.IncludeCoordinators, [&] (auto fluent) {
             fluent
                 .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds);
+        })
+        .DoIf(options.IncludeReplicatedTableOptions && replicationCard.ReplicatedTableOptions, [&] (auto fluent) {
+            fluent
+                .Item("replicated_table_options").Value(replicationCard.ReplicatedTableOptions);
         })
         .Item("era").Value(replicationCard.Era)
         .Item("table_id").Value(replicationCard.TableId)
@@ -355,6 +374,9 @@ void ToProto(
     if (options.IncludeHistory) {
         ToProto(protoReplicaInfo->mutable_history(), replicaInfo.History);
     }
+    if (options.IncludeReplicatedTableOptions) {
+        protoReplicaInfo->set_enable_replicated_table_tracker(replicaInfo.EnableReplicatedTableTracker);
+    }
 }
 
 void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaInfo& protoReplicaInfo)
@@ -368,6 +390,9 @@ void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaIn
         FromProto(&replicaInfo->ReplicationProgress, protoReplicaInfo.progress());
     }
     FromProto(&replicaInfo->History, protoReplicaInfo.history());
+    if (protoReplicaInfo.has_enable_replicated_table_tracker()) {
+        replicaInfo->EnableReplicatedTableTracker = protoReplicaInfo.enable_replicated_table_tracker();
+    }
 }
 
 void ToProto(
@@ -382,6 +407,9 @@ void ToProto(
     }
     if (options.IncludeCoordinators) {
         ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard.CoordinatorCellIds);
+    }
+    if (options.IncludeReplicatedTableOptions && replicationCard.ReplicatedTableOptions) {
+        protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard.ReplicatedTableOptions).ToString());
     }
     protoReplicationCard->set_era(replicationCard.Era);
     ToProto(protoReplicationCard->mutable_table_id(), replicationCard.TableId);
@@ -403,6 +431,9 @@ void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TR
     replicationCard->TablePath = protoReplicationCard.table_path();
     replicationCard->TableClusterName = protoReplicationCard.table_cluster_name();
     replicationCard->CurrentTimestamp = protoReplicationCard.current_timestamp();
+    if (protoReplicationCard.has_replicated_table_options()) {
+        replicationCard->ReplicatedTableOptions = ConvertTo<TReplicatedTableOptionsPtr>(TYsonString(protoReplicationCard.replicated_table_options()));
+    }
 }
 
 void ToProto(
@@ -412,6 +443,7 @@ void ToProto(
     protoOptions->set_include_coordinators(options.IncludeCoordinators);
     protoOptions->set_include_progress(options.IncludeProgress);
     protoOptions->set_include_history(options.IncludeHistory);
+    protoOptions->set_include_replicated_table_options(options.IncludeReplicatedTableOptions);
 }
 
 void FromProto(
@@ -421,6 +453,7 @@ void FromProto(
     options->IncludeCoordinators = protoOptions.include_coordinators();
     options->IncludeProgress = protoOptions.include_progress();
     options->IncludeHistory = protoOptions.include_history();
+    options->IncludeReplicatedTableOptions = protoOptions.include_replicated_table_options();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

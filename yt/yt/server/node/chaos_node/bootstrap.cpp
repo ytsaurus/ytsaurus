@@ -13,8 +13,11 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/yt/server/lib/dynamic_config/dynamic_config_manager.h>
+
+#include <yt/yt/server/lib/tablet_server/config.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client.h>
 
 namespace NYT::NChaosNode {
 
@@ -22,6 +25,8 @@ using namespace NApi;
 using namespace NCellarClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NTabletServer;
+using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +48,10 @@ public:
 
         SlotManager_ = CreateSlotManager(GetConfig()->ChaosNode, this);
         SlotManager_->Initialize();
+
+        ReplicatedTableTrackerConfigFetcher_ = New<TReplicatedTableTrackerConfigFetcher>(
+            GetConfig()->ChaosNode->ReplicatedTableTrackerConfigFetcher,
+            ClusterNodeBootstrap_);
     }
 
     void Run() override
@@ -51,6 +60,8 @@ public:
             GetOrchidRoot(),
             "/chaos_cells",
             CreateVirtualNode(GetCellarManager()->GetCellar(ECellarType::Chaos)->GetOrchidService()));
+
+        ReplicatedTableTrackerConfigFetcher_->Start();
     }
 
     const IInvokerPtr& GetTransactionTrackerInvoker() const override
@@ -73,12 +84,45 @@ public:
         return SnapshotStoreReadPool_->GetInvoker();
     }
 
+    const NApi::NNative::IConnectionPtr& GetClusterConnection() const override
+    {
+        return ClusterNodeBootstrap_->GetConnection();
+    }
+
+    void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const override
+    {
+        ReplicatedTableTrackerConfigFetcher_->SubscribeConfigChanged(callback);
+    }
+
+    NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const override
+    {
+        return ReplicatedTableTrackerConfigFetcher_->GetConfig();
+    }
+
 private:
+    class TReplicatedTableTrackerConfigFetcher
+        : public TDynamicConfigManagerBase<TDynamicReplicatedTableTrackerConfig>
+    {
+    public:
+        TReplicatedTableTrackerConfigFetcher(TDynamicConfigManagerConfigPtr config, const NClusterNode::IBootstrap* bootstrap)
+            : TDynamicConfigManagerBase<TDynamicReplicatedTableTrackerConfig>(
+                TDynamicConfigManagerOptions{
+                    .ConfigPath = "//sys/@config/tablet_manager/replicated_table_tracker",
+                    .Name = "ReplicatedTableTracker",
+                    .ConfigIsTagged = false
+                },
+                std::move(config),
+                bootstrap->GetClient(),
+                bootstrap->GetControlInvoker())
+        { }
+    };
+
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_ = CreateShortcutSnapshotStore();
  
     TThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;
+    TIntrusivePtr<TReplicatedTableTrackerConfigFetcher> ReplicatedTableTrackerConfigFetcher_;
 
     NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {

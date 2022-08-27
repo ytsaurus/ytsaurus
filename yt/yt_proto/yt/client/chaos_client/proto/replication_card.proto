@@ -35,6 +35,7 @@ message TReplicaInfo
     required int32 state = 5; // NTabletClient::ETableReplicaState
     optional TReplicationProgress progress = 6;
     repeated TReplicaHistoryItem history = 7;
+    optional bool enable_replicated_table_tracker = 8;
 }
 
 message TReplicationCard
@@ -51,6 +52,7 @@ message TReplicationCard
     optional string table_path = 5;
     optional string table_cluster_name = 6;
     optional uint64 current_timestamp = 7;
+    optional string replicated_table_options = 8; // NTabletClient::TReplicatedTableOptions
 }
 
 message TUpstreamReplicationCard
@@ -64,6 +66,7 @@ message TReplicationCardFetchOptions
     optional bool include_coordinators = 1;
     optional bool include_progress = 2;
     optional bool include_history = 3;
+    optional bool include_replicated_table_options = 4;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

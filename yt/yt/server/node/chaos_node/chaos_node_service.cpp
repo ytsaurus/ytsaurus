@@ -14,6 +14,7 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/config.h>
 #include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -26,6 +27,7 @@ using namespace NHydra;
 using namespace NClusterNode;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -125,6 +127,10 @@ private:
             auto* protoEntry = protoReplicationCard->add_replicas();
             ToProto(protoEntry->mutable_id(), replicaId);
             ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
+        }
+
+        if (fetchOptions.IncludeReplicatedTableOptions) {
+            protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->GetReplicatedTableOptions()).ToString());
         }
 
         context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",

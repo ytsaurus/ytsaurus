@@ -184,6 +184,20 @@ bool IsTabletType(EObjectType type)
         type == EObjectType::HunkTablet;
 }
 
+bool IsReplicatedTableType(EObjectType type)
+{
+    return
+        type == EObjectType::ReplicatedTable ||
+        type == EObjectType::ReplicationCard;
+}
+
+bool IsTableReplicaType(EObjectType type)
+{
+    return
+        type == EObjectType::TableReplica ||
+        type == EObjectType::ChaosTableReplica;
+}
+
 bool HasSchema(EObjectType type)
 {
     if (type == EObjectType::Master) {
