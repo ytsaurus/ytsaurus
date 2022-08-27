@@ -114,6 +114,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("allow_cross_shard_dynamic_table_copying", &TThis::AllowCrossShardDynamicTableCopying)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

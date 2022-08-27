@@ -95,6 +95,9 @@ public:
     // COMPAT(shakurov)
     bool EnableExpirationTimeoutMergeFix;
 
+    // COMPAT(shakurov)
+    bool AllowCrossShardDynamicTableCopying;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

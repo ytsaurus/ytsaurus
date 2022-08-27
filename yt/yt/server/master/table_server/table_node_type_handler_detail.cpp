@@ -393,9 +393,17 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 {
     TBase::DoBeginCopy(node, context);
 
-    // TODO(babenko): support copying dynamic tables
     if (node->IsDynamic()) {
-        THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
+        // This is just a precaution. Copying dynamic tables should be fine: yes,
+        // there's a potential for a race between externalization request arriving
+        // to an external cell via Hive and a mount request arriving there via RPC
+        // (as part of 2PC). This race, however, is prevented by both mounting and
+        // externalization taking exclusive lock beforehand.
+        const auto& configManager = this->Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->CypressManager;
+        if (!config->AllowCrossShardDynamicTableCopying) {
+            THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
+        }
     }
 
     if (auto hunkStorageNode = node->GetHunkStorageNode()) {
