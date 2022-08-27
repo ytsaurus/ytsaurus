@@ -6,6 +6,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -27,6 +28,16 @@ final class SpecUtils {
                     ((CommandSpec) mapperOrReducerSpec).getCommand());
         } else {
             return builder;
+        }
+    }
+
+    static Optional<String> getMapperOrReducerTitle(UserJobSpec mapperOrReducerSpec) {
+        if (mapperOrReducerSpec instanceof MapperOrReducerSpec) {
+            return Optional.of(((MapperOrReducerSpec) mapperOrReducerSpec).getMapperOrReducerTitle());
+        } else if (mapperOrReducerSpec instanceof CommandSpec) {
+            return Optional.of(((CommandSpec) mapperOrReducerSpec).getCommand());
+        } else {
+            return Optional.empty();
         }
     }
 

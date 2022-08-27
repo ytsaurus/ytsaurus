@@ -2,10 +2,12 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.SortSpec;
+import ru.yandex.yt.ytclient.operations.MapReduceSpec;
 
-public class SortOperation extends BaseOperation<SortSpec> {
-    SortOperation(Builder builder) {
+@NonNullApi
+@NonNullFields
+public class MapReduceOperation extends BaseOperation<MapReduceSpec> {
+    MapReduceOperation(Builder builder) {
         super(builder);
     }
 
@@ -22,9 +24,9 @@ public class SortOperation extends BaseOperation<SortSpec> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends BuilderBase<Builder, SortSpec> {
-        public SortOperation build() {
-            return new SortOperation(this);
+    public static class Builder extends BuilderBase<Builder, MapReduceSpec> {
+        public MapReduceOperation build() {
+            return new MapReduceOperation(this);
         }
 
         protected Builder self() {
