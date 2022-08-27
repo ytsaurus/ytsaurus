@@ -362,6 +362,7 @@ struct TAllocationRequestState
     : public NYTree::TYsonStruct
 {
     TInstant CreationTime;
+    TString PodIdTemplate;
 
     REGISTER_YSON_STRUCT(TAllocationRequestState);
 

@@ -41,6 +41,72 @@ TString GetPodIdForInstance(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GetInstancePodIdTemplate(
+    const TString& cluster,
+    const TString& bundleName,
+    const TString& instanceType,
+    int index)
+{
+    return Format("<short-hostname>-%v-%03x-%v-%v", bundleName, index, instanceType, cluster);
+}
+
+std::optional<int> GetIndexFromPodId(
+    const TString& podId,
+    const TString& cluster,
+    const TString& instanceType)
+{
+    TStringBuf buffer = podId;
+    auto suffix = Format("-%v-%v", instanceType, cluster);
+    if (!buffer.ChopSuffix(suffix)) {
+        return {};
+    }
+
+    constexpr char Delimiter = '-';
+    auto indexString = buffer.RNextTok(Delimiter);
+
+    int result = 0;
+    if (TryIntFromString<16>(indexString, result)) {
+        return result;
+    }
+
+    return {};
+}
+
+int FindNextInstanceId(
+    const std::vector<TString>& instanceNames,
+    const TString& cluster,
+    const TString& instanceType)
+{
+    std::vector<int> existingIds;
+    existingIds.reserve(instanceNames.size());
+
+    for (const auto& instanceName : instanceNames) {
+        auto index = GetIndexFromPodId(instanceName, cluster, instanceType);
+        if (index && *index > 0) {
+            existingIds.push_back(*index);
+        }
+    }
+
+    // Sort and make unique.
+    std::sort(existingIds.begin(), existingIds.end());
+    auto last = std::unique(existingIds.begin(), existingIds.end());
+    existingIds.resize(std::distance(existingIds.begin(), last));
+
+    if (existingIds.empty()) {
+        return 1;
+    }
+
+    for (int index = 0; index < std::ssize(existingIds); ++index) {
+        if (existingIds[index] != index + 1) {
+            return index + 1;
+        }
+    }
+
+    return existingIds.back() + 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TInstanceTypeAdapter>
 class TInstanceManager
 {
@@ -126,7 +192,7 @@ private:
             spec->YPCluster = zoneInfo->YPCluster;
             spec->NannyService = adapter->GetNannyService(zoneInfo);
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
-            spec->PodIdTemplate = adapter->GetPodIdTemplate(input.Config->Cluster, bundleName);
+            spec->PodIdTemplate = GetPodIdTemplate(bundleName, adapter, input, mutations);
             spec->InstanceRole = adapter->GetInstanceRole();
 
             auto request = New<TAllocationRequest>();
@@ -134,8 +200,54 @@ private:
             mutations->NewAllocations[allocationId] = request;
             auto allocationState = New<TAllocationRequestState>();
             allocationState->CreationTime = TInstant::Now();
+            allocationState->PodIdTemplate = spec->PodIdTemplate;
             allocationsState[allocationId] = allocationState;
         }
+    }
+
+    TString GetPodIdTemplate(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        std::vector<TString> knownPodIds;
+        for (const auto& instanceName : adapter->GetInstancies()) {
+            knownPodIds.push_back(GetPodIdForInstance(instanceName));
+        }
+
+        for (const auto& [allocationId, state] : adapter->AllocationsState()) {
+            if (state->PodIdTemplate.Empty()) {
+                YT_LOG_WARNING("Empty PodIdTemplate found in allocation state "
+                    "(AllocationId: %v, InstanceType: %v, BundleName: %v)",
+                    allocationId,
+                    adapter->GetInstanceType(),
+                    bundleName);
+
+                mutations->AlertsToFire.push_back(TAlert{
+                        .Id = "unexpected_pod_id",
+                        .Description = Format("Allocation request %v for bundle %v has empty pod_id",
+                            allocationId, bundleName),
+                    });
+            }
+
+            knownPodIds.push_back(state->PodIdTemplate);
+        }
+
+        for (const auto& [_, state] : adapter->DeallocationsState()) {
+            knownPodIds.push_back(GetPodIdForInstance(state->InstanceName));
+        }
+
+        auto instanceIndex = FindNextInstanceId(
+            knownPodIds,
+            input.Config->Cluster,
+            adapter->GetInstanceType());
+
+        return GetInstancePodIdTemplate(
+            input.Config->Cluster,
+            bundleName,
+            adapter->GetInstanceType(),
+            instanceIndex);
     }
 
     void ProcessExistingAllocations(
@@ -999,8 +1111,10 @@ class TTabletNodeAllocatorAdapter
 public:
     TTabletNodeAllocatorAdapter(
         TBundleControllerStatePtr state,
+        const std::vector<TString>& bundleNodes,
         const THashSet<TString>& aliveBundleNodes)
         : State_(std::move(state))
+        , BundleNodes_(bundleNodes)
         , AliveBundleNodes_(aliveBundleNodes)
     { }
 
@@ -1062,14 +1176,10 @@ public:
         return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
     }
 
-    TString GetPodIdTemplate(const TString& cluster, const TString& bundleName) const
+    const TString& GetInstanceType()
     {
-        return Format("<short-hostname>-%v-aa-tab-%v", bundleName, cluster);
-    }
-
-    const TString GetInstanceType()
-    {
-        return "TabletNodes";
+        static const TString TabletNode = "tab";
+        return TabletNode;
     }
 
     TIndexedEntries<TAllocationRequestState>& AllocationsState() const
@@ -1176,6 +1286,11 @@ public:
         return AliveBundleNodes_;
     }
 
+    const std::vector<TString>& GetInstancies() const
+    {
+        return BundleNodes_;
+    }
+
     std::vector<TString> PeekInstanciesToDeallocate(
         int nodeCountToRemove,
         const TSchedulerInputState& input) const
@@ -1205,6 +1320,7 @@ public:
 
 private:
     TBundleControllerStatePtr State_;
+    const std::vector<TString>& BundleNodes_;
     const THashSet<TString>& AliveBundleNodes_;
 };
 
@@ -1215,8 +1331,10 @@ class TRpcProxyAllocatorAdapter
 public:
     TRpcProxyAllocatorAdapter(
         TBundleControllerStatePtr state,
+        const std::vector<TString>& bundleProxies,
         const THashSet<TString>& aliveProxies)
         : State_(std::move(state))
+        , BundleProxies_(bundleProxies)
         , AliveProxies_(aliveProxies)
     { }
 
@@ -1270,14 +1388,10 @@ public:
         return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
     }
 
-    TString GetPodIdTemplate(const TString& cluster, const TString& bundleName) const
+    const TString& GetInstanceType()
     {
-        return Format("<short-hostname>-%v-aa-rpc-%v", bundleName, cluster);
-    }
-
-    const TString GetInstanceType()
-    {
-        return "RpcProxy";
+        static const TString RpcProxy = "rpc";
+        return RpcProxy;
     }
 
     TIndexedEntries<TAllocationRequestState>& AllocationsState() const
@@ -1362,6 +1476,11 @@ public:
         return AliveProxies_;
     }
 
+    const std::vector<TString>& GetInstancies() const
+    {
+        return BundleProxies_;
+    }
+
     std::vector<TString> PeekInstanciesToDeallocate(
         int proxiesCountToRemove,
         const TSchedulerInputState& /*input*/) const
@@ -1372,6 +1491,7 @@ public:
 
 private:
     TBundleControllerStatePtr State_;
+    const std::vector<TString>& BundleProxies_;
     const THashSet<TString>& AliveProxies_;
 };
 
@@ -1414,7 +1534,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         } else {
             const auto& bundleNodes = input.BundleNodes[bundleName];
             auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
-            TTabletNodeAllocatorAdapter nodeAdapter(bundleState, aliveNodes);
+            TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
             nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
         }
 
@@ -1426,7 +1546,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         } else {
             const auto& bundleProxies = input.BundleProxies[bundleName];
             auto aliveProxies = GetAliveProxies(bundleProxies, input);
-            TRpcProxyAllocatorAdapter proxyAdapter(bundleState, aliveProxies);
+            TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
             proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations);
         }
     }
