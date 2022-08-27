@@ -47,25 +47,18 @@ using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger Logger("Test");
-
-namespace {
+const TLogger Logger("Test");
 
 TString GenerateLogFileName()
 {
     return GenerateRandomFileName("log");
 }
 
-} // namespace
-
 class TLoggingTest
     : public ::testing::Test
     , public ILogWriterHost
 {
 protected:
-    const TLoggingCategory Category = {
-        .Name = "category"
-    };
     const int DateLength = ToString("2014-04-24 23:41:09,804000").length();
 
     IInvokerPtr GetCompressionInvoker() override
@@ -73,7 +66,7 @@ protected:
         return GetCurrentInvoker();
     }
 
-    IMapNodePtr DeserializeStructured(const TString& source, ELogFormat format)
+    IMapNodePtr DeserializeStructuredEvent(const TString& source, ELogFormat format)
     {
         switch (format) {
             case ELogFormat::Json: {
@@ -86,7 +79,7 @@ protected:
             case ELogFormat::Yson: {
                 // Each line ends with a semicolon, so it must be treated as a list fragment.
                 auto listFragment = ConvertTo<std::vector<IMapNodePtr>>(TYsonStringBuf(source, EYsonType::ListFragment));
-                YT_VERIFY(listFragment.size() == 1);
+                EXPECT_EQ(1, std::ssize(listFragment));
                 return listFragment.front();
             }
             default:
@@ -98,11 +91,21 @@ protected:
     {
         TLogEvent event;
         event.Family = ELogFamily::PlainText;
-        event.Category = &Category;
+        event.Category = Logger.GetCategory();
         event.Level = ELogLevel::Debug;
         event.Message = TSharedRef::FromString("message");
         event.ThreadId = 0xba;
         WriteEvent(writer, event);
+    }
+
+    void ExpectPlainTextEvent(const TString& line)
+    {
+        EXPECT_EQ(
+            Format("\tD\t%v\t%v\t%v\t\t\n",
+                Logger.GetCategory()->Name,
+                "message",
+                "ba"),
+            line.substr(DateLength));
     }
 
     void WriteEvent(const ILogWriterPtr& writer, const TLogEvent& event)
@@ -111,7 +114,7 @@ protected:
         writer->Flush();
     }
 
-    std::vector<TString> ReadFile(
+    std::vector<TString> ReadPlainTextEvents(
         const TString& fileName,
         std::optional<ECompressionMethod> compressionMethod = {})
     {
@@ -119,7 +122,9 @@ protected:
             TString line;
             std::vector<TString> lines;
             while (input->ReadLine(line)) {
-                lines.push_back(line + "\n");
+                if (line.Contains(Logger.GetCategory()->Name)) {
+                    lines.push_back(line + "\n");
+                }
             }
             return lines;
         };
@@ -139,13 +144,13 @@ protected:
         }
     }
 
-    bool CheckLogFileContains(const TString& fileName, const TString& message)
+    bool CheckPlainTextLogFileContains(const TString& fileName, const TString& message)
     {
         if (!NFs::Exists(fileName)) {
             return false;
         }
 
-        auto lines = ReadFile(fileName);
+        auto lines = ReadPlainTextEvents(fileName);
         for (const auto& line : lines) {
             if (line.Contains(message)) {
                 return true;
@@ -180,13 +185,14 @@ protected:
         WritePlainTextEvent(writer);
 
         writer->Reload();
+
         WritePlainTextEvent(writer);
 
         {
-            auto lines = ReadFile(logFile.Name(), method);
-            EXPECT_EQ(5, std::ssize(lines));
-            EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
-            EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
+            auto lines = ReadPlainTextEvents(logFile.Name(), method);
+            EXPECT_EQ(2, std::ssize(lines));
+            ExpectPlainTextEvent(lines[0]);
+            ExpectPlainTextEvent(lines[1]);
         }
     }
 };
@@ -218,7 +224,7 @@ TEST_F(TLoggingTest, ReloadOnSighup)
     WaitForPredicate([&] {
         TString message("Message1");
         YT_LOG_INFO(message);
-        return CheckLogFileContains(logFile.Name(), message);
+        return CheckPlainTextLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Renaming logfile" << Endl;
@@ -234,7 +240,7 @@ TEST_F(TLoggingTest, ReloadOnSighup)
     WaitForPredicate([&] {
         TString message("Message2");
         YT_LOG_INFO(message);
-        return CheckLogFileContains(logFile.Name(), message);
+        return CheckPlainTextLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Success" << Endl;
@@ -268,7 +274,7 @@ TEST_F(TLoggingTest, ReloadOnRename)
     WaitForPredicate([&] {
         TString message("Message1");
         YT_LOG_INFO(message);
-        return CheckLogFileContains(logFile.Name(), message);
+        return CheckPlainTextLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Renaming logfile" << Endl;
@@ -280,7 +286,7 @@ TEST_F(TLoggingTest, ReloadOnRename)
     WaitForPredicate([&] {
         TString message("Message2");
         YT_LOG_INFO(message);
-        return CheckLogFileContains(logFile.Name(), message);
+        return CheckPlainTextLogFileContains(logFile.Name(), message);
     });
 
     Cerr << "Success" << Endl;
@@ -304,23 +310,19 @@ TEST_F(TLoggingTest, FileWriter)
     WritePlainTextEvent(writer);
 
     {
-        auto lines = ReadFile(logFile.Name());
-        EXPECT_EQ(2, std::ssize(lines));
-        EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
+        auto lines = ReadPlainTextEvents(logFile.Name());
+        EXPECT_EQ(1, std::ssize(lines));
+        ExpectPlainTextEvent(lines[0]);
     }
 
     writer->Reload();
     WritePlainTextEvent(writer);
 
     {
-        auto lines = ReadFile(logFile.Name());
-        EXPECT_EQ(5, std::ssize(lines));
-        EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength));
-        EXPECT_EQ("\n", lines[2]);
-        EXPECT_TRUE(lines[3].find("Logging started") != TString::npos);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[4].substr(DateLength));
+        auto lines = ReadPlainTextEvents(logFile.Name());
+        EXPECT_EQ(2, std::ssize(lines));
+        ExpectPlainTextEvent(lines[0]);
+        ExpectPlainTextEvent(lines[1]);
     }
 }
 
@@ -360,10 +362,7 @@ TEST_F(TLoggingTest, StreamWriter)
         &stringOutput);
 
     WritePlainTextEvent(writer);
-
-    EXPECT_EQ(
-       "\tD\tcategory\tmessage\tba\t\t\n",
-       stringOutput.Str().substr(DateLength));
+    ExpectPlainTextEvent(stringOutput.Str());
 }
 
 TEST_F(TLoggingTest, Rule)
@@ -418,18 +417,22 @@ TEST_F(TLoggingTest, LogManager)
 
     TLogManager::Get()->Synchronize();
 
-    auto infoLog = ReadFile(infoFile.Name());
-    auto errorLog = ReadFile(errorFile.Name());
+    {
+        auto infoLines = ReadPlainTextEvents(infoFile.Name());
+        EXPECT_EQ(2, std::ssize(infoLines));
+    }
 
-    EXPECT_EQ(3, std::ssize(infoLog));
-    EXPECT_EQ(2, std::ssize(errorLog));
+    {
+        auto errorLines = ReadPlainTextEvents(errorFile.Name());
+        EXPECT_EQ(1, std::ssize(errorLines));
+    }
 }
 
 TEST_F(TLoggingTest, StructuredLogging)
 {
     TLogEvent event;
     event.Family = ELogFamily::Structured;
-    event.Category = &Category;
+    event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Debug;
     event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item("message")
@@ -451,17 +454,13 @@ TEST_F(TLoggingTest, StructuredLogging)
         WriteEvent(writer, event);
         TLogManager::Get()->Synchronize();
 
-        auto log = ReadFile(logFile.Name());
+        auto lines = ReadPlainTextEvents(logFile.Name());
+        EXPECT_EQ(1, std::ssize(lines));
 
-        auto loggingStarted = DeserializeStructured(log[0], format);
-        EXPECT_EQ(loggingStarted->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
-        EXPECT_EQ(loggingStarted->GetChildOrThrow("level")->AsString()->GetValue(), "info");
-        EXPECT_EQ(loggingStarted->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
-
-        auto message = DeserializeStructured(log[1], format);
+        auto message = DeserializeStructuredEvent(lines[0], format);
         EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
         EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
-        EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), "category");
+        EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), Logger.GetCategory()->Name);
     }
 }
 
@@ -472,7 +471,7 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
 
     TLogEvent event;
     event.Family = ELogFamily::Structured;
-    event.Category = &Category;
+    event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Debug;
     event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item("message").Value("test_message")
@@ -504,19 +503,15 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     WriteEvent(writer, event);
     TLogManager::Get()->Synchronize();
 
-    auto log = ReadFile(logFile.Name());
+    auto lines = ReadPlainTextEvents(logFile.Name());
+    EXPECT_EQ(1, std::ssize(lines));
 
-    auto loggingStarted = DeserializeStructured(log[0], ELogFormat::Json);
-    EXPECT_EQ(loggingStarted->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(loggingStarted->GetChildOrThrow("level")->AsString()->GetValue(), "info");
-    EXPECT_EQ(loggingStarted->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
-
-    auto message = DeserializeStructured(log[1], ELogFormat::Json);
+    auto message = DeserializeStructuredEvent(lines[0], ELogFormat::Json);
     EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
     EXPECT_EQ(message->GetChildOrThrow("nan_value")->AsString()->GetValue(), "nan");
     EXPECT_EQ(message->GetChildOrThrow("long_string_value")->AsString()->GetValue(), longStringPrefix);
     EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
-    EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), "category");
+    EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), Logger.GetCategory()->Name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -739,11 +734,9 @@ TEST_F(TLoggingTest, RequestSuppression)
 
     TLogManager::Get()->Synchronize();
 
-    auto lines = ReadFile(logFile.Name());
-
-    EXPECT_EQ(2, std::ssize(lines));
-    EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
-    EXPECT_TRUE(lines[1].find("Info message") != TString::npos);
+    auto lines = ReadPlainTextEvents(logFile.Name());
+    EXPECT_EQ(1, std::ssize(lines));
+    EXPECT_TRUE(lines[0].find("Info message") != TString::npos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -844,11 +837,11 @@ protected:
     {
         TLogManager::Get()->Synchronize();
 
-        auto infoLog = ReadFile(fileName);
-        EXPECT_EQ(N + 1, std::ssize(infoLog));
+        auto lines = ReadPlainTextEvents(fileName);
+        EXPECT_EQ(N, std::ssize(lines));
         for (int i = 0; i < N; ++i) {
             auto expected = Format("%v", MakeRange(Chunks_.data(), Chunks_.data() + i));
-            auto actual = infoLog[i + 1];
+            auto actual = lines[i];
             EXPECT_NE(TString::npos, actual.find(expected));
         }
     }
@@ -916,7 +909,9 @@ public:
 
     void Write(const TLogEvent& event) override
     {
-        Messages_.push_back(TString(Config_->Padding, ' ') + ToString(event.Message));
+        if (event.Category == Logger.GetCategory()) {
+            Messages_.push_back(TString(Config_->Padding, ' ') + ToString(event.Message));
+        }
     }
 
     void Flush() override
