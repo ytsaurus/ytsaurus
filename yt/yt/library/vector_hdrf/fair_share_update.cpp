@@ -289,11 +289,7 @@ void TElement::DistributeFreeVolume()
 
 void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
-    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
-    auto mainResource = context->MainResource;
-
     TJobResources totalExplicitChildrenGuaranteeResources;
-    TJobResources totalEffectiveChildrenGuaranteeResources;
     for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
 
@@ -302,67 +298,81 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
             *child->GetStrongGuaranteeResourcesConfig(),
             /* defaultValue */ {});
         totalExplicitChildrenGuaranteeResources += childEffectiveGuaranteeResources;
-
-        double mainResourceRatio = GetResource(effectiveStrongGuaranteeResources, mainResource) > 0
-            ? GetResource(childEffectiveGuaranteeResources, mainResource) / GetResource(effectiveStrongGuaranteeResources, mainResource)
-            : 0.0;
-        auto childGuaranteeConfig = child->GetStrongGuaranteeResourcesConfig();
-        #define XX(name, Name) \
-            if (!childGuaranteeConfig->Name && EJobResourceType::Name != mainResource) { \
-                auto parentGuarantee = effectiveStrongGuaranteeResources.Get##Name(); \
-                childEffectiveGuaranteeResources.Set##Name(parentGuarantee * mainResourceRatio); \
-            }
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-
-        totalEffectiveChildrenGuaranteeResources += childEffectiveGuaranteeResources;
     }
 
-    // NB: It is possible to overcommit guarantees at the first level of the tree, so we don't want to do
-    // additional checks and rescaling. Instead, we handle this later when we adjust |StrongGuaranteeShare|.
-    if (!IsRoot()) {
+    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
+    if (!IsRoot() && !Dominates(effectiveStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
         const auto& Logger = GetLogger();
         // NB: This should never happen because we validate the guarantees at master.
-        YT_LOG_WARNING_IF(!Dominates(effectiveStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources),
+        YT_LOG_WARNING(
             "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool"
             "(EffectiveStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
             effectiveStrongGuaranteeResources,
             totalExplicitChildrenGuaranteeResources);
-
-        auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
-        auto totalImplicitChildrenGuaranteeResources = totalEffectiveChildrenGuaranteeResources - totalExplicitChildrenGuaranteeResources;
-        auto adjustImplicitGuaranteesForResource = [&] (EJobResourceType resourceType, auto TJobResourcesConfig::* resourceDataMember) {
-            if (resourceType == mainResource) {
-                return;
-            }
-
-            auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
-            auto totalImplicitChildrenGuarantee = GetResource(totalImplicitChildrenGuaranteeResources, resourceType);
-            if (residualGuarantee >= totalImplicitChildrenGuarantee) {
-                return;
-            }
-
-            double scalingFactor = residualGuarantee / totalImplicitChildrenGuarantee;
-            for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
-                auto* child = GetChild(childIndex);
-                if ((child->GetStrongGuaranteeResourcesConfig()->*resourceDataMember).has_value()) {
-                    continue;
-                }
-
-                auto childGuarantee = GetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType);
-                SetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType, childGuarantee * scalingFactor);
-            }
-        };
-
-        #define XX(name, Name) \
-            adjustImplicitGuaranteesForResource(EJobResourceType::Name, &TJobResourcesConfig::Name);
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
     }
+
+    DetermineImplicitEffectiveStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
 
     for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
         GetChild(childIndex)->DetermineEffectiveStrongGuaranteeResources(context);
     }
+}
+
+void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
+    const TJobResources& totalExplicitChildrenGuaranteeResources,
+    TFairShareUpdateContext* context)
+{
+    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
+    auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
+    auto mainResourceType = context->MainResource;
+    auto parentMainResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, mainResourceType);
+    auto doDetermineImplicitGuarantees = [&] (const auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+        if (resourceType == mainResourceType) {
+            return;
+        }
+
+        std::vector<std::optional<double>> implicitGuarantees;
+        implicitGuarantees.resize(GetChildrenCount());
+
+        auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
+        auto parentResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, resourceType);
+        double totalImplicitGuarantee = 0.0;
+        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+            auto* child = GetChild(childIndex);
+            if (child->GetStrongGuaranteeResourcesConfig()->*resourceDataMember) {
+                continue;
+            }
+
+            auto childMainResourceGuarantee = GetResource(child->Attributes().EffectiveStrongGuaranteeResources, mainResourceType);
+            double mainResourceRatio = parentMainResourceGuarantee > 0
+                ? childMainResourceGuarantee / parentMainResourceGuarantee
+                : 0.0;
+
+            auto& childImplicitGuarantee = implicitGuarantees[childIndex];
+            childImplicitGuarantee = mainResourceRatio * parentResourceGuarantee;
+            totalImplicitGuarantee += *childImplicitGuarantee;
+        }
+
+        // NB: It is possible to overcommit guarantees at the first level of the tree, so we don't want to do
+        // additional checks and rescaling. Instead, we handle this later when we adjust |StrongGuaranteeShare|.
+        if (!IsRoot() && totalImplicitGuarantee > residualGuarantee) {
+            auto scalingFactor = residualGuarantee / totalImplicitGuarantee;
+            for (auto& childImplicitGuarantee : implicitGuarantees) {
+                if (childImplicitGuarantee) {
+                    *childImplicitGuarantee *= scalingFactor;
+                }
+            }
+        }
+
+        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+            auto* child = GetChild(childIndex);
+            if (const auto& childImplicitGuarantee = implicitGuarantees[childIndex]) {
+                SetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
+            }
+        }
+    };
+
+    TJobResourcesConfig::ForEachResource(doDetermineImplicitGuarantees);
 }
 
 void TCompositeElement::InitIntegralPoolLists(TFairShareUpdateContext* context)
