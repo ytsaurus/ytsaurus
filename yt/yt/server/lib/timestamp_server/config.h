@@ -14,7 +14,6 @@ class TTimestampManagerConfig
 public:
     TDuration CalibrationPeriod;
     TDuration TimestampPreallocationInterval;
-    TDuration TimestampReserveInterval;
     int MaxTimestampsPerRequest;
     TDuration RequestBackoffTime;
     bool EmbedCellTag;
