@@ -6,9 +6,11 @@ from yt_commands import (
     make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
     lock, externalize,
     internalize, select_rows, read_file, write_file, read_table,
-    write_table, map, sync_create_cells,
-    sync_mount_table, get_singular_chunk_id, cluster_resources_equal, get_driver,
-    generate_uuid)
+    write_table, map,
+    sync_create_cells, create_dynamic_table, insert_rows, lookup_rows,
+    sync_mount_table, sync_unmount_table, sync_freeze_table,
+    get_singular_chunk_id, cluster_resources_equal, get_driver,
+    generate_uuid, )
 
 from yt_helpers import get_current_time
 
@@ -456,16 +458,48 @@ class TestPortals(YTEnvSetup):
 
         create(
             "table",
-            "//tmp/p1/m/t",
+            "//tmp/p1/m/t1",
             attributes={
                 "external_cell_tag": 13,
                 "optimize_for": "scan",
                 "account": "tmp",
             },
         )
-        assert get("//tmp/p1/m/t/@account") == "tmp"
+        assert get("//tmp/p1/m/t1/@account") == "tmp"
         TABLE_PAYLOAD = [{"key": "value"}]
-        write_table("//tmp/p1/m/t", TABLE_PAYLOAD)
+        write_table("//tmp/p1/m/t1", TABLE_PAYLOAD)
+
+        # Will be copied while unmounted.
+        create_dynamic_table(
+            "//tmp/p1/m/t2",
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="tmp",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        assert get("//tmp/p1/m/t2/@account") == "tmp"
+        sync_create_cells(1)
+        sync_mount_table("//tmp/p1/m/t2")
+        insert_rows("//tmp/p1/m/t2", [{"key": 42, "value": "hello"}])
+        sync_unmount_table("//tmp/p1/m/t2")
+
+        # Will be copied while frozen.
+        create_dynamic_table(
+            "//tmp/p1/m/t3",
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="tmp",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        assert get("//tmp/p1/m/t3/@account") == "tmp"
+        sync_create_cells(1)
+        sync_mount_table("//tmp/p1/m/t3")
+        insert_rows("//tmp/p1/m/t3", [{"key": 42, "value": "hello"}])
+        sync_freeze_table("//tmp/p1/m/t3")
 
         if in_tx:
             tx = start_transaction()
@@ -486,12 +520,19 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get("//tmp/p1/m/f/@resource_usage")
         assert get("//tmp/p2/m/f/@uncompressed_data_size", tx=tx) == len(FILE_PAYLOAD)
         assert read_file("//tmp/p2/m/f", tx=tx) == FILE_PAYLOAD
-        assert read_table("//tmp/p2/m/t", tx=tx) == TABLE_PAYLOAD
+        assert read_table("//tmp/p2/m/t1", tx=tx) == TABLE_PAYLOAD
+        assert get("//tmp/p2/m/t2/@dynamic", tx=tx)
+        assert get("//tmp/p2/m/t3/@dynamic", tx=tx)
 
         assert get("//sys/accounts/a/@resource_usage/chunk_count") == 1
 
         if in_tx:
             commit_transaction(tx)
+
+        sync_mount_table("//tmp/p2/m/t2")
+        assert lookup_rows("//tmp/p2/m/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
+        sync_mount_table("//tmp/p2/m/t3")
+        assert lookup_rows("//tmp/p2/m/t3", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
 
         create_account("b")
         set("//tmp/p2/m/f/@account", "b")
@@ -526,12 +567,27 @@ class TestPortals(YTEnvSetup):
         FILE_PAYLOAD = b"PAYLOAD"
         write_file("//tmp/p1/f", FILE_PAYLOAD)
 
+        create_dynamic_table(
+            "//tmp/p1/t",
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="tmp",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        sync_create_cells(1)
+        sync_mount_table("//tmp/p1/t")
+        insert_rows("//tmp/p1/t", [{"key": 42, "value": "hello"}])
+        sync_unmount_table("//tmp/p1/t")
+
         if in_tx:
             tx = start_transaction()
         else:
             tx = "0-0-0-0"
 
         move("//tmp/p1/f", "//tmp/p2/f", tx=tx, preserve_account=True)
+        move("//tmp/p1/t", "//tmp/p2/t", tx=tx, preserve_account=True)
 
         assert not exists("//tmp/p1/f", tx=tx)
         assert exists("//tmp/p2/f", tx=tx)
@@ -544,6 +600,9 @@ class TestPortals(YTEnvSetup):
 
         if in_tx:
             commit_transaction(tx)
+
+        sync_mount_table("//tmp/p2/t")
+        assert lookup_rows("//tmp/p2/t", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
 
         assert get("//tmp/p2/f/@account") == "a"
 
@@ -707,6 +766,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_externalize_node(self):
         create_account("a")
+        set("//sys/accounts/a/@resource_limits/tablet_count", 10)
         create_account("b")
         create_user("u")
 
@@ -719,15 +779,31 @@ class TestPortals(YTEnvSetup):
         TABLE_PAYLOAD = [{"key": "value"}]
         create(
             "table",
-            "//tmp/m/t",
+            "//tmp/m/t1",
             attributes={
                 "external": True,
                 "external_cell_tag": 13,
                 "account": "a",
-                "attr": "t",
+                "attr": "t1",
             },
         )
-        write_table("//tmp/m/t", TABLE_PAYLOAD)
+        write_table("//tmp/m/t1", TABLE_PAYLOAD)
+
+        create_dynamic_table(
+            "//tmp/m/t2",
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="a",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            attr="t2"
+        )
+        sync_create_cells(1)
+        sync_mount_table("//tmp/m/t2")
+        insert_rows("//tmp/m/t2", [{"key": 42, "value": "hello"}])
+        sync_unmount_table("//tmp/m/t2")
 
         FILE_PAYLOAD = b"PAYLOAD"
         create(
@@ -795,9 +871,14 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/@type") == "portal_exit"
         assert get("//tmp/m/@attr") == "value"
 
-        assert read_table("//tmp/m/t") == TABLE_PAYLOAD
-        assert get("//tmp/m/t/@account") == "a"
-        assert get("//tmp/m/t/@attr") == "t"
+        assert read_table("//tmp/m/t1") == TABLE_PAYLOAD
+        assert get("//tmp/m/t1/@account") == "a"
+        assert get("//tmp/m/t1/@attr") == "t1"
+
+        sync_mount_table("//tmp/m/t2")
+        assert lookup_rows("//tmp/m/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
+        assert get("//tmp/m/t2/@account") == "a"
+        assert get("//tmp/m/t2/@attr") == "t2"
 
         assert read_file("//tmp/m/f") == FILE_PAYLOAD
         assert get("//tmp/m/f/@account") == "b"
@@ -816,7 +897,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
 
         shard_id = get("//tmp/m/@shard_id")
-        assert get("//tmp/m/t/@shard_id") == shard_id
+        assert get("//tmp/m/t1/@shard_id") == shard_id
         assert get("//sys/cypress_shards/{}/@account_statistics/tmp/node_count".format(shard_id)) == 6
 
         remove("//tmp/m")
@@ -828,8 +909,22 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/m1")
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 13})
-        write_table("//tmp/m1/t", TABLE_PAYLOAD)
+        create("table", "//tmp/m1/t1", attributes={"external": True, "external_cell_tag": 13})
+        write_table("//tmp/m1/t1", TABLE_PAYLOAD)
+
+        create_dynamic_table(
+            "//tmp/m1/t2",
+            external_cell_tag=13,
+            optimize_for="scan",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        sync_create_cells(1)
+        sync_mount_table("//tmp/m1/t2")
+        insert_rows("//tmp/m1/t2", [{"key": 42, "value": "hello"}])
+        sync_unmount_table("//tmp/m1/t2")
 
         FILE_PAYLOAD = b"PAYLOAD"
         create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 13})
@@ -838,10 +933,14 @@ class TestPortals(YTEnvSetup):
         externalize("//tmp/m1", 11)
 
         shard_id1 = get("//tmp/m1/@shard_id")
-        assert get("//tmp/m1/t/@shard_id") == shard_id1
+        assert get("//tmp/m1/t1/@shard_id") == shard_id1
+        assert get("//tmp/m1/t2/@shard_id") == shard_id1
         assert get("//tmp/m1/f/@shard_id") == shard_id1
 
-        assert read_table("//tmp/m1/t") == TABLE_PAYLOAD
+        assert read_table("//tmp/m1/t1") == TABLE_PAYLOAD
+        sync_mount_table("//tmp/m1/t2")
+        assert lookup_rows("//tmp/m1/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
+        sync_unmount_table("//tmp/m1/t2")
         assert read_file("//tmp/m1/f") == FILE_PAYLOAD
 
         copy("//tmp/m1", "//tmp/m2")
@@ -854,10 +953,14 @@ class TestPortals(YTEnvSetup):
 
         shard_id2 = get("//tmp/m2/@shard_id")
         assert shard_id1 != shard_id2
-        assert get("//tmp/m2/t/@shard_id") == shard_id2
+        assert get("//tmp/m2/t1/@shard_id") == shard_id2
+        assert get("//tmp/m2/t2/@shard_id") == shard_id2
         assert get("//tmp/m2/f/@shard_id") == shard_id2
 
-        assert read_table("//tmp/m2/t") == TABLE_PAYLOAD
+        assert read_table("//tmp/m2/t1") == TABLE_PAYLOAD
+        sync_mount_table("//tmp/m2/t2")
+        assert lookup_rows("//tmp/m2/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
+        sync_unmount_table("//tmp/m2/t2")
         assert read_file("//tmp/m2/f") == FILE_PAYLOAD
 
     @authors("babenko")
@@ -865,6 +968,8 @@ class TestPortals(YTEnvSetup):
         set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         create_account("a")
         create_account("b")
+        set("//sys/accounts/b/@resource_limits/tablet_count", 10)
+        create_account("c")
         create_user("u")
 
         create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 11})
@@ -875,15 +980,31 @@ class TestPortals(YTEnvSetup):
         TABLE_PAYLOAD = [{"key": "value"}]
         create(
             "table",
-            "//tmp/m/t",
+            "//tmp/m/t1",
             attributes={
                 "external": True,
                 "external_cell_tag": 13,
                 "account": "a",
-                "attr": "t",
+                "attr": "t1",
             },
         )
-        write_table("//tmp/m/t", TABLE_PAYLOAD)
+        write_table("//tmp/m/t1", TABLE_PAYLOAD)
+
+        create_dynamic_table(
+            "//tmp/m/t2",
+            external_cell_tag=13,
+            optimize_for="scan",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            account="b",
+            attr="t2",
+        )
+        sync_create_cells(1)
+        sync_mount_table("//tmp/m/t2")
+        insert_rows("//tmp/m/t2", [{"key": 42, "value": "hello"}])
+        sync_unmount_table("//tmp/m/t2")
 
         FILE_PAYLOAD = b"PAYLOAD"
         create(
@@ -892,7 +1013,7 @@ class TestPortals(YTEnvSetup):
             attributes={
                 "external": True,
                 "external_cell_tag": 13,
-                "account": "b",
+                "account": "c",
                 "attr": "f",
             },
         )
@@ -955,12 +1076,18 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/@type") == "map_node"
         assert get("//tmp/m/@attr") == "value"
 
-        assert read_table("//tmp/m/t") == TABLE_PAYLOAD
-        assert get("//tmp/m/t/@account") == "a"
-        assert get("//tmp/m/t/@attr") == "t"
+        assert read_table("//tmp/m/t1") == TABLE_PAYLOAD
+        assert get("//tmp/m/t1/@account") == "a"
+        assert get("//tmp/m/t1/@attr") == "t1"
+
+        sync_mount_table("//tmp/m/t2")
+        assert lookup_rows("//tmp/m/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
+        sync_unmount_table("//tmp/m/t2")
+        assert get("//tmp/m/t2/@account") == "b"
+        assert get("//tmp/m/t2/@attr") == "t2"
 
         assert read_file("//tmp/m/f") == FILE_PAYLOAD
-        assert get("//tmp/m/f/@account") == "b"
+        assert get("//tmp/m/f/@account") == "c"
         assert get("//tmp/m/f/@attr") == "f"
 
         assert get("//tmp/m/d") == {"hello": "world"}
@@ -975,7 +1102,8 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/orchid/@type") == "orchid"
         assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
 
-        assert get("//tmp/m/t/@shard_id") == get("//tmp/@shard_id")
+        assert get("//tmp/m/t1/@shard_id") == get("//tmp/@shard_id")
+        assert get("//tmp/m/t2/@shard_id") == get("//tmp/@shard_id")
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
@@ -1232,9 +1360,6 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_cross_shard_copy_dynamic_table_attrs_on_static_table(self):
-        # NB: cross-shard copying dynamic tables is not supported at the moment,
-        # but that does not preclude setting dyntable-specific attributes
-        # on a static table.
         attributes = {
             "atomicity": "full",
             "commit_ordering": "weak",
