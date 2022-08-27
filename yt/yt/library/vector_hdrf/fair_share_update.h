@@ -196,6 +196,9 @@ private:
     void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
     void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
     void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
+    void DetermineImplicitEffectiveStrongGuaranteeResources(
+        const TJobResources& totalExplicitChildrenGuaranteeResources,
+        TFairShareUpdateContext* context);
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
     void UpdateOverflowAndAcceptableVolumesRecursively();
     void DistributeFreeVolume() override;
@@ -305,6 +308,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationElement)
 
 struct TFairShareUpdateContext
 {
+    // TODO(eshcherbin): Create a separate fair share update config instead of passing all options in context.
     TFairShareUpdateContext(
         const TJobResources totalResourceLimits,
         const EJobResourceType mainResource,

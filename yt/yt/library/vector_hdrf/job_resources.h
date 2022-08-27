@@ -118,7 +118,7 @@ public:
     std::optional<int> Gpu;
 
     template <class T>
-    void ForEachResource(T processResource)
+    static void ForEachResource(T processResource)
     {
         processResource(&TJobResourcesConfig::UserSlots, EJobResourceType::UserSlots);
         processResource(&TJobResourcesConfig::Cpu, EJobResourceType::Cpu);
