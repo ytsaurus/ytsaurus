@@ -303,7 +303,7 @@ void THunkTablet::ValidateMountRevision(TRevision mountRevision) const
     if (mountRevision != MountRevision_) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %llx, received %llx",
+            "Invalid mount revision of tablet %v: expected %x, received %x",
             Id_,
             MountRevision_,
             mountRevision);

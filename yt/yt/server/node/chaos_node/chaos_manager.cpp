@@ -1109,7 +1109,7 @@ private:
         }
 
         auto timestamp = timestampOrError.Value();
-        YT_LOG_DEBUG("New current timestamp generated (Timestamp: %llx)",
+        YT_LOG_DEBUG("New current timestamp generated (Timestamp: %x)",
             timestamp);
 
         NChaosNode::NProto::TReqPropagateCurrentTimestamp request;
@@ -1122,7 +1122,7 @@ private:
     {
         auto timestamp = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started periodic current timestamp propagation (Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started periodic current timestamp propagation (Timestamp: %x)",
             timestamp);
 
         for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
@@ -1133,7 +1133,7 @@ private:
             MaybeCommenceNewReplicationEra(replicationCard, timestamp);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished periodic current timestamp propagation (Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished periodic current timestamp propagation (Timestamp: %x)",
             timestamp);
     }
 
@@ -1224,7 +1224,7 @@ private:
         }
 
         auto timestamp = timestampOrError.Value();
-        YT_LOG_DEBUG("New era timestamp generated (ReplicationCardId: %v, Era: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG("New era timestamp generated (ReplicationCardId: %v, Era: %v, Timestamp: %x)",
             replicationCardId,
             era,
             timestamp);
@@ -1273,7 +1273,7 @@ private:
 
         bool willUpdate = timestamp > replicationCard->GetCurrentTimestamp();
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication card current timestamp "
-            "(ReplicationCardId: %v, Era: %v, State: %v, CurrentTimestamp: %llx, NewTimestamp: %llx, WillUpdate: %v)",
+            "(ReplicationCardId: %v, Era: %v, State: %v, CurrentTimestamp: %x, NewTimestamp: %x, WillUpdate: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
             replicationCard->GetState(),
@@ -1344,7 +1344,7 @@ private:
 
         replicationCard->SetState(EReplicationCardState::Normal);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %x)",
             *replicationCard,
             newEra,
             timestamp);

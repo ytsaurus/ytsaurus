@@ -144,7 +144,7 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
         tabletReadOptions.CachedSyncReplicasTimeout = options.CachedSyncReplicasTimeout;
         tabletReadOptions.Timeout = options.Timeout;
 
-        auto future = PickInSyncReplicas( 
+        auto future = PickInSyncReplicas(
             Connection_,
             tableInfo,
             tabletReadOptions,
@@ -303,7 +303,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             : GetReplicatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
     }
 
-    YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
+    YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %x)",
         tableInfo->TableId,
         replicaIds,
         options.Timestamp);

@@ -45,7 +45,7 @@ void FormatValue(TStringBuilderBase* builder, const TReplicationProgress& replic
 {
     builder->AppendFormat("{Segments: %v, UpperKey: %v}",
         MakeFormattableView(replicationProgress.Segments, [] (auto* builder, const auto& segment) {
-            builder->AppendFormat("<%v, %llx>", segment.LowerKey, segment.Timestamp);
+            builder->AppendFormat("<%v, %x>", segment.LowerKey, segment.Timestamp);
         }),
         replicationProgress.UpperKey);
 }
@@ -57,7 +57,7 @@ TString ToString(const TReplicationProgress& replicationProgress)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicaHistoryItem& replicaHistoryItem, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Timestamp: %llx, Mode: %v, State: %v}",
+    builder->AppendFormat("{Era: %v, Timestamp: %x, Mode: %v, State: %v}",
         replicaHistoryItem.Era,
         replicaHistoryItem.Timestamp,
         replicaHistoryItem.Mode,
@@ -88,7 +88,7 @@ TString ToString(const TReplicaInfo& replicaInfo)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %llx}",
+    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x}",
         replicationCard.Era,
         replicationCard.Replicas,
         replicationCard.CoordinatorCellIds,

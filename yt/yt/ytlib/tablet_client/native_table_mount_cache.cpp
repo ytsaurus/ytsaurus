@@ -210,7 +210,7 @@ private:
                 return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %llx)",
+            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %x)",
                 refreshPrimaryRevision);
 
             auto options = GetMasterReadOptions();
@@ -274,7 +274,7 @@ private:
                 return MakeFuture<TTableMountInfoPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %llx)",
+            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %x)",
                 TableId_,
                 CellTag_,
                 refreshSecondaryRevision);
@@ -398,7 +398,7 @@ private:
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
             }
 
-            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
+            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
                 tableInfo->TableId,
                 tableInfo->Tablets.size(),
                 tableInfo->Dynamic,

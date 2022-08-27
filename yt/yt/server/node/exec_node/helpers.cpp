@@ -69,7 +69,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %llx)",
+        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %x)",
             path,
             contentRevision);
 
@@ -101,7 +101,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     // COMPAT(shakurov): remove this once YT-13605 is deployed everywhere.
     if (userObject.ContentRevision == NHydra::NullRevision) {
-        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %llx)", path, contentRevision);
+        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %x)", path, contentRevision);
         try {
             FetchContentRevision(bootstrap, &userObject);
         } catch (const std::exception& ex) {
@@ -121,7 +121,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         return result;
     }
 
-    YT_LOG_INFO("Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %llx)",
+    YT_LOG_INFO("Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %x)",
         path,
         objectId,
         userObject.ContentRevision);

@@ -1307,7 +1307,7 @@ void ValidateReadTimestamp(TTimestamp timestamp)
         timestamp != AsyncLastCommittedTimestamp &&
         (timestamp < MinTimestamp || timestamp > MaxTimestamp))
     {
-        THROW_ERROR_EXCEPTION("Invalid read timestamp %llx", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid read timestamp %x", timestamp);
     }
 }
 
@@ -1316,14 +1316,14 @@ void ValidateGetInSyncReplicasTimestamp(TTimestamp timestamp)
     if (timestamp != SyncLastCommittedTimestamp &&
        (timestamp < MinTimestamp || timestamp > MaxTimestamp))
     {
-        THROW_ERROR_EXCEPTION("Invalid GetInSyncReplicas timestamp %llx", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid GetInSyncReplicas timestamp %x", timestamp);
     }
 }
 
 void ValidateWriteTimestamp(TTimestamp timestamp)
 {
     if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
-        THROW_ERROR_EXCEPTION("Invalid write timestamp %llx", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid write timestamp %x", timestamp);
     }
 }
 

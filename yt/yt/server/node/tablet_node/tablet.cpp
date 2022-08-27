@@ -95,7 +95,7 @@ TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& oth
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %llx is less than tablet %v retained timestamp %llx",
+        THROW_ERROR_EXCEPTION("Timestamp %x is less than tablet %v retained timestamp %x",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
@@ -295,7 +295,7 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %llx, received %llx",
+            "Invalid mount revision of tablet %v: expected %x, received %x",
             TabletId,
             MountRevision,
             mountRevision)
@@ -1893,7 +1893,7 @@ void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %llx, received %llx",
+            "Invalid mount revision of tablet %v: expected %x, received %x",
             Id_,
             MountRevision_,
             mountRevision)

@@ -150,7 +150,7 @@ std::tuple<TTableSchemaPtr, bool> TLookupSession::FindTableSchema(
         bool isSchemaRequested = tableSchemaWrapper->TryRequestSchema();
 
         YT_LOG_DEBUG("Schema for lookup request is missing"
-            "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, SchemaSize: %v, IsSchemaRequested: %v)",
+            "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v, IsSchemaRequested: %v)",
             chunkId,
             readSessionId,
             tableId,
@@ -165,7 +165,7 @@ std::tuple<TTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     tableSchemaWrapper->SetValue(tableSchema);
 
     YT_LOG_DEBUG("Inserted schema to schema cache for lookup request"
-        "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, SchemaSize: %v)",
+        "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v)",
         chunkId,
         readSessionId,
         tableId,

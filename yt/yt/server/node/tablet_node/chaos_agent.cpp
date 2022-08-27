@@ -189,7 +189,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %llx, IsProgressGreaterThanTimestamp: %llx)",
+        YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %x, IsProgressGreaterThanTimestamp: %x)",
             static_cast<TReplicationProgress>(*progress),
             selfReplica->History.back().Timestamp,
             IsReplicationProgressGreaterOrEqual(*progress, selfReplica->History.back().Timestamp));
@@ -222,12 +222,12 @@ private:
                 Tablet_->GetPivotKey().Get(),
                 Tablet_->GetNextPivotKey().Get());
 
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %llx, HistoryMinTimestamp: %llx)",
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %x, HistoryMinTimestamp: %x)",
                 progressTimestamp,
                 historyTimestamp);
 
             if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
+                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
                     static_cast<TReplicationProgress>(*progress),
                     selfReplica,
                     historyTimestamp);
@@ -267,7 +267,7 @@ private:
                 selfReplica->History[historyItemIndex].Timestamp);
             AdvanceTabletReplicationProgress(std::move(newProgress));
 
-            YT_LOG_DEBUG("Advanced replication progress to next era (Era: %v, Timestamp: %llx)",
+            YT_LOG_DEBUG("Advanced replication progress to next era (Era: %v, Timestamp: %x)",
                 selfReplica->History[historyItemIndex].Era,
                 selfReplica->History[historyItemIndex].Timestamp);
         };
@@ -280,13 +280,13 @@ private:
 
             initialReplicationProgressAdvance();
 
-            YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %llx, HistoryItemIndex: %v)",
+            YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %x, HistoryItemIndex: %v)",
                 ETabletWriteMode::Pull,
                 oldestTimestamp,
                 historyItemIndex);
 
             if (historyItemIndex == -1) {
-                YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
+                YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
                     static_cast<TReplicationProgress>(*progress),
                     *selfReplica,
                     oldestTimestamp);
@@ -310,7 +310,7 @@ private:
                     currentTimestamp);
                 AdvanceTabletReplicationProgress(std::move(newProgress), /*validateStrictAdvance*/ false);
 
-                YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %llx)",
+                YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %x)",
                     currentTimestamp);
             }
         }

@@ -479,7 +479,7 @@ public:
 
         YT_VERIFY(table->Replicas().insert(replica).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %x)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -5989,7 +5989,7 @@ private:
         auto* table = tablet->GetOwner();
         auto* cell = tablet->GetCell();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %x, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
@@ -6141,7 +6141,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
+            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tabletId,
             replicaId,
             replicaInfo->GetCommittedReplicationRowIndex(),
@@ -7073,7 +7073,7 @@ private:
 
         if (tablet->GetMountRevision() != mountRevision) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
-                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
+                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %x, ActualMountRevision: %x)",
                 tablet->GetId(),
                 transaction->GetId(),
                 mountRevision,
@@ -7353,7 +7353,7 @@ private:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx, UpdateReason: %v)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %x, UpdateReason: %v)",
             transaction->GetId(),
             table->GetId(),
             tablet->GetId(),

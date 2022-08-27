@@ -64,7 +64,7 @@ void FormatValue(TStringBuilderBase* builder, const TTimestampMap& map, TStringB
         if (!first) {
             builder->AppendString(TStringBuf(", "));
         }
-        builder->AppendFormat("%v => %llx", cellTag, timestamp);
+        builder->AppendFormat("%v => %x", cellTag, timestamp);
         first = false;
     }
     builder->AppendChar('}');

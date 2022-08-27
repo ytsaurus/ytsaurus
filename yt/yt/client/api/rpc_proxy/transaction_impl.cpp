@@ -64,7 +64,7 @@ TTransaction::TTransaction(
     Proxy_.SetDefaultResponseCodec(config->ResponseCodec);
     Proxy_.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
 
-    YT_LOG_DEBUG("%v (Type: %v, StartTimestamp: %llx, Atomicity: %v, "
+    YT_LOG_DEBUG("%v (Type: %v, StartTimestamp: %x, Atomicity: %v, "
         "Durability: %v, Timeout: %v, PingAncestors: %v, PingPeriod: %v, Sticky: %v, StickyProxyAddress: %v)",
         capitalizedCreationReason,
         GetType(),

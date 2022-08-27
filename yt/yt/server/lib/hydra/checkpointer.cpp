@@ -203,7 +203,7 @@ private:
             for (TPeerId id = 0; id < std::ssize(SnapshotChecksums_); ++id) {
                 auto checksum = SnapshotChecksums_[id];
                 if (checksum) {
-                    YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
+                    YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %x)",
                         GetSnapshotId(),
                         id,
                         *checksum);

@@ -267,7 +267,7 @@ public:
             return {};
         }
 
-        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
+        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %x, RowIndexLo: %v, RowIndexHi: %v)",
             startReplicationTimestamp,
             rowIndexLo,
             rowIndexHi);
@@ -295,7 +295,7 @@ public:
             ++startRowIndex;
         }
 
-        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
+        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %x)",
             startRowIndex,
             startTimestamp);
 
@@ -578,7 +578,7 @@ private:
         auto timestamp = GetLogRowTimestamp(readerRows[0]);
         YT_VERIFY(actualRowIndex == rowIndex);
 
-        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %x)",
             rowIndex,
             timestamp);
 

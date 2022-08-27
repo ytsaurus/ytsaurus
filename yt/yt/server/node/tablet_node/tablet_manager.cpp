@@ -998,9 +998,9 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %llx, SchemaId: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %x, SchemaId: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1714,8 +1714,8 @@ private:
             if (prepareRevision < discardStoresRevision) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Tablet stores update commit interrupted by stores discard, ignored "
-                    "(%v, TransactionId: %v, DiscardStoresRevision: %llx, "
-                    "PrepareUpdateTabletStoresRevision: %llx)",
+                    "(%v, TransactionId: %v, DiscardStoresRevision: %x, "
+                    "PrepareUpdateTabletStoresRevision: %x)",
                     tablet->GetLoggingTag(),
                     transaction->GetId(),
                     discardStoresRevision,
@@ -1728,8 +1728,8 @@ private:
                         YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                             "Store prepared for removal was not discarded while tablet "
                             "stores update commit was interrupted by the discard "
-                            "(%v, StoreId: %v, TransactionId: %v, DiscardStoresRevision: %llx, "
-                            "PrepareUpdateTabletStoresRevision: %llx)",
+                            "(%v, StoreId: %v, TransactionId: %v, DiscardStoresRevision: %x, "
+                            "PrepareUpdateTabletStoresRevision: %x)",
                             tablet->GetLoggingTag(),
                             storeId,
                             transaction->GetId(),
@@ -1840,7 +1840,7 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk store added (%v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk store added (%v, StoreId: %v, MaxTimestamp: %x, BackingStoreId: %v)",
                 tablet->GetLoggingTag(),
                 storeId,
                 store->GetMaxTimestamp(),
@@ -1887,7 +1887,7 @@ private:
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update committed "
             "(%v, TransactionId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, AddedHunkChunkIds: %v, RemovedHunkChunkIds: %v, "
-            "RetainedTimestamp: %llx, UpdateReason: %v)",
+            "RetainedTimestamp: %x, UpdateReason: %v)",
             tablet->GetLoggingTag(),
             transaction->GetId(),
             MakeFormattableView(addedStores, TStoreIdFormatter()),
@@ -2530,7 +2530,7 @@ private:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
+            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %x -> %x)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -2605,7 +2605,7 @@ private:
         }
         if (newCurrentReplicationTimestamp < prevCurrentReplicationTimestamp) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "CurrentReplicationTimestamp went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-                "CurrentReplicationTimestamp: %llx -> %llx)",
+                "CurrentReplicationTimestamp: %x -> %x)",
                 tabletId,
                 replicaId,
                 transaction->GetId(),
@@ -2622,7 +2622,7 @@ private:
         AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, CommittedReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, "
+            "CurrentReplicationRowIndex: %v -> %v, CommittedReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %x -> %x, "
             "TrimmedRowCount: %v -> %v, TotalRowCount: %v)",
             tabletId,
             replicaId,
@@ -2670,7 +2670,7 @@ private:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %llx -> %llx)",
+            "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %x -> %x)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -3749,7 +3749,7 @@ private:
         UpdateTabletSnapshot(tablet);
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica added (%v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "Mode: %v, StartReplicationTimestamp: %llx, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
+            "Mode: %v, StartReplicationTimestamp: %x, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetLoggingTag(),
             replicaId,
             replicaInfo.GetClusterName(),
@@ -3814,7 +3814,7 @@ private:
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica disabled (%v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetLoggingTag(),
             replicaInfo->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),

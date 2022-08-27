@@ -97,7 +97,7 @@ public:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %llx, "
+            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %x, "
             "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",
             table->GetId(),
             transaction->GetId(),
@@ -546,7 +546,7 @@ private:
             } else {
                 table = tablet->GetTable();
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %llx, BackupMode: %v)",
+                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %x, BackupMode: %v)",
                     table->GetId(),
                     transactionId,
                     table->GetBackupCheckpointTimestamp(),
@@ -742,7 +742,7 @@ private:
                         TTableReplicaInfo{})
                         ->second;
                     replicaInfo.MergeFrom(protoReplicaInfo.replica_statistics());
-                    replicaLogStrings.push_back(Format("%v: %v/%llx",
+                    replicaLogStrings.push_back(Format("%v: %v/%x",
                         replicaId,
                         replicaInfo.GetCommittedReplicationRowIndex(),
                         replicaInfo.GetCurrentReplicationTimestamp()));

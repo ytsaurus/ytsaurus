@@ -2711,7 +2711,7 @@ public:
         , EnablePeerProbing_(enablePeerProbing)
         , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
-        Logger.AddTag("TableId: %v, Revision: %llx",
+        Logger.AddTag("TableId: %v, Revision: %x",
             TableId_,
             Revision_);
         if (estimatedSize) {

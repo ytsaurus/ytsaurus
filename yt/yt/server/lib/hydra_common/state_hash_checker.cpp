@@ -29,7 +29,7 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
             SequenceNumberToStateHash_.erase(SequenceNumberToStateHash_.begin());
         }
     } else if (it->second != stateHash) {
-        YT_LOG_ALERT("State hashes differ (SequenceNumber: %v, ExpectedStateHash: %llx, ActualStateHash: %llx)",
+        YT_LOG_ALERT("State hashes differ (SequenceNumber: %v, ExpectedStateHash: %x, ActualStateHash: %x)",
             sequenceNumber,
             it->second,
             stateHash);

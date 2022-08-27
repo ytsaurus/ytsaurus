@@ -152,7 +152,7 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
 
             Rings_[mediumIndex].AddFile(&placementGroup, SufficientlyLargeReplicaCount_);
 
-            YT_LOG_DEBUG("Chunk placement group created (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk placement group created (ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
@@ -162,7 +162,7 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
         } else {
             placementGroup.AddChunk(chunk);
 
-            YT_LOG_DEBUG("Chunk added to placement group (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk added to placement group (ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
@@ -198,7 +198,7 @@ void TConsistentChunkPlacement::RemoveChunk(
 
         if (it == PlacementGroups_.end()) {
             if (!missingOk) {
-                YT_LOG_ALERT("Placement group not found for the chunk (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v))",
+                YT_LOG_ALERT("Placement group not found for the chunk (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v))",
                     chunk->GetId(),
                     chunk->GetConsistentReplicaPlacementHash(),
                     mediumIndex,
@@ -222,7 +222,7 @@ void TConsistentChunkPlacement::RemoveChunk(
             YT_VERIFY(placementGroup.Chunks().empty());
             PlacementGroups_.erase(it);
 
-            YT_LOG_DEBUG("Chunk placement group destroyed (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk placement group destroyed (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
@@ -230,7 +230,7 @@ void TConsistentChunkPlacement::RemoveChunk(
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         } else {
-            YT_LOG_DEBUG("Chunk removed from placement group (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk removed from placement group (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
@@ -439,7 +439,7 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
             mediumIndex});
     if (placementGroupIt == PlacementGroups_.end()) {
         YT_LOG_ALERT("Consistent chunk placement was requested for unknown group, ignored "
-            "(ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v)",
+            "(ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v)",
             chunk->GetId(),
             chunk->GetConsistentReplicaPlacementHash(),
             mediumIndex);

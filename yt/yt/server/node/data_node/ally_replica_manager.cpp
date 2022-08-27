@@ -147,7 +147,7 @@ public:
                 if (revision > knownRevision) {
                     YT_LOG_DEBUG_UNLESS(onFullHeartbeat,
                         "Received announcement request for chunk (ChunkId: %v, "
-                        "Revision: %llx, ReplicaCount: %v, Delay: %v, Lazy: %v, "
+                        "Revision: %x, ReplicaCount: %v, Delay: %v, Lazy: %v, "
                         "ConfirmationNeeded: %v)",
                         chunkId,
                         revision,
@@ -158,7 +158,7 @@ public:
                 } else {
                     YT_LOG_DEBUG_UNLESS(onFullHeartbeat,
                         "Received outdated announcement request for chunk (ChunkId: %v, "
-                        "Revision: %llx, KnownRevision: %llx, ReplicaCount: %v, Delay: %v, "
+                        "Revision: %x, KnownRevision: %x, ReplicaCount: %v, Delay: %v, "
                         "Lazy: %v, ConfirmationNeeded: %v)",
                         chunkId,
                         revision,
@@ -236,7 +236,7 @@ public:
             // Do not remember replicas for chunks not stored at the node.
             if (!isChunkStored(announcement.ChunkId, announcement.Replicas)) {
                 YT_LOG_DEBUG("Received ally replica announcement for unknown chunk, ignored "
-                    "(ChunkId: %v, Revision: %llx, SourceNode: %v)",
+                    "(ChunkId: %v, Revision: %x, SourceNode: %v)",
                     announcement.ChunkId,
                     announcement.Revision,
                     sourceNodeAddress);
@@ -264,14 +264,14 @@ public:
             // NB: Keep logging out of the critical section.
             if (announcement.Revision > knownRevision) {
                 YT_LOG_DEBUG("Received ally replica announcement for chunk "
-                    "(ChunkId: %v, Revision: %llx, ReplicaCount: %v, SourceNode: %v)",
+                    "(ChunkId: %v, Revision: %x, ReplicaCount: %v, SourceNode: %v)",
                     announcement.ChunkId,
                     announcement.Revision,
                     announcement.Replicas.size(),
                     sourceNodeAddress);
             } else {
                 YT_LOG_DEBUG("Received outdated ally replica announcement for chunk "
-                    "(ChunkId: %v, Revision: %llx, KnownRevision: %llx, ReplicaCount: %v, "
+                    "(ChunkId: %v, Revision: %x, KnownRevision: %x, ReplicaCount: %v, "
                     "SourceNode: %v)",
                     announcement.ChunkId,
                     announcement.Revision,

@@ -431,7 +431,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         default:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::BrokenChunkFileMeta,
-                "Incorrect header signature %llx in chunk meta file %v",
+                "Incorrect header signature %x in chunk meta file %v",
                 metaHeaderBase->Signature,
                 metaFileName);
     }
@@ -441,7 +441,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         DumpBrokenMeta(metaBlob);
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::BrokenChunkFileMeta,
-            "Incorrect checksum in chunk meta file %v: expected %llx, actual %llx",
+            "Incorrect checksum in chunk meta file %v: expected %x, actual %x",
             metaFileName,
             metaHeader.Checksum,
             checksum)

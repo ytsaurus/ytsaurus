@@ -500,7 +500,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, StateHash: %llx, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),

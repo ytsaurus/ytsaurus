@@ -1089,7 +1089,7 @@ private:
             if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %llx, NodeRevision: %llx)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %x, NodeRevision: %x)",
                     nodeId,
                     actualContentRevision,
                     chunkOwner->GetNativeContentRevision());

@@ -1249,7 +1249,7 @@ private:
         }
 
         auto randomSeed = RandomNumber<ui64>();
-        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v, EpochId: %v)",
+        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %x, MutationType: %v, MutationId: %v, EpochId: %v)",
             randomSeed,
             request.Type,
             request.MutationId,

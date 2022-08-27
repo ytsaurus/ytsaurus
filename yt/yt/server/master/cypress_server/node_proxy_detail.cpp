@@ -1410,7 +1410,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     response->set_external_cell_tag(externalCellTag);
     response->set_revision(revision);
 
-    context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %llx",
+    context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",
         lockId,
         externalCellTag,
         externalTransactionId,

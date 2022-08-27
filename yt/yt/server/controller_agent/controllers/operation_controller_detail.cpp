@@ -5919,7 +5919,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             !Spec_->EnableDynamicStoreRead.value_or(true));
 
         YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
-            "Revision: %llx, ContentRevision: %llx)",
+            "Revision: %x, ContentRevision: %x)",
             table->GetPath(),
             table->ObjectId,
             *table->Schema,
@@ -6137,7 +6137,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : GetTransactionForOutputTable(table)->GetId();
 
-                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %llx)",
+                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %x)",
                     table->GetPath(),
                     objectId,
                     *table->TableUploadOptions.TableSchema,
@@ -6839,7 +6839,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     file.ChunkCount = chunkCount;
                     file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %llx)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %x)",
                         path,
                         userJobSpec->TaskTitle,
                         file.FileName,

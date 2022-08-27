@@ -186,7 +186,7 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
-        context->SetResponseInfo("Timestamp: %llx", result);
+        context->SetResponseInfo("Timestamp: %x", result);
 
         context->Response().set_timestamp(result);
         context->Reply();
@@ -232,7 +232,7 @@ private:
 
         auto proposedTimestamp = TimestampFromUnixTime(currentTime + Config_->TimestampPreallocationInterval.Seconds());
 
-        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %llx, ProposedTimestamp: %llx)",
+        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %x, ProposedTimestamp: %x)",
             CurrentTimestamp_,
             proposedTimestamp);
 
@@ -260,7 +260,7 @@ private:
 
         CommittedTimestamp_ = std::max(CommittedTimestamp_, timestamp);
 
-        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %llx)",
+        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %x)",
             CommittedTimestamp_);
     }
 
@@ -293,7 +293,7 @@ private:
 
         TCompositeAutomatonPart::OnLeaderActive();
 
-        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %llx)",
+        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %x)",
             PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
@@ -312,7 +312,7 @@ private:
                 CurrentTimestamp_ = EmbedCellTagIntoTimestamp(CurrentTimestamp_, CellTag_);
             }
 
-            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %llx)",
+            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %x)",
                 persistentTimestamp);
         }).Via(invoker);
 
@@ -356,7 +356,7 @@ private:
 
         PersistentTimestamp_ = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Persistent timestamp updated (Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Persistent timestamp updated (Timestamp: %x)",
             PersistentTimestamp_);
     }
 

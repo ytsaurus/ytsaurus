@@ -45,7 +45,7 @@ private:
         Provider_->GenerateTimestamps(count).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
-                context->SetResponseInfo("Timestamp: %llx", timestamp);
+                context->SetResponseInfo("Timestamp: %x", timestamp);
                 response->set_timestamp(timestamp);
                 context->Reply();
             } else {

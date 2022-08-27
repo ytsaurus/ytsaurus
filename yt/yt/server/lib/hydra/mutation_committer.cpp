@@ -128,7 +128,7 @@ public:
         BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushFuture_ = std::move(localFlushFuture);
 
-        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, MutationType: %v, MutationId: %v, TraceId: %v)",
+        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, MutationType: %v, MutationId: %v, TraceId: %v)",
             pendingMutation.Version,
             GetStartVersion(),
             pendingMutation.SequenceNumber,

@@ -475,7 +475,7 @@ private:
                     MakeFormatterWrapper([&] (auto* builder) {
                         if (chunk->HasConsistentReplicaPlacementHash()) {
                             builder->AppendFormat(
-                                ", ConsistentReplicaPlacementHash: %llx",
+                                ", ConsistentReplicaPlacementHash: %x",
                                 chunk->GetConsistentReplicaPlacementHash());
                         }
                     }),

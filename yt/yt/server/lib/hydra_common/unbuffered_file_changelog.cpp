@@ -123,7 +123,7 @@ public:
                     default:
                         THROW_ERROR_EXCEPTION(
                             NHydra::EErrorCode::BrokenChangelog,
-                            "Invalid header signature %llx in changelog file %v",
+                            "Invalid header signature %x in changelog file %v",
                             FileName_,
                             header->Signature);
                 }

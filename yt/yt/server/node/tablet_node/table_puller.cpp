@@ -300,7 +300,7 @@ private:
                 options.UpstreamReplicaId = queueReplicaId;
                 options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == ETableReplicaContentType::Queue;
 
-                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %llx)",
+                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %x)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,
@@ -344,7 +344,7 @@ private:
                         row.BeginKeys(),
                         row.EndKeys());
                     if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
+                        YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
                             rowTimestamp,
                             progressTimestamp,
                             row,
@@ -370,7 +370,7 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (auto rowTimestamp = row[timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
+                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
                             rowTimestamp,
                             progressTimestamp,
                             row,
@@ -502,7 +502,7 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         auto historyItemIndex = selfReplicaInfo->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
-            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %llx, History: %v)",
+            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %x, History: %v)",
                 oldestTimestamp,
                 selfReplicaInfo->History);
             return {};
@@ -511,7 +511,7 @@ private:
         YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplicaInfo->History));
         const auto& historyItem = selfReplicaInfo->History[historyItemIndex];
         if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
-            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %llx, HistoryItem: %v)",
+            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %x, HistoryItem: %v)",
                 oldestTimestamp,
                 historyItem);
             return {};
@@ -598,7 +598,7 @@ private:
         }
 
         if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
-            YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %llx, UpperTimestamp: %llx)",
+            YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %x, UpperTimestamp: %x)",
                 queueReplicaId,
                 oldestTimestamp,
                 upperTimestamp);

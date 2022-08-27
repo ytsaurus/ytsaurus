@@ -409,7 +409,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
         if (branchedNode->GetNativeContentRevision() <= nativeContentRevision) {
             originatingNode->SetNativeContentRevision(nativeContentRevision);
         } else {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic native content revision update; ignored (NodeId: %v, OldNativeContentRevision: %llx, NewNativeContentRevision: %llx)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic native content revision update; ignored (NodeId: %v, OldNativeContentRevision: %x, NewNativeContentRevision: %x)",
                 branchedNode->GetVersionedId(),
                 branchedNode->GetNativeContentRevision(),
                 nativeContentRevision);
