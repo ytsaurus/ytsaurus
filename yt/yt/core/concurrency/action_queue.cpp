@@ -123,13 +123,19 @@ public:
 
     void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(std::move(callback));
-        TrySchedule();
+        auto guard = Guard(Lock_);
+        if (Dead_) {
+            return;
+        }
+        Queue_.push(std::move(callback));
+        TrySchedule(std::move(guard));
     }
 
 private:
-    TLockFreeQueue<TClosure> Queue_;
-    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    TRingQueue<TClosure> Queue_;
+    bool CallbackScheduled_ = false;
+    bool Dead_ = false;
 
 
     class TInvocationGuard
@@ -166,22 +172,27 @@ private:
 
     };
 
-    void TrySchedule()
+    void TrySchedule(TGuard<NThreading::TSpinLock>&& guard)
     {
-        if (!Lock_.test_and_set(std::memory_order_acquire)) {
-            UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
-                &TSerializedInvoker::RunCallback,
-                MakeStrong(this),
-                Passed(TInvocationGuard(this))));
+        if (std::exchange(CallbackScheduled_, true)) {
+            return;
         }
+        guard.Release();
+        UnderlyingInvoker_->Invoke(BIND_NO_PROPAGATE(
+            &TSerializedInvoker::RunCallback,
+            MakeStrong(this),
+            Passed(TInvocationGuard(this))));
     }
 
-    void DrainQueue()
+    void DrainQueue(TGuard<NThreading::TSpinLock>&& guard)
     {
-        TClosure callback;
-        while (Queue_.Dequeue(&callback)) {
-            callback.Reset();
+        std::vector<TClosure> callbacks;
+        while (!Queue_.empty()) {
+            callbacks.push_back(std::move(Queue_.front()));
+            Queue_.pop();
         }
+        guard.Release();
+        callbacks.clear();
     }
 
     void RunCallback(TInvocationGuard invocationGuard)
@@ -194,24 +205,35 @@ private:
             OnFinished(true);
         });
 
-        TClosure callback;
-        if (Queue_.Dequeue(&callback)) {
-            callback.Run();
+        auto lockGuard = Guard(Lock_);
+
+        if (Queue_.empty()) {
+            return;
         }
+
+        auto callback = std::move(Queue_.front());
+        Queue_.pop();
+
+        lockGuard.Release();
+
+        callback();
     }
 
     void OnFinished(bool activated)
     {
-        Lock_.clear(std::memory_order_release);
+        auto guard = Guard(Lock_);
+
+        YT_VERIFY(std::exchange(CallbackScheduled_, false));
+
         if (activated) {
-            if (!Queue_.IsEmpty()) {
-                TrySchedule();
+            if (!Queue_.empty()) {
+                TrySchedule(std::move(guard));
             }
         } else {
-            DrainQueue();
+            Dead_ = true;
+            DrainQueue(std::move(guard));
         }
     }
-
 };
 
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
