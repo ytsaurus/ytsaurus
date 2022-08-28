@@ -405,22 +405,28 @@ public:
     {
         RegisterWriterFactory(TString(TFileLogWriterConfig::Type), GetFileLogWriterFactory());
         RegisterWriterFactory(TString(TStderrLogWriterConfig::Type), GetStderrLogWriterFactory());
+    }
 
-        try {
-            if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
-                DoUpdateConfig(config, true);
+    void Initialize()
+    {
+        std::call_once(Initialized_, [&] {
+            // NB: Cannot place this logic inside ctor since it may boot up Compression threads unexpected
+            // and these will try to access TLogManager instance causing a deadlock.
+            try {
+                if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
+                    DoUpdateConfig(config, /*fromEnv*/ true);
+                }
+            } catch (const std::exception& ex) {
+                fprintf(stderr, "Error configuring logging from environment variables\n%s\n",
+                    ex.what());
             }
-        } catch (const std::exception& ex) {
-            fprintf(stderr, "Error configuring logging from environment variables\n%s\n",
-                ex.what());
-        }
 
-        if (!IsConfiguredFromEnv()) {
-            DoUpdateConfig(TLogManagerConfig::CreateDefault(), false);
-        }
+            if (!IsConfiguredFromEnv()) {
+                DoUpdateConfig(TLogManagerConfig::CreateDefault(), /*fromEnv*/ false);
+            }
 
-        SystemCategory_ = GetCategory(SystemLoggingCategoryName);
-
+            SystemCategory_ = GetCategory(SystemLoggingCategoryName);
+        });
     }
 
     void Configure(INodePtr node)
@@ -536,8 +542,8 @@ public:
             }
         }
 
-        anchor->Enabled.store(enabled, std::memory_order_relaxed);
-        anchor->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
+        anchor->Enabled.store(enabled, std::memory_order::relaxed);
+        anchor->CurrentVersion.store(GetVersion(), std::memory_order::relaxed);
     }
 
     void RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation sourceLocation, TStringBuf message)
@@ -623,11 +629,11 @@ public:
         ui64 backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
-        auto lowBacklogWatermark = LowBacklogWatermark_.load(std::memory_order_relaxed);
-        auto highBacklogWatermark = HighBacklogWatermark_.load(std::memory_order_relaxed);
-        if (Suspended_.load(std::memory_order_relaxed)) {
+        auto lowBacklogWatermark = LowBacklogWatermark_.load(std::memory_order::relaxed);
+        auto highBacklogWatermark = HighBacklogWatermark_.load(std::memory_order::relaxed);
+        if (Suspended_.load(std::memory_order::relaxed)) {
             if (backlogEvents < lowBacklogWatermark) {
-                Suspended_.store(false, std::memory_order_relaxed);
+                Suspended_.store(false, std::memory_order::relaxed);
                 YT_LOG_INFO("Backlog size has dropped below low watermark, logging resumed (LowBacklogWatermark: %v)",
                     lowBacklogWatermark);
             }
@@ -637,7 +643,7 @@ public:
             }
 
             if (backlogEvents >= highBacklogWatermark) {
-                Suspended_.store(true, std::memory_order_relaxed);
+                Suspended_.store(true, std::memory_order::relaxed);
                 YT_LOG_WARNING("Backlog size has exceeded high watermark, logging suspended (HighBacklogWatermark: %v)",
                     highBacklogWatermark);
             }
@@ -654,7 +660,7 @@ public:
 
     void Reopen()
     {
-        ReopenRequested_ = true;
+        ReopenRequested_.store(true);
     }
 
     void EnableReopenOnSighup()
@@ -683,8 +689,10 @@ public:
         }
     }
 
+    // ILogWriterHost implementation
     IInvokerPtr GetCompressionInvoker() override
     {
+        Cerr << "GetCompressionInvoker" << Endl;
         return CompressionThreadPool_->GetInvoker();
     }
 
@@ -731,27 +739,20 @@ private:
 
     void EnsureStarted()
     {
-        if (Started_.load(std::memory_order_relaxed)) {
-            return;
-        }
+        std::call_once(Started_, [&] {
+            if (LoggingThread_->IsStopping()) {
+                return;
+            }
 
-        if (Started_.exchange(true)) {
-            return;
-        }
-
-        if (LoggingThread_->IsStopping()) {
-            return;
-        }
-
-        LoggingThread_->Start();
-        EventQueue_->SetThreadId(LoggingThread_->GetThreadId());
-        DiskProfilingExecutor_->Start();
-        AnchorProfilingExecutor_->Start();
-        DequeueExecutor_->Start();
-        FlushExecutor_->Start();
-        WatchExecutor_->Start();
-        CheckSpaceExecutor_->Start();
-        CompressionThreadPool_->EnsureStarted();
+            LoggingThread_->Start();
+            EventQueue_->SetThreadId(LoggingThread_->GetThreadId());
+            DiskProfilingExecutor_->Start();
+            AnchorProfilingExecutor_->Start();
+            DequeueExecutor_->Start();
+            FlushExecutor_->Start();
+            WatchExecutor_->Start();
+            CheckSpaceExecutor_->Start();
+        });
     }
 
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
@@ -930,8 +931,7 @@ private:
 
     void WriteEvent(const TLogEvent& event)
     {
-        if (ReopenRequested_) {
-            ReopenRequested_ = false;
+        if (ReopenRequested_.exchange(false)) {
             ReloadWriters();
         }
 
@@ -1092,7 +1092,7 @@ private:
         auto* currentAnchor = FirstAnchor_.load();
         while (currentAnchor) {
             auto getRate = [&] (auto& counter) {
-                auto current = counter.Current.load(std::memory_order_relaxed);
+                auto current = counter.Current.load(std::memory_order::relaxed);
                 auto rate = (current - counter.Previous) / deltaSeconds;
                 counter.Previous = current;
                 return rate;
@@ -1281,7 +1281,7 @@ private:
 
         SuppressedRequestIdSet_.Update(SuppressedRequestIdQueue_.DequeueAll());
 
-        auto requestSuppressionEnabled = RequestSuppressionEnabled_.load(std::memory_order_relaxed);
+        auto requestSuppressionEnabled = RequestSuppressionEnabled_.load(std::memory_order::relaxed);
         auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->RequestSuppressionTimeout);
 
         while (!TimeOrderedBuffer_.empty()) {
@@ -1322,8 +1322,8 @@ private:
             }
         }
 
-        category->MinPlainTextLevel.store(minPlainTextLevel, std::memory_order_relaxed);
-        category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
+        category->MinPlainTextLevel.store(minPlainTextLevel, std::memory_order::relaxed);
+        category->CurrentVersion.store(GetVersion(), std::memory_order::relaxed);
     }
 
     void DoRegisterAnchor(TLoggingAnchor* anchor)
@@ -1375,8 +1375,9 @@ private:
     std::atomic<ui64> HighBacklogWatermark_ = Max<ui64>();
     std::atomic<ui64> LowBacklogWatermark_ = Max<ui64>();
 
+    std::once_flag Initialized_;
+    std::once_flag Started_;
     std::atomic<bool> Suspended_ = false;
-    std::atomic<bool> Started_ = false;
     std::atomic<bool> ScheduledOutOfBand_ = false;
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
@@ -1461,7 +1462,9 @@ TLogManager::~TLogManager() = default;
 
 TLogManager* TLogManager::Get()
 {
-    return LeakySingleton<TLogManager>();
+    auto* logManager = LeakySingleton<TLogManager>();
+    logManager->Initialize();
+    return logManager;
 }
 
 void TLogManager::Configure(TLogManagerConfigPtr config, bool sync)
@@ -1552,6 +1555,11 @@ void TLogManager::SuppressRequest(TRequestId requestId)
 void TLogManager::Synchronize(TInstant deadline)
 {
     Impl_->Synchronize(deadline);
+}
+
+void TLogManager::Initialize()
+{
+    Impl_->Initialize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

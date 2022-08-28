@@ -130,16 +130,29 @@ private:
 
             File_.reset(new TFile(Config_->FileName, openMode));
 
-            if (!Config_->EnableCompression) {
-                OutputStream_ = New<TFixedBufferFileOutput>(*File_, BufferSize);
-            } else if (Config_->CompressionMethod == ECompressionMethod::Zstd) {
-                OutputStream_ = New<TAppendableCompressedFile>(
-                    *File_,
-                    CreateZstdCompressionCodec(Config_->CompressionLevel),
-                    Host_->GetCompressionInvoker(),
-                    /*writeTruncateMessage*/ true);
+            if (Config_->EnableCompression) {
+                switch (Config_->CompressionMethod) {
+                    case ECompressionMethod::Zstd:
+                        OutputStream_ = New<TAppendableCompressedFile>(
+                            *File_,
+                            CreateZstdCompressionCodec(Config_->CompressionLevel),
+                            Host_->GetCompressionInvoker(),
+                            /*writeTruncateMessage*/ true);
+                        break;
+
+                    case ECompressionMethod::Gzip:
+                        OutputStream_ = New<TRandomAccessGZipFile>(
+                            *File_,
+                            Config_->CompressionLevel);
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
             } else {
-                OutputStream_ = New<TRandomAccessGZipFile>(*File_, Config_->CompressionLevel);
+                OutputStream_ = New<TFixedBufferFileOutput>(
+                    *File_,
+                    BufferSize);
             }
 
             // Emit a delimiter for ease of navigation.

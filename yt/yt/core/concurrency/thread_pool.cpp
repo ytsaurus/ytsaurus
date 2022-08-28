@@ -236,11 +236,6 @@ void TThreadPool::Configure(int threadCount)
     return Impl_->Configure(threadCount);
 }
 
-void TThreadPool::EnsureStarted()
-{
-    return Impl_->EnsureStarted();
-}
-
 const IInvokerPtr& TThreadPool::GetInvoker()
 {
     return Impl_->GetInvoker();
