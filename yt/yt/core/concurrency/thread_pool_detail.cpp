@@ -137,7 +137,8 @@ void TThreadPoolBase::Resize()
         }
     }
 
-    YT_LOG_DEBUG("Thread pool reconfigured (ThreadPoolSize: %v -> %v)",
+    YT_LOG_DEBUG("Thread pool reconfigured (ThreadNamePrefix: %v, ThreadPoolSize: %v -> %v)",
+        ThreadNamePrefix_,
         oldThreadCount,
         threadCount);
 
