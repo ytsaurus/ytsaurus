@@ -18,6 +18,8 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
+
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 
@@ -452,6 +454,8 @@ public:
 
         auto time = timer.GetElapsedTime();
 
+        YT_LOG_ACCESS("StartTransaction", transaction);
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
@@ -582,6 +586,8 @@ public:
 
         auto* user = transaction->Acd().GetOwner()->AsUser();
 
+        YT_LOG_ACCESS("CommitTransaction", transaction);
+
         FinishTransaction(transaction);
 
         auto time = timer.GetElapsedTime();
@@ -678,6 +684,8 @@ public:
         transaction->ImportedObjects().clear();
 
         auto* user = transaction->Acd().GetOwner()->AsUser();
+
+        YT_LOG_ACCESS("AbortTransaction", transaction);
 
         FinishTransaction(transaction);
 

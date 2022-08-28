@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
-    remove, link,
+    remove, link, commit_transaction,
     exists, start_transaction, abort_transaction, alter_table, write_table, sort, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, create_dynamic_table)
@@ -26,6 +26,7 @@ class TestAccessLog(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     CELL_TAG_TO_DIRECTORIES = {10: "//tmp/access_log"}
+    TRANSACTION_METHODS = {"StartTransaction", "CommitTransaction", "AbortTransaction"}
 
     def _log_lines(self, path, directory):
         with open(path, "rb") as fd:
@@ -34,7 +35,8 @@ class TestAccessLog(YTEnvSetup):
                     line_json = json.loads(line)
                 except ValueError:
                     continue
-                if line_json.get("path", "").startswith(directory):
+                is_transaction = line_json.get("method", None) in self.TRANSACTION_METHODS
+                if is_transaction or line_json.get("path", "").startswith(directory):
                     yield line_json
 
     def _is_node_in_logs(self, node, path, directory):
@@ -507,7 +509,7 @@ class TestAccessLog(YTEnvSetup):
         get(document_path)
         mutation_id_to_line = collections.defaultdict(list)
         for line in self._collect_log_lines():
-            if not line["path"].startswith("//tmp/access_log/document"):
+            if not line.get("path", None).startswith("//tmp/access_log/document"):
                 continue
             mutation_id_to_line[line.get("mutation_id")].append(line)
         for mutation_id in mutation_id_to_line:
@@ -516,6 +518,43 @@ class TestAccessLog(YTEnvSetup):
                 assert mutation_id_to_line[mutation_id][0]["method"] == "Get"
             else:
                 assert len(mutation_id_to_line[mutation_id]) % (self.NUM_MASTERS - 1) == 0, str(mutation_id_to_line[mutation_id])
+
+    @authors("kvk1920")
+    def test_transaction_actions_log(self):
+        create("map_node", "//tmp/access_log")
+        parameters = {"replicate_to_master_cell_tags": [10, 11, 12]}
+        tx = start_transaction(parameters=parameters)
+        tx_a = start_transaction(tx=tx, parameters=parameters)
+        tx_b = start_transaction(tx=tx, parameters=parameters)
+        tx_c = start_transaction(tx=tx_b, parameters=parameters)
+        abort_transaction(tx=tx_a, parameters=parameters)
+        tx_d = start_transaction(tx=tx, parameters=parameters)
+        commit_transaction(tx=tx_d, parameters=parameters)
+        commit_transaction(tx=tx_c, parameters=parameters)
+        commit_transaction(tx=tx, parameters=parameters)
+
+        def make_entry(entry):
+            action, transaction, chain = entry
+            last_transaction = {"transaction_id": transaction}
+            info = {"method": f"{action}Transaction", "transaction_info": last_transaction}
+            for ancestor in chain:
+                last_transaction["parent"] = {"transaction_id": ancestor}
+                last_transaction = last_transaction["parent"]
+            return info
+
+        expected = list(map(make_entry, [
+            ("Start", tx, []),
+            ("Start", tx_a, [tx]),
+            ("Start", tx_b, [tx]),
+            ("Start", tx_c, [tx_b, tx]),
+            ("Abort", tx_a, [tx]),
+            ("Start", tx_d, [tx]),
+            ("Commit", tx_d, [tx]),
+            ("Commit", tx_c, [tx_b, tx]),
+            ("Abort", tx_b, [tx]),
+            ("Commit", tx, []),
+        ]))
+        self._validate_entries_against_log(expected)
 
 ##################################################################
 
@@ -526,7 +565,11 @@ class TestAccessLogPortal(TestAccessLog):
 
     CELL_TAG_TO_DIRECTORIES = {11: "//tmp/access_log"}
 
-    @authors("shakurov", "s-v-m")
+    @authors("kvk1920")
+    def test_transaction_actions_log(self):
+        pass
+
+    @authors("shakurov")
     def test_logs_portal(self):
         log_list = []
 

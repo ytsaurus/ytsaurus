@@ -247,6 +247,24 @@ void LogAccess(
         });
 }
 
+void LogAccess(
+    NCellMaster::TBootstrap* bootstrap,
+    const TStringBuf method,
+    const NTransactionServer::TTransaction* transaction)
+{
+    YT_ASSERT(bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog);
+    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
+    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
+    YT_ASSERT(transaction);
+
+    LogStructuredEventFluently(ELogLevel::Info)
+        .Item("method").Value(method)
+        .Item("path").Value("")
+        .Item("transaction_info").DoMap([&] (auto fluent) {
+            TraverseTransactionAncestors(transaction, fluent);
+        });
+}
+
 bool IsAccessLoggedType(const EObjectType type)
 {
     static const THashSet<EObjectType> typesForAccessLog = {
