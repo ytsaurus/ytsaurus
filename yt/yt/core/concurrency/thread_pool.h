@@ -27,9 +27,6 @@ public:
     int GetThreadCount();
     void Configure(int threadCount);
 
-    //! Starts the threads if they were not previously started.
-    void EnsureStarted();
-
     const IInvokerPtr& GetInvoker();
 
 private:
