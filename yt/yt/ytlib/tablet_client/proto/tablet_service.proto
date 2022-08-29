@@ -38,6 +38,8 @@ message TReqRegisterTransactionActions
     required int64 transaction_timeout = 3;
     required uint64 signature = 4;
     repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
+    optional string user = 6;
+    optional string user_tag = 7;
 }
 
 message TRspRegisterTransactionActions
