@@ -1198,11 +1198,6 @@ private:
             return;
         }
 
-        // COMPAT(savrus) Remove as soon as deployed on ada and socrates.
-        if (IsMasterTransactionId(transactionId)) {
-            canThrow = false;
-        }
-
         if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
             return;
         }
