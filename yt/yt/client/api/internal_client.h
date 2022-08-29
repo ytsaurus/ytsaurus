@@ -44,6 +44,9 @@ struct TReadHunksOptions
     : public TTimeoutOptions
 {
     NChunkClient::TChunkFragmentReaderConfigPtr Config;
+
+    //! If false, chunk fragment is returned as is.
+    bool ParseHeader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,8 @@ private:
     std::vector<NApi::TSerializableHunkDescriptorPtr> Descriptors;
     NYTree::INodePtr ChunkFragmentReader;
 
+    bool ParseHeader;
+
     void DoExecute(ICommandContextPtr context) override;
 };
 

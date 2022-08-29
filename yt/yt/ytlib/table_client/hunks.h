@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -60,6 +61,12 @@ struct THunkPayloadHeader
 {
     TChecksum Checksum;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef GetAndValidateHunkPayload(
+    TSharedRef fragment,
+    const NChunkClient::IChunkFragmentReader::TChunkFragmentRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 

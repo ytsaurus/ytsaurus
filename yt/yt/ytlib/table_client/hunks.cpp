@@ -1094,9 +1094,7 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TRef GetAndValidateHunkPayload(TRef fragment, const IChunkFragmentReader::TChunkFragmentRequest& request)
+TSharedRef GetAndValidateHunkPayload(TSharedRef fragment, const IChunkFragmentReader::TChunkFragmentRequest& request)
 {
     YT_VERIFY(fragment.Size() >= sizeof(THunkPayloadHeader));
     auto* header = reinterpret_cast<const THunkPayloadHeader*>(fragment.Begin());
@@ -1114,6 +1112,10 @@ TRef GetAndValidateHunkPayload(TRef fragment, const IChunkFragmentReader::TChunk
     }
     return payload;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IChunkFragmentReaderPtr chunkFragmentReader,

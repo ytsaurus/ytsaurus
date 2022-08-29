@@ -3,11 +3,14 @@
 #include "config.h"
 #include "journal_chunk_writer.h"
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NTableClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,11 +55,13 @@ public:
         for (const auto& payload : payloads) {
             auto guard = Guard(Lock_);
 
+            auto hunkSize = sizeof(THunkPayloadHeader) + payload.size();
+
             TJournalHunkDescriptor descriptor{
                 .ChunkId = ChunkId_,
                 .RecordIndex = CurrentRecordIndex_,
                 .RecordOffset = CurrentRecordSize_,
-                .Size = std::ssize(payload),
+                .Size = static_cast<i64>(hunkSize),
             };
             descriptors.push_back(descriptor);
 
@@ -66,10 +71,10 @@ public:
             }
 
             ++Statistics_.HunkCount;
-            Statistics_.TotalSize += std::ssize(payload);
+            Statistics_.TotalSize += hunkSize;
 
-            CurrentRecordSize_ += std::ssize(payload);
-            CurrentRecordHunks_.push_back(std::move(payload));
+            CurrentRecordSize_ += hunkSize;
+            CurrentRecordPayloads_.push_back(std::move(payload));
 
             // NB: May release guard.
             if (FlushIfNeeded(guard)) {
@@ -104,7 +109,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    std::vector<TSharedRef> CurrentRecordHunks_;
+    std::vector<TSharedRef> CurrentRecordPayloads_;
 
     i64 CurrentRecordSize_ = 0;
     i64 CurrentRecordIndex_ = 0;
@@ -132,7 +137,7 @@ private:
             return;
         }
 
-        if (CurrentRecordHunks_.empty()) {
+        if (CurrentRecordPayloads_.empty()) {
             ScheduleCurrentRecordFlush();
             return;
         }
@@ -146,7 +151,7 @@ private:
         VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         if (CurrentRecordSize_ >= Config_->MaxRecordSize ||
-            std::ssize(CurrentRecordHunks_) >= Config_->MaxRecordHunkCount)
+            std::ssize(CurrentRecordPayloads_) >= Config_->MaxRecordHunkCount)
         {
             FlushCurrentRecord(guard);
             return true;
@@ -158,20 +163,34 @@ private:
     void FlushCurrentRecord(TGuard<NThreading::TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
-        YT_VERIFY(!CurrentRecordHunks_.empty());
+        YT_VERIFY(!CurrentRecordPayloads_.empty());
 
         YT_LOG_DEBUG("Flushing journal hunk chunk record "
             "(RecordIndex: %v, RecordSize: %v, RecordHunkCount: %v)",
             CurrentRecordIndex_,
             CurrentRecordSize_,
-            std::ssize(CurrentRecordHunks_));
+            std::ssize(CurrentRecordPayloads_));
 
         struct TJournalHunkChunkWriterTag
         { };
-        auto record = MergeRefsToRef<TJournalHunkChunkWriterTag>(std::move(CurrentRecordHunks_));
+        auto record = TSharedMutableRef::Allocate<TJournalHunkChunkWriterTag>(CurrentRecordSize_);
+
+        auto* ptr = record.begin();
+        for (const auto& payload : CurrentRecordPayloads_) {
+            // Write header.
+            THunkPayloadHeader header;
+            header.Checksum = GetChecksum(payload);
+            ::memcpy(ptr, &header, sizeof(header));
+            ptr += sizeof(header);
+
+            // Write payload.
+            ::memcpy(ptr, payload.Begin(), payload.Size());
+            ptr += payload.Size();
+        }
+
         auto recordFlushFuture = UnderlyingWriter_->WriteRecord(std::move(record));
 
-        CurrentRecordHunks_.clear();
+        CurrentRecordPayloads_.clear();
         CurrentRecordSize_ = 0;
         ++CurrentRecordIndex_;
         TDelayedExecutor::CancelAndClear(CurrentRecordFlushCookie_);

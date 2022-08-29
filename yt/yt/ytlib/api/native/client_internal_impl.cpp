@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -19,6 +21,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYTree;
 
@@ -49,8 +52,21 @@ std::vector<TSharedRef> TClient::DoReadHunks(
 
     auto response = WaitFor(reader->ReadFragments(/*options*/ {}, readerRequests))
         .ValueOrThrow();
+    const auto& fragments = response.Fragments;
+    YT_VERIFY(fragments.size() == requests.size());
+    if (!options.ParseHeader) {
+        return fragments;
+    }
 
-    return response.Fragments;
+    std::vector<TSharedRef> payloads;
+    payloads.reserve(fragments.size());
+    for (int requestIndex = 0; requestIndex < std::ssize(requests); ++requestIndex) {
+        const auto& request = readerRequests[requestIndex];
+        const auto& fragment = fragments[requestIndex];
+        payloads.push_back(GetAndValidateHunkPayload(fragment, request));
+    }
+
+    return payloads;
 }
 
 std::vector<THunkDescriptor> TClient::DoWriteHunks(

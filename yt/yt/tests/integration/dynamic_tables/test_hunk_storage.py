@@ -140,8 +140,8 @@ class TestHunkStorage(YTEnvSetup):
         store_id = self._get_active_store_id("//tmp/h")
         hunks = write_hunks("//tmp/h", ["a", "bb"])
         assert hunks == [
-            {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 1, "erasure_codec": "none"},
-            {"chunk_id": store_id, "block_index": 0, "block_offset": 1, "length": 2, "erasure_codec": "none"},
+            {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9, "erasure_codec": "none"},
+            {"chunk_id": store_id, "block_index": 0, "block_offset": 9, "length": 10, "erasure_codec": "none"},
         ]
 
         assert read_hunks(hunks) == [
