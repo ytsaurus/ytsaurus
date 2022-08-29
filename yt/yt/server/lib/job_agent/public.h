@@ -8,6 +8,7 @@ namespace NYT::NJobAgent {
 
 struct TJobReport;
 
+DECLARE_REFCOUNTED_CLASS(TGpuInfoSourceConfig)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)

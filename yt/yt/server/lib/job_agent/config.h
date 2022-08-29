@@ -45,10 +45,24 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EGpuInfoSource,
+DEFINE_ENUM(EGpuInfoSourceType,
     (NvGpuManager)
     (NvidiaSmi)
 );
+
+class TGpuInfoSourceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    EGpuInfoSourceType Type;
+    TString NvGpuManagerServiceAddress;
+    TString NvGpuManagerServiceName;
+
+    REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
 
 class TGpuManagerConfig
     : public NYTree::TYsonStruct
@@ -70,7 +84,7 @@ public:
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
-    EGpuInfoSource GpuInfoSource;
+    TGpuInfoSourceConfigPtr GpuInfoSource;
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
@@ -103,7 +117,7 @@ public:
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
 
-    EGpuInfoSource GpuInfoSource;
+    TGpuInfoSourceConfigPtr GpuInfoSource;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 

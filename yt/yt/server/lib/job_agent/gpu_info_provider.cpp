@@ -254,8 +254,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString NvManagerServiceAddress = "unix:/var/run/nvgpu-manager.sock";
-
 static NRpc::IChannelPtr CreateChannel(const TString& address)
 {
     auto channelConfig = New<NRpc::NGrpc::TChannelConfig>();
@@ -263,13 +261,14 @@ static NRpc::IChannelPtr CreateChannel(const TString& address)
     return NRpc::NGrpc::CreateGrpcChannel(channelConfig);
 }
 
-TNvManagerGpuInfoProvider::TNvManagerGpuInfoProvider(const TString address)
+TNvManagerGpuInfoProvider::TNvManagerGpuInfoProvider(const TString& address, const TString serviceName)
     : Channel_(CreateChannel(address))
+    , ServiceName_(std::move(serviceName))
 { }
 
 std::vector<TGpuInfo> TNvManagerGpuInfoProvider::GetGpuInfos(TDuration checkTimeout)
 {
-    TNvGpuManagerService proxy(Channel_);
+    TNvGpuManagerService proxy(Channel_, ServiceName_);
     auto req = proxy.ListDevices();
     auto rsp = WaitFor(
         req->Invoke()
@@ -287,12 +286,14 @@ std::vector<TGpuInfo> TNvManagerGpuInfoProvider::GetGpuInfos(TDuration checkTime
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(EGpuInfoSource gpuInfoSource)
+IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& gpuInfoSource)
 {
-    switch (gpuInfoSource) {
-        case EGpuInfoSource::NvGpuManager:
-            return New<TNvManagerGpuInfoProvider>(NvManagerServiceAddress);
-        case EGpuInfoSource::NvidiaSmi:
+    switch (gpuInfoSource->Type) {
+        case EGpuInfoSourceType::NvGpuManager:
+            return New<TNvManagerGpuInfoProvider>(
+                gpuInfoSource->NvGpuManagerServiceAddress,
+                gpuInfoSource->NvGpuManagerServiceName);
+        case EGpuInfoSourceType::NvidiaSmi:
             return New<TNvidiaSmiGpuInfoProvider>();
     }
     YT_ABORT();

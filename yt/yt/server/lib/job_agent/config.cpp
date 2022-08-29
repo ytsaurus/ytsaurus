@@ -58,6 +58,16 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuInfoSourceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("type", &TThis::Type)
+        .Default(EGpuInfoSourceType::NvidiaSmi);
+    registrar.Parameter("nv_gpu_manager_service_address", &TThis::NvGpuManagerServiceAddress)
+        .Default("unix:/var/run/nvgpu-manager.sock");
+    registrar.Parameter("nv_gpu_manager_service_name", &TThis::NvGpuManagerServiceName)
+        .Default("nvgpu.NvGpuManager");
+}
+
 void TGpuManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -97,7 +107,7 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
         .Default(0);
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
-        .Default(EGpuInfoSource::NvidiaSmi);
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->TestLayers && !config->TestResource) {
@@ -127,7 +137,7 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
-        .Default(EGpuInfoSource::NvidiaSmi);
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
