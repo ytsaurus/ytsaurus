@@ -1,8 +1,8 @@
-from helpers import get_object_attribute_cache_config, get_scheduling_options, get_schema_from_description
+from helpers import get_object_attribute_cache_config, get_schema_from_description
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
                          get_table_columnar_statistics, set_banned_flag, ls, abort_transaction, remove, read_table,
-                         sync_create_cells, sync_mount_table, insert_rows, update_op_parameters, print_debug, merge,
+                         sync_create_cells, sync_mount_table, insert_rows, print_debug, merge,
                          set, remove_user)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode
@@ -878,24 +878,25 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_single_interrupt(self):
         patch = {
-            "graceful_interruption_delay": 1000,
+            "graceful_interruption_delay": 2000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
             instances = clique.get_active_instances()
             assert len(instances) == 1
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            clique.op.suspend()
             self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
 
             wait(lambda: len(clique.get_active_instances()) == 0)
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
 
-            time.sleep(1)
+            time.sleep(2.5)
 
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
-            clique.resize(1)
+            clique.op.resume()
+            clique.wait_instance_count(1, unwanted_jobs=instances)
 
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
@@ -955,11 +956,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 except YtError as e:
                     return e.contains_code(InstanceUnavailableCode)
 
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
+            clique.op.suspend()
 
             wait(check_instance_stopped, iter=10, sleep_backoff=0.2)
 
-            clique.resize(1)
+            clique.op.resume()
+            clique.wait_instance_count(1, unwanted_jobs=instances)
 
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
