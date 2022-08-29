@@ -1047,16 +1047,14 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
 
     auto sequenceNumber = ++SequenceNumber_;
 
-    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        sequenceNumber != mutationContext->GetSequenceNumber() && mutationContext->GetSequenceNumber() != 0,
+        sequenceNumber != mutationContext->GetSequenceNumber(),
         "Sequence numbers differ (AutomatonSequenceNumber: %v, MutationSequenceNumber: %v)",
         sequenceNumber,
         mutationContext->GetSequenceNumber());
 
-    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        RandomSeed_ != mutationContext->GetPrevRandomSeed() && mutationContext->GetPrevRandomSeed() != 0,
+        RandomSeed_ != mutationContext->GetPrevRandomSeed(),
         "Mutation random seeds differ (AutomatonRandomSeed: %x, MutationPrevRandomSeed: %x, MutationRandomSeed: %x, MutationSequenceNumber: %v)",
         RandomSeed_.load(),
         mutationContext->GetPrevRandomSeed(),

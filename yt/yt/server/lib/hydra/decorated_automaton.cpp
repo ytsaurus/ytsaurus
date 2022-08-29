@@ -1248,9 +1248,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 
     Timestamp_ = mutationContext->GetTimestamp();
 
-    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        RandomSeed_ != mutationContext->GetPrevRandomSeed() && mutationContext->GetPrevRandomSeed() != 0,
+        RandomSeed_ != mutationContext->GetPrevRandomSeed(),
         "Mutation random seeds differ (AutomatonRandomSeed: %x, MutationRandomSeed: %x)",
         RandomSeed_.load(),
         mutationContext->GetPrevRandomSeed());
@@ -1258,9 +1257,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
     AutomatonVersion_ = automatonVersion.Advance();
 
     ++SequenceNumber_;
-    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        SequenceNumber_ != mutationContext->GetSequenceNumber() && mutationContext->GetSequenceNumber() != 0,
+        SequenceNumber_ != mutationContext->GetSequenceNumber(),
         "Sequence numbers differ (AutomatonSequenceNumber: %x, MutationSequenceNumber: %x)",
         SequenceNumber_.load(),
         mutationContext->GetSequenceNumber());
