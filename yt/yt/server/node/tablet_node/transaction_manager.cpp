@@ -138,8 +138,8 @@ public:
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActionsCompat, Unretained(this)));
+        // COMPAT(babenko)
+        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)), {"NTabletNode::NProto::TReqRegisterTransactionActions"});
         RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
@@ -297,7 +297,7 @@ public:
         TTransactionSignature signature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions)
     {
-        NTabletNode::NProto::TReqRegisterTransactionActions request;
+        NTabletClient::NProto::TReqRegisterTransactionActions request;
         ToProto(request.mutable_transaction_id(), transactionId);
         request.set_transaction_start_timestamp(transactionStartTimestamp);
         request.set_transaction_timeout(ToProto<i64>(transactionTimeout));
@@ -965,7 +965,7 @@ private:
     }
 
 
-    void HydraRegisterTransactionActions(NTabletNode::NProto::TReqRegisterTransactionActions* request)
+    void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
@@ -998,18 +998,6 @@ private:
         transaction->PersistentPrepareSignature() += signature;
         // NB: May destroy transaction.
         IncrementCommitSignature(transaction, signature);
-    }
-
-    // COMPAT(babenko)
-    void HydraRegisterTransactionActionsCompat(NTabletClient::NProto::TReqRegisterTransactionActions* request)
-    {
-        NTabletNode::NProto::TReqRegisterTransactionActions newRequest;
-        newRequest.mutable_transaction_id()->CopyFrom(request->transaction_id());
-        newRequest.set_transaction_start_timestamp(request->transaction_start_timestamp());
-        newRequest.set_transaction_timeout(request->transaction_timeout());
-        newRequest.set_signature(request->signature());
-        newRequest.mutable_actions()->CopyFrom(request->actions());
-        HydraRegisterTransactionActions(&newRequest);
     }
 
     void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)
