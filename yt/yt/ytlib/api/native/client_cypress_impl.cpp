@@ -989,8 +989,6 @@ TNodeId TClient::DoCloneNode(
     SetCopyNodeRequestParameters(req, options);
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
-    // COMPAT(babenko)
-    req->set_source_path(srcPath);
     auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     ypathExt->add_additional_paths(srcPath);
     batchReq->AddRequest(req);
