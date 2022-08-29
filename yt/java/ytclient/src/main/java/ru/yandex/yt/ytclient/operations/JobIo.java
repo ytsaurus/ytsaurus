@@ -21,7 +21,7 @@ public class JobIo {
         this(builder());
     }
 
-    public JobIo(@Nullable TableWriterOptions tableWriter) {
+    public JobIo(TableWriterOptions tableWriter) {
         this(builder().setTableWriter(tableWriter));
     }
 
