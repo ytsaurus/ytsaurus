@@ -65,7 +65,7 @@ object SpytSnapshot {
 
     def toPythonString: String = {
       if (fork.nonEmpty) {
-        s"$main${plusFork}b1.dev$dev"
+        s"$main${plusFork}b1.dev$dev.$hash"
       } else {
         s"${main}b1.dev$dev+$ticket.$hash"
       }
@@ -163,9 +163,8 @@ object SpytSnapshot {
 
     def latestPublishedPython(log: Logger, pythonRegistry: String, packageName: String): Option[SnapshotVersion] = {
       PypiUtils.latestVersion(log, pythonRegistry, packageName).map {
-        case pythonVersionRegex(main, fork, _, _, _, dev, _) =>
-          SnapshotVersion(main, Option(fork).filter(_.nonEmpty), "", dev = Option(dev).map(_.toInt).getOrElse(0), "")
-      }
+        case pythonVersionRegex(main, fork, _, _, _, dev, suffix) =>
+            SnapshotVersion(main, Option(fork).filter(_.nonEmpty), "", dev = Option(dev).map(_.toInt).getOrElse(0), suffix)      }
     }
   }
 
