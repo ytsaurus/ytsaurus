@@ -15,7 +15,7 @@ class TNvGpuManagerService
     : public NYT::NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TNvGpuManagerService, NvGpuManager);
+    TNvGpuManagerService(NYT::NRpc::IChannelPtr channel, TString serviceName);
 
     DEFINE_RPC_PROXY_METHOD(NJobAgent, ListDevices);
 };

@@ -4,6 +4,12 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNvGpuManagerService::TNvGpuManagerService(NYT::NRpc::IChannelPtr channel, TString serviceName)
+    : TProxyBase(std::move(channel), NYT::NRpc::TServiceDescriptor(std::move(serviceName)))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FromProto(TGpuInfo* gpuInfo, int index, const nvgpu::GpuDevice& device)
 {
     const auto& spec = device.spec().nvidia();

@@ -28,6 +28,8 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString ServiceName = "NvGpuManager";
+
 class TMockNvGpuManagerService
     : public NRpc::TServiceBase
 {
@@ -36,7 +38,7 @@ public:
         IInvokerPtr invoker)
     : TServiceBase(
         invoker,
-        TNvGpuManagerService::GetDescriptor(),
+        NRpc::TServiceDescriptor(ServiceName),
         NLogging::TLogger("TMockNvGpuManagerService"),
         NRpc::NullRealmId)
     {
@@ -120,7 +122,7 @@ protected:
 
 TEST_F(TTestNvManagerGpuInfoProvider, Simple)
 {
-    auto provider = New<TNvManagerGpuInfoProvider>(Address_);
+    auto provider = New<TNvManagerGpuInfoProvider>(Address_, ServiceName);
     auto gpuInfos = provider->GetGpuInfos(TDuration::Max());
 
     {
