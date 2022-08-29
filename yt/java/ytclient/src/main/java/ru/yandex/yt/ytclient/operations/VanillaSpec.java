@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.operations;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -25,25 +26,23 @@ public class VanillaSpec implements Spec {
     private final Integer failOnJobRestart;
     private final Map<String, YTreeNode> additionalSpecParameters;
 
+    protected <T extends BuilderBase<T>> VanillaSpec(BuilderBase<T> builder) {
+        if (builder.tasks == null) {
+            throw new IllegalArgumentException("Not null tasks was expected");
+        }
+        tasks = builder.tasks;
+        maxFailedJobCount = builder.maxFailedJobCount;
+        stderrTablePath = builder.stderrTablePath;
+        failOnJobRestart = builder.failOnJobRestart;
+        additionalSpecParameters = builder.additionalSpecParameters;
+    }
+
     public <TSpec extends Spec> VanillaSpec(String taskName, TSpec spec) {
-        this(Collections.singletonMap(taskName, spec));
+        this(builder().setTask(taskName, spec));
     }
 
-    public VanillaSpec(Map<String, ? extends Spec> tasks) {
-        this(tasks, null, null, null, Collections.emptyMap());
-    }
-
-    public VanillaSpec(
-            Map<String, ? extends Spec> tasks,
-            @Nullable Integer maxFailedJobCount,
-            @Nullable Integer failOnJobRestart,
-            @Nullable YPath stderrTablePath,
-            Map<String, YTreeNode> additionalSpecParameters) {
-        this.tasks = tasks;
-        this.maxFailedJobCount = maxFailedJobCount;
-        this.failOnJobRestart = failOnJobRestart;
-        this.stderrTablePath = stderrTablePath;
-        this.additionalSpecParameters = additionalSpecParameters;
+    public static BuilderBase<?> builder() {
+        return new Builder();
     }
 
     public Map<String, ? extends Spec> getTasks() {
@@ -87,5 +86,62 @@ public class VanillaSpec implements Spec {
                     return b;
                 })
                 .endMap();
+    }
+
+    public static class Builder extends BuilderBase<Builder> {
+        @Override
+        protected Builder self() {
+            return this;
+        }
+    }
+
+    @NonNullApi
+    @NonNullFields
+    public abstract static class BuilderBase<T extends BuilderBase<T>> {
+        @Nullable
+        private Map<String, ? extends Spec> tasks;
+        @Nullable
+        private Integer maxFailedJobCount;
+        @Nullable
+        private YPath stderrTablePath;
+        @Nullable
+        private Integer failOnJobRestart;
+        private Map<String, YTreeNode> additionalSpecParameters = new HashMap<>();
+
+        public T setTasks(Map<String, ? extends Spec> tasks) {
+            this.tasks = tasks;
+            return self();
+        }
+
+        public <TSpec extends Spec> T setTask(String taskName, TSpec spec) {
+            this.tasks = Collections.singletonMap(taskName, spec);
+            return self();
+        }
+
+        public T setMaxFailedJobCount(Integer maxFailedJobCount) {
+            this.maxFailedJobCount = maxFailedJobCount;
+            return self();
+        }
+
+        public T setStderrTablePath(YPath stderrTablePath) {
+            this.stderrTablePath = stderrTablePath;
+            return self();
+        }
+
+        public T setFailOnJobRestart(Integer failOnJobRestart) {
+            this.failOnJobRestart = failOnJobRestart;
+            return self();
+        }
+
+        public T setAdditionalSpecParameters(Map<String, YTreeNode> additionalSpecParameters) {
+            this.additionalSpecParameters = additionalSpecParameters;
+            return self();
+        }
+
+        public VanillaSpec build() {
+            return new VanillaSpec(this);
+        }
+
+        protected abstract T self();
     }
 }
