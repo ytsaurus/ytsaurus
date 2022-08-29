@@ -37,12 +37,14 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
@@ -440,6 +442,16 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public CompletableFuture<Operation> startMapReduce(MapReduceOperation req) {
         return client.startMapReduce(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMerge(MergeOperation req) {
+        return client.startMerge(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
+        return client.startRemoteCopy(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

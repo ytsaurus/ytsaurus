@@ -25,6 +25,7 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
@@ -32,6 +33,7 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
@@ -105,6 +107,18 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     default CompletableFuture<Operation> mapReduce(MapReduceOperation req) {
         return startMapReduce(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startMerge(MergeOperation req);
+
+    default CompletableFuture<Operation> merge(MergeOperation req) {
+        return startMerge(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req);
+
+    default CompletableFuture<Operation> remoteCopy(RemoteCopyOperation req) {
+        return startRemoteCopy(req).thenCompose(op -> op.watch().thenApply(unused -> op));
     }
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);

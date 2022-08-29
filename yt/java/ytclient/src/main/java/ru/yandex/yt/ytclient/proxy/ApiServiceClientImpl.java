@@ -68,6 +68,7 @@ import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
+import ru.yandex.yt.ytclient.proxy.request.BaseOperation;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.proxy.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
@@ -99,6 +100,7 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutateNode;
@@ -109,6 +111,7 @@ import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
+import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
@@ -818,52 +821,48 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 prepareSpecExecutor);
     }
 
-    @Override
-    public CompletableFuture<Operation> startMap(MapOperation req) {
+    private <T extends Spec> CompletableFuture<Operation> startOperationImpl(
+            BaseOperation<T> req,
+            EOperationType type
+    ) {
         return prepareSpec(req.getSpec()).thenCompose(
                 preparedSpec -> startOperation(
-                        new StartOperation(EOperationType.OT_MAP, preparedSpec)
+                        new StartOperation(type, preparedSpec)
                                 .setTransactionOptions(req.getTransactionalOptions().orElse(null))
                                 .setMutatingOptions(req.getMutatingOptions())
                 ).thenApply(operationId ->
                         new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
         );
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMap(MapOperation req) {
+        return startOperationImpl(req, EOperationType.OT_MAP);
     }
 
     @Override
     public CompletableFuture<Operation> startReduce(ReduceOperation req) {
-        return prepareSpec(req.getSpec()).thenCompose(
-                preparedSpec -> startOperation(
-                        new StartOperation(EOperationType.OT_REDUCE, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
-                                .setMutatingOptions(req.getMutatingOptions())
-                ).thenApply(operationId ->
-                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
-        );
+        return startOperationImpl(req, EOperationType.OT_REDUCE);
     }
 
     @Override
     public CompletableFuture<Operation> startSort(SortOperation req) {
-        return prepareSpec(req.getSpec()).thenCompose(
-                preparedSpec -> startOperation(
-                        new StartOperation(EOperationType.OT_SORT, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
-                                .setMutatingOptions(req.getMutatingOptions())
-                ).thenApply(operationId ->
-                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
-        );
+        return startOperationImpl(req, EOperationType.OT_SORT);
     }
 
     @Override
     public CompletableFuture<Operation> startMapReduce(MapReduceOperation req) {
-        return prepareSpec(req.getSpec()).thenCompose(
-                preparedSpec -> startOperation(
-                        new StartOperation(EOperationType.OT_MAP_REDUCE, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
-                                .setMutatingOptions(req.getMutatingOptions())
-                ).thenApply(operationId ->
-                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
-        );
+        return startOperationImpl(req, EOperationType.OT_MAP_REDUCE);
+    }
+
+    @Override
+    public CompletableFuture<Operation> startMerge(MergeOperation req) {
+        return startOperationImpl(req, EOperationType.OT_MERGE);
+    }
+
+    @Override
+    public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
+        return startOperationImpl(req, EOperationType.OT_REMOTE_COPY);
     }
 
     @Override
