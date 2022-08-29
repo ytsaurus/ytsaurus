@@ -27,12 +27,10 @@ class TTabletCellService
     : public TServiceBase
 {
 public:
-    TTabletCellService(IBootstrap* bootstrap, bool fixSpelling)
+    explicit TTabletCellService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            fixSpelling
-            ? NTabletCellClient::TTabletCellServiceProxyFixedSpelling::GetDescriptor()
-            : NTabletCellClient::TTabletCellServiceProxy::GetDescriptor(),
+            NTabletCellClient::TTabletCellServiceProxy::GetDescriptor(),
             TabletNodeLogger)
         , Bootstrap_(bootstrap)
     {
@@ -60,9 +58,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateTabletCellService(IBootstrap* bootstrap, bool fixSpelling)
+IServicePtr CreateTabletCellService(IBootstrap* bootstrap)
 {
-    return New<TTabletCellService>(bootstrap, fixSpelling);
+    return New<TTabletCellService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
