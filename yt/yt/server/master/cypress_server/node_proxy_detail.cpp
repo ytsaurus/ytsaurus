@@ -1609,10 +1609,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     DeclareMutating();
 
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    // COMPAT(babenko)
-    const auto& originalSourcePath = ypathExt.additional_paths_size() == 1
-        ? ypathExt.additional_paths(0)
-        : request->source_path();
+    if (ypathExt.additional_paths_size() != 1) {
+        THROW_ERROR_EXCEPTION("Invalid number of additional paths");
+    }
+    const auto& originalSourcePath = ypathExt.additional_paths(0);
+
     auto ignoreExisting = request->ignore_existing();
     auto lockExisting = request->lock_existing();
     auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());

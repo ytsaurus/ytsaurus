@@ -830,10 +830,10 @@ template <class TObject>
 DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 {
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    // COMPAT(babenko)
-    const auto& sourcePath = ypathExt.additional_paths_size() == 1
-        ? ypathExt.additional_paths(0)
-        : request->source_path();
+    if (ypathExt.additional_paths_size() != 1) {
+        THROW_ERROR_EXCEPTION("Invalid number of additional paths");
+    }
+    const auto& sourcePath = ypathExt.additional_paths(0);
 
     auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
     auto recursive = request->recursive();

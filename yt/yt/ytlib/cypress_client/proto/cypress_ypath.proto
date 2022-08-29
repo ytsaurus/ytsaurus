@@ -57,8 +57,6 @@ message TRspCreate
 
 message TReqCopy
 {
-    // COMPAT(babenko): see TYPathHeaderExt.additional_paths.
-    optional string source_path = 1;
     optional int32 mode = 3; // ENodeCloneMode
     optional bool recursive = 4 [default = false];
     optional bool force = 5 [default = false];
@@ -72,6 +70,8 @@ message TReqCopy
     optional bool ignore_existing = 8 [default = false];
     optional bool lock_existing = 13 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
+
+    reserved 1;
 }
 
 message TRspCopy
