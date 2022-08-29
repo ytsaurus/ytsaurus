@@ -1148,7 +1148,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": 10, "length": 3}
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
-        responses = read_hunks(requests)
+        responses = read_hunks(requests, parse_header=False)
         assert len(responses) == 3
         assert responses[0]["payload"] == "abcdefghijklmnopqrstuvwxyz"
         assert responses[1]["payload"] == ""
@@ -1172,7 +1172,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
         for request in requests:
             with pytest.raises(YtError):
-                read_hunks([request])
+                read_hunks([request], parse_header=False)
 
     JOURNAL_HUNK_PAYLOAD = [
         {"payload": "abcdefghijklmnopqrstuvwxyz"},
@@ -1203,7 +1203,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"chunk_id": chunk_id, "block_index": 1, "block_offset": 7, "length": 0}
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
-        responses = read_hunks(requests)
+        responses = read_hunks(requests, parse_header=False)
         assert len(responses) == 5
         assert responses[0]["payload"] == "abcdefghijklmnopqrstuvwxyz"
         assert responses[1]["payload"] == "defg"
@@ -1228,4 +1228,4 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
         for request in requests:
             with pytest.raises(YtError):
-                read_hunks([request])
+                read_hunks([request], parse_header=False)

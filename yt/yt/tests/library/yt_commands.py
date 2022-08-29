@@ -2782,6 +2782,8 @@ def read_hunks(descriptors, **kwargs):
     params["descriptors"] = descriptors
     if "driver" in kwargs:
         params["driver"] = kwargs.pop("driver")
+    if "parse_header" in kwargs:
+        params["parse_header"] = kwargs.pop("parse_header")
     return execute_command("read_hunks", params, parse_yson=True)
 
 

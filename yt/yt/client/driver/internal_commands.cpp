@@ -15,6 +15,9 @@ using namespace NYTree;
 TReadHunksCommand::TReadHunksCommand()
 {
     RegisterParameter("descriptors", Descriptors);
+
+    RegisterParameter("parse_header", ParseHeader)
+        .Default(true);
 }
 
 void TReadHunksCommand::DoExecute(ICommandContextPtr context)
@@ -22,6 +25,7 @@ void TReadHunksCommand::DoExecute(ICommandContextPtr context)
     Options.Config = UpdateYsonStruct(
         context->GetConfig()->ChunkFragmentReader,
         ChunkFragmentReader);
+    Options.ParseHeader = ParseHeader;
 
     std::vector<THunkDescriptor> descriptors;
     descriptors.reserve(Descriptors.size());

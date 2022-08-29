@@ -47,7 +47,7 @@ struct IJournalHunkChunkWriter
     virtual TFuture<void> Open() = 0;
 
     virtual TFuture<std::vector<TJournalHunkDescriptor>> WriteHunks(
-        std::vector<TSharedRef> hunks) = 0;
+        std::vector<TSharedRef> payloads) = 0;
 
     virtual TJournalHunkChunkWriterStatistics GetStatistics() const = 0;
 
