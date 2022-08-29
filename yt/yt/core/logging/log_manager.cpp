@@ -692,7 +692,6 @@ public:
     // ILogWriterHost implementation
     IInvokerPtr GetCompressionInvoker() override
     {
-        Cerr << "GetCompressionInvoker" << Endl;
         return CompressionThreadPool_->GetInvoker();
     }
 
