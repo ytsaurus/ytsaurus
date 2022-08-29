@@ -164,21 +164,13 @@ private:
 
                 {
                     const auto& attributes = node->Attributes();
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed", 0));
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number", 0));
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_state_hash(attributes.Get<ui64>("state_hash", 0));
-                    // COMPAT(gritukan)
-                    auto snapshotTimestamp = attributes.Get<TInstant>("timestamp", TInstant::Zero());
-                    Params_.Meta.set_timestamp(snapshotTimestamp.GetValue());
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_last_segment_id(attributes.Get<i64>("last_segment_id", 0));
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_last_record_id(attributes.Get<i64>("last_record_id", 0));
-                    // COMPAT(aleksandra-zh)
-                    Params_.Meta.set_last_mutation_term(attributes.Get<int>("last_mutation_term", 0));
+                    Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed"));
+                    Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number"));
+                    Params_.Meta.set_state_hash(attributes.Get<ui64>("state_hash"));
+                    Params_.Meta.set_timestamp(ToProto<ui64>(attributes.Get<TInstant>("timestamp")));
+                    Params_.Meta.set_last_segment_id(attributes.Get<i64>("last_segment_id"));
+                    Params_.Meta.set_last_record_id(attributes.Get<i64>("last_record_id"));
+                    Params_.Meta.set_last_mutation_term(attributes.Get<int>("last_mutation_term"));
 
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
