@@ -32,6 +32,7 @@ services:
       - UID=${UID:-1000}
       - SBT_COMMAND=${SBT_COMMAND:-test}
       - YT_TOKEN
+      - YT_PROXY
       - PROJECT_ROOT=${PROJECT_ROOT:-/app/spark-over-yt}
       - IS_TEAMCITY
       - TC_BUILD=${BUILD_NUMBER}

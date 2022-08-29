@@ -2,7 +2,7 @@ groupadd -o -g $HOST_DOCKER_GROUP_ID host_docker
 useradd -M -d $HOME -g host_docker -G docker -o -u $UID -s /bin/sh $USER
 
 mkdir -p $HOME/.m2 $HOME/.sbt $HOME/.cache $HOME/.ivy2
-chown -R $USER $HOME/.m2 $HOME/.sbt $HOME/.cache $HOME/.ivy2
+chown -R $USER $HOME/.m2 $HOME/.sbt $HOME/.cache $HOME/.ivy2 /cache
 
 export YT_TOKEN=${YT_TOKEN:-non_existent_token}
 export SPARK_HOME=/app/spark-over-yt/.tox/py27/lib/python2.7/site-packages/pyspark
@@ -37,6 +37,22 @@ e2e)
         ;;
     esac
     command="$publish_command && $SBT -Dproxies=hume -DdiscoveryPath=//home/spark/e2e-new/spark-test e2e-test/e2eFullCircleTest"
+    ;;
+custom)
+    case $SPYT_PUBLISH_MODE in
+    client)
+        command="$SBT spytPublishClientSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client"
+        ;;
+    cluster)
+        command="$SBT spytPublishClusterSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client cluster"
+        ;;
+    spark-fork)
+        command="$SBT spytPublishSparkForkSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client cluster spark-fork"
+        ;;
+    *)
+        command="echo Unknown publish mode $SPYT_PUBLISH_MODE && false"
+        ;;
+    esac
     ;;
 *)
     command="echo Unknown command $SBT_COMMAND && false"
