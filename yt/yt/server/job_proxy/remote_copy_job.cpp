@@ -293,7 +293,7 @@ private:
     std::vector<TChunkId> FailedChunkIds_;
 
     const TActionQueuePtr RemoteCopyQueue_;
-    TAsyncSemaphorePtr CopySemaphore_;
+    const TAsyncSemaphorePtr CopySemaphore_;
 
     TClientChunkReadOptions ChunkReadOptions_;
 
@@ -310,7 +310,8 @@ private:
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
-        writerOptions->ErasureCodec = NErasure::ECodec(inputChunkSpec.erasure_codec());
+        writerOptions->ErasureCodec = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
+
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
 
         return CreateChunk(
@@ -329,7 +330,7 @@ private:
         if (RemoteCopyJobSpecExt_.has_delay_in_copy_chunk()) {
             auto delayInCopyChunk = FromProto<TDuration>(RemoteCopyJobSpecExt_.delay_in_copy_chunk());
             if (delayInCopyChunk > TDuration::Zero()) {
-                YT_LOG_DEBUG("Sleeping in CopyChunk (DelayInCopyChunk: %v)",
+                YT_LOG_INFO("Sleeping in CopyChunk (DelayInCopyChunk: %v)",
                     delayInCopyChunk);
                 Sleep(delayInCopyChunk);
             }
@@ -341,7 +342,7 @@ private:
             inputChunkId,
             outputSessionId);
 
-        auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
+        auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
         if (erasureCodecId != NErasure::ECodec::None) {
             CopyErasureChunk(inputChunkSpec, outputSessionId);
         } else {
@@ -371,13 +372,11 @@ private:
         auto cancelableInvoker = cancelableContext->CreateInvoker(suspendableInvoker);
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
-        auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
+        auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
         auto erasureCodec = NErasure::GetCodec(erasureCodecId);
         auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
         auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
-
-        TDeferredChunkMetaPtr chunkMeta;
 
         auto unavailablePartPolicy = repairChunk
             ? EUnavailablePartPolicy::CreateNullReader
@@ -392,11 +391,12 @@ private:
             erasureCodec,
             unavailablePartPolicy);
 
-        chunkMeta = GetChunkMeta(inputChunkId, readers);
+        auto chunkMeta = GetChunkMeta(inputChunkId, readers);
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
+
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
             outputSessionId,
@@ -406,6 +406,7 @@ private:
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ std::vector<TString>(),
             Logger);
+
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
@@ -547,7 +548,7 @@ private:
                 &writers,
                 targetReplicas);
         } else {
-            YT_LOG_DEBUG("All the parts were copied successfully");
+            YT_LOG_INFO("All parts were copied successfully");
         }
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
@@ -881,19 +882,14 @@ private:
                 blockIndices);
 
             auto result = WaitFor(asyncResult);
-
             if (!result.IsOK()) {
                 FailedChunkIds_.push_back(reader->GetChunkId());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading blocks");
             }
 
-            auto blocks = result.Value();
+            const auto& blocks = result.Value();
 
-            i64 blocksSize = 0;
-            for (const auto& block : blocks) {
-                blocksSize += block.Size();
-            }
-
+            i64 blocksSize = GetByteSize(blocks);
             CopiedSize_ += blocksSize;
 
             {
@@ -933,6 +929,7 @@ private:
             FailedChunkIds_.push_back(chunkId);
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");
         }
+
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;
