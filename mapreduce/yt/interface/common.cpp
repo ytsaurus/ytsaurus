@@ -395,11 +395,6 @@ bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
         lhs.Group() == rhs.Group();
 }
 
-bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
-{
-    return !(lhs == rhs);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TTableSchema::Empty() const
@@ -517,11 +512,6 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
         lhs.Columns() == rhs.Columns() &&
         lhs.Strict() == rhs.Strict() &&
         lhs.UniqueKeys() == rhs.UniqueKeys();
-}
-
-bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
-{
-    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

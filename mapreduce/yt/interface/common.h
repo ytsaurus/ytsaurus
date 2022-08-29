@@ -336,7 +336,6 @@ enum EValueType : int
     VT_FLOAT,
     /// Json, sequence of bytes that is valid json.
     VT_JSON,
-/// @endcond
 };
 
 ///
@@ -370,18 +369,20 @@ enum EOptimizeForAttr : i8
 /// @ref NYT::TRichYPath
 enum EErasureCodecAttr : i8
 {
+    /// @cond Doxygen_Suppress
     EC_NONE_ATTR                /* "none" */,
     EC_REED_SOLOMON_6_3_ATTR    /* "reed_solomon_6_3" */,
     EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
     EC_ISA_LRC_12_2_2_ATTR      /* "isa_lrc_12_2_2" */,
+    /// @endcond
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @brief Description of the column table is sorted by
+/// @brief Table key column description.
 ///
-/// Includes column name and sort order.
+/// The description includes column name and sort order.
 ///
 /// @anchor TSortOrder_backward_compatibility
 /// @note
@@ -454,25 +455,53 @@ public:
     Y_SAVELOAD_DEFINE(Name_, SortOrder_);
 };
 
+///
+/// @brief List of @ref TSortColumn
+///
+/// Contains a bunch of helper methods such as constructing from single object.
 class TSortColumns
     : public TOneOrMany<TSortColumn, TSortColumns>
 {
 public:
     using TOneOrMany<TSortColumn, TSortColumns>::TOneOrMany;
 
+    /// Construct empty list.
     TSortColumns();
+
+    ///
+    /// @{
+    ///
+    /// @brief Construct list of ascending sort order columns by their names.
+    ///
+    /// Required for backward compatibility.
+    ///
+    /// @ref TSortOrder_backward_compatibility
     TSortColumns(const TVector<TString>& names);
     TSortColumns(const TColumnNames& names);
+    /// @}
 
-    // Intentionally implicit conversion.
+
+    ///
+    /// @brief Implicit conversion to column list.
+    ///
+    /// If all columns has ascending sort order return list of their names.
+    /// Throw exception otherwise.
+    ///
+    /// Required for backward compatibility.
+    ///
+    /// @ref TSortOrder_backward_compatibility
     operator TColumnNames() const;
 
+    /// Make sure that all columns are of ascending sort order.
     const TSortColumns& EnsureAscending() const;
+
+    /// Get list of column names.
     TVector<TString> GetNames() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Helper function to create new style type from old style one.
 NTi::TTypePtr ToTypeV3(EValueType type, bool required);
 
 ///
@@ -489,15 +518,30 @@ NTi::TTypePtr ToTypeV3(EValueType type, bool required);
 /// ```
 ///    columnSchema.Name("my-column").Type(VT_INT64); // set name and type
 /// ```
+///
+/// @ref https://yt.yandex-team.ru/docs/description/storage/static_schema
 class TColumnSchema
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TColumnSchema;
+    /// @endcond
 
+    ///
+    /// @brief Construct empty column schemas
+    ///
+    /// @note
+    /// Such schema cannot be used in schema as it it doesn't have name.
     TColumnSchema();
 
+    ///
+    /// @{
+    ///
+    /// @brief Copy and move constructors are default.
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema& operator=(const TColumnSchema&) = default;
+    /// @}
+
 
     FLUENT_FIELD_ENCAPSULATED(TString, Name);
 
@@ -519,19 +563,49 @@ public:
     NTi::TTypePtr TypeV3() const;
     /// @}
 
-    // Experimental features
+    /// @deprecated Deprecated field that is not longer used on server side.
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV2);
+
+    ///
+    /// @brief Raw yson representaion of column type
+    /// @deprecated Prefer to use `TypeV3` methods.
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV3);
 
+    /// Column sort order
     FLUENT_FIELD_OPTION_ENCAPSULATED(ESortOrder, SortOrder);
+
+    ///
+    /// @brief Lock group name
+    ///
+    /// @ref https://yt.yandex-team.ru/docs/description/dynamic_tables/sorted_dynamic_tables#blokirovka-stroki
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Lock);
+
+    /// Expression defining column value
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Expression);
+
+    /// Aggregating function name
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Aggregate);
+
+    ///
+    /// @brief Storage group name
+    ///
+    /// @ref https://yt.yandex-team.ru/docs/description/storage/static_schema
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Group);
 
+    ///
+    /// @brief Column requiredness.
+    ///
+    /// Required columns doesn't accept NULL values.
+    /// Usually if column is required it means that it has Optional<...> type
     bool Required() const;
+
+    ///
+    /// @{
+    ///
+    /// @brief Set type in old-style manner
     TColumnSchema& Type(EValueType type, bool required) &;
     TColumnSchema Type(EValueType type, bool required) &&;
+    /// @}
 
 private:
     friend void Deserialize(TColumnSchema& columnSchema, const TNode& node);
@@ -539,8 +613,8 @@ private:
     bool Required_ = false;
 };
 
+/// Eqality check checks all fields of column schema.
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
-bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs);
 
 ///
 /// @brief Description of table schema
@@ -549,7 +623,9 @@ bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs);
 class TTableSchema
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TTableSchema;
+    /// @endcond
 
     /// Column schema
     FLUENT_VECTOR_FIELD_ENCAPSULATED(TColumnSchema, Column);
@@ -612,8 +688,8 @@ public:
     friend void Deserialize(TTableSchema& tableSchema, const TNode& node);
 };
 
+/// Check for equality of all columns and all schema attributes
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
-bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs);
 
 /// Create table schema by protobuf message descriptor
 TTableSchema CreateTableSchema(
@@ -637,8 +713,15 @@ inline TTableSchema CreateTableSchema(
         keepFieldsWithoutExtension);
 }
 
+///
+/// @brief Create strict table schema from `struct` type.
+///
+/// Names and types of columns are taken from struct member names and types.
+/// `Strict` flag is set to true, all other attribute of schema and columns
+/// are left with default values
 TTableSchema CreateTableSchema(NTi::TTypePtr type);
 
+/// @deprecated Create table schema by YDL type.
 template <class TYdlType, typename = std::enable_if_t<NYdl::TIsYdlGenerated<TYdlType>::value>>
 inline TTableSchema CreateTableSchema()
 {
@@ -651,18 +734,21 @@ inline TTableSchema CreateTableSchema()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// ERelation describes comparison operation used in key bound
+///
+/// @brief Enumeration describing comparison operation used in key bound.
+///
+/// Names are self describing.
 enum class ERelation
 {
+    /// @cond Doxygen_Suppress
     Less            /* "<"  */,
     LessOrEqual     /* "<=" */,
     Greater         /* ">"  */,
     GreaterOrEqual  /* ">=" */,
+    /// @endcond
 };
 
 /// @brief Bound of key range
-///
-///
 struct TKeyBound
 {
     using TSelf = TKeyBound;
@@ -707,16 +793,19 @@ struct TReadRange
     }
 };
 
-/// @brief RichYPath, path with additional attributes
+///
+/// @brief Path with additional attributes.
 ///
 /// Allows to specify additional attributes for path used in some operations.
 ///
 /// @see https://yt.yandex-team.ru/docs/description/common/ypath
 struct TRichYPath
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TRichYPath;
+    /// @endcond
 
-    /// YPath itself
+    /// Path itself.
     FLUENT_FIELD(TYPath, Path);
 
     /// Specifies that path should be appended not overwritten
@@ -780,12 +869,18 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
 
     using TRenameColumnsDescriptor = THashMap<TString, TString>;
+
     /// Specifies columnar mapping which will be applied to columns before transfer to job.
     FLUENT_FIELD_OPTION(TRenameColumnsDescriptor, RenameColumns);
 
+    /// Create empty path with no attributes
     TRichYPath()
     { }
 
+    ///
+    /// @{
+    ///
+    /// @brief Create path from string
     TRichYPath(const char* path)
         : Path_(path)
     { }
@@ -793,6 +888,7 @@ struct TRichYPath
     TRichYPath(const TYPath& path)
         : Path_(path)
     { }
+    /// @}
 };
 
 template <typename TProtoType>
