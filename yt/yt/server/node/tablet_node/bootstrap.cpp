@@ -180,8 +180,6 @@ public:
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
 
-        GetRpcServer()->RegisterService(CreateTabletCellService(this, /*fixSpelling*/ false));
-        GetRpcServer()->RegisterService(CreateTabletCellService(this, /*fixSpelling*/ true));
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
 
         SlotManager_->Initialize();
