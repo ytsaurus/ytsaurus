@@ -154,7 +154,7 @@ public:
 
     TNodeResources GetResourceLimits() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         TNodeResources result;
 
