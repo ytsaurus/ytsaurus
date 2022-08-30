@@ -20,6 +20,7 @@
 
 #include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -122,7 +123,16 @@ TJob::TJob(
     TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor)
-    : Id_(jobId)
+    : TResourceHolder(
+        bootstrap->GetJobResourceManager().Get(),
+        ExecNodeLogger.WithTag(
+            "JobId: %v, OperationId: %v, JobType: %v",
+            jobId,
+            operationId,
+            CheckedEnumCast<EJobType>(jobSpec.type())),
+        resourceUsage,
+        jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext).user_job_spec().port_count())
+    , Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
@@ -142,12 +152,7 @@ TJob::TJob(
         : New<TJobTestingOptions>())
     , Interruptible_(SchedulerJobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
-    , Logger(ExecNodeLogger.WithTag("JobId: %v, OperationId: %v, JobType: %v",
-        Id_,
-        OperationId_,
-        GetType()))
-    , ResourceUsage_(resourceUsage)
-    , IsGpuRequested_(ResourceUsage_.gpu() > 0)
+    , IsGpuRequested_(resourceUsage.gpu() > 0)
     , RequestedCpu_(resourceUsage.cpu())
     , RequestedMemory_(resourceUsage.user_memory())
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
@@ -291,11 +296,21 @@ void TJob::Start()
     });
 }
 
-bool TJob::IsStarted() const noexcept
+bool TJob::IsStarted() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return Started_;
+}
+
+void TJob::OnResourcesAcquired()
+{
+    Start();
+}
+
+TResourceHolder* TJob::AsResourceHolder()
+{
+    return this;
 }
 
 void TJob::Abort(const TError& error)
@@ -534,7 +549,7 @@ EJobType TJob::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return static_cast<EJobType>(JobSpec_.type());
+    return CheckedEnumCast<EJobType>(JobSpec_.type());
 }
 
 bool TJob::IsUrgent() const
@@ -549,20 +564,6 @@ const TJobSpec& TJob::GetSpec() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return JobSpec_;
-}
-
-int TJob::GetPortCount() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return SchedulerJobSpecExt_->user_job_spec().port_count();
-}
-
-void TJob::SetPorts(const std::vector<int>& ports)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    Ports_ = ports;
 }
 
 EJobState TJob::GetState() const
@@ -681,11 +682,11 @@ const TString& TJob::GetJobTrackerAddress() const
     return EmptyJobTrackerAddress;
 }
 
-TNodeResources TJob::GetResourceUsage() const
+const TNodeResources& TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return ResourceUsage_;
+    return TResourceHolder::GetResourceUsage();
 }
 
 bool TJob::IsGpuRequested() const
@@ -693,11 +694,11 @@ bool TJob::IsGpuRequested() const
     return IsGpuRequested_;
 }
 
-std::vector<int> TJob::GetPorts() const
+const std::vector<int>& TJob::GetPorts() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return Ports_;
+    return TResourceHolder::GetPorts();
 }
 
 TJobResult TJob::GetResultWithoutExtension() const
@@ -743,8 +744,7 @@ void TJob::SetResourceUsage(const TNodeResources& newUsage)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
-        auto delta = newUsage - ResourceUsage_;
-        ResourceUsage_ = newUsage;
+        auto delta = TResourceHolder::SetResourceUsage(newUsage);
         ResourcesUpdated_.Fire(delta);
     }
 }
@@ -752,7 +752,7 @@ void TJob::SetResourceUsage(const TNodeResources& newUsage)
 bool TJob::ResourceUsageOverdrafted() const
 {
     if (UserJobSpec_) {
-        return ResourceUsage_.user_memory() > RequestedMemory_;
+        return TResourceHolder::GetResourceUsage().user_memory() > RequestedMemory_;
     }
     return false;
 }
@@ -1160,13 +1160,6 @@ const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetCont
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return ControllerAgentConnector_;
-}
-
-const NLogging::TLogger& TJob::GetLogger() const noexcept
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    
-    return Logger;
 }
 
 void TJob::Interrupt(
@@ -1813,20 +1806,24 @@ void TJob::Cleanup()
         HandleJobReport(MakeDefaultJobReport().Error(error));
     }
 
-    YT_LOG_INFO(error, "Setting final job state (JobState: %v, ResourceUsage: %v)", GetState(), ResourceUsage_);
-    JobFinished_.Fire();
+    YT_LOG_INFO(
+        error,
+        "Setting final job state (JobState: %v, ResourceUsage: %v)",
+        GetState(),
+        GetResourceUsage());
 
     // Release resources.
     GpuSlots_.clear();
     GpuStatistics_.clear();
 
-    auto oneUserSlotResources = ZeroNodeResources();
-    oneUserSlotResources.set_user_slots(1);
+    if (IsStarted()) {
+        auto oneUserSlotResources = ZeroNodeResources();
+        oneUserSlotResources.set_user_slots(1);
 
-    auto resourceDelta = ZeroNodeResources() - ResourceUsage_ + oneUserSlotResources;
-    ResourceUsage_ = ZeroNodeResources();
-    ResourcesUpdated_.Fire(resourceDelta);
-    PortsReleased_.Fire();
+        TResourceHolder::SetResourceUsage(oneUserSlotResources);
+    }
+
+    JobFinished_.Fire();
 
     if (Slot_) {
         if (ShouldCleanSandboxes()) {
@@ -1841,6 +1838,7 @@ void TJob::Cleanup()
             YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                 DisableSandboxCleanupEnv);
         }
+        YT_LOG_DEBUG("Release slot (SlotIndex: %v)", Slot_->GetSlotIndex());
         Slot_.Reset();
     }
 
@@ -1849,7 +1847,7 @@ void TJob::Cleanup()
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
     }
 
-    ResourcesUpdated_.Fire(-oneUserSlotResources);
+    ReleaseResources();
 
     SetJobPhase(EJobPhase::Finished);
 

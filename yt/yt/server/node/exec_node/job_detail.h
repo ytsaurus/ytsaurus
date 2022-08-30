@@ -11,6 +11,7 @@
 
 #include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -41,10 +42,10 @@ DEFINE_ENUM(EGpuCheckType,
 
 class TJob
     : public NJobAgent::IJob
+    , public NJobAgent::TResourceHolder
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), PortsReleased);
     DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
     DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
 
@@ -60,8 +61,9 @@ public:
     ~TJob() override;
 
     void Start() override;
+    bool IsStarted() const override;
 
-    bool IsStarted() const noexcept override;
+    NJobAgent::TResourceHolder* AsResourceHolder() override;
 
     void Abort(const TError& error) override;
 
@@ -96,9 +98,7 @@ public:
 
     bool IsUrgent() const override;
 
-    int GetPortCount() const override;
-
-    void SetPorts(const std::vector<int>& ports) override;
+    const std::vector<int>& GetPorts() const;
 
     EJobState GetState() const override;
 
@@ -112,10 +112,8 @@ public:
 
     const TString& GetJobTrackerAddress() const override;
 
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const override;
+    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
     bool IsGpuRequested() const override;
-
-    std::vector<int> GetPorts() const override;
 
     NJobTrackerClient::NProto::TJobResult GetResultWithoutExtension() const;
     const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& GetResultExtension() const noexcept;
@@ -198,8 +196,6 @@ public:
 
     const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& GetControllerAgentConnector() const noexcept;
 
-    const NLogging::TLogger& GetLogger() const noexcept;
-
     void Interrupt(
         TDuration timeout,
         std::optional<NScheduler::EInterruptReason> interruptionReason,
@@ -232,8 +228,6 @@ private:
 
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
-
-    const NLogging::TLogger Logger;
 
     THashMap<TString, TUserJobSensorPtr> SupportedMonitoringSensors_;
 
@@ -304,11 +298,9 @@ private:
 
     IVolumePtr RootVolume_;
 
-    NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
     bool IsGpuRequested_;
     double RequestedCpu_;
     i64 RequestedMemory_;
-    std::vector<int> Ports_;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -466,6 +458,8 @@ private:
     void CollectSensorsFromGpuInfo(NProfiling::ISensorWriter* writer);
 
     TFuture<TSharedRef> DumpSensors();
+
+    void OnResourcesAcquired() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

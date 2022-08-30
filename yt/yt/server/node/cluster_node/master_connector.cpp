@@ -19,6 +19,7 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -190,8 +191,8 @@ public:
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
         resourceManager->SetResourceLimitsOverride(response.resource_limits_overrides());
 
-        const auto& jobController = Bootstrap_->GetJobController();
-        jobController->SetResourceLimitsOverrides(response.resource_limits_overrides());
+        const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+        jobResourceManager->SetResourceLimitsOverrides(response.resource_limits_overrides());
     }
 
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override

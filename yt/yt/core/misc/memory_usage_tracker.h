@@ -47,6 +47,10 @@ public:
 
     void Release();
 
+    //! Releases memory, but does not return it to the tracker.
+    //! Caller should care about releasing memory himself.
+    void Reset();
+
     explicit operator bool() const;
 
     i64 GetSize() const;

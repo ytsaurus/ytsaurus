@@ -15,6 +15,7 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -64,8 +65,8 @@ void TSchedulerConnector::Start()
 {
     // Schedule an out-of-order heartbeat whenever a job finishes
     // or its resource usage is updated.
-    const auto& jobController = Bootstrap_->GetJobController();
-    jobController->SubscribeResourcesUpdated(BIND(
+    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+    jobResourceManager->SubscribeResourcesUpdated(BIND(
         &TPeriodicExecutor::ScheduleOutOfBand,
         HeartbeatExecutor_));
 

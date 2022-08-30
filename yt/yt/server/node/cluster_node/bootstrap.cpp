@@ -50,6 +50,7 @@
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
@@ -567,6 +568,11 @@ public:
         return JobController_;
     }
 
+    const IJobResourceManagerPtr& GetJobResourceManager() const override
+    {
+        return JobResourceManager_;
+    }
+
     const IIOTrackerPtr& GetIOTracker() const override
     {
         return IOTracker_;
@@ -701,6 +707,7 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
 
     TJobControllerPtr JobController_;
+    IJobResourceManagerPtr JobResourceManager_;
 
     IMasterConnectorPtr MasterConnector_;
 
@@ -917,6 +924,7 @@ private:
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
         JobController_ = New<TJobController>(Config_->ExecNode->JobController, this);
+        JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -1047,6 +1055,8 @@ private:
             TabletNodeBootstrap_->Initialize();
         }
 
+        JobResourceManager_->Initialize();
+        
         // We must ensure we know actual status of job proxy binary before Run phase.
         // Otherwise we may erroneously receive some job which we fail to run due to missing
         // ytserver-job-proxy. This requires slot manager to be initialized before job controller
@@ -1583,6 +1593,11 @@ const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
 const TJobControllerPtr& TBootstrapBase::GetJobController() const
 {
     return Bootstrap_->GetJobController();
+}
+
+const NJobAgent::IJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const
+{
+    return Bootstrap_->GetJobResourceManager();
 }
 
 EJobEnvironmentType TBootstrapBase::GetJobEnvironmentType() const

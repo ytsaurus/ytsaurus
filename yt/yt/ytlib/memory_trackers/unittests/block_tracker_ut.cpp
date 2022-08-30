@@ -29,7 +29,7 @@ TSharedRef CreateBlock(i64 size)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypedMemoryTracker
-    : public IMemoryUsageTracker
+    : public ITypedNodeMemoryTracker
 {
 public:
     using ECategory = INodeMemoryTracker::ECategory;
@@ -62,6 +62,26 @@ public:
     }
 
     void SetLimit(i64 /*size*/) override
+    {
+        YT_ABORT();
+    }
+
+    i64 GetLimit() const override
+    {
+        YT_ABORT();
+    }
+
+    i64 GetUsed() const override
+    {
+        YT_ABORT();
+    }
+
+    i64 GetFree() const override
+    {
+        YT_ABORT();
+    }
+
+    bool IsExceeded() const override
     {
         YT_ABORT();
     }
@@ -171,7 +191,7 @@ public:
         YT_ABORT();
     }
 
-    IMemoryUsageTrackerPtr WithCategory(
+    ITypedNodeMemoryTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag)
     {

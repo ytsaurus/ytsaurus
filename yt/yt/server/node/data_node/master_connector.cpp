@@ -716,11 +716,15 @@ private:
                     jobTrackerAddress);
 
                 const auto& rsp = rspOrError.Value();
-                YT_VERIFY(WaitFor(jobController->ProcessHeartbeatResponse(
+                auto error = WaitFor(jobController->ProcessHeartbeatResponse(
                     jobTrackerAddress,
                     rsp,
-                    EObjectType::MasterJob))
-                    .IsOK());
+                    EObjectType::MasterJob));
+                YT_LOG_FATAL_IF(
+                    !error.IsOK(),
+                    error,
+                    "Fail to process heartbeat response (JobTrackerAddress: %v)",
+                    jobTrackerAddress);
             } else {
                 YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (JobTrackerAddress: %v)",
                     jobTrackerAddress);

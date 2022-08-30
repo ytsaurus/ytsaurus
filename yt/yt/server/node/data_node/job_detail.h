@@ -4,6 +4,7 @@
 #include "public.h"
 
 #include <yt/yt/server/node/job_agent/job.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/core_dump/helpers.h>
 
@@ -15,10 +16,10 @@ namespace NYT::NDataNode {
 
 class TMasterJobBase
     : public NJobAgent::IJob
+    , public NJobAgent::TResourceHolder
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), ResourcesUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), PortsReleased);
     DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
     DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
 
@@ -32,8 +33,9 @@ public:
         IBootstrap* bootstrap);
     
     void Start() override;
+    bool IsStarted() const override;
 
-    bool IsStarted() const noexcept override;
+    NJobAgent::TResourceHolder* AsResourceHolder() override;
 
     void Abort(const TError& error) override;
 
@@ -49,21 +51,15 @@ public:
 
     const TString& GetJobTrackerAddress() const override;
 
-    int GetPortCount() const override;
-
     NJobAgent::EJobState GetState() const override;
 
     NJobAgent::EJobPhase GetPhase() const override;
 
     int GetSlotIndex() const override;
 
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const override;
+    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
 
     bool IsGpuRequested() const override;
-
-    std::vector<int> GetPorts() const override;
-
-    void SetPorts(const std::vector<int>&) override;
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& /*newUsage*/) override;
 
@@ -151,9 +147,7 @@ protected:
     IBootstrap* const Bootstrap_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    NLogging::TLogger Logger;
-
-    NNodeTrackerClient::NProto::TNodeResources ResourceLimits_;
+    bool Started_ = false;
 
     NJobAgent::EJobState JobState_ = NJobAgent::EJobState::Waiting;
     NJobAgent::EJobPhase JobPhase_ = NJobAgent::EJobPhase::Created;
@@ -166,8 +160,6 @@ protected:
     TFuture<void> JobFuture_;
 
     NJobTrackerClient::NProto::TJobResult Result_;
-
-    bool Started_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -187,6 +179,8 @@ protected:
 
 private:
     void DoSetFinished(NJobAgent::EJobState finalState, const TError& error);
+
+    void OnResourcesAcquired() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

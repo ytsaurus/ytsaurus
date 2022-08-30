@@ -5,7 +5,7 @@
 #include "private.h"
 #include "slot_manager.h"
 
-#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -154,7 +154,8 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
 
     // Only for scheduler `cpu` stores `vcpu` actually.
     // In all resource limits and usages we send and get back vcpu instead of cpu.
-    LastHeartbeatCpuToVCpuFactor_ = JobController_->GetCpuToVCpuFactor();
+    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+    LastHeartbeatCpuToVCpuFactor_ = jobResourceManager->GetCpuToVCpuFactor();
     ReplaceCpuWithVCpu(*request->mutable_resource_limits());
     ReplaceCpuWithVCpu(*request->mutable_resource_usage());
 

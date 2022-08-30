@@ -57,7 +57,7 @@ public:
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     i64 UpdateUsage(ECategory category, i64 newUsage) override;
 
-    IMemoryUsageTrackerPtr WithCategory(
+    ITypedNodeMemoryTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) override;
 private:
@@ -113,7 +113,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypedMemoryTracker
-    : public IMemoryUsageTracker
+    : public ITypedNodeMemoryTracker
 {
 public:
     TTypedMemoryTracker(
@@ -148,6 +148,26 @@ public:
     void SetLimit(i64 size) override
     {
         MemoryTracker_->SetCategoryLimit(Category_, size);
+    }
+
+    i64 GetLimit() const override
+    {
+        return MemoryTracker_->GetLimit(Category_, PoolTag_);
+    }
+
+    i64 GetUsed() const override
+    {
+        return MemoryTracker_->GetUsed(Category_, PoolTag_);
+    }
+
+    i64 GetFree() const override
+    {
+        return MemoryTracker_->GetFree(Category_, PoolTag_);
+    }
+    
+    bool IsExceeded() const override
+    {
+        return MemoryTracker_->IsExceeded(Category_, PoolTag_);
     }
 
 private:
@@ -518,7 +538,7 @@ i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
     return oldUsage;
 }
 
-IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
+ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
 {

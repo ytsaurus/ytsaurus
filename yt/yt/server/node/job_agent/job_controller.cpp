@@ -1,5 +1,6 @@
 #include "job_controller.h"
 
+#include "job_resource_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -127,12 +128,7 @@ public:
     IJobPtr FindRecentlyRemovedJob(TJobId jobId) const;
     std::vector<IJobPtr> GetJobs() const;
 
-    TNodeResources GetResourceLimits() const;
-    TNodeResources GetResourceUsage(bool includeWaiting = false) const;
-    TDiskResources GetDiskResources() const;
-    void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
-
-    double GetCpuToVCpuFactor() const;
+    void OnReservedMemoryOvercommited(i64 mapped);
 
     void SetDisableSchedulerJobs(bool value);
 
@@ -159,11 +155,14 @@ public:
 
     TBuildInfoPtr GetBuildInfo() const;
 
+    bool AreSchedulerJobsDisabled() const noexcept;
+
 private:
     friend class TJobController::TJobHeartbeatProcessorBase;
 
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
+    IJobResourceManagerPtr JobResourceManager_;
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
@@ -192,15 +191,11 @@ private:
 
     std::atomic<bool> DisableSchedulerJobs_ = false;
 
-    TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
-
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;
 
     TProfiler Profiler_;
     TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
-    TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
-    TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
 
     THashMap<std::pair<EJobState, EJobOrigin>, TCounter> JobFinalStateCounters_;
@@ -215,17 +210,11 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
-    TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
     TInstant LastStoredJobsSendTime_;
 
-    THashSet<int> FreePorts_;
-
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
-
-    TNodeResources ResourceUsage_ = ZeroNodeResources();
-    TNodeResources WaitingJobResources_ = ZeroNodeResources();
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -299,27 +288,16 @@ private:
 
     void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout);
 
-    void OnResourcesUpdated(
+    void OnJobResourcesUpdated(
         const TWeakPtr<IJob>& weakJob,
         const TNodeResources& resourceDelta);
-
-    void OnPortsReleased(const TWeakPtr<IJob>& weakJob);
+    
+    void OnResourceReleased();
 
     void OnJobPrepared(const TWeakPtr<IJob>& weakJob);
     void OnJobFinished(const TWeakPtr<IJob>& weakJob);
 
     void StartWaitingJobs();
-
-    //! Compares new usage with resource limits. Detects resource overdraft.
-    bool CheckMemoryOverdraft(const TNodeResources& delta);
-
-    //! Returns |true| if a job with given #jobResources can be started.
-    //! Takes special care with ReplicationDataSize and RepairDataSize enabling
-    // an arbitrary large overdraft for the
-    //! first job.
-    bool HasEnoughResources(
-        const TNodeResources& jobResources,
-        const TNodeResources& usedResources);
 
     void BuildOrchid(IYsonConsumer* consumer) const;
 
@@ -330,8 +308,6 @@ private:
     TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> GetJobsByOrigin() const;
 
     void CleanRecentlyRemovedJobs();
-
-    void CheckReservedMappedMemory();
 
     TCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
 
@@ -363,26 +339,24 @@ TJobController::TImpl::TImpl(
     , TmpfsSizeGauge_(Profiler_.Gauge("/tmpfs/size"))
     , TmpfsUsageGauge_(Profiler_.Gauge("/tmpfs/usage"))
 {
-    Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
-    Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
     Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
     Profiler_.AddProducer("", ActiveJobCountBuffer_);
 
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
-
-    if (Config_->PortSet) {
-        FreePorts_ = *Config_->PortSet;
-    } else {
-        for (int index = 0; index < Config_->PortCount; ++index) {
-            FreePorts_.insert(Config_->StartPort + index);
-        }
-    }
 }
 
 void TJobController::TImpl::Initialize()
 {
+    JobResourceManager_ = Bootstrap_->GetJobResourceManager();
+    JobResourceManager_->SubscribeResourcesReleased(
+        BIND_NO_PROPAGATE(&TImpl::OnResourceReleased, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+    JobResourceManager_->SubscribeReservedMemoryOvercommited(
+        BIND_NO_PROPAGATE(&TImpl::OnReservedMemoryOvercommited, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
@@ -400,14 +374,6 @@ void TJobController::TImpl::Initialize()
         BIND(&TImpl::CleanRecentlyRemovedJobs, MakeWeak(this)),
         Config_->RecentlyRemovedJobsCleanPeriod);
     RecentlyRemovedJobCleaner_->Start();
-
-    if (Config_->MappedMemoryController) {
-        ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetJobInvoker(),
-            BIND(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
-            Config_->MappedMemoryController->CheckPeriod);
-        ReservedMappedMemoryChecker_->Start();
-    }
 
     // Do not set period initially to defer start.
     JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
@@ -558,92 +524,12 @@ std::vector<IJobPtr> TJobController::TImpl::GetRunningSchedulerJobsSortedByStart
     return schedulerJobs;
 }
 
-TNodeResources TJobController::TImpl::GetResourceLimits() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TNodeResources result;
-
-    // If chunk cache is disabled, we disable all scheduler jobs.
-    bool chunkCacheEnabled = false;
-    if (Bootstrap_->IsExecNode()) {
-        const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-        chunkCacheEnabled = chunkCache->IsEnabled();
-    }
-
-    result.set_user_slots(chunkCacheEnabled && !DisableSchedulerJobs_.load() && !Bootstrap_->IsReadOnly()
-        ? Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetSlotCount()
-        : 0);
-
-    auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
-    #define XX(name, Name) \
-        result.set_##name(resourceLimitsOverrides.has_##name() \
-            ? resourceLimitsOverrides.name() \
-            : Config_->ResourceLimits->Name);
-    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
-    #undef XX
-
-    if (Bootstrap_->IsExecNode()) {
-        const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-        result.set_gpu(gpuManager->GetTotalGpuCount());
-    } else {
-        result.set_gpu(0);
-    }
-
-    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
-
-    // NB: Some categories can have no explicit limit.
-    // Therefore we need bound memory limit by actually available memory.
-    auto getUsedMemory = [&] (EMemoryCategory category) {
-        return std::max<i64>(
-            0,
-            memoryUsageTracker->GetUsed(category) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark);
-    };
-    result.set_user_memory(std::min(
-        memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
-        getUsedMemory(EMemoryCategory::UserJobs)));
-    result.set_system_memory(std::min(
-        memoryUsageTracker->GetLimit(EMemoryCategory::SystemJobs),
-        getUsedMemory(EMemoryCategory::SystemJobs)));
-
-    const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
-    result.set_cpu(nodeResourceManager->GetJobsCpuLimit());
-    result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
-
-    return result;
-}
-
-TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    auto result = ResourceUsage_;
-    if (includeWaiting) {
-        result += WaitingJobResources_;
-    }
-
-    if (Bootstrap_->IsExecNode()) {
-        const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
-        result.set_user_slots(slotManager->GetUsedSlotCount());
-
-        const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-        result.set_gpu(gpuManager->GetUsedGpuCount());
-    } else {
-        result.set_user_slots(0);
-        result.set_gpu(0);
-    }
-
-    result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
-
-    return result;
-}
-
 void TJobController::TImpl::AdjustResources()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto usage = GetResourceUsage(false);
-    auto limits = GetResourceLimits();
+    auto usage = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ false);
+    auto limits = JobResourceManager_->GetResourceLimits();
 
     bool preemptMemoryOverdraft = false;
     bool preemptCpuOverdraft = false;
@@ -717,41 +603,16 @@ void TJobController::TImpl::CleanRecentlyRemovedJobs()
     }
 }
 
-void TJobController::TImpl::CheckReservedMappedMemory()
+void TJobController::TImpl::OnReservedMemoryOvercommited(
+    i64 mappedMemory)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Check mapped memory usage");
-
-    THashMap<TString, i64> vmstat;
-    try {
-        vmstat = GetVmstat();
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to read /proc/vmstat; skipping mapped memory check");
-        return;
-    }
-
-    auto mappedIt = vmstat.find("nr_mapped");
-    if (mappedIt == vmstat.end()) {
-        YT_LOG_WARNING("Field \"nr_mapped\" is not found in /proc/vmstat; skipping mapped memory check");
-        return;
-    }
-
-
-    i64 mappedMemory = mappedIt->second;
-
-    YT_LOG_INFO("Mapped memory usage (Usage: %v, Reserved: %v)",
-        mappedMemory,
-        Config_->MappedMemoryController->ReservedMemory);
-
-    if (mappedMemory <= Config_->MappedMemoryController->ReservedMemory) {
-        return;
-    }
+    auto usage = JobResourceManager_->GetResourceUsage(false);
+    const auto limits = JobResourceManager_->GetResourceLimits();
 
     auto schedulerJobs = GetRunningSchedulerJobsSortedByStartTime();
 
-    auto usage = GetResourceUsage(false);
-    auto limits = GetResourceLimits();
     while (usage.user_memory() + mappedMemory > limits.user_memory()) {
         if (schedulerJobs.empty()) {
             break;
@@ -763,25 +624,6 @@ void TJobController::TImpl::CheckReservedMappedMemory()
             "Mapped memory usage overdraft"));
         schedulerJobs.pop_back();
     }
-}
-
-TDiskResources TJobController::TImpl::GetDiskResources() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    if (Bootstrap_->IsExecNode()) {
-        const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
-        return slotManager->GetDiskResources();
-    } else {
-        return TDiskResources{};
-    }
-}
-
-void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    ResourceLimitsOverrides_.Store(resourceLimits);
 }
 
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
@@ -805,126 +647,21 @@ void TJobController::TImpl::StartWaitingJobs()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    bool resourcesUpdated = false;
-
-    {
-        auto usedResources = GetResourceUsage();
-
-        auto memoryToRelease = Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
-        if (memoryToRelease > 0) {
-            Bootstrap_->GetMemoryUsageTracker()->Release(EMemoryCategory::UserJobs, memoryToRelease);
-            resourcesUpdated = true;
-        }
-
-        memoryToRelease = Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
-        if (memoryToRelease > 0) {
-            Bootstrap_->GetMemoryUsageTracker()->Release(EMemoryCategory::SystemJobs, memoryToRelease);
-            resourcesUpdated = true;
-        }
-    }
+    auto resourceAcquiringProxy = JobResourceManager_->GetResourceAcquiringProxy();
 
     for (const auto& job : GetJobs()) {
         if (job->GetState() != EJobState::Waiting) {
             continue;
         }
 
-        auto jobLogger = JobAgentServerLogger.WithTag("JobId: %v", job->GetId());
+        auto jobId = job->GetId();
+        YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-        const auto& Logger = jobLogger;
-
-        auto portCount = job->GetPortCount();
-
-        auto jobResources = job->GetResourceUsage();
-        auto usedResources = GetResourceUsage();
-        if (!HasEnoughResources(jobResources, usedResources)) {
-            YT_LOG_DEBUG("Not enough resources to start waiting job (JobResources: %v, UsedResources: %v)",
-                FormatResources(jobResources),
-                FormatResourceUsage(usedResources, GetResourceLimits()));
-            continue;
+        if (!resourceAcquiringProxy.TryAcquireResourcesFor(job->AsResourceHolder())) {
+            YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
+        } else {
+            YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
         }
-
-        if (jobResources.user_memory() > 0) {
-            bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
-            if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
-                continue;
-            }
-
-            auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
-            if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
-                continue;
-            }
-        }
-
-        if (jobResources.system_memory() > 0) {
-            bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
-            if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
-                continue;
-            }
-
-            auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
-            if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
-                continue;
-            }
-        }
-
-        std::vector<int> ports;
-
-        if (portCount > 0) {
-            YT_LOG_INFO("Allocating ports (PortCount: %v)", portCount);
-
-            try {
-                ports = AllocateFreePorts(portCount, FreePorts_, jobLogger);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
-                continue;
-            }
-
-            if (std::ssize(ports) < portCount) {
-                YT_LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
-                    portCount,
-                    ports.size());
-                continue;
-            }
-
-            for (int port : ports) {
-                FreePorts_.erase(port);
-            }
-            job->SetPorts(ports);
-            YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
-        }
-
-        job->SubscribePortsReleased(
-            BIND(&TImpl::OnPortsReleased, MakeWeak(this), MakeWeak(job))
-                .Via(Bootstrap_->GetJobInvoker()));
-
-        job->SubscribeJobPrepared(
-            BIND(&TImpl::OnJobPrepared, MakeWeak(this), MakeWeak(job))
-                .Via(Bootstrap_->GetJobInvoker()));
-
-        job->SubscribeJobFinished(
-            BIND(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
-                .Via(Bootstrap_->GetJobInvoker()));
-
-        const auto& jobResourceLimits = job->GetResourceUsage();
-        WaitingJobResources_ -= jobResourceLimits;
-        ResourceUsage_ += jobResourceLimits;
-
-        YT_LOG_DEBUG("Job started, move resources from waiting to usage (Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
-            FormatResources(jobResourceLimits),
-            FormatResources(ResourceUsage_),
-            FormatResources(WaitingJobResources_));
-
-        job->Start();
-
-        resourcesUpdated = true;
-    }
-
-    if (resourcesUpdated) {
-        ResourcesUpdated_.Fire();
     }
 
     StartScheduled_ = false;
@@ -1011,15 +748,16 @@ void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPt
         EmplaceOrCrash(JobMap_, jobId, job);
     }
 
-    const auto& jobResourceLimits = job->GetResourceUsage();
-    WaitingJobResources_ += jobResourceLimits;
-    YT_LOG_DEBUG("Job created, waiting job resources increased (JobId: %v, Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
-        jobId,
-        FormatResources(jobResourceLimits),
-        FormatResources(ResourceUsage_),
-        FormatResources(WaitingJobResources_));
     job->SubscribeResourcesUpdated(
-        BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job)));
+        BIND_NO_PROPAGATE(&TImpl::OnJobResourcesUpdated, MakeWeak(this), MakeWeak(job)));
+    
+    job->SubscribeJobPrepared(
+        BIND_NO_PROPAGATE(&TImpl::OnJobPrepared, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetJobInvoker()));
+
+    job->SubscribeJobFinished(
+        BIND_NO_PROPAGATE(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
+            .Via(Bootstrap_->GetJobInvoker()));
 
     ScheduleStart();
 
@@ -1046,6 +784,8 @@ void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, T
 
 void TJobController::TImpl::ScheduleStart()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     if (StartScheduled_) {
         return;
     }
@@ -1082,7 +822,12 @@ void TJobController::TImpl::RemoveJob(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
     YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
-    YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
+    
+    {
+        auto oneUserSlotResources = ZeroNodeResources();
+        oneUserSlotResources.set_user_slots(1);
+        YT_VERIFY(Dominates(oneUserSlotResources, job->GetResourceUsage()));
+    }
 
     if (releaseFlags.ArchiveJobSpec) {
         YT_LOG_INFO("Archiving job spec (JobId: %v)", job->GetId());
@@ -1122,32 +867,18 @@ void TJobController::TImpl::RemoveJob(
     YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
 }
 
-void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& weakCurrentJob, const TNodeResources& resourceDelta)
+void TJobController::TImpl::OnJobResourcesUpdated(const TWeakPtr<IJob>& weakCurrentJob, const TNodeResources& resourceDelta)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto currentJob = weakCurrentJob.Lock();
     YT_VERIFY(currentJob);
-    auto jobStarted = currentJob->IsStarted();
 
-    if (jobStarted) {
-        ResourceUsage_ += resourceDelta;
-    } else {
-        WaitingJobResources_ += resourceDelta;
-    }
+    auto jobId = currentJob->GetId();
 
-    YT_LOG_DEBUG("Jobs resource usage updated (JobId: %v, JobStarted: %v, Delta: %v, ResourceUsage: %v, WaitingJobResources: %v)",
-        currentJob->GetId(),
-        jobStarted,
-        FormatResources(resourceDelta),
-        FormatResources(ResourceUsage_),
-        FormatResources(WaitingJobResources_));
+    YT_LOG_DEBUG("Job resources updated (JobId: %v, Delta: %v)", jobId, FormatResources(resourceDelta));
 
-    if (!jobStarted) {
-        return;
-    }
-
-    if (!CheckMemoryOverdraft(resourceDelta)) {
+    if (JobResourceManager_->CheckMemoryOverdraft(resourceDelta)) {
         if (currentJob->ResourceUsageOverdrafted()) {
             // TODO(pogorelov): Maybe do not abort job at RunningExtraGpuCheckCommand phase?
             currentJob->Abort(TError(
@@ -1176,30 +907,13 @@ void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& weakCurrent
         }
         return;
     }
-
-    if (!Dominates(resourceDelta, ZeroNodeResources())) {
-        // Some resources decreased.
-        ScheduleStart();
-    }
 }
 
-void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& weakJob)
+void TJobController::TImpl::OnResourceReleased()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto job = weakJob.Lock();
-    if (!job) {
-        return;
-    }
-
-    const auto& ports = job->GetPorts();
-    YT_LOG_INFO("Releasing job ports (JobId: %v, PortCount: %v, Ports: %v)",
-        job->GetId(),
-        ports.size(),
-        ports);
-    for (auto port : ports) {
-        YT_VERIFY(FreePorts_.insert(port).second);
-    }
+    ScheduleStart();
 }
 
 void TJobController::TImpl::OnJobPrepared(const TWeakPtr<IJob>& weakJob)
@@ -1210,6 +924,8 @@ void TJobController::TImpl::OnJobPrepared(const TWeakPtr<IJob>& weakJob)
     if (!job) {
         return;
     }
+
+    YT_VERIFY(job->IsStarted());
 
     const auto& chunkCacheStatistics = job->GetChunkCacheStatistics();
     CacheHitArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheHitArtifactsSize);
@@ -1222,7 +938,7 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto job = weakJob.Lock();
-    if (!job) {
+    if (!job || !job->IsStarted()) {
         return;
     }
 
@@ -1255,44 +971,6 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
     JobFinished_.Fire(job);
 }
 
-bool TJobController::TImpl::CheckMemoryOverdraft(const TNodeResources& delta)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    // Only "cpu" and "user_memory" can be increased.
-    // Network decreases by design. Cpu increasing is handled in AdjustResources.
-    // Others are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
-
-    if (delta.user_memory() > 0) {
-        bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
-        if (reachedWatermark) {
-            return false;
-        }
-
-        auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
-        if (!error.IsOK()) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool TJobController::TImpl::HasEnoughResources(
-    const TNodeResources& jobResources,
-    const TNodeResources& usedResources)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    auto totalResources = GetResourceLimits();
-    auto spareResources = MakeNonnegative(totalResources - usedResources);
-    // Allow replication/repair/merge data size overcommit.
-    spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
-    spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
-    spareResources.set_merge_data_size(InfiniteNodeResources().merge_data_size());
-    return Dominates(spareResources, jobResources);
-}
-
 TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
     TCellTag cellTag,
     const TString& jobTrackerAddress,
@@ -1322,10 +1000,10 @@ void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbea
 
     request->set_node_id(Bootstrap_->GetNodeId());
     ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-    *request->mutable_resource_limits() = GetResourceLimits();
-    *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
+    *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
+    *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
 
-    *request->mutable_disk_resources() = GetDiskResources();
+    *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
     if (Bootstrap_->IsExecNode()) {
         const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
@@ -1400,8 +1078,8 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
     return BIND([=, this_ = MakeStrong(this)] {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        *request->mutable_resource_limits() = GetResourceLimits();
-        *request->mutable_resource_usage() = GetResourceUsage(/*includeWaiting*/ true);
+        *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
+        *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();
@@ -1440,6 +1118,11 @@ TBuildInfoPtr TJobController::TImpl::GetBuildInfo() const
     } else {
         return nullptr;
     }
+}
+
+bool TJobController::TImpl::AreSchedulerJobsDisabled() const noexcept
+{
+    return DisableSchedulerJobs_.load();
 }
 
 TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJobStartInfo> jobStartInfos)
@@ -1550,7 +1233,8 @@ void TJobController::TImpl::OnJobSpecsReceived(
         DeserializeProtoWithEnvelope(&spec, attachment);
 
         startInfo.mutable_resource_limits()->set_vcpu(
-            static_cast<double>(NVectorHdrf::TCpuResource(startInfo.resource_limits().cpu() * GetCpuToVCpuFactor())));
+            static_cast<double>(NVectorHdrf::TCpuResource(
+                startInfo.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
 
         CreateSchedulerJob(
             jobId,
@@ -1610,8 +1294,8 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
     auto jobs = GetJobsByOrigin();
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("resource_limits").Value(GetResourceLimits())
-            .Item("resource_usage").Value(GetResourceUsage())
+            .Item("resource_limits").Value(JobResourceManager_->GetResourceLimits())
+            .Item("resource_usage").Value(JobResourceManager_->GetResourceUsage())
             .Item("active_job_count").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
                 [&] (TFluentMap fluent, EJobOrigin origin) {
@@ -1731,14 +1415,6 @@ void TJobController::TImpl::OnProfiling()
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(origin));
             writer->AddGauge("/active_job_count", jobs[origin].size());
         }
-    });
-
-    ResourceUsageBuffer_->Update([this] (ISensorWriter* writer) {
-        ProfileResources(writer, GetResourceUsage());
-    });
-
-    ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
-        ProfileResources(writer, GetResourceLimits());
     });
 
     if (Bootstrap_->IsExecNode()) {
@@ -1875,34 +1551,13 @@ TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
         : Config_->RecentlyRemovedJobsStoreTimeout;
 }
 
-double TJobController::TImpl::GetCpuToVCpuFactor() const
-{
-    auto dynamicConfig = DynamicConfig_.Load();
-    if (dynamicConfig && dynamicConfig->EnableCpuToVCpuFactor) {
-        if (dynamicConfig->CpuToVCpuFactor) {
-            return dynamicConfig->CpuToVCpuFactor.value();
-        }
-        if (Config_->CpuToVCpuFactor) {
-            return Config_->CpuToVCpuFactor.value();
-        }
-        if (dynamicConfig->CpuModelToCpuToVCpuFactor && Config_->CpuModel) {
-            const auto& cpuModel = *Config_->CpuModel;
-            const auto& cpuModelToCpuToVCpuFactor = *dynamicConfig->CpuModelToCpuToVCpuFactor;
-            if (auto it = cpuModelToCpuToVCpuFactor.find(cpuModel); it != cpuModelToCpuToVCpuFactor.end()) {
-                return it->second;
-            }
-        }
-    }
-    return 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
     TJobControllerConfigPtr config,
     IBootstrapBase* bootstrap)
     : Impl_(New<TImpl>(
-        config,
+        std::move(config),
         bootstrap))
 { }
 
@@ -1945,21 +1600,6 @@ IJobPtr TJobController::FindRecentlyRemovedJob(TJobId jobId) const
 std::vector<IJobPtr> TJobController::GetJobs() const
 {
     return Impl_->GetJobs();
-}
-
-TNodeResources TJobController::GetResourceLimits() const
-{
-    return Impl_->GetResourceLimits();
-}
-
-TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
-{
-    return Impl_->GetResourceUsage(includeWaiting);
-}
-
-void TJobController::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
-{
-    Impl_->SetResourceLimitsOverrides(resourceLimits);
 }
 
 void TJobController::SetDisableSchedulerJobs(bool value)
@@ -2012,9 +1652,9 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::GetJobProxyDynamicConfig() 
     return Impl_->GetJobProxyDynamicConfig();
 }
 
-double TJobController::GetCpuToVCpuFactor() const
+bool TJobController::AreSchedulerJobsDisabled() const noexcept
 {
-    return Impl_->GetCpuToVCpuFactor();
+    return Impl_->AreSchedulerJobsDisabled();
 }
 
 TBuildInfoPtr TJobController::GetBuildInfo() const
@@ -2029,7 +1669,6 @@ void TJobController::RegisterHeartbeatProcessor(
     Impl_->RegisterHeartbeatProcessor(type, std::move(heartbeatProcessor));
 }
 
-DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
 DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
 DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *Impl_)
 

@@ -18,6 +18,9 @@ DECLARE_REFCOUNTED_STRUCT(IJob)
 
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TJobController)
+DECLARE_REFCOUNTED_CLASS(IJobResourceManager)
+
+class TResourceHolder;
 
 struct TChunkCacheStatistics
 {
