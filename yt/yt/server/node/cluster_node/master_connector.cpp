@@ -156,6 +156,9 @@ public:
         if (auto cpuLimit = resourceManager->GetCpuLimit()) {
             protoCpu->set_total_limit(*cpuLimit);
         }
+        if (auto cpuGuarantee = resourceManager->GetCpuGuarantee()) {
+            protoCpu->set_total_guarantee(*cpuGuarantee);
+        }
         protoCpu->set_total_used(resourceManager->GetCpuUsage());
         protoCpu->set_jobs(resourceManager->GetJobsCpuLimit());
         protoCpu->set_tablet_slots(resourceManager->GetTabletSlotCpu());

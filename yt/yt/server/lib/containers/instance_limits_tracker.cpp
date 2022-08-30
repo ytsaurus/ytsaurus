@@ -71,11 +71,19 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         auto limits = Instance_->GetResourceLimits();
         bool limitsUpdated = false;
 
-        if (CpuLimit_ != limits.Cpu) {
+        if (CpuGuarantee_ != limits.CpuGuarantee) {
+            YT_LOG_INFO("Instance CPU guarantee updated (OldCpuGuarantee: %v, NewCpuGuarantee: %v)",
+                CpuGuarantee_,
+                limits.CpuGuarantee);
+            CpuGuarantee_ = limits.CpuGuarantee;
+            // NB: We do not set limitsUpdated since this value used only for diagnostics.
+        }
+
+        if (CpuLimit_ != limits.CpuLimit) {
             YT_LOG_INFO("Instance CPU limit updated (OldCpuLimit: %v, NewCpuLimit: %v)",
                 CpuLimit_,
-                limits.Cpu);
-            CpuLimit_ = limits.Cpu;
+                limits.CpuLimit);
+            CpuLimit_ = limits.CpuLimit;
             limitsUpdated = true;
         }
 
@@ -88,7 +96,7 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         }
 
         if (limitsUpdated) {
-            LimitsUpdated_.Fire(*CpuLimit_, *MemoryLimit_);
+            LimitsUpdated_.Fire(*CpuLimit_, *CpuGuarantee_, *MemoryLimit_);
         }
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get instance limits");
@@ -107,6 +115,9 @@ void TInstanceLimitsTracker::DoBuildOrchid(NYson::IYsonConsumer* consumer) const
         .BeginMap()
             .DoIf(static_cast<bool>(CpuLimit_), [&] (auto fluent) {
                 fluent.Item("cpu_limit").Value(*CpuLimit_);
+            })
+            .DoIf(static_cast<bool>(CpuGuarantee_), [&] (auto fluent) {
+                fluent.Item("cpu_guarantee").Value(*CpuGuarantee_);
             })
             .DoIf(static_cast<bool>(MemoryLimit_), [&] (auto fluent) {
                 fluent.Item("memory_limit").Value(*MemoryLimit_);

@@ -47,7 +47,7 @@ TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
         Bootstrap_->GetControlInvoker(),
         BIND(&TNodeResourceManager::UpdateLimits, MakeWeak(this)),
         Bootstrap_->GetConfig()->ResourceLimitsUpdatePeriod))
-    , TotalCpu_(Bootstrap_->GetConfig()->ResourceLimits->TotalCpu)
+    , CpuLimit_(Bootstrap_->GetConfig()->ResourceLimits->TotalCpu)
     , TotalMemory_(Bootstrap_->GetConfig()->ResourceLimits->TotalMemory)
 { }
 
@@ -56,17 +56,20 @@ void TNodeResourceManager::Start()
     UpdateExecutor_->Start();
 }
 
-void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit)
+void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, double cpuGuarantee, i64 memoryLimit)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("Instance limits updated (OldCpuLimit: %v, NewCpuLimit: %v, OldMemoryLimit: %v, NewMemoryLimit: %v)",
-        TotalCpu_,
+    YT_LOG_INFO("Instance limits updated (OldCpuLimit: %v, NewCpuLimit: %v, OldCpuGuarantee: %v, NewCpuGuarantee: %v, OldMemoryLimit: %v, NewMemoryLimit: %v)",
+        CpuLimit_,
         cpuLimit,
+        CpuGuarantee_,
+        cpuGuarantee,
         TotalMemory_,
         memoryLimit);
 
-    TotalCpu_ = cpuLimit;
+    CpuLimit_ = cpuLimit;
+    CpuGuarantee_ = cpuGuarantee;
     TotalMemory_ = memoryLimit;
 }
 
@@ -78,11 +81,18 @@ IYPathServicePtr TNodeResourceManager::GetOrchidService()
         ->Via(Bootstrap_->GetControlInvoker());
 }
 
+std::optional<double> TNodeResourceManager::GetCpuGuarantee() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return CpuGuarantee_;
+}
+
 std::optional<double> TNodeResourceManager::GetCpuLimit() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TotalCpu_;
+    return CpuLimit_;
 }
 
 double TNodeResourceManager::GetJobsCpuLimit() const
@@ -270,8 +280,8 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     if (ResourceLimitsOverride_.has_cpu()) {
         newJobsCpuLimit = ResourceLimitsOverride_.cpu();
     } else {
-        if (TotalCpu_) {
-            newJobsCpuLimit = *TotalCpu_ - GetNodeDedicatedCpu();
+        if (CpuLimit_) {
+            newJobsCpuLimit = *CpuLimit_ - GetNodeDedicatedCpu();
         } else {
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
         }
@@ -417,7 +427,8 @@ void TNodeResourceManager::BuildOrchid(IYsonConsumer* consumer) const
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("total_cpu").Value(TotalCpu_)
+            .Item("cpu_limit").Value(CpuLimit_)
+            .Item("cpu_guarantee").Value(CpuGuarantee_)
             .Item("total_memory").Value(TotalMemory_)
             .Item("jobs_cpu_limit").Value(JobsCpuLimit_)
             .Item("tablet_slot_cpu").Value(GetTabletSlotCpu())

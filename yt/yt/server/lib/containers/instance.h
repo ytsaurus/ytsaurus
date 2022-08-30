@@ -14,7 +14,8 @@ using TResourceUsage = THashMap<EStatField, TErrorOr<ui64>>;
 
 struct TResourceLimits
 {
-    double Cpu;
+    double CpuLimit;
+    double CpuGuarantee;
     i64 Memory;
 };
 

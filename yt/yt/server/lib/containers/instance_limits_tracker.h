@@ -19,7 +19,7 @@ class TInstanceLimitsTracker
 {
 public:
     //! Raises when container limits change.
-    DEFINE_SIGNAL(void(double, i64), LimitsUpdated);
+    DEFINE_SIGNAL(void(double, double, i64), LimitsUpdated);
 
 public:
     TInstanceLimitsTracker(
@@ -40,6 +40,7 @@ private:
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr Executor_;
 
+    std::optional<double> CpuGuarantee_;
     std::optional<double> CpuLimit_;
     std::optional<i64> MemoryLimit_;
     std::optional<i64> MemoryUsage_;

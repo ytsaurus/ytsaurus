@@ -360,6 +360,10 @@ private:
                                         fluent
                                             .Item("total_limit").Value(clusterNodeStatistics.cpu().total_limit());
                                     })
+                                    .DoIf(clusterNodeStatistics.cpu().has_total_guarantee(), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("total_guarantee").Value(clusterNodeStatistics.cpu().total_guarantee());
+                                    })
                                     .Item("tablet_slots").Value(clusterNodeStatistics.cpu().tablet_slots())
                                     .Item("dedicated").Value(clusterNodeStatistics.cpu().dedicated())
                                     .Item("jobs").Value(clusterNodeStatistics.cpu().jobs())

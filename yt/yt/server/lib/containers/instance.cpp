@@ -428,30 +428,29 @@ public:
         std::vector<TString> properties;
         static TString memoryLimitProperty = "memory_limit_total";
         static TString cpuLimitProperty = "cpu_limit_bound";
+        static TString cpuGuaranteeProperty = "cpu_guarantee_bound";
         properties.push_back(memoryLimitProperty);
         properties.push_back(cpuLimitProperty);
+        properties.push_back(cpuGuaranteeProperty);
 
         auto responseOrError = WaitFor(Executor_->GetContainerProperties(Name_, properties));
         THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get Porto container resource limits");
 
         const auto& response = responseOrError.Value();
-        const auto& memoryLimitRsp = response.at(memoryLimitProperty);
 
+        const auto& memoryLimitRsp = response.at(memoryLimitProperty);
         THROW_ERROR_EXCEPTION_IF_FAILED(memoryLimitRsp, "Failed to get memory limit from Porto");
 
         i64 memoryLimit;
-
         if (!TryFromString<i64>(memoryLimitRsp.Value(), memoryLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse memory limit value from Porto")
                 << TErrorAttribute(memoryLimitProperty, memoryLimitRsp.Value());
         }
 
         const auto& cpuLimitRsp = response.at(cpuLimitProperty);
-
         THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from Porto");
 
         double cpuLimit;
-
         YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
@@ -459,7 +458,22 @@ public:
                 << TErrorAttribute(cpuLimitProperty, cpuLimitRsp.Value());
         }
 
-        return TResourceLimits{cpuLimit, memoryLimit};
+        const auto& cpuGuaranteeRsp = response.at(cpuGuaranteeProperty);
+        THROW_ERROR_EXCEPTION_IF_FAILED(cpuGuaranteeRsp, "Failed to get CPU guarantee from Porto");
+
+        double cpuGuarantee;
+        YT_VERIFY(cpuGuaranteeRsp.Value().EndsWith('c'));
+        auto cpuGuaranteeValue = TStringBuf(cpuGuaranteeRsp.Value().begin(), cpuGuaranteeRsp.Value().size() - 1);
+        if (!TryFromString<double>(cpuGuaranteeValue, cpuGuarantee)) {
+            THROW_ERROR_EXCEPTION("Failed to parse CPU guarantee value from Porto")
+                << TErrorAttribute(cpuGuaranteeProperty, cpuGuaranteeRsp.Value());
+        }
+
+        return TResourceLimits{
+            .CpuLimit = cpuLimit,
+            .CpuGuarantee = cpuGuarantee,
+            .Memory = memoryLimit,
+        };
     }
 
     void SetCpuGuarantee(double cores) override
