@@ -1913,7 +1913,7 @@ class TestChaos(ChaosTestBase):
 
         assert get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good"
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "empty_set_of_nodes", driver=remote_driver1)
-        wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id), driver=remote_driver1) != "good")
+        wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) != "good")
 
         remove("//sys/chaos_cells/{}/2/snapshots/*".format(cell_id), driver=remote_driver1)
 
