@@ -1267,6 +1267,8 @@ private:
 
     TProgressCounterPtr TotalJobCounter_;
 
+    std::atomic<i64> TestingAllocationSize_;
+
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();

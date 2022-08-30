@@ -316,6 +316,10 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TThis::UpdateAccountResourceUsageLeases, MakeWeak(this)),
         Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
+    , TestingAllocationSize_(
+        (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize)
+        ? *Spec_->TestingOperationOptions->AllocationSize
+        : 0)
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -328,6 +332,7 @@ TOperationControllerBase::TOperationControllerBase(
     for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         ExternalScheduleJobFailureCounts_[reason] = 0;
     }
+    
 
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType,
@@ -712,19 +717,6 @@ std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransact
 
 void TOperationControllerBase::InitializeStructures()
 {
-    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
-        constexpr i64 MaxAllocationSize = 1_GB;
-        i64 testingAllocationVectorSize = 0;
-        while (testingAllocationVectorSize < *Spec_->TestingOperationOptions->AllocationSize) {
-            i64 currentAllocationSize = std::min(
-                *Spec_->TestingOperationOptions->AllocationSize - testingAllocationVectorSize,
-                MaxAllocationSize);
-            TestingAllocationVector_.push_back(std::vector<char>(currentAllocationSize, 'a'));
-            testingAllocationVectorSize += currentAllocationSize;
-            Yield();
-        }
-    }
-
     DataFlowGraph_->SetNodeDirectory(InputNodeDirectory_);
     DataFlowGraph_->Initialize();
 
@@ -8090,7 +8082,7 @@ i64 TOperationControllerBase::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetMemoryUsageForTag(MemoryTag_);
+    return TestingAllocationSize_ + GetMemoryUsageForTag(MemoryTag_);
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
@@ -10021,6 +10013,7 @@ void TOperationControllerBase::UpdatePeakMemoryUsage()
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto memoryUsage = GetMemoryUsage();
+
     PeakMemoryUsage_ = std::max(memoryUsage, PeakMemoryUsage_);
 }
 

@@ -576,7 +576,13 @@ public:
             Bootstrap_);
         operation->SetHost(host);
 
-        operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId));
+        {
+            auto spec = ParseOperationSpec<TOperationSpecBase>(operation->GetSpec());
+            i64 testingAllocationSize = (spec->TestingOperationOptions && spec->TestingOperationOptions->AllocationSize)
+                ? *spec->TestingOperationOptions->AllocationSize
+                : 0;
+            operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId, testingAllocationSize));
+        }
 
         try {
             auto controller = CreateControllerForOperation(Config_, operation.Get());

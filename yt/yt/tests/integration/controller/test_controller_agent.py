@@ -231,7 +231,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         config["controller_agent"]["memory_watchdog"] = {"total_controller_memory_limit": cls.controller_agent_counter * 50 * 1024 ** 2}
 
     @authors("ignat")
-    @flaky(max_runs=5)
+    @flaky(max_runs=3)
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
@@ -247,12 +247,13 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 out=out,
                 spec={
                     "testing": {
-                        "allocation_size": 1024 ** 2,
+                        "allocation_size": 3 * 1024 ** 2,
                     }
                 },
                 track=False,
             )
             wait(lambda: op.get_state() == "running")
+            wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage", verbose=False) > 0)
             ops.append(op)
 
         address_to_operation = defaultdict(list)
@@ -262,12 +263,12 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         operation_balance = sorted(builtins.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print_debug("BALANCE_RATIO", balance_ratio)
-        if not (0.5 <= balance_ratio <= 0.8):
-            for op in ops:
-                print_debug(
-                    op.id,
-                    get(op.get_path() + "/controller_orchid/memory_usage", verbose=False),
-                )
+        for op in ops:
+            print_debug(
+                op.id,
+                address_to_operation[op.id],
+                get(op.get_path() + "/controller_orchid/memory_usage", verbose=False),
+            )
         assert 0.5 <= balance_ratio <= 0.8
 
 
