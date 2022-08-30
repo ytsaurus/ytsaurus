@@ -173,6 +173,8 @@ void TConfig::LoadTimings()
 
     StartOperationRetryInterval = GetDuration("YT_START_OPERATION_RETRY_INTERVAL",
         TDuration::Seconds(60));
+
+    HostListUpdateInterval = TDuration::Seconds(60);
 }
 
 void TConfig::Reset()

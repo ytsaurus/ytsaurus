@@ -12,6 +12,7 @@
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/http/abortable_http_response.h>
+#include <mapreduce/yt/http/host_manager.h>
 
 #include <mapreduce/yt/io/proto_table_reader.h>
 
@@ -680,6 +681,7 @@ Y_UNIT_TEST_SUITE(TableIo)
         TConfig::Get()->UseHosts = true;
         TConfig::Get()->RetryCount = 1;
         TConfig::Get()->ReadRetryCount = 1;
+        NYT::NPrivate::THostManager::Get().Restart();
 
         {
             auto tx = client->StartTransaction();

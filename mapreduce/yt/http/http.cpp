@@ -30,7 +30,10 @@
 
 #include <exception>
 
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 static TString TruncateForLogs(const TString& text, size_t maxSize)
 {
