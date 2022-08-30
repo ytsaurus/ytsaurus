@@ -87,7 +87,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             "//tmp/t",
             min_data_versions=0,
             min_data_ttl=0,
-            max_data_versions=1,
+            max_data_versions=1000,
             max_data_ttl=1000000,
             optimize_for=optimize_for,
         )
