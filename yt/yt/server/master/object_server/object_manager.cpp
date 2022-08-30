@@ -723,7 +723,7 @@ void TObjectManager::Initialize()
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     transactionManager->RegisterTransactionActionHandlers(
-        MakeTransactionActionHandlerDescriptor(BIND(&TObjectManager::HydraPrepareDestroyObjects, MakeStrong(this))),
+        MakeTransactionActionHandlerDescriptor(BIND(&TObjectManager::HydraPrepareDestroyObjects, Unretained(this))),
         MakeTransactionActionHandlerDescriptor(
             MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDestroyObjects, const NTransactionSupervisor::TTransactionCommitOptions&>()),
         MakeTransactionActionHandlerDescriptor(

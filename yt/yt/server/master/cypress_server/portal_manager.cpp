@@ -97,7 +97,7 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TPortalManager::HydraCopySynchronizablePortalAttributes, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
                 TTransaction,
                 TReqCopySynchronizablePortalAttributes,

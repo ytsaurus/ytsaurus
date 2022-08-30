@@ -235,24 +235,24 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareWritePulledRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitWritePulledRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
                 MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortAdvanceReplicationProgress, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortAdvanceReplicationProgress, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
 
         BackupManager_->Initialize();
     }

@@ -275,13 +275,13 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TImpl::OnTransactionAborted, MakeWeak(this)));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, Unretained(this))));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
