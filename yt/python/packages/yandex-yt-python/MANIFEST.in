@@ -1,14 +1,5 @@
 include helpers.py
 include VERSION
 include yt/wrapper/bin/yt
-include yt/wrapper/bin/yt2
-include yt/wrapper/bin/yt3
 include yt/wrapper/bin/mapreduce-yt
-include yt/wrapper/bin/mapreduce-yt2
-include yt/wrapper/bin/mapreduce-yt3
 include yt/wrapper/bin/yt-fuse
-include yt/wrapper/bin/yt-fuse2
-include yt/wrapper/bin/yt-fuse3
-include yt/wrapper/bin/yt-job-tool
-include yt/wrapper/bin/yt-job-tool2
-include yt/wrapper/bin/yt-job-tool3
