@@ -762,28 +762,6 @@ type RemoveMemberOptions struct {
 	*PrerequisiteOptions
 }
 
-// TODO(dakovalkov): create a different type for Permission
-type Permission = string
-
-const (
-	PermissionRead           Permission = "read"
-	PermissionWrite          Permission = "write"
-	PermissionUse            Permission = "use"
-	PermissionAdminister     Permission = "administer"
-	PermissionCreate         Permission = "create"
-	PermissionRemove         Permission = "remove"
-	PermissionMount          Permission = "mount"
-	PermissionManage         Permission = "manage"
-	PermissionModifyChildren Permission = "modify_children"
-)
-
-type SecurityAction string
-
-const (
-	ActionAllow SecurityAction = "allow"
-	ActionDeny  SecurityAction = "deny"
-)
-
 type CheckPermissionOptions struct {
 	*TransactionOptions
 	*PrerequisiteOptions

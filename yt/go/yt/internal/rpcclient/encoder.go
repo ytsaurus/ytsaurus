@@ -1237,7 +1237,7 @@ func (e *Encoder) CheckPermission(
 		opts = &yt.CheckPermissionOptions{}
 	}
 
-	rpcPermission, err := convertPermissionType(&permission)
+	rpcPermission, err := yt.ConvertPermissionType(&permission)
 	if err != nil {
 		return nil, err
 	}
