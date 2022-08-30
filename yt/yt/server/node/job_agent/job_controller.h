@@ -77,25 +77,16 @@ public:
     //! Finds the job that is held after it has been removed.
     IJobPtr FindRecentlyRemovedJob(TJobId jobId) const;
 
-    //! Returns the maximum allowed resource usage.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
-
-    //! Returns resource usage of running jobs.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting) const;
-
     //! Checks dynamic config to see if job proxy profiling is disabled.
     bool IsJobProxyProfilingDisabled() const;
 
     //! Returns dynamic config of job proxy.
     NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const;
 
-    //! Set resource limits overrides.
-    void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
-
     //! Set value of flag disabling all scheduler jobs.
     void SetDisableSchedulerJobs(bool value);
 
-    double GetCpuToVCpuFactor() const;
+    bool AreSchedulerJobsDisabled() const noexcept;
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
         NJobTrackerClient::NProto::TRspHeartbeat>;
@@ -123,7 +114,6 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    DECLARE_SIGNAL(void(), ResourcesUpdated);
     DECLARE_SIGNAL(void(const IJobPtr&), JobFinished);
     DECLARE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 

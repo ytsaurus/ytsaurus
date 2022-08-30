@@ -13,7 +13,7 @@
 #include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/instance_limits_tracker.h>
 
@@ -289,8 +289,8 @@ NNodeTrackerClient::NProto::TNodeResources TNodeResourceManager::GetJobResourceU
     VERIFY_THREAD_AFFINITY_ANY();
 
     return WaitFor(BIND([this, this_ = MakeStrong(this)] {
-        const auto& jobController = Bootstrap_->GetJobController();
-        return jobController->GetResourceUsage(/*includeWaiting*/ true);
+        const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+        return jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run())

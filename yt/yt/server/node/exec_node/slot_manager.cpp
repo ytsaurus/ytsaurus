@@ -244,14 +244,14 @@ int TSlotManager::GetSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return IsEnabled() ? SlotCount_ : 0;
+    return SlotCount_;
 }
 
 int TSlotManager::GetUsedSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return IsEnabled() ? SlotCount_ - std::ssize(FreeSlots_) : 0;
+    return SlotCount_ - std::ssize(FreeSlots_);
 }
 
 bool TSlotManager::IsInitialized() const

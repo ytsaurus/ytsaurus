@@ -38,14 +38,14 @@ struct IJob
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta),
         ResourcesUpdated);
 
-    DECLARE_INTERFACE_SIGNAL(void(), PortsReleased);
-
     DECLARE_INTERFACE_SIGNAL(void(), JobPrepared);
 
     DECLARE_INTERFACE_SIGNAL(void(), JobFinished);
 
     virtual void Start() = 0;
-    virtual bool IsStarted() const noexcept = 0;
+    virtual bool IsStarted() const = 0;
+
+    virtual TResourceHolder* AsResourceHolder() = 0;
 
     virtual void Abort(const TError& error) = 0;
 
@@ -58,8 +58,6 @@ struct IJob
 
     virtual bool IsUrgent() const = 0;
 
-    virtual int GetPortCount() const = 0;
-
     virtual EJobState GetState() const = 0;
 
     virtual EJobPhase GetPhase() const = 0;
@@ -68,11 +66,8 @@ struct IJob
 
     virtual const TString& GetJobTrackerAddress() const = 0;
 
-    virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const = 0;
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const = 0;
     virtual bool IsGpuRequested() const = 0;
-
-    virtual std::vector<int> GetPorts() const = 0;
-    virtual void SetPorts(const std::vector<int>& ports) = 0;
 
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) = 0;
 

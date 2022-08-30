@@ -12,6 +12,7 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
 #include <yt/yt/server/node/job_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
@@ -137,14 +138,21 @@ private:
         }
     }
 
+    TJobPtr GetSchedulerJobOrThrow(TJobId jobId) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
+        return StaticPointerCast<TJob>(std::move(job));
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        const auto& jobController = Bootstrap_->GetJobController();
-        auto job = jobController->GetJobOrThrow(jobId);
+        auto job = GetSchedulerJobOrThrow(jobId);
 
         auto jobPhase = job->GetPhase();
         if (jobPhase != EJobPhase::SpawningJobProxy) {
@@ -242,12 +250,7 @@ private:
             request->has_job_stderr(),
             request->has_fail_context());
 
-        const auto& jobController = Bootstrap_->GetJobController();
-        auto job = [&] {
-            auto job = jobController->GetJobOrThrow(jobId);
-            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
-            return StaticPointerCast<TJob>(std::move(job));
-        }();
+        auto job = GetSchedulerJobOrThrow(jobId);
         job->OnJobProxyCompleted();
 
         job->SetResult(result);
@@ -338,7 +341,8 @@ private:
         resourceUsage.set_user_memory(reportedResourceUsage.memory());
         resourceUsage.set_cpu(reportedResourceUsage.cpu());
         resourceUsage.set_network(reportedResourceUsage.network());
-        resourceUsage.set_vcpu(resourceUsage.cpu() * jobController->GetCpuToVCpuFactor());
+        const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+        resourceUsage.set_vcpu(resourceUsage.cpu() * jobResourceManager->GetCpuToVCpuFactor());
 
         job->SetResourceUsage(resourceUsage);
 

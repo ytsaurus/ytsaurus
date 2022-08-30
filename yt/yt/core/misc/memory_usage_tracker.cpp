@@ -125,6 +125,14 @@ void TMemoryUsageTrackerGuard::Release()
     }
 }
 
+void TMemoryUsageTrackerGuard::Reset()
+{
+    Tracker_ = nullptr;
+    Size_ = 0;
+    AcquiredSize_ = 0;
+    Granularity_ = 0;
+}
+
 TMemoryUsageTrackerGuard::operator bool() const
 {
     return Tracker_.operator bool();

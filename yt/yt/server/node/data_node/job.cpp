@@ -133,17 +133,21 @@ TMasterJobBase::TMasterJobBase(
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap)
-    : JobId_(jobId)
+    : TResourceHolder(
+        bootstrap->GetJobResourceManager().Get(),
+        DataNodeLogger.WithTag(
+            "JobId: %v, JobType: %v",
+            jobId,
+            CheckedEnumCast<EJobType>(jobSpec.type())),
+        resourceLimits,
+        0)
+    , JobId_(jobId)
     , JobSpec_(jobSpec)
     , JobTrackerAddress_(std::move(jobTrackerAddress))
     , Config_(config)
     , StartTime_(TInstant::Now())
     , Bootstrap_(bootstrap)
     , NodeDirectory_(Bootstrap_->GetNodeDirectory())
-    , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
-        JobId_,
-        GetType()))
-    , ResourceLimits_(resourceLimits)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 }
@@ -159,13 +163,25 @@ void TMasterJobBase::Start()
     JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();
+    
+    YT_VERIFY(GetPorts().empty());
 }
 
-bool TMasterJobBase::IsStarted() const noexcept
+bool TMasterJobBase::IsStarted() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     return Started_;
+}
+
+void TMasterJobBase::OnResourcesAcquired()
+{
+    Start();
+}
+
+TResourceHolder* TMasterJobBase::AsResourceHolder()
+{
+    return this;
 }
 
 void TMasterJobBase::Abort(const TError& error)
@@ -229,13 +245,6 @@ const TString& TMasterJobBase::GetJobTrackerAddress() const
     return JobTrackerAddress_;
 }
 
-int TMasterJobBase::GetPortCount() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return 0;
-}
-
 EJobState TMasterJobBase::GetState() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -257,26 +266,16 @@ int TMasterJobBase::GetSlotIndex() const
     return -1;
 }
 
-TNodeResources TMasterJobBase::GetResourceUsage() const
+const TNodeResources& TMasterJobBase::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return ResourceLimits_;
+    return TResourceHolder::GetResourceUsage();
 }
 
 bool TMasterJobBase::IsGpuRequested() const
 {
     return false;
-}
-
-std::vector<int> TMasterJobBase::GetPorts() const
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::SetPorts(const std::vector<int>&)
-{
-    YT_ABORT();
 }
 
 void TMasterJobBase::SetResourceUsage(const TNodeResources& /*newUsage*/)
@@ -547,12 +546,12 @@ void TMasterJobBase::DoSetFinished(EJobState finalState, const TError& error)
 
     JobPhase_ = EJobPhase::Finished;
     JobState_ = finalState;
-    JobFinished_.Fire();
     ToProto(Result_.mutable_error(), error);
-    auto deltaResources = ZeroNodeResources() - ResourceLimits_;
-    ResourceLimits_ = ZeroNodeResources();
+    ReleaseResources();
+
+    JobFinished_.Fire();
+
     JobFuture_.Reset();
-    ResourcesUpdated_.Fire(deltaResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
