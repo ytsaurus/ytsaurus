@@ -264,16 +264,14 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 			"log_rotation": map[string]interface{}{
 				"enable":            true,
 				"rotation_delay":    15000,
-				"log_segment_count": 100,
+				"log_segment_count": 10,
 				"rotation_period":   900000,
 			},
 			"log_files": [2](map[string]interface{}){
 				{
-					"ttl":  604800000,
 					"path": "clickhouse.debug.log",
 				},
 				{
-					"ttl":  604800000,
 					"path": "clickhouse.log",
 				},
 			},
