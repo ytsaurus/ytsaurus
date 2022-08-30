@@ -2,12 +2,14 @@ package api
 
 import (
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 )
 
 type APIConfig struct {
-	Family string
-	Stage  string
-	Root   ypath.Path
+	Family  string
+	Stage   string
+	Root    ypath.Path
+	BaseACL []yt.ACE
 }
 
 type HTTPAPIConfig struct {

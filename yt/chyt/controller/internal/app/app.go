@@ -39,7 +39,8 @@ type Config struct {
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
 
-	HTTPAPIEndpoint string `yson:"http_api_endpoint"`
+	HTTPAPIEndpoint string   `yson:"http_api_endpoint"`
+	BaseACL         []yt.ACE `yson:"base_acl"`
 }
 
 // Location defines an operating cluster.
@@ -139,9 +140,10 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 	var apiConfig = api.HTTPServerConfig{
 		HTTPAPIConfig: api.HTTPAPIConfig{
 			APIConfig: api.APIConfig{
-				Stage:  config.Strawberry.Stage,
-				Family: app.locations[0].c.Family(),
-				Root:   config.Strawberry.Root,
+				Stage:   config.Strawberry.Stage,
+				Family:  app.locations[0].c.Family(),
+				Root:    config.Strawberry.Root,
+				BaseACL: config.BaseACL,
 			},
 			Token:    config.Token,
 			Clusters: config.LocationProxies,

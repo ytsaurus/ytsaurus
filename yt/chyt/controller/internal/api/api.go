@@ -155,15 +155,25 @@ func (a *API) Create(ctx context.Context, alias string) error {
 		Attributes: map[string]any{
 			"name":      alias,
 			"namespace": a.cfg.Family,
-			"principal_acl": []yt.ACE{
-				{
+			"principal_acl": append(a.cfg.BaseACL,
+				// ACE for Use role.
+				yt.ACE{
 					Action:      yt.ActionAllow,
 					Subjects:    []string{user},
-					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionUse, yt.PermissionManage},
+					Permissions: []yt.Permission{yt.PermissionUse},
+				},
+				// ACE for Manage role.
+				yt.ACE{
+					Action:      yt.ActionAllow,
+					Subjects:    []string{user},
+					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionManage},
+				}),
+			"idm_initial_roles": []map[string]any{
+				{
+					"subjects": []string{user},
+					"roles":    []string{"use", "manage", "responsible"},
 				},
 			},
-			// TODO(dakovalkov)
-			// "idm_initial_roles": ...
 		},
 	})
 
