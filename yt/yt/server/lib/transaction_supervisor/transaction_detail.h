@@ -29,6 +29,8 @@ public:
 
     ETransactionState GetState(bool persistent) const;
 
+    void ResetTransientState();
+
     void ThrowInvalidState() const;
 
 private:

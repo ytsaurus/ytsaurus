@@ -57,6 +57,14 @@ ETransactionState TTransactionBase<TBase>::GetState(bool persistent) const
 }
 
 template <class TBase>
+void TTransactionBase<TBase>::ResetTransientState()
+{
+    auto persistentState = GetPersistentState();
+    // Also resets transient state.
+    SetPersistentState(persistentState);
+}
+
+template <class TBase>
 void TTransactionBase<TBase>::ThrowInvalidState() const
 {
     THROW_ERROR_EXCEPTION(
