@@ -38,6 +38,7 @@ import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
+import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 
@@ -119,6 +120,12 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     default CompletableFuture<Operation> remoteCopy(RemoteCopyOperation req) {
         return startRemoteCopy(req).thenCompose(op -> op.watch().thenApply(unused -> op));
+    }
+
+    CompletableFuture<Operation> startVanilla(VanillaOperation req);
+
+    default CompletableFuture<Operation> vanilla(VanillaOperation req) {
+        return startVanilla(req).thenCompose(op -> op.watch().thenApply(unused -> op));
     }
 
     CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);

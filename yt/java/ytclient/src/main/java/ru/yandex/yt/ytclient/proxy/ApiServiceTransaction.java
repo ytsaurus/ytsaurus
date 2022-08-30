@@ -50,6 +50,7 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcError;
@@ -452,6 +453,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
         return client.startRemoteCopy(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<Operation> startVanilla(VanillaOperation req) {
+        return client.startVanilla(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

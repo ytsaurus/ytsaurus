@@ -42,6 +42,7 @@ import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
+import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -256,6 +257,11 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
     @Override
     public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
         return (CompletableFuture<Operation>) callMethod("startRemoteCopy");
+    }
+
+    @Override
+    public CompletableFuture<Operation> startVanilla(VanillaOperation req) {
+        return (CompletableFuture<Operation>) callMethod("startVanilla");
     }
 
     @Override

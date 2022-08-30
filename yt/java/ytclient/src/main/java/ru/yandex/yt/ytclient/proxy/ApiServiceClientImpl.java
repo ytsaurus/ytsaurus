@@ -130,6 +130,7 @@ import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
+import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -863,6 +864,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
         return startOperationImpl(req, EOperationType.OT_REMOTE_COPY);
+    }
+
+    @Override
+    public CompletableFuture<Operation> startVanilla(VanillaOperation req) {
+        return startOperationImpl(req, EOperationType.OT_VANILLA);
     }
 
     @Override
