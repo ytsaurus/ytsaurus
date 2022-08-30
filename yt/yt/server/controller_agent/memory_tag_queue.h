@@ -33,7 +33,7 @@ public:
         TControllerAgentConfigPtr config,
         IInvokerPtr invoker);
 
-    NYTAlloc::TMemoryTag AssignTagToOperation(TOperationId operationId);
+    NYTAlloc::TMemoryTag AssignTagToOperation(TOperationId operationId, i64 testingMemoryFootprint);
     void ReclaimTag(NYTAlloc::TMemoryTag tag);
 
     void BuildTaggedMemoryStatistics(NYTree::TFluentList fluent);
@@ -56,8 +56,14 @@ private:
     //! A hashset of used tags.
     THashSet<NYTAlloc::TMemoryTag> UsedTags_;
 
+    struct TOperationInfo
+    {
+        TOperationId Id;
+        i64 TestingMemoryFootprint = 0;
+    };
+
     //! Last operation id that was assigned to each of the tags.
-    std::vector<TOperationId> TagToLastOperationId_;
+    std::vector<TOperationInfo> TagToLastOperationInfo_;
 
     //! Cached YSON representation of operations, their memory tags and memory usages.
     NYson::TYsonString CachedTaggedMemoryStatistics_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::ListFragment);

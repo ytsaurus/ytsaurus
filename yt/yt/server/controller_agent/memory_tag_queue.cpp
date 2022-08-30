@@ -32,7 +32,7 @@ TMemoryTagQueue::TMemoryTagQueue(
     IInvokerPtr invoker)
     : Config_(std::move(config))
     , Invoker_(std::move(invoker))
-    , TagToLastOperationId_(AllocatedTagCount_)
+    , TagToLastOperationInfo_(AllocatedTagCount_)
 {
     MemoryTagQueueProfiler.WithSparse().AddProducer("", MakeStrong(this));
 
@@ -41,7 +41,7 @@ TMemoryTagQueue::TMemoryTagQueue(
     }
 }
 
-TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
+TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId, i64 testingMemoryFootprint)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -55,10 +55,14 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
     auto tag = AvailableTags_.front();
     AvailableTags_.pop();
     UsedTags_.insert(tag);
-    TagToLastOperationId_[tag] = operationId;
-    YT_LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
+    TagToLastOperationInfo_[tag] = TOperationInfo{
+        .Id = operationId,
+        .TestingMemoryFootprint = testingMemoryFootprint,
+    };
+    YT_LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, TestingMemoryFootprint: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
+        testingMemoryFootprint,
         UsedTags_.size(),
         AvailableTags_.size());
 
@@ -73,7 +77,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 
     YT_VERIFY(UsedTags_.erase(tag));
 
-    auto operationId = TagToLastOperationId_[tag];
+    auto operationId = TagToLastOperationInfo_[tag].Id;
 
     AvailableTags_.push(tag);
     YT_LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
@@ -98,7 +102,7 @@ void TMemoryTagQueue::UpdateConfig(TControllerAgentConfigPtr config)
 void TMemoryTagQueue::AllocateNewTags()
 {
     YT_LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
-    TagToLastOperationId_.resize(2 * AllocatedTagCount_);
+    TagToLastOperationInfo_.resize(2 * AllocatedTagCount_);
     for (int tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
         AvailableTags_.push(static_cast<TMemoryTag>(tag));
     }
@@ -140,9 +144,15 @@ void TMemoryTagQueue::UpdateStatistics()
         CachedTotalUsage_ = 0;
         for (int index = 0; index < std::ssize(tags); ++index) {
             auto tag = tags[index];
-            auto usage = usages[index] + heapUsage[tag];
-            auto operationId = TagToLastOperationId_[tag] ? std::make_optional(TagToLastOperationId_[tag]) : std::nullopt;
+            auto operationInfo = TagToLastOperationInfo_[tag];
+
+            auto operationId = operationInfo.Id ? std::make_optional(operationInfo.Id) : std::nullopt;
             auto alive = operationId && UsedTags_.contains(tag);
+
+            auto usage = usages[index] + heapUsage[tag] + operationInfo.TestingMemoryFootprint;
+
+            YT_LOG_INFO("Memory usage (Tag: %v, OperationId: %v, Usage: %v, Alive: %v)", tag, operationId, usage, alive);
+
             fluent
                 .Item().BeginMap()
                     .Item("usage").Value(usage)
