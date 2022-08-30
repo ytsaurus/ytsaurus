@@ -195,7 +195,7 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_sync_alien_cells_timeout", &TThis::DefaultSyncAlienCellsTimeout)
         .Default(TDuration::Seconds(60));
-    registrar.Parameter("default_chaos_node_serivce_timeout", &TThis::DefaultChaosNodeServiceTimeout)
+    registrar.Parameter("default_chaos_node_service_timeout", &TThis::DefaultChaosNodeServiceTimeout)
         .Default(TDuration::Seconds(15));
 
     registrar.Parameter("cypress_write_yson_nesting_level_limit", &TThis::CypressWriteYsonNestingLevelLimit)
