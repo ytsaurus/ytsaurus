@@ -384,6 +384,18 @@ private:
         }
     }
 
+    virtual TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes() override
+    {
+        if (IsLocal()) {
+            return GetSize()
+                .Apply(BIND([=, this_ = MakeStrong(this)] (i64 size) {
+                    return std::vector{std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size)};
+                }));
+        }
+
+        return TVirtualMulticellMapBase::FetchSizes();
+    }
+
     NYPath::TYPath GetWellKnownPath(EObjectType type) const
     {
         switch (type) {

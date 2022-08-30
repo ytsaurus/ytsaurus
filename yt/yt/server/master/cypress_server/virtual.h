@@ -63,10 +63,10 @@ protected:
     virtual bool NeedSuppressUpstreamSync() const;
     virtual bool NeedSuppressTransactionCoordinatorSync() const;
 
+    virtual TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes();
+
 private:
     NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
-
-    TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes();
 
     struct TFetchItem
     {
