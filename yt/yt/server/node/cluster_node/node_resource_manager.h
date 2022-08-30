@@ -26,6 +26,7 @@ public:
     *  \note
     *  Thread affinity: any
     */
+    std::optional<double> GetCpuGuarantee() const;
     std::optional<double> GetCpuLimit() const;
     double GetJobsCpuLimit() const;
     double GetTabletSlotCpu() const;
@@ -40,7 +41,7 @@ public:
     // TODO(gritukan): Drop it in favour of dynamic config.
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
-    void OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit);
+    void OnInstanceLimitsUpdated(double cpuLimit, double cpuGuarantee, i64 memoryLimit);
     
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -53,7 +54,8 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    std::optional<double> TotalCpu_;
+    std::optional<double> CpuGuarantee_;
+    std::optional<double> CpuLimit_;
     i64 TotalMemory_ = 0;
 
     i64 SelfMemoryGuarantee_ = 0;

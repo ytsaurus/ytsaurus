@@ -97,7 +97,7 @@ public:
         }
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
-        nodeResourceManager->OnInstanceLimitsUpdated(*cpuLimit, *memoryLimit);
+        nodeResourceManager->OnInstanceLimitsUpdated(*cpuLimit, *cpuLimit, *memoryLimit);
 
         context->Reply();
     }
