@@ -1924,39 +1924,66 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto oldExpirationTime = node->TryGetExpirationTime();
+
         if (time) {
             node->SetExpirationTime(*time);
         } else {
             node->RemoveExpirationTime();
         }
 
-        if (node->IsTrunk()) {
+        if (node->IsTrunk() && node->TryGetExpirationTime() != oldExpirationTime) {
             ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
         } // Otherwise the tracker will be notified when and if the node is merged in.
+    }
+
+    void MergeExpirationTime(TCypressNode* originatingNode, TCypressNode* branchedNode) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto oldExpirationTime = originatingNode->TryGetExpirationTime();
+        originatingNode->MergeExpirationTime(branchedNode);
+
+        if (originatingNode->IsTrunk() &&
+            originatingNode->TryGetExpirationTime() != oldExpirationTime)
+        {
+            ExpirationTracker_->OnNodeExpirationTimeUpdated(originatingNode);
+        }
     }
 
     void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto oldExpirationTimeout = node->TryGetExpirationTimeout();
+
         if (timeout) {
-            if (!node->TryGetExpirationTimeout()) {
-                // Touch time is not tracked for nodes without expiration timeout.
-                auto* context = GetCurrentMutationContext();
-                YT_ASSERT(context);
-                node->SetTouchTime(context->GetTimestamp());
-            }
             node->SetExpirationTimeout(*timeout);
         } else {
             node->RemoveExpirationTimeout();
-            node->SetTouchTime(TInstant::Zero());
         }
 
-        if (node->IsTrunk()) {
+        if (node->IsTrunk() &&
+            node->TryGetExpirationTimeout() != oldExpirationTimeout)
+        {
             ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
+    void MergeExpirationTimeout(TCypressNode* originatingNode, TCypressNode* branchedNode) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+
+        originatingNode->MergeExpirationTimeout(branchedNode);
+
+        if (originatingNode->IsTrunk() &&
+            originatingNode->TryGetExpirationTimeout() != oldExpirationTimeout)
+        {
+            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(originatingNode);
+        }
+    }
 
     TSubtreeNodes ListSubtreeNodes(
         TCypressNode* trunkNode,

@@ -71,17 +71,11 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("timestamp_provider_manager", &TThis::TimestampProviderManager)
         .DefaultNew();
 
-    registrar.Parameter("preserve_rack_for_new_host", &TThis::PreserveRackForNewHost)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_structured_log", &TThis::EnableStructuredLog)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("enable_node_cpu_statistics", &TThis::EnableNodeCpuStatistics)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);

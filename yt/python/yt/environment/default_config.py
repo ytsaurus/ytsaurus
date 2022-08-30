@@ -61,10 +61,6 @@ def get_dynamic_master_config():
         sequoia_chunk_probability = 100;
     };
 
-    chunk_service = {
-        enable_alert_on_chunk_confirmation_without_location_uuid = %true;
-    };
-
     node_tracker = {
         master_cache_manager = {
             update_period = 1000;
@@ -137,8 +133,6 @@ def get_dynamic_master_config():
         enable_bulk_insert = %true;
         enable_hunks = %true;
         enable_aggressive_tablet_statistics_validation = %true;
-
-        properly_handle_prerequisite_transactions_abort = %true;
     };
 
     sequoia_manager = {};

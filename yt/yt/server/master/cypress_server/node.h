@@ -194,11 +194,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
-    // Only tracked for nodes with non-null expiration timeout.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, TouchTime);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime)
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout)
 
     //! Master memory usage account was already charged for.
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TDetailedMasterMemory, ChargedDetailedMasterMemoryUsage);
@@ -225,6 +222,17 @@ public:
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
+
+    // NB: Modifying #ExpirationTimeout_ also changes #TouchTime_. Other than
+    // that, these methods are similar to those provided by the
+    // DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE macro.
+    TDuration GetExpirationTimeout() const;
+    std::optional<TDuration> TryGetExpirationTimeout() const;
+    void SetExpirationTimeout(TDuration timeout);
+    void RemoveExpirationTimeout();
+    void MergeExpirationTimeout(const TCypressNode* branchedNode);
+    TInstant GetTouchTime() const;
+    void SetTouchTime(TInstant touchTime);
 
     NHydra::TRevision GetRevision() const;
     NHydra::TRevision GetNativeContentRevision() const;
@@ -312,6 +320,10 @@ private:
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
     NHydra::TRevision NativeContentRevision_ = NHydra::NullRevision;
+
+    TVersionedBuiltinAttribute<TDuration> ExpirationTimeout_;
+    // Only tracked for nodes with non-null expiration timeout.
+    TInstant TouchTime_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)

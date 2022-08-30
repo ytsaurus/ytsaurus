@@ -195,9 +195,6 @@ public:
     TChunkTreeBalancerSettingsPtr StrictSettings;
     TChunkTreeBalancerSettingsPtr PermissiveSettings;
 
-    // COMPAT(shakurov)
-    bool EnableRequisitionUpdateAfterRebalancing;
-
     TChunkTreeBalancerSettingsPtr GetSettingsForMode(EChunkTreeBalancerMode mode);
 
     REGISTER_YSON_STRUCT(TDynamicChunkTreeBalancerConfig);
@@ -480,8 +477,6 @@ public:
 
     TDynamicConsistentReplicaPlacementConfigPtr ConsistentReplicaPlacement;
 
-    std::optional<int> LocateChunksCachedReplicaCountLimit;
-
     TDuration DestroyedReplicasProfilingPeriod;
 
     TDynamicChunkAutotomizerConfigPtr ChunkAutotomizer;
@@ -516,7 +511,6 @@ class TDynamicChunkServiceConfig
 {
 public:
     bool EnableMutationBoomerangs;
-    bool EnableAlertOnChunkConfirmationWithoutLocationUuid;
 
     bool EnablePerUserRequestWeightThrottling;
     bool EnablePerUserRequestBytesThrottling;

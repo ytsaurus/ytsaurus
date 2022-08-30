@@ -640,7 +640,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             AbortAllCellTransactions(cell);
-        } else if (GetDynamicConfig()->ProperlyHandlePrerequisiteTransactionsAbort) {
+        } else {
             YT_VERIFY(multicellManager->IsSecondaryMaster());
 
             if (cell->IsIndependent()) {
@@ -2498,12 +2498,14 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto peerId = request->has_peer_id() ? std::make_optional(request->peer_id()) : std::nullopt;
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
+            auto peerId = request->has_peer_id()
+                ? std::make_optional(request->peer_id())
+                : std::nullopt;
             YT_LOG_ALERT("Cell prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
                 peerId,
@@ -2511,19 +2513,14 @@ private:
             return;
         }
 
-        if (GetDynamicConfig()->ProperlyHandlePrerequisiteTransactionsAbort) {
-            auto it = TransactionToCellMap_.find(transaction);
-            if (it == TransactionToCellMap_.end()) {
-                return;
-            }
-
-            auto [cell, peerId] = it->second;
-            TransactionToCellMap_.erase(it);
-            cell->SetPrerequisiteTransaction(peerId, nullptr);
-        } else {
-            // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
-            TransactionToCellMap_.erase(transaction);
+        auto it = TransactionToCellMap_.find(transaction);
+        if (it == TransactionToCellMap_.end()) {
+            return;
         }
+
+        auto [cell, peerId] = it->second;
+        TransactionToCellMap_.erase(it);
+        cell->SetPrerequisiteTransaction(peerId, nullptr);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cellId,

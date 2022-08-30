@@ -10,8 +10,7 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("fetch_chunk_meta_from_sequoia", &TThis::FetchChunkMetaFromSequoia)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

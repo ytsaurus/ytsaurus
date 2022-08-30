@@ -98,6 +98,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransactionRotator)                                           (2115))  // kvk1920
     ((MaxExternalCellBias)                                          (2116))  // babenko
     ((ChunkLocationInReplica)                                       (2117))  // kvk1920
+    ((CleanupSomeDynconfigCompatFlags)                              (2118))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

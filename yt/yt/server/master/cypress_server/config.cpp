@@ -79,16 +79,13 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("expiration_backoff_time", &TThis::ExpirationBackoffTime)
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("enable_composite_node_expiration", &TThis::EnableCompositeNodeExpiration)
-        .Default(true);
-
     registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);
 
     registrar.Parameter("forbid_set_command", &TThis::ForbidSetCommand)
         .Default(true);
     registrar.Parameter("enable_unlock_command", &TThis::EnableUnlockCommand)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("recursive_resource_usage_cache_expiration_timeout", &TThis::RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
@@ -98,18 +95,13 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .InRange(0, MaxExternalCellBias);
 
     registrar.Parameter("enable_revision_changing_for_builtin_attributes", &TThis::EnableRevisionChangingForBuiltinAttributes)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(false);
 
     registrar.Parameter("portal_synchronization_period", &TThis::PortalSynchronizationPeriod)
         .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("enable_expiration_timeout_merge_fix", &TThis::EnableExpirationTimeoutMergeFix)
-        .Default(false)
-        .DontSerializeDefault();
 
     registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
         .Default(true)

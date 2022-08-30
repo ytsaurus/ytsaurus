@@ -160,8 +160,6 @@ class TestPreserveRackForNewHost(YTEnvSetup):
 
     @authors("gritukan")
     def test_preserve_rack_for_new_host(self):
-        set("//sys/@config/node_tracker/preserve_rack_for_new_host", True)
-
         node = ls("//sys/cluster_nodes")[0]
         assert get("//sys/cluster_nodes/{}/@host".format(node)) == node
 

@@ -273,8 +273,7 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
-        .Default(TDuration::Zero())
-        .DontSerializeDefault();
+        .Default(TDuration::Zero());
 
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();

@@ -86,8 +86,7 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(10));
 
     registrar.Parameter("process_sessions_period", &TThis::ProcessSessionsPeriod)
-        .Default(TDuration::MilliSeconds(10))
-        .DontSerializeDefault();
+        .Default(TDuration::MilliSeconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

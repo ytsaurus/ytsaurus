@@ -87,10 +87,6 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 bool IsAccessLoggedMethod(const TString& method) {
@@ -2084,20 +2080,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
     // pertains to, and these attributes may be modified virtually independently.
 
     switch (key) {
-        case EInternedAttributeKey::ExpirationTime:
-        case EInternedAttributeKey::ExpirationTimeout:
-            if (GetDynamicCypressManagerConfig()->EnableCompositeNodeExpiration) {
-                // COMPAT(shakurov)
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Set %Qv for composite node (NodeId: %v, NodePath: %v)",
-                    key.Unintern(),
-                    node->GetId(),
-                    GetPath());
-            } else {
-                THROW_ERROR_EXCEPTION("Cannot set %Qv for composite node",
-                    key.Unintern());
-            }
-            break;
-
         case EInternedAttributeKey::PrimaryMedium: {
             auto primaryMediumName = ConvertTo<TString>(value);
             SetPrimaryMedium(primaryMediumName);

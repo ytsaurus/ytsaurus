@@ -65,9 +65,6 @@ public:
     int MaxExpiredNodesRemovalsPerCommit;
     TDuration ExpirationBackoffTime;
 
-    // COMPAT(shakurov)
-    bool EnableCompositeNodeExpiration;
-
     NCompression::ECodec TreeSerializationCodec;
 
     // COMPAT(ignat)
@@ -91,9 +88,6 @@ public:
     bool EnableRevisionChangingForBuiltinAttributes;
 
     bool EnableSymlinkCyclicityCheck;
-
-    // COMPAT(shakurov)
-    bool EnableExpirationTimeoutMergeFix;
 
     // COMPAT(shakurov)
     bool AllowCrossShardDynamicTableCopying;
