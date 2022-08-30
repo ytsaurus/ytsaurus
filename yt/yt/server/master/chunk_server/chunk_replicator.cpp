@@ -1683,12 +1683,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto* chunk = chunkManager->FindChunk(chunkId);
             auto& mediumIndexSet = jt->second;
 
-            if (!chunk) {
-                // NB: zombie chunks are handled below.
-                continue;
-            }
-
-            if (!chunk->IsRefreshActual()) {
+            if (!chunk || !chunk->IsRefreshActual()) {
                 queue.erase(jt);
                 ++misscheduledReplicationJobs;
                 continue;
@@ -1920,7 +1915,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
             advanceReplicaIterator();
 
             auto* chunk = chunkManager->FindChunk(replica.Id);
-            if (!ShouldProcessChunk(replica.Id) || IsObjectAlive(chunk) && !chunk->IsRefreshActual()) {
+            if (!ShouldProcessChunk(replica.Id) || (IsObjectAlive(chunk) && !chunk->IsRefreshActual())) {
                 queue.erase(replica);
                 ++misscheduledRemovalJobs;
                 continue;
