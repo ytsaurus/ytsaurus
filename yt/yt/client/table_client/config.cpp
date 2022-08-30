@@ -23,10 +23,10 @@ TString ToString(const TRetentionConfigPtr& obj)
 void TRetentionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_data_versions", &TThis::MinDataVersions)
-        .InRange(0, 1)
+        .GreaterThanOrEqual(0)
         .Default(1);
     registrar.Parameter("max_data_versions", &TThis::MaxDataVersions)
-        .InRange(0, 1)
+        .GreaterThanOrEqual(0)
         .Default(1);
     registrar.Parameter("min_data_ttl", &TThis::MinDataTtl)
         .Default(TDuration::Minutes(30));
@@ -34,12 +34,6 @@ void TRetentionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("ignore_major_timestamp", &TThis::IgnoreMajorTimestamp)
         .Default(false);
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->MinDataVersions > config->MaxDataVersions) {
-            THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than \"max_data_versions\"");
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
