@@ -97,9 +97,9 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this))));
     }
 
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override

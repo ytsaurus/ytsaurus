@@ -79,9 +79,9 @@ public:
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraPrepareReplicatedCommit, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraCommitReplicatedCommit, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraAbortReplicatedCommit, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraPrepareReplicatedCommit, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraCommitReplicatedCommit, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraAbortReplicatedCommit, Unretained(this))));
     }
 
     IYPathServicePtr GetOrchidService() override

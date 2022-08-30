@@ -91,19 +91,19 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, MakeStrong(this))),
+                BIND(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, MakeStrong(this))),
+                BIND(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, MakeStrong(this))));
+                BIND(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, MakeStrong(this))),
+                BIND(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, MakeStrong(this))),
+                BIND(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, MakeStrong(this))));
+                BIND(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, Unretained(this))));
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, THunkTablet);

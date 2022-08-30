@@ -65,34 +65,34 @@ public:
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareMount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitMount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortMount, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareMount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitMount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortMount, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnmount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnmount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnmount, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnmount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnmount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnmount, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareFreeze, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitFreeze, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortFreeze, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareFreeze, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitFreeze, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortFreeze, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnfreeze, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnfreeze, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnfreeze, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnfreeze, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnfreeze, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnfreeze, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareRemount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitRemount, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortRemount, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareRemount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitRemount, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortRemount, Unretained(this))));
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReshard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReshard, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReshard, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReshard, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReshard, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReshard, Unretained(this))));
     }
 
 private:
