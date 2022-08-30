@@ -29,8 +29,6 @@ def main():
         "yt/wrapper/bin/mapreduce-yt",
         "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
-        "yt/wrapper/bin/yt-admin",
-        "yt/wrapper/bin/yt-job-tool"
     ]
 
     data_files = []
