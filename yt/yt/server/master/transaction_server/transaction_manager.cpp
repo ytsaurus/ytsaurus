@@ -1724,7 +1724,7 @@ private:
 
         // Reset all transiently prepared transactions back into active state.
         for (auto [transactionId, transaction] : TransactionMap_) {
-            transaction->SetPersistentState(transaction->GetPersistentState());
+            transaction->ResetTransientState();
         }
 
         OnStopEpoch();

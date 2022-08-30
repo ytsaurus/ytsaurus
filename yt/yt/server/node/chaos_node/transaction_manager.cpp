@@ -419,7 +419,7 @@ private:
         // Reset all transiently prepared persistent transactions back into active state.
         // Clear all lease flags.
         for (auto [transactionId, transaction] : TransactionMap_) {
-            transaction->SetPersistentState(transaction->GetPersistentState());
+            transaction->ResetTransientState();
             transaction->SetHasLease(false);
         }
     }

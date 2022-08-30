@@ -876,7 +876,8 @@ private:
                 UnregisterPrepareTimestamp(transaction);
                 transaction->SetPrepareTimestamp(NullTimestamp);
             }
-            transaction->SetPersistentState(transaction->GetPersistentState());
+
+            transaction->ResetTransientState();
             transaction->TransientPrepareSignature() = transaction->PersistentPrepareSignature();
             transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
