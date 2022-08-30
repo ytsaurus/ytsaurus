@@ -123,6 +123,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicatorAddress)
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardIndex)
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Available)
             .SetPresent(!isForeign));
         descriptors->push_back(EInternedAttributeKey::Confirmed);
@@ -410,6 +412,16 @@ private:
                     chunk->GetShardIndex());
                 BuildYsonFluently(consumer)
                     .Value(address);
+                return true;
+            }
+
+            case EInternedAttributeKey::ShardIndex: {
+                if (isForeign) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetShardIndex());
                 return true;
             }
 

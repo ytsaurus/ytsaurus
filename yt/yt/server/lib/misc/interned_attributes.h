@@ -412,6 +412,7 @@
     XX(ResolveCached, resolve_cached) \
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
+    XX(ShardIndex, shard_index) \
     XX(SkipFreezing, skip_freezing) \
     XX(SnapshotAccountViolatedResourceLimits, snapshot_account_violated_resource_limits) \
     XX(Sorted, sorted) \
