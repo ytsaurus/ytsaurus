@@ -115,9 +115,6 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     // The root is the exception: it's contents may, of course, change.
     // Luckily, rebalancing occurs immediately after scheduling a requisition
     // update, which does not start the actual traversal immediately.
-    if (GetConfig()->EnableRequisitionUpdateAfterRebalancing) {
-        Callbacks_->ScheduleRequisitionUpdate(root);
-    }
 }
 
 void TChunkTreeBalancer::AppendChunkTree(

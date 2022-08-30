@@ -171,7 +171,7 @@ public:
 
     void AddReplica(TChunkLocationPtrWithReplicaInfo replica, const TMedium* medium, bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMedium* medium, bool approved);
-    TChunkLocationPtrWithReplicaInfoList GetReplicas(std::optional<int> maxCachedReplicas = std::nullopt) const;
+    TChunkLocationPtrWithReplicaInfoList GetReplicas() const;
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;

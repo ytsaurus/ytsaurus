@@ -325,27 +325,11 @@ void TChunk::RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMed
     }
 }
 
-TChunkLocationPtrWithReplicaInfoList TChunk::GetReplicas(std::optional<int> maxCachedReplicas) const
+TChunkLocationPtrWithReplicaInfoList TChunk::GetReplicas() const
 {
-    const auto& storedReplicas = StoredReplicas();
-    const auto& cachedReplicas = CachedReplicas();
-
-    TChunkLocationPtrWithReplicaInfoList result;
-    if (maxCachedReplicas) {
-        auto effectiveCachedReplicaCount = std::min<int>(ssize(cachedReplicas), *maxCachedReplicas);
-        result.reserve(storedReplicas.size() + effectiveCachedReplicaCount);
-        result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
-        auto it = cachedReplicas.begin();
-        for (auto i = 0; i < effectiveCachedReplicaCount; ++i) {
-            result.push_back(*it++);
-        }
-    } else {
-        result.reserve(storedReplicas.size() + cachedReplicas.size());
-        result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
-        result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
-    }
-
-    return result;
+    // TODO(shakurov): get rid of GetReplicas() in particular and of CachedReplicas_ in general.
+    auto storedReplicas = StoredReplicas();
+    return {storedReplicas.Begin(), storedReplicas.End()};
 }
 
 void TChunk::ApproveReplica(TChunkLocationPtrWithReplicaInfo replica)

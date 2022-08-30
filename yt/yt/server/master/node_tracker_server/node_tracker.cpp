@@ -1090,7 +1090,7 @@ private:
 
             host = GetHostByName(hostName);
 
-            if (GetDynamicConfig()->PreserveRackForNewHost && oldNodeRack) {
+            if (oldNodeRack) {
                 SetHostRack(host, oldNodeRack);
             }
         }

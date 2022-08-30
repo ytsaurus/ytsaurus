@@ -98,9 +98,6 @@ public:
     // COMPAT(ignat): Drop this after hosts migration.
     bool EnableNodeCpuStatistics;
 
-    // COMPAT(gritukan): Drop this after hosts migration.
-    bool PreserveRackForNewHost;
-
     TDuration ProfilingPeriod;
 
     // COMPAT(gritukan): Drop it after 22.3.

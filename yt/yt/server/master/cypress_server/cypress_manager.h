@@ -190,7 +190,9 @@ public:
     virtual void SetTouched(TCypressNode* trunkNode) = 0;
 
     virtual void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time) = 0;
+    virtual void MergeExpirationTime(TCypressNode* originatingNode, TCypressNode* branchedNode) = 0;
     virtual void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> time) = 0;
+    virtual void MergeExpirationTimeout(TCypressNode* originatingNode, TCypressNode* branchedNode) = 0;
 
     using TSubtreeNodes = TCompactVector<TCypressNode*, 1>;
     virtual TSubtreeNodes ListSubtreeNodes(

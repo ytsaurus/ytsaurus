@@ -1784,8 +1784,7 @@ public:
         TouchChunk(chunk);
 
         TNodePtrWithReplicaIndexList result;
-        auto maxCachedReplicas = GetDynamicConfig()->LocateChunksCachedReplicaCountLimit;
-        auto replicas = chunk->GetReplicas(maxCachedReplicas);
+        auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
                 continue;

@@ -189,10 +189,6 @@ void TDynamicChunkTreeBalancerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("permissive", &TThis::PermissiveSettings)
         .DefaultCtor([] { return New<TPermissiveChunkTreeBalancerSettings>(); });
-
-    registrar.Parameter("enable_requisition_update_after_rebalancing", &TThis::EnableRequisitionUpdateAfterRebalancing)
-        .Default(true)
-        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,13 +446,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("consistent_replica_placement", &TThis::ConsistentReplicaPlacement)
         .DefaultNew();
 
-    registrar.Parameter("locate_chunks_cached_replica_count_limit", &TThis::LocateChunksCachedReplicaCountLimit)
-        .Default(std::nullopt)
-        .DontSerializeDefault();
-
     registrar.Parameter("destroyed_replicas_profiling_period", &TThis::DestroyedReplicasProfilingPeriod)
-        .Default(TDuration::Minutes(5))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("chunk_autotomizer", &TThis::ChunkAutotomizer)
         .DefaultNew();
@@ -469,23 +460,19 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_per_node_incremental_heartbeat_profiling", &TThis::EnablePerNodeIncrementalHeartbeatProfiling)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
     registrar.Parameter("use_data_center_aware_replicator", &TThis::UseDataCenterAwareReplicator)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("storage_data_centers", &TThis::StorageDataCenters)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
 
     registrar.Parameter("banned_storage_data_centers", &TThis::BannedStorageDataCenters)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
 
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
@@ -512,12 +499,6 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_mutation_boomerangs", &TThis::EnableMutationBoomerangs)
         .Default(true);
 
-    registrar.Parameter(
-        "enable_alert_on_chunk_confirmation_without_location_uuid",
-        &TThis::EnableAlertOnChunkConfirmationWithoutLocationUuid)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
         .Default(false);
     registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)
@@ -531,13 +512,12 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_request_bytes_throttler_config", &TThis::DefaultPerUserRequestBytesThrottlerConfig)
         .DefaultNew();
 
-    // TODO Move values into proper configs
+    // TODO(h0pless): Move values into proper configs.
     registrar.Parameter("execute_request_weight_throttler_limit", &TThis::ExecuteRequestWeightThrottlerLimit)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
+
     registrar.Parameter("execute_request_bytes_throttler_limit", &TThis::ExecuteRequestBytesThrottlerLimit)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
 
     // COMPAT(h0pless): Remove (alongside execute_..._throttler_limits) when this code will be live on clusters.
     registrar.Postprocessor([] (TThis* config) {

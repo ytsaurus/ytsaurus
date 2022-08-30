@@ -13,11 +13,12 @@
 
 namespace NYT::NCypressServer {
 
+using namespace NCellMaster;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
-using namespace NCellMaster;
 
 using NTabletServer::TTabletResources;
 
@@ -48,6 +49,72 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
 }
 
 TCypressNode::~TCypressNode() = default;
+
+TDuration TCypressNode::GetExpirationTimeout() const
+{
+    return decltype(ExpirationTimeout_)::Get(&TCypressNode::ExpirationTimeout_, this);
+}
+
+std::optional<TDuration> TCypressNode::TryGetExpirationTimeout() const
+{
+    return decltype(ExpirationTimeout_)::TryGet(&TCypressNode::ExpirationTimeout_, this);
+}
+
+void TCypressNode::SetExpirationTimeout(TDuration timeout)
+{
+    ExpirationTimeout_.Set(timeout);
+
+    auto* context = GetCurrentMutationContext();
+    YT_VERIFY(context);
+
+    if (!TouchTime_) {
+        // Touch time is not tracked for nodes without expiration timeout.
+        TouchTime_ = context->GetTimestamp();
+    }
+}
+
+void TCypressNode::RemoveExpirationTimeout()
+{
+    YT_VERIFY(HasMutationContext());
+
+    if (IsTrunk()) {
+        ExpirationTimeout_.Reset();
+    } else {
+        ExpirationTimeout_.Remove();
+    }
+
+    if (TouchTime_) {
+        TouchTime_ = TInstant::Zero();
+    }
+}
+
+void TCypressNode::MergeExpirationTimeout(const TCypressNode* branchedNode)
+{
+    YT_VERIFY(HasMutationContext());
+
+    ExpirationTimeout_.Merge(branchedNode->ExpirationTimeout_, IsTrunk());
+
+    if (TryGetExpirationTimeout()) {
+        if (!TouchTime_) {
+            auto* context = GetCurrentMutationContext();
+            TouchTime_ = context->GetTimestamp();
+        }
+    } else {
+        if (TouchTime_) {
+            TouchTime_ = TInstant::Zero();
+        }
+    }
+}
+
+TInstant TCypressNode::GetTouchTime() const
+{
+    return TouchTime_;
+}
+
+void TCypressNode::SetTouchTime(TInstant touchTime)
+{
+    TouchTime_ = touchTime;
+}
 
 TCypressNode* TCypressNode::GetParent() const
 {
@@ -196,7 +263,7 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
     TObject::CheckInvariants(bootstrap);
 }
 
-void TCypressNode::Save(TSaveContext& context) const
+void TCypressNode::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -227,7 +294,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, Annotation_);
 }
 
-void TCypressNode::Load(TLoadContext& context)
+void TCypressNode::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
 
