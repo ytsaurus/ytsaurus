@@ -267,39 +267,6 @@ func convertAtomicity(a *yt.Atomicity) (*rpc_proxy.EAtomicity, error) {
 	return &ret, nil
 }
 
-func convertPermissionType(typ *yt.Permission) (*int32, error) {
-	if typ == nil {
-		return nil, nil
-	}
-
-	var ret int32
-
-	switch *typ {
-	case yt.PermissionRead:
-		ret = 0x0001
-	case yt.PermissionWrite:
-		ret = 0x0002
-	case yt.PermissionUse:
-		ret = 0x0004
-	case yt.PermissionAdminister:
-		ret = 0x0008
-	case yt.PermissionCreate:
-		ret = 0x0100
-	case yt.PermissionRemove:
-		ret = 0x0200
-	case yt.PermissionMount:
-		ret = 0x0400
-	case yt.PermissionManage:
-		ret = 0x0800
-	case yt.PermissionModifyChildren:
-		ret = 0x1000
-	default:
-		return nil, xerrors.Errorf("unexpected permission type %q", *typ)
-	}
-
-	return &ret, nil
-}
-
 func convertCheckPermissionColumns(columns []string) *rpc_proxy.TReqCheckPermission_TColumns {
 	if columns == nil {
 		return nil
