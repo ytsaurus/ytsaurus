@@ -59,6 +59,8 @@ struct TConfig
     bool ForceIpV6;
     bool UseHosts;
 
+    TDuration HostListUpdateInterval;
+
     TNode Spec;
     TNode TableWriter;
 

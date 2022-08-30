@@ -1,5 +1,6 @@
 #include "requests.h"
 
+#include "host_manager.h"
 #include "retry_request.h"
 
 #include <mapreduce/yt/client/transaction.h>
@@ -8,20 +9,17 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
-#include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <library/cpp/json/json_reader.h>
-
-#include <util/random/normal.h>
 #include <util/stream/file.h>
 #include <util/string/builder.h>
 #include <util/generic/buffer.h>
-#include <util/generic/ymath.h>
+
 
 namespace NYT {
 
@@ -51,20 +49,6 @@ TGUID ParseGuidFromResponse(const TString& response)
     return GetGuid(node.AsString());
 }
 
-void ParseJsonStringArray(const TString& response, TVector<TString>& result)
-{
-    NJson::TJsonValue value;
-    TStringInput input(response);
-    NJson::ReadJsonTree(&input, &value);
-
-    const NJson::TJsonValue::TArray& array = value.GetArray();
-    result.clear();
-    result.reserve(array.size());
-    for (size_t i = 0; i < array.size(); ++i) {
-        result.push_back(array[i].GetString());
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetProxyForHeavyRequest(const TAuth& auth)
@@ -73,34 +57,7 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
         return auth.ServerName;
     }
 
-    TString hostsEndpoint = TConfig::Get()->Hosts;
-    while (hostsEndpoint.StartsWith("/")) {
-        hostsEndpoint = hostsEndpoint.substr(1);
-    }
-    THttpHeader header("GET", hostsEndpoint, false);
-
-    TVector<TString> hosts;
-    {
-        THttpRequest request;
-        // TODO: we need to set socket timeout here
-        request.Connect(auth.ServerName);
-        request.SmallRequest(header, {});
-        ParseJsonStringArray(request.GetResponse(), hosts);
-    }
-
-    if (hosts.empty()) {
-        ythrow yexception() << "returned list of proxies is empty";
-    }
-
-    if (hosts.size() < 3) {
-        return hosts.front();
-    }
-    size_t hostIdx = -1;
-    do {
-        hostIdx = Abs<double>(NormalRandom<double>(0, hosts.size() / 2));
-    } while (hostIdx >= hosts.size());
-
-    return hosts[hostIdx];
+    return NPrivate::THostManager::Get().GetProxyForHeavyRequest(auth.ServerName);
 }
 
 void LogRequestError(
