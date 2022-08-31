@@ -15,69 +15,6 @@ except ImportError:
     yatest_common = None
 
 
-def sudo_rmtree(path):
-    subprocess.check_call(["sudo", "rm", "-rf", path])
-
-
-def sudo_move(src_path, dst_path):
-    subprocess.check_call(["sudo", "mv", src_path, dst_path])
-
-
-def is_inside_arcadia(inside_arcadia):
-    if inside_arcadia is None:
-        inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
-    return inside_arcadia
-
-
-def search_binary_path(binary_name, build_path_dir=None):
-    """
-    Search for binary with given name in arcadia build_path.
-    If build_path_dir is specified search in this subdirectory.
-    :param binary_name: name of the binary, e.g. ytserver-all or logrotate
-    :param build_path_dir: if present, subtree is yatest.common.build_path() + build_path_dir
-    :return:
-    """
-    binary_root = yatest_common.build_path()
-    if build_path_dir is not None:
-        binary_root = os.path.join(binary_root, build_path_dir)
-    binary_root = os.path.abspath(binary_root)
-
-    for dirpath, _, filenames in os.walk(binary_root):
-        for f in filenames:
-            if f == binary_name:
-                result = os.path.join(dirpath, binary_name)
-                return result
-    raise RuntimeError("binary {} is not found in {}".format(binary_name, binary_root))
-
-
-SUDO_WRAPPER ="""#!/bin/sh
-
-exec sudo -En {} {} {} {} "$@"
-"""
-
-
-def insert_sudo_wrapper(bin_dir):
-    sudofixup = search_binary_path("yt-sudo-fixup")
-
-    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
-        bin_path = os.path.join(bin_dir, binary)
-        orig_path = os.path.join(bin_dir, binary + ".orig")
-        if not os.path.exists(bin_path):
-            continue
-
-        os.rename(bin_path, orig_path)
-
-        with open(bin_path, "w") as trampoline:
-            trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
-            os.chmod(bin_path, 0o755)
-
-
-def get_binary_path(path, arcadia_root, **kwargs):
-    if arcadia_root is None:
-        return search_binary_path(path, **kwargs)
-    else:
-        return os.path.join(arcadia_root, path)
-
 PROGRAMS = [("master", "master/bin"),
             ("clock", "clock_server/bin"),
             ("timestamp-provider", "timestamp_provider/bin"),
@@ -96,16 +33,71 @@ PROGRAMS = [("master", "master/bin"),
             ("queue-agent", "queue_agent/bin")]
 
 
+def sudo_rmtree(path):
+    subprocess.check_call(["sudo", "rm", "-rf", path])
+
+
+def sudo_move(src_path, dst_path):
+    subprocess.check_call(["sudo", "mv", src_path, dst_path])
+
+
+def is_inside_arcadia(inside_arcadia):
+    if inside_arcadia is None:
+        inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
+    return inside_arcadia
+
+
+def search_binary_path(binary_name, binary_root=None, build_path_dir=None):
+    """
+    Search for binary with given name in arcadia build_path.
+    If build_path_dir is specified search in this subdirectory.
+    :param binary_name: name of the binary, e.g. ytserver-all or logrotate
+    :param binary_root: root build directory to search binary
+    :param build_path_dir: if present, subtree is yatest.common.build_path() + build_path_dir
+    :return:
+    """
+    if binary_root is None:
+        binary_root = yatest_common.build_path()
+    if build_path_dir is not None:
+        binary_root = os.path.join(binary_root, build_path_dir)
+    binary_root = os.path.abspath(binary_root)
+
+    for dirpath, _, filenames in os.walk(binary_root):
+        for f in filenames:
+            if f == binary_name:
+                result = os.path.join(dirpath, binary_name)
+                return result
+    raise RuntimeError("binary {} is not found in {}".format(binary_name, binary_root))
+
+
+def insert_sudo_wrapper(bin_dir, binary_root):
+    SUDO_WRAPPER = """#!/bin/sh
+
+exec sudo -En {} {} {} {} "$@"
+"""
+    sudofixup = search_binary_path("yt-sudo-fixup", binary_root=binary_root)
+
+    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
+        bin_path = os.path.join(bin_dir, binary)
+        orig_path = os.path.join(bin_dir, binary + ".orig")
+        if not os.path.exists(bin_path):
+            continue
+
+        os.rename(bin_path, orig_path)
+
+        with open(bin_path, "w") as trampoline:
+            trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
+            os.chmod(bin_path, 0o755)
+
+
 def prepare_yt_binaries(destination,
-                        source_prefix="", arcadia_root=None, inside_arcadia=None,
-                        use_from_package=False, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
+                        binary_root=None, inside_arcadia=None,
+                        package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
-    if use_from_package:
-        if package_dir is None:
-            package_dir = "yt/yt"
-        ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
-    else:
-        ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_dir="yt")
+    if package_dir is None:
+        package_dir = "yt/yt"
+    ytserver_all = search_binary_path("ytserver-all", binary_root=binary_root, build_path_dir=package_dir)
+
     if copy_ytserver_all:
         ytserver_all_destination = os.path.join(destination, "ytserver-all")
         if ytserver_all_suffix is not None:
@@ -126,13 +118,13 @@ def prepare_yt_binaries(destination,
             os.symlink(ytserver_all, dst_path)
 
     if need_suid:
-        insert_sudo_wrapper(destination)
+        insert_sudo_wrapper(destination, binary_root=binary_root)
 
 
-def copy_binary(destination, binary_name, arcadia_root, *source_paths):
+def copy_binary(destination, binary_name, binary_root, *source_paths):
     for source_path in source_paths:
         try:
-            binary_path = get_binary_path(binary_name, arcadia_root, build_path_dir=source_path)
+            binary_path = search_binary_path(binary_name, binary_root=binary_root, build_path_dir=source_path)
             shutil.copy(binary_path, os.path.join(destination, binary_name))
             return
         except:
@@ -140,9 +132,9 @@ def copy_binary(destination, binary_name, arcadia_root, *source_paths):
     raise RuntimeError("binary {} is not found in {}".format(binary_name, source_paths))
 
 
-def copy_misc_binaries(destination, arcadia_root=None):
-    copy_binary(destination, "yt_env_watcher", arcadia_root, "yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment")
-    copy_binary(destination, "logrotate", arcadia_root, "infra/nanny/logrotate", "yt/packages/latest/infra/nanny/logrotate")
+def copy_misc_binaries(destination, binary_root=None):
+    copy_binary(destination, "yt_env_watcher", binary_root, "yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment")
+    copy_binary(destination, "logrotate", binary_root, "infra/nanny/logrotate", "yt/packages/latest/infra/nanny/logrotate")
 
 
 # Supposed to be used in core YT components only.
@@ -184,7 +176,6 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
             if "package_dir" not in kwargs:
                 prepare_yt_binaries(bin_dir,
                                     component_whitelist=trunk_components,
-                                    use_from_package=True,
                                     package_dir="yt/yt/packages/tests_package",
                                     ytserver_all_suffix="trunk",
                                     **kwargs)
@@ -197,12 +188,11 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
         for version, components in artifact_components.items():
             prepare_yt_binaries(bin_dir,
                                 component_whitelist=components,
-                                use_from_package=True,
                                 package_dir="yt/packages/{}".format(version),
                                 ytserver_all_suffix=version,
                                 **kwargs)
 
-        copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
+        copy_misc_binaries(bin_dir, binary_root=kwargs.get("binary_root"))
 
     if yatest_common is not None:
         yt_logger.LOGGER = logging.getLogger()
