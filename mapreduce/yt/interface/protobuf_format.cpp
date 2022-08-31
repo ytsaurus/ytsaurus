@@ -1364,7 +1364,8 @@ TTypePtrOrOtherColumns TTableSchemaInferrer::GetFieldType(
         switch (fieldDescriptor.label()) {
             case FieldDescriptor::Label::LABEL_REPEATED: {
                 Y_ENSURE(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
-                    "Repeated fields are supported only for YT serialization mode");
+                    "Repeated fields are supported only for YT serialization mode, field \"" + fieldDescriptor.full_name() +
+                    "\" has incorrect serialization mode");
                 auto* type = std::get_if<NTi::TTypePtr>(&typeOrOtherColumns);
                 Y_ENSURE(type, "OTHER_COLUMNS field can not be repeated");
                 switch (fieldOptions.ListMode) {
