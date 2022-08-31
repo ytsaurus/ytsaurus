@@ -37,50 +37,6 @@ Y_UNIT_TEST_SUITE(Serialization)
         UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["required"], true);
     }
 
-    Y_UNIT_TEST(TableSchemaRawTypeV2)
-    {
-        auto schema = TTableSchema()
-            .AddColumn(TColumnSchema()
-                .Name("a")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", "string")))
-            .AddColumn(TColumnSchema()
-                .Name("b")
-                .RawTypeV2(TNode()
-                    ("metatype", "optional")
-                    ("element", "uint64")))
-            .AddColumn(TColumnSchema()
-                .Name("c")
-                .RawTypeV2("int64"));
-
-        auto schemaNode = schema.ToNode();
-        UNIT_ASSERT(schemaNode.IsList());
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode.Size(), 3);
-
-
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[0]["name"], "a");
-        UNIT_ASSERT_VALUES_EQUAL(
-            schemaNode[0]["type_v2"],
-            TNode()
-                ("metatype", "list")
-                ("element", "string"));
-
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[1]["name"], "b");
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[1]["type"], "uint64");
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[1]["required"], false);
-        UNIT_ASSERT_VALUES_EQUAL(
-            schemaNode[1]["type_v2"],
-            TNode()
-                ("metatype", "optional")
-                ("element", "uint64"));
-
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["name"], "c");
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["type"], "int64");
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["required"], true);
-        UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["type_v2"], "int64");
-    }
-
     Y_UNIT_TEST(ValueTypeSerialization)
     {
         for (const auto value : GetEnumAllValues<EValueType>()) {

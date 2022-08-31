@@ -158,7 +158,7 @@ void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("name").Value(columnSchema.Name())
-        .DoIf(!columnSchema.RawTypeV2().Defined() && !columnSchema.RawTypeV3().Defined(),
+        .DoIf(!columnSchema.RawTypeV3().Defined(),
             [&] (TFluentMap fluent) {
                 fluent.Item("type").Value(NDetail::ToString(columnSchema.Type()));
                 fluent.Item("required").Value(columnSchema.Required());
@@ -171,24 +171,6 @@ void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer
                 }
             }
         )
-        .DoIf(columnSchema.RawTypeV2().Defined(), [&] (TFluentMap fluent) {
-            const auto& rawTypeV2 = *columnSchema.RawTypeV2();
-            fluent.Item("type_v2").Value(rawTypeV2);
-
-            // COMPAT(levysotsky): Fill "type" and "required" for (optional) simple types.
-            if (rawTypeV2.IsString()) {
-                fluent
-                    .Item("type").Value(columnSchema.RawTypeV2()->AsString())
-                    .Item("required").Value(true);
-                return;
-            }
-            Y_ENSURE(rawTypeV2.IsMap());
-            if (rawTypeV2["metatype"] == "optional" && rawTypeV2["element"].IsString()) {
-                fluent
-                    .Item("type").Value(rawTypeV2["element"].AsString())
-                    .Item("required").Value(false);
-            }
-        })
         .DoIf(columnSchema.RawTypeV3().Defined(), [&] (TFluentMap fluent) {
             const auto& rawTypeV3 = *columnSchema.RawTypeV3();
             fluent.Item("type_v3").Value(rawTypeV3);
@@ -266,7 +248,6 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
 {
     const auto& nodeMap = node.AsMap();
     DESERIALIZE_ITEM("name", columnSchema.Name_);
-    DESERIALIZE_ITEM("type_v2", columnSchema.RawTypeV2_);
     DESERIALIZE_ITEM("type_v3", columnSchema.RawTypeV3_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
     DESERIALIZE_ITEM("lock", columnSchema.Lock_);

@@ -563,9 +563,6 @@ public:
     NTi::TTypePtr TypeV3() const;
     /// @}
 
-    /// @deprecated Deprecated field that is not longer used on server side.
-    FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV2);
-
     ///
     /// @brief Raw yson representaion of column type
     /// @deprecated Prefer to use `TypeV3` methods.
