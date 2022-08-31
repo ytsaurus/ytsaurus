@@ -116,6 +116,11 @@ void RunAndTrackFiber(TClosure closure)
 
     queue->Shutdown();
 
+    // Do not silence errors thrown in tests.
+    if (result.IsSet()) {
+        result.Get().ThrowOnError();
+    }
+
     SUCCEED();
 }
 
