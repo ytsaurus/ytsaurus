@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/security_client/config.h>
 
+#include <yt/yt/library/auth_server/config.h>
+
 #include <yt/yt/client/driver/config.h>
 
 #include <yt/yt/client/api/config.h>
@@ -204,6 +206,9 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default("//sys/proxies/@config");
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
+
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {

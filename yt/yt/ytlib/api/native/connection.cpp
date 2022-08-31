@@ -437,6 +437,11 @@ public:
         return it->second;
     }
 
+    const NAuth::IDynamicTvmServicePtr& GetTvmService() const override
+    {
+        return Options_.TvmService;
+    }
+
     const IChannelFactoryPtr& GetChannelFactory() override
     {
         return ChannelFactory_;

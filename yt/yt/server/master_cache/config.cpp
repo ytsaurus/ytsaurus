@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/object_client/config.h>
 
+#include <yt/yt/library/auth_server/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NMasterCache {
@@ -27,6 +29,9 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("chaos_cache", &TThis::ChaosCache)
+        .DefaultNew();
+
+    registrar.Parameter("tvm_service", &TThis::TvmService)
         .DefaultNew();
 }
 

@@ -42,6 +42,8 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 
+#include <yt/yt/library/auth_server/config.h>
+
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -236,6 +238,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
         .Default(false);
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->SecondaryMasters.size() > MaxSecondaryMasterCells) {

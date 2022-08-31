@@ -49,6 +49,8 @@ struct IConnection
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
     virtual NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag cellTag) const = 0;
 
+    virtual const NAuth::IDynamicTvmServicePtr& GetTvmService() const = 0;
+
     virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;

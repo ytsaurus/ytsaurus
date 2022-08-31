@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -47,6 +49,7 @@ private:
     const TControllerAgentBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
+    NAuth::IDynamicTvmServicePtr TvmService_;
     NControllerAgent::TAgentId AgentId_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;

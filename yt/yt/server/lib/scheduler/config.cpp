@@ -4,11 +4,13 @@
 #include "helpers.h"
 #include "public.h"
 
-#include <yt/yt/ytlib/scheduler/config.h>
-
 #include <yt/yt/server/scheduler/private.h>
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
+
+#include <yt/yt/library/auth_server/config.h>
 
 namespace NYT::NScheduler {
 
@@ -978,13 +980,13 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
         .Default(TDuration::Minutes(1));
-    
+
     registrar.Parameter("check_nodes_with_unsupported_interruption_period", &TThis::CheckNodesWithUnsupportedInterruptionPeriod)
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
         .Default(true);
-    
+
     registrar.Parameter("crash_on_job_heartbeat_processing_exception", &TThis::CrashOnJobHeartbeatProcessingException)
         .Default(false);
 
@@ -1012,6 +1014,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
