@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/library/auth_server/config.h>
+
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
@@ -1078,6 +1080,8 @@ class TControllerAgentBootstrapConfig
 public:
     //! Node-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
+
+    NAuth::TTvmServiceConfigPtr TvmService;
 
     TControllerAgentConfigPtr ControllerAgent;
 

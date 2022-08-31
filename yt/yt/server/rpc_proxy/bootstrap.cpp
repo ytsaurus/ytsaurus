@@ -19,6 +19,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -127,12 +128,12 @@ void TBootstrap::DoRun()
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
+    NativeTvmService_ = NApi::NNative::CreateMainConnectionTvmService(Config_->NativeTvmService, Config_->ClusterConnection);
+
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    NativeConnection_ = NApi::NNative::CreateConnection(
-        Config_->ClusterConnection,
-        std::move(connectionOptions));
+    NativeConnection_ = NApi::NNative::CreateMainConnection(NativeTvmService_, Config_->ClusterConnection, std::move(connectionOptions));
 
     NativeConnection_->GetNodeDirectorySynchronizer()->Start();
 

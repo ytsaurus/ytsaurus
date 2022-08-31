@@ -224,6 +224,8 @@ public:
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
+    NAuth::TTvmServiceConfigPtr TvmService;
+
     // COMPAT(gritukan): Drop it after migration to tagged configs.
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;

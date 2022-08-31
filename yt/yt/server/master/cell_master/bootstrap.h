@@ -60,6 +60,8 @@
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -221,6 +223,7 @@ protected:
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
+    NAuth::IDynamicTvmServicePtr TvmService_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
@@ -229,7 +232,6 @@ protected:
         const TString& localAddress);
 
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
-    NApi::NNative::IConnectionPtr CreateClusterConnection() const;
 
     void DoInitialize();
     void InitializeTimestampProvider();

@@ -1358,6 +1358,7 @@ private:
         if (Spec_->ClusterConnection) {
             NNative::TConnectionOptions connectionOptions;
             connectionOptions.ConnectionInvoker = Host->GetConnectionInvoker();
+            connectionOptions.TvmService = Host->GetClient()->GetNativeConnection()->GetTvmService();
             return NApi::NNative::CreateConnection(
                 *Spec_->ClusterConnection,
                 std::move(connectionOptions));

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -56,6 +58,7 @@ private:
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
     ICoreDumperPtr CoreDumper_;
+    NAuth::IDynamicTvmServicePtr TvmService_;
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
 
     void DoRun();
