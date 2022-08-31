@@ -116,10 +116,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     }
 
     std::vector<TJobPtr> jobs;
-    for (auto& job : ControllerAgentConnectorPool_->Bootstrap_->GetJobController()->GetJobs()) {
-        if (TypeFromId(job->GetId()) != EObjectType::SchedulerJob) {
-            continue;
-        }
+    for (auto& job : ControllerAgentConnectorPool_->Bootstrap_->GetJobController()->GetSchedulerJobs()) {
+        YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
 
         if (job->GetState() != EJobState::Running) {
             continue;

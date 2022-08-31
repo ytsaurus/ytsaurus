@@ -285,7 +285,7 @@ void TMasterJobBase::SetResourceUsage(const TNodeResources& /*newUsage*/)
 
 bool TMasterJobBase::ResourceUsageOverdrafted() const
 {
-    return false;
+    YT_ABORT();
 }
 
 TJobResult TMasterJobBase::GetResult() const

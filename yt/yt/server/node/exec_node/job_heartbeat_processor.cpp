@@ -144,7 +144,7 @@ void TSchedulerJobHeartbeatProcessor::ReplaceCpuWithVCpu(NNodeTrackerClient::NPr
 }
 
 void TSchedulerJobHeartbeatProcessor::PrepareRequest(
-    TCellTag cellTag,
+    TCellTag /*cellTag*/,
     const TString& jobTrackerAddress,
     const TJobController::TReqHeartbeatPtr& request)
 {
@@ -180,12 +180,10 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
 
     bool shouldSendControllerAgentHeartbeatsOutOfBand = false;
 
-    for (const auto& job : JobController_->GetJobs()) {
+    for (const auto& job : JobController_->GetSchedulerJobs()) {
         auto jobId = job->GetId();
 
-        if (CellTagFromId(jobId) != cellTag || TypeFromId(jobId) != EObjectType::SchedulerJob) {
-            continue;
-        }
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
         auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
 
