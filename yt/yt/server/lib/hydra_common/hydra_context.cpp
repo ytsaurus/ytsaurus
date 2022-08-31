@@ -11,13 +11,24 @@ namespace NYT::NHydra {
 THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
-    ui64 randomSeed,
-    TReign automatonReign)
+    ui64 randomSeed)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
-    , AutomatonReign_(automatonReign)
+    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
+{ }
+
+THydraContext::THydraContext(
+    TVersion version,
+    TInstant timestamp,
+    ui64 randomSeed,
+    TIntrusivePtr<TRandomGenerator> randomGenerator)
+    : Version_(version)
+    , Timestamp_(timestamp)
+    , RandomSeed_(randomSeed)
+    , RandomGenerator_(std::move(randomGenerator))
+    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
 { }
 
 TVersion THydraContext::GetVersion() const
@@ -35,9 +46,9 @@ ui64 THydraContext::GetRandomSeed() const
     return RandomSeed_;
 }
 
-TRandomGenerator& THydraContext::RandomGenerator()
+const TIntrusivePtr<TRandomGenerator>& THydraContext::RandomGenerator()
 {
-    return *RandomGenerator_;
+    return RandomGenerator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,11 +90,6 @@ void SetCurrentHydraContext(THydraContext* context)
 bool HasHydraContext()
 {
     return TryGetCurrentHydraContext() != nullptr;
-}
-
-TError SanitizeWithCurrentHydraContext(const TError& error)
-{
-    return error.Sanitize(GetCurrentHydraContext()->GetTimestamp());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

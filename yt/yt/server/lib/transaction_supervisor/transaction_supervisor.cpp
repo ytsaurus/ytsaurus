@@ -1713,8 +1713,7 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction commit failed (TransactionId: %v)",
             commit->GetTransactionId());
 
-        auto sanitizedError = remember ? SanitizeWithCurrentHydraContext(error) : error;
-        auto responseMessage = CreateErrorResponseMessage(sanitizedError);
+        auto responseMessage = CreateErrorResponseMessage(error);
         SetCommitResponse(commit, responseMessage, remember);
     }
 

@@ -15,7 +15,11 @@ using namespace NRpc;
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest* request)
-    : THydraContext(*parent)
+    : THydraContext(
+        parent->GetVersion(),
+        parent->GetTimestamp(),
+        parent->GetRandomSeed(),
+        parent->RandomGenerator())
     , Parent_(parent)
     , Request_(request)
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
@@ -34,8 +38,7 @@ TMutationContext::TMutationContext(
     : THydraContext(
         version,
         timestamp,
-        randomSeed,
-        request->Reign)
+        randomSeed)
     , Parent_(nullptr)
     , Request_(request)
     , PrevRandomSeed_(prevRandomSeed)
@@ -47,8 +50,7 @@ TMutationContext::TMutationContext(TTestingTag)
     : THydraContext(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0,
-        /*reign*/ 0)
+        /*randomSeed*/ 0)
     , Parent_(nullptr)
     , Request_(nullptr)
     , PrevRandomSeed_(0)
@@ -83,8 +85,7 @@ void TMutationContext::SetResponseData(TSharedRefArray data)
 
 void TMutationContext::SetResponseData(TError error)
 {
-    auto sanitizedError = SanitizeWithCurrentHydraContext(std::move(error));
-    SetResponseData(CreateErrorResponseMessage(std::move(sanitizedError)));
+    SetResponseData(CreateErrorResponseMessage(std::move(error)));
 }
 
 const TSharedRefArray& TMutationContext::GetResponseData() const

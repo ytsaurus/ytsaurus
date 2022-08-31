@@ -56,6 +56,27 @@ TString ToString(TErrorCode code)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+thread_local bool ErrorSanitizerEnabled = false;
+thread_local TInstant ErrorSanitizerDatetimeOverride = {};
+
+TErrorSanitizerGuard::TErrorSanitizerGuard(TInstant datetimeOverride)
+    : SavedEnabled_(ErrorSanitizerEnabled)
+    , SavedDatetimeOverride_(ErrorSanitizerDatetimeOverride)
+{
+    ErrorSanitizerEnabled = true;
+    ErrorSanitizerDatetimeOverride = datetimeOverride;
+}
+
+TErrorSanitizerGuard::~TErrorSanitizerGuard()
+{
+    YT_ASSERT(ErrorSanitizerEnabled);
+
+    ErrorSanitizerEnabled = SavedEnabled_;
+    ErrorSanitizerDatetimeOverride = SavedDatetimeOverride_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TError::TImpl
 {
 public:
@@ -242,6 +263,11 @@ private:
 
     void CaptureOriginAttributes()
     {
+        if (ErrorSanitizerEnabled) {
+            Datetime_ = ErrorSanitizerDatetimeOverride;
+            return;
+        }
+
         Host_ = NNet::ReadLocalHostName();
         Datetime_ = TInstant::Now();
         Pid_ = GetPID();
@@ -546,26 +572,6 @@ TError TError::Sanitize() const
     }
     for (const auto& innerError : Impl_->InnerErrors()) {
         result->MutableInnerErrors()->push_back(innerError.Sanitize());
-    }
-
-    return TError(std::move(result));
-}
-
-TError TError::Sanitize(TInstant datetime) const
-{
-    if (!Impl_) {
-        return TError();
-    }
-
-    auto result = std::make_unique<TImpl>();
-    result->SetCode(GetCode());
-    result->SetMessage(GetMessage());
-    result->SetDatetime(datetime);
-    if (Impl_->HasAttributes()) {
-        result->SetAttributes(Impl_->Attributes().Clone());
-    }
-    for (const auto& innerError : Impl_->InnerErrors()) {
-        result->MutableInnerErrors()->push_back(innerError.Sanitize(datetime));
     }
 
     return TError(std::move(result));

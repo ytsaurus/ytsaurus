@@ -1660,9 +1660,9 @@ public:
     TGuid GenerateTabletBalancerCorrelationId() const
     {
         auto mutationContext = GetCurrentMutationContext();
-        auto& gen = mutationContext->RandomGenerator();
-        ui64 lo = gen.Generate<ui64>();
-        ui64 hi = gen.Generate<ui64>();
+        const auto& generator = mutationContext->RandomGenerator();
+        ui64 lo = generator->Generate<ui64>();
+        ui64 hi = generator->Generate<ui64>();
         return TGuid(lo, hi);
     }
 
@@ -3331,7 +3331,7 @@ private:
         }
 
         if (action->Tablets().empty()) {
-            action->Error() = error.Sanitize();
+            action->Error() = error;
             ChangeTabletActionState(action, ETabletActionState::Failed);
             return;
         }
@@ -3340,12 +3340,12 @@ private:
             case ETabletActionState::Unmounting:
             case ETabletActionState::Freezing:
                 // Wait until tablets are unmounted, then mount them.
-                action->Error() = error.Sanitize();
+                action->Error() = error;
                 break;
 
             case ETabletActionState::Mounting:
                 // Nothing can be done here.
-                action->Error() = error.Sanitize();
+                action->Error() = error;
                 ChangeTabletActionState(action, ETabletActionState::Failed);
                 break;
 
@@ -3382,7 +3382,7 @@ private:
                 DoTabletActionStateChanged(action);
             } catch (const std::exception& ex) {
                 YT_VERIFY(action->GetState() != ETabletActionState::Failing);
-                action->Error() = TError(ex).Sanitize();
+                action->Error() = TError(ex);
                 if (action->GetState() != ETabletActionState::Unmounting) {
                     ChangeTabletActionState(action, ETabletActionState::Failing, false);
                 }
@@ -7981,7 +7981,7 @@ private:
             i64 tabletCount;
             switch (table->GetInMemoryMode()) {
                 case EInMemoryMode::None:
-                    result = mutationContext->RandomGenerator().Generate<i64>();
+                    result = mutationContext->RandomGenerator()->Generate<i64>();
                     break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed: {

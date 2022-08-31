@@ -661,7 +661,7 @@ private:
                     << TErrorAttribute("cell_id", Slot_->GetCellId())
                     << TErrorAttribute("dynamic_store_count", tablet->GetDynamicStoreCount())
                     << TErrorAttribute("dynamic_store_count_limit", DynamicStoreCountLimit);
-                ToProto(rejectedInfo->mutable_error(), error.Sanitize());
+                ToProto(rejectedInfo->mutable_error(), error);
                 continue;
             }
 
@@ -692,7 +692,7 @@ private:
                     << TErrorAttribute("tablet_id", tablet->GetId())
                     << TErrorAttribute("cell_id", Slot_->GetCellId())
                     << TErrorAttribute("clock_cluster_tag", clusterTag);
-                ToProto(rejectedInfo->mutable_error(), error.Sanitize());
+                ToProto(rejectedInfo->mutable_error(), error);
             }
         }
 
@@ -739,7 +739,7 @@ private:
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
         req.set_confirmed(false);
-        ToProto(req.mutable_error(), error.Sanitize());
+        ToProto(req.mutable_error(), error);
         Slot_->PostMasterMessage(tablet->GetId(), req);
 
         tablet->CheckedSetBackupStage(expectedStage, EBackupStage::RespondedToMasterFailure);
@@ -819,7 +819,7 @@ private:
                         tablet->GetId())
                         << TErrorAttribute("tablet_state", tablet->GetState())
                         << TErrorAttribute("cell_id", Slot_->GetCellId());
-                    ToProto(req.mutable_error(), error.Sanitize());
+                    ToProto(req.mutable_error(), error);
                     req.set_confirmed(false);
 
                     respond(false);
@@ -835,7 +835,7 @@ private:
                         "dynamic store id pool",
                         tablet->GetId())
                         << TErrorAttribute("cell_id", Slot_->GetCellId());
-                    ToProto(req.mutable_error(), error.Sanitize());
+                    ToProto(req.mutable_error(), error);
                     req.set_confirmed(false);
 
                     respond(false);

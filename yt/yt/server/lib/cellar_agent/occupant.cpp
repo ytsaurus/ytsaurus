@@ -243,7 +243,7 @@ public:
     {
         auto* mutationContext = GetCurrentMutationContext();
         auto version = mutationContext->GetVersion();
-        auto random = mutationContext->RandomGenerator().Generate<ui64>();
+        auto random = mutationContext->RandomGenerator()->Generate<ui64>();
         auto cellId = GetCellId();
         return TObjectId(
             random ^ cellId.Parts32[0],

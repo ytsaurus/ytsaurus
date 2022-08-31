@@ -99,6 +99,7 @@ DEFINE_ENUM(EMasterReign,
     ((MaxExternalCellBias)                                          (2116))  // babenko
     ((ChunkLocationInReplica)                                       (2117))  // kvk1920
     ((CleanupSomeDynconfigCompatFlags)                              (2118))  // shakurov
+    ((ErrorSanitizer)                                               (2119))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

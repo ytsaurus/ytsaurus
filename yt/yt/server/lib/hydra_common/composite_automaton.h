@@ -164,7 +164,7 @@ public:
     void SetSnapshotValidationOptions(const TSnapshotValidationOptions& options) override;
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
-    TReign LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
+    void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
     void PrepareState() override;
 
     void ApplyMutation(TMutationContext* context) override;
