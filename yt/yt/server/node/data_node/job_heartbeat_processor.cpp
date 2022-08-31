@@ -64,10 +64,12 @@ void TMasterJobHeartbeatProcessor::PrepareRequest(
 {
     PrepareHeartbeatCommonRequestPart(request);
 
-    for (const auto& job : JobController_->GetJobs()) {
+    for (const auto& job : JobController_->GetMasterJobs()) {
         auto jobId = job->GetId();
 
-        if (TypeFromId(jobId) != EObjectType::MasterJob || job->GetJobTrackerAddress() != jobTrackerAddress) {
+        YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
+
+        if (job->GetJobTrackerAddress() != jobTrackerAddress) {
             continue;
         }
 

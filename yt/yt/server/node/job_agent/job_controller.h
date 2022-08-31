@@ -71,8 +71,11 @@ public:
     //! Finds the job by its id, throws if no job is found.
     IJobPtr GetJobOrThrow(TJobId jobId) const;
 
-    //! Returns the list of all currently known jobs.
-    std::vector<IJobPtr> GetJobs() const;
+    //! Returns the list of all currently known master jobs.
+    std::vector<IJobPtr> GetMasterJobs() const;
+
+    //! Returns the list of all currently known scheduler jobs.
+    std::vector<IJobPtr> GetSchedulerJobs() const;
 
     //! Finds the job that is held after it has been removed.
     IJobPtr FindRecentlyRemovedJob(TJobId jobId) const;
