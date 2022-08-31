@@ -1082,6 +1082,27 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         op = map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
+    @authors("gepardo")
+    def test_parallelism_yt_17457(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_input", [{"a": i}])
+
+        op = map(
+            track=False,
+            command=with_breakpoint("cat && BREAKPOINT"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+        )
+        wait_breakpoint(job_count=1)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["total"] > 0)
+        counters = get(op.get_path() + "/@brief_progress/jobs")
+        assert counters["running"] + counters["pending"] == 10
+        release_breakpoint()
+        op.track()
+
     @authors("babenko")
     def test_lock_revisions_yt_13962(self):
         tx = start_transaction()

@@ -642,6 +642,9 @@ private:
                     blockedJobCount = 1;
                 }
             }
+            pendingJobCount = std::max<i64>(
+                pendingJobCount,
+                std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount);
         }
 
         if (Finished && dataWeightLeft == 0) {
