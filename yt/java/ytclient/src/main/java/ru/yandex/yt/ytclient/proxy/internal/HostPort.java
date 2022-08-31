@@ -3,8 +3,6 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 
-import com.google.common.base.Strings;
-
 public class HostPort {
     final String host;
     final int port;
@@ -47,7 +45,7 @@ public class HostPort {
         }
 
         int port = 9013;
-        if (!Strings.isNullOrEmpty(portString)) {
+        if (portString != null && !portString.isEmpty()) {
             // Try to parse the whole port string as a number.
             // JDK7 accepts leading plus signs. We don't want to.
             checkArgument(!portString.startsWith("+"), "Unparseable port number: %s", hostPortString);
