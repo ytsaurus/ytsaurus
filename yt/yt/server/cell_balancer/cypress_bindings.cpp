@@ -30,11 +30,34 @@ void TMemoryLimits::Register(TRegistrar registrar)
 void TInstanceResources::Register(TRegistrar registrar)
 {
     registrar.Parameter("vcpu", &TThis::Vcpu)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default(18000);
     registrar.Parameter("memory", &TThis::Memory)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default(120_GB);
+}
+
+void TResourceQuota::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu", &TThis::Cpu)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    registrar.Parameter("memory", &TThis::Memory)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
+void TInstanceResources::Clear()
+{
+    Vcpu = 0;
+    Memory = 0;
+}
+
+int TResourceQuota::Vcpu() const
+{
+    const int VFactor = 1000;
+    return static_cast<int>(Cpu * VFactor);
 }
 
 void THulkInstanceResources::Register(TRegistrar registrar)
@@ -128,6 +151,7 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
         .Default(false);
+
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
@@ -136,6 +160,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "options", &TThis::Options)
         .DefaultNew();
+    RegisterAttribute(registrar, "resource_quota", &TThis::ResourceQuota)
+        .Default();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)

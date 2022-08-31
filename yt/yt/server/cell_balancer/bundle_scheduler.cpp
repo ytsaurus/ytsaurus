@@ -1,4 +1,5 @@
 #include "bundle_scheduler.h"
+
 #include "config.h"
 
 #include <library/cpp/yt/yson_string/public.h>
@@ -130,6 +131,16 @@ public:
 private:
     NLogging::TLogger Logger;
 
+
+    static bool IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+    {
+        if (!quota) {
+            return false;
+        }
+
+        return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
+    }
+
     void InitNewAllocations(
         const TString& bundleName,
         TInstanceTypeAdapter* adapter,
@@ -165,6 +176,7 @@ private:
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "can_not_find_zone_for_bundle",
+                .BundleName = bundleName,
                 .Description = Format("Cannot locate zone %v for bundle %v.", bundleInfo->Zone, bundleName)
             });
             return;
@@ -174,8 +186,28 @@ private:
         if (instanceCountToAllocate > 0 && adapter->IsInstanceCountLimitReached(bundleInfo->Zone, zoneInfo, input)) {
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "zone_instance_limit_reached",
+                .BundleName = bundleName,
                 .Description = Format("Cannot allocate new %v at zone %v for bundle %v.",
                     adapter->GetInstanceType(), bundleInfo->Zone, bundleName)
+            });
+            return;
+        }
+
+        const auto& resourceUsage = GetOrCrash(input.BundleResourceAlive, bundleName);
+        if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
+            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: %v, ResourceUsage: %v)",
+                bundleName,
+                ConvertToYsonString(bundleInfo->ResourceQuota, EYsonFormat::Text),
+                ConvertToYsonString(resourceUsage, EYsonFormat::Text));
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "bundle_resource_quota_exceeded",
+                .BundleName = bundleName,
+                .Description = Format("Cannot allocate new %v for bundle %v. ResourceQuota: %v, ResourceUsage: %v",
+                    adapter->GetInstanceType(),
+                    bundleName,
+                    ConvertToYsonString(bundleInfo->ResourceQuota, EYsonFormat::Text),
+                    ConvertToYsonString(resourceUsage, EYsonFormat::Text))
             });
             return;
         }
@@ -226,6 +258,7 @@ private:
 
                 mutations->AlertsToFire.push_back(TAlert{
                         .Id = "unexpected_pod_id",
+                        .BundleName = bundleName,
                         .Description = Format("Allocation request %v for bundle %v has empty pod_id",
                             allocationId, bundleName),
                     });
@@ -269,6 +302,7 @@ private:
 
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "can_not_find_allocation_request",
+                    .BundleName = bundleName,
                     .Description = Format("Allocation request %v "
                         "found in bundle state, but is absent in hulk allocations.",
                         allocationId),
@@ -289,6 +323,7 @@ private:
 
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "instance_allocation_failed",
+                    .BundleName = bundleName,
                     .Description = Format("Allocation request %v has failed.",
                         allocationId),
                 });
@@ -313,7 +348,8 @@ private:
 
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "stuck_instance_allocation",
-                    .Description = Format("Found stuck allocation %v and age %v which is more than threshold %v.",
+                    .BundleName = bundleName,
+                    .Description = Format("Found stuck allocation %v with age %v which is more than threshold %v.",
                         allocationId,
                         allocationAge,
                         input.Config->HulkRequestTimeout),
@@ -333,6 +369,7 @@ private:
 
     // Returns false if current deallocation should not be tracked any more.
     bool ProcessDeallocation(
+        const TString& bundleName,
         TInstanceTypeAdapter* adapter,
         const TString& deallocationId,
         const TDeallocationRequestStatePtr& deallocationState,
@@ -341,14 +378,16 @@ private:
     {
         auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
         if (deallocationAge > input.Config->HulkRequestTimeout) {
-            YT_LOG_WARNING("Deallocation Request is stuck (DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
+            YT_LOG_WARNING("Deallocation Request is stuck (BundleName: %v, DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
+                bundleName,
                 deallocationId,
                 deallocationAge,
                 input.Config->HulkRequestTimeout);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "stuck_instance_deallocation",
-                .Description = Format("Found stuck deallocation %v and age %v which is more than threshold %v.",
+                .BundleName = bundleName,
+                .Description = Format("Found stuck deallocation %v with age %v which is more than threshold %v.",
                     deallocationId,
                     deallocationAge,
                     input.Config->HulkRequestTimeout),
@@ -373,6 +412,7 @@ private:
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "can_not_find_deallocation_request",
+                .BundleName = bundleName,
                 .Description = Format("Deallocation request %v "
                     "found in bundle state, but is absent in hulk deallocations.",
                     deallocationId),
@@ -387,6 +427,7 @@ private:
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "instance_deallocation_failed",
+                .BundleName = bundleName,
                 .Description = Format("Deallocation request %v has failed.",
                     deallocationId),
             });
@@ -407,7 +448,7 @@ private:
     }
 
     void ProcessExistingDeallocations(
-        const TString& /*bundleName*/,
+        const TString& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -416,7 +457,7 @@ private:
         TIndexedEntries<TDeallocationRequestState> aliveDeallocations;
 
         for (const auto& [deallocationId, deallocationState] : deallocations) {
-            if (ProcessDeallocation(adapter, deallocationId, deallocationState, input, mutations)) {
+            if (ProcessDeallocation(bundleName, adapter, deallocationId, deallocationState, input, mutations)) {
                 aliveDeallocations[deallocationId] = deallocationState;
             }
         }
@@ -575,6 +616,47 @@ THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& in
     }
 
     return result;
+}
+
+void CalculateResourceUsage(TSchedulerInputState& input)
+{
+    THashMap<TString, TInstanceResourcesPtr> aliveResources;
+    THashMap<TString, TInstanceResourcesPtr> allocatedResources;
+
+    auto calculateResources = [] (const auto& aliveNames, const auto& instancesInfo, TInstanceResourcesPtr& target) {
+        for (const auto& instanceName : aliveNames) {
+            const auto& instanceInfo = GetOrCrash(instancesInfo, instanceName);
+            target->Vcpu += instanceInfo->Annotations->Resource->Vcpu;
+            target->Memory += instanceInfo->Annotations->Resource->Memory;
+        }
+    };
+
+    for (const auto& [bundleName, _] : input.Bundles) {
+        {
+            auto aliveResourceUsage = New<TInstanceResources>();
+            aliveResourceUsage->Clear();
+
+            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input);
+            calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage);
+
+            auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input);
+            calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage);
+
+            aliveResources[bundleName] = aliveResourceUsage;
+        }
+
+        {
+            auto allocated = New<TInstanceResources>();
+            allocated->Clear();
+            calculateResources(input.BundleNodes[bundleName], input.TabletNodes, allocated);
+            calculateResources(input.BundleProxies[bundleName], input.RpcProxies, allocated);
+
+            allocatedResources[bundleName] = allocated;
+        }
+    }
+
+    input.BundleResourceAlive = aliveResources;
+    input.BundleResourceAllocated = allocatedResources;
 }
 
 THashSet<TString> GetAliveNodes(
@@ -794,6 +876,7 @@ void ProcessRemovingCells(
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "stuck_tablet_cell_removal",
+                .BundleName = bundleName,
                 .Description = Format("Found stuck tablet cell %v removal "
                     " with removing time %v, which is more than threshold %v.",
                     cellId,
@@ -1247,6 +1330,7 @@ public:
 
             mutations->AlertsToFire.push_back({
                 .Id = "inconsistent_allocation_state",
+                .BundleName = bundleName,
                 .Description = Format("Inconsistent allocation state: Node annotation bundle name %v, actual bundle name %v.",
                     annotations->AllocatedForBundle,
                     bundleName)
@@ -1509,6 +1593,8 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         bundleInfo->Zone = zoneName;
         input.Bundles[spareVirtualBundle] = bundleInfo;
     }
+
+    CalculateResourceUsage(input);
 
     auto zoneDisrupted = GetZoneDisruptedState(input);
 

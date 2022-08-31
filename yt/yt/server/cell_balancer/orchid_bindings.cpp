@@ -13,11 +13,21 @@ void TInstanceInfo::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void TAlert::Register(TRegistrar registrar)
+{
+    registrar.Parameter("id", &TThis::Id)
+        .Default();
+    registrar.Parameter("description", &TThis::Description)
+        .Default();
+}
+
 void TBundleInfo::Register(TRegistrar registrar)
 {
     registrar.Parameter("resource_quota", &TThis::ResourceQuota)
         .DefaultNew();
     registrar.Parameter("resource_allocated", &TThis::ResourceAllocated)
+        .DefaultNew();
+    registrar.Parameter("resource_alive", &TThis::ResourceAlive)
         .DefaultNew();
 
     registrar.Parameter("allocated_tablet_nodes", &TThis::AllocatedTabletNodes)
@@ -28,6 +38,9 @@ void TBundleInfo::Register(TRegistrar registrar)
     registrar.Parameter("assigned_spare_tablet_nodes", &TThis::AssignedSpareTabletNodes)
         .Default();
     registrar.Parameter("assigned_spare_rpc_proxies", &TThis::AssignedSpareRpcProxies)
+        .Default();
+
+    registrar.Parameter("alerts", &TThis::Alerts)
         .Default();
 }
 
@@ -53,7 +66,7 @@ void PopulateInstancies(
     }
 }
 
-TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state)
+TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerMutations& mutations)
 {
     TBundlesInfo result;
     for (const auto& [bundleName, bundleInfo] : state.Bundles) {
@@ -61,6 +74,9 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state)
             continue;
         }
         auto bundleOrchidInfo = New<TBundleInfo>();
+        bundleOrchidInfo->ResourceAllocated->Clear();
+        bundleOrchidInfo->ResourceAlive->Clear();
+
         PopulateInstancies(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
         PopulateInstancies(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
 
@@ -80,21 +96,34 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state)
                 bundleOrchidInfo->AssignedSpareRpcProxies);
         }
 
-        auto calculateUsage = [&bundleOrchidInfo] (const auto& instancies) {
-            auto& allocated = *bundleOrchidInfo->ResourceAllocated;
-            for (const auto& [_, instanceInfo] : instancies) {
-                allocated.Vcpu += instanceInfo->Resource->Vcpu;
-                allocated.Memory += instanceInfo->Resource->Memory;
-            }
-        };
+        if (bundleInfo->ResourceQuota) {
+            bundleOrchidInfo->ResourceQuota->Vcpu = bundleInfo->ResourceQuota->Vcpu();
+            bundleOrchidInfo->ResourceQuota->Memory = bundleInfo->ResourceQuota->Memory;
+        } else {
+            bundleOrchidInfo->ResourceQuota = CloneYsonSerializable(bundleOrchidInfo->ResourceAllocated);
+        }
 
-        calculateUsage(bundleOrchidInfo->AllocatedTabletNodes);
-        calculateUsage(bundleOrchidInfo->AllocatedRpcProxies);
+        if (auto it = state.BundleResourceAlive.find(bundleName); it != state.BundleResourceAlive.end()) {
+            bundleOrchidInfo->ResourceAlive = CloneYsonSerializable(it->second);
+        }
 
-        // Fake quota for a while.
-        bundleOrchidInfo->ResourceQuota = CloneYsonSerializable(bundleOrchidInfo->ResourceAllocated);
+        if (auto it = state.BundleResourceAllocated.find(bundleName); it != state.BundleResourceAllocated.end()) {
+            bundleOrchidInfo->ResourceAllocated = CloneYsonSerializable(it->second);
+        }
 
         result[bundleName] = bundleOrchidInfo;
+    }
+
+    for (const auto& alert : mutations.AlertsToFire) {
+        if (!alert.BundleName || !result[*alert.BundleName]) {
+            continue;
+        }
+
+        auto bundleAlert = New<TAlert>();
+        bundleAlert->Id = alert.Id;
+        bundleAlert->Description = alert.Description;
+
+        result[*alert.BundleName]->Alerts.push_back(bundleAlert);
     }
 
     return result;
