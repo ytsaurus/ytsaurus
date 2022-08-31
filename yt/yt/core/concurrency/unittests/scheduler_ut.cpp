@@ -267,18 +267,26 @@ TEST_W(TSchedulerTest, TerminatedCaught)
 
 TEST_W(TSchedulerTest, TerminatedPropagated)
 {
-    auto context = New<TCancelableContext>();
+    TLazyIntrusivePtr<TActionQueue> queue3;
 
-    auto invoker1 = context->CreateInvoker(Queue1->GetInvoker());
-    auto invoker2 = Queue2->GetInvoker();
+    auto future = BIND([this] {
+        auto context = New<TCancelableContext>();
 
-    SwitchTo(invoker2);
+        auto invoker1 = context->CreateInvoker(Queue1->GetInvoker());
+        auto invoker2 = Queue2->GetInvoker();
 
-    context->Cancel(TError("Error"));
+        SwitchTo(invoker2);
 
-    SwitchTo(invoker1);
+        context->Cancel(TError("Error"));
 
-    YT_ABORT();
+        SwitchTo(invoker1);
+
+        YT_ABORT();
+    })
+    .AsyncVia(queue3->GetInvoker())
+    .Run();
+
+    EXPECT_THROW_WITH_ERROR_CODE(WaitFor(future).ThrowOnError(), NYT::EErrorCode::Canceled);
 }
 
 TEST_W(TSchedulerTest, CurrentInvokerAfterSwitch1)
