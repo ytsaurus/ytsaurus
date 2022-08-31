@@ -938,7 +938,7 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto job = weakJob.Lock();
-    if (!job || !job->IsStarted()) {
+    if (!job) {
         return;
     }
 
@@ -963,6 +963,10 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
             job->GetType(),
             origin);
         GetJobHeartbeatProcessor(jobObjectType)->ScheduleHeartbeat(job);
+    }
+
+    if (!job->IsStarted()) {
+        return;
     }
 
     auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
