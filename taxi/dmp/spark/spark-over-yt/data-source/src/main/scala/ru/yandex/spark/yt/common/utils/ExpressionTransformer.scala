@@ -36,9 +36,13 @@ object ExpressionTransformer {
     }
   }
 
-  private def parseOrderedLiteralList(exp: List[Any]): Option[Seq[Point]] = {
+  def parseLiteralList(exp: List[Any]): Option[Seq[Point]] = {
     import cats.implicits._
-    exp.map(parseOrderedLiteral).traverse(identity).map(_.sorted)
+    exp.map(parseOrderedLiteral).traverse(identity)
+  }
+
+  private def parseOrderedLiteralList(exp: List[Any]): Option[Seq[Point]] = {
+    parseLiteralList(exp).map(_.sorted)
   }
 
   private def processComparison(left: String, right: Any)(f: Point => Segment): SegmentSet = {

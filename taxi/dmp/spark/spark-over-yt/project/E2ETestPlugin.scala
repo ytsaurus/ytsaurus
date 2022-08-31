@@ -96,7 +96,7 @@ object E2ETestPlugin extends AutoPlugin {
         "--abort-existing",
         "--discovery-path", discoveryPath,
         "--worker-cores", "4",
-        "--worker-num", "4",
+        "--worker-num", "6",
         "--worker-memory", "16G",
         "--tmpfs-limit", "8G",
         "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,

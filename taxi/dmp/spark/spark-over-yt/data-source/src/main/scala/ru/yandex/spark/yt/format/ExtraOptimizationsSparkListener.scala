@@ -10,6 +10,6 @@ class ExtraOptimizationsSparkListener(spark: SparkSession) extends UserDefinedSp
 
   override def onListenerStart(): Unit = {
     log.info("ExtraOptimizationsSparkListener started")
-    spark.experimental.extraOptimizations ++= Seq(new YtSortedTableMarkerRule())
+    spark.experimental.extraOptimizations ++= Seq(new YtSortedTableMarkerRule(spark))
   }
 }

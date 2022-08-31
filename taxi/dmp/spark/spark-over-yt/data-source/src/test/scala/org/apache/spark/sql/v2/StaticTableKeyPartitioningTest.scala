@@ -105,7 +105,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(RealValue(0))), TuplePoint(Seq(RealValue(25)))),
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(25)))),
       (TuplePoint(Seq(RealValue(25))), TuplePoint(Seq(RealValue(50)))),
       (TuplePoint(Seq(RealValue(50))), TuplePoint(Seq(RealValue(75)))),
       (TuplePoint(Seq(RealValue(75))), TuplePoint(Seq(PInfinity())))
@@ -118,7 +118,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(RealValue(0), RealValue(0))), TuplePoint(Seq(RealValue(0), RealValue(25)))),
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0), RealValue(25)))),
       (TuplePoint(Seq(RealValue(0), RealValue(25))), TuplePoint(Seq(RealValue(0), RealValue(50)))),
       (TuplePoint(Seq(RealValue(0), RealValue(50))), TuplePoint(Seq(RealValue(0), RealValue(75)))),
       (TuplePoint(Seq(RealValue(0), RealValue(75))), TuplePoint(Seq(PInfinity())))
@@ -141,6 +141,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(false)))),
       (TuplePoint(Seq(RealValue(false))), TuplePoint(Seq(RealValue(true)))),
       (TuplePoint(Seq(RealValue(true))), TuplePoint(Seq(PInfinity())))
     )
@@ -152,6 +153,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0)))),
       (TuplePoint(Seq(RealValue(0))), TuplePoint(Seq(RealValue(1)))),
       (TuplePoint(Seq(RealValue(1))), TuplePoint(Seq(PInfinity())))
     )
@@ -195,7 +197,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(RealValue(0))), TuplePoint(Seq(PInfinity())))
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(PInfinity())))
     )
   }
 
@@ -207,7 +209,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
     val pivots = Seq(
-      TuplePoint(Seq(RealValue(0), RealValue(0))),
+      TuplePoint(Seq(MInfinity())),
       TuplePoint(Seq(RealValue(0), RealValue(164))),
       TuplePoint(Seq(RealValue(1), RealValue(328))),
       TuplePoint(Seq(RealValue(1), RealValue(492))),
@@ -303,13 +305,13 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
   }
 
   it should "support null keys" in {
-    val data = Seq((null, 0), ("a", 1), ("b", 2))
+    val data = Seq((null, 0), (null, 1), ("b", 2))
     data.toDF("a", "b").write.sortedBy("a").yt(tmpPath)
 
     val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(RealValue(null))), TuplePoint(Seq(RealValue("a")))),
-      (TuplePoint(Seq(RealValue("a"))), TuplePoint(Seq(RealValue("b")))),
+      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(null)))),
+      (TuplePoint(Seq(RealValue(null))), TuplePoint(Seq(RealValue("b")))),
       (TuplePoint(Seq(RealValue("b"))), TuplePoint(Seq(PInfinity())))
     )
   }
@@ -328,7 +330,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
     val res = YtFilePartition.getPivotKeys(schema, Seq("a"), files)
     res should contain theSameElementsAs Seq(
-      TuplePoint(Seq(RealValue("a"))),
+      TuplePoint(Seq(MInfinity())),
       TuplePoint(Seq(RealValue("c"))),
       TuplePoint(Seq(RealValue("d"))),
       TuplePoint(Seq(RealValue("f")))

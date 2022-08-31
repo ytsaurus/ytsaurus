@@ -26,14 +26,16 @@ object SparkYtConfiguration {
 
     case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(true))
 
+    case object PlanOptimizationEnabled extends BooleanConfigEntry(s"$prefix.planOptimization.enabled", Some(false))
+
     case object ParsingTypeV3 extends BooleanConfigEntry(s"$prefix.parsingTypeV3.enabled", Some(false))
 
     object KeyPartitioning {
       private val prefix: String = s"${Read.prefix}.keyPartitioningSortedTables"
 
-      case object Enabled extends BooleanConfigEntry(s"$prefix.keyPartitioning.enabled", Some(false))
+      case object Enabled extends BooleanConfigEntry(s"$prefix.enabled", Some(false))
 
-      case object UnionLimit extends IntConfigEntry(s"$prefix.keyPartitioning.unionLimit", Some(1))
+      case object UnionLimit extends IntConfigEntry(s"$prefix.unionLimit", Some(1))
     }
 
 

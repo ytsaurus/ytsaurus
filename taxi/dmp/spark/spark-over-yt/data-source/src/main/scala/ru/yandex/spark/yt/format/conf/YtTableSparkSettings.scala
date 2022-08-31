@@ -44,6 +44,8 @@ object YtTableSparkSettings {
 
   case object ArrowEnabled extends BooleanConfigEntry("arrow_enabled", Some(true))
 
+  case object KeyPartitioned extends BooleanConfigEntry("key_partitioned")
+
   case object Dynamic extends BooleanConfigEntry("dynamic")
 
   case object Transaction extends StringConfigEntry("transaction")
