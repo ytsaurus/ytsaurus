@@ -7,7 +7,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.{FilePartition, PartitionDirectory, PartitionedFile}
 import org.apache.spark.sql.types.StructType
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, PInfinity, TuplePoint}
+import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, MInfinity, PInfinity, TuplePoint}
 import ru.yandex.spark.yt.format.conf.KeyPartitioningConfig
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -228,7 +228,7 @@ object YtFilePartition {
             keyPartitioning match {
               case Some(partitions) =>
                 log.info(s"Used key partitioning for key set ${keys.toString()}")
-                Some(partitions.indices.zip(partitions).map { case (i, x) => FilePartition(i, Array(x)) })
+                Some(getFilePartitions(partitions))
               case None =>
                 log.info("Unsuccessful using of key partitioning")
                 None
@@ -249,9 +249,13 @@ object YtFilePartition {
     }
   }
 
+  private def getFilePartitions(partitionedFiles: Seq[PartitionedFile]) = {
+    partitionedFiles.zipWithIndex.map { case (x, i) => FilePartition(i, Array(x)) }
+  }
+
   private def collectFirstKeyPartitions(schema: StructType, keys: Seq[String], splitFiles: Seq[YtPartitionedFile],
                                         keyPartitioningConfig: KeyPartitioningConfig)
-                              (implicit yt: CompoundClient): Option[Seq[PartitionedFile]] = {
+                                       (implicit yt: CompoundClient): Option[Seq[PartitionedFile]] = {
     (1 to keys.size).collectFirst {
       Function.unlift {
         colCount =>
@@ -271,6 +275,7 @@ object YtFilePartition {
     } else {
       if (keySchema.fields.forall(f => ExpressionTransformer.isSupportedDataType(f.dataType))) { // always true
         log.info("All columns are supported for key partitioning")
+        // file is from -inf to +inf
         val pivotKeys = getPivotKeys(keySchema, currentKeys, splitFiles)
         log.info("Pivot keys: " + pivotKeys.mkString(", "))
         val filesGroupedByKey = seqGroupBy(pivotKeys.zip(splitFiles))
@@ -291,9 +296,9 @@ object YtFilePartition {
   private[v2] def getFilesWithUniquePivots(keys: Seq[String],
                                        filesGroupedByPoint: Seq[(TuplePoint, Seq[YtPartitionedFile])]): Seq[YtPartitionedFile] = {
     val maxPoint = TuplePoint(Seq(PInfinity()))
-    val (_, res) = filesGroupedByPoint
-      .foldRight((maxPoint, Seq.empty[YtPartitionedFile])) {
-        case ((curPoint, curFiles), (nextPoint, res)) =>
+    val (_, res) = filesGroupedByPoint.reverse
+      .foldLeft((maxPoint, Seq.empty[YtPartitionedFile])) {
+        case ((nextPoint, res), (curPoint, curFiles)) =>
           (curPoint, putPivotKeysToFile(curFiles.head, keys, curPoint, nextPoint) +: res)
       }
     res
@@ -303,16 +308,15 @@ object YtFilePartition {
                           (implicit yt: CompoundClient): Seq[TuplePoint] = {
     val filepath = files.head.filePath
     val basePath = ypath(new Path(filepath)).toYPath.withColumns(keys: _*)
-    val pathWithRanges = files.foldLeft(basePath) {
-      case (path, pf) => path.withRange(pf.beginRow, pf.beginRow + 1)
-    }
+    val pathWithRanges = files.tail.map(_.beginRow)
+      .foldLeft(basePath) { case (path, br) => path.withRange(br, br + 1) }
     val tableIterator = YtWrapper.readTable(
       pathWithRanges,
       InternalRowDeserializer.getOrCreate(schema),
       reportBytesRead = _ => ()
     )
     try {
-      getParsedRows(tableIterator, schema).sorted
+      (TuplePoint(Seq(MInfinity())) +: getParsedRows(tableIterator, schema)).sorted
     } finally {
       tableIterator.close()
     }
@@ -338,9 +342,17 @@ object YtFilePartition {
     PivotKeysConverter.toByteArray(columns.zip(key.points.map(YtInputSplit.prepareKey)).toMap)
   }
 
+  def getPivotFromHintFiles(keys: Seq[String], files: Seq[FilePartition]): Seq[TuplePoint] = {
+    files.drop(1).map(file => getTuplePoint(keys, file.files(0).asInstanceOf[YtPartitionedFile].beginKey))
+  }
+
+  private def getTuplePoint(columns: Seq[String], key: Array[Byte]): TuplePoint = {
+    PivotKeysConverter.toPoint(key, columns).get
+  }
+
   private[v2] def seqGroupBy[K, V](valuesWithKeys: Seq[(K, V)]): Seq[(K, Seq[V])] = {
-    valuesWithKeys.foldRight(Seq.empty[(K, Seq[V])]) {
-      case ((curKey, curValue), acc) =>
+    valuesWithKeys.reverse.foldLeft(Seq.empty[(K, Seq[V])]) {
+      case (acc, (curKey, curValue)) =>
         acc match {
           case (prevKey, prevValues) :: tail if prevKey == curKey =>
             (prevKey, curValue +: prevValues) +: tail
@@ -348,5 +360,21 @@ object YtFilePartition {
             (curKey, Seq(curValue)) +: acc
         }
     }
+  }
+
+  def addPivots(partitioning: Seq[FilePartition], keys: Seq[String], pivots: Seq[TuplePoint]): Seq[FilePartition] = {
+    val res = partitioning.flatMap {
+      partition =>
+        val file = partition.files(0).asInstanceOf[YtPartitionedFile]
+        val fileStart = getTuplePoint(keys, file.beginKey)
+        val fileEnd = getTuplePoint(keys, file.endKey)
+        val pivotsInSegment = pivots.filter(tp => (fileStart < tp) && (tp < fileEnd))
+        val starts = fileStart +: pivotsInSegment
+        val ends = pivotsInSegment :+ fileEnd
+        starts.zip(ends).map {
+          case (start, end) => putPivotKeysToFile(file, keys, start, end)
+        }
+    }
+    getFilePartitions(res)
   }
 }

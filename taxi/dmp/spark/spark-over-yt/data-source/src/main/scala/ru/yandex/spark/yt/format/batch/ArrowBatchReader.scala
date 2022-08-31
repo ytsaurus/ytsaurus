@@ -67,7 +67,8 @@ class ArrowBatchReader(stream: YtArrowInputStream,
     val res = stream.read(bytes)
     val isAllowedBytes = bytes.forall(_ == 0) || (bytes.take(4).forall(_ == -1) && bytes.drop(4).forall(_ == 0))
     if (res > 8 || !isAllowedBytes) {
-      throw new IllegalStateException()
+      throw new IllegalStateException(s"Final read failed." +
+        s" Bytes read: $res; byte buffer: ${bytes.mkString("[", ", ", "]")}")
     }
   }
 

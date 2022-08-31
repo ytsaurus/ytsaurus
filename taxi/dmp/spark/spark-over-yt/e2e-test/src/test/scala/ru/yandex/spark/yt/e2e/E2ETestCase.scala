@@ -8,10 +8,14 @@ case class E2ETestCase(name: String,
                        customInputPath: Option[String] = None,
                        uniqueKeys: Boolean = false,
                        conf: Map[String, String] = Map(
+                         "spark.yt.read.keyPartitioningSortedTables.enabled" -> "true",
+                         "spark.yt.read.keyPartitioningSortedTables.unionLimit" -> "2",
+                         "spark.yt.read.planOptimization.enabled" -> "true",
                          "spark.pyspark.python" -> "/opt/python3.7/bin/python3.7",
-//                         "spark.eventLog.enabled" -> "true",
+                         "spark.eventLog.enabled" -> "true",
                          "spark.yt.read.keyColumnsFilterPushdown.enabled" -> "true",
-                         "spark.yt.read.keyPartitioning.enabled" -> "true"
+                         "spark.context.listeners" ->
+                           "ru.yandex.spark.yt.format.GlobalTransactionSparkListener,ru.yandex.spark.yt.format.ExtraOptimizationsSparkListener"
                        )) {
   val userDirPath: String = s"${SubmitTest.userDirPath}/scala/$name"
   val basePath: String = s"${SubmitTest.basePath}/$name"

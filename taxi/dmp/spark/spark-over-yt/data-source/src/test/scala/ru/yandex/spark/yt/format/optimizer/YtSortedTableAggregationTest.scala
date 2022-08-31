@@ -1,15 +1,15 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.format.optimizer
 
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.execution.FakeSortedShuffleExchangeExec
+import org.apache.spark.sql.execution.FakeSortShuffleExchangeExec
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration
-import ru.yandex.spark.yt.format.optimizer.YtSortedTableMarkerRule
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 
+import java.util.UUID
 import scala.language.postfixOps
 
 class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpark
@@ -22,14 +22,23 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
   private val conf = Map(
     s"spark.yt.${SparkYtConfiguration.Read.KeyPartitioning.Enabled.name}" -> "true",
     s"spark.yt.${SparkYtConfiguration.Read.KeyPartitioning.UnionLimit.name}" -> "2",
+    s"spark.yt.${SparkYtConfiguration.Read.PlanOptimizationEnabled.name}" -> "true",
     "spark.sql.adaptive.enabled" -> "false",
     "spark.sql.files.maxPartitionBytes" -> "1Kb",
     "spark.yt.minPartitionBytes" -> "1Kb"
   )
 
+  // (1L to 2000L).map(x => (x / 10, x / 10)).toDF("a", "b").write.sortedBy("a", "b")
+  private val commonTable = s"$tmpPath-common-${UUID.randomUUID()}"
+
   override def beforeAll(): Unit = {
     super.beforeAll()
-    spark.experimental.extraOptimizations = Seq(new YtSortedTableMarkerRule())
+    spark.experimental.extraOptimizations = Seq(new YtSortedTableMarkerRule(spark))
+
+    // creating common table for speed boosting
+    val data = (1L to 2000L).map(x => (x / 10, x / 10))
+    val df = data.toDF("a", "b")
+    df.write.sortedBy("a", "b").yt(commonTable)
   }
 
   override def afterAll(): Unit = {
@@ -39,14 +48,14 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
 
   private def findRealShuffles(query: DataFrame): Seq[ShuffleExchangeExec] = {
     val realShuffles = query.queryExecution.executedPlan.collect {
-      case s: ShuffleExchangeExec if !s.isInstanceOf[FakeSortedShuffleExchangeExec] => s
+      case s: ShuffleExchangeExec => s
     }
     realShuffles
   }
 
-  private def findFakeShuffles(query: DataFrame): Seq[FakeSortedShuffleExchangeExec] = {
+  private def findFakeShuffles(query: DataFrame): Seq[FakeSortShuffleExchangeExec] = {
     val fakeShuffles = query.queryExecution.executedPlan.collect {
-      case s: FakeSortedShuffleExchangeExec => s
+      case s: FakeSortShuffleExchangeExec => s
     }
     fakeShuffles
   }
@@ -69,13 +78,7 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
 
   it should "work on simple case" in {
     withConfs(conf) {
-      val data = (1L to 2000L).map(x => (x / 10, x / 10))
-
-      val df = data
-        .toDF("a", "b")
-      df.write.sortedBy("a", "b").yt(tmpPath)
-
-      val res = spark.read.yt(tmpPath).groupBy("a").count()
+      val res = spark.read.yt(commonTable).groupBy("a").count()
       res.collect()
 
       findFakeShuffles(res).length shouldBe 1
@@ -83,17 +86,27 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
     }
   }
 
+  it should "be disabled when config is disabled" in {
+    withConfs(conf) {
+      withConf(SparkYtConfiguration.Read.PlanOptimizationEnabled, false) {
+        val res = spark.read.yt(commonTable).groupBy("a").count()
+        res.collect()
+
+        findFakeShuffles(res).length shouldBe 0
+        findRealShuffles(res).length shouldBe 1
+      }
+    }
+  }
+
   it should "work on several aggregations" in {
     withConfs(conf) {
       val tmpPath2 = tmpPath + "2"
       val data = (1L to 2000L).map(x => (x / 10, x / 10))
-
       val df = data
         .toDF("a", "b")
-      df.write.sortedBy("a", "b").yt(tmpPath)
       df.write.sortedBy("a", "b").yt(tmpPath2)
 
-      val res = spark.read.yt(tmpPath).groupBy("a").count()
+      val res = spark.read.yt(commonTable).groupBy("a").count()
         .unionAll(spark.read.yt(tmpPath2).groupBy("a").count())
       res.collect()
 
@@ -102,16 +115,10 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
     }
   }
 
-  it should "use optimized number of shuffles" in {
+  it should "use optimized number of shuffles" ignore {
     withConfs(conf) {
-      val data = (1L to 2000L).map(x => (x / 10, x / 10))
-
-      val df = data
-        .toDF("a", "b")
-      df.write.sortedBy("a", "b").yt(tmpPath)
-
-      val res = spark.read.yt(tmpPath).groupBy("a").count()
-        .unionAll(spark.read.yt(tmpPath).groupBy("a").count())
+      val res = spark.read.yt(commonTable).groupBy("a").count()
+        .unionAll(spark.read.yt(commonTable).groupBy("a").count())
       res.collect()
 
       findFakeShuffles(res).length shouldBe 1
@@ -136,12 +143,7 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
 
   it should "be disabled on repartitioned data" in {
     withConfs(conf) {
-      val data = (1L to 2000L).map(x => (x / 10, x / 10))
-      val df = data
-        .toDF("a", "b")
-      df.write.sortedBy("a", "b").yt(tmpPath)
-
-      val res = spark.read.yt(tmpPath).repartition(5).groupBy("a").count()
+      val res = spark.read.yt(commonTable).repartition(5).groupBy("a").count()
       res.collect()
 
       findFakeShuffles(res).length shouldBe 0
@@ -151,12 +153,7 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
 
   it should "be disabled on indirect aggregation" in {
     withConfs(conf) {
-      val data = (1L to 2000L).map(x => (x / 10, x / 10))
-      val df = data
-        .toDF("a", "b")
-      df.write.sortedBy("a", "b").yt(tmpPath)
-
-      val res = spark.read.yt(tmpPath).unionAll(spark.read.yt(tmpPath)).groupBy("a").count()
+      val res = spark.read.yt(commonTable).unionAll(spark.read.yt(commonTable)).groupBy("a").count()
       res.collect()
 
       findFakeShuffles(res).length shouldBe 0

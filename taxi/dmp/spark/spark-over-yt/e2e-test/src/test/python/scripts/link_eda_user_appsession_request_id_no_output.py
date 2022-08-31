@@ -33,9 +33,14 @@ with spark_session() as spark:
     link_eda_user_appsession_request_id = (
         eats_layout_constructor_log
             .select(
-            'request_id',
-            'utc_created_dttm'
-        )
+                'utc_created_dttm',
+                'request_id'
+            )
+            .distinct()
+            .select(
+                'request_id',
+                'utc_created_dttm'
+            )
             .distinct()
             .join(eda_user_appsession_w_request_id, on='request_id', how='inner')
             .select(

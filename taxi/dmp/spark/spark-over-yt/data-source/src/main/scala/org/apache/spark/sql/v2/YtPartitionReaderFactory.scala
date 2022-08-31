@@ -46,7 +46,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private val arrowEnabled: Boolean = {
     import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
     import ru.yandex.spark.yt.fs.conf._
-    options.ytConf(TableSettings.ArrowEnabled) && sqlConf.ytConf(SparkSettings.Read.ArrowEnabled)
+    val keyPartitioned = options.get(TableSettings.KeyPartitioned.name).exists(_.toBoolean)
+    options.ytConf(TableSettings.ArrowEnabled) && sqlConf.ytConf(SparkSettings.Read.ArrowEnabled) && !keyPartitioned
   }
   private val readBatch: Boolean = {
     import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}

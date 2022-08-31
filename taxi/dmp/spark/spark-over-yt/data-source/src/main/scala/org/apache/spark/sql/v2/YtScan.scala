@@ -17,7 +17,7 @@ import org.apache.spark.sql.v2.YtFilePartition.{getFilePartitions, tryGetKeyPart
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
 import ru.yandex.spark.yt.common.utils._
-import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig}
+import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtDynamicPath
 import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
 
@@ -53,9 +53,11 @@ case class YtScan(sparkSession: SparkSession,
   override def createReaderFactory(): PartitionReaderFactory = {
     val broadcastedConf = sparkSession.sparkContext.broadcast(
       new SerializableConfiguration(hadoopConf))
+    val keyPartitionedOptions = Map(YtTableSparkSettings.KeyPartitioned.name -> supportsKeyPartitioning.toString)
     YtPartitionReaderFactory(sparkSession.sessionState.conf, broadcastedConf,
-      dataSchema, readDataSchema, readPartitionSchema, options.asScala.toMap, pushedFilterSegments, filterPushdownConf,
-      YtDynTableLoggerConfig.fromSpark(sparkSession)
+      dataSchema, readDataSchema, readPartitionSchema,
+      options.asScala.toMap ++ keyPartitionedOptions,
+      pushedFilterSegments, filterPushdownConf, YtDynTableLoggerConfig.fromSpark(sparkSession)
     )
   }
 
@@ -70,7 +72,8 @@ case class YtScan(sparkSession: SparkSession,
   override def description(): String = {
     super.description() +
       ", PushedFilters: " + seqToString(pushedFilters) +
-      ", filter pushdown enabled: " + filterPushdownConf.enabled
+      ", filter pushdown enabled: " + filterPushdownConf.enabled +
+      ", key partitioned: " + supportsKeyPartitioning
   }
 
   override def withFilters(partitionFilters: Seq[Expression], dataFilters: Seq[Expression]): FileScan =
@@ -91,11 +94,26 @@ case class YtScan(sparkSession: SparkSession,
   // for tests
   private[v2] def getPartitions: Seq[FilePartition] = partitions
 
-  def tryKeyPartitioning(columns: Option[Seq[String]] = None): Option[YtScan] = {
-    val (_, splitFiles) = preparePartitioning()
+  private def tryGetKeyPartitioning(columns: Option[Seq[String]] = None): Option[Seq[FilePartition]] = {
+    val optimizedForScan =
+      options.getOrDefault(YtTableSparkSettings.OptimizedForScan.name, "false").toBoolean
 
-    tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
-      .map(partitions => copy(keyPartitionsHint = Some(partitions)))
+    // TODO row count couldn't be calculated
+    if (!optimizedForScan) {
+      val (_, splitFiles) = preparePartitioning()
+
+      tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
+    } else {
+      None
+    }
+  }
+
+  private def addKeyPartitioningHint(partitions: Seq[FilePartition]): YtScan = {
+    copy(keyPartitionsHint = Some(partitions))
+  }
+
+  def tryKeyPartitioning(columns: Option[Seq[String]] = None): Option[YtScan] = {
+    tryGetKeyPartitioning(columns).map(addKeyPartitioningHint)
   }
 
   override protected lazy val partitions: Seq[FilePartition] = {
@@ -159,5 +177,44 @@ case class YtScan(sparkSession: SparkSession,
     override def numPartitions(): Int = partitions.length
 
     override def satisfy(distribution: Distribution): Boolean = false
+  }
+}
+
+object YtScan {
+  type ScanDescription = (YtScan, Seq[String])
+
+  def trySyncKeyPartitioning(leftScanDescO: Option[ScanDescription], rightScanDescO: Option[ScanDescription]
+                            ): (Option[ScanDescription], Option[ScanDescription]) = {
+    def singleKeyPartitioning(scanDescO: Option[ScanDescription]): Option[ScanDescription] = {
+      scanDescO.flatMap { case (scan, vars) => scan.tryKeyPartitioning(Some(vars)).map((_, vars)) }
+    }
+    (leftScanDescO, rightScanDescO) match {
+      case (Some(leftDesc), Some(rightDesc)) =>
+        trySyncKeyPartitioning(leftDesc, rightDesc)
+      case _ =>
+        (singleKeyPartitioning(leftScanDescO), singleKeyPartitioning(rightScanDescO))
+    }
+  }
+
+  def trySyncKeyPartitioning(leftYtScanDesc: ScanDescription, rightYtScanDesc: ScanDescription
+                            ): (Option[ScanDescription], Option[ScanDescription]) = {
+    val (leftYtScan, leftVars) = leftYtScanDesc
+    val (rightYtScan, rightVars) = rightYtScanDesc
+    val leftPartitioningO = leftYtScan.tryGetKeyPartitioning(Some(leftVars))
+    val rightPartitioningO = rightYtScan.tryGetKeyPartitioning(Some(rightVars))
+    val (leftPartitioning, rightPartitioning) = (leftPartitioningO, rightPartitioningO) match {
+      case (Some(leftPartitioning), Some(rightPartitioning)) =>
+        val leftPivots = YtFilePartition.getPivotFromHintFiles(leftVars, leftPartitioning)
+        val rightPivots = YtFilePartition.getPivotFromHintFiles(rightVars, rightPartitioning)
+        val newLeftPartitioning = YtFilePartition.addPivots(leftPartitioning, leftVars, rightPivots)
+        val newRightPartitioning = YtFilePartition.addPivots(rightPartitioning, rightVars, leftPivots)
+        (Some(newLeftPartitioning), Some(newRightPartitioning))
+      case p =>
+        p
+    }
+    (
+      leftPartitioning.map(leftYtScan.addKeyPartitioningHint).map((_, leftVars)),
+      rightPartitioning.map(rightYtScan.addKeyPartitioningHint).map((_, rightVars))
+    )
   }
 }
