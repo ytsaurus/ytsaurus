@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.google.common.net.HostAndPort;
 import io.netty.channel.EventLoopGroup;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
@@ -457,10 +456,23 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
      * Other setters are required.
      */
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
+        private static String ipV6RegEx  = "[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){7}";
         @Nullable String balancerAddress;
 
         HttpBuilder setBalancerAddress(String host, int port) {
-            this.balancerAddress = HostAndPort.fromParts(host, port).toString();
+            // We could use InetSocketAddress.createUnresolved(host, port).toString()
+            // but it handles ipv6 addresses properly only starting from JDK15 :(
+            if (port < 0 || port > 65535) {
+                throw new IllegalArgumentException("Bad port: " + port);
+            }
+
+            if (host.matches(ipV6RegEx)) {
+                this.balancerAddress = String.format("[%s]:%d", host, port);
+            } else if (host.matches("\\[" + ipV6RegEx + "]") || !host.contains(":")) {
+                this.balancerAddress = host + ":" + port;
+            } else {
+                throw new IllegalArgumentException("Bad hostname: " + host);
+            }
             return this;
         }
 

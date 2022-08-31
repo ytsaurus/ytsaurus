@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -39,7 +38,7 @@ public class UnmountWaitTest extends YtClientTestBase {
                 .addValue("value", ColumnValueType.STRING)
                 .build();
 
-        Map<String, YTreeNode> attributes = ImmutableMap.of(
+        Map<String, YTreeNode> attributes = Map.of(
                 "dynamic", new YTreeBuilder().value(true).build(),
                 "schema", schema.toYTree()
         );

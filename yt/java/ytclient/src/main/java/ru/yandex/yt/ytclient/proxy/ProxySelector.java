@@ -5,8 +5,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
-import com.google.common.base.Preconditions;
-
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.DC;
@@ -88,8 +86,9 @@ public abstract class ProxySelector {
         private final Comparator<HostPort> proxyHostComparator;
 
         PreferringProxySelector(DC preferredDc) {
-            Preconditions.checkArgument(preferredDc != DC.UNKNOWN,
-                    "Enum value UNKNOWN is not allowed");
+            if (preferredDc == DC.UNKNOWN) {
+                throw new IllegalArgumentException("Enum value UNKNOWN is not allowed");
+            }
             this.preferredDc = preferredDc;
             this.proxyHostComparator = createComparator();
         }
@@ -113,8 +112,9 @@ public abstract class ProxySelector {
         private final Comparator<HostPort> proxyHostComparator;
 
         PessimizingProxySelector(DC pessimizedDc) {
-            Preconditions.checkArgument(pessimizedDc != DC.UNKNOWN,
-                    "Enum value UNKNOWN is not allowed");
+            if (pessimizedDc == DC.UNKNOWN) {
+                throw new IllegalArgumentException("Enum value UNKNOWN is not allowed");
+            }
             this.pessimizedDc = pessimizedDc;
             this.proxyHostComparator = createComparator();
         }

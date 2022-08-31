@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -14,7 +15,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.base.Charsets;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
@@ -168,11 +168,11 @@ public class YtClientTest {
         Assert.assertEquals(Arrays.asList(
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 1L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test1".getBytes(Charsets.UTF_8)),
+                        new UnversionedValue(1, ColumnValueType.STRING, false, "test1".getBytes(StandardCharsets.UTF_8)),
                         new UnversionedValue(2, ColumnValueType.INT64, false, 100L))),
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(Charsets.UTF_8)),
+                        new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(StandardCharsets.UTF_8)),
                         new UnversionedValue(2, ColumnValueType.INT64, false, 200L)))
         ), rows);
     }
@@ -286,7 +286,7 @@ public class YtClientTest {
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(new UnversionedRow(Arrays.asList(
                 new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
-                new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(Charsets.UTF_8)))),
+                new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(StandardCharsets.UTF_8)))),
                 result.get(0));
 
     }
