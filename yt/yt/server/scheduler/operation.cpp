@@ -430,7 +430,7 @@ bool TOperation::SetAlertWithoutArchivation(EOperationAlertType alertType, const
 {
     auto& alert = Alerts_[alertType];
 
-    if (alert.Error.Sanitize() == error.Sanitize()) {
+    if (alert.Error.GetSkeleton() == error.GetSkeleton()) {
         return false;
     }
 

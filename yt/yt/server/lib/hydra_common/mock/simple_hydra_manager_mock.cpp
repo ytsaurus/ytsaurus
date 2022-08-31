@@ -168,8 +168,7 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     THydraContext context(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0,
-        /*automatonReign*/ 0);
+        /*randomSeed*/ 0);
     THydraContextGuard guard(&context);
 
     Automaton_->PrepareState();

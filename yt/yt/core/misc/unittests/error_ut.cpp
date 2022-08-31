@@ -118,6 +118,59 @@ TEST(TErrorTest, CompositeYTExceptionToError)
     }
 }
 
+TEST(TErrorTest, ErrorSanitizer)
+{
+    auto checkSantizied = [&] (const TError& error) {
+        EXPECT_FALSE(error.HasOriginAttributes());
+        EXPECT_FALSE(error.HasTracingAttributes());
+
+        EXPECT_EQ("", error.GetHost());
+        EXPECT_EQ(0, error.GetPid());
+        EXPECT_EQ(NConcurrency::InvalidThreadId, error.GetTid());
+        EXPECT_EQ(NConcurrency::InvalidFiberId, error.GetFid());
+        EXPECT_EQ(NTracing::InvalidTraceId, error.GetTraceId());
+        EXPECT_EQ(NTracing::InvalidSpanId, error.GetSpanId());
+    };
+
+    auto checkNotSanitized = [&] (const TError& error) {
+        EXPECT_TRUE(error.HasOriginAttributes());
+
+        EXPECT_FALSE(error.GetHost() == "");
+        EXPECT_FALSE(error.GetPid() == 0);
+
+        auto now = TInstant::Now();
+        EXPECT_GE(error.GetDatetime() + TDuration::Minutes(1), now);
+    };
+
+    auto error1 = TError("error1");
+    checkNotSanitized(error1);
+
+    {
+        auto instant1 = TInstant::Days(123);
+        TErrorSanitizerGuard guard1(instant1);
+
+        auto error2 = TError("error2");
+        checkSantizied(error2);
+        EXPECT_EQ(instant1, error2.GetDatetime());
+
+        {
+            auto instant2 = TInstant::Days(234);
+            TErrorSanitizerGuard guard2(instant2);
+
+            auto error3 = TError("error3");
+            checkSantizied(error3);
+            EXPECT_EQ(instant2, error3.GetDatetime());
+        }
+
+        auto error4 = TError("error4");
+        checkSantizied(error4);
+        EXPECT_EQ(instant1, error4.GetDatetime());
+    }
+
+    auto error5 = TError("error5");
+    checkNotSanitized(error5);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

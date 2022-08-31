@@ -197,7 +197,7 @@ void TCellBase::RevokePeer(TPeerId peerId, const TError& reason)
     YT_VERIFY(!peer.Descriptor.IsNull());
     peer.Descriptor = TCellPeerDescriptor();
     peer.Node = nullptr;
-    peer.LastRevocationReason = NHydra::SanitizeWithCurrentHydraContext(reason);
+    peer.LastRevocationReason = reason;
 }
 
 void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)

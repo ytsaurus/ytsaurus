@@ -496,7 +496,7 @@ public:
         auto error = TError("Backup interrupted by unmount")
             << TErrorAttribute("tablet_id", tablet->GetId())
             << TErrorAttribute("table_path", table->GetMountPath());
-        RegisterBackupError(tablet->GetTable(), error.Sanitize());
+        RegisterBackupError(tablet->GetTable(), error);
 
         YT_LOG_DEBUG("Tablet backup interrupted by unmount (TableId: %v, TabletId: %v)",
             table->GetId(),
@@ -588,7 +588,7 @@ private:
                         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
                             "Failed to apply cutoff row index to tablet (TabletId: %v)",
                             tablet->GetId());
-                        RegisterBackupError(table, error.Sanitize());
+                        RegisterBackupError(table, error);
                         tablet->SetBackupState(ETabletBackupState::BackupFailed);
                     }
                     break;
@@ -675,7 +675,7 @@ private:
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::RestoreFailed);
-                RegisterBackupError(table, error.Sanitize());
+                RegisterBackupError(table, error);
             }
         }
 
@@ -921,7 +921,6 @@ private:
             return;
         }
 
-        // Should be already sanitized.
         table->MutableBackupError() = error;
     }
 

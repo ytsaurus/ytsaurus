@@ -30,7 +30,7 @@ void ValidateSnapshot(
     automaton->Clear();
 
     try {
-        auto snapshotReign = automaton->LoadSnapshot(reader);
+        automaton->LoadSnapshot(reader);
 
         // Mocking context and random seed to copy normal load behaviour.
         TVersion hydraContextVersion(0, -1);
@@ -39,9 +39,8 @@ void ValidateSnapshot(
 
         THydraContext hydraContext(
             hydraContextVersion,
-            /* timestamp */ {},
-            hydraContextRandomSeed,
-            snapshotReign);
+            /*timestamp*/ {},
+            hydraContextRandomSeed);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         automaton->PrepareState();

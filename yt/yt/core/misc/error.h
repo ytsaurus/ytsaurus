@@ -65,6 +65,22 @@ constexpr int ErrorSerializationDepthLimit = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! When this guard is set, newly created errors do not have non-deterministic
+//! system attributes and have "datetime" attribute overriden with a given value.
+class TErrorSanitizerGuard
+    : public TNonCopyable
+{
+public:
+    explicit TErrorSanitizerGuard(TInstant datetimeOverride);
+    ~TErrorSanitizerGuard();
+
+private:
+    const bool SavedEnabled_;
+    const TInstant SavedDatetimeOverride_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <>
 class [[nodiscard]] TErrorOr<void>
 {
@@ -126,8 +142,8 @@ public:
     const std::vector<TError>& InnerErrors() const;
     std::vector<TError>* MutableInnerErrors();
 
+    // TODO(gritukan): This method is used only outside of YT. Remove it.
     TError Sanitize() const;
-    TError Sanitize(TInstant datetime) const;
 
     TError Truncate(int maxInnerErrorCount = 2, i64 stringLimit = 16_KB) const;
 
@@ -339,14 +355,12 @@ public:
     T& Value() &;
     T&& Value() &&;
 
-
     const T& ValueOrThrow() const &;
     T& ValueOrThrow() &;
     T&& ValueOrThrow() &&;
 
 private:
     std::optional<T> Value_;
-
 };
 
 template <class T>

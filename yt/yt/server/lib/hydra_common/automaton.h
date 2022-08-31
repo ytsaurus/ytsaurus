@@ -20,8 +20,7 @@ struct IAutomaton
 
     //! Synchronously loads a snapshot.
     //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
-    //! Returns the reign of the snapshot loaded.
-    virtual TReign LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
+    virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
     //! Synchronously prepares an automaton state for further mutation processing
     //! in a determenistic way.

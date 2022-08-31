@@ -861,7 +861,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 
     auto* hydraContext = GetCurrentHydraContext();
     auto version = hydraContext->GetVersion();
-    auto hash = hydraContext->RandomGenerator().Generate<ui32>();
+    auto hash = hydraContext->RandomGenerator()->Generate<ui32>();
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = multicellManager->GetCellTag();
@@ -1749,8 +1749,7 @@ void TObjectManager::HydraExecuteLeader(
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        auto sanitizedErrorResponse = SanitizeWithCurrentHydraContext(errorResponse);
-        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(sanitizedErrorResponse));
+        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
 
         YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
@@ -1773,7 +1772,7 @@ void TObjectManager::HydraExecuteLeader(
         user = userGuard.GetUser();
         ExecuteVerb(RootService_, rpcContext);
     } catch (const std::exception& ex) {
-        rpcContext->Reply(SanitizeWithCurrentHydraContext(ex));
+        rpcContext->Reply(TError(ex));
     }
 
     if (!IsRecovery()) {
@@ -1790,7 +1789,7 @@ void TObjectManager::HydraExecuteLeader(
         if (error.IsOK()) {
             responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
         } else {
-            responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(SanitizeWithCurrentHydraContext(error)));
+            responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(error));
         }
     }
 }

@@ -384,7 +384,7 @@ public:
         ui64 totalHiWeight = weightPerHi * hiCandidates.size();
         ui64 totalTokens = totalLoWeight + totalHiWeight;
         auto* mutationContext = GetCurrentMutationContext();
-        ui64 random = mutationContext->RandomGenerator().Generate<ui64>() % totalTokens;
+        ui64 random = mutationContext->RandomGenerator()->Generate<ui64>() % totalTokens;
         return random < totalLoWeight
             ? loCandidates[random / weightPerLo]
             : hiCandidates[(random - totalLoWeight) / weightPerHi];
@@ -714,7 +714,7 @@ private:
             YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), ex, "Error registering secondary master (CellTag: %v)",
                 cellTag);
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
-            ToProto(response.mutable_error(), TError(ex).Sanitize());
+            ToProto(response.mutable_error(), TError(ex));
             PostToMaster(response, cellTag, true);
             return;
         }
