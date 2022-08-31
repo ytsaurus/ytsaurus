@@ -2,6 +2,7 @@
 
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
+#include <yt/yt/server/cell_balancer/orchid_bindings.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -207,7 +208,6 @@ THashSet<TString> GenerateProxiesForBundle(
             bundleName,
             inputState.Config->Cluster);
         auto proxyInfo = New<TRpcProxyInfo>();
-        // nodeInfo->Host = Format("seneca-ayt-%v.search.yandex.net", nodeIndex);
         proxyInfo->Alive = New<TRpcProxyAlive>();
         proxyInfo->Annotations->Allocated = true;
         proxyInfo->Annotations->NannyService = "nanny-bunny-rpc-proxies";
@@ -407,6 +407,42 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 5)));
 }
 
+TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
+{
+    auto input = GenerateSimpleInputContext(5);
+
+    GenerateNodesForBundle(input, "default-bundle", 1, false, 5, 2);
+    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+
+    auto& bundleInfo = input.Bundles["default-bundle"];
+    bundleInfo->ResourceQuota = New<TResourceQuota>();
+    bundleInfo->ResourceQuota->Cpu = 0.1;
+    bundleInfo->ResourceQuota->Memory = 1;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
+
+    bundleInfo->ResourceQuota->Cpu = 100;
+    bundleInfo->ResourceQuota->Memory = 10_TB;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 3);
+
+    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+}
+
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 {
     auto input = GenerateSimpleInputContext(2);
@@ -457,6 +493,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
+    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)

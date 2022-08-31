@@ -14,6 +14,7 @@ namespace NYT::NCellBalancer {
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
+DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
@@ -120,6 +121,7 @@ struct TInstanceResources
     i64 Memory;
 
     TInstanceResources& operator=(const THulkInstanceResources& resources);
+    void Clear();
 
     REGISTER_YSON_STRUCT(TInstanceResources);
 
@@ -127,6 +129,23 @@ struct TInstanceResources
 };
 
 DEFINE_REFCOUNTED_TYPE(TInstanceResources)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceQuota
+    : public NYTree::TYsonStruct
+{
+    double Cpu;
+    i64 Memory;
+
+    int Vcpu() const;
+
+    REGISTER_YSON_STRUCT(TResourceQuota);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceQuota)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +235,7 @@ struct TBundleInfo
     std::vector<TString> TabletCellIds;
 
     TBundleSystemOptionsPtr Options;
+    TResourceQuotaPtr ResourceQuota;
 
     REGISTER_YSON_STRUCT(TBundleInfo);
 

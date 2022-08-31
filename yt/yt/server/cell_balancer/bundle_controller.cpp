@@ -36,6 +36,21 @@ static const TYPath BundleSystemQuotasPath("//sys/account_tree/bundle_system_quo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBundleSensors final
+{
+    TGauge CpuAllocated;
+    TGauge CpuAlive;
+    TGauge CpuQuota;
+
+    TGauge MemoryAllocated;
+    TGauge MemoryAlive;
+    TGauge MemoryQuota;
+};
+
+using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBundleController
     : public IBundleController
 {
@@ -124,13 +139,16 @@ private:
     TTimeGauge ProxyDeallocationRequestAge_;
     TCounter ChangedSystemAccountLimitCounter_;
 
+    mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
+
 
     void ScanBundles() const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (!IsLeader()) {
+            OrchidBundlesInfo_.clear();
             YT_LOG_DEBUG("Bundle Controller is not leading");
             return;
         }
@@ -157,7 +175,7 @@ private:
         auto addresses = Bootstrap_->GetLocalAddresses();
 
         auto client = Bootstrap_->GetClient();
-        auto exists = WaitFor(client->NodeExists(LeaderOrchidServicePath))
+        auto exists = WaitFor(client->NodeExists(Format("%v&", LeaderOrchidServicePath)))
             .ValueOrThrow();
 
         if (!exists) {
@@ -234,8 +252,10 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
+        ReportResourceUsage(inputState);
+
         // Update input state for serving orchid requests.
-        OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState);
+        OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState, mutations);
     }
 
     inline static const TString  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
@@ -259,8 +279,8 @@ private:
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
         SetProxyAttributes(transaction, ProxyAttributeRole, mutations.ChangedProxyRole);
 
-        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.ChangedSystemAccountLimit);
         SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit);
+        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.ChangedSystemAccountLimit);
 
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
@@ -327,7 +347,56 @@ private:
         InflightCellRemovalCount_.Update(removingCellCount);
         InflightProxyAllocationCounter_.Update(proxyAllocationCount);
         InflightProxyDeallocationCounter_.Update(proxyDeallocationCount);
+    }
 
+    void ReportResourceUsage(const TSchedulerInputState& input) const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        for (const auto& [bundleName, allocated] : input.BundleResourceAllocated) {
+            auto sensors = GetBundleSensors(bundleName);
+            sensors->CpuAllocated.Update(allocated->Vcpu);
+            sensors->MemoryAllocated.Update(allocated->Memory);
+        }
+
+        for (const auto& [bundleName, alive] : input.BundleResourceAlive) {
+            auto sensors = GetBundleSensors(bundleName);
+            sensors->CpuAlive.Update(alive->Vcpu);
+            sensors->MemoryAlive.Update(alive->Memory);
+        }
+
+        for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+            auto sensors = GetBundleSensors(bundleName);
+            const auto& quota = bundleInfo->ResourceQuota;
+
+            if (!bundleInfo->EnableBundleController || !quota) {
+                continue;
+            }
+            sensors->CpuQuota.Update(quota->Vcpu());
+            sensors->MemoryQuota.Update(quota->Memory);
+        }
+    }
+
+    TBundleSensorsPtr GetBundleSensors(const TString& bundleName) const
+    {
+        auto it = BundleSensors_.find(bundleName);
+        if (it != BundleSensors_.end()) {
+            return it->second;
+        }
+
+        auto sensors = New<TBundleSensors>();
+
+        auto bundleProfiler = Profiler.WithPrefix("/resource").WithTag("bundle", bundleName);
+        sensors->CpuAllocated = bundleProfiler.Gauge("/cpu_allocated");
+        sensors->CpuAlive = bundleProfiler.Gauge("/cpu_alive");
+        sensors->CpuQuota = bundleProfiler.Gauge("/cpu_quota");
+
+        sensors->MemoryAllocated = bundleProfiler.Gauge("/memory_allocated");
+        sensors->MemoryAlive = bundleProfiler.Gauge("/memory_alive");
+        sensors->MemoryQuota = bundleProfiler.Gauge("/memory_quota");
+
+        BundleSensors_[bundleName] = sensors;
+        return sensors;
     }
 
     ITransactionPtr CreateTransaction() const

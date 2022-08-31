@@ -58,6 +58,9 @@ struct TSchedulerInputState
 
     THashMap<TString, TSpareNodesInfo> ZoneToSpareNodes;
     THashMap<TString, TSpareProxiesInfo> ZoneToSpareProxies;
+
+    THashMap<TString, TInstanceResourcesPtr> BundleResourceAlive;
+    THashMap<TString, TInstanceResourcesPtr> BundleResourceAllocated;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +68,7 @@ struct TSchedulerInputState
 struct TAlert
 {
     TString Id;
+    std::optional<TString> BundleName;
     TString Description;
 };
 

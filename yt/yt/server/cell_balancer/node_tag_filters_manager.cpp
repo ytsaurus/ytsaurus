@@ -161,6 +161,7 @@ void SetNodeTagFilter(
 
         mutations->AlertsToFire.push_back({
             .Id = "bundle_with_no_tag_filter",
+            .BundleName = bundleName,
             .Description = Format("Bundle %Qv does not have node_tag_filter attribute set",
                 bundleName),
         });
