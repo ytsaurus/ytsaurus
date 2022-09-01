@@ -100,6 +100,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkLocationInReplica)                                       (2117))  // kvk1920
     ((CleanupSomeDynconfigCompatFlags)                              (2118))  // shakurov
     ((ErrorSanitizer)                                               (2119))  // gritukan
+    ((ImaginaryLocationOrderingFix)                                 (2120))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

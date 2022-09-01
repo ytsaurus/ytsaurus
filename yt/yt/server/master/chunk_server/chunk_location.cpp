@@ -262,29 +262,18 @@ bool TImaginaryChunkLocation::IsImaginary() const
     return true;
 }
 
+bool TImaginaryChunkLocation::operator<(const TImaginaryChunkLocation& rhs) const
+{
+    if (auto lhsId = GetObjectId(GetNode()), rhsId = GetObjectId(rhs.GetNode()); lhsId != rhsId) {
+        return lhsId < rhsId;
+    }
+
+    return GetEffectiveMediumIndex() < rhs.GetEffectiveMediumIndex();
+}
+
 int TImaginaryChunkLocation::GetEffectiveMediumIndex() const
 {
     return MediumIndex_;
-}
-
-void TImaginaryChunkLocation::Save(NCellMaster::TSaveContext& context) const
-{
-    using NYT::Save;
-
-    TChunkLocation::Save(context);
-
-    Save(context, MediumIndex_);
-}
-
-void TImaginaryChunkLocation::Load(NCellMaster::TLoadContext& context)
-{
-    YT_VERIFY(context.GetVersion() >= EMasterReign::ChunkLocationInReplica);
-
-    using NYT::Load;
-
-    TChunkLocation::Load(context);
-
-    Load(context, MediumIndex_);
 }
 
 TImaginaryChunkLocation* TImaginaryChunkLocation::GetOrCreate(NNodeTrackerServer::TNode* node, int mediumIndex, bool duringSnapshotLoading)
@@ -297,6 +286,11 @@ TImaginaryChunkLocation* TImaginaryChunkLocation::GetOrCreate(NNodeTrackerServer
 bool TRealChunkLocation::IsImaginary() const
 {
     return false;
+}
+
+bool TRealChunkLocation::operator<(const TRealChunkLocation& rhs) const
+{
+    return GetUuid() < rhs.GetUuid();
 }
 
 int TRealChunkLocation::GetEffectiveMediumIndex() const
