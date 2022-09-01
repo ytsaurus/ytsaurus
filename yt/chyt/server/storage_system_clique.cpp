@@ -58,6 +58,9 @@ public:
         DB::MutableColumns res_columns = metadata_snapshot->getSampleBlock().cloneEmptyColumns();
 
         for (const auto& [name, attributes] : nodes) {
+            if (!attributes || !attributes->Contains("clique_id")) {
+                continue;
+            }
             res_columns[0]->insert(std::string(attributes->Get<TString>("host")));
             res_columns[1]->insert(attributes->Get<ui64>("rpc_port"));
             res_columns[2]->insert(attributes->Get<ui64>("monitoring_port"));
@@ -68,6 +71,8 @@ public:
             res_columns[7]->insert(name == ToString(InstanceId_));
             res_columns[8]->insert(attributes->Get<ui64>("job_cookie"));
             res_columns[9]->insert(static_cast<DB::Decimal64>(attributes->Get<TInstant>("start_time").MicroSeconds()));
+            res_columns[10]->insert(std::string(ToString(attributes->Get<TGuid>("clique_id"))));
+            res_columns[11]->insert(attributes->Get<i64>("clique_incarnation"));
         }
 
         auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
@@ -89,6 +94,8 @@ private:
             {"self", std::make_shared<DB::DataTypeUInt8>()},
             {"job_cookie", std::make_shared<DB::DataTypeUInt32>()},
             {"start_time", std::make_shared<DB::DataTypeDateTime64>(6)},
+            {"clique_id", std::make_shared<DB::DataTypeString>()},
+            {"clique_incarnation", std::make_shared<DB::DataTypeInt8>()},
         });
     }
 };

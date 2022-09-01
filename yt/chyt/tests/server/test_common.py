@@ -705,9 +705,17 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/link/t2", [{"i": 1}])
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
-    @authors("dakovalkov")
-    def test_system_clique(self):
-        with Clique(3) as clique:
+    @authors("dakovalkov", "gudqeit")
+    @pytest.mark.parametrize("discovery_version", [1, 2])
+    def test_system_clique(self, discovery_version):
+        patch = {
+            "yt": {
+                "discovery": {
+                    "version": discovery_version
+                }
+            }
+        }
+        with Clique(3, config_patch=patch) as clique:
             instances = clique.get_active_instances()
             assert len(instances) == 3
             responses = []
@@ -726,6 +734,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 assert "host" in node and "rpc_port" in node and "monitoring_port" in node
                 assert "tcp_port" in node and "http_port" in node and "job_id" in node
                 assert "start_time" in node and node["start_time"].startswith("20")
+                assert node["clique_id"] == clique.get_clique_id()
+                assert node["clique_incarnation"] == -1
             assert responses[0] == responses[1]
             assert responses[1] == responses[2]
 

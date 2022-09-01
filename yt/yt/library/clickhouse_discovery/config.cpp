@@ -46,4 +46,13 @@ void TDiscoveryV2Config::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDiscoveryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("version", &TThis::Version)
+        .InRange(1, 2)
+        .Default(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer

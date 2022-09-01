@@ -473,6 +473,8 @@ public:
     TGuid CliqueId;
     //! Instance id = job id of containing job.
     TGuid InstanceId;
+    TString CliqueAlias;
+    i64 CliqueIncarnation;
     //! Address override when entering discovery group.
     std::optional<TString> Address;
 
@@ -495,7 +497,7 @@ public:
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! Note that CliqueId will be added to Directory automatically.
-    TDiscoveryV1ConfigPtr Discovery;
+    TDiscoveryConfigPtr Discovery;
 
     TGossipConfigPtr Gossip;
 

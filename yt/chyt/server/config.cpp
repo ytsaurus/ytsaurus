@@ -358,6 +358,10 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("instance_id", &TThis::InstanceId)
         .Default();
+    registrar.Parameter("clique_alias", &TThis::CliqueAlias)
+        .Default();
+    registrar.Parameter("clique_incarnation", &TThis::CliqueIncarnation)
+        .Default(-1);
     registrar.Parameter("address", &TThis::Address)
         .Default();
 

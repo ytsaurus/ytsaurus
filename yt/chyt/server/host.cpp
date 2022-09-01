@@ -35,6 +35,7 @@
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
 #include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
 #include <yt/yt/library/clickhouse_functions/functions.h>
 
@@ -104,6 +105,8 @@ static const std::vector<TString> DiscoveryAttributes{
     "pid",
     "job_cookie",
     "start_time",
+    "clique_id",
+    "clique_incarnation",
 };
 
 static const TString SysClickHouse = "//sys/clickhouse";
@@ -150,13 +153,32 @@ public:
 
         // Configure clique's directory.
         Config_->Discovery->Directory += "/" + ToString(Config_->CliqueId);
-
-        Discovery_ = CreateDiscoveryV1(
-            Config_->Discovery,
-            RootClient_,
-            ControlInvoker_,
-            DiscoveryAttributes,
-            Logger);
+        switch (Config_->Discovery->Version) {
+            case 1:
+            {
+                Discovery_ = CreateDiscoveryV1(
+                    Config_->Discovery,
+                    RootClient_,
+                    ControlInvoker_,
+                    DiscoveryAttributes,
+                    Logger);
+                break;
+            }
+            case 2:
+            {
+                auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
+                Config_->Discovery->GroupId = "/chyt/" + groupId;
+                Discovery_ = CreateDiscoveryV2(
+                    Config_->Discovery,
+                    ChannelFactory_,
+                    ControlInvoker_,
+                    DiscoveryAttributes,
+                    Logger);
+                break;
+            }
+            default:
+                YT_ABORT();
+        }
 
         if (Config_->CpuLimit) {
             ClickHouseYtProfiler.AddFuncGauge(
@@ -387,7 +409,7 @@ public:
 
     TClusterNodes GetNodes(bool alwaysIncludeLocal) const
     {
-        auto nodeList = Discovery_->List();
+        auto nodeList = FilterNodesByCliqueId(Discovery_->List());
         TClusterNodes result;
         result.reserve(nodeList.size());
 
@@ -646,15 +668,17 @@ private:
 
     void StartDiscovery()
     {
-        NApi::TCreateNodeOptions createCliqueNodeOptions;
-        createCliqueNodeOptions.IgnoreExisting = true;
-        createCliqueNodeOptions.Recursive = true;
-        createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", Discovery_->Version()}});
-        WaitFor(RootClient_->CreateNode(
-            Config_->Discovery->Directory,
-            NObjectClient::EObjectType::MapNode,
-            createCliqueNodeOptions))
-            .ThrowOnError();
+        if (Discovery_->Version() == 1) {
+            NApi::TCreateNodeOptions createCliqueNodeOptions;
+            createCliqueNodeOptions.IgnoreExisting = true;
+            createCliqueNodeOptions.Recursive = true;
+            createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", Discovery_->Version()}});
+            WaitFor(RootClient_->CreateNode(
+                Config_->Discovery->Directory,
+                NObjectClient::EObjectType::MapNode,
+                createCliqueNodeOptions))
+                .ThrowOnError();
+        }
 
         Discovery_->StartPolling();
 
@@ -667,6 +691,8 @@ private:
             {"pid", ConvertToNode(getpid())},
             {"job_cookie", ConvertToNode(InstanceCookie_)},
             {"start_time", ConvertToNode(TInstant::Now())},
+            {"clique_id", ConvertToNode(Config_->CliqueId)},
+            {"clique_incarnation", ConvertToNode(Config_->CliqueIncarnation)},
         });
 
         WaitFor(Discovery_->Enter(ToString(Config_->InstanceId), attributes))
@@ -677,13 +703,28 @@ private:
         Discovery_->UpdateList();
     }
 
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> FilterNodesByCliqueId(const THashMap<TString, NYTree::IAttributeDictionaryPtr>& nodes) const
+    {
+        THashMap<TString, NYTree::IAttributeDictionaryPtr> result;
+        for (const auto& [key, attributes] : nodes) {
+            if (!attributes || !attributes->Contains("clique_id")) {
+                continue;
+            }
+            auto cliqueId = attributes->Find<TGuid>("clique_id");
+            if (cliqueId == Config_->CliqueId) {
+                result.emplace(key, attributes);
+            }
+        }
+        return result;
+    }
+
     void MakeGossip()
     {
         YT_LOG_DEBUG("Gossip started");
 
         // Instances can be banned because of transient errors (e.g. network errors).
         // Pinging banned instances can help to restore clique faster after such errors.
-        auto nodes = Discovery_->List(/*includeBanned*/ Config_->Gossip->PingBanned);
+        auto nodes = FilterNodesByCliqueId(Discovery_->List(/*includeBanned*/ Config_->Gossip->PingBanned));
         std::vector<TFuture<NRpc::TTypedClientResponse<TRspProcessGossip>::TResult>> futures;
         futures.reserve(nodes.size());
         auto selfState = GetInstanceState();
