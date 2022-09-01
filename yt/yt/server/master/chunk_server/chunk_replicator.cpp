@@ -924,7 +924,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(const TChunk* chunk)
 {
-    YT_LOG_DEBUG("Compute regular chunk statistics (ChunkId: %v)", chunk->GetId());
     TChunkStatistics results;
 
     TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedReplicas;
@@ -2653,7 +2652,7 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
             if (!location) {
-                YT_LOG_ERROR(
+                YT_LOG_ALERT(
                     "Cannot reschedule chunk removal job; location not found "
                     "(Chunk: %v, LocationUuid: %v)",
                     replica,

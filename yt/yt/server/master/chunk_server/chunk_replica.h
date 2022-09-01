@@ -266,6 +266,8 @@ NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMe
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T, class C>
 struct TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>
 {
@@ -282,6 +284,8 @@ struct TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>
             const NChunkServer::TPtrWithReplicaInfo<T>& rhs);
     };
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 

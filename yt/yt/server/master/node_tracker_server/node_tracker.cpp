@@ -1141,7 +1141,7 @@ private:
             if (!request->chunk_locations_supported() &&
                 !request->suppress_unsupported_chunk_locations_alert())
             {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Real chunk locations are enabled but node does not support them "
                     "(NodeId: %v, NodeAddress: %v)",
                     node->GetId(),
