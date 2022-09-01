@@ -1,4 +1,4 @@
-from proxy_format_config import _TestProxyFormatConfigBase
+from .proxy_format_config import _TestProxyFormatConfigBase
 
 from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE
 
