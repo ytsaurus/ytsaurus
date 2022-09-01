@@ -137,10 +137,9 @@ public:
 
     bool IsImaginary() const override;
 
-    int GetEffectiveMediumIndex() const override;
+    bool operator<(const TImaginaryChunkLocation& rhs) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    int GetEffectiveMediumIndex() const override;
 
     static TImaginaryChunkLocation* GetOrCreate(NNodeTrackerServer::TNode* node, int mediumIndex, bool duringSnapshotLoading = false);
 
@@ -165,6 +164,8 @@ public:
 
 public:
     bool IsImaginary() const override;
+
+    bool operator<(const TRealChunkLocation& rhs) const;
 
     int GetEffectiveMediumIndex() const override;
 

@@ -81,13 +81,14 @@ bool TSerializerTraits<NChunkServer::TChunkLocation*, C>::TComparer::Compare(
     }
 
     if (lhs->IsImaginary()) {
-        return lhs->GetEffectiveMediumIndex() < rhs->GetEffectiveMediumIndex();
+        auto* imaginaryLhs = static_cast<const TImaginaryChunkLocation*>(lhs);
+        auto* imaginaryRhs = static_cast<const TImaginaryChunkLocation*>(rhs);
+        return *imaginaryLhs < *imaginaryRhs;
+    } else {
+        auto* realLhs = static_cast<const TRealChunkLocation*>(lhs);
+        auto* realRhs = static_cast<const TRealChunkLocation*>(rhs);
+        return *realLhs < *realRhs;
     }
-
-    auto getUuid = [] (const auto* location) {
-        return static_cast<const TRealChunkLocation*>(location)->GetUuid();
-    };
-    return getUuid(lhs) < getUuid(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
