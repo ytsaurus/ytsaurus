@@ -279,8 +279,10 @@ private:
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
         SetProxyAttributes(transaction, ProxyAttributeRole, mutations.ChangedProxyRole);
 
+        // We should not violate RootSystemAccountLimit when changing per-bundle ones, so we apply changes in specific order.
+        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LoweredSystemAccountLimit);
         SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit);
-        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.ChangedSystemAccountLimit);
+        SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LiftedSystemAccountLimit);
 
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
@@ -303,7 +305,7 @@ private:
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
-        ChangedSystemAccountLimitCounter_.Increment(mutations.ChangedSystemAccountLimit.size());
+        ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
 
         int nodeAllocationCount = 0;
         int nodeDeallocationCount = 0;

@@ -96,7 +96,8 @@ struct TSchedulerMutations
 
     std::vector<TAlert> AlertsToFire;
 
-    THashMap<TString, TAccountResourcesPtr> ChangedSystemAccountLimit;
+    THashMap<TString, TAccountResourcesPtr> LiftedSystemAccountLimit;
+    THashMap<TString, TAccountResourcesPtr> LoweredSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
