@@ -1,4 +1,4 @@
-import protobuf_format
+from . import protobuf_format
 
 from yt_env_setup import YTEnvSetup
 

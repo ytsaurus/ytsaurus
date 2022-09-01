@@ -31,9 +31,12 @@ import threading
 import builtins
 from queue import Queue
 
-TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
-YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
-YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
+if arcadia_interop.yatest_common is not None:
+    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
+else:
+    YT_CUDA_CORE_DUMP_SIMULATOR = None
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = None
 
 ##################################################################
 
