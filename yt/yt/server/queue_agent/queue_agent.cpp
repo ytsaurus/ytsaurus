@@ -486,6 +486,7 @@ void TQueueAgent::Poll()
     }
 
     PollError_ = TError();
+    Alerts_.clear();
 }
 
 NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key)
