@@ -32,6 +32,7 @@ class THistoricUsageAggregator
 public:
     THistoricUsageAggregator();
     THistoricUsageAggregator(const THistoricUsageAggregator& other) = default;
+    THistoricUsageAggregator& operator=(const THistoricUsageAggregator& other) = default;
 
     //! Update the parameters. If the parameters have changed, resets the state.
     void UpdateParameters(const THistoricUsageAggregationParameters& newParameters);

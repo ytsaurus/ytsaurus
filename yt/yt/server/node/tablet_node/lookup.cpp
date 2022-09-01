@@ -380,7 +380,7 @@ protected:
             : SimpleRowMerger_.BuildMergedRow(RowBuffer_);
         auto rowFromActiveStore = RowsFromActiveStore_[CurrentRowIndex_];
 
-        FoundRowCount_ += static_cast<bool>(mergedRow) | static_cast<bool>(rowFromActiveStore);
+        FoundRowCount_ += static_cast<bool>(mergedRow) || static_cast<bool>(rowFromActiveStore);
         FoundDataWeight_ += GetDataWeight(mergedRow) + GetDataWeight(rowFromActiveStore);
         ++CurrentRowIndex_;
         return mergedRow;

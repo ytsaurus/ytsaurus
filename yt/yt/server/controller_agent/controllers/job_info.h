@@ -26,6 +26,7 @@ struct TJobNodeDescriptor
 {
     TJobNodeDescriptor() = default;
     TJobNodeDescriptor(const TJobNodeDescriptor& other) = default;
+    TJobNodeDescriptor& operator=(const TJobNodeDescriptor& other) = default;
     TJobNodeDescriptor(const NScheduler::TExecNodeDescriptor& other);
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
