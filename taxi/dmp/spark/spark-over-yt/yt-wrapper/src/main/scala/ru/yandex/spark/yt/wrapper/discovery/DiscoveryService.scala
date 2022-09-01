@@ -26,7 +26,7 @@ trait DiscoveryService {
 
   def registerWorker(operationId: String): Unit
 
-  def discoverAddress(): Option[Address]
+  def discoverAddress(): Try[Address]
 
   def operations(): Option[OperationSet]
 
