@@ -263,8 +263,9 @@ Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAcces
     }
 }
 
-
 namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
 Y_FORCE_INLINE int TAugmentedPtrReplicaIndexAccessor<TImpl>::GetReplicaIndex() const
@@ -290,9 +291,9 @@ Y_FORCE_INLINE int TAugmentedPtrReplicaAndMediumIndexAccessor<TImpl>::GetMediumI
     return static_cast<const TImpl*>(this)->template GetIndex<2>();
 }
 
-} // namespace NDetail
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 template <class T>
 Y_FORCE_INLINE TCompatPtrWithIndexes<T>::TCompatPtrWithIndexes()
@@ -449,12 +450,13 @@ Y_FORCE_INLINE void TCompatPtrWithIndexes<T>::Load(C& context)
     *this = TCompatPtrWithIndexes<T>(ptr, replicaIndex, mediumIndex, state);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class C>
 void TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>::TSerializer::Save(
@@ -499,5 +501,7 @@ bool TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>::TComparer::Comp
 
     return lhs.GetReplicaState() < rhs.GetReplicaState();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

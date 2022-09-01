@@ -3050,7 +3050,7 @@ private:
                 auto mediumIndex = stats.medium_index();
                 if (!FindMediumByIndex(mediumIndex)) {
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                        "Cannot create imaginary chunk location with unknown medium ",
+                        "Cannot create imaginary chunk location with unknown medium "
                         "(NodeId: %v, MediumIndex: %v)",
                         node->GetId(),
                         mediumIndex);
@@ -5048,7 +5048,7 @@ private:
             auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
             if (!IsObjectAlive(medium)) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                    "Cannot process chunk event with unknown medium"
+                    "Cannot process chunk event with unknown medium "
                     "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
@@ -5062,7 +5062,7 @@ private:
 
         if (!locationUuid.has_value()) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                "Real chunk locations are used but chunk event does not contain location  UUID "
+                "Real chunk locations are used but chunk event does not contain location UUID "
                 "(NodeId: %v, Address: %v, ChunkId: %v, ChunkEventType: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),

@@ -1075,9 +1075,6 @@ std::vector<TChunkPtrWithReplicaInfo> TChunkPlacement::GetBalancingChunks(
     auto iterationCount = std::min<int>(replicaCount * 2, node->ComputeTotalReplicaCount(mediumIndex));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
-        if (!replica.GetPtr()) {
-            break;
-        }
         auto* chunk = replica.GetPtr();
         if (!IsObjectAlive(chunk)) {
             break;

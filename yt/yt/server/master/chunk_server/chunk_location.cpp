@@ -348,9 +348,13 @@ void TRealChunkLocation::Load(NCellMaster::TLoadContext& context)
 
 namespace NYT::NChunkServer::NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeId GetNodeId(TNode* node)
 {
     return node->GetId();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer::NDetail
