@@ -705,6 +705,27 @@ TFuture<void> TClient::UpdateChaosTableReplicaProgress(
     YT_UNIMPLEMENTED();
 }
 
+TFuture<void> TClient::AlterReplicationCard(
+    NChaosClient::TReplicationCardId replicationCardId,
+    const TAlterReplicationCardOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.AlterReplicationCard();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_replication_card_id(), replicationCardId);
+
+    if (options.ReplicatedTableOptions) {
+        req->set_replicated_table_options(ConvertToYsonString(options.ReplicatedTableOptions).ToString());
+    }
+    if (options.EnableReplicatedTableTracker) {
+        req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+    }
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<IQueueRowsetPtr> TClient::PullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,

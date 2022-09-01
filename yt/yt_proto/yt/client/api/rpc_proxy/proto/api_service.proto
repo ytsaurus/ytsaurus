@@ -1537,6 +1537,22 @@ message TRspAlterTableReplica
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqAlterReplicationCard
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+
+    optional bytes replicated_table_options = 2; // YSON
+    optional bool enable_replicated_table_tracker = 3;
+
+    optional TMutatingOptions mutating_options = 100;
+}
+
+message TRspAlterReplicationCard
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetColumnarStatistics
 {
     message TFetchChunkSpec

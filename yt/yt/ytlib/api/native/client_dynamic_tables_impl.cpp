@@ -2804,6 +2804,36 @@ void TClient::DoUpdateChaosTableReplicaProgress(
         .ThrowOnError();
 }
 
+void TClient::DoAlterReplicationCard(
+    TReplicationCardId replicationCardId,
+    const TAlterReplicationCardOptions& options)
+{
+    if (options.ReplicatedTableOptions && options.EnableReplicatedTableTracker) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot alter replication card %v: only one of \"replicated_table_options\" "
+            "and \"enable_replicated_table_tracker\" could be specified",
+            replicationCardId);
+    }
+
+    auto channel = GetChaosChannelByCardId(replicationCardId);
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+
+    auto req = proxy.AlterReplicationCard();
+    SetMutationId(req, options);
+    ToProto(req->mutable_replication_card_id(), replicationCardId);
+
+    if (options.ReplicatedTableOptions) {
+        req->set_replicated_table_options(ConvertToYsonString(options.ReplicatedTableOptions).ToString());
+    }
+    if (options.EnableReplicatedTableTracker) {
+        req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+    }
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

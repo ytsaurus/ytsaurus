@@ -595,6 +595,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(TrimTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
@@ -2324,6 +2325,32 @@ private:
             context,
             [=] {
                 return client->AlterTableReplica(replicaId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterReplicationCard)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+
+        TAlterReplicationCardOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
+        if (request->has_replicated_table_options()) {
+            options.ReplicatedTableOptions = ConvertTo<TReplicatedTableOptionsPtr>(TYsonString(request->replicated_table_options()));
+        }
+        if (request->has_enable_replicated_table_tracker()) {
+            options.EnableReplicatedTableTracker = request->enable_replicated_table_tracker();
+        }
+
+        context->SetRequestInfo("ReplicationCardId: %v",
+            replicationCardId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AlterReplicationCard(replicationCardId, options);
             });
     }
 

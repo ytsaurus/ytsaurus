@@ -344,6 +344,13 @@ TFuture<void> TDelegatingClient::AlterTableReplica(
     return Underlying_->AlterTableReplica(replicaId, options);
 }
 
+TFuture<void> TDelegatingClient::AlterReplicationCard(
+    NChaosClient::TReplicationCardId replicationCardId,
+    const TAlterReplicationCardOptions& options)
+{
+    return Underlying_->AlterReplicationCard(replicationCardId, options);
+}
+
 TFuture<NYson::TYsonString> TDelegatingClient::GetTablePivotKeys(
     const NYPath::TYPath& path,
     const TGetTablePivotKeysOptions& options)

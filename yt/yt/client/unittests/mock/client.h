@@ -336,6 +336,10 @@ public:
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, AlterReplicationCard, (
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options), (override));
+
     MOCK_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options), (override));

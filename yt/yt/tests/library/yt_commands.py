@@ -955,6 +955,11 @@ def alter_table(path, **kwargs):
     return execute_command("alter_table", kwargs)
 
 
+def alter_replication_card(replication_card_id, **kwargs):
+    kwargs["replication_card_id"] = replication_card_id
+    return execute_command("alter_replication_card", kwargs)
+
+
 def balance_tablet_cells(bundle, tables=None, **kwargs):
     kwargs["bundle"] = bundle
     if tables is not None:

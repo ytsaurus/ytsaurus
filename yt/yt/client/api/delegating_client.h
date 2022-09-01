@@ -226,6 +226,10 @@ public:
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options = {}) override;
 
+    TFuture<void> AlterReplicationCard(
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options = {}) override;
+
     TFuture<NYson::TYsonString> GetTablePivotKeys(
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options = {}) override;

@@ -237,6 +237,10 @@ public:
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options = {}),
         (replicaId, options))
+    IMPLEMENT_METHOD(void, AlterReplicationCard, (
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options = {}),
+        (replicationCardId, options))
 
     IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueue, (
         const NYPath::TRichYPath& queuePath,
@@ -958,6 +962,9 @@ private:
     void DoUpdateChaosTableReplicaProgress(
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options);
+    void DoAlterReplicationCard(
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options);
     NRpc::IChannelPtr WrapChaosChannel(NRpc::IChannelPtr channel);
     template <class TPrefetcher, class TFetcher>
     NRpc::IChannelPtr DoGetChaosChannel(

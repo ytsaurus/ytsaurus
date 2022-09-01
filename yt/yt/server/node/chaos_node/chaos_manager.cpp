@@ -41,6 +41,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NChaosNode {
 
@@ -116,6 +119,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraAlterReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
@@ -174,6 +178,16 @@ public:
             HydraManager_,
             context,
             &TChaosManager::HydraRemoveReplicationCard,
+            this);
+        mutation->CommitAndReply(context);
+    }
+
+    void AlterReplicationCard(const TCtxAlterReplicationCardPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraAlterReplicationCard,
             this);
         mutation->CommitAndReply(context);
     }
@@ -551,6 +565,48 @@ private:
         NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
         const TTransactionAbortOptions& /*options*/)
     { }
+
+    void HydraAlterReplicationCard(
+        const TCtxAlterReplicationCardPtr& /*context*/,
+        NChaosClient::NProto::TReqAlterReplicationCard* request,
+        NChaosClient::NProto::TRspAlterReplicationCard* /*response*/)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+
+        auto options = request->has_replicated_table_options()
+            ? SafeDeserializeReplicatedTableOptions(replicationCardId, TYsonString(request->replicated_table_options()))
+            : TReplicatedTableOptionsPtr();
+        auto enableTracker = request->has_enable_replicated_table_tracker()
+            ? std::make_optional(request->enable_replicated_table_tracker())
+            : std::nullopt;
+
+        if (options && enableTracker) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot alter replication card %v: only one of \"replicated_table_options\" "
+                "and \"enable_replicated_table_tracker\" could be specified",
+                replicationCardId);
+        }
+
+        auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Alter replication card "
+            "(ReplicationCardId: %v, ReplicatedTableOptions: %v, EnableReplicatedTableTracker: %v)",
+            replicationCardId,
+            options
+                ? TStringBuf("null")
+                : ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf(),
+            enableTracker);
+
+        if (options) {
+            replicationCard->SetReplicatedTableOptions(options);
+            ReplicatedTableOptionsUpdated_.Fire(replicationCardId, options);
+        }
+        if (enableTracker) {
+            replicationCard->GetReplicatedTableOptions()->EnableReplicatedTableTracker = *enableTracker;
+            ReplicatedTableOptionsUpdated_.Fire(replicationCardId, replicationCard->GetReplicatedTableOptions());
+        }
+    }
 
     void HydraRemoveReplicationCard(
         const TCtxRemoveReplicationCardPtr& /*context*/,
