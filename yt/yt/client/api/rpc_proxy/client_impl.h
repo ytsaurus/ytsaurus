@@ -124,6 +124,10 @@ public:
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options = {}) override;
 
+    TFuture<void> AlterReplicationCard(
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options = {}) override;
+
     // Queues.
     TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
         const NYPath::TRichYPath& queuePath,

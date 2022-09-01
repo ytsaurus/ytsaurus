@@ -78,6 +78,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BatchModifyRows);
 
+    // Chaos
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterReplicationCard);
+
     // Queues
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PullQueue);
 

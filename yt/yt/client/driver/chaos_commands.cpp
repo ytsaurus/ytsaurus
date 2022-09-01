@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 namespace NYT::NDriver {
 
 using namespace NApi;
@@ -24,6 +26,28 @@ void TUpdateChaosTableReplicaProgressCommand::DoExecute(ICommandContextPtr conte
     auto future = client->UpdateChaosTableReplicaProgress(ReplicaId, Options);
     WaitFor(future)
         .ThrowOnError();
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAlterReplicationCardCommand::TAlterReplicationCardCommand()
+{
+    RegisterParameter("replication_card_id", ReplicationCardId);
+    RegisterParameter("replicated_table_options", Options.ReplicatedTableOptions)
+        .Optional();
+    RegisterParameter("enable_replicated_table_tracker", Options.EnableReplicatedTableTracker)
+        .Optional();
+}
+
+void TAlterReplicationCardCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->AlterReplicationCard(
+        ReplicationCardId,
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+
     ProduceEmptyOutput(context);
 }
 

@@ -24,4 +24,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAlterReplicationCardCommand
+    : public TTypedCommand<NApi::TAlterReplicationCardOptions>
+{
+public:
+    TAlterReplicationCardCommand();
+
+private:
+    NChaosClient::TReplicationCardId ReplicationCardId;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

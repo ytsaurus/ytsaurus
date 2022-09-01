@@ -51,6 +51,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqUpdateTableReplicaProgress,
         NChaosClient::NProto::TRspUpdateTableReplicaProgress
     >>;
+    using TCtxAlterReplicationCardPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqAlterReplicationCard,
+        NChaosClient::NProto::TRspAlterReplicationCard
+    >>;
     using TCtxMigrateReplicationCardsPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
         NChaosClient::NProto::TReqMigrateReplicationCards,
         NChaosClient::NProto::TRspMigrateReplicationCards
@@ -63,6 +67,7 @@ struct IChaosManager
     virtual void RemoveTableReplica(const TCtxRemoveTableReplicaPtr& context) = 0;
     virtual void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) = 0;
     virtual void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) = 0;
+    virtual void AlterReplicationCard(const TCtxAlterReplicationCardPtr& context) = 0;
     virtual void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
 

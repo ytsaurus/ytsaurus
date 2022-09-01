@@ -65,6 +65,18 @@ message TRspFindReplicationCard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqAlterReplicationCard
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+    optional string replicated_table_options = 2; // NTabletClient::TReplicatedTableOptions
+    optional bool enable_replicated_table_tracker = 3;
+}
+
+message TRspAlterReplicationCard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateTableReplica
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId

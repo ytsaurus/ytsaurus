@@ -358,6 +358,14 @@ struct TUpdateChaosTableReplicaProgressOptions
     NChaosClient::TReplicationProgress Progress;
 };
 
+struct TAlterReplicationCardOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    NTabletClient::TReplicatedTableOptionsPtr ReplicatedTableOptions;
+    std::optional<bool> EnableReplicatedTableTracker;
+};
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -1811,6 +1819,10 @@ struct IClient
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options = {}) = 0;
 
+    virtual TFuture<void> AlterReplicationCard(
+        NChaosClient::TReplicationCardId replicationCardId,
+        const TAlterReplicationCardOptions& options = {}) = 0;
+ 
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,

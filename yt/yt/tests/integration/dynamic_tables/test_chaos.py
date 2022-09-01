@@ -16,7 +16,7 @@ from yt_commands import (
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
-    align_chaos_cell_tag, migrate_replication_cards,
+    align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
@@ -2208,14 +2208,15 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
+        replicated_table_options = {
+            "enable_replicated_table_tracker": True,
+            "min_sync_replica_count": 1,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
         create("chaos_replicated_table", "//tmp/crt", attributes={
             "chaos_cell_bundle": "c",
-            "replicated_table_options": {
-                "enable_replicated_table_tracker": True,
-                "min_sync_replica_count": 1,
-                "tablet_cell_bundle_name_ttl": 1000,
-                "tablet_cell_bundle_name_failure_interval": 100,
-            },
+            "replicated_table_options": replicated_table_options
         })
         card_id = get("//tmp/crt/@replication_card_id")
         options = get("//tmp/crt/@replicated_table_options")
@@ -2247,6 +2248,20 @@ class TestChaos(ChaosTestBase):
 
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=False)
         assert not get("//tmp/crt/@replicas/{0}/replicated_table_tracker_enabled".format(replica_ids[0]))
+
+        alter_replication_card(card_id, enable_replicated_table_tracker=False)
+        assert not get("//tmp/crt/@replicated_table_options/enable_replicated_table_tracker")
+
+        replicated_table_options["min_sync_replica_count"] = 2
+        alter_replication_card(card_id, replicated_table_options=replicated_table_options)
+        options = get("//tmp/crt/@replicated_table_options")
+        assert options["enable_replicated_table_tracker"]
+        assert options["min_sync_replica_count"] == 2
+        assert get("#{0}/@mode".format(replica_ids[2])) == "sync"
+        assert get("#{0}/@mode".format(replica_ids[0])) == "async"
+
+        alter_table_replica(replica_ids[0], enable_replicated_table_tracker=True)
+        wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "sync")
 
 
 ##################################################################

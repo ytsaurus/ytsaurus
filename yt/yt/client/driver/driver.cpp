@@ -234,6 +234,7 @@ public:
         REGISTER_ALL(TBalanceTabletCellsCommand,           "balance_tablet_cells",            Null,       Structured, true,  false);
 
         REGISTER    (TUpdateChaosTableReplicaProgressCommand,    "update_replication_progress",     Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TAlterReplicationCardCommand,               "alter_replication_card",          Null,       Structured, false, false, ApiVersion4);
 
         REGISTER    (TMergeCommand,                        "merge",                           Null,       Structured, true,  false, ApiVersion3);
         REGISTER    (TEraseCommand,                        "erase",                           Null,       Structured, true,  false, ApiVersion3);
