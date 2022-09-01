@@ -251,11 +251,13 @@ private:
             }
         }
 
-        Alerts_.push_back(
-            TError(
-                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
-                "Error fetching object revisions from clusters")
-                << clusterRevisionFetchingAlerts);
+        if (!clusterRevisionFetchingAlerts.empty()) {
+            Alerts_.push_back(
+                TError(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                    "Error fetching object revisions from clusters")
+                    << clusterRevisionFetchingAlerts);
+        }
     }
 
     struct TCypressWatchlist
@@ -315,11 +317,13 @@ private:
             InferChangesFromClusterWatchlist(cluster, std::move(cypressWatchlist));
         }
 
-        Alerts_.push_back(
-            TError(
-                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
-                "Error retrieving queue agent object revisions from clusters")
-                << clusterRevisionFetchingAlerts);
+        if (!clusterRevisionFetchingAlerts.empty()) {
+            Alerts_.push_back(
+                TError(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                    "Error retrieving queue agent object revisions from clusters")
+                    << clusterRevisionFetchingAlerts);
+        }
     }
 
     void InferChangesFromClusterWatchlist(const TString& cluster, TCypressWatchlist cypressWatchlist)
@@ -466,11 +470,13 @@ private:
             }
         }
 
-        Alerts_.push_back(
-            TError(
-                NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
-                "Error fetching attributes from clusters")
-                << clusterAttributeFetchingAlerts);
+        if (!clusterAttributeFetchingAlerts.empty()) {
+            Alerts_.push_back(
+                TError(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
+                    "Error fetching attributes from clusters")
+                    << clusterAttributeFetchingAlerts);
+        }
     }
 
     //! Write rows to dynamic state.
@@ -582,6 +588,7 @@ public:
 
         if (!DynamicConfig_->Enable) {
             YT_LOG_DEBUG("Polling iteration skipped");
+            Alerts_.clear();
             return;
         }
 

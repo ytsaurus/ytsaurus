@@ -387,6 +387,15 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert_yt_error(YtError.from_dict(alert_orchid.get_alerts()["queue_agent_pass_failed"]),
                         "Error polling queue state")
 
+    @authors("achulkov2")
+    def test_no_alerts(self):
+        orchid = QueueAgentOrchid()
+        alert_orchid = AlertManagerOrchid()
+
+        orchid.wait_fresh_poll()
+
+        assert not alert_orchid.get_alerts()
+
 
 class TestOrchidSelfRedirect(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
@@ -1138,8 +1147,6 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
         orchid = CypressSynchronizerOrchid()
         alert_orchid = AlertManagerOrchid()
 
-        self._prepare_tables()
-
         q1 = self._get_queue_name("a")
         c1 = self._get_consumer_name("a")
 
@@ -1158,9 +1165,35 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
         wait(lambda: "cypress_synchronizer_pass_failed" in alert_orchid.get_alerts())
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
+    @authors("achulkov2")
+    @pytest.mark.parametrize("policy", ["polling", "watching"])
+    def test_no_alerts(self, policy):
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "policy": policy
+            }
+        })
+
+        orchid = CypressSynchronizerOrchid()
+        alert_orchid = AlertManagerOrchid()
+
+        q1 = self._get_queue_name("a")
+        c1 = self._get_consumer_name("a")
+
+        self._create_and_register_queue(q1)
+        self._create_and_register_consumer(c1)
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        orchid.wait_fresh_poll()
+
+        assert not alert_orchid.get_alerts()
 
 
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
