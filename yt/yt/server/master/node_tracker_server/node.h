@@ -169,6 +169,7 @@ public:
     // Transient.
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<std::unique_ptr<NChunkServer::TImaginaryChunkLocation>>, ImaginaryChunkLocations);
     NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringShanpshotLoading = false);
+    NChunkServer::TImaginaryChunkLocation* GetImaginaryChunkLocation(int mediumIndex);
 
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
 

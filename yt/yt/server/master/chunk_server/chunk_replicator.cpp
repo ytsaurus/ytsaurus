@@ -2645,7 +2645,7 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
         const auto& replica = unsucceededJob->GetChunkIdWithIndexes();
         TChunkLocation* location;
         if (node->UseImaginaryChunkLocations()) {
-            location = node->GetOrCreateImaginaryChunkLocation(replica.MediumIndex);
+            location = node->GetImaginaryChunkLocation(replica.MediumIndex);
         } else {
             auto* removalJob = static_cast<TRemovalJob*>(unsucceededJob.Get());
             auto locationUuid = removalJob->ChunkLocationUuid();
@@ -3176,8 +3176,8 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunk* chunk)
     // replication/repair/etc. queues may be inconsistent. Do not rely on the
     // requisition when dealing with replicator queues!
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-        auto* queueIterators = chunk->SelectRepairQueueIteratorMap(queue);
-        for (auto [mediumIndex, repairIt] : *queueIterators) {
+        auto queueIterators = *chunk->SelectRepairQueueIteratorMap(queue);
+        for (auto [mediumIndex, repairIt] : queueIterators) {
             if (repairIt == TChunkRepairQueueIterator()) {
                 continue;
             }
@@ -3198,8 +3198,8 @@ void TChunkReplicator::TouchChunkInRepairQueues(TChunk* chunk)
     // NB: see RemoveFromChunkRepairQueues for the comment on why the chunk's
     // requisition should not be used here.
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-        auto* queueIterators = chunk->SelectRepairQueueIteratorMap(queue);
-        for (auto [mediumIndex, repairIt] : *queueIterators) {
+        auto queueIterators = *chunk->SelectRepairQueueIteratorMap(queue);
+        for (auto [mediumIndex, repairIt] : queueIterators) {
             if (repairIt == TChunkRepairQueueIterator()) {
                 continue;
             }
