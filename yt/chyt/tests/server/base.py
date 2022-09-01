@@ -21,7 +21,6 @@ import yt.yson as yson
 from threading import Thread
 import os
 import errno
-import copy
 import time
 import json
 import random
@@ -73,9 +72,24 @@ class Clique(object):
     clique_index_by_test_name = {}
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, **kwargs):
-        config = (
-            update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
-        )
+        discovery_patch = {
+            "yt": {
+                "discovery": {
+                    "version": 1,
+                    "server_addresses": ls("//sys/discovery_servers"),
+                    "read_quorum": 1,
+                    "write_quorum": 1,
+                }
+            }
+        }
+        config = update(Clique.base_config, discovery_patch)
+
+        if config_patch is not None:
+            config = update(config, config_patch)
+
+        self.discovery_version = config["yt"]["discovery"]["version"]
+        self.discovery_servers = config["yt"]["discovery"]["server_addresses"]
+
         spec = {"pool": None}
         self.is_tracing = False
         if "YT_TRACE_DUMP_DIR" in os.environ:
@@ -135,7 +149,7 @@ class Clique(object):
             self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
-    def get_active_instances(self):
+    def get_active_instances_for_discovery_v1(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls(
                 "//sys/clickhouse/cliques/{0}".format(self.op.id),
@@ -154,6 +168,28 @@ class Clique(object):
             return list(filter(is_active, instances))
         else:
             return []
+
+    def get_active_instances_for_discovery_v2(self):
+        assert len(self.discovery_servers) > 0
+        discovery_server = self.discovery_servers[0]
+        group_id = self.get_clique_id()
+        if exists("//sys/discovery_servers/{}/orchid/discovery_server/chyt".format(discovery_server)):
+            instances = ls(
+                "//sys/discovery_servers/{}/orchid/discovery_server/chyt/{}/@members"
+                .format(discovery_server, group_id),
+                attributes=["host", "http_port", "monitoring_port", "job_cookie", "pid"],
+                verbose=False,
+            )
+            return instances
+        else:
+            return []
+
+    def get_active_instances(self):
+        if self.discovery_version == 1:
+            return self.get_active_instances_for_discovery_v1()
+        else:
+            assert self.discovery_version == 2
+            return self.get_active_instances_for_discovery_v2()
 
     def get_active_instance_count(self):
         return len(self.get_active_instances())
@@ -505,6 +541,7 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    NUM_DISCOVERY_SERVERS = 1
     NODE_PORT_SET_SIZE = 25
     USE_DYNAMIC_TABLES = True
 

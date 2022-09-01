@@ -26,7 +26,7 @@ public:
         : TDiscoveryBase(config, invoker, logger)
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , DiscoveryClient_(CreateDiscoveryClient(config, channelFactory))
+        , DiscoveryClient_(CreateDiscoveryClient(Config_, ChannelFactory_))
     {
         ListOptions_.AttributeKeys = extraAttributes;
     }

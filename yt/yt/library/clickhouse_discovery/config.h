@@ -30,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryBaseConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryV1Config
-    : public TDiscoveryBaseConfig
+    : public virtual TDiscoveryBaseConfig
 {
 public:
     NYPath::TYPath Directory;
@@ -56,7 +56,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryV1Config)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryV2Config
-    : public TDiscoveryBaseConfig
+    : public virtual TDiscoveryBaseConfig
     , public NDiscoveryClient::TDiscoveryClientConfig
     , public NDiscoveryClient::TMemberClientConfig
 {
@@ -67,6 +67,22 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryV2Config)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoveryConfig
+    : public TDiscoveryV1Config
+    , public TDiscoveryV2Config
+{
+public:
+    int Version;
+
+    REGISTER_YSON_STRUCT(TDiscoveryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
