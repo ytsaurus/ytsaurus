@@ -33,6 +33,7 @@ public:
     void SetDelayedStartFunction(std::function<TOperationId()> start);
     virtual void Start() override;
     void OnPreparationException(std::exception_ptr e);
+    virtual bool IsStarted() const override;
 
     virtual TString GetStatus() const override;
     void OnStatusUpdated(const TString& newStatus);

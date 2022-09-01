@@ -2931,6 +2931,12 @@ struct IOperation
     virtual void Start() = 0;
 
     ///
+    /// @brief Is the operation started
+    ///
+    /// Returns true if the operation is started on the cluster
+    virtual bool IsStarted() const = 0;
+
+    ///
     /// @brief Get start future.
     ///
     /// @return future that is set when operation is started.
