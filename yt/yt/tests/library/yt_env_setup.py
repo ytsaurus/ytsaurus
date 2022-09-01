@@ -128,6 +128,9 @@ def skip_if_porto(func):
 
 
 def get_sanitizer_type():
+    if arcadia_interop.yatest_common is None:
+        return None
+
     try:
         return arcadia_interop.yatest_common.context.sanitize
     except NotImplementedError:
