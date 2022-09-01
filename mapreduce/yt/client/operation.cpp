@@ -2094,7 +2094,8 @@ public:
     void OnPrepared();
     void SetDelayedStartFunction(std::function<TOperationId()> start);
     void Start();
-    void OnPreparationException(std::exception_ptr e);    
+    bool IsStarted() const;
+    void OnPreparationException(std::exception_ptr e);
 
     TString GetStatus();
     void OnStatusUpdated(const TString& newStatus);
@@ -2260,6 +2261,11 @@ void TOperation::TOperationImpl::Start()
         std::rethrow_exception(exception);
     }
     OnStarted(operationId);
+}
+
+bool TOperation::TOperationImpl::IsStarted() const {
+    auto guard = Guard(Lock_);
+    return bool(Id_);
 }
 
 void TOperation::TOperationImpl::OnPreparationException(std::exception_ptr e)
@@ -2659,6 +2665,11 @@ void TOperation::SetDelayedStartFunction(std::function<TOperationId()> start)
 void TOperation::Start()
 {
     Impl_->Start();
+}
+
+bool TOperation::IsStarted() const
+{
+    return Impl_->IsStarted();
 }
 
 void TOperation::OnPreparationException(std::exception_ptr e)

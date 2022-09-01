@@ -101,7 +101,8 @@ public:
 
     TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
-        UpdateOperationStatus(e.GetError().ShortDescription());
+        auto msg = e.GetError().ShortDescription();
+        UpdateOperationStatus(msg);
         return Underlying_->OnRetriableError(e);
     }
 
