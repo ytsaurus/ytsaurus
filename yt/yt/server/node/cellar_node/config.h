@@ -110,11 +110,11 @@ DEFINE_REFCOUNTED_TYPE(TCpuLimits)
 struct TMemoryLimits
     : public NYTree::TYsonStruct
 {
-    std::optional<int> TabletStatic;
-    std::optional<int> TabletDynamic;
-    std::optional<int> BlockCache;
-    std::optional<int> VersionedChunkMeta;
-    std::optional<int> LookupRowCache;
+    std::optional<i64> TabletStatic;
+    std::optional<i64> TabletDynamic;
+    std::optional<i64> BlockCache;
+    std::optional<i64> VersionedChunkMeta;
+    std::optional<i64> LookupRowCache;
 
     TMemoryLimitsEnumIndexedVector AsEnumIndexedVector() const;
 
