@@ -95,13 +95,13 @@ public:
 
     TMaybe<TDuration> OnGenericError(const yexception& e) override
     {
-        UpdateOperationStatus(e);
+        UpdateOperationStatus(e.AsStrBuf());
         return Underlying_->OnGenericError(e);
     }
 
     TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
-        UpdateOperationStatus(e);
+        UpdateOperationStatus(e.GetError().ShortDescription());
         return Underlying_->OnRetriableError(e);
     }
 
@@ -116,11 +116,11 @@ public:
     }
 
 private:
-    void UpdateOperationStatus(const yexception& e)
+    void UpdateOperationStatus(TStringBuf err)
     {
         Y_VERIFY(Operation_);
         Operation_->OnStatusUpdated(
-            ::TStringBuilder() << "Retriable error during operation start: " << e.AsStrBuf());
+            ::TStringBuilder() << "Retriable error during operation start: " << err);
     }
 
 private:
