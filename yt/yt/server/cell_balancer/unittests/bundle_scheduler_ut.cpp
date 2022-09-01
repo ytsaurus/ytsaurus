@@ -1660,7 +1660,8 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
-    EXPECT_EQ(1, std::ssize(mutations.ChangedSystemAccountLimit));
+    EXPECT_EQ(1, std::ssize(mutations.LiftedSystemAccountLimit));
+    EXPECT_EQ(0, std::ssize(mutations.LoweredSystemAccountLimit));
 
     CheckLimits(
         TExpectedLimits{
@@ -1669,7 +1670,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
             .Default = 105_MB,
             .SsdJournal = 75_MB,
         },
-        mutations.ChangedSystemAccountLimit["default-bundle-account"]);
+        mutations.LiftedSystemAccountLimit["default-bundle-account"]);
 
     CheckLimits(
         TExpectedLimits{
@@ -1680,6 +1681,19 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
         },
         mutations.ChangedRootSystemAccountLimit);
 
+    // Check nothing changed is limits are ok
+    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonSerializable(mutations.LiftedSystemAccountLimit["default-bundle-account"]);
+    input.RootSystemAccount->ResourceLimits = NYTree::CloneYsonSerializable(mutations.ChangedRootSystemAccountLimit);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.LiftedSystemAccountLimit));
+    EXPECT_EQ(0, std::ssize(mutations.LoweredSystemAccountLimit));
+    EXPECT_FALSE(mutations.ChangedRootSystemAccountLimit);
+
+    // Check lowered limits
+    bundleInfo1->TargetConfig->CpuLimits->WriteThreadPoolSize = 3;
+
+    // With lifted ones
     SetBundleInfo(input, "default-bundle2", 10, 20);
     auto& bundleInfo2 = input.Bundles["default-bundle2"];
     bundleInfo2->EnableSystemAccountManagement = true;
@@ -1691,16 +1705,17 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
-    EXPECT_EQ(2, std::ssize(mutations.ChangedSystemAccountLimit));
+    EXPECT_EQ(1, std::ssize(mutations.LiftedSystemAccountLimit));
+    EXPECT_EQ(1, std::ssize(mutations.LoweredSystemAccountLimit));
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 45,
-            .Chunks = 30,
-            .Default = 105_MB,
-            .SsdJournal = 75_MB
+            .Nodes = 27,
+            .Chunks = 18,
+            .Default = 63_MB,
+            .SsdJournal = 45_MB
         },
-        mutations.ChangedSystemAccountLimit["default-bundle-account"]);
+        mutations.LoweredSystemAccountLimit["default-bundle-account"]);
 
     CheckLimits(
         TExpectedLimits{
@@ -1709,15 +1724,15 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
             .SsdBlobs = 2100_MB,
             .SsdJournal = 1500_MB
         },
-        mutations.ChangedSystemAccountLimit["default-bundle2-account"]);
+        mutations.LiftedSystemAccountLimit["default-bundle2-account"]);
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1945,
-            .Chunks = 2630,
+            .Nodes = 1927,
+            .Chunks = 2618,
             .SsdBlobs = 2100_MB,
-            .Default = 106_MB,
-            .SsdJournal = 1575_MB
+            .Default = 64_MB,
+            .SsdJournal = 1545_MB
         },
         mutations.ChangedRootSystemAccountLimit);
 
@@ -1733,7 +1748,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
             .SsdBlobs = 3150_MB,
             .SsdJournal = 2250_MB
         },
-        mutations.ChangedSystemAccountLimit["default-bundle2-account"]);
+        mutations.LiftedSystemAccountLimit["default-bundle2-account"]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

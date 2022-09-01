@@ -1052,6 +1052,21 @@ void ApplyQuotaChange(const TQuotaDiff& change, const TAccountResourcesPtr& limi
     }
 }
 
+bool IsLimitsLifted(const TQuotaDiff& change)
+{
+    for (const auto& [_, diff] : change.DiskSpacePerMedium) {
+        if (diff < 0) {
+            return false;
+        }
+    }
+
+    if (change.ChunkCount < 0 || change.NodeCount < 0) {
+        return false;
+    }
+
+    return true;
+}
+
 void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     TQuotaChanges quotaChanges;
@@ -1080,7 +1095,11 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
         ApplyQuotaChange(quotaChange, newQuota);
         ApplyQuotaChange(quotaChange, rootQuota);
 
-        mutations->ChangedSystemAccountLimit[accountName] = newQuota;
+        if (IsLimitsLifted(quotaChange)) {
+            mutations->LiftedSystemAccountLimit[accountName] = newQuota;
+        } else {
+            mutations->LoweredSystemAccountLimit[accountName] = newQuota;
+        }
 
         YT_LOG_INFO("Adjusting system account resource limits (AccountName: %v, NewResourceLimit: %Qv, OldResourceLimit: %Qv)",
             accountName,
