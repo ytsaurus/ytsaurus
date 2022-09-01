@@ -3,6 +3,7 @@
 #include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
+#include "tablet_profiling.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -18,6 +19,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
@@ -318,10 +321,21 @@ private:
 
     void ReportUpdatedReplicationProgress()
     {
+        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
+        auto* counters = Tablet_->GetTableProfiler()->GetTablePullerCounters();
+        if (Tablet_->RuntimeData()->WriteMode == ETabletWriteMode::Direct) {
+            counters->LagTime.Update(TDuration::Zero());
+        } else {
+            auto now = NProfiling::GetInstant();
+            auto minTimestamp = TimestampToInstant(GetReplicationProgressMinTimestamp(*progress)).first;
+            auto time = now > minTimestamp ? now - minTimestamp : TDuration::Zero();
+            counters->LagTime.Update(time);
+        }
+
         auto client = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
         auto options = TUpdateChaosTableReplicaProgressOptions{
-            .Progress = *Tablet_->RuntimeData()->ReplicationProgress.Load()
+            .Progress = *progress
         };
         auto future = client->UpdateChaosTableReplicaProgress(
             Tablet_->GetUpstreamReplicaId(),
