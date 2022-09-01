@@ -12,7 +12,7 @@ import ru.yandex.yt.ytclient.proxy.request.GetOperation
 import java.util.Optional
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient) extends DiscoveryService {
   private val log = LoggerFactory.getLogger(getClass)
@@ -51,14 +51,16 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
                               masterWrapperEndpoint: HostAndPort,
                               clusterConf: SparkConfYsonable): Unit = {
     val clearDir = discoverAddress() match {
-      case Some(_) if operation.exists(_ != operationId) && operationInfo.exists(!_.state.isFinished) =>
+      case Success(_) if operation.exists(_ != operationId) && operationInfo.exists(!_.state.isFinished) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
-      case Some(_) =>
+      case Success(_) =>
         log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")
         true
-      case _ =>
+      case Failure(EmptyDirectoryException(_)) =>
         log.info(s"Spark instance with path $discoveryPath doesn't exist, registering new one")
         false
+      case Failure(ex) =>
+        throw ex
     }
 
     val transaction = YtWrapper.createTransaction(None, 1 minute)
@@ -105,34 +107,31 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
     transaction.commit().join()
   }
 
-  private def cypressHostAndPort(path: String): Option[HostAndPort] = {
+  private def cypressHostAndPort(path: String): Try[HostAndPort] = {
     getPath(path).map(HostAndPort.fromString)
   }
 
-  private def getPath(path: String): Option[String] = {
-    if (YtWrapper.exists(path)) {
-      Try(YtWrapper.listDir(path)).toOption.flatMap(_.headOption)
-    } else None
-  }
+  private def getPath(path: String): Try[String] =
+    if (YtWrapper.exists(path))
+      Try(YtWrapper.listDir(path)).map(_.head)
+    else
+      Failure(InvalidCatalogException(s"Path not found: $path"))
 
-  override def discoverAddress(): Option[Address] = {
+
+  override def discoverAddress(): Try[Address] =
     for {
+      _ <- getPath(confPath).recover { case InvalidCatalogException(msg) => EmptyDirectoryException(msg) }
       hostAndPort <- cypressHostAndPort(addressPath)
       webUiHostAndPort <- cypressHostAndPort(webUiPath)
       restHostAndPort <- cypressHostAndPort(restPath)
     } yield Address(hostAndPort, webUiHostAndPort, restHostAndPort)
-  }
 
-  def clusterVersion: Option[String] = {
-    getPath(clusterVersionPath)
-  }
+  def clusterVersion: Option[String] = getPath(clusterVersionPath).toOption
 
 
-  override def masterWrapperEndpoint(): Option[HostAndPort] = {
-    cypressHostAndPort(masterWrapperPath)
-  }
+  override def masterWrapperEndpoint(): Option[HostAndPort] = cypressHostAndPort(masterWrapperPath).toOption
 
-  private def operation: Option[String] = getPath(operationPath)
+  private def operation: Option[String] = getPath(operationPath).toOption
 
   override def operations(): Option[OperationSet] = {
     def isDriverOp: String => Boolean = opId => {
@@ -156,7 +155,7 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   override def waitAddress(timeout: Duration): Option[Address] = {
     DiscoveryService.waitFor(
-      discoverAddress().filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
+      discoverAddress().toOption.filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
       timeout,
       s"spark component address in $discoveryPath"
     )
@@ -199,3 +198,7 @@ object CypressDiscoveryService {
     def longAttribute(path: String*): Option[Long] = n.path(path:_*).map(_.longValue())
   }
 }
+
+case class InvalidCatalogException(message: String) extends RuntimeException(message)
+case class EmptyDirectoryException(message: String) extends RuntimeException(message)
+
