@@ -468,6 +468,13 @@ TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumInde
     return location.get();
 }
 
+TImaginaryChunkLocation* TNode::GetImaginaryChunkLocation(int mediumIndex)
+{
+    YT_VERIFY(UseImaginaryChunkLocations_);
+
+    return GetOrCrash(ImaginaryChunkLocations_, mediumIndex).get();
+}
+
 void TNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);
