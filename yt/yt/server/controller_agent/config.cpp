@@ -148,6 +148,9 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_too_long_alert_estimate_duration_threshold", &TThis::OperationTooLongAlertEstimateDurationThreshold)
         .Default(TDuration::Days(7));
 
+    registrar.Parameter("low_gpu_usage_alert_min_total_gpu_duration", &TThis::LowGpuUsageAlertMinTotalGpuDuration)
+        .Default(TDuration::Hours(100));
+
     registrar.Parameter("low_gpu_usage_alert_min_duration", &TThis::LowGpuUsageAlertMinDuration)
         .Default(TDuration::Minutes(30));
 

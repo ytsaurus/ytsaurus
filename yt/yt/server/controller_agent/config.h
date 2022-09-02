@@ -181,6 +181,7 @@ public:
     TDuration OperationTooLongAlertEstimateDurationThreshold;
 
     TDuration LowGpuUsageAlertMinDuration;
+    TDuration LowGpuUsageAlertMinTotalGpuDuration;
     // Ratio.
     double LowGpuUsageAlertGpuUsageThreshold;
     // Ratio.
