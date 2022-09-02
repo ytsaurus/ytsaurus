@@ -2744,7 +2744,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
     }
 
-    auto queryFingerprint = InferName(query, true);
+    auto queryFingerprint = InferName(query, {.OmitValues = true});
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
         *query->GetReadSchema(),

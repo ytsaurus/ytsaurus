@@ -68,7 +68,7 @@ public:
         const IMemoryChunkProviderPtr& memoryChunkProvider,
         const TQueryBaseOptions& options) override
     {
-        auto queryFingerprint = InferName(query, true);
+        auto queryFingerprint = InferName(query, {.OmitValues = true});
 
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
@@ -173,7 +173,10 @@ private:
 
         auto Logger = MakeQueryLogger(query);
 
-        auto queryFingerprint = InferName(query, true, true, true);
+        // See condition in folding_profiler.cpp.
+        bool considerLimit = query->IsOrdered() && !query->GroupClause;
+
+        auto queryFingerprint = InferName(query, TInferNameOptions{true, true, true, !considerLimit});
         auto compileWithLogging = [&] () {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
 
@@ -200,12 +203,11 @@ private:
             cgQuery = WaitFor(cookie.GetValue())
                 .ValueOrThrow();
 
-            if (cgQuery->Fingerprint != queryFingerprint) {
-                YT_LOG_FATAL("Code cache failure (ExpectedFingerprint: %v, ActualFingerprint: %v, Query: %v)",
-                    queryFingerprint,
-                    cgQuery->Fingerprint,
-                    InferName(query));
-            }
+            // Query fingerprints can differ when folding ids are equal in the following case:
+            // WHERE predicate is split into multiple predicates which are evaluated before join and after it.
+            // Example:
+            // from [a] a join [b] b where a.k and b.k
+            // from [a] a join [b] b where b.k and a.k
         } else {
             YT_LOG_DEBUG("Codegen cache disabled");
 

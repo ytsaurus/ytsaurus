@@ -36,8 +36,8 @@ DEFINE_ENUM(EFoldingObjectType,
     (AggregateItem)
 
     (TableSchema)
-    (IsFinal)
-    (IsMerge)
+    (FinalMode)
+    (MergeMode)
     (TotalsMode)
 );
 
@@ -112,7 +112,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
-        Fold(static_cast<ui16>(column.GetWireType()));
+        Fold(static_cast<ui8>(column.GetWireType()));
         Fold(column.Name().c_str());
         int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
         Fold(aux);
@@ -347,56 +347,56 @@ public:
         const TConstExpressionPtr& expr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated = false);
+        bool isolated = false);
 
 private:
     size_t Profile(
         const TLiteralExpression* literalExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TReferenceExpression* referenceExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TFunctionExpression* functionExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TUnaryOpExpression* unaryOp,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TBinaryOpExpression* binaryOp,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TInExpression* inExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TBetweenExpression* betweenExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
     size_t Profile(
         const TTransformExpression* transformExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
-        bool isIsolated);
+        bool isolated);
 
 protected:
     TCGVariables* const Variables_;
@@ -404,26 +404,36 @@ protected:
     const TComparerManagerPtr ComparerManager_;
 };
 
+size_t* TryGetSubexpressionRef(
+    TExpressionFragments* fragments,
+    const llvm::FoldingSetNodeID& id,
+    bool isolated)
+{
+    auto result = fragments->Items.size();
+    if (!isolated) {
+        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
+        if (!emplaced) {
+            return &it->second;
+        }
+    }
+    return nullptr;
+}
+
 size_t TExpressionProfiler::Profile(
     const TLiteralExpression* literalExpr,
     const TTableSchemaPtr& /*schema*/,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(literalExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
+    id.AddInteger(static_cast<ui8>(literalExpr->GetWireType()));
 
     auto savedId = id;
     id.AddString(ToString(TValue(literalExpr->Value)).c_str());
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(savedId);
@@ -440,28 +450,24 @@ size_t TExpressionProfiler::Profile(
         literalExpr->GetWireType(),
         nullable,
         true);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TReferenceExpression* referenceExpr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(referenceExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
+    id.AddInteger(static_cast<ui8>(referenceExpr->GetWireType()));
+    
     auto indexInSchema = schema->GetColumnIndexOrThrow(referenceExpr->ColumnName);
     id.AddInteger(indexInSchema);
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(id);
@@ -474,38 +480,35 @@ size_t TExpressionProfiler::Profile(
         referenceExpr->GetWireType(),
         true,
         true);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TFunctionExpression* functionExpr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(functionExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
+    id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));    
     id.AddString(functionExpr->FunctionName.c_str());
 
     std::vector<size_t> argIds;
     std::vector<EValueType> argumentTypes;
     auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
     size_t index = 0;
+    id.AddInteger(functionExpr->Arguments.size());
     for (const auto& argument : functionExpr->Arguments) {
-        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        // If fold is called inside Profile(argument) than in current function Fold will be called too.
+        argIds.push_back(Profile(argument, schema, fragments, isolated));
         id.AddInteger(argIds.back());
         argumentTypes.push_back(argument->GetWireType());
         literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
     }
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(id);
@@ -529,30 +532,25 @@ size_t TExpressionProfiler::Profile(
             Id_),
         functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TUnaryOpExpression* unaryOp,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(unaryOp->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
+    id.AddInteger(static_cast<ui8>(unaryOp->GetWireType()));    
     id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-    size_t operand = Profile(unaryOp->Operand, schema, fragments, isIsolated);
+    size_t operand = Profile(unaryOp->Operand, schema, fragments, isolated);
     id.AddInteger(operand);
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(id);
@@ -565,32 +563,27 @@ size_t TExpressionProfiler::Profile(
         "{" + InferName(unaryOp, true) + "}"),
         unaryOp->GetWireType(),
         fragments->Items[operand].Nullable);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TBinaryOpExpression* binaryOp,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(binaryOp->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
+    id.AddInteger(static_cast<ui8>(binaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(binaryOp->Opcode));
 
-    size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isIsolated);
+    size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isolated);
     id.AddInteger(lhsOperand);
-    size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments, isIsolated);
+    size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments, isolated);
     id.AddInteger(rhsOperand);
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(id);
@@ -608,23 +601,24 @@ size_t TExpressionProfiler::Profile(
         "{" + InferName(binaryOp, true) + "}"),
         binaryOp->GetWireType(),
         nullable);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TInExpression* inExpr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(inExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
+    id.AddInteger(static_cast<ui8>(inExpr->GetWireType()));
 
     std::vector<size_t> argIds;
+    id.AddInteger(inExpr->Arguments.size());
     for (const auto& argument : inExpr->Arguments) {
-        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        // If fold is called inside Profile(argument) than in current function Fold will be called too.
+        argIds.push_back(Profile(argument, schema, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
@@ -633,12 +627,8 @@ size_t TExpressionProfiler::Profile(
         id.AddString(ToString(value).c_str());
     }
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(savedId);
@@ -653,23 +643,24 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
         inExpr->GetWireType(),
         false);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TBetweenExpression* betweenExpr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(betweenExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
+    id.AddInteger(static_cast<ui8>(betweenExpr->GetWireType()));
 
     std::vector<size_t> argIds;
+    id.AddInteger(betweenExpr->Arguments.size());
     for (const auto& argument : betweenExpr->Arguments) {
-        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        // If fold is called inside Profile(argument) than in current function Fold will be called too.
+        argIds.push_back(Profile(argument, schema, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
@@ -679,12 +670,8 @@ size_t TExpressionProfiler::Profile(
         id.AddString(ToString(range.second).c_str());
     }
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(savedId);
@@ -698,29 +685,32 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
         betweenExpr->GetWireType(),
         false);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TTransformExpression* transformExpr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(transformExpr->GetWireType()));
-
     id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
+    id.AddInteger(static_cast<ui8>(transformExpr->GetWireType()));
+
+    const auto& defaultExpression = transformExpr->DefaultExpression;
 
     std::vector<size_t> argIds;
+    id.AddInteger(transformExpr->Arguments.size() + static_cast<bool>(defaultExpression));
     for (const auto& argument : transformExpr->Arguments) {
-        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        // If fold is called inside Profile(argument) than in current function Fold will be called too.
+        argIds.push_back(Profile(argument, schema, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
     std::optional<size_t> defaultExprId;
-    if (const auto& defaultExpression = transformExpr->DefaultExpression) {
-        defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
+    if (defaultExpression) {
+        defaultExprId = Profile(defaultExpression, schema, fragments, isolated);
         id.AddInteger(*defaultExprId);
     }
 
@@ -729,12 +719,8 @@ size_t TExpressionProfiler::Profile(
         id.AddString(ToString(value).c_str());
     }
 
-    auto result = fragments->Items.size();
-    if (!isIsolated) {
-        auto [it, emplaced] = fragments->Fingerprints.emplace(id, result);
-        if (!emplaced) {
-            return it->second;
-        }
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
     }
 
     Fold(savedId);
@@ -763,31 +749,31 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->GetWireType(), ComparerManager_),
         transformExpr->GetWireType(),
         nullable);
-    return result;
+    return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
-    bool isIsolated)
+    bool isolated)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return Profile(literalExpr, schema, fragments, isIsolated);
+        return Profile(literalExpr, schema, fragments, isolated);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return Profile(referenceExpr, schema, fragments, isIsolated);
+        return Profile(referenceExpr, schema, fragments, isolated);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        return Profile(functionExpr, schema, fragments, isIsolated);
+        return Profile(functionExpr, schema, fragments, isolated);
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        return Profile(unaryOp, schema, fragments, isIsolated);
+        return Profile(unaryOp, schema, fragments, isolated);
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        return Profile(binaryOp, schema, fragments, isIsolated);
+        return Profile(binaryOp, schema, fragments, isolated);
     } else if (auto inExpr = expr->As<TInExpression>()) {
-        return Profile(inExpr, schema, fragments, isIsolated);
+        return Profile(inExpr, schema, fragments, isolated);
     } else if (auto betweenExpr = expr->As<TBetweenExpression>()) {
-        return Profile(betweenExpr, schema, fragments, isIsolated);
+        return Profile(betweenExpr, schema, fragments, isolated);
     } else if (auto transformExpr = expr->As<TTransformExpression>()) {
-        return Profile(transformExpr, schema, fragments, isIsolated);
+        return Profile(transformExpr, schema, fragments, isolated);
     }
 
     YT_ABORT();
@@ -816,7 +802,7 @@ public:
         size_t intermediateSlot,
         size_t totalsSlot,
         TTableSchemaPtr schema,
-        bool isMerge);
+        bool mergeMode);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -846,16 +832,16 @@ void TQueryProfiler::Profile(
     size_t intermediateSlot,
     size_t totalsSlot,
     TTableSchemaPtr schema,
-    bool isMerge)
+    bool mergeMode)
 {
     size_t dummySlot = (*slotCount)++;
 
-    bool isFinal = query->IsFinal;
+    bool finalMode = query->IsFinal;
 
-    Fold(static_cast<int>(EFoldingObjectType::IsFinal));
-    Fold(static_cast<int>(isFinal));
-    Fold(static_cast<int>(EFoldingObjectType::IsMerge));
-    Fold(static_cast<int>(isMerge));
+    Fold(static_cast<int>(EFoldingObjectType::FinalMode));
+    Fold(static_cast<int>(finalMode));
+    Fold(static_cast<int>(EFoldingObjectType::MergeMode));
+    Fold(static_cast<int>(mergeMode));
 
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
@@ -888,7 +874,7 @@ void TQueryProfiler::Profile(
                 allAggregatesFirst = false;
             }
 
-            if (!isMerge) {
+            if (!mergeMode) {
                 aggregateExprIds.push_back(Profile(aggregateItem, schema, &expressionFragments));
             }
             codegenAggregates.push_back(aggregate->Profile(
@@ -922,7 +908,7 @@ void TQueryProfiler::Profile(
             keyTypes,
             stateTypes,
             allAggregatesFirst,
-            isMerge,
+            mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
             groupClause->CommonPrefixWithPrimaryKey,
             ComparerManager_);
@@ -946,7 +932,7 @@ void TQueryProfiler::Profile(
         }
 
         // COMPAT(lukyan)
-        if (isFinal || query->UseDisjointGroupBy) {
+        if (finalMode || query->UseDisjointGroupBy) {
             // Boundary segments are also final
             newFinalSlot = MakeCodegenMergeOp(
                 codegenSource,
@@ -955,7 +941,7 @@ void TQueryProfiler::Profile(
                 newFinalSlot);
 
              intermediateSlot = dummySlot;
-        } else if (isMerge) {
+        } else if (mergeMode) {
             intermediateSlot = MakeCodegenMergeOp(
                 codegenSource,
                 slotCount,
@@ -967,7 +953,7 @@ void TQueryProfiler::Profile(
 
         size_t keySize = groupClause->GroupItems.size();
 
-        if (!isMerge || isFinal) {
+        if (!mergeMode || finalMode) {
             if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
                 Fold(static_cast<int>(EFoldingObjectType::HavingOp));
 
@@ -990,7 +976,7 @@ void TQueryProfiler::Profile(
                     slotCount,
                     newFinalSlot);
 
-                if (isMerge) {
+                if (mergeMode) {
                     totalsSlot = MakeCodegenMergeOp(
                         codegenSource,
                         slotCount,
@@ -1019,7 +1005,7 @@ void TQueryProfiler::Profile(
                     havingPredicateId);
             }
 
-            if (isMerge) {
+            if (mergeMode) {
                 finalSlot = MakeCodegenMergeOp(
                     codegenSource,
                     slotCount,
@@ -1039,7 +1025,7 @@ void TQueryProfiler::Profile(
                 keyTypes,
                 stateTypes);
 
-            if (isFinal) {
+            if (finalMode) {
                 totalsSlot = MakeCodegenFinalizeOp(
                     codegenSource,
                     slotCount,
@@ -1085,7 +1071,7 @@ void TQueryProfiler::Profile(
 
         auto schemaTypes = GetTypesFromSchema(*schema);
         for (auto type : schemaTypes) {
-            Fold(static_cast<ui16>(type));
+            Fold(static_cast<ui8>(type));
         }
 
         finalSlot = MakeCodegenOrderOp(
@@ -1133,7 +1119,7 @@ void TQueryProfiler::Profile(
 
     size_t resultRowSize = schema->GetColumnCount();
 
-    if (!isFinal) {
+    if (!finalMode) {
         finalSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
