@@ -3,8 +3,6 @@ package ru.yandex.yt.ytclient;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import org.apache.commons.lang3.StringUtils;
-
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
@@ -35,7 +33,7 @@ public enum DC {
      * @return data center enum value or UNKNOWN if resolution fails
      */
     public static DC fromHostName(String hostName) {
-        String prefix = StringUtils.truncate(hostName, 3);
+        String prefix = hostName.substring(0, Math.min(3, hostName.length()));
         switch (prefix) {
             case "sas":
                 return SAS;

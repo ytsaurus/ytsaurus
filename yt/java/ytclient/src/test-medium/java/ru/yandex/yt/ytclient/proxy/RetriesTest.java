@@ -17,6 +17,7 @@ import ru.yandex.yt.ytclient.rpc.RpcRequestsTestingController;
 import ru.yandex.yt.ytclient.rpc.TestingOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertThrows;
 
 public class RetriesTest extends YtClientTestBase {
     @Test
@@ -38,10 +39,7 @@ public class RetriesTest extends YtClientTestBase {
                 .setFailoverPolicy(new RpcFailoverPolicy() {
                     @Override
                     public boolean onError(Throwable error) {
-                        if (error instanceof RpcError) {
-                            return true;
-                        }
-                        return false;
+                        return error instanceof RpcError;
                     }
 
                     @Override
@@ -68,13 +66,13 @@ public class RetriesTest extends YtClientTestBase {
 
             var existsRequests = rpcRequestsTestingController.getRequestsByMethod("ExistsNode");
             assertThat("One fail, one ok", existsRequests.size() == 2);
-            existsRequests.sort(Comparator.comparingLong(request -> request.getLeft().getStartTime()));
+            existsRequests.sort(Comparator.comparingLong(request -> request.getHeader().getStartTime()));
 
             assertThat("Different request ids",
-                    !existsRequests.get(0).getLeft().getRequestId().equals(existsRequests.get(1).getLeft().getRequestId()));
+                    !existsRequests.get(0).getHeader().getRequestId().equals(existsRequests.get(1).getHeader().getRequestId()));
 
-            assertThat("First without retry", !existsRequests.get(0).getLeft().getRetry());
-            assertThat("Second with retry", existsRequests.get(1).getLeft().getRetry());
+            assertThat("First without retry", !existsRequests.get(0).getHeader().getRetry());
+            assertThat("Second with retry", existsRequests.get(1).getHeader().getRetry());
         }
     }
 
@@ -97,10 +95,7 @@ public class RetriesTest extends YtClientTestBase {
                 .setFailoverPolicy(new RpcFailoverPolicy() {
                     @Override
                     public boolean onError(Throwable error) {
-                        if (error instanceof RpcError) {
-                            return true;
-                        }
-                        return false;
+                        return error instanceof RpcError;
                     }
 
                     @Override
@@ -127,18 +122,18 @@ public class RetriesTest extends YtClientTestBase {
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
             assertThat("One fail, one ok", createRequests.size() == 2);
-            createRequests.sort(Comparator.comparingLong(request -> request.getLeft().getStartTime()));
+            createRequests.sort(Comparator.comparingLong(request -> request.getHeader().getStartTime()));
 
             assertThat("Different request ids",
-                    !createRequests.get(0).getLeft().getRequestId().equals(createRequests.get(1).getLeft().getRequestId()));
+                    !createRequests.get(0).getHeader().getRequestId().equals(createRequests.get(1).getHeader().getRequestId()));
 
-            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getRight();
-            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getRight();
+            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getBody();
+            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getBody();
             assertThat("Same mutation id", firstCreateBody.getMutatingOptions().getMutationId().equals(
                     secondCreateBody.getMutatingOptions().getMutationId()));
 
-            assertThat("First without retry", !createRequests.get(0).getLeft().getRetry());
-            assertThat("Second with retry", createRequests.get(1).getLeft().getRetry());
+            assertThat("First without retry", !createRequests.get(0).getHeader().getRetry());
+            assertThat("Second with retry", createRequests.get(1).getHeader().getRetry());
         }
 
         // One successfully retry after two fails.
@@ -152,27 +147,27 @@ public class RetriesTest extends YtClientTestBase {
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
             assertThat("Two fails, one ok", createRequests.size() == 3);
-            createRequests.sort(Comparator.comparingLong(request -> request.getLeft().getStartTime()));
+            createRequests.sort(Comparator.comparingLong(request -> request.getHeader().getStartTime()));
 
             assertThat("Different request ids",
-                    !createRequests.get(0).getLeft().getRequestId().equals(createRequests.get(1).getLeft().getRequestId()));
+                    !createRequests.get(0).getHeader().getRequestId().equals(createRequests.get(1).getHeader().getRequestId()));
             assertThat("Different request ids",
-                    !createRequests.get(0).getLeft().getRequestId().equals(createRequests.get(2).getLeft().getRequestId()));
+                    !createRequests.get(0).getHeader().getRequestId().equals(createRequests.get(2).getHeader().getRequestId()));
             assertThat("Different request ids",
-                    !createRequests.get(1).getLeft().getRequestId().equals(createRequests.get(2).getLeft().getRequestId()));
+                    !createRequests.get(1).getHeader().getRequestId().equals(createRequests.get(2).getHeader().getRequestId()));
 
-            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getRight();
-            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getRight();
-            TReqCreateNode thirdCreateBody = (TReqCreateNode) createRequests.get(2).getRight();
+            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getBody();
+            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getBody();
+            TReqCreateNode thirdCreateBody = (TReqCreateNode) createRequests.get(2).getBody();
             assertThat("Same mutation id", firstCreateBody.getMutatingOptions().getMutationId().equals(
                     secondCreateBody.getMutatingOptions().getMutationId()) &&
                     firstCreateBody.getMutatingOptions().getMutationId().equals(
                             thirdCreateBody.getMutatingOptions().getMutationId())
             );
 
-            assertThat("First without retry", !createRequests.get(0).getLeft().getRetry());
-            assertThat("Second with retry", createRequests.get(1).getLeft().getRetry());
-            assertThat("Third with retry", createRequests.get(2).getLeft().getRetry());
+            assertThat("First without retry", !createRequests.get(0).getHeader().getRetry());
+            assertThat("Second with retry", createRequests.get(1).getHeader().getRetry());
+            assertThat("Third with retry", createRequests.get(2).getHeader().getRetry());
         }
 
         // Three fails.
@@ -182,35 +177,34 @@ public class RetriesTest extends YtClientTestBase {
             rpcRequestsTestingController.clear();
             outageController.addFails("CreateNode", 3, error100);
 
-            try {
-                yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
-                assertThat("Shouldn't have got here", false);
-            } catch (ExecutionException ex) {
-            }
+            assertThrows(
+                    ExecutionException.class,
+                    () -> yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS)
+            );
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
             assertThat("Three fails", createRequests.size() == 3);
-            createRequests.sort(Comparator.comparingLong(request -> request.getLeft().getStartTime()));
+            createRequests.sort(Comparator.comparingLong(request -> request.getHeader().getStartTime()));
 
             assertThat("Different request ids",
-                    !createRequests.get(0).getLeft().getRequestId().equals(createRequests.get(1).getLeft().getRequestId()));
+                    !createRequests.get(0).getHeader().getRequestId().equals(createRequests.get(1).getHeader().getRequestId()));
             assertThat("Different request ids",
-                    !createRequests.get(0).getLeft().getRequestId().equals(createRequests.get(2).getLeft().getRequestId()));
+                    !createRequests.get(0).getHeader().getRequestId().equals(createRequests.get(2).getHeader().getRequestId()));
             assertThat("Different request ids",
-                    !createRequests.get(1).getLeft().getRequestId().equals(createRequests.get(2).getLeft().getRequestId()));
+                    !createRequests.get(1).getHeader().getRequestId().equals(createRequests.get(2).getHeader().getRequestId()));
 
-            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getRight();
-            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getRight();
-            TReqCreateNode thirdCreateBody = (TReqCreateNode) createRequests.get(2).getRight();
+            TReqCreateNode firstCreateBody = (TReqCreateNode) createRequests.get(0).getBody();
+            TReqCreateNode secondCreateBody = (TReqCreateNode) createRequests.get(1).getBody();
+            TReqCreateNode thirdCreateBody = (TReqCreateNode) createRequests.get(2).getBody();
             assertThat("Same mutation id", firstCreateBody.getMutatingOptions().getMutationId().equals(
                     secondCreateBody.getMutatingOptions().getMutationId()) &&
                     firstCreateBody.getMutatingOptions().getMutationId().equals(
                             thirdCreateBody.getMutatingOptions().getMutationId())
             );
 
-            assertThat("First without retry", !createRequests.get(0).getLeft().getRetry());
-            assertThat("Second with retry", createRequests.get(1).getLeft().getRetry());
-            assertThat("Third with retry", createRequests.get(2).getLeft().getRetry());
+            assertThat("First without retry", !createRequests.get(0).getHeader().getRetry());
+            assertThat("Second with retry", createRequests.get(1).getHeader().getRetry());
+            assertThat("Third with retry", createRequests.get(2).getHeader().getRetry());
         }
     }
 

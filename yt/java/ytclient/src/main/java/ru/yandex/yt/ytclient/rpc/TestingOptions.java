@@ -14,7 +14,7 @@ public class TestingOptions {
     /**
      * @return controller if the client wants to enable the ability to have programmable errors.
      */
-    public OutageController getOutageController() {
+    public @Nullable OutageController getOutageController() {
         return outageController;
     }
 
@@ -30,7 +30,7 @@ public class TestingOptions {
     /**
      * @return requests testing controller.
      */
-    public RpcRequestsTestingController getRpcRequestsTestingController() {
+    public @Nullable RpcRequestsTestingController getRpcRequestsTestingController() {
         return this.rpcRequestsTestingController;
     }
 

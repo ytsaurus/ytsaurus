@@ -1,21 +1,18 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 
 public class RpcRequestsTestingController {
-    private Map<GUID, List<Pair<TRequestHeader, Object>>> requestIdToRequest = new HashMap<>();
-    private Map<String, List<GUID>> methodToRequestIds = new HashMap<>();
-    private List<GUID> startedTransactions = new ArrayList<>();
+    private final Map<GUID, List<CapturedRequest>> requestIdToRequest = new HashMap<>();
+    private final Map<String, List<GUID>> methodToRequestIds = new HashMap<>();
+    private final List<GUID> startedTransactions = new ArrayList<>();
 
     public void addRequest(TRequestHeader requestHeader, Object requestBody) {
         synchronized (this) {
@@ -23,7 +20,7 @@ public class RpcRequestsTestingController {
             if (!requestIdToRequest.containsKey(requestId)) {
                 requestIdToRequest.put(requestId, new ArrayList<>());
             }
-            requestIdToRequest.get(requestId).add(new ImmutablePair<>(requestHeader, requestBody));
+            requestIdToRequest.get(requestId).add(new CapturedRequest(requestHeader, requestBody));
 
             String method = requestHeader.getMethod();
             if (!methodToRequestIds.containsKey(method)) {
@@ -33,14 +30,14 @@ public class RpcRequestsTestingController {
         }
     }
 
-    public List<Pair<TRequestHeader, Object>> getRequestsByMethod(String method) {
+    public List<CapturedRequest> getRequestsByMethod(String method) {
         synchronized (this) {
             if (!methodToRequestIds.containsKey(method)) {
-                return Arrays.asList();
+                return Collections.emptyList();
             }
 
             List<GUID> requestIds = methodToRequestIds.get(method);
-            List<Pair<TRequestHeader, Object>> result = new ArrayList<>();
+            List<CapturedRequest> result = new ArrayList<>();
             for (GUID requestId : requestIds) {
                 result.addAll(requestIdToRequest.get(requestId));
             }
@@ -65,6 +62,24 @@ public class RpcRequestsTestingController {
         synchronized (this) {
             requestIdToRequest.clear();
             methodToRequestIds.clear();
+        }
+    }
+
+    public static class CapturedRequest {
+        private final TRequestHeader header;
+        private final Object body;
+
+        public CapturedRequest(TRequestHeader header, Object body) {
+            this.header = header;
+            this.body = body;
+        }
+
+        public TRequestHeader getHeader() {
+            return header;
+        }
+
+        public Object getBody() {
+            return body;
         }
     }
 }
