@@ -84,7 +84,7 @@ private:
         const std::vector<TString>& usageStatistics,
         const std::vector<EJobState>& jobStates,
         const std::function<double(const TUserJobSpecPtr&)>& getLimit,
-        const std::function<bool(i64, i64, double)>& needSetAlert,
+        const std::function<bool(TDuration, double, i64, double)>& needSetAlert,
         const TString& name,
         EOperationAlertType alertType,
         const TString& message)
@@ -134,7 +134,7 @@ private:
             TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
             double ratio = static_cast<double>(usage) / (totalExecutionTime * limit);
 
-            if (needSetAlert(totalExecutionTime, jobCount, ratio))
+            if (needSetAlert(totalExecutionDuration, limit, jobCount, ratio))
             {
                 auto error = TError("Jobs of task %Qlv use %.2f%% of requested %s limit", taskName, 100 * ratio, name)
                     << TErrorAttribute(Format("%s_time", name), usage)
@@ -446,10 +446,8 @@ private:
                 return jobSpec->CpuLimit;
             };
 
-            auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
-                TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
-                TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-
+            auto needSetAlert = [&] (TDuration totalExecutionDuration, double /*cpuLimit*/, i64 jobCount, double ratio) {
+                TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionDuration.MillisecondsFloat() / jobCount);
                 return totalExecutionDuration > Config_->LowCpuUsageAlertMinExecTime &&
                        averageJobDuration > Config_->LowCpuUsageAlertMinAverageJobTime &&
                        ratio < Config_->LowCpuUsageAlertCpuUsageThreshold;
@@ -474,8 +472,8 @@ private:
                 return jobSpec->CpuLimit;
             };
 
-            auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
-                TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
+            auto needSetAlert = [&] (TDuration totalExecutionDuration, double /*cpuLimit*/, i64 jobCount, double ratio) {
+                TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionDuration.MillisecondsFloat() / jobCount);
                 return averageJobDuration > Config_->HighCpuWaitAlertMinAverageJobTime &&
                        ratio > Config_->HighCpuWaitAlertThreshold;
             };
@@ -507,8 +505,9 @@ private:
         };
 
         {
-            auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-                return ratio < Config_->LowGpuUsageAlertGpuUsageThreshold;
+            auto needSetAlert = [&] (TDuration totalExecutionDuration, double gpuCount, i64 /*jobCount*/, double ratio) {
+                return totalExecutionDuration.SecondsFloat() * gpuCount > Config_->LowGpuUsageAlertMinTotalGpuDuration.SecondsFloat() &&
+                    ratio < Config_->LowGpuUsageAlertGpuUsageThreshold;
             };
 
             static const TString alertMessage =
@@ -526,8 +525,9 @@ private:
         }
 
         {
-            auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-                return ratio < Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold;
+            auto needSetAlert = [&] (TDuration totalExecutionDuration, double gpuCount, i64 /*jobCount*/, double ratio) {
+                return totalExecutionDuration.SecondsFloat() * gpuCount > Config_->LowGpuUsageAlertMinTotalGpuDuration.SecondsFloat() &&
+                    ratio < Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold;
             };
 
             static const TString alertMessage = Format(
