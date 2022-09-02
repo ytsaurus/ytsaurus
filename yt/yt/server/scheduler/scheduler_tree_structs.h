@@ -8,6 +8,18 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(eshcherbin): This file consists only of segment-specific structs.
+// Remove or rename it, when segments are fully inside strategy.
+struct TSetNodeSchedulingSegmentOptions
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    ESchedulingSegment Segment = ESchedulingSegment::Default;
+};
+
+using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTreeSchedulingSegmentsState
 {
     ESegmentedSchedulingMode Mode = ESegmentedSchedulingMode::Disabled;

@@ -153,9 +153,24 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     return result;
 }
 
+TFuture<void> TSchedulerStrategyHost::UpdateExecNodeDescriptorsOutOfBand()
+{
+    YT_UNIMPLEMENTED();
+}
+
 void TSchedulerStrategyHost::AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
+}
+
+void TSchedulerStrategyHost::SetSchedulingSegmentsForNodes(NScheduler::TSetNodeSchedulingSegmentOptionsList /*nodesWithNewSegments*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+void TSchedulerStrategyHost::UpdateOperationSchedulingSegmentModules(const THashMap<TString, NScheduler::TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& /*mediumName*/) const
@@ -267,6 +282,9 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
 }
 
 void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
+{ }
+
+void TSchedulerStrategyHost::InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr /*persistentSegmentsState*/)
 { }
 
 TFuture<void> TSchedulerStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)

@@ -313,12 +313,6 @@ public:
             Config_->OperationsDestroyPeriod);
         OperationsDestroyerExecutor_->Start();
 
-        SchedulingSegmentsManagerExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
-            BIND(&TImpl::ManageSchedulingSegments, MakeWeak(this)),
-            Config_->SchedulingSegmentsManagePeriod);
-        SchedulingSegmentsManagerExecutor_->Start();
-
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
@@ -379,7 +373,7 @@ public:
         return combinedOrchidService;
     }
 
-    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors()
+    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1693,6 +1687,11 @@ public:
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
 
+    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState) override
+    {
+        MasterConnector_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
+    }
+
     TFuture<void> UpdateLastMeteringLogTime(TInstant time) override
     {
         if (Config_->UpdateLastMeteringLogTime) {
@@ -1781,7 +1780,6 @@ private:
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
-    TPeriodicExecutorPtr SchedulingSegmentsManagerExecutor_;
 
     TString ServiceAddress_;
 
@@ -1809,8 +1807,6 @@ private:
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
     std::vector<TOperationPtr> OperationsToDestroy_;
-
-    TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
     THashMap<TString, TString> UserToDefaultPoolMap_;
 
@@ -1993,8 +1989,6 @@ private:
             YT_LOG_INFO("Connecting node manager");
 
             auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
-            NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
-
             // TODO(eshcherbin): Rename to OnMasterHandshake?
             NodeManager_->OnMasterConnected(result, segmentsInitializationDeadline);
         }
@@ -2052,7 +2046,6 @@ private:
 
         TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
         TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
-        NodeSchedulingSegmentManager_.SetProfilingEnabled(true);
 
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
             return NodeManager_->GetActiveJobCount();
@@ -2077,7 +2070,6 @@ private:
     {
         TotalResourceLimitsProfiler_.Reset();
         TotalResourceUsageProfiler_.Reset();
-        NodeSchedulingSegmentManager_.SetProfilingEnabled(false);
 
         {
             auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
@@ -2408,7 +2400,6 @@ private:
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
-            SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
                 OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
@@ -2558,11 +2549,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TRefCountedExecNodeDescriptorMapPtr descriptors;
-        {
-            auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
-            descriptors = CachedExecNodeDescriptors_;
-        }
+        auto descriptors = GetCachedExecNodeDescriptors();
 
         if (filter.IsEmpty()) {
             return descriptors;
@@ -2571,10 +2558,19 @@ private:
         auto result = New<TRefCountedExecNodeDescriptorMap>();
         for (const auto& [nodeId, descriptor] : *descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
-                YT_VERIFY(result->emplace(descriptor.Id, descriptor).second);
+                EmplaceOrCrash(*result, descriptor.Id, descriptor);
             }
         }
         return result;
+    }
+
+    // NB(eshcherbin): Temporary, remove when scheduling segment are fully inside strategy.
+    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        UpdateExecNodeDescriptorsExecutor_->ScheduleOutOfBand();
+        return UpdateExecNodeDescriptorsExecutor_->GetExecutedEvent();
     }
 
     TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const
@@ -2599,6 +2595,11 @@ private:
     void AbortJobsAtNode(TNodeId nodeId, EAbortReason reason) override
     {
         NodeManager_->AbortJobsAtNode(nodeId, reason);
+    }
+
+    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) override
+    {
+        NodeManager_->SetSchedulingSegmentsForNodes(std::move(nodesWithNewSegments));
     }
 
     void DoStartOperation(const TOperationPtr& operation)
@@ -4038,36 +4039,15 @@ private:
         }
     }
 
-    void ManageSchedulingSegments()
+    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!IsConnected()) {
-            return;
+        THashMap<TString, int> updateCountPerTree(updatesPerTree.size());
+        for (const auto& [treeId, updates] : updatesPerTree) {
+            updateCountPerTree.emplace(treeId, updates.size());
         }
 
-        PersistOperationSchedulingSegmentModules();
-
-        ManageNodeSchedulingSegments();
-    }
-
-    // TODO(eshcherbin): Think about storing module in runtime parameters only.
-    // Current implementation has a lag between operation module assignment and persisting this
-    // decision by updating runtime parameters at the master. This lag is acceptable and is left for
-    // implementation simplicity and code readability purposes.
-    void PersistOperationSchedulingSegmentModules()
-    {
-        auto updatesPerTree = Strategy_->GetOperationSchedulingSegmentModuleUpdates();
-
-        {
-            THashMap<TString, int> updateCountPerTree(updatesPerTree.size());
-            for (const auto& [treeId, updates] : updatesPerTree) {
-                updateCountPerTree.emplace(treeId, updates.size());
-            }
-
-            YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (UpdateCountPerTree: %v)",
-                updateCountPerTree);
-        }
+        YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (UpdateCountPerTree: %v)",
+            updateCountPerTree);
 
         for (const auto& [treeId, updates] : updatesPerTree) {
             for (const auto& [operationId, newModule] : updates) {
@@ -4079,60 +4059,6 @@ private:
                 }
             }
         }
-    }
-
-    void ManageNodeSchedulingSegments()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_DEBUG("Started managing node scheduling segments");
-
-        TManageNodeSchedulingSegmentsContext context;
-        context.Now = TInstant::Now();
-        context.StrategySegmentsState = Strategy_->GetStrategySchedulingSegmentsState();
-        context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
-
-        for (const auto& [treeId, nodeIds] : Strategy_->GetNodeIdsPerTree()) {
-            std::vector<TNodeId> nodeIdsWithDescriptors;
-            for (auto nodeId : nodeIds) {
-                if (context.ExecNodeDescriptors->contains(nodeId)) {
-                    nodeIdsWithDescriptors.push_back(nodeId);
-                }
-            }
-
-            EmplaceOrCrash(context.NodeIdsPerTree, treeId, std::move(nodeIdsWithDescriptors));
-        }
-
-        NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
-
-        TError error;
-        if (!context.Errors.empty()) {
-            error = TError("Found errors during node scheduling segments management")
-                << std::move(context.Errors);
-        }
-        SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
-
-        if (!context.MovedNodes.empty()) {
-            YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
-                std::ssize(context.MovedNodes));
-
-            NodeManager_->SetSchedulingSegmentsForNodes(std::move(context.MovedNodes));
-
-            // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
-            UpdateExecNodeDescriptorsExecutor_->ScheduleOutOfBand();
-            WaitFor(UpdateExecNodeDescriptorsExecutor_->GetExecutedEvent())
-                .ThrowOnError();
-
-            context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
-        }
-
-        if (context.Now > NodeSchedulingSegmentManager_.GetNodeSegmentsInitializationDeadline()) {
-            auto segmentsState = New<TPersistentSchedulingSegmentsState>();
-            segmentsState->NodeStates = NodeSchedulingSegmentManager_.BuildPersistentNodeSegmentsState(&context);
-            MasterConnector_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
-        }
-
-        YT_LOG_DEBUG("Finished managing node scheduling segments");
     }
 
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override

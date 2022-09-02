@@ -55,8 +55,11 @@ public:
 
     NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
+    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override;
 
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
+    void SetSchedulingSegmentsForNodes(NScheduler::TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) override;
+    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, NScheduler::TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
     const TString& GetMediumNameByIndex(int mediumIndex) const override;
@@ -104,6 +107,7 @@ public:
     int GetDefaultAbcId() const override;
 
     void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
+    void InvokeStoringSchedulingSegmentsState(NScheduler::TPersistentSchedulingSegmentsStatePtr persistentSegmentsState) override;
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time) override;
 

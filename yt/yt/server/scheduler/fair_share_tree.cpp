@@ -221,6 +221,7 @@ public:
     TFairShareTree(
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+        IFairShareTreeHost* host,
         ISchedulerStrategyHost* strategyHost,
         const std::vector<IInvokerPtr>& feasibleInvokers,
         TString treeId)
@@ -231,11 +232,17 @@ public:
             treeId,
             Config_->SparsifyFairShareProfiling,
             strategyHost->GetFairShareProfilingInvoker()))
+        , Host_(host)
         , StrategyHost_(strategyHost)
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeJobScheduler>(TreeId_, Logger, StrategyHost_, Config_, TreeProfiler_->GetProfiler()))
+        , TreeScheduler_(New<TFairShareTreeJobScheduler>(
+            TreeId_,
+            Logger,
+            StrategyHost_,
+            Config_,
+            TreeProfiler_->GetProfiler()))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
@@ -904,16 +911,7 @@ public:
         return *element->SchedulingSegment();
     }
 
-    TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        return TreeSnapshot_
-            ? TreeSnapshot_->SchedulingSnapshot()->SchedulingSegmentsState()
-            : TTreeSchedulingSegmentsState{};
-    }
-
-    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
+    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -927,6 +925,22 @@ public:
         }
 
         return result;
+    }
+
+    TFuture<TManageSchedulingSegmentsResult> ManageSchedulingSegments() override
+    {
+        // TODO(eshcherbin): Maybe job scheduler should be notified of all node updates instead of passing full set of nodes here?
+        auto future = BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, TreeScheduler_, GetTreeSnapshot(), Host_->GetTreeNodeIds(TreeId_))
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+        return future.ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::pair<TSetNodeSchedulingSegmentOptionsList, TError>&& nodeResult) {
+            auto& [movedNodes, error] = nodeResult;
+            return TManageSchedulingSegmentsResult{
+                .MovedNodes = std::move(movedNodes),
+                .OperationSchedulingSegmentModuleUpdates = GetOperationSchedulingSegmentModuleUpdates(),
+                .Error = std::move(error),
+            };
+        }));
     }
 
     std::vector<TString> GetAncestorPoolNames(const TSchedulerOperationElement* element) const
@@ -1135,6 +1149,7 @@ private:
     TResourceTreePtr ResourceTree_;
     TFairShareTreeProfileManagerPtr TreeProfiler_;
 
+    IFairShareTreeHost* const Host_;
     ISchedulerStrategyHost* const StrategyHost_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -2964,6 +2979,7 @@ private:
 IFairShareTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    IFairShareTreeHost* host,
     ISchedulerStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId)
@@ -2971,6 +2987,7 @@ IFairShareTreePtr CreateFairShareTree(
     return New<TFairShareTree>(
         std::move(config),
         std::move(controllerConfig),
+        host,
         strategyHost,
         std::move(feasibleInvokers),
         std::move(treeId));

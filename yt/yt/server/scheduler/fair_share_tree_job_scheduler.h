@@ -615,6 +615,10 @@ public:
         const TJobResources& jobResources);
     EJobPreemptionStatus GetJobPreemptionStatusInTest(const TSchedulerOperationElement* element, TJobId jobId) const;
 
+    std::pair<TSetNodeSchedulingSegmentOptionsList, TError> ManageNodeSchedulingSegments(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const THashSet<NNodeTrackerClient::TNodeId>& treeNodeIds);
+
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
@@ -643,6 +647,8 @@ private:
     TCachedJobPreemptionStatuses CachedJobPreemptionStatuses_;
 
     std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
+
+    TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

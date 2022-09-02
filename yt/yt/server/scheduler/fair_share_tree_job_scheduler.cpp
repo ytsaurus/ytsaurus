@@ -1,6 +1,8 @@
 #include "fair_share_tree_job_scheduler.h"
 #include "fair_share_tree_job_scheduler_operation_shared_state.h"
+#include "fair_share_tree.h"
 #include "scheduling_context.h"
+#include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -9,7 +11,9 @@
 
 namespace NYT::NScheduler {
 
+using namespace NConcurrency;
 using namespace NControllerAgent;
+using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NYTree;
 
@@ -2097,6 +2101,7 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , Profiler_(std::move(profiler))
     , CumulativeScheduleJobsTime_(Profiler_.TimeCounter("/cumulative_schedule_jobs_time"))
     , ScheduleJobsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
+    , NodeSchedulingSegmentManager_(TreeId_, Logger, Profiler_)
 {
     InitSchedulingStages();
 
@@ -3055,6 +3060,34 @@ std::optional<bool> TFairShareTreeJobScheduler::IsAggressivePreemptionAllowed(co
             return {};
         }
     }
+}
+
+std::pair<TSetNodeSchedulingSegmentOptionsList, TError> TFairShareTreeJobScheduler::ManageNodeSchedulingSegments(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const THashSet<TNodeId>& treeNodeIds)
+{
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+
+    YT_LOG_DEBUG("Started managing node scheduling segments");
+
+    TManageNodeSchedulingSegmentsContext context;
+    context.Now = TInstant::Now();
+    if (treeSnapshot) {
+        context.TreeSegmentsState = treeSnapshot->SchedulingSnapshot()->SchedulingSegmentsState();
+    }
+    context.ExecNodeDescriptors = StrategyHost_->CalculateExecNodeDescriptors();
+
+    for (auto nodeId : treeNodeIds) {
+        if (context.ExecNodeDescriptors->contains(nodeId)) {
+            context.TreeNodeIds.push_back(nodeId);
+        }
+    }
+
+    NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
+
+    YT_LOG_DEBUG("Finished managing node scheduling segments");
+
+    return {std::move(context.MovedNodes), std::move(context.Error)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

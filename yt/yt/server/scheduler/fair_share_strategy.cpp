@@ -48,6 +48,7 @@ using namespace NSecurityClient;
 
 class TFairShareStrategy
     : public ISchedulerStrategy
+    , public IFairShareTreeHost
 {
 public:
     TFairShareStrategy(
@@ -93,6 +94,11 @@ public:
             Host_->GetFairShareUpdateInvoker(),
             BIND(&TFairShareStrategy::OnUpdateResourceUsages, MakeWeak(this)),
             Config_->ResourceUsageSnapshotUpdatePeriod);
+
+        SchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
+            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
+            BIND(&TFairShareStrategy::ManageSchedulingSegments, MakeWeak(this)),
+            Config_->SchedulingSegmentsManagePeriod);
     }
 
     void OnUpdateResourceUsages()
@@ -107,6 +113,7 @@ public:
     {
         LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
         ConnectionTime_ = TInstant::Now();
+        NodeSegmentsInitializationDeadline_ = ConnectionTime_ + Config_->SchedulingSegmentsInitializationTimeout;
     }
 
     void OnMasterConnected() override
@@ -120,6 +127,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
+        SchedulingSegmentsManagementExecutor_->Start();
     }
 
     void OnMasterDisconnected() override
@@ -133,6 +141,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Stop();
         ResourceMeteringExecutor_->Stop();
         ResourceUsageUpdateExecutor_->Stop();
+        SchedulingSegmentsManagementExecutor_->Stop();
 
         OperationIdToOperationState_.clear();
         SnapshottedIdToTree_.Exchange(THashMap<TString, IFairShareTreePtr>());
@@ -527,6 +536,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
+        SchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
     }
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
@@ -1094,11 +1104,11 @@ public:
             }));
     }
 
-    const THashMap<TString, THashSet<TNodeId>>& GetNodeIdsPerTree() const override
+    const THashSet<TNodeId>& GetTreeNodeIds(const TString& treeId) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        return NodeIdsPerTree_;
+        return GetOrCrash(NodeIdsPerTree_, treeId);
     }
 
     TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
@@ -1222,33 +1232,6 @@ public:
         return TError();
     }
 
-    TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        TStrategySchedulingSegmentsState result;
-        for (const auto& [treeId, tree] : IdToTree_) {
-            YT_VERIFY(result.TreeStates.emplace(treeId, tree->GetSchedulingSegmentsState()).second);
-        }
-
-        return result;
-    }
-
-    THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> result;
-        for (const auto& [treeId, tree] : IdToTree_) {
-            auto updates = tree->GetOperationSchedulingSegmentModuleUpdates();
-            if (!updates.empty()) {
-                YT_VERIFY(result.emplace(treeId, std::move(updates)).second);
-            }
-        }
-
-        return result;
-    }
-
     void ScanPendingOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -1309,6 +1292,7 @@ private:
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
+    TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
@@ -1338,6 +1322,8 @@ private:
     THashSet<TString> NodeAddresses_;
     THashMap<TString, THashSet<TNodeId>> NodeIdsPerTree_;
     THashSet<TNodeId> NodeIdsWithoutTree_;
+
+    TInstant NodeSegmentsInitializationDeadline_;
 
     struct TPoolTreeDescription
     {
@@ -1665,7 +1651,7 @@ private:
                 continue;
             }
 
-            auto tree = CreateFairShareTree(treeConfig, Config_, Host_, FeasibleInvokers_, treeId);
+            auto tree = CreateFairShareTree(treeConfig, Config_, this, Host_, FeasibleInvokers_, treeId);
             tree->SubscribeOperationRunning(BIND_NO_PROPAGATE(
                 &TFairShareStrategy::OnOperationRunningInTree,
                 Unretained(this),
@@ -2091,6 +2077,98 @@ private:
                     ConvertToYsonString(treeState, EYsonFormat::Text));
             }
         }
+    }
+
+    void ManageSchedulingSegments()
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        std::vector<TFuture<std::pair<TManageSchedulingSegmentsResult, TString>>> futures;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            futures.push_back(tree->ManageSchedulingSegments()
+                .ApplyUnique(BIND([treeId = treeId] (TManageSchedulingSegmentsResult&& result) {
+                    return std::make_pair(std::move(result), std::move(treeId));
+                })));
+        }
+
+        auto resultsOrError = WaitFor(AllSucceeded(futures));
+        if (!resultsOrError.IsOK()) {
+            // NB(eshcherbin): We don't really expect any errors here.
+            auto error = TError("Scheduling segment management failed")
+                << resultsOrError;
+            Host_->SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
+
+            return;
+        }
+
+        TSetNodeSchedulingSegmentOptionsList movedNodes;
+        THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> operationModuleUpdatesPerTree;
+        std::vector<TError> errors;
+        for (auto&& [treeResult, treeId] : resultsOrError.Value()) {
+            auto& [treeMovedNodes, treeModuleUpdates, treeError] = treeResult;
+            for (auto movedNode : treeMovedNodes) {
+                movedNodes.push_back(movedNode);
+            }
+            EmplaceOrCrash(operationModuleUpdatesPerTree, std::move(treeId), std::move(treeModuleUpdates));
+            if (!treeError.IsOK()) {
+                errors.push_back(std::move(treeError));
+            }
+        }
+
+        TError error;
+        if (!errors.empty()) {
+            error = TError("Found errors during node scheduling segments management")
+                << std::move(errors);
+        }
+        Host_->SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
+
+        if (!movedNodes.empty()) {
+            YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
+                movedNodes.size());
+
+            Host_->SetSchedulingSegmentsForNodes(std::move(movedNodes));
+
+            // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
+            WaitFor(Host_->UpdateExecNodeDescriptorsOutOfBand())
+                .ThrowOnError();
+        }
+
+        Host_->UpdateOperationSchedulingSegmentModules(operationModuleUpdatesPerTree);
+        if (TInstant::Now() > NodeSegmentsInitializationDeadline_) {
+            auto segmentsState = New<TPersistentSchedulingSegmentsState>();
+            segmentsState->NodeStates = BuildPersistentNodeSchedulingSegmentsState();
+
+            Host_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
+        }
+    }
+
+    TPersistentNodeSchedulingSegmentStateMap BuildPersistentNodeSchedulingSegmentsState() const
+    {
+        TPersistentNodeSchedulingSegmentStateMap nodeStates;
+        auto execNodeDescriptors = Host_->CalculateExecNodeDescriptors();
+        for (auto [nodeId, strategyDescriptor] : NodeIdToDescriptor_) {
+            auto it = execNodeDescriptors->find(nodeId);
+            if (it == execNodeDescriptors->end() || !strategyDescriptor.TreeId) {
+                // NB(eshcherbin): This should not happen usually but the exec node descriptors map here might differ
+                // from the one used for rebalancing, because we need to update the segments at the moved nodes.
+                // So I don't want to put any hard constraints here.
+                continue;
+            }
+            const auto& node = it->second;
+
+            if (node.SchedulingSegment != ESchedulingSegment::Default) {
+                EmplaceOrCrash(
+                    nodeStates,
+                    nodeId,
+                    TPersistentNodeSchedulingSegmentState{
+                        .Segment = node.SchedulingSegment,
+                        .Address = strategyDescriptor.Address,
+                        .Tree = *strategyDescriptor.TreeId,
+                    });
+            }
+        }
+
+        return nodeStates;
     }
 
     class TPoolTreeService

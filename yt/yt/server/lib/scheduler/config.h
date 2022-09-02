@@ -470,6 +470,9 @@ public:
     //! Template pool tree configs.
     THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
 
+    TDuration SchedulingSegmentsManagePeriod;
+    TDuration SchedulingSegmentsInitializationTimeout;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
     static void Register(TRegistrar registrar);
@@ -866,9 +869,6 @@ public:
 
     //! Config for some resource metering defaults.
     TResourceMeteringConfigPtr ResourceMetering;
-
-    TDuration SchedulingSegmentsManagePeriod;
-    TDuration SchedulingSegmentsInitializationTimeout;
 
     //! All registered scheduler experiments keyed by experiment names.
     THashMap<TString, TExperimentConfigPtr> Experiments;
