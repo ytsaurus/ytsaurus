@@ -13,6 +13,8 @@
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
+#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/scheduler/operation_cache.h>
@@ -616,11 +618,11 @@ private:
 
                 cookie.EndInsert(New<TCachedDiscovery>(
                     OperationId_,
-                    config,
-                    Client_,
-                    ControlInvoker_,
-                    std::vector<TString>{"host", "http_port", "job_cookie"},
-                    Logger));
+                    CreateDiscoveryV1(config,
+                        Client_,
+                        ControlInvoker_,
+                        std::vector<TString>{"host", "http_port", "job_cookie"},
+                        Logger)));
 
                 YT_LOG_DEBUG("New discovery inserted to the cache (OperationId: %v)", OperationId_);
             }
@@ -651,8 +653,8 @@ private:
             }
 
             YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
-            Discovery_->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
-            auto updatedFuture = Discovery_->UpdateList(
+            Discovery_->Discovery()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
+            auto updatedFuture = Discovery_->Discovery()->UpdateList(
                 forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
                 YT_LOG_DEBUG("Waiting for discovery");
@@ -664,7 +666,7 @@ private:
                 YT_LOG_DEBUG("Discovery updated");
             }
 
-            auto instances = Discovery_->List();
+            auto instances = Discovery_->Discovery()->List();
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
                 PushError(TError("Clique %v has no running instances", OperationIdOrAlias_));
@@ -883,7 +885,7 @@ private:
                 << TErrorAttribute("proxy_retry_index", retryIndex));
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             BannedCounter_.Increment();
-            Discovery_->Ban(InstanceId_);
+            Discovery_->Discovery()->Ban(InstanceId_);
             return false;
         }
     }
