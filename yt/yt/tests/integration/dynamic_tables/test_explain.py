@@ -169,7 +169,7 @@ class TestExplainQuery(YTEnvSetup):
         sync_mount_table("//tmp/t")
 
         response = explain_query("* from [//tmp/t] where a < b AND b > c")
-        assert response["query"]["where_expression"] == "(a < b) AND (b > c)"
+        assert response["query"]["where_expression"] == "a < b AND b > c"
 
     @authors("avmatrosov")
     def test_explain_limits(self):

@@ -881,12 +881,52 @@ struct TAbstractExpressionPrinter
         , OmitValues(omitValues)
     { }
 
+    static int GetOpPriority(EBinaryOp op)
+    {
+        switch (op) {
+        case EBinaryOp::Multiply:
+        case EBinaryOp::Divide:
+        case EBinaryOp::Modulo:
+            return 0;
+
+        case EBinaryOp::Plus:
+        case EBinaryOp::Minus:
+            return 1;
+
+        case EBinaryOp::LeftShift:
+        case EBinaryOp::RightShift:
+            return 2;
+
+        case EBinaryOp::BitAnd:
+            return 3;
+
+        case EBinaryOp::BitOr:
+            return 4;
+        
+        case EBinaryOp::Equal:
+        case EBinaryOp::NotEqual:
+        case EBinaryOp::Less:
+        case EBinaryOp::LessOrEqual:
+        case EBinaryOp::Greater:
+        case EBinaryOp::GreaterOrEqual:
+            return 5;
+
+        case EBinaryOp::And:
+            return 6;
+        
+        case EBinaryOp::Or:
+            return 7;
+        }
+    }
+
     static bool CanOmitParenthesis(TConstExpressionPtr expr)
     {
         return
             expr->As<TLiteralExpression>() ||
             expr->As<TReferenceExpression>() ||
-            expr->As<TFunctionExpression>();
+            expr->As<TFunctionExpression>() ||
+            expr->As<TUnaryOpExpression>() ||
+            expr->As<TTransformExpression>();
     };
 
     const TExpression* GetExpression(const TConstExpressionPtr& expr)
@@ -963,6 +1003,14 @@ struct TAbstractExpressionPrinter
     {
         auto needParenthesisLhs = !CanOmitParenthesis(binaryExpr->Lhs);
         if (needParenthesisLhs) {
+            if (const auto* lhs = binaryExpr->Lhs->As<TBinaryOpExpression>()) {
+                if (GetOpPriority(lhs->Opcode) <= GetOpPriority(binaryExpr->Opcode)) {
+                    needParenthesisLhs = false;
+                }
+            }
+        }
+
+        if (needParenthesisLhs) {
             Builder->AppendChar('(');
         }
         Derived()->OnLhs(binaryExpr, args...);
@@ -975,6 +1023,14 @@ struct TAbstractExpressionPrinter
         Builder->AppendChar(' ');
 
         auto needParenthesisRhs = !CanOmitParenthesis(binaryExpr->Rhs);
+        if (needParenthesisRhs) {
+            if (const auto* rhs = binaryExpr->Rhs->As<TBinaryOpExpression>()) {
+                if (GetOpPriority(rhs->Opcode) <= GetOpPriority(binaryExpr->Opcode)) {
+                    needParenthesisRhs = false;
+                }
+            }
+        }
+        
         if (needParenthesisRhs) {
             Builder->AppendChar('(');
         }
@@ -1113,11 +1169,16 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
 void FromProto(TDataSource* original, const NProto::TDataSource& serialized);
 
+struct TInferNameOptions
+{
+    bool OmitValues = false;
+    bool OmitAliases = false;
+    bool OmitJoinPredicate = false;
+    bool OmitOffsetAndLimit = false;
+};
+
 TString InferName(TConstExpressionPtr expr, bool omitValues = false);
-TString InferName(TConstBaseQueryPtr query,
-    bool omitValues = false,
-    bool omitAliases = false,
-    bool omitJoinPredicate = false);
+TString InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
 
 bool Compare(
     TConstExpressionPtr lhs,

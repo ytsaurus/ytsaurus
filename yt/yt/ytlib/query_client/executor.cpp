@@ -424,7 +424,7 @@ private:
             req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
         }
 
-        auto queryFingerprint = InferName(query, true);
+        auto queryFingerprint = InferName(query, {.OmitValues = true});
         YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
             "RequestSize: %v)",
             queryFingerprint,

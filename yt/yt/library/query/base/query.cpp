@@ -67,20 +67,20 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
     return builder.Flush();
 }
 
-TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases, bool omitJoinPredicate)
+TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
 {
     auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-        builder->AppendString(InferName(item.Expression, omitValues));
-        if (!omitAliases) {
+        builder->AppendString(InferName(item.Expression, options.OmitValues));
+        if (!options.OmitAliases) {
             builder->AppendFormat("%v AS %v",
-                InferName(item.Expression, omitValues),
+                InferName(item.Expression, options.OmitValues),
                 item.Name);
         }
     };
 
     auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
         builder->AppendFormat("%v %v",
-            InferName(item.first, omitValues),
+            InferName(item.first, options.OmitValues),
             item.second ? "DESC" : "ASC");
     };
 
@@ -99,35 +99,38 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases, b
         for (const auto& joinClause : derivedQuery->JoinClauses) {
             std::vector<TString> selfJoinEquation;
             for (const auto& equation : joinClause->SelfEquations) {
-                selfJoinEquation.push_back(InferName(equation.first, omitValues));
+                selfJoinEquation.push_back(InferName(equation.first, options.OmitValues));
             }
             std::vector<TString> foreignJoinEquation;
             for (const auto& equation : joinClause->ForeignEquations) {
-                foreignJoinEquation.push_back(InferName(equation, omitValues));
+                foreignJoinEquation.push_back(InferName(equation, options.OmitValues));
             }
 
             clauses.push_back(Format(
-                "%v JOIN[common prefix: %v, foreign prefix: %v] (%v) = (%v)",
+                "%v JOIN[common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
                 joinClause->IsLeft ? "LEFT" : "INNER",
                 joinClause->CommonKeyPrefix,
                 joinClause->ForeignKeyPrefix,
                 JoinToString(selfJoinEquation),
                 JoinToString(foreignJoinEquation)));
 
-            if (joinClause->Predicate && !omitJoinPredicate) {
-                clauses.push_back("AND " + InferName(joinClause->Predicate, omitValues));
+            if (joinClause->Predicate && !options.OmitJoinPredicate) {
+                clauses.push_back("AND " + InferName(joinClause->Predicate, options.OmitValues));
             }
         }
 
         if (derivedQuery->WhereClause) {
-            clauses.push_back(TString("WHERE ") + InferName(derivedQuery->WhereClause, omitValues));
+            clauses.push_back(TString("WHERE ") + InferName(derivedQuery->WhereClause, options.OmitValues));
         }
     }
 
     if (query->GroupClause) {
-        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v] %v",
+        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v, aggregates: [%v]] %v",
             query->GroupClause->CommonPrefixWithPrimaryKey,
             query->UseDisjointGroupBy,
+            MakeFormattableView(query->GroupClause->AggregateItems, [] (auto* builder, const auto& item) {
+                builder->AppendString(item.AggregateFunction);
+            }),
             JoinToString(query->GroupClause->GroupItems, namedItemFormatter)));
         if (query->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
             clauses.push_back("WITH TOTALS");
@@ -135,7 +138,7 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases, b
     }
 
     if (query->HavingClause) {
-        clauses.push_back(TString("HAVING ") + InferName(query->HavingClause, omitValues));
+        clauses.push_back(TString("HAVING ") + InferName(query->HavingClause, options.OmitValues));
         if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
             clauses.push_back("WITH TOTALS");
         }
@@ -148,8 +151,8 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases, b
 
 
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        clauses.push_back(TString("OFFSET ") + (omitValues ? "?" : ToString(query->Offset)));
-        clauses.push_back(TString("LIMIT ") + (omitValues ? "?" : ToString(query->Limit)));
+        clauses.push_back(TString("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
+        clauses.push_back(TString("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
     }
 
     return JoinToString(clauses, TStringBuf(" "));

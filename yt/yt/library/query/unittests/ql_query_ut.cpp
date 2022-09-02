@@ -554,6 +554,109 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
+{
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("kind", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+            TColumnSchema("type", EValueType::String).SetRequired(false),
+            TColumnSchema("ride_date", EValueType::String).SetRequired(true),
+            TColumnSchema("ride_time", EValueType::String).SetRequired(true),
+            TColumnSchema("log_time", EValueType::String).SetRequired(true),
+            TColumnSchema("rover", EValueType::String).SetRequired(true),
+            TColumnSchema("timestamp", EValueType::Int64).SetRequired(true),
+            TColumnSchema("_key", EValueType::String).SetRequired(false),
+            TColumnSchema("attributes", EValueType::Any).SetRequired(false),
+            TColumnSchema("comment", EValueType::String).SetRequired(false),
+            TColumnSchema("created_at", EValueType::Uint64).SetRequired(false),
+            TColumnSchema("duration", EValueType::Int64).SetRequired(false),
+            TColumnSchema("geo", EValueType::Any).SetRequired(false),
+            TColumnSchema("ignore", EValueType::Boolean).SetRequired(false),
+            TColumnSchema("investigation_status", EValueType::String).SetRequired(false),
+            TColumnSchema("place", EValueType::Any).SetRequired(false),
+            TColumnSchema("severity", EValueType::String).SetRequired(false),
+            TColumnSchema("status", EValueType::String).SetRequired(false),
+            TColumnSchema("tags", EValueType::Any).SetRequired(false),
+            TColumnSchema("tickets", EValueType::Any).SetRequired(false),
+            TColumnSchema("updated_at", EValueType::Uint64).SetRequired(false)
+        });
+
+        dataSplit.TableSchema = schema;
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//a"))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("ride_date", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+            TColumnSchema("ride_time", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+            TColumnSchema("log_time", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+            TColumnSchema("rover", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+            TColumnSchema("git_branch", EValueType::String).SetRequired(false),
+            TColumnSchema("profile", EValueType::String).SetRequired(false),
+            TColumnSchema("track", EValueType::String).SetRequired(false),
+            TColumnSchema("flag_hardtest", EValueType::Boolean).SetRequired(false),
+            TColumnSchema("ride_tags", EValueType::Any).SetRequired(false)
+        });
+
+        dataSplit.TableSchema = schema;
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//b"))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    llvm::FoldingSetNodeID id1;
+    {
+        TString queryString = 
+        R"(
+            *
+            FROM [//a] e
+            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover) 
+            WHERE
+            if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
+            ORDER BY e._key DESC OFFSET 0 LIMIT 200
+        )";
+        
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        TCGVariables variables;
+        Profile(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    llvm::FoldingSetNodeID id2;
+    {
+        TString queryString = 
+        R"(
+            *
+            FROM [//a] e
+            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover) 
+            WHERE 
+            (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
+            ORDER BY e._key DESC OFFSET 0 LIMIT 200
+        )";
+        
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        TCGVariables variables;
+        Profile(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    EXPECT_EQ(id1, id2);
+}
+
 TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 {
     {

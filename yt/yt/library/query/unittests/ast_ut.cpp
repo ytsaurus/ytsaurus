@@ -21,8 +21,8 @@ protected:
         auto parsedSource1 = ParseSource(source, EParseMode::Expression);
         auto formattedSource = FormatExpression(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Expression);
-        Cout << source << " -> " << formattedSource << Endl;
-        EXPECT_TRUE(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast) == *std::get<TExpressionPtr>(parsedSource2->AstHead.Ast));
+        EXPECT_TRUE(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast) == *std::get<TExpressionPtr>(parsedSource2->AstHead.Ast))
+            << source << " -> " << formattedSource;
     }
 
     void TestQuery(const TString& source)
@@ -30,8 +30,8 @@ protected:
         auto parsedSource1 = ParseSource(source, EParseMode::Query);
         auto formattedSource = FormatQuery(std::get<TQuery>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Query);
-        Cout << source << " -> " << formattedSource << Endl;
-        EXPECT_TRUE(std::get<TQuery>(parsedSource1->AstHead.Ast) == std::get<TQuery>(parsedSource2->AstHead.Ast));
+        EXPECT_TRUE(std::get<TQuery>(parsedSource1->AstHead.Ast) == std::get<TQuery>(parsedSource2->AstHead.Ast))
+            << source << " -> " << formattedSource;
     }
 };
 
@@ -94,6 +94,9 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("a = b");
     TestExpression("(a, b) > (1, 2)");
     TestExpression("a != b");
+    TestExpression("-a in (1)");
+    TestExpression("not (a in (1))");
+    TestExpression("(a + b) in (1)");
     TestExpression("a in (1)");
     TestExpression("a in (1, 2)");
     TestExpression("a in (1, 2, 3)");
