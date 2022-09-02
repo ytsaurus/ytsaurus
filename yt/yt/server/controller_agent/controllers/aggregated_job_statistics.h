@@ -59,7 +59,10 @@ private:
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, EJobState state);
 
     friend void Serialize(const TAggregatedJobStatistics& statistics, NYson::IYsonConsumer* consumer);
+    friend TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
 };
+
+TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

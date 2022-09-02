@@ -1175,6 +1175,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
         SuspiciousJobsYsonUpdater_->Start();
+        RunningJobStatisticsUpdateExecutor_->Start();
         AlertManager_->StartPeriodicActivity();
         MinNeededResourcesSanityCheckExecutor->Start();
         ExecNodesUpdateExecutor->Start();
@@ -1303,6 +1304,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
     SuspiciousJobsYsonUpdater_->Start();
+    RunningJobStatisticsUpdateExecutor_->Start();
     AlertManager_->StartPeriodicActivity();
     MinNeededResourcesSanityCheckExecutor->Start();
     ExecNodesUpdateExecutor->Start();
@@ -8298,11 +8300,15 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
     AccountExternalScheduleJobFailures();
 
+    auto fullJobStatistics = MergeJobStatistics(
+        AggregatedFinishedJobStatistics_,
+        AggregatedRunningJobStatistics_);
+
     fluent
         .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics_v2").Value(AggregatedFinishedJobStatistics_)
+        .Item("job_statistics_v2").Value(fullJobStatistics)
         .Item("job_statistics").Do([this] (TFluentAny fluent) {
             AggregatedFinishedJobStatistics_.SerializeLegacy(fluent.GetConsumer());
         })

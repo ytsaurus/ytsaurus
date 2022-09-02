@@ -133,6 +133,7 @@ public:
     using TSummaryMap = std::map<NYPath::TYPath, TTaggedSummaries>;
 
     void AppendStatistics(const TStatistics& statistics, TTags tags);
+    void AppendTaggedSummary(const NYPath::TYPath& path, const TTaggedSummaries& taggedSummaries);
 
     const TTaggedSummaries* FindTaggedSummaries(const NYPath::TYPath& path) const;
     const TSummaryMap& GetData() const;
