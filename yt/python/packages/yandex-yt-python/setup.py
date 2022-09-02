@@ -23,7 +23,7 @@ def main():
     if not is_debian and version not in stable_versions:
         version = version + "a1"
 
-    yt_completion_destination = "yandex-yt-python/yt_completion" + str(sys.version_info[0])
+    yt_completion_destination = "yandex-yt-python/yt_completion"
 
     binaries = [
         "yt/wrapper/bin/mapreduce-yt",
@@ -32,17 +32,10 @@ def main():
     ]
 
     data_files = []
-    scripts = []
+    scripts = binaries
     if is_debian:
-        for binary in binaries:
-            script = binary + str(sys.version_info[0])
-            if not os.path.lexists(script):
-                os.symlink(os.path.abspath(binary), script)
-            scripts.append(script)
         shutil.copy("yandex-yt-python/yt_completion", yt_completion_destination)
         data_files.append(("/etc/bash_completion.d/", [yt_completion_destination]))
-    else:  # python egg or wheel
-        scripts = binaries
 
     find_packages("yt/packages")
     setup(
