@@ -2277,8 +2277,7 @@ def main():
     add_admin_parser(subparsers)
 
     if "_ARGCOMPLETE" in os.environ:
-        completers.autocomplete(parser, enable_bash_fallback=False,
-                                append_space_if_only_suggestion=False)
+        completers.autocomplete(parser, append_space=False)
 
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
     if os.path.isfile(aliases_filename):
