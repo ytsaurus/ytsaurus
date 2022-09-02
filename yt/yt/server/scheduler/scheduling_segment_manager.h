@@ -4,6 +4,7 @@
 #include "node_shard.h"
 #include "persistent_scheduler_state.h"
 #include "scheduler_strategy.h"
+#include "scheduler_tree_structs.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
@@ -11,19 +12,6 @@
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TManageNodeSchedulingSegmentsContext
-{
-    TInstant Now;
-    TStrategySchedulingSegmentsState StrategySegmentsState;
-    TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
-    THashMap<TString, std::vector<NNodeTrackerClient::TNodeId>> NodeIdsPerTree;
-
-    std::vector<TError> Errors;
-    TSetNodeSchedulingSegmentOptionsList MovedNodes;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +39,20 @@ using TNodeWithMovePenaltyList = std::vector<TNodeWithMovePenalty>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TManageNodeSchedulingSegmentsContext
+{
+    TInstant Now;
+    TTreeSchedulingSegmentsState TreeSegmentsState;
+    TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
+    // NB(eshcherbin): |TreeNodeIds| may only contain nodes which are present in |ExecNodeDescriptors|.
+    std::vector<NNodeTrackerClient::TNodeId> TreeNodeIds;
+
+    TError Error;
+    TSetNodeSchedulingSegmentOptionsList MovedNodes;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSchedulingSegmentManager
 {
 public:
@@ -68,55 +70,44 @@ public:
 
     static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);
 
-    TNodeSchedulingSegmentManager();
+    static TNodeMovePenalty GetMovePenaltyForNode(
+        const TExecNodeDescriptor& node,
+        const TTreeSchedulingSegmentsState& strategyTreeState);
+
+    TNodeSchedulingSegmentManager(TString treeId, NLogging::TLogger logger, const NProfiling::TProfiler& profiler);
 
     void ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context);
 
-    TPersistentNodeSchedulingSegmentStateMap BuildPersistentNodeSegmentsState(TManageNodeSchedulingSegmentsContext* context) const;
-
-    void SetProfilingEnabled(bool enabled);
-
 private:
-    struct TPersistentTreeAttributes
-    {
-        std::optional<TInstant> UnsatisfiedSince;
-        ESegmentedSchedulingMode PreviousMode = ESegmentedSchedulingMode::Disabled;
-    };
-    THashMap<TString, TPersistentTreeAttributes> TreeIdToPersistentAttributes_;
+    const TString TreeId_;
+    const NLogging::TLogger Logger;
+
+    std::optional<TInstant> UnsatisfiedSince_;
+    ESegmentedSchedulingMode PreviousMode_ = ESegmentedSchedulingMode::Disabled;
 
     NProfiling::TBufferedProducerPtr BufferedProducer_;
 
-    void ResetTree(TManageNodeSchedulingSegmentsContext *context, const TString& treeId);
+    void Reset(TManageNodeSchedulingSegmentsContext* context);
 
-    void ValidateInfinibandClusterTagsInTree(TManageNodeSchedulingSegmentsContext* context, const TString& treeId) const;
+    void ValidateInfinibandClusterTags(TManageNodeSchedulingSegmentsContext* context) const;
 
-    void LogAndProfileSegmentsInTree(
+    void LogAndProfileSegments(
         TManageNodeSchedulingSegmentsContext* context,
-        const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-        const THashMap<TSchedulingSegmentModule, double> totalResourceAmountPerModule,
-        NProfiling::ISensorWriter* sensorWriter) const;
+        const THashMap<TSchedulingSegmentModule, double> totalResourceAmountPerModule) const;
 
-    void RebalanceSegmentsInTree(
+    void RebalanceSegments(
         TManageNodeSchedulingSegmentsContext* context,
-        const TString& treeId,
         TSegmentToResourceAmount currentResourceAmountPerSegment);
 
-    TNodeMovePenalty GetMovePenaltyForNode(
-        const TExecNodeDescriptor& nodeDescriptor,
+    void GetMovableNodes(
         TManageNodeSchedulingSegmentsContext* context,
-        const TString& treeId) const;
-
-    void GetMovableNodesInTree(
-        TManageNodeSchedulingSegmentsContext *context,
-        const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule);
 
-    std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegmentsInTree(
-        TManageNodeSchedulingSegmentsContext *context,
-        const TString& treeId,
+    std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegments(
+        TManageNodeSchedulingSegmentsContext* context,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment) const;
 };
 

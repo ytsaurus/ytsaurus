@@ -51,9 +51,14 @@ struct ISchedulerStrategyHost
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const = 0;
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const = 0;
-    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter = {}) const = 0;
+    virtual TFuture<void> UpdateExecNodeDescriptorsOutOfBand() = 0;
 
+    // TODO(eshcherbin): Add interface for node manager to be used by strategy.
     virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
+    virtual void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) = 0;
+
+    virtual void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
@@ -99,6 +104,7 @@ struct ISchedulerStrategyHost
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
+    virtual void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState) = 0;
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
@@ -183,9 +189,6 @@ struct ISchedulerStrategy
     virtual void UnregisterNode(
         NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress) = 0;
-
-    // TODO(eshcherbin): Temporary until segments are moved inside strategy.
-    virtual const THashMap<TString, THashSet<NNodeTrackerClient::TNodeId>>& GetNodeIdsPerTree() const = 0;
 
     //! Validates that operation can be started.
     /*!
@@ -307,11 +310,6 @@ struct ISchedulerStrategy
     virtual void ScanPendingOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
-
-    //! These methods are used for scheduling segments implementation.
-    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
-
-    virtual THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const = 0;
 
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
         const TString& nodeAddress,

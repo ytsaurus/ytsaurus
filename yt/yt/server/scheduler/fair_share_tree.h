@@ -46,10 +46,28 @@ struct TPoolsUpdateResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TManageSchedulingSegmentsResult
+{
+    TSetNodeSchedulingSegmentOptionsList MovedNodes;
+    TOperationIdWithSchedulingSegmentModuleList OperationSchedulingSegmentModuleUpdates;
+    TError Error;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSchedulerElementStateSnapshot
 {
     TResourceVector DemandShare;
     TResourceVector PromisedFairShare;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IFairShareTreeHost
+{
+    virtual ~IFairShareTreeHost() = default;
+
+    virtual const THashSet<NNodeTrackerClient::TNodeId>& GetTreeNodeIds(const TString& treeId) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,8 +171,7 @@ struct IFairShareTree
     virtual void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) = 0;
 
     virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) = 0;
-    virtual TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const = 0;
-    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const = 0;
+    virtual TFuture<TManageSchedulingSegmentsResult> ManageSchedulingSegments() = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
@@ -178,6 +195,7 @@ DEFINE_REFCOUNTED_TYPE(IFairShareTree)
 IFairShareTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    IFairShareTreeHost* host,
     ISchedulerStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId);

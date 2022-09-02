@@ -3,6 +3,7 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
+#include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -63,16 +64,6 @@ struct TJobTimeStatisticsDelta
     ui64 FailedJobTimeDelta = 0;
     ui64 AbortedJobTimeDelta = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSetNodeSchedulingSegmentOptions
-{
-    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
-    ESchedulingSegment Segment = ESchedulingSegment::Default;
-};
-
-using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

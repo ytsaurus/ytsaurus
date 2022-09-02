@@ -142,7 +142,22 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList /*nodesWithNewSegments*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -230,6 +245,9 @@ public:
     }
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
+    { }
+
+    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr /*persistentStrategyState*/) override
     { }
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override

@@ -546,6 +546,12 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("template_pool_tree_config_map", &TThis::TemplatePoolTreeConfigMap)
         .Default();
 
+    registrar.Parameter("scheduling_segments_manage_period", &TThis::SchedulingSegmentsManagePeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("scheduling_segments_initialization_timeout", &TThis::SchedulingSegmentsInitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
@@ -947,12 +953,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("resource_metering", &TThis::ResourceMetering)
         .DefaultNew();
-
-    registrar.Parameter("scheduling_segments_manage_period", &TThis::SchedulingSegmentsManagePeriod)
-        .Default(TDuration::Seconds(10));
-
-    registrar.Parameter("scheduling_segments_initialization_timeout", &TThis::SchedulingSegmentsInitializationTimeout)
-        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("parse_operation_attributes_batch_size", &TThis::ParseOperationAttributesBatchSize)
         .Default(100);
