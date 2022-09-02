@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config, wait,
-    get, create, write_table, map,
+    get, create, write_table, map, run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
 from yt.common import YtError
@@ -209,3 +209,32 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         op.track()
 
         assert get_counter() == 2
+
+    @authors("ignat")
+    def test_running_job_statistics(self):
+        op = run_test_vanilla(with_breakpoint('echo "{my_stat=10};" >&5; BREAKPOINT'), job_count=2)
+        wait_breakpoint()
+
+        def check():
+            statistics = get(op.get_path() + "/controller_orchid/progress/job_statistics_v2")
+            count = extract_statistic_v2(
+                statistics,
+                key="custom.my_stat",
+                job_state="running",
+                job_type="task",
+                summary_type="count")
+            max = extract_statistic_v2(
+                statistics,
+                key="custom.my_stat",
+                job_state="running",
+                job_type="task",
+                summary_type="max")
+            sum = extract_statistic_v2(
+                statistics,
+                key="custom.my_stat",
+                job_state="running",
+                job_type="task",
+                summary_type="sum")
+            return count == 2 and max == 10 and sum == 20
+
+        wait(check)

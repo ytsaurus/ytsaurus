@@ -298,6 +298,8 @@ def get_controller_agent_config():
 
         update_account_resource_usage_leases_period = 100;
 
+        running_job_statistics_update_period = 100;
+
         exec_nodes_update_period = 100;
 
         environment = {

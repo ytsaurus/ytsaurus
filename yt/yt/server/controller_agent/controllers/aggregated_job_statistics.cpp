@@ -156,6 +156,18 @@ void Serialize(const TAggregatedJobStatistics& statistics, IYsonConsumer* consum
     Serialize(statistics.TaggedJobStatistics_, consumer);
 }
 
+TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs)
+{
+    TAggregatedJobStatistics mergedJobStatistics;
+    for (const auto& [path, taggedSummaries] : lhs.TaggedJobStatistics_.GetData()) {
+        mergedJobStatistics.TaggedJobStatistics_.AppendTaggedSummary(path, taggedSummaries);
+    }
+    for (const auto& [path, taggedSummaries] : rhs.TaggedJobStatistics_.GetData()) {
+        mergedJobStatistics.TaggedJobStatistics_.AppendTaggedSummary(path, taggedSummaries);
+    }
+    return mergedJobStatistics;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
