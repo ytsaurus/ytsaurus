@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -88,7 +87,11 @@ public class YtClientTest {
     }
 
     public static String getPath() {
-        return StringUtils.removeEnd(getPathPrefix(), "/") + "/ytclient-junit/" + UUID.randomUUID().toString();
+        String prefix = getPathPrefix();
+        if (prefix.endsWith("/")) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        return prefix + "/ytclient-junit/" + UUID.randomUUID();
     }
 
     private static DefaultBusConnector bus;
