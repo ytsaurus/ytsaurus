@@ -261,10 +261,12 @@ public:
         bool enabled = true,
         const TString& clusterName = Cluster1,
         const TYPath& tablePath = TablePath1,
-        std::optional<TDuration> replicaLagTime = TDuration::Zero())
+        std::optional<TDuration> replicaLagTime = TDuration::Zero(),
+        EObjectType replicaObjectType = EObjectType::TableReplica,
+        ETableReplicaContentType contentType = ETableReplicaContentType::Data)
     {
         auto replicaId = MakeRegularId(
-            EObjectType::TableReplica,
+            replicaObjectType,
             InvalidCellTag,
             NHydra::TVersion(),
             std::ssize(ReplicaIdToInfo_));
@@ -284,6 +286,7 @@ public:
             .ClusterName = clusterName,
             .TablePath = tablePath,
             .TrackingEnabled = true,
+            .ContentType = contentType,
         };
     }
 
@@ -293,9 +296,11 @@ public:
         bool enabled = true,
         const TString& clusterName = Cluster1,
         const TYPath& tablePath = TablePath1,
-        std::optional<TDuration> replicaLagTime = TDuration::Zero())
+        std::optional<TDuration> replicaLagTime = TDuration::Zero(),
+        EObjectType replicaObjectType = EObjectType::TableReplica,
+        ETableReplicaContentType contentType = ETableReplicaContentType::Data)
     {
-        auto data = CreateTableReplicaData(tableId, mode, enabled, clusterName, tablePath, replicaLagTime);
+        auto data = CreateTableReplicaData(tableId, mode, enabled, clusterName, tablePath, replicaLagTime, replicaObjectType, contentType);
         ReplicaCreated_(data);
         return data.Id;
     }
@@ -1130,6 +1135,51 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaModeSwitchCounter)
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     EXPECT_EQ(TTesting::ReadCounter(counter), 1);
+}
+
+TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodBundle(client, TablePath2);
+    MockGoodTable(client);
+    MockGoodTable(client, TablePath2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto options = Host_->GetTableOptions(tableId);
+    options->MaxSyncReplicaCount = 1;
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    auto dataReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Data);
+    auto queueReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster1,
+        TablePath2,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(queueReplica, ETableReplicaMode::Sync);
+
+    MockBadTable(client);
+    MockBadTable(client, TablePath2);
+
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeRemained(queueReplica);
 }
 
 #endif

@@ -58,6 +58,7 @@ public:
                         .ClusterName = replica.ClusterName,
                         .TablePath = replica.ReplicaPath,
                         .TrackingEnabled = replica.EnableReplicatedTableTracker,
+                        .ContentType = replica.ContentType,
                     });
                 }
             }
@@ -124,8 +125,8 @@ public:
 
             for (const auto& command : commands) {
                 NChaosClient::NProto::TReqAlterTableReplica req;
-                ToProto(req.mutable_replica_id(), command.ReplicaId);                
-                ToProto(req.mutable_replication_card_id(), ReplicationCardIdFromReplicaId(command.ReplicaId));                
+                ToProto(req.mutable_replica_id(), command.ReplicaId);
+                ToProto(req.mutable_replication_card_id(), ReplicationCardIdFromReplicaId(command.ReplicaId));
                 req.set_mode(static_cast<int>(command.TargetMode));
                 futures.push_back(slot->GetChaosManager()->ExecuteAlterTableReplica(req));
             }

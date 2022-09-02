@@ -43,6 +43,9 @@ struct TReplicaData
     TString ClusterName;
     NYPath::TYPath TablePath;
     bool TrackingEnabled;
+    // NB: RTT treats replicas with different ContentType independently.
+    // Queue replicas are used in chaos. Sync queue replica count cannot be set to zero.
+    NTabletClient::ETableReplicaContentType ContentType;
 };
 
 struct TTableCollocationData

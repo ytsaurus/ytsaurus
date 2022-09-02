@@ -1341,6 +1341,7 @@ public:
                             .ClusterName = replica->GetClusterName(),
                             .TablePath = replica->GetReplicaPath(),
                             .TrackingEnabled = replica->GetEnableReplicatedTableTracker(),
+                            .ContentType = ETableReplicaContentType::Data,
                         });
                     }
                 }
