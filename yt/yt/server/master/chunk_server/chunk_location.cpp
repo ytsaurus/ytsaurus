@@ -257,6 +257,18 @@ TImaginaryChunkLocation::TImaginaryChunkLocation(int mediumIndex, TNode* node)
     Node_ = node;
 }
 
+void TImaginaryChunkLocation::Save(NCellMaster::TSaveContext& context) const
+{
+    TChunkLocation::Save(context);
+    // NB: medium index is persisted as part of the node, not as part of the
+    // imaginary location.
+}
+
+void TImaginaryChunkLocation::Load(NCellMaster::TLoadContext& context)
+{
+    TChunkLocation::Load(context);
+}
+
 bool TImaginaryChunkLocation::IsImaginary() const
 {
     return true;

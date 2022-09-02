@@ -101,6 +101,7 @@ DEFINE_ENUM(EMasterReign,
     ((CleanupSomeDynconfigCompatFlags)                              (2118))  // shakurov
     ((ErrorSanitizer)                                               (2119))  // gritukan
     ((ImaginaryLocationOrderingFix)                                 (2120))  // shakurov
+    ((NotSoImaginaryChunkLocations)                                 (2121))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -499,6 +499,11 @@ void TNode::Save(TSaveContext& context) const
     Save(context, UserTags_);
     Save(context, NodeTags_);
     Save(context, RealChunkLocations_);
+    TSizeSerializer::Save(context, ImaginaryChunkLocations_.size());
+    for (const auto& [mediumIndex, location] : ImaginaryChunkLocations_) {
+        Save(context, mediumIndex);
+        Save(context, *location);
+    }
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, ClusterNodeStatistics_);
@@ -550,7 +555,32 @@ void TNode::Load(TLoadContext& context)
     Load(context, NodeTags_);
 
     Load(context, RealChunkLocations_);
-    if (!UseImaginaryChunkLocations_) {
+    // COMPAT(shakurov)
+    // NB: unlike real chunk locations that are serialized as part of an
+    // entity map, imaginary chunk locations aren't objects and need to be
+    // serialized as part of their respective nodes.
+    // NB: imaginary locations are first created during a migration (when
+    // replicas are loaded, see below).
+    if (context.GetVersion() >= EMasterReign::NotSoImaginaryChunkLocations) {
+        auto imaginaryLocationCount = TSizeSerializer::Load(context);
+        for (size_t i = 0; i < imaginaryLocationCount; ++i) {
+            auto mediumIndex = Load<int>(context);
+            auto [it, inserted] = ImaginaryChunkLocations_.emplace(
+                mediumIndex,
+                std::make_unique<TImaginaryChunkLocation>(mediumIndex, this));
+            YT_VERIFY(inserted);
+            auto& location = *it->second;
+            Load(context, location);
+            YT_VERIFY(location.GetNode() == this);
+        }
+    }
+
+    if (UseImaginaryChunkLocations_) {
+        ChunkLocations_.reserve(ImaginaryChunkLocations_.size());
+        for (const auto& [mediumIndex, location] : ImaginaryChunkLocations_) {
+            ChunkLocations_.push_back(location.get());
+        }
+    } else {
         ChunkLocations_.reserve(RealChunkLocations_.size());
         std::copy(
             RealChunkLocations_.begin(),
