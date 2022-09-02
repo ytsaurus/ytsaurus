@@ -135,6 +135,9 @@ public:
     TImaginaryChunkLocation();
     TImaginaryChunkLocation(int mediumIndex, TNode* node);
 
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
     bool IsImaginary() const override;
 
     bool operator<(const TImaginaryChunkLocation& rhs) const;
