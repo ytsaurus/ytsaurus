@@ -11,18 +11,9 @@ using namespace NScheduler;
 
 TCachedDiscovery::TCachedDiscovery(
     TOperationId operationId,
-    TDiscoveryV1ConfigPtr config,
-    NApi::IClientPtr client,
-    IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
-    const NLogging::TLogger& logger)
-    : TDiscovery(
-        config,
-        client,
-        invoker,
-        extraAttributes,
-        logger)
-    , TAsyncCacheValueBase(operationId)
+    NClickHouseServer::IDiscoveryPtr discovery)
+    : TAsyncCacheValueBase(std::move(operationId))
+    , Discovery_(std::move(discovery))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

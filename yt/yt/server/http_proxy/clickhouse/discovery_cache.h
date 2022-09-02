@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/public.h>
 
 #include <yt/yt/client/scheduler/public.h>
 
@@ -13,17 +13,14 @@ namespace NYT::NHttpProxy::NClickHouse {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedDiscovery
-    : public NClickHouseServer::TDiscovery
-    , public TAsyncCacheValueBase<NScheduler::TOperationId, TCachedDiscovery>
+    : public TAsyncCacheValueBase<NScheduler::TOperationId, TCachedDiscovery>
 {
 public:
     TCachedDiscovery(
         NScheduler::TOperationId operationId,
-        NClickHouseServer::TDiscoveryV1ConfigPtr config,
-        NApi::IClientPtr client,
-        IInvokerPtr invoker,
-        std::vector<TString> extraAttributes,
-        const NLogging::TLogger& logger);
+        NClickHouseServer::IDiscoveryPtr discovery);
+
+    DEFINE_BYREF_RO_PROPERTY(NClickHouseServer::IDiscoveryPtr, Discovery);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedDiscovery)
