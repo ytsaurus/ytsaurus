@@ -19,7 +19,6 @@ import glob
 
 
 YT_PYTHON_PACKAGE_LIST = [
-    "argcomplete",
     "certifi",
     "dill",
     "requests",
@@ -28,6 +27,7 @@ YT_PYTHON_PACKAGE_LIST = [
 ]
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
+    ("argcomplete", "argcomplete/py2"),
     "simplejson",
     "cloudpickle",
     "backports_abc",

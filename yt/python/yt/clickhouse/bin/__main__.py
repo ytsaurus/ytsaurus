@@ -165,8 +165,7 @@ def main():
     add_clickhouse_execute_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
-        completers.autocomplete(parser, enable_bash_fallback=False,
-                                append_space_if_only_suggestion=False)
+        completers.autocomplete(parser, append_space=False)
 
     config_args, unparsed = config_parser.parse_known_args()
 

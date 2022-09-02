@@ -1,4 +1,8 @@
-from yt.packages.argcomplete import autocomplete  # noqa
+try:
+    from yt.packages.argcomplete import autocomplete  # noqa
+except ImportError:
+    from argcomplete import autocomplete  # noqa
+
 import yt.wrapper as yt
 
 if not yt.config["argcomplete_verbose"]:
