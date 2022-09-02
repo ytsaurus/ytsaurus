@@ -414,6 +414,7 @@ public:
             , Id_(data.Id)
             , ClusterName_(std::move(data.ClusterName))
             , TablePath_(std::move(data.TablePath))
+            , ContentType_(data.ContentType)
             , Enabled_(data.Enabled)
             , TrackingEnabled_(data.TrackingEnabled)
         {
@@ -492,6 +493,11 @@ public:
             return ClusterName_;
         }
 
+        ETableReplicaContentType GetContentType() const
+        {
+            return ContentType_;
+        }
+
         void SetMode(ETableReplicaMode mode)
         {
             auto oldState = State_;
@@ -530,6 +536,7 @@ public:
         const TTableReplicaId Id_;
         const TString ClusterName_;
         const TYPath TablePath_;
+        const ETableReplicaContentType ContentType_;
 
         bool Enabled_;
         bool TrackingEnabled_;
@@ -753,21 +760,29 @@ public:
             CollocationId_ = collocationId;
         }
 
-        TReplicasByState GroupReplicasByTargetState()
+        TReplicasByState GroupReplicasByTargetState(ETableReplicaContentType contentType)
         {
             TReplicasByState replicasByState;
             int trackedReplicaCount = 0;
             for (auto replicaId : ReplicaIds_) {
                 auto* replica = TableTracker_->GetReplica(replicaId);
-                if (replica->ShouldTrack()) {
+                if (replica->ShouldTrack() && contentType == replica->GetContentType()) {
                     ++trackedReplicaCount;
                     replicasByState[replica->GetState()].push_back(replica);
                 }
             }
 
+            if (trackedReplicaCount == 0) {
+                return replicasByState;
+            }
+
             i64 minSyncReplicaCount;
             i64 maxSyncReplicaCount;
             std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Options_->GetEffectiveMinMaxReplicaCount(trackedReplicaCount);
+            if (contentType == ETableReplicaContentType::Queue) {
+                minSyncReplicaCount = std::max(minSyncReplicaCount, 1L);
+                maxSyncReplicaCount = std::max(maxSyncReplicaCount, 2L);
+            }
 
             // Replicas with larger lag go first.
             Sort(
@@ -997,16 +1012,37 @@ private:
     {
         std::vector<TChangeReplicaModeCommand> commands;
 
-        THashMap<TTableId, TReplicasByState> tableIdToReplicasByState;
+        struct TReplicaFamily
+        {
+            TTableId TableId;
+            ETableReplicaContentType ContentType;
+
+            bool operator == (const TReplicaFamily& other) const
+            {
+                return TableId == other.TableId && ContentType == other.ContentType;
+            }
+
+            operator size_t() const
+            {
+                return MultiHash(TableId, ContentType);
+            }
+        };
+
+        THashMap<TReplicaFamily, TReplicasByState> replicaFamilyToReplicasByState;
         for (auto& [tableId, table] : IdToTable_) {
             if (!table.GetOptions()->EnableReplicatedTableTracker) {
                 continue;
             }
 
-            EmplaceOrCrash(
-                tableIdToReplicasByState,
-                tableId,
-                table.GroupReplicasByTargetState());
+            for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                EmplaceOrCrash(
+                    replicaFamilyToReplicasByState,
+                    TReplicaFamily{
+                        .TableId = tableId,
+                        .ContentType = contentType
+                    },
+                    table.GroupReplicasByTargetState(contentType));
+            }
         }
 
         THashMap<TTableCollocationId, THashMap<TString, int>> collocationIdToClusterPriorities;
@@ -1014,8 +1050,12 @@ private:
             std::optional<THashSet<TStringBuf>> goodReplicaClusters;
 
             for (auto tableId : collocation.TableIds) {
-                auto it = tableIdToReplicasByState.find(tableId);
-                if (it != tableIdToReplicasByState.end()) {
+                // TODO(akozhikhov): Support collocations for chaos replicated tables.
+                auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
+                    .TableId = tableId,
+                    .ContentType = ETableReplicaContentType::Data
+                });
+                if (it != replicaFamilyToReplicasByState.end()) {
                     THashSet<TStringBuf> tableGoodReplicaClusters;
                     for (auto* replica : it->second[EReplicaState::GoodSync]) {
                         tableGoodReplicaClusters.insert(replica->GetClusterName());
@@ -1046,8 +1086,8 @@ private:
             }
         }
 
-        for (auto& [tableId, replicasByState] : tableIdToReplicasByState) {
-            auto& table = GetOrCrash(IdToTable_, tableId);
+        for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
+            auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
             std::optional<THashMap<TString, int>> replicaClusterPriorities;
             const auto& preferredSyncReplicaClusters = table.GetOptions()->PreferredSyncReplicaClusters;
             if (preferredSyncReplicaClusters) {
@@ -1066,8 +1106,9 @@ private:
             auto tableCommands = GenerateCommandsForTable(&replicasByState, replicaClusterPriorities);
             YT_LOG_DEBUG_IF(!tableCommands.empty(),
                 "Generated replica mode change commands "
-                "(TableId: %v, CollocationId: %v, Commands; %v)",
-                tableId,
+                "(TableId: %v, ContentType: %v, CollocationId: %v, Commands: %v)",
+                replicaFamily.TableId,
+                replicaFamily.ContentType,
                 table.GetCollocationId(),
                 tableCommands);
 
@@ -1270,15 +1311,28 @@ private:
             auto replicaId = data.Id;
 
             YT_LOG_DEBUG("Table replica created "
-                "(TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, TablePath: %v)",
+                "(TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, TablePath: %v, ContentType: %v)",
                 tableId,
                 replicaId,
                 data.Mode,
                 data.Enabled,
                 data.ClusterName,
-                data.TablePath);
+                data.TablePath,
+                data.ContentType);
 
-            YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
+            auto replicaType = TypeFromId(replicaId);
+            YT_VERIFY(IsTableReplicaType(replicaType));
+            switch (replicaType) {
+                case EObjectType::TableReplica:
+                    YT_VERIFY(data.ContentType == ETableReplicaContentType::Data);
+                    break;
+                case EObjectType::ChaosTableReplica:
+                    YT_VERIFY(data.ContentType == ETableReplicaContentType::Data ||
+                        data.ContentType == ETableReplicaContentType::Queue);
+                    break;
+                default:
+                    YT_ABORT();
+            }
 
             auto* table = GetTable(tableId);
             EmplaceOrCrash(

@@ -2225,17 +2225,21 @@ class TestChaos(ChaosTestBase):
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t", "enable_replicated_table_tracker": True},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1", "enable_replicated_table_tracker": True}
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1", "enable_replicated_table_tracker": True},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0", "enable_replicated_table_tracker": True},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1", "enable_replicated_table_tracker": True},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids)
+
+        wait(lambda: get("#{0}/@mode".format(replica_ids[3])) == "sync")
         self._sync_replication_era(card_id, replicas)
 
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "failed")
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
-        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
 
         values = [{"key": 0, "value": "0"}]
         keys = [{"key": 0}]
@@ -2244,7 +2248,7 @@ class TestChaos(ChaosTestBase):
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
 
         cypress_replicas = get("//tmp/crt/@replicas")
-        assert [cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids] == [True, False, True]
+        assert all(cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids)
 
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=False)
         assert not get("//tmp/crt/@replicas/{0}/replicated_table_tracker_enabled".format(replica_ids[0]))
@@ -2257,9 +2261,11 @@ class TestChaos(ChaosTestBase):
         options = get("//tmp/crt/@replicated_table_options")
         assert options["enable_replicated_table_tracker"]
         assert options["min_sync_replica_count"] == 2
-        assert get("#{0}/@mode".format(replica_ids[2])) == "sync"
-        assert get("#{0}/@mode".format(replica_ids[0])) == "async"
+        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
+        assert get("#{0}/@mode".format(replica_ids[1])) == "sync"
+        assert get("#{0}/@mode".format(replica_ids[3])) == "sync"
 
+        assert get("#{0}/@mode".format(replica_ids[0])) == "async"
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=True)
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "sync")
 

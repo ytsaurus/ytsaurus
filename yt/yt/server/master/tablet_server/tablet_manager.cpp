@@ -519,6 +519,7 @@ public:
             .ClusterName = clusterName,
             .TablePath = replicaPath,
             .TrackingEnabled = replica->GetEnableReplicatedTableTracker(),
+            .ContentType = ETableReplicaContentType::Data,
         });
 
         return replica;

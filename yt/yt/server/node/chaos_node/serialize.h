@@ -20,6 +20,7 @@ DEFINE_ENUM(EChaosReign,
     ((RemoveCommitted)              (300003)) // savrus
     ((Migration)                    (300004)) // savrus
     ((ReplicatedTableOptions)       (300005)) // savrus
+    ((SupportQueueReplicasInRTT)    (300006)) // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

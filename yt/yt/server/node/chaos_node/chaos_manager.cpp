@@ -706,11 +706,6 @@ private:
             THROW_ERROR_EXCEPTION("Invalid replica mode %v", mode);
         }
 
-        if (contentType == ETableReplicaContentType::Queue && enableReplicatedTableTracker) {
-            THROW_ERROR_EXCEPTION("Replicated table tracker is not supported for %v replicas",
-                contentType);
-        }
-
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
 
         if (std::ssize(replicationCard->Replicas()) >= MaxReplicasPerReplicationCard) {
@@ -801,7 +796,8 @@ private:
             .Enabled = enabled,
             .ClusterName = clusterName,
             .TablePath = replicaPath,
-            .TrackingEnabled = enableReplicatedTableTracker
+            .TrackingEnabled = enableReplicatedTableTracker,
+            .ContentType = contentType
         });
 
         if (context) {
@@ -878,11 +874,6 @@ private:
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
                 << TErrorAttribute("state", replicaInfo->State);
-        }
-
-        if (replicaInfo->ContentType == ETableReplicaContentType::Queue && enableReplicatedTableTracker) {
-            THROW_ERROR_EXCEPTION("Replicated table tracker is not supported for %v replicas",
-                ETableReplicaContentType::Queue);
         }
 
         bool revoke = false;
