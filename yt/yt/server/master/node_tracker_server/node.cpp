@@ -499,10 +499,23 @@ void TNode::Save(TSaveContext& context) const
     Save(context, UserTags_);
     Save(context, NodeTags_);
     Save(context, RealChunkLocations_);
+    // TODO(shakurov): introduce TNonNullableUniquePtrSerializer and rewrite this.
     TSizeSerializer::Save(context, ImaginaryChunkLocations_.size());
-    for (const auto& [mediumIndex, location] : ImaginaryChunkLocations_) {
+    std::vector<int> mediumIndexes;
+    mediumIndexes.reserve(ImaginaryChunkLocations_.size());
+    std::transform(
+        ImaginaryChunkLocations_.begin(),
+        ImaginaryChunkLocations_.end(),
+        std::back_inserter(mediumIndexes),
+        [] (const auto& pair) {
+            return pair.first;
+        });
+    std::sort(mediumIndexes.begin(), mediumIndexes.end());
+    for (auto mediumIndex : mediumIndexes) {
         Save(context, mediumIndex);
-        Save(context, *location);
+        auto it = ImaginaryChunkLocations_.find(mediumIndex);
+        YT_ASSERT(it != ImaginaryChunkLocations_.end());
+        Save(context, *it->second);
     }
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
@@ -563,24 +576,26 @@ void TNode::Load(TLoadContext& context)
     // replicas are loaded, see below).
     if (context.GetVersion() >= EMasterReign::NotSoImaginaryChunkLocations) {
         auto imaginaryLocationCount = TSizeSerializer::Load(context);
+        ChunkLocations_.reserve(imaginaryLocationCount);
         for (size_t i = 0; i < imaginaryLocationCount; ++i) {
             auto mediumIndex = Load<int>(context);
-            auto [it, inserted] = ImaginaryChunkLocations_.emplace(
-                mediumIndex,
-                std::make_unique<TImaginaryChunkLocation>(mediumIndex, this));
-            YT_VERIFY(inserted);
-            auto& location = *it->second;
-            Load(context, location);
-            YT_VERIFY(location.GetNode() == this);
+            auto [it, inserted] = ImaginaryChunkLocations_.emplace(mediumIndex, nullptr);
+            auto& location = it->second;
+            // NB: location may already be present as it's created on-demand when
+            // loading pointers to imaginary locations.
+            if (inserted) {
+                location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
+                if (UseImaginaryChunkLocations_) {
+                    ChunkLocations_.push_back(location.get());
+                }
+            }
+            YT_VERIFY(location);
+            Load(context, *location);
+            YT_VERIFY(location->GetNode() == this);
         }
     }
 
-    if (UseImaginaryChunkLocations_) {
-        ChunkLocations_.reserve(ImaginaryChunkLocations_.size());
-        for (const auto& [mediumIndex, location] : ImaginaryChunkLocations_) {
-            ChunkLocations_.push_back(location.get());
-        }
-    } else {
+    if (!UseImaginaryChunkLocations_) {
         ChunkLocations_.reserve(RealChunkLocations_.size());
         std::copy(
             RealChunkLocations_.begin(),
