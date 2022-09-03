@@ -870,11 +870,11 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
     }
 
     @Override
-    public WireRowSerializer<T> getRowSerializer() {
+    public TableSchema getSchema() {
         if (rowsSerializer == null) {
             throw new RuntimeException("No rowsSerializer in TableWriter");
         }
-        return rowsSerializer.getRowSerializer();
+        return rowsSerializer.getRowSerializer().getSchema();
     }
 
     private boolean addAbortable(Abortable<?> abortable) {
@@ -1142,8 +1142,9 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
         this.rowsSerializer = new TableRowsSerializer<>(serializer);
     }
 
-    public WireRowSerializer<T> getRowSerializer() {
-        return rowsSerializer.getRowSerializer();
+    @Override
+    public TableSchema getSchema() {
+        return rowsSerializer.getRowSerializer().getSchema();
     }
 
     public CompletableFuture<TableWriter<T>> startUpload() {
