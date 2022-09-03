@@ -1964,6 +1964,7 @@ class TestChaos(ChaosTestBase):
         replicas = [
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/q"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False, ordered=True)
         _, remote_driver0, remote_driver1 = self._get_drivers()
@@ -1982,6 +1983,11 @@ class TestChaos(ChaosTestBase):
         for j in range(tablet_count):
             wait(lambda: select_rows("key, value from [//tmp/t] where [$tablet_index] = {0}".format(j)) == data_values[j])
             wait(lambda: select_rows("key, value from [//tmp/r] where [$tablet_index] = {0}".format(j), driver=remote_driver0) == data_values[j])
+            assert select_rows("key, value from [//tmp/q] where [$tablet_index] = {0}".format(j), replica_consistency="sync", driver=remote_driver1) == data_values[j]
+
+        sync_unmount_table("//tmp/t")
+        progress = get("//tmp/t/@replication_progress")
+        assert len(progress["segments"]) <= tablet_count
 
     @authors("savrus")
     def test_invalid_ordered_chaos_table(self):

@@ -1528,8 +1528,11 @@ private:
             }
             columnFilter = TColumnFilter(std::move(columnFilterIndexes));
 
-            lower = MakeRowBound(*currentRowIndex, progress.Segments[0].LowerKey[0].Data.Int64);
-            upper = MakeRowBound(std::numeric_limits<i64>::max(), progress.Segments[0].LowerKey[0].Data.Int64);
+            auto tabletIndex = progress.Segments[0].LowerKey.GetCount() > 0
+                ? FromUnversionedValue<i64>(progress.Segments[0].LowerKey[0])
+                : 0;
+            lower = MakeRowBound(*currentRowIndex, tabletIndex);
+            upper = MakeRowBound(std::numeric_limits<i64>::max(), tabletIndex);
         }
 
         auto reader = CreateSchemafulRangeTabletReader(

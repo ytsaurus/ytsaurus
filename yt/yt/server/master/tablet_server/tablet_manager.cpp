@@ -1627,10 +1627,12 @@ public:
 
         std::vector<TReplicationProgress> progresses;
         std::vector<TLegacyKey> pivotKeys;
-        for (auto* tabletBase : table->Tablets()) {
-            auto* tablet = tabletBase->As<TTablet>();
+        std::vector<TLegacyOwningKey> buffer;
+
+        for (int index = 0; index < std::ssize(table->Tablets()); ++index) {
+            auto* tablet = table->Tablets()[index]->As<TTablet>();
             progresses.push_back(tablet->ReplicationProgress());
-            pivotKeys.push_back(tablet->GetPivotKey().Get());
+            pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, index, &buffer));
         }
 
         return NChaosClient::GatherReplicationProgress(std::move(progresses), pivotKeys, MaxKey().Get());
@@ -1643,8 +1645,10 @@ public:
         }
 
         std::vector<TLegacyKey> pivotKeys;
-        for (auto* tablet : table->Tablets()) {
-            pivotKeys.push_back(tablet->As<TTablet>()->GetPivotKey().Get());
+        std::vector<TLegacyOwningKey> buffer;
+        for (int index = 0; index < std::ssize(table->Tablets()); ++index) {
+            auto* tablet = table->Tablets()[index]->As<TTablet>();
+            pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, index, &buffer));
         }
 
         auto newProgresses = NChaosClient::ScatterReplicationProgress(
@@ -1655,6 +1659,21 @@ public:
         for (int index = 0; index < std::ssize(table->Tablets()); ++index) {
             auto* tablet = table->Tablets()[index]->As<TTablet>();
             tablet->ReplicationProgress() = std::move(newProgresses[index]);
+        }
+    }
+
+    TLegacyKey GetTabletReplicationProgressPivotKey(
+        TTablet* tablet,
+        int tabletIndex,
+        std::vector<TLegacyOwningKey>* buffer)
+    {
+        if (tablet->GetTable()->IsSorted()) {
+            return tablet->GetPivotKey().Get();
+        } else if (tabletIndex == 0) {
+            return EmptyKey().Get();
+        } else {
+            buffer->push_back(MakeUnversionedOwningRow(tabletIndex));
+            return buffer->back().Get();
         }
     }
 
@@ -4076,8 +4095,12 @@ private:
                     ? MaxKey()
                     : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey());
             } else if (!table->IsSorted()) {
-                auto lower = MakeUnversionedOwningRow(tablet->GetIndex());
-                auto upper = MakeUnversionedOwningRow(tablet->GetIndex() + 1);
+                auto lower = tabletIndex == 0
+                    ? EmptyKey()
+                    : MakeUnversionedOwningRow(tablet->GetIndex());
+                auto upper = tabletIndex + 1 == std::ssize(allTablets)
+                    ? MaxKey()
+                    : MakeUnversionedOwningRow(tablet->GetIndex() + 1);
                 ToProto(req.mutable_pivot_key(), lower);
                 ToProto(req.mutable_next_pivot_key(), upper);
             }
@@ -4101,12 +4124,16 @@ private:
                 if (tablet->ReplicationProgress().Segments.empty()) {
                     if (table->IsSorted()) {
                         tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
-                        tablet->ReplicationProgress().UpperKey = tablet->GetIndex() + 1 == std::ssize(allTablets)
+                        tablet->ReplicationProgress().UpperKey = tabletIndex + 1 == std::ssize(allTablets)
                             ? MaxKey()
                             : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey();
                     } else {
-                        auto lower = MakeUnversionedOwningRow(tablet->GetIndex());
-                        auto upper = MakeUnversionedOwningRow(tablet->GetIndex() + 1);
+                        auto lower = tabletIndex == 0
+                            ? EmptyKey()
+                            : MakeUnversionedOwningRow(tablet->GetIndex());
+                        auto upper = tabletIndex + 1 == std::ssize(allTablets)
+                            ? MaxKey()
+                            : MakeUnversionedOwningRow(tablet->GetIndex() + 1);
                         tablet->ReplicationProgress().Segments.push_back({std::move(lower), MinTimestamp});
                         tablet->ReplicationProgress().UpperKey = std::move(upper);
                     }
@@ -4911,9 +4938,10 @@ private:
         }
 
         // Copy replication progress.
-        if (table->IsSorted()) {
+        {
             std::vector<TReplicationProgress> progresses;
             std::vector<TLegacyKey> pivotKeys;
+            std::vector<TLegacyOwningKey> buffer;
             bool nonEmpty = false;
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -4922,7 +4950,7 @@ private:
                     nonEmpty = true;
                 }
                 progresses.push_back(std::move(tablet->ReplicationProgress()));
-                pivotKeys.push_back(tablet->GetPivotKey().Get());
+                pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, index, &buffer));
             }
 
             if (nonEmpty) {
@@ -4936,7 +4964,7 @@ private:
                 pivotKeys.clear();
                 for (int index = 0; index < std::ssize(newTablets); ++index) {
                     auto* tablet = newTablets[index];
-                    pivotKeys.push_back(tablet->GetPivotKey().Get());
+                    pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, firstTabletIndex + index, &buffer));
                 }
 
                 auto newProgresses = NChaosClient::ScatterReplicationProgress(
@@ -4946,12 +4974,6 @@ private:
                 for (int index = 0; index < std::ssize(newTablets); ++index) {
                     auto* tablet = newTablets[index];
                     tablet->ReplicationProgress() = std::move(newProgresses[index]);
-                }
-            }
-        } else {
-            for (int index = 0; index < std::ssize(newTablets) && index < (lastTabletIndex - firstTabletIndex + 1); ++index) {
-                if (!tablets[firstTabletIndex + index]->As<TTablet>()->ReplicationProgress().Segments.empty()) {
-                    newTablets[index]->ReplicationProgress() = std::move(tablets[firstTabletIndex + index]->As<TTablet>()->ReplicationProgress());
                 }
             }
         }

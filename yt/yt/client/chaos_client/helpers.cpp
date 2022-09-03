@@ -51,16 +51,31 @@ TCellTag GetSiblingChaosCellTag(TCellTag cellTag)
     return cellTag ^ 1;
 }
 
-void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress)
+bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress)
 {
     const auto& segments = progress.Segments;
     const auto& upper = progress.UpperKey;
-    if (segments.size() != 1 ||
-        segments[0].LowerKey.GetCount() != 1 ||
-        segments[0].LowerKey[0].Type != EValueType::Int64 || 
-        upper.GetCount() != 1 ||
-        upper[0].Type != EValueType::Int64)
+
+    if (segments.size() != 1) {
+        return false;
+    }
+
+    if (segments[0].LowerKey.GetCount() != 0 &&
+        (segments[0].LowerKey.GetCount() != 1 || segments[0].LowerKey[0].Type != EValueType::Int64))
     {
+        return false;
+    }
+
+    if (upper.GetCount() != 1 || (upper[0].Type != EValueType::Int64 && upper[0].Type != EValueType::Max)) {
+        return false;
+    }
+
+    return true; 
+}
+
+void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress)
+{
+    if (!IsOrderedTabletReplicationProgress(progress)) {
         THROW_ERROR_EXCEPTION("Invalid replication progress for ordered table")
             << TErrorAttribute("replication_progress", progress);
     }
