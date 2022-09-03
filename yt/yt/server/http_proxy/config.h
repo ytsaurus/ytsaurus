@@ -8,13 +8,13 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/zookeeper/public.h>
-
-#include <yt/yt/library/auth_server/public.h>
-
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/library/auth_server/public.h>
+
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/client/driver/public.h>
 
@@ -23,8 +23,6 @@
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/https/public.h>
-
-#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 namespace NYT::NHttpProxy {
 
@@ -210,8 +208,6 @@ public:
     TAccessCheckerConfigPtr AccessChecker;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
-
-    NZookeeper::TZookeeperConfigPtr Zookeeper;
 
     TString UIRedirectUrl;
 

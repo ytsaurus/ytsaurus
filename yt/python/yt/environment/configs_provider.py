@@ -885,8 +885,6 @@ def _build_http_proxy_config(proxy_dir,
 
         config["driver"] = driver_config
 
-        config["zookeeper"] = {"port": next(ports_generator)}
-
         proxy_configs.append(config)
 
     return proxy_configs
