@@ -5,18 +5,17 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public interface TableWriter<T> {
-    WireRowSerializer<T> getRowSerializer();
+    TableSchema getSchema();
 
     //! Attempts to write a bunch of #rows. If false is returned then the rows
     //! are not accepted and the client must invoke #GetReadyEvent and wait.
     boolean write(List<T> rows, TableSchema schema) throws IOException;
 
     default boolean write(List<T> rows) throws IOException {
-        return write(rows, getRowSerializer().getSchema());
+        return write(rows, getSchema());
     }
 
     //! Returns an asynchronous flag enabling to wait until data is written.
