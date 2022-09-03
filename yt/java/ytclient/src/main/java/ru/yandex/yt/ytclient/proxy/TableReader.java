@@ -5,7 +5,6 @@ import java.util.concurrent.CompletableFuture;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public interface TableReader<T> {
@@ -24,8 +23,6 @@ public interface TableReader<T> {
     TableSchema getCurrentReadSchema();
 
     List<String> getOmittedInaccessibleColumns();
-
-    TRowsetDescriptor getRowsetDescriptor();
 
     CompletableFuture<Void> readyEvent();
 

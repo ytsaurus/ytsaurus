@@ -126,10 +126,4 @@ public abstract class TableAttachmentRowsetReader<T> implements TableAttachmentR
     public TableSchema getCurrentReadSchema() {
         return currentReadSchema;
     }
-
-    @Nullable
-    @Override
-    public TRowsetDescriptor getRowsetDescriptor() {
-        return currentRowsetDescriptor;
-    }
 }
