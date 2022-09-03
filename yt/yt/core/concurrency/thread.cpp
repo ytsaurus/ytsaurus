@@ -201,7 +201,7 @@ void TThread::ThreadMainTrampoline()
         }
 
     private:
-        bool Armed_ = false;
+        bool Armed_ = true;
     };
 
     static thread_local TExitInterceptor Interceptor;
