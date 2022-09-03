@@ -1,13 +1,12 @@
 PACKAGE_NAME = "yandex-yt"
 
 def main():
-    from helpers import get_version, recursive, is_debian, is_python_egg
+    from helpers import get_version, recursive, is_debian
 
     from setuptools import setup, find_packages
 
     import os
     import shutil
-    import sys
 
     version = get_version()
     version = version.split("-")[0]
