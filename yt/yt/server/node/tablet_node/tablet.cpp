@@ -2227,21 +2227,16 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
     auto replicationProgress = RuntimeData()->ReplicationProgress.Load();
     auto replicationCard = RuntimeData()->ReplicationCard.Load();
 
-    if (!replicationProgress || !replicationCard || replicationCard->Replicas.empty()) {
+    if (!replicationProgress || 
+        !IsOrderedTabletReplicationProgress(*replicationProgress) ||
+        !replicationCard ||
+        replicationCard->Replicas.empty())
+    {
         return MinTimestamp;
     }
 
     const auto& segments = replicationProgress->Segments;
     const auto& upper = replicationProgress->UpperKey;
-    if (segments.size() != 1 ||
-        segments[0].LowerKey.GetCount() != 1 ||
-        segments[0].LowerKey[0].Type != EValueType::Int64 ||
-        upper.GetCount() != 1 ||
-        upper[0].Type != EValueType::Int64)
-    {
-        return MinTimestamp;
-    }
-
     auto replicationTimestamp = MaxTimestamp;
     for (const auto& [_, replica] : replicationCard->Replicas) {
         auto minTimestamp = GetReplicationProgressMinTimestamp(

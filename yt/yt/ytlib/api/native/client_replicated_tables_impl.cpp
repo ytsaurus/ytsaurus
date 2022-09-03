@@ -245,7 +245,12 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
     };
 
     for (const auto& [replicaId, replica] : replicationCard->Replicas) {
-        if (replica.ContentType == ETableReplicaContentType::Data && isReplicaInSync(replica)) {
+        if (tableInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Data) {
+            continue;
+        } else if (!tableInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Queue) {
+            continue;
+        }
+        if (isReplicaInSync(replica)) {
             replicaIds.push_back(replicaId);
         }
     }

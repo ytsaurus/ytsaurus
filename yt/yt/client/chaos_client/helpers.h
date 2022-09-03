@@ -13,6 +13,7 @@ TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstr
 
 NObjectClient::TCellTag GetSiblingChaosCellTag(NObjectClient::TCellTag cellTag);
 
+bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress);
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress);
 
 ////////////////////////////////////////////////////////////////////////////////

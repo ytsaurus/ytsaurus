@@ -79,6 +79,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupVsTabletAction)                                         (2043))  // ifsmirnov
     ((AlwaysUseNewHeartbeats)                                       (2044))  // gepardo
     ((ExpectedTabletState)                                          (2045))  // savrus
+    ((FixOrderedTablesReplicatoinProgress222)                       (2046))  // savrus
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
@@ -102,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErrorSanitizer)                                               (2119))  // gritukan
     ((ImaginaryLocationOrderingFix)                                 (2120))  // shakurov
     ((NotSoImaginaryChunkLocations)                                 (2121))  // shakurov
+    ((FixOrderedTablesReplicatoinProgress)                          (2122))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

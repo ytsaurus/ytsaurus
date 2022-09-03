@@ -2523,7 +2523,9 @@ TPullRowsResult TClient::DoPullRows(
         const auto& timestampColumn = schema->GetColumnOrThrow(TimestampColumnName);
         timestampColumnIndex = schema->GetColumnIndex(timestampColumn);
 
-        int index = FromUnversionedValue<i64>(segments[0].LowerKey[0]);
+        int index = segments[0].LowerKey.GetCount() > 0
+            ? FromUnversionedValue<i64>(segments[0].LowerKey[0])
+            : 0;
         requests.push_back({
             .TabletIndex = index,
             .StartReplicationRowIndex = getStartReplicationRowIndex(index),
