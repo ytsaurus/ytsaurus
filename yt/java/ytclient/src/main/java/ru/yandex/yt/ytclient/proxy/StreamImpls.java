@@ -513,10 +513,6 @@ class TableRowsSerializer<T> {
         return rowSerializer;
     }
 
-    public TRowsetDescriptor getRowsetDescriptor() {
-        return rowsetDescriptor;
-    }
-
     public ByteBuf serializeRows(List<T> rows, TableSchema schema) {
         TRowsetDescriptor currentDescriptor = getCurrentRowsetDescriptor(schema);
         int[] idMapping = getIdMapping(rows, schema);
@@ -1102,11 +1098,6 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
     }
 
     @Override
-    public TRowsetDescriptor getRowsetDescriptor() {
-        return rowsSerializer.getRowsetDescriptor();
-    }
-
-    @Override
     public CompletableFuture<TableSchema> getTableSchema() {
         return init.thenApply(initResult -> initResult.schema);
     }
@@ -1180,11 +1171,6 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
         byte[] serializedRows = rowsSerializer.serialize(rows, schema);
         return write(serializedRows);
-    }
-
-    @Override
-    public TRowsetDescriptor getRowsetDescriptor() {
-        return rowsSerializer.getRowsetDescriptor();
     }
 
     @Override
@@ -1464,11 +1450,6 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
     @Override
     public List<String> getOmittedInaccessibleColumns() {
         return metadata.getOmittedInaccessibleColumnsList();
-    }
-
-    @Override
-    public TRowsetDescriptor getRowsetDescriptor() {
-        return reader.getRowsetDescriptor();
     }
 
     public CompletableFuture<TableReader<T>> waitMetadata() {

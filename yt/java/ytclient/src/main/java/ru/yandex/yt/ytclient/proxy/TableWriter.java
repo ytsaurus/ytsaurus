@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public interface TableWriter<T> {
@@ -23,9 +22,6 @@ public interface TableWriter<T> {
 
     //! Closes the writer. Must be the last call to the writer.
     CompletableFuture<?> close();
-
-    //! Returns the name table to be used for constructing rows.
-    TRowsetDescriptor getRowsetDescriptor();
 
     //! Returns the schema to be used for constructing rows.
     CompletableFuture<TableSchema> getTableSchema();
