@@ -201,6 +201,10 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tamed_cell_manager_profiling_period", &TThis::TamedCellManagerProfilingPeriod)
         .Default(DefaultTamedCellManagerProfilingPeriod);
 
+    registrar.Parameter("forbid_arbitrary_data_versions_in_retention_config", &TThis::ForbidArbitraryDataVersionsInRetentionConfig)
+        .Default(false)
+        .DontSerializeDefault();
+
    registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
