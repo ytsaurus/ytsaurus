@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/io/public.h>
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
@@ -15,6 +17,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -173,8 +176,8 @@ public:
 public:
     TChunkLocation(
         ELocationType type,
-        const TString& id,
-        TStoreLocationConfigBasePtr config,
+        TString id,
+        TChunkLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
         TChunkContextPtr chunkContext,
@@ -182,8 +185,6 @@ public:
 
     //! Returns the type.
     ELocationType GetType() const;
-
-    const TStoreLocationConfigBasePtr& GetConfig() const;
 
     //! Returns the universally unique id.
     TChunkLocationUuid GetUuid() const;
@@ -194,10 +195,14 @@ public:
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
 
-    void UpdateIOEngineType(NIO::EIOEngineType type);
-
     //! Returns the IO Engine with stats observer.
     const NIO::IIOEngineWorkloadModelPtr& GetIOEngineModel() const;
+
+    //! Returns the runtime configuration.
+    TChunkLocationConfigPtr GetRuntimeConfig() const;
+
+    //! Updates the runtime configuration.
+    void Reconfigure(TChunkLocationConfigPtr config);
 
     //! Return the maximum number of bytes in the gap between two adjacent read locations
     //! in order to join them together during read coalescing.
@@ -317,6 +322,10 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
 
+    //! Returns the incoming bandwidth throttler for a given #descriptor.
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
+
+    //! Returns the outcoming bandwidth throttler for a given #descriptor.
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Returns |true| if reads were throttled (within some recent time interval).
@@ -350,7 +359,7 @@ protected:
     const TChunkContextPtr ChunkContext_;
     const IChunkStoreHostPtr ChunkStoreHost_;
 
-    NProfiling::TProfiler Profiler_;
+    const NProfiling::TProfiler Profiler_;
 
     void UnlockChunk(TChunkId chunkId);
 
@@ -372,7 +381,11 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     const ELocationType Type_;
-    const TStoreLocationConfigBasePtr Config_;
+    const TChunkLocationConfigPtr StaticConfig_;
+
+    const TLocationPerformanceCountersPtr PerformanceCounters_;
+
+    TAtomicPtr<TChunkLocationConfig> RuntimeConfig_;
 
     TChunkLocationUuid Uuid_;
 
@@ -387,20 +400,15 @@ private:
     TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
     std::atomic<int> ChunkCount_ = 0;
 
-    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletLoggingOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
+    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> Throttlers_;
+    NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    NIO::IIOEnginePtr IOEngine_;
-    NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
+    NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
+    NIO::IIOEnginePtr IOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
-
-    TLocationPerformanceCountersPtr PerformanceCounters_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
@@ -445,7 +453,7 @@ public:
     };
 
     TStoreLocation(
-        const TString& id,
+        TString id,
         TStoreLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -454,8 +462,14 @@ public:
 
     ~TStoreLocation();
 
-    //! Returns the location's config.
-    const TStoreLocationConfigPtr& GetConfig() const;
+    //! Returns the static config.
+    const TStoreLocationConfigPtr& GetStaticConfig() const;
+
+    //! Returns the runtime config.
+    TStoreLocationConfigPtr GetRuntimeConfig() const;
+
+    //! Updates the runtime configuration.
+    void Reconfigure(TStoreLocationConfigPtr config);
 
     //! Returns Journal Manager associated with this location.
     const IJournalManagerPtr& GetJournalManager();
@@ -474,8 +488,6 @@ public:
     //! Checks whether to location has enough space to contain file of size #size.
     bool HasEnoughSpace(i64 size) const;
 
-    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
-
     //! Removes a chunk permanently or moves it to the trash.
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
@@ -486,7 +498,7 @@ public:
     bool IsWritable() const;
 
 private:
-    const TStoreLocationConfigPtr Config_;
+    const TStoreLocationConfigPtr StaticConfig_;
 
     const IJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
@@ -506,15 +518,13 @@ private:
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
     class TIOStatisticsProvider;
-    const TIntrusivePtr<TIOStatisticsProvider> StatisticsProvider_;
+    const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
-    NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
+    TAtomicPtr<TStoreLocationConfig> RuntimeConfig_;
+
+    static TJournalManagerConfigPtr BuildJournalManagerConfig(
+        const TDataNodeConfigPtr& dataNodeConfig,
+        const TStoreLocationConfigPtr& storeLocationConfig);
 
     TString GetTrashPath() const;
     TString GetTrashChunkPath(TChunkId chunkId) const;
@@ -547,7 +557,7 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        const TString& id,
+        TString id,
         TCacheLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkContextPtr chunkContext,
@@ -556,8 +566,6 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
 
 private:
-    const TCacheLocationConfigPtr Config_;
-
     const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
     std::optional<TChunkDescriptor> Repair(TChunkId chunkId, const TString& metaSuffix);

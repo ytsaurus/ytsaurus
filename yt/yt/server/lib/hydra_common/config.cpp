@@ -31,10 +31,6 @@ void TFileChangelogConfig::Register(TRegistrar registrar)
 
 void TFileChangelogDispatcherConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("io_class", &TThis::IOClass)
-        .Default(1); // IOPRIO_CLASS_RT
-    registrar.Parameter("io_priority", &TThis::IOPriority)
-        .Default(3);
     registrar.Parameter("flush_quantum", &TThis::FlushQuantum)
         .Default(TDuration::MilliSeconds(10));
 }

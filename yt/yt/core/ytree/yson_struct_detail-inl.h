@@ -613,7 +613,7 @@ void TYsonStructParameter<TValue>::Load(
             options.Path,
             options.MergeStrategy.value_or(MergeStrategy_),
             options.KeepUnrecognizedRecursively);
-    } else if (!DefaultConstructor_) {
+    } else if (!DefaultCtor_) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             options.Path);
     }
@@ -651,7 +651,7 @@ void TYsonStructParameter<TValue>::Load(
             options.Path,
             options.MergeStrategy.value_or(MergeStrategy_),
             options.KeepUnrecognizedRecursively);
-    } else if (!DefaultConstructor_) {
+    } else if (!DefaultCtor_) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             options.Path);
     }
@@ -710,8 +710,8 @@ void TYsonStructParameter<TValue>::SetDefaultsInitialized(TYsonStructBase* self)
 {
     TValue& value = FieldAccessor_->GetValue(self);
 
-    if (DefaultConstructor_) {
-        value = (*DefaultConstructor_)();
+    if (DefaultCtor_) {
+        value = (*DefaultCtor_)();
     }
 
     NPrivate::InvokeForComposites(
@@ -735,20 +735,20 @@ bool TYsonStructParameter<TValue>::CanOmitValue(const TYsonStructBase* self) con
 {
     const auto& value = FieldAccessor_->GetValue(self);
     if constexpr (NPrivate::SupportsDontSerializeDefault<TValue>) {
-        if (!SerializeDefault_ && value == (*DefaultConstructor_)()) {
+        if (!SerializeDefault_ && value == (*DefaultCtor_)()) {
             return true;
         }
     }
 
-    if (!DefaultConstructor_) {
+    if (!DefaultCtor_) {
         return NYT::NYTree::NDetail::CanOmitValue(&value, nullptr);
     }
 
-    if (IsTriviallyInitializedIntrusivePtr_) {
+    if (TriviallyInitializedIntrusivePtr_) {
         return false;
     }
 
-    auto defaultValue = (*DefaultConstructor_)();
+    auto defaultValue = (*DefaultCtor_)();
     return NYT::NYTree::NDetail::CanOmitValue(&value, &defaultValue);
 }
 
@@ -774,7 +774,7 @@ const TString& TYsonStructParameter<TValue>::GetKey() const
 template <class TValue>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Optional()
 {
-    DefaultConstructor_ = [] () { return TValue{}; };
+    DefaultCtor_ = [] () { return TValue{}; };
     return *this;
 }
 
@@ -782,21 +782,21 @@ template <class TValue>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Default(TValue defaultValue)
 {
     static_assert(!std::is_convertible_v<TValue, TIntrusivePtr<TYsonStruct>>, "Use DefaultCtor to register TYsonStruct default.");
-    DefaultConstructor_ = [value = std::move(defaultValue)] () { return value; };
+    DefaultCtor_ = [value = std::move(defaultValue)] () { return value; };
     return *this;
 }
 
 template <class TValue>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Default()
 {
-    DefaultConstructor_ = [] () { return TValue{}; };
+    DefaultCtor_ = [] () { return TValue{}; };
     return *this;
 }
 
 template <class TValue>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::DefaultCtor(std::function<TValue()> defaultCtor)
 {
-    DefaultConstructor_ = std::move(defaultCtor);
+    DefaultCtor_ = std::move(defaultCtor);
     return *this;
 }
 
@@ -817,7 +817,7 @@ template <class TValue>
 template <class... TArgs>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::DefaultNew(TArgs&&... args)
 {
-    IsTriviallyInitializedIntrusivePtr_ = true;
+    TriviallyInitializedIntrusivePtr_ = true;
     return DefaultCtor([=] () mutable { return New<typename TValue::TUnderlying>(std::forward<TArgs>(args)...); });
 }
 

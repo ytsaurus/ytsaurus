@@ -74,11 +74,13 @@ class TestIoEngine(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "medium_io_config": {
+                "store_location_config_per_medium": {
                     "default": {
-                        "sick_write_time_threshold": 0,
-                        "sick_write_time_window": 0,
-                        "sickness_expiration_timeout": 1000000,
+                        "io_config": {
+                            "sick_write_time_threshold": 0,
+                            "sick_write_time_window": 0,
+                            "sickness_expiration_timeout": 1000000,
+                        }
                     }
                 }
             }
@@ -94,8 +96,10 @@ class TestIoEngine(YTEnvSetup):
         def use_engine(name):
             update_nodes_dynamic_config({
                 "data_node": {
-                    "medium_io_engine": {
-                        "default": name
+                    "store_location_config_per_medium": {
+                        "default": {
+                            "io_engine_type": name
+                        }
                     }
                 }
             })

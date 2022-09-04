@@ -326,13 +326,12 @@ public:
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
-        , Config_(std::move(config))
         , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(std::move(threadName)))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
-            Config_->FlushQuantum))
+            config->FlushQuantum))
         , Profiler(std::move(profiler))
         , RecordCounter_(Profiler.Counter("/records"))
         , ByteCounter_(Profiler.Counter("/bytes"))
@@ -349,6 +348,11 @@ public:
     {
         PeriodicExecutor_->Stop();
         ActionQueue_->Shutdown();
+    }
+
+    virtual void Reconfigure(TFileChangelogDispatcherConfigPtr config) override
+    {
+        PeriodicExecutor_->SetPeriod(config->FlushQuantum);
     }
 
     IInvokerPtr GetInvoker() override
@@ -461,7 +465,6 @@ public:
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
     const TActionQueuePtr ActionQueue_;

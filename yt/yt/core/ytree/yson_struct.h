@@ -238,6 +238,11 @@ bool ReconfigureYsonStruct(
     const TIntrusivePtr<T>& config,
     const NYTree::INodePtr& newConfigNode);
 
+template <class TSrc, class TDst>
+void UpdateYsonStructField(TDst& dst, const std::optional<TSrc>& src);
+template <class TSrc, class TDst>
+void UpdateYsonStructField(TIntrusivePtr<TDst>& dst, const TIntrusivePtr<TSrc>& src);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_YSON_STRUCT_IMPL(TStruct) \

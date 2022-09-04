@@ -52,11 +52,15 @@ class TDiskLocationConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    static constexpr bool EnableHazard = true;
+
     //! Root directory for the location.
     TString Path;
 
     //! Minimum size the disk partition must have to make this location usable.
     std::optional<i64> MinDiskSpace;
+
+    void ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TDiskLocationConfig);
 
@@ -64,6 +68,21 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiskLocationDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> MinDiskSpace;
+
+    REGISTER_YSON_STRUCT(TDiskLocationDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskLocationDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +121,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFormatConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFormatConfig
     : public TFormatConfigBase

@@ -67,8 +67,10 @@ DECLARE_REFCOUNTED_CLASS(TBlobWritePipeline)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)
 DECLARE_REFCOUNTED_CLASS(TSessionManager)
 
-DECLARE_REFCOUNTED_CLASS(TStoreLocationConfigBase)
+DECLARE_REFCOUNTED_CLASS(TChunkLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkLocationDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TStoreLocationDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TCacheLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiplexedChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TArtifactCacheReaderConfig)
@@ -78,6 +80,7 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TAllyReplicaManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeTestingOptions)
+DECLARE_REFCOUNTED_CLASS(TJournalManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
@@ -166,6 +169,31 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (JobOut)
     //! Controls outcoming bandwidth consumed by P2P block distribution.
     (P2POut)
+);
+
+DEFINE_ENUM(EChunkLocationThrottlerKind,
+    //! Controls incoming location bandwidth used by repair jobs.
+    (RepairIn)
+    //! Controls incoming location bandwidth used by replication jobs.
+    (ReplicationIn)
+    //! Controls outcoming location bandwidth used by replication jobs.
+    (ReplicationOut)
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    (TabletCompactionAndPartitioningIn)
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    (TabletCompactionAndPartitioningOut)
+    //! Controls incoming location bandwidth used by tablet journals.
+    (TabletLoggingIn)
+    //! Controls outcoming location bandwidth used by tablet journals.
+    (TabletLoggingOut)
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    (TabletSnapshotIn)
+    //! Controls incoming location bandwidth used by tablet store flush.
+    (TabletStoreFlushIn)
+    //! Controls outcoming location bandwidth used by tablet store preload.
+    (TabletPreloadOut)
+    //! Controls outcoming location bandwidth used by tablet ecovery.
+    (TabletRecoveryOut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

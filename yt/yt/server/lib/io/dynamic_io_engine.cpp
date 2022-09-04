@@ -116,7 +116,7 @@ public:
         return GetEngine()->IsSick();
     }
 
-    void ReconfigureType(EIOEngineType type) override
+    void SetType(EIOEngineType type) override
     {
         State_->CurrentType = type;
     }
@@ -170,7 +170,7 @@ private:
     struct TProxyInvoker
         : public IInvoker
     {
-        TProxyInvoker(TIntrusivePtr<TEngineState> state)
+        explicit TProxyInvoker(TIntrusivePtr<TEngineState> state)
             : State(state)
         { }
 

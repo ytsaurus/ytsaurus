@@ -20,6 +20,9 @@ struct IJournalManager
 {
     virtual void Initialize() = 0;
 
+    virtual void Reconfigure(
+        TJournalManagerConfigPtr config) = 0;
+
     virtual TFuture<NHydra::IFileChangelogPtr> OpenChangelog(
         TChunkId chunkId) = 0;
 
@@ -49,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(IJournalManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJournalManagerPtr CreateJournalManager(
-    TDataNodeConfigPtr config,
+    TJournalManagerConfigPtr config,
     TStoreLocation* location,
     TChunkContextPtr chunkContext,
     INodeMemoryTrackerPtr nodeMemoryTracker);

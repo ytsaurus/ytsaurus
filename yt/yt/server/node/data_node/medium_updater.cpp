@@ -71,7 +71,7 @@ void TMediumUpdater::UpdateLocationMedia(
         }
 
         if (!descriptor) {
-            const auto& mediumName = location->GetConfig()->MediumName;
+            const auto& mediumName = location->GetStaticConfig()->MediumName;
             descriptor = mediumDirectory->FindByName(mediumName);
             if (!descriptor) {
                 YT_LOG_ERROR("Configured location medium does not exist (LocationId: %v, LocationUuid: %v, MediumName: %v)",

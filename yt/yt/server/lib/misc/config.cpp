@@ -18,6 +18,8 @@
 
 namespace NYT {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TServerConfig::Register(TRegistrar registrar)
@@ -64,6 +66,11 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDiskLocationConfig::ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig)
+{
+    UpdateYsonStructField(MinDiskSpace, dynamicConfig.MinDiskSpace);
+}
+
 void TDiskLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path)
@@ -71,6 +78,15 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDiskLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
+        .GreaterThanOrEqual(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

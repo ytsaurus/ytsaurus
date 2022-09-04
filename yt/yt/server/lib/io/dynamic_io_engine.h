@@ -9,7 +9,7 @@ namespace NYT::NIO {
 struct IDynamicIOEngine
     : public IIOEngine
 {
-    virtual void ReconfigureType(EIOEngineType type) = 0;
+    virtual void SetType(EIOEngineType type) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDynamicIOEngine)
