@@ -2853,7 +2853,7 @@ def get_applied_node_dynamic_config(node, driver=None):
                driver=driver)
 
 
-# Implements config.update(new_config) for dynamic nodes config and waits for config apply
+# Implements config.update(new_config) for dynamic nodes config and waits until config is applied
 # assuming the only nodes config filter is `%true`.
 def update_nodes_dynamic_config(new_config, driver=None):
     current_config = get("//sys/cluster_nodes/@config", driver=driver)

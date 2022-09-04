@@ -249,9 +249,10 @@ private:
             int currentRecordId = startRecordId;
             for (const auto& recordData : recordsData) {
                 YT_VERIFY(recordData.Size() >= sizeof (TMultiplexedRecordHeader));
-                TMultiplexedRecord record;
-                record.Header = *reinterpret_cast<const TMultiplexedRecordHeader*>(recordData.Begin());
-                record.Data = recordData.Slice(sizeof (TMultiplexedRecordHeader), recordData.Size());
+                TMultiplexedRecord record{
+                    .Header = *reinterpret_cast<const TMultiplexedRecordHeader*>(recordData.Begin()),
+                    .Data = recordData.Slice(sizeof (TMultiplexedRecordHeader), recordData.Size())
+                };
                 handler(TVersion(changelogId, currentRecordId), record);
                 ++currentRecordId;
             }
@@ -497,11 +498,19 @@ public:
         TString path,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
-        : Config_(std::move(config))
-        , MultiplexedChangelogDispatcher_(std::move(multiplexedChangelogDispatcher))
+        : MultiplexedChangelogDispatcher_(std::move(multiplexedChangelogDispatcher))
         , Path_(std::move(path))
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
+        , MultiplexedCleanupExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TMultiplexedWriter::OnMultiplexedCleanup, MakeWeak(this)),
+            MultiplexedCleanupPeriod))
+        , BarrierCleanupExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TMultiplexedWriter::OnBarrierCleanup, MakeWeak(this)),
+            BarrierCleanupPeriod))
+        , Config_(std::move(config))
     { }
 
     void Initialize(int changelogId)
@@ -509,35 +518,43 @@ public:
         auto changelog = CreateMultiplexedChangelog(changelogId);
         SetMultiplexedChangelog(changelog, changelogId);
 
-        MultiplexedCleanupExecutor_ = New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TMultiplexedWriter::OnMultiplexedCleanup, MakeWeak(this)),
-            MultiplexedCleanupPeriod);
         MultiplexedCleanupExecutor_->Start();
-
-        BarrierCleanupExecutor_ = New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TMultiplexedWriter::OnBarrierCleanup, MakeWeak(this)),
-            BarrierCleanupPeriod);
         BarrierCleanupExecutor_->Start();
+    }
+
+    void Reconfigure(TMultiplexedChangelogConfigPtr config)
+    {
+        Config_.Store(std::move(config));
     }
 
     TFuture<void> WriteCreateRecord(TChunkId chunkId)
     {
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Create;
-        record.Header.ChunkId = chunkId;
-        record.Header.RecordId = -1;
-        return WriteMultiplexedRecords({record});
+        auto config = Config_.Acquire();
+
+        TMultiplexedRecord record{
+            .Header = {
+                .Type = EMultiplexedRecordType::Create,
+                .RecordId = -1,
+                .ChunkId = chunkId
+            }
+        };
+
+        return WriteMultiplexedRecords(config, {record});
     }
 
     TFuture<void> WriteRemoveRecord(TChunkId chunkId)
     {
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Remove;
-        record.Header.ChunkId = chunkId;
-        record.Header.RecordId = -1;
-        return WriteMultiplexedRecords({record});
+        auto config = Config_.Acquire();
+
+        TMultiplexedRecord record{
+            .Header = {
+                .Type = EMultiplexedRecordType::Remove,
+                .RecordId = -1,
+                .ChunkId = chunkId
+            }
+        };
+
+        return WriteMultiplexedRecords(config, {record});
     }
 
     TFuture<bool> WriteAppendRecords(
@@ -545,17 +562,22 @@ public:
         int firstRecordId,
         TRange<TSharedRef> records)
     {
+        auto config = Config_.Acquire();
+
         std::vector<TMultiplexedRecord> multiplexedRecords;
         multiplexedRecords.reserve(records.size());
         auto currentRecordId = firstRecordId;
 
         bool recordsSkipped = false;
         for (const auto& record : records) {
-            TMultiplexedRecord multiplexedRecord;
-            multiplexedRecord.Header.RecordId = currentRecordId++;
-            multiplexedRecord.Header.ChunkId = chunkId;
+            TMultiplexedRecord multiplexedRecord{
+                .Header = {
+                    .RecordId = currentRecordId++,
+                    .ChunkId = chunkId
+                }
+            };
 
-            if (!Config_->BigRecordThreshold || static_cast<int>(record.Size()) <= *Config_->BigRecordThreshold) {
+            if (static_cast<i64>(record.Size()) <= config->BigRecordThreshold.value_or(Max<i64>())) {
                 multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
                 multiplexedRecord.Data = record;
             } else {
@@ -566,7 +588,7 @@ public:
             multiplexedRecords.push_back(multiplexedRecord);
         }
 
-        return WriteMultiplexedRecords(multiplexedRecords)
+        return WriteMultiplexedRecords(config, multiplexedRecords)
             .Apply(BIND([recordsSkipped] {
                 return recordsSkipped;
             }));
@@ -607,7 +629,8 @@ public:
         // NB: May be called multiple times for the same #changelogId.
         MultiplexedChangelogIdToCleanResult_.emplace(changelogId, NewPromise<void>());
         auto path = GetMultiplexedChangelogPath(changelogId);
-        return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(changelogId, path, Config_))
+        auto config = Config_.Acquire();
+        return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(changelogId, path, config))
             .ValueOrThrow();
     }
 
@@ -622,7 +645,8 @@ public:
             ? VoidFuture
             : prevResultIt->second.ToFuture();
 
-        auto delayedResult = TDelayedExecutor::MakeDelayed(Config_->CleanDelay);
+        auto config = Config_.Acquire();
+        auto delayedResult = TDelayedExecutor::MakeDelayed(config->CleanDelay);
 
         auto combinedResult = AllSucceeded(std::vector<TFuture<void>>{prevResult, delayedResult});
         curResult.SetFrom(combinedResult.Apply(
@@ -631,12 +655,16 @@ public:
     }
 
 private:
-    const TMultiplexedChangelogConfigPtr Config_;
     const IFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     const TString Path_;
     const IInvokerPtr Invoker_;
 
     const NLogging::TLogger Logger;
+
+    const TPeriodicExecutorPtr MultiplexedCleanupExecutor_;
+    const TPeriodicExecutorPtr BarrierCleanupExecutor_;
+
+    TAtomicPtr<TMultiplexedChangelogConfig> Config_;
 
     //! Protects a section of members.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -658,11 +686,10 @@ private:
     //! Used to guarantee that multiplexed changelogs are being marked as clean in proper order.
     THashMap<int, TPromise<void>> MultiplexedChangelogIdToCleanResult_;
 
-    TPeriodicExecutorPtr MultiplexedCleanupExecutor_;
-    TPeriodicExecutorPtr BarrierCleanupExecutor_;
 
-
-    TFuture<void> WriteMultiplexedRecords(TRange<TMultiplexedRecord> multiplexedRecords)
+    TFuture<void> WriteMultiplexedRecords(
+        const TMultiplexedChangelogConfigPtr& config,
+        TRange<TMultiplexedRecord> multiplexedRecords)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -704,8 +731,8 @@ private:
         auto appendResult = MultiplexedChangelog_->Append(changelogRecords);
 
         // Check if it is time to rotate.
-        if (MultiplexedChangelog_->GetRecordCount() >= Config_->MaxRecordCount ||
-            MultiplexedChangelog_->GetDataSize() >= Config_->MaxDataSize ||
+        if (MultiplexedChangelog_->GetRecordCount() >= config->MaxRecordCount ||
+            MultiplexedChangelog_->GetDataSize() >= config->MaxDataSize ||
             NProfiling::GetCpuInstant() > MultiplexedChangelogRotationDeadline_)
         {
             YT_LOG_INFO("Started rotating multiplexed changelog (ChangelogId: %v)",
@@ -751,11 +778,12 @@ private:
 
     void SetMultiplexedChangelog(IChangelogPtr changelog, int id)
     {
+        auto config = Config_.Acquire();
         MultiplexedChangelog_ = changelog;
         MultiplexedChangelogId_ = id;
         MultiplexedChangelogRotationDeadline_ =
             NProfiling::GetCpuInstant() +
-            NProfiling::DurationToCpuDuration(Config_->AutoRotationPeriod);
+            NProfiling::DurationToCpuDuration(config->AutoRotationPeriod);
     }
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
@@ -763,11 +791,12 @@ private:
         YT_LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
+        auto config = Config_.Acquire();
         auto changelog = WaitFor(MultiplexedChangelogDispatcher_->CreateChangelog(
             id,
             GetMultiplexedChangelogPath(id),
             /*meta*/ {},
-            Config_))
+            config))
             .ValueOrThrow();
 
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
@@ -813,6 +842,7 @@ private:
     void OnMultiplexedCleanup()
     {
         try {
+            auto config = Config_.Acquire();
             auto fileNames = NFS::EnumerateFiles(Path_);
 
             std::vector<int> ids;
@@ -830,11 +860,11 @@ private:
                 ids.push_back(id);
             }
 
-            if (std::ssize(ids) <= Config_->MaxCleanChangelogsToKeep)
+            if (std::ssize(ids) <= config->MaxCleanChangelogsToKeep)
                 return;
 
             std::sort(ids.begin(), ids.end());
-            ids.erase(ids.end() - Config_->MaxCleanChangelogsToKeep, ids.end());
+            ids.erase(ids.end() - config->MaxCleanChangelogsToKeep, ids.end());
 
             for (int id : ids) {
                 YT_LOG_INFO("Removing clean multiplexed changelog (ChangelogId: %v)", id);
@@ -894,16 +924,14 @@ class TJournalManager
 {
 public:
     TJournalManager(
-        TDataNodeConfigPtr config,
+        TJournalManagerConfigPtr config,
         TStoreLocation* location,
         TChunkContextPtr chunkContext,
         INodeMemoryTrackerPtr nodeMemoryTracker)
-        : MultiplexedChangelogConfig_(UpdateYsonStruct(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
-        , HighLatencySplitChangelogConfig_(UpdateYsonStruct(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
-        , LowLatencySplitChangelogConfig_(UpdateYsonStruct(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
-        , Location_(location)
-        , ChunkContext_(chunkContext)
+        : Location_(std::move(location))
+        , ChunkContext_(std::move(chunkContext))
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
+        , Config_(config)
     {
         auto journalIndexMemorTracker = nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::ChunkJournalIndex)
@@ -912,19 +940,18 @@ public:
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             journalIndexMemorTracker,
-            MultiplexedChangelogConfig_,
+            config->MultiplexedChangelog,
             "MFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
-
         SplitChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             journalIndexMemorTracker,
-            MultiplexedChangelogConfig_,
+            config->MultiplexedChangelog,
             "SFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
-            MultiplexedChangelogConfig_,
+            config->MultiplexedChangelog,
             MultiplexedChangelogDispatcher_,
             NFS::CombinePaths(Location_->GetPath(), MultiplexedDirectory),
             MultiplexedChangelogDispatcher_->GetInvoker(),
@@ -936,9 +963,10 @@ public:
         YT_LOG_INFO("Initializing journals");
 
         // Initialize and replay multiplexed changelogs.
+        auto config = Config_.Acquire();
         TMultiplexedReplayCallbacks replayCallbacks(this);
         auto replayer = New<TMultiplexedReplayer>(
-            MultiplexedChangelogConfig_,
+            config->MultiplexedChangelog,
             &replayCallbacks,
             Logger);
         int newId = replayer->ReplayChangelogs();
@@ -947,6 +975,16 @@ public:
         MultiplexedWriter_->Initialize(newId);
 
         YT_LOG_INFO("Journals initialized");
+    }
+
+    void Reconfigure(TJournalManagerConfigPtr config) override
+    {
+        MultiplexedChangelogDispatcher_->Reconfigure(config->MultiplexedChangelog);
+        SplitChangelogDispatcher_->Reconfigure(config->MultiplexedChangelog);
+
+        MultiplexedWriter_->Reconfigure(config->MultiplexedChangelog);
+
+        Config_.Store(std::move(config));
     }
 
     TFuture<IFileChangelogPtr> OpenChangelog(TChunkId chunkId) override
@@ -1039,13 +1077,12 @@ public:
     }
 
 private:
-    const TMultiplexedChangelogConfigPtr MultiplexedChangelogConfig_;
-    const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
-    const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
     const TChunkContextPtr ChunkContext_;
 
     const NLogging::TLogger Logger;
+
+    TAtomicPtr<TJournalManagerConfig> Config_;
 
     IFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     IFileChangelogDispatcherPtr SplitChangelogDispatcher_;
@@ -1055,9 +1092,10 @@ private:
 
     TFileChangelogConfigPtr GetSplitChangelogConfig(bool enableMultiplexing)
     {
+        auto config = Config_.Acquire();
         return enableMultiplexing
-            ? HighLatencySplitChangelogConfig_
-            : LowLatencySplitChangelogConfig_;
+            ? config->HighLatencySplitChangelog
+            : config->LowLatencySplitChangelog;
     }
 
     IFileChangelogPtr DoCreateChangelog(
@@ -1097,7 +1135,8 @@ private:
         {
             NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
-            changelog = WaitFor(SplitChangelogDispatcher_->OpenChangelog(/*id*/ -1, fileName, HighLatencySplitChangelogConfig_))
+            auto config = Config_.Acquire();
+            changelog = WaitFor(SplitChangelogDispatcher_->OpenChangelog(/*id*/ -1, fileName, config->HighLatencySplitChangelog))
                 .ValueOrThrow();
         }
 
@@ -1254,7 +1293,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJournalManagerPtr CreateJournalManager(
-    TDataNodeConfigPtr config,
+    TJournalManagerConfigPtr config,
     TStoreLocation* location,
     TChunkContextPtr chunkContext,
     INodeMemoryTrackerPtr nodeMemoryTracker)

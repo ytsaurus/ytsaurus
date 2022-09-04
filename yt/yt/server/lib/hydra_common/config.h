@@ -53,8 +53,6 @@ class TFileChangelogDispatcherConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    int IOClass;
-    int IOPriority;
     TDuration FlushQuantum;
 
     REGISTER_YSON_STRUCT(TFileChangelogDispatcherConfig);

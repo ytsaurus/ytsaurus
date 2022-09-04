@@ -73,7 +73,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreLocationConfigBase
+class TChunkLocationConfig
     : public TDiskLocationConfig
 {
 public:
@@ -88,20 +88,8 @@ public:
     //! Disk family in this location (HDD, SDD, etc.)
     TString DiskFamily;
 
-    //! Controls outcoming location bandwidth used by replication jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet logging.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingOutThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet preload.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet recovery.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
+    //! Configuration for various per-location throttlers.
+    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     //! IO Engine type.
     NIO::EIOEngineType IOEngineType;
@@ -125,17 +113,40 @@ public:
 
     bool ResetUuid;
 
-    REGISTER_YSON_STRUCT(TStoreLocationConfigBase);
+    void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
+
+    REGISTER_YSON_STRUCT(TChunkLocationConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase)
+DEFINE_REFCOUNTED_TYPE(TChunkLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkLocationDynamicConfig
+    : public TDiskLocationDynamicConfig
+{
+public:
+    std::optional<NIO::EIOEngineType> IOEngineType;
+    NYTree::INodePtr IOConfig;
+
+    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    std::optional<TDuration> ThrottleDuration;
+
+    std::optional<i64> CoalescedReadMaxGapSize;
+
+    REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkLocationDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreLocationConfig
-    : public TStoreLocationConfigBase
+    : public TChunkLocationConfig
 {
 public:
     //! A currently full location is considered to be non-full again when available space grows
@@ -159,24 +170,6 @@ public:
     //! Period between trash cleanups.
     TDuration TrashCheckPeriod;
 
-    //! Controls incoming location bandwidth used by repair jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
-
-    //! Controls incoming location bandwidth used by replication jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
-
-    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
-
-    //! Controls incoming location bandwidth used by tablet journals.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
-
-    //! Controls incoming location bandwidth used by tablet snapshots.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
-
-    //! Controls incoming location bandwidth used by tablet store flush.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
-
     //! Per-location multiplexed changelog configuration.
     NYTree::INodePtr MultiplexedChangelog;
 
@@ -185,6 +178,9 @@ public:
 
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
+
+    TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig);
+    void ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TStoreLocationConfig);
 
@@ -195,8 +191,29 @@ DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreLocationDynamicConfig
+    : public TChunkLocationDynamicConfig
+{
+public:
+    std::optional<i64> LowWatermark;
+    std::optional<i64> HighWatermark;
+    std::optional<i64> DisableWritesWatermark;
+
+    std::optional<TDuration> MaxTrashTtl;
+    std::optional<i64> TrashCleanupWatermark;
+    std::optional<TDuration> TrashCheckPeriod;
+
+    REGISTER_YSON_STRUCT(TStoreLocationDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreLocationDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCacheLocationConfig
-    : public TStoreLocationConfigBase
+    : public TChunkLocationConfig
 {
 public:
     //! Controls incoming location bandwidth used by cache.
@@ -216,6 +233,8 @@ class TMultiplexedChangelogConfig
     , public NHydra::TFileChangelogDispatcherConfig
 {
 public:
+    static constexpr bool EnableHazard = true;
+
     //! Multiplexed changelog record count limit.
     /*!
      *  When this limit is reached, the current multiplexed changelog is rotated.
@@ -590,8 +609,32 @@ DEFINE_REFCOUNTED_TYPE(TChunkRepairJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJournalManagerConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    static constexpr bool EnableHazard = true;
+
+    //! Configuration of multiplexed changelogs.
+    TMultiplexedChangelogConfigPtr MultiplexedChangelog;
+
+    //! Configuration of per-chunk changelogs that back the multiplexed changelog.
+    NHydra::TFileChangelogConfigPtr HighLatencySplitChangelog;
+
+    //! Configuration of per-chunk changelogs that are being written directly (w/o multiplexing).
+    NHydra::TFileChangelogConfigPtr LowLatencySplitChangelog;
+
+    REGISTER_YSON_STRUCT(TJournalManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
-    : public NYTree::TYsonStruct
+    : public TJournalManagerConfig
 {
 public:
     //! Timeout for lease transactions.
@@ -647,15 +690,6 @@ public:
 
     //! Table schema and row key comparer cache.
     TTableSchemaCacheConfigPtr TableSchemaCache;
-
-    //! Multiplexed changelog configuration.
-    TMultiplexedChangelogConfigPtr MultiplexedChangelog;
-
-    //! Configuration of per-chunk changelog that backs the multiplexed changelog.
-    NHydra::TFileChangelogConfigPtr HighLatencySplitChangelog;
-
-    //! Configuration of per-chunk changelog that is being written directly (w/o multiplexing).
-    NHydra::TFileChangelogConfigPtr LowLatencySplitChangelog;
 
     //! Upload session timeout.
     /*!
@@ -728,10 +762,10 @@ public:
     //! Configuration for various Data Node throttlers. Used when fair throttler is not enabled.
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
-    //! Configuration for rps out throttler.
+    //! Configuration for RPS out throttler.
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
 
-    //! Configuration for rps throttler of ally replica manager.
+    //! Configuration for RPS throttler of ally replica manager.
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
     //! Runs periodic checks against disks.
@@ -858,9 +892,7 @@ public:
 
     TChunkRepairJobDynamicConfigPtr ChunkRepairJob;
 
-    THashMap<TString, NIO::EIOEngineType> MediumIOEngine;
-
-    THashMap<TString, NYTree::INodePtr> MediumIOConfig;
+    THashMap<TString, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
 
     std::optional<i64> NetOutThrottlingLimit;
 

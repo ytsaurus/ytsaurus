@@ -16,6 +16,9 @@ namespace NYT::NHydra {
 struct IFileChangelogDispatcher
     : public TRefCounted
 {
+    //! Updates the configuration.
+    virtual void Reconfigure(TFileChangelogDispatcherConfigPtr config) = 0;
+
     //! Returns the invoker managed by the dispatcher.
     virtual IInvokerPtr GetInvoker() = 0;
 

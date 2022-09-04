@@ -20,16 +20,33 @@ using namespace NYson;
 
 TDiskLocation::TDiskLocation(
     TDiskLocationConfigPtr config,
-    const TString& id,
+    TString id,
     const NLogging::TLogger& logger)
-    : Id_(id)
+    : Id_(std::move(id))
     , Logger(logger.WithTag("LocationId: %v", id))
-    , Config_(config)
+    , StaticConfig_(std::move(config))
+    , RuntimeConfig_(StaticConfig_)
 { }
 
 const TString& TDiskLocation::GetId() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Id_;
+}
+
+TDiskLocationConfigPtr TDiskLocation::GetRuntimeConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return RuntimeConfig_.Acquire();
+}
+
+void TDiskLocation::Reconfigure(TDiskLocationConfigPtr config)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    RuntimeConfig_.Store(std::move(config));
 }
 
 bool TDiskLocation::IsEnabled() const
@@ -43,7 +60,7 @@ void TDiskLocation::ValidateLockFile() const
 {
     YT_LOG_INFO("Checking lock file");
 
-    auto lockFilePath = NFS::CombinePaths(Config_->Path, DisabledLockFileName);
+    auto lockFilePath = NFS::CombinePaths(StaticConfig_->Path, DisabledLockFileName);
     if (!NFS::Exists(lockFilePath)) {
         return;
     }
@@ -70,11 +87,13 @@ void TDiskLocation::ValidateMinimumSpace() const
 {
     YT_LOG_INFO("Checking minimum space");
 
-    if (Config_->MinDiskSpace) {
-        i64 minSpace = *Config_->MinDiskSpace;
-        i64 totalSpace = GetTotalSpace();
+    auto config = GetRuntimeConfig();
+    if (config->MinDiskSpace) {
+        auto minSpace = *config->MinDiskSpace;
+        auto totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met")
+            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met for location %Qv",
+                Id_)
                 << TErrorAttribute("actual_space", totalSpace)
                 << TErrorAttribute("required_space", minSpace);
         }
@@ -83,7 +102,7 @@ void TDiskLocation::ValidateMinimumSpace() const
 
 i64 TDiskLocation::GetTotalSpace() const
 {
-    auto statistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+    auto statistics = NFS::GetDiskSpaceStatistics(StaticConfig_->Path);
     return statistics.TotalSpace;
 }
 

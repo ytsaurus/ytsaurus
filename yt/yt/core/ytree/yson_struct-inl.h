@@ -265,6 +265,22 @@ bool ReconfigureYsonStruct(
     return true;
 }
 
+template <class TSrc, class TDst>
+void UpdateYsonStructField(TDst& dst, const std::optional<TSrc>& src)
+{
+    if (src) {
+        dst = *src;
+    }
+}
+
+template <class TSrc, class TDst>
+void UpdateYsonStructField(TIntrusivePtr<TDst>& dst, const TIntrusivePtr<TSrc>& src)
+{
+    if (src) {
+        dst = src;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

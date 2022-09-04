@@ -115,28 +115,28 @@ void TChunkStore::Initialize()
 
     std::vector<TFuture<void>> futures;
     for (int index = 0; index < std::ssize(Config_->StoreLocations); ++index) {
-        auto locationConfig = Config_->StoreLocations[index];
+        const auto& locationConfig = Config_->StoreLocations[index];
 
         auto location = New<TStoreLocation>(
-            "store" + ToString(index),
+            Format("store%v", index),
             locationConfig,
             DynamicConfigManager_,
             MakeStrong(this),
             ChunkContext_,
             ChunkStoreHost_);
 
+        location->SubscribeDisabled(
+            BIND(&TChunkStore::OnLocationDisabled, MakeWeak(this), MakeWeak(location)));
+
         futures.push_back(
             BIND(&TChunkStore::InitializeLocation, MakeStrong(this))
                 .AsyncVia(location->GetAuxPoolInvoker())
                 .Run(location));
 
-        Locations_.push_back(location);
-
-        location->SubscribeDisabled(
-            BIND(&TChunkStore::OnLocationDisabled, MakeWeak(this), index));
+        Locations_.push_back(std::move(location));
     }
 
-    WaitFor(AllSucceeded(futures))
+    WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
 
     YT_LOG_INFO("Chunk store initialized (ChunkCount: %v)",
@@ -156,27 +156,27 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    auto config = DynamicConfig_;
-    if (!config) {
+    auto storeLocation = DynamicPointerCast<TStoreLocation>(location);
+    if (!storeLocation) {
         return;
     }
 
-    if (auto it = config->MediumIOConfig.find(location->GetMediumName()); it != config->MediumIOConfig.end()) {
-        location->GetIOEngine()->Reconfigure(it->second);
-    } else {
-        location->GetIOEngine()->Reconfigure(NYTree::GetEphemeralNodeFactory()->CreateMap());
+    if (!DynamicConfig_) {
+        return;
     }
 
-    if (auto it = config->MediumIOEngine.find(location->GetMediumName()); it != config->MediumIOEngine.end()) {
-        location->UpdateIOEngineType(it->second);
-    } else {
-        location->UpdateIOEngineType(location->GetConfig()->IOEngineType);
-    }
+    const auto& staticLocationConfig = storeLocation->GetStaticConfig();;
+    auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
+    auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
+        ? staticLocationConfig
+        : staticLocationConfig->ApplyDynamic(it->second);
+    storeLocation->Reconfigure(locationConfig);
 }
 
 void TChunkStore::UpdateConfig(const TDataNodeDynamicConfigPtr& config)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
     DynamicConfig_ = config;
 
     for (const auto& location : Locations_) {
@@ -772,17 +772,20 @@ void TChunkStore::OnProfiling()
     }
 }
 
-void TChunkStore::OnLocationDisabled(int locationIndex)
+void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocation)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto location = weakLocation.Lock();
+    if (!location) {
+        return;
+    }
 
     WaitFor(BIND([=, this_ = MakeStrong(this)] {
         auto guard = WriterGuard(ChunkMapLock_);
 
-        YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationIndex: %v)",
-            locationIndex);
-
-        const auto& location = Locations_[locationIndex];
+        YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
+            location->GetId());
 
         YT_VERIFY(!location->IsEnabled());
 

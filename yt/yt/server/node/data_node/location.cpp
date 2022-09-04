@@ -214,56 +214,63 @@ void TLockedChunkGuard::Release()
 
 TChunkLocation::TChunkLocation(
     ELocationType type,
-    const TString& id,
-    TStoreLocationConfigBasePtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    TString id,
+    TChunkLocationConfigPtr config,
+    TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
     TChunkContextPtr chunkContext,
     IChunkStoreHostPtr chunkStoreHost)
-    : TDiskLocation(config, id, DataNodeLogger)
-    , DynamicConfigManager_(dynamicConfigManager)
-    , ChunkStore_(chunkStore)
-    , ChunkContext_(chunkContext)
-    , ChunkStoreHost_(chunkStoreHost)
-    , Type_(type)
-    , Config_(config)
-    , MediumDescriptor_(TMediumDescriptor{.Name = Config_->MediumName})
-{
-    Profiler_ = LocationProfiler
+    : TDiskLocation(
+        config,
+        std::move(id),
+        DataNodeLogger)
+    , DynamicConfigManager_(std::move(dynamicConfigManager))
+    , ChunkStore_(std::move(chunkStore))
+    , ChunkContext_(std::move(chunkContext))
+    , ChunkStoreHost_(std::move(chunkStoreHost))
+    , Profiler_(LocationProfiler
         .WithSparse()
-        .WithTag("location_type", FormatEnum(Type_))
-        .WithTag("disk_family", Config_->DiskFamily, -1)
+        .WithTag("location_type", FormatEnum(type))
+        .WithTag("disk_family", config->DiskFamily, -1)
         .WithTag("location_id", Id_, -1)
-        .WithExtensionTag("device_name", Config_->DeviceName, -1)
-        .WithExtensionTag("device_model", Config_->DeviceModel, -1);
-
+        .WithExtensionTag("device_name", config->DeviceName, -1)
+        .WithExtensionTag("device_model", config->DeviceModel, -1))
+    , Type_(type)
+    , StaticConfig_(std::move(config))
+    , PerformanceCounters_(New<TLocationPerformanceCounters>(Profiler_))
+    , RuntimeConfig_(StaticConfig_)
+    , MediumDescriptor_(TMediumDescriptor{
+        .Name = StaticConfig_->MediumName
+    })
+{
     UpdateMediumTag();
 
-    PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
-
-    auto engine = CreateDynamicIOEngine(
-        Config_->IOEngineType,
-        Config_->IOConfig,
+    DynamicIOEngine_ = CreateDynamicIOEngine(
+        StaticConfig_->IOEngineType,
+        StaticConfig_->IOConfig,
         id,
         Profiler_,
         DataNodeLogger.WithTag("LocationId: %v", id));
-
-    DynamicIOEngine_ = engine;
-    IOEngineModel_ = CreateIOModelInterceptor(id, engine, DataNodeLogger.WithTag("IOModel: %v", id));
+    IOEngineModel_ = CreateIOModelInterceptor(
+        id,
+        DynamicIOEngine_,
+        DataNodeLogger.WithTag("IOModel: %v", id));
     IOEngine_ = IOEngineModel_;
 
-    auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);
-    };
-
-    ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
-    TabletCompactionAndPartitioningOutThrottler_ = createThrottler(
-        config->TabletCompactionAndPartitioningOutThrottler,
-        "TabletCompactionAndPartitioningOutThrottler");
-    TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
-    TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
-    TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
-    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", Profiler_);
+    auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
+    for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+        Throttlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+            StaticConfig_->Throttlers[kind],
+            ToString(kind),
+            Logger,
+            diskThrottlerProfiler);
+    }
+    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler(
+        "UnlimitedIn",
+        diskThrottlerProfiler);
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
+        "UnlimitedOutThrottler",
+        diskThrottlerProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         ChunkContext_->DataNodeConfig->DiskHealthChecker,
@@ -272,7 +279,8 @@ TChunkLocation::TChunkLocation(
         DataNodeLogger,
         Profiler_);
 
-    ChunkStoreHost_->SubscribePopulateAlerts(BIND(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
+    ChunkStoreHost_->SubscribePopulateAlerts(
+        BIND(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
@@ -282,11 +290,6 @@ const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
     return IOEngine_;
 }
 
-void TChunkLocation::UpdateIOEngineType(NIO::EIOEngineType type)
-{
-    DynamicIOEngine_->ReconfigureType(type);
-}
-
 const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -294,18 +297,34 @@ const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
     return IOEngineModel_;
 }
 
+TChunkLocationConfigPtr TChunkLocation::GetRuntimeConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return RuntimeConfig_.Acquire();
+}
+
+void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TDiskLocation::Reconfigure(config);
+
+    DynamicIOEngine_->SetType(config->IOEngineType);
+    DynamicIOEngine_->Reconfigure(config->IOConfig);
+
+    for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+        Throttlers_[kind]->Reconfigure(config->Throttlers[kind]);
+    }
+
+    RuntimeConfig_.Store(std::move(config));
+}
+
 ELocationType TChunkLocation::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Type_;
-}
-
-const TStoreLocationConfigBasePtr& TChunkLocation::GetConfig() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Config_;
 }
 
 TChunkLocationUuid TChunkLocation::GetUuid() const
@@ -319,7 +338,7 @@ const TString& TChunkLocation::GetDiskFamily() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->DiskFamily;
+    return StaticConfig_->DiskFamily;
 }
 
 TString TChunkLocation::GetMediumName() const
@@ -354,21 +373,21 @@ const TString& TChunkLocation::GetPath() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->Path;
+    return StaticConfig_->Path;
 }
 
 i64 TChunkLocation::GetQuota() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->Quota.value_or(std::numeric_limits<i64>::max());
+    return StaticConfig_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->CoalescedReadMaxGapSize;
+    return GetRuntimeConfig()->CoalescedReadMaxGapSize;
 }
 
 const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
@@ -683,26 +702,55 @@ void TChunkLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
     RemoveChunkFilesPermanently(chunkId);
 }
 
+IThroughputThrottlerPtr TChunkLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    switch (descriptor.Category) {
+        case EWorkloadCategory::SystemRepair:
+            return Throttlers_[EChunkLocationThrottlerKind::RepairIn];
+
+        case EWorkloadCategory::SystemReplication:
+            return Throttlers_[EChunkLocationThrottlerKind::ReplicationIn];
+
+        case EWorkloadCategory::SystemTabletLogging:
+            return Throttlers_[EChunkLocationThrottlerKind::TabletLoggingIn];
+
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return Throttlers_[EChunkLocationThrottlerKind::TabletCompactionAndPartitioningIn];
+
+        case EWorkloadCategory::SystemTabletSnapshot:
+            return Throttlers_[EChunkLocationThrottlerKind::TabletSnapshotIn];
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return Throttlers_[EChunkLocationThrottlerKind::TabletStoreFlushIn];
+
+        default:
+            return UnlimitedInThrottler_;
+    }
+}
+
 IThroughputThrottlerPtr TChunkLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemReplication:
-            return ReplicationOutThrottler_;
+            return Throttlers_[EChunkLocationThrottlerKind::ReplicationOut];
 
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletCompactionAndPartitioningOutThrottler_;
+            return Throttlers_[EChunkLocationThrottlerKind::TabletCompactionAndPartitioningOut];
 
         case EWorkloadCategory::SystemTabletLogging:
-             return TabletLoggingOutThrottler_;
+            return Throttlers_[EChunkLocationThrottlerKind::TabletLoggingOut];
 
         case EWorkloadCategory::SystemTabletPreload:
-             return TabletPreloadOutThrottler_;
+            return Throttlers_[EChunkLocationThrottlerKind::TabletPreloadOut];
 
         case EWorkloadCategory::SystemTabletRecovery:
-            return TabletRecoveryOutThrottler_;
+            return Throttlers_[EChunkLocationThrottlerKind::TabletRecoveryOut];
 
         default:
             return UnlimitedOutThrottler_;
@@ -714,7 +762,8 @@ bool TChunkLocation::IsReadThrottling() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto time = PerformanceCounters_->LastReadThrottleTime.load();
-    return GetCpuInstant() < time + 2 * DurationToCpuDuration(Config_->ThrottleDuration);
+    auto config = GetRuntimeConfig();
+    return GetCpuInstant() < time + 2 * DurationToCpuDuration(config->ThrottleDuration);
 }
 
 bool TChunkLocation::IsWriteThrottling() const
@@ -722,7 +771,8 @@ bool TChunkLocation::IsWriteThrottling() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto time = PerformanceCounters_->LastWriteThrottleTime.load();
-    return GetCpuInstant() < time + 2 * DurationToCpuDuration(Config_->ThrottleDuration);
+    auto config = GetRuntimeConfig();
+    return GetCpuInstant() < time + 2 * DurationToCpuDuration(config->ThrottleDuration);
 }
 
 TString TChunkLocation::GetRelativeChunkPath(TChunkId chunkId)
@@ -780,7 +830,7 @@ void TChunkLocation::InitializeUuid()
     auto uuidPath = NFS::CombinePaths(GetPath(), ChunkLocationUuidFileName);
 
     auto uuidResetPath = NFS::CombinePaths(GetPath(), ChunkLocationUuidResetFileName);
-    if (Config_->ResetUuid && !NFS::Exists(uuidResetPath)) {
+    if (StaticConfig_->ResetUuid && !NFS::Exists(uuidResetPath)) {
         TFile file(uuidResetPath, CreateAlways | WrOnly | Seq | CloseOnExec);
 
         if (NFS::Exists(uuidPath)) {
@@ -977,8 +1027,8 @@ void TChunkLocation::UpdateMediumTag()
         .WithTag("location_type", FormatEnum(Type_))
         .WithTag("medium", GetMediumName(), -1)
         .WithTag("location_id", Id_, -1)
-        .WithExtensionTag("device_name", Config_->DeviceName, -1)
-        .WithExtensionTag("device_model", Config_->DeviceModel, -1)
+        .WithExtensionTag("device_name", StaticConfig_->DeviceName, -1)
+        .WithExtensionTag("device_model", StaticConfig_->DeviceModel, -1)
         .Gauge("/medium");
     MediumTag_.Update(1);
 }
@@ -1055,7 +1105,7 @@ public:
     TIOStatisticsProvider(
         TStoreLocationConfigPtr config,
         NIO::IIOEnginePtr ioEngine,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
         : DeviceName_(config->DeviceName)
@@ -1202,63 +1252,67 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
-    const TString& id,
+    TString id,
     TStoreLocationConfigPtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
     TChunkContextPtr chunkContext,
     IChunkStoreHostPtr chunkStoreHost)
     : TChunkLocation(
         ELocationType::Store,
-        id,
+        std::move(id),
         config,
-        dynamicConfigManager,
-        chunkStore,
-        chunkContext,
-        chunkStoreHost)
-    , Config_(config)
+        std::move(dynamicConfigManager),
+        std::move(chunkStore),
+        std::move(chunkContext),
+        std::move(chunkStoreHost))
+    , StaticConfig_(config)
     , JournalManager_(CreateJournalManager(
-        chunkContext->DataNodeConfig,
+        BuildJournalManagerConfig(ChunkContext_->DataNodeConfig, config),
         this,
-        chunkContext,
+        ChunkContext_,
         ChunkStoreHost_->GetMemoryUsageTracker()))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
-        Config_->TrashCheckPeriod))
-    , StatisticsProvider_(New<TIOStatisticsProvider>(
-        Config_,
+        config->TrashCheckPeriod))
+    , IOStatisticsProvider_(New<TIOStatisticsProvider>(
+        config,
         GetIOEngine(),
-        dynamicConfigManager,
+        DynamicConfigManager_,
         Profiler_,
         Logger))
-{
-    YT_VERIFY(chunkStore);
-
-    auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
-    auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
-    };
-
-    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairIn");
-    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationIn");
-    TabletCompactionAndPartitioningInThrottler_ = createThrottler(
-        config->TabletCompactionAndPartitioningInThrottler,
-        "TabletCompactionAndPartitioningIn");
-    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingIn");
-    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotIn");
-    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushIn");
-    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
-}
+    , RuntimeConfig_(config)
+{ }
 
 TStoreLocation::~TStoreLocation() = default;
 
-const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
+const TStoreLocationConfigPtr& TStoreLocation::GetStaticConfig() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_;
+    return StaticConfig_;
+}
+
+TStoreLocationConfigPtr TStoreLocation::GetRuntimeConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return RuntimeConfig_.Acquire();
+}
+
+void TStoreLocation::Reconfigure(TStoreLocationConfigPtr config)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TChunkLocation::Reconfigure(config);
+
+    JournalManager_->Reconfigure(BuildJournalManagerConfig(ChunkContext_->DataNodeConfig, config));
+
+    TrashCheckExecutor_->SetPeriod(config->TrashCheckPeriod);
+
+    RuntimeConfig_.Store(std::move(config));
 }
 
 const IJournalManagerPtr& TStoreLocation::GetJournalManager()
@@ -1272,14 +1326,16 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->LowWatermark;
+    auto config = GetRuntimeConfig();
+    return config->LowWatermark;
 }
 
 i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->MaxWriteRateByDwpd;
+    auto config = GetRuntimeConfig();
+    return config->MaxWriteRateByDwpd;
 }
 
 bool TStoreLocation::IsFull() const
@@ -1287,7 +1343,8 @@ bool TStoreLocation::IsFull() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto available = GetAvailableSpace();
-    auto watermark = Full_.load() ? Config_->LowWatermark : Config_->HighWatermark;
+    auto config = GetRuntimeConfig();
+    auto watermark = Full_.load() ? config->LowWatermark : config->HighWatermark;
     auto full = available < watermark;
     auto expected = !full;
     if (Full_.compare_exchange_strong(expected, full)) {
@@ -1303,47 +1360,31 @@ bool TStoreLocation::HasEnoughSpace(i64 size) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetAvailableSpace() - size >= Config_->DisableWritesWatermark;
-}
-
-const IThroughputThrottlerPtr& TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    switch (descriptor.Category) {
-        case EWorkloadCategory::SystemRepair:
-            return RepairInThrottler_;
-
-        case EWorkloadCategory::SystemReplication:
-            return ReplicationInThrottler_;
-
-        case EWorkloadCategory::SystemTabletLogging:
-            return TabletLoggingInThrottler_;
-
-        case EWorkloadCategory::SystemTabletCompaction:
-        case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletCompactionAndPartitioningInThrottler_;
-
-        case EWorkloadCategory::SystemTabletSnapshot:
-            return TabletSnapshotInThrottler_;
-
-        case EWorkloadCategory::SystemTabletStoreFlush:
-            return TabletStoreFlushInThrottler_;
-
-        default:
-            return UnlimitedInThrottler_;
-    }
+    auto config = GetRuntimeConfig();
+    return GetAvailableSpace() - size >= config->DisableWritesWatermark;
 }
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (force || Config_->MaxTrashTtl == TDuration::Zero()) {
+    auto config = GetRuntimeConfig();
+    if (force || config->MaxTrashTtl == TDuration::Zero()) {
         RemoveChunkFilesPermanently(chunkId);
     } else {
         MoveChunkFilesToTrash(chunkId);
     }
+}
+
+TJournalManagerConfigPtr TStoreLocation::BuildJournalManagerConfig(
+    const TDataNodeConfigPtr& dataNodeConfig,
+    const TStoreLocationConfigPtr& storeLocationConfig)
+{
+    auto journalManagerConfig = CloneYsonSerializable(TJournalManagerConfigPtr(dataNodeConfig));
+    journalManagerConfig->MultiplexedChangelog = UpdateYsonStruct(dataNodeConfig->MultiplexedChangelog, storeLocationConfig->MultiplexedChangelog);
+    journalManagerConfig->HighLatencySplitChangelog = UpdateYsonStruct(dataNodeConfig->HighLatencySplitChangelog, storeLocationConfig->HighLatencySplitChangelog);
+    journalManagerConfig->LowLatencySplitChangelog = UpdateYsonStruct(dataNodeConfig->LowLatencySplitChangelog, storeLocationConfig->LowLatencySplitChangelog);
+    return journalManagerConfig;
 }
 
 TString TStoreLocation::GetTrashPath() const
@@ -1406,7 +1447,8 @@ void TStoreLocation::OnCheckTrash()
 
 void TStoreLocation::CheckTrashTtl()
 {
-    auto deadline = TInstant::Now() - Config_->MaxTrashTtl;
+    auto config = GetRuntimeConfig();
+    auto deadline = TInstant::Now() - config->MaxTrashTtl;
     while (true) {
         TTrashChunkEntry entry;
         {
@@ -1426,13 +1468,15 @@ void TStoreLocation::CheckTrashTtl()
 
 void TStoreLocation::CheckTrashWatermark()
 {
+    auto config = GetRuntimeConfig();
+
     bool needsCleanup;
     i64 availableSpace;
     {
         auto guard = Guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
         availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
-        needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
+        needsCleanup = availableSpace < config->TrashCleanupWatermark && !TrashMap_.empty();
     }
 
     if (!needsCleanup) {
@@ -1442,7 +1486,7 @@ void TStoreLocation::CheckTrashWatermark()
     YT_LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
         availableSpace);
 
-    while (availableSpace < Config_->TrashCleanupWatermark) {
+    while (availableSpace < config->TrashCleanupWatermark) {
         TTrashChunkEntry entry;
         {
             auto guard = Guard(TrashMapSpinLock_);
@@ -1707,7 +1751,7 @@ void TStoreLocation::DoStart()
 
 TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const
 {
-    return StatisticsProvider_->Get();
+    return IOStatisticsProvider_->Get();
 }
 
 bool TStoreLocation::IsWritable() const
@@ -1751,22 +1795,21 @@ bool TStoreLocation::IsWritable() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
-    const TString& id,
+    TString id,
     TCacheLocationConfigPtr config,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkContextPtr chunkContext,
     IChunkStoreHostPtr chunkStoreHost)
     : TChunkLocation(
         ELocationType::Cache,
-        id,
+        std::move(id),
         config,
-        dynamicConfigManager,
+        std::move(dynamicConfigManager),
         nullptr,
-        chunkContext,
-        chunkStoreHost)
-    , Config_(config)
+        std::move(chunkContext),
+        std::move(chunkStoreHost))
     , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
-        Config_->InThrottler,
+        config->InThrottler,
         "InThrottler",
         Logger,
         Profiler_.WithPrefix("/cache")))

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/server/node/cluster_node/public.h>
+#include "config.h"
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 namespace NYT::NDataNode {
 
@@ -16,11 +16,17 @@ class TDiskLocation
 public:
     TDiskLocation(
         TDiskLocationConfigPtr config,
-        const TString& id,
+        TString id,
         const NLogging::TLogger& logger);
 
     //! Returns the string id.
     const TString& GetId() const;
+
+    //! Returns the runtime configuration.
+    TDiskLocationConfigPtr GetRuntimeConfig() const;
+
+    //! Updates the runtime configuration.
+    void Reconfigure(TDiskLocationConfigPtr config);
 
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
@@ -37,7 +43,9 @@ protected:
     i64 GetTotalSpace() const;
 
 private:
-    const TDiskLocationConfigPtr Config_;
+    const TDiskLocationConfigPtr StaticConfig_;
+
+    TAtomicPtr<TDiskLocationConfig> RuntimeConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

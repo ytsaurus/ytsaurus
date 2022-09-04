@@ -2,6 +2,9 @@
 
 namespace NYT::NDataNode {
 
+using namespace NConcurrency;
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TP2PConfig::Register(TRegistrar registrar)
@@ -80,26 +83,42 @@ void TP2PConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStoreLocationConfigBase::Register(TRegistrar registrar)
+void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig)
+{
+    TDiskLocationConfig::ApplyDynamicInplace(dynamicConfig);
+
+    UpdateYsonStructField(IOEngineType, dynamicConfig.IOEngineType);
+    UpdateYsonStructField(IOConfig, dynamicConfig.IOConfig);
+
+    for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+        UpdateYsonStructField(Throttlers[kind], dynamicConfig.Throttlers[kind]);
+    }
+    UpdateYsonStructField(ThrottleDuration, dynamicConfig.ThrottleDuration);
+
+    UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
+}
+
+void TChunkLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("quota", &TThis::Quota)
         .GreaterThanOrEqual(0)
-        .Default(std::optional<i64>());
-    registrar.Parameter("replication_out_throttler", &TThis::ReplicationOutThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_compaction_and_partitioning_out_throttler", &TThis::TabletCompactionAndPartitioningOutThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_logging_out_throttler", &TThis::TabletLoggingOutThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_preload_out_throttler", &TThis::TabletPreloadOutThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_recovery_out_throttler", &TThis::TabletRecoveryOutThrottler)
-        .DefaultNew();
+        .Default();
+
+    registrar.Parameter("throttlers", &TThis::Throttlers)
+        .DefaultCtor([] {
+            TEnumIndexedVector<EChunkLocationThrottlerKind, TThroughputThrottlerConfigPtr> result;
+            for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+                result[kind] = New<TThroughputThrottlerConfig>();
+            }
+            return result;
+        });
+
     registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
-    registrar.Parameter("throttle_counter_interval", &TThis::ThrottleDuration)
+
+    registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
@@ -120,6 +139,44 @@ void TStoreLocationConfigBase::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("io_engine_type", &TThis::IOEngineType)
+        .Optional();
+    registrar.Parameter("io_config", &TThis::IOConfig)
+        .Optional();
+    registrar.Parameter("throttlers", &TThis::Throttlers)
+        .Optional();
+    registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
+        .Optional();
+    registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
+        .GreaterThanOrEqual(0)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig)
+{
+    auto config = CloneYsonSerializable(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TStoreLocationConfig::ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig)
+{
+    TChunkLocationConfig::ApplyDynamicInplace(dynamicConfig);
+
+    UpdateYsonStructField(LowWatermark, dynamicConfig.LowWatermark);
+    UpdateYsonStructField(HighWatermark, dynamicConfig.HighWatermark);
+    UpdateYsonStructField(DisableWritesWatermark, dynamicConfig.DisableWritesWatermark);
+
+    UpdateYsonStructField(MaxTrashTtl, dynamicConfig.MaxTrashTtl);
+    UpdateYsonStructField(TrashCleanupWatermark, dynamicConfig.TrashCleanupWatermark);
+    UpdateYsonStructField(TrashCheckPeriod, dynamicConfig.TrashCheckPeriod);
+}
+
 void TStoreLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("low_watermark", &TThis::LowWatermark)
@@ -131,27 +188,14 @@ void TStoreLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_writes_watermark", &TThis::DisableWritesWatermark)
         .GreaterThanOrEqual(0)
         .Default(1_GB);
+
     registrar.Parameter("max_trash_ttl", &TThis::MaxTrashTtl)
-        .Default(TDuration::Hours(1))
-        .GreaterThanOrEqual(TDuration::Zero());
+        .Default(TDuration::Hours(1));
     registrar.Parameter("trash_cleanup_watermark", &TThis::TrashCleanupWatermark)
         .GreaterThanOrEqual(0)
         .Default(4_GB);
     registrar.Parameter("trash_check_period", &TThis::TrashCheckPeriod)
-        .GreaterThanOrEqual(TDuration::Zero())
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("repair_in_throttler", &TThis::RepairInThrottler)
-        .DefaultNew();
-    registrar.Parameter("replication_in_throttler", &TThis::ReplicationInThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_comaction_and_partitoning_in_throttler", &TThis::TabletCompactionAndPartitioningInThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_logging_in_throttler", &TThis::TabletLoggingInThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_snapshot_in_throttler", &TThis::TabletSnapshotInThrottler)
-        .DefaultNew();
-    registrar.Parameter("tablet_store_flush_in_throttler", &TThis::TabletStoreFlushInThrottler)
-        .DefaultNew();
 
     registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
         .Default();
@@ -174,6 +218,29 @@ void TStoreLocationConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("\"disable_writes_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("low_watermark", &TThis::LowWatermark)
+        .GreaterThanOrEqual(0)
+        .Optional();
+    registrar.Parameter("high_watermark", &TThis::HighWatermark)
+        .GreaterThanOrEqual(0)
+        .Optional();
+    registrar.Parameter("disable_writes_watermark", &TThis::DisableWritesWatermark)
+        .GreaterThanOrEqual(0)
+        .Optional();
+
+    registrar.Parameter("max_trash_ttl", &TThis::MaxTrashTtl)
+        .Optional();
+    registrar.Parameter("trash_cleanup_watermark", &TThis::TrashCleanupWatermark)
+        .GreaterThanOrEqual(0)
+        .Optional();
+    registrar.Parameter("trash_check_period", &TThis::TrashCheckPeriod)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -454,6 +521,26 @@ void TChunkRepairJobDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJournalManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
+        .DefaultNew();
+    registrar.Parameter("high_latency_split_changelog", &TThis::HighLatencySplitChangelog)
+        .DefaultNew();
+    registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Expect many splits -- adjust configuration.
+        config->HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
+
+        // Turn off batching for non-multiplexed split changelogs.
+        config->LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDataNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
@@ -473,11 +560,11 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("incremental_heartbeat_throttler", &TThis::IncrementalHeartbeatThrottler)
-        .DefaultCtor([] () {
-                auto result = NConcurrency::TThroughputThrottlerConfig::Create(1);
-                result->Period = TDuration::Minutes(10);
-                return result;
-            });
+        .DefaultCtor([] {
+            auto result = TThroughputThrottlerConfig::Create(1);
+            result->Period = TDuration::Minutes(10);
+            return result;
+        });
 
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
@@ -497,13 +584,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .DefaultNew();
-
-    registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
-        .DefaultNew();
-    registrar.Parameter("high_latency_split_changelog", &TThis::HighLatencySplitChangelog)
-        .DefaultNew();
-    registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
         .DefaultNew();
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
@@ -560,7 +640,13 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)
-        .Optional();
+        .DefaultCtor([] {
+            TEnumIndexedVector<EDataNodeThrottlerKind, TRelativeThroughputThrottlerConfigPtr> result;
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                result[kind] = New<TRelativeThroughputThrottlerConfig>();
+            }
+            return result;
+        });
 
     registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
         .DefaultNew();
@@ -639,12 +725,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
         config->ChangelogReaderCache->Capacity = 256;
 
-        // Expect many splits -- adjust configuration.
-        config->HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
-
-        // Turn off batching for non-multiplexed split changelogs.
-        config->LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
-
         // Disable target allocation from master.
         config->ReplicationWriter->UploadReplicationFactor = 1;
         config->RepairWriter->UploadReplicationFactor = 1;
@@ -661,13 +741,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TThis* config) {
-        // Instantiate default throttler configs.
-        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-            if (!config->Throttlers[kind]) {
-                config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
-            }
-        }
-
         // COMPAT(gritukan)
         if (!config->MasterConnector->IncrementalHeartbeatPeriod) {
             config->MasterConnector->IncrementalHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
@@ -767,10 +840,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_repair_job", &TThis::ChunkRepairJob)
         .DefaultNew();
 
-    registrar.Parameter("medium_io_engine", &TThis::MediumIOEngine)
-        .Default();
-
-    registrar.Parameter("medium_io_config", &TThis::MediumIOConfig)
+    registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)
         .Default();
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)

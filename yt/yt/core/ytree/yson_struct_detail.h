@@ -264,13 +264,14 @@ public:
 
 private:
     const TString Key_;
+
     std::unique_ptr<IYsonFieldAccessor<TValue>> FieldAccessor_;
-    std::optional<std::function<TValue()>> DefaultConstructor_;
+    std::optional<std::function<TValue()>> DefaultCtor_;
     bool SerializeDefault_ = true;
     std::vector<TPostprocessor> Postprocessors_;
     std::vector<TString> Aliases_;
     EMergeStrategy MergeStrategy_ = EMergeStrategy::Default;
-    bool IsTriviallyInitializedIntrusivePtr_ = false;
+    bool TriviallyInitializedIntrusivePtr_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -225,8 +225,7 @@ private:
 
     void OnProfiling();
 
-    void OnLocationDisabled(int locationIndex);
-
+    void OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocation);
     void ReconfigureLocation(const TChunkLocationPtr& location);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
