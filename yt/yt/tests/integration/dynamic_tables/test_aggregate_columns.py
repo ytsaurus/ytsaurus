@@ -310,7 +310,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 
     @pytest.mark.parametrize(
         "merge_rows_on_flush, min_data_ttl, min_data_versions",
-        [a + b for a in [(False,), (True,)] for b in [(0, 0), (1, 10000)]],
+        [a + b for a in [(False,), (True,)] for b in [(0, 0), (1, 1)]],
     )
     @authors("babenko")
     def test_aggregate_merge_rows_on_flush(self, merge_rows_on_flush, min_data_ttl, min_data_versions):

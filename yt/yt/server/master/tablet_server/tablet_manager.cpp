@@ -8236,6 +8236,20 @@ private:
         if (!table->IsPhysicallySorted() && mountConfig->EnableLookupHashTable) {
             THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can be \"true\" only for sorted dynamic table");
         }
+
+        if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ForbidArbitraryDataVersionsInRetentionConfig) {
+            if (mountConfig->MinDataVersions > 1) {
+                THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than 1");
+            }
+
+            if (mountConfig->MaxDataVersions > 1) {
+                THROW_ERROR_EXCEPTION("\"max_data_versions\" must be not greater than 1");
+            }
+
+            if (mountConfig->MinDataVersions > mountConfig->MaxDataVersions) {
+                THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than \"max_data_versions\"");
+            }
+        }
     }
 
     bool IsDynamicStoreReadEnabled(const TTableNode* table)
