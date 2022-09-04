@@ -190,7 +190,17 @@ void TChunkLocation::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::ChunkLocationInReplica) {
         using NYT::Load;
         Load(context, Node_);
-        Load(context, DestroyedReplicas_);
+        if (context.GetVersion() < EMasterReign::FixDestroyedReplicasPersistence) {
+            auto size = TSizeSerializer::Load(context);
+            for (size_t index = 0; index < size; ++index) {
+                auto chunkId = Load<TChunkId>(context);
+                auto replicaIndex = Load<i32>(context);
+                Load<i32>(context); // padding
+                EmplaceOrCrash(DestroyedReplicas_, chunkId, replicaIndex);
+            }
+        } else {
+            Load(context, DestroyedReplicas_);
+        }
         // NB: This code does not load the replicas per se; it just
         // reserves the appropriate hashtables. Once the snapshot is fully loaded,
         // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
