@@ -18,6 +18,44 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkIdWithIndex::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Id);
+    Save(context, ReplicaIndex);
+}
+
+void TChunkIdWithIndex::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, Id);
+    Load(context, ReplicaIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkIdWithIndexes::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Id);
+    Save(context, ReplicaIndex);
+    Save(context, MediumIndex);
+}
+
+void TChunkIdWithIndexes::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, Id);
+    Load(context, ReplicaIndex);
+    Load(context, MediumIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica)
 {
     using NYT::ToProto;

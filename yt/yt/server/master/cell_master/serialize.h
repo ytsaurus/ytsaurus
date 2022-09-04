@@ -104,6 +104,7 @@ DEFINE_ENUM(EMasterReign,
     ((ImaginaryLocationOrderingFix)                                 (2120))  // shakurov
     ((NotSoImaginaryChunkLocations)                                 (2121))  // shakurov
     ((FixOrderedTablesReplicatoinProgress)                          (2122))  // savrus
+    ((FixDestroyedReplicasPersistence)                              (2123))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

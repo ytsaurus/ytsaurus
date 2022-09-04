@@ -129,7 +129,12 @@ struct TChunkIdWithIndex
 
     TChunkId Id;
     int ReplicaIndex;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkIdWithIndexes
     : public TChunkIdWithIndex
@@ -139,6 +144,9 @@ struct TChunkIdWithIndexes
     TChunkIdWithIndexes(TChunkId id, int replicaIndex, int mediumIndex);
 
     int MediumIndex;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,8 +232,6 @@ private:
 
 } // namespace NYT::NChunkClient
 
-Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex);
-
 //! A hasher for TChunkIdWithIndex.
 template <>
 struct THash<NYT::NChunkClient::TChunkIdWithIndex>
@@ -235,8 +241,6 @@ struct THash<NYT::NChunkClient::TChunkIdWithIndex>
         return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 + value.ReplicaIndex;
     }
 };
-
-Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndexes);
 
 //! A hasher for TChunkIdWithIndexes.
 template <>
