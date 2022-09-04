@@ -716,7 +716,11 @@ public:
         {
             auto guard = Guard(Lock_);
             Balance_ -= amount;
-            IncomingRequests_.emplace_back(TIncomingRequest{amount, promise});
+            i64 incomingRequestId = ++IncomingRequestId_;
+            IncomingRequests_.emplace_back(TIncomingRequest{amount, promise, incomingRequestId});
+            YT_LOG_DEBUG("Enqueued a request to the prefetching throttler (Id: %v, Amount: %v)",
+                incomingRequestId,
+                amount);
         }
 
         RequestUnderlyingIfNeeded();
@@ -814,6 +818,9 @@ private:
         //! It will be fullfiled when the Underlying_ will yield enough
         //! to satisfy the Amount fields of all the requests upto this one in the IncomingRequests_ queue.
         TPromise<void> Promise;
+
+        //! The id of the incoming request.
+        i64 Id;
     };
 
     struct TUnderlyingRequest
@@ -870,6 +877,12 @@ private:
     //! The window of the requests to the Underlying_ used to estimate underlying RPS along with incoming RPS.
     std::deque<TUnderlyingRequest> UnderlyingRequests_;
 
+    //! The id of the last incoming request.
+    i64 IncomingRequestId_ = 0;
+
+    //! The id of the last underlying request.
+    i64 UnderlyingRequestId_ = 0;
+
     //! If there are no pending incoming requests, tries to acquire #amount from the local #Available_.
     bool DoTryAcquire(i64 amount)
     {
@@ -891,8 +904,14 @@ private:
     {
         amount = std::clamp(amount, Config_->MinPrefetchAmount, Config_->MaxPrefetchAmount);
 
+        i64 underlyingRequestId = 0;
+        {
+            auto guard = Guard(Lock_);
+            underlyingRequestId = ++UnderlyingRequestId_;
+        }
+
         Throttle(amount)
-            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), amount));
+            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), amount, underlyingRequestId));
 
         auto guard = Guard(Lock_);
         // Do not count this recursive request as an incoming one.
@@ -904,6 +923,7 @@ private:
     void RequestUnderlyingIfNeeded()
     {
         i64 underlyingAmount = 0;
+        i64 underlyingRequestId = 0;
         double incomingRps = 0.0;
         double underlyingRps = 0.0;
         auto now = TInstant::Now();
@@ -925,18 +945,21 @@ private:
 
             RegisterUnderlyingRequest(now, underlyingAmount);
 
+            underlyingRequestId = ++UnderlyingRequestId_;
+
             YT_VERIFY(Available_ + Balance_ >= 0);
         }
 
-        YT_LOG_DEBUG("Request to the underlying throttler (Balance: %v, UnderlyingAmount: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
-            Balance_,
+        YT_LOG_DEBUG("Request to the underlying throttler (Id: %v, UnderlyingAmount: %v, Balance: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
+            underlyingRequestId,
             underlyingAmount,
+            Balance_,
             PrefetchAmount_,
             incomingRps,
             underlyingRps);
 
         Underlying_->Throttle(underlyingAmount)
-            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), underlyingAmount));
+            .Subscribe(BIND(&TPrefetchingThrottler::OnThrottlingResponse, MakeWeak(this), underlyingAmount, underlyingRequestId));
     }
 
     //! Drops outdated requests to the #Underlying_ from the window used for RPS estimation.
@@ -978,12 +1001,17 @@ private:
     }
 
     //! Handles a response from the underlying throttler.
-    void OnThrottlingResponse(i64 available, const TError& error)
+    void OnThrottlingResponse(i64 available, i64 id, const TError& error)
     {
+        YT_LOG_DEBUG("Response from the underlying throttler (Id: %v, Amount: %v, Result: %v)",
+            id,
+            available,
+            error.IsOK());
+
         if (error.IsOK()) {
             SatisfyIncomingRequests(available);
         } else {
-            YT_LOG_ERROR(error, "Error requesting underlying throttler");
+            YT_LOG_ERROR(error, "Error requesting the underlying throttler");
             DropAllIncomingRequests(error);
         }
     }
@@ -992,7 +1020,7 @@ private:
     //! the incoming requests waiting in the queue.
     void SatisfyIncomingRequests(i64 available)
     {
-        std::vector<TPromise<void>> fullfilled;
+        std::vector<TIncomingRequest> fullfilled;
 
         {
             auto guard = Guard(Lock_);
@@ -1005,20 +1033,25 @@ private:
             Available_ = 0;
 
             while (!IncomingRequests_.empty() && available >= IncomingRequests_.front().Amount) {
-                available -= IncomingRequests_.front().Amount;
-                Balance_ += IncomingRequests_.front().Amount;
-                fullfilled.emplace_back(std::move(IncomingRequests_.front().Promise));
+                auto& request = IncomingRequests_.front();
+                available -= request.Amount;
+                Balance_ += request.Amount;
+                fullfilled.emplace_back(std::move(request));
                 IncomingRequests_.pop_front();
             }
 
             Available_ = available;
         }
 
-        for (auto& promise : fullfilled) {
+        for (auto& request : fullfilled) {
             // The recursive call to #Throttle from #StockUp creates
             // a recursive call to #SatisfyIncomingRequests when the corresponding #promise is set.
             // So that #promise should be set without holding the #Lock_.
-            promise.TrySet();
+            auto result = request.Promise.TrySet();
+            YT_LOG_DEBUG("Sent the response for the incoming request (Id: %v, Amount: %v, Result: %v)",
+                request.Id,
+                request.Amount,
+                result);
         }
     }
 
@@ -1028,8 +1061,12 @@ private:
         auto guard = Guard(Lock_);
 
         while (!IncomingRequests_.empty()) {
-            Balance_ += IncomingRequests_.front().Amount;
-            IncomingRequests_.front().Promise.Set(error);
+            auto& request = IncomingRequests_.front();
+            Balance_ += request.Amount;
+            request.Promise.Set(error);
+            YT_LOG_DEBUG("Dropped the incoming request (Id: %v, Amount: %v)",
+                request.Id,
+                request.Amount);
             IncomingRequests_.pop_front();
         }
     }

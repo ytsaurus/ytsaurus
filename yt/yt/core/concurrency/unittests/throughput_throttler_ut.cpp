@@ -502,7 +502,9 @@ TEST_P(TPrefetchingStressTest, Stress)
 
         ++iteration;
         if (parameters.IterationsPerStep > 0 && iteration % parameters.IterationsPerStep == 0) {
-            EXPECT_LE(iterationUnderlyingAmount / iterationIncomingAmount, parameters.MaxUnderlyingAmountMultiplier);
+            if (iterationIncomingAmount != 0) {
+                EXPECT_LE(iterationUnderlyingAmount / iterationIncomingAmount, parameters.MaxUnderlyingAmountMultiplier);
+            }
 
             requestsPerIteration *= parameters.StepMultiplier;
         }
