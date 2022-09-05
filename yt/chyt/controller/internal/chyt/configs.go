@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
@@ -77,7 +78,12 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error
 	return
 }
 
-func getPatchedYtConfig(speclet *Speclet) (config interface{}, err error) {
+func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses []string, err error) {
+	err = ytc.ListNode(ctx, ypath.Path("//sys/discovery_servers"), &addresses, nil)
+	return
+}
+
+func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Oplet, speclet *Speclet) (config interface{}, err error) {
 	config, err = cloneNode(speclet.YTConfig)
 	if err != nil {
 		return
@@ -88,6 +94,12 @@ func getPatchedYtConfig(speclet *Speclet) (config interface{}, err error) {
 	configAsMap, err := asMapNode(config)
 	if err != nil {
 		return
+	}
+	if _, ok := configAsMap["clique_alias"]; !ok {
+		configAsMap["clique_alias"] = oplet.Alias()
+	}
+	if _, ok := configAsMap["clique_incarnation"]; !ok {
+		configAsMap["clique_incarnation"] = oplet.NextIncarnationIndex()
 	}
 	// TODO(max42): put to preprocessor similarly to yt/cpu_limit.
 	if _, ok := configAsMap["worker_thread_count"]; !ok {
@@ -108,6 +120,14 @@ func getPatchedYtConfig(speclet *Speclet) (config interface{}, err error) {
 	}
 	if _, ok := discovery["transaction_timeout"]; !ok {
 		discovery["transaction_timeout"] = 30 * 1000
+	}
+	if _, ok := discovery["server_addresses"]; !ok {
+		var serverAddresses []string
+		serverAddresses, err = getDiscoveryServerAddresses(ctx, ytc)
+		if err != nil {
+			return
+		}
+		discovery["server_addresses"] = serverAddresses
 	}
 
 	if _, ok := configAsMap["health_checker"]; !ok {
@@ -169,19 +189,19 @@ func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias str
 	return err
 }
 
-func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
 	r := speclet.Resources
 
 	clickhouseConfig, err := getPatchedClickHouseConfig(speclet)
 	if err != nil {
 		return fmt.Errorf("invalid clickhouse config: %v", err)
 	}
-	ytConfig, err := getPatchedYtConfig(speclet)
+	ytConfig, err := getPatchedYtConfig(ctx, c.ytc, oplet, speclet)
 	if err != nil {
 		return fmt.Errorf("invalid yt config: %v", err)
 	}
 
-	err = c.createArtifactDirIfNotExists(ctx, alias)
+	err = c.createArtifactDirIfNotExists(ctx, oplet.Alias())
 	if err != nil {
 		return fmt.Errorf("error creating artifact dir: %v", err)
 	}
@@ -194,7 +214,7 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 		"cluster_connection": c.clusterConnection,
 		"profile_manager": map[string]interface{}{
 			"global_tags": map[string]interface{}{
-				"operation_alias": alias,
+				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
@@ -247,7 +267,7 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 			},
 		},
 	}
-	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, alias, "config.yson", ytServerClickHouseConfig)
+	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return
 	}
@@ -255,7 +275,7 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 	logTailerConfig := map[string]interface{}{
 		"profile_manager": map[string]interface{}{
 			"global_tags": map[string]interface{}{
-				"operation_alias": alias,
+				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
@@ -321,7 +341,7 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 			},
 		},
 	}
-	logTailerConfigPath, err := c.uploadConfig(ctx, alias, "log_tailer_config.yson", logTailerConfig)
+	logTailerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "log_tailer_config.yson", logTailerConfig)
 	if err != nil {
 		return
 	}
