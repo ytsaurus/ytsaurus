@@ -22,29 +22,32 @@ def main():
     if not is_debian and version not in stable_versions:
         version = version + "a1"
 
-    yt_completion_destination = "yandex-yt-python/yt_completion"
-
-    binaries = [
+    data_files = []
+    scripts = [
         "yt/wrapper/bin/mapreduce-yt",
-        "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
     ]
-
-    data_files = []
-    scripts = binaries
     if is_debian:
-        shutil.copy("yandex-yt-python/yt_completion", yt_completion_destination)
-        data_files.append(("/etc/bash_completion.d/", [yt_completion_destination]))
+        scripts.append("yt/wrapper/bin/yt")
+        entry_points = None
+        data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
+    else:  # python egg or wheel
+        entry_points = {
+            "console_scripts": [
+                "yt = yt.cli.yt_binary:main",
+            ],
+        }
 
     find_packages("yt/packages")
     setup(
         name=PACKAGE_NAME,
         version=version,
-        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.wrapper.schema"] + recursive("yt/packages"),
+        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.wrapper.schema"] + recursive("yt/packages"),
         package_dir={"yt.packages.certifi": "yt/packages/certifi"},
         package_data={"yt.packages.certifi": ["*.pem"],
                       "yt.wrapper": ["YandexInternalRootCA.crt"]},
         scripts=scripts,
+        entry_points=entry_points,
 
         author="Ignat Kolesnichenko",
         author_email="ignat@yandex-team.ru",
@@ -60,10 +63,6 @@ def main():
         data_files=data_files
     )
 
-    try:
-        os.remove(yt_completion_destination)
-    except OSError:
-        pass
 
 if __name__ == "__main__":
     main()
