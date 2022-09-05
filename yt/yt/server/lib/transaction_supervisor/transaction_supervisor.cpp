@@ -1071,7 +1071,7 @@ private:
             YT_LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, %v)",
                 transactionId,
                 NRpc::GetCurrentAuthenticationIdentity());
-            SetCommitFailed(commit, ex, /*remember*/ false);
+            SetCommitFailed(commit, ex);
             RemoveTransientCommit(commit);
             // Best effort, fire-and-forget.
             AbortTransaction(transactionId, true);
@@ -1708,13 +1708,13 @@ private:
     }
 
 
-    void SetCommitFailed(TCommit* commit, const TError& error, bool remember = true)
+    void SetCommitFailed(TCommit* commit, const TError& error)
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction commit failed (TransactionId: %v)",
             commit->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
-        SetCommitResponse(commit, responseMessage, remember);
+        SetCommitResponse(commit, responseMessage, /*remember*/ false);
     }
 
     void SetCommitSucceeded(TCommit* commit)
@@ -2350,7 +2350,7 @@ private:
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
 
         for (auto [transactionId, commit] : TransientCommitMap_) {
-            SetCommitFailed(commit, error, /*remember*/ false);
+            SetCommitFailed(commit, error);
         }
         TransientCommitMap_.Clear();
 

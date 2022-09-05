@@ -1704,7 +1704,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
-    for (auto [schema, key] : copyContext.GetRegisteredSchemas()) {
+    const auto& schemaMap = copyContext.GetRegisteredSchemas();
+    std::vector<std::pair<TMasterTableSchema*, TEntitySerializationKey>> schemas{
+        schemaMap.begin(),
+        schemaMap.end()
+    };
+
+    SortBy(schemas, [] (const auto& pair) {
+        return pair.first->GetId();
+    });
+
+    for (auto [schema, key] : schemas) {
         auto* entry = response->add_schemas();
         entry->set_key(key.Index);
         ToProto(entry->mutable_schema(), *schema->AsTableSchema());
