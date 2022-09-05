@@ -48,7 +48,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	// Build configs.
-	err = c.appendConfigs(ctx, alias, &speclet, &filePaths)
+	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
 	if err != nil {
 		return
 	}
