@@ -681,7 +681,7 @@ Y_UNIT_TEST_SUITE(TableIo)
         TConfig::Get()->UseHosts = true;
         TConfig::Get()->RetryCount = 1;
         TConfig::Get()->ReadRetryCount = 1;
-        NYT::NPrivate::THostManager::Get().Restart();
+        NYT::NPrivate::THostManager::Get().Reset();
 
         {
             auto tx = client->StartTransaction();
