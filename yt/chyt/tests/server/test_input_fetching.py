@@ -852,8 +852,7 @@ class TestInputFetchingYPath(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-    @authors("max42")
-    def test_ypath(self):
+    def _create_table(self):
         create(
             "table",
             "//tmp/t",
@@ -873,9 +872,10 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                 write_table("<append=%true>//tmp/t", rows)
                 rows = []
 
-        yson_max = yson.to_yson_type(None, attributes={"type": "max"})
-        yson_min = yson.to_yson_type(None, attributes={"type": "min"})
-        yson_null = yson.to_yson_type(None)
+    @authors("max42", "dakovalkov")
+    @pytest.mark.timeout(250)
+    def test_ypath_simple(self):
+        self._create_table()
 
         with Clique(1) as clique:
             # Simple form.
@@ -895,6 +895,16 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                     check_simple(lower_limit, upper_limit)
                     check_simple(upper_limit, lower_limit)
 
+    @authors("max42", "dakovalkov")
+    @pytest.mark.timeout(250)
+    def test_ypath_complex(self):
+        self._create_table()
+
+        yson_max = yson.to_yson_type(None, attributes={"type": "max"})
+        yson_min = yson.to_yson_type(None, attributes={"type": "min"})
+        yson_null = yson.to_yson_type(None)
+
+        with Clique(1) as clique:
             # Complex form.
             def check_complex(lower_limit, upper_limit):
                 if upper_limit is None:
