@@ -41,6 +41,18 @@ def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
 
 
+def add_set_readonly_parser(parent_parser):
+    action = parent_parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--read-only", dest="set_read_only", action="store_true")
+    action.add_argument("--no-read-only", dest="set_read_only", action="store_false")
+
+
+def add_wait_for_snapshot_completion_parser(parent_parser):
+    action = parent_parser.add_mutually_exclusive_group()
+    action.add_argument("--wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_true", default=True)
+    action.add_argument("--do-not-wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_false", default=True)
+
+
 def main():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration", default={})
@@ -58,19 +70,14 @@ def main():
         "build-snapshot",
         help="Build snapshot for a given cell (either master or tablet)")
     build_snapshot_parser.set_defaults(func=build_snapshot)
-    set_read_only_action = build_snapshot_parser.add_mutually_exclusive_group(required=True)
-    set_read_only_action.add_argument("--read-only", dest="set_read_only", action="store_true")
-    set_read_only_action.add_argument("--no-read-only", dest="set_read_only", action="store_false")
-    build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
-    build_snapshot_parser.add_argument("--cell-id", required=True)
+    add_set_readonly_parser(build_snapshot_parser)
+    add_wait_for_snapshot_completion_parser(build_snapshot_parser)
 
     build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots",
                                                          help="Build snapshots for all master cells")
     build_master_snapshot_parser.set_defaults(func=build_master_snapshots)
-    set_read_only_action = build_master_snapshot_parser.add_mutually_exclusive_group(required=True)
-    set_read_only_action.add_argument("--read-only", dest="set_read_only", action="store_true")
-    set_read_only_action.add_argument("--no-read-only", dest="set_read_only", action="store_false")
-    build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
+    add_set_readonly_parser(build_master_snapshot_parser)
+    add_wait_for_snapshot_completion_parser(build_master_snapshot_parser)
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
     add_switch_leader_parser(subparsers)
