@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/profiling/profiler.h>
 
+#include <library/cpp/yt/farmhash/farm_hash.h>
+
 namespace NYT::NHydra {
 
 using namespace NThreading;
@@ -122,8 +124,14 @@ public:
 
             // NB: Allow duplicates.
             auto [it, inserted] = FinishedResponses_.emplace(id, response);
+
             if (inserted) {
-                const auto& mutationContext = GetCurrentMutationContext();
+                auto* mutationContext = GetCurrentMutationContext();
+
+                for (const auto& part : response) {
+                    mutationContext->CombineStateHash(FarmHash(part.begin(), part.size()));
+                }
+
                 ResponseEvictionQueue_.emplace_back(id, mutationContext->GetTimestamp());
 
                 ++FinishedResponseCount_;
@@ -357,7 +365,6 @@ private:
         return false;
     }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
