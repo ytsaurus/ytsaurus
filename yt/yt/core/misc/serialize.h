@@ -61,11 +61,6 @@ void ReadPod(TInput& input, T& obj);
 template <class TOutput, class T>
 void WritePod(TOutput& output, const T& obj);
 
-template <class TInput, class T>
-size_t ReadPodPadded(TInput& input, T& obj);
-template <class TOutput, class T>
-size_t WritePodPadded(TOutput& output, const T& obj);
-
 template <class TOutput>
 size_t WriteZeroes(TOutput& output, size_t count);
 template <class TOutput>
