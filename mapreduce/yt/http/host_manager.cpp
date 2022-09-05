@@ -42,10 +42,12 @@ class THostManager::TClusterHostList
 public:
     explicit TClusterHostList(TVector<TString> hosts)
         : Hosts_(std::move(hosts))
+        , Timestamp_(TInstant::Now())
     { }
 
     explicit TClusterHostList(std::exception_ptr error)
         : Error_(std::move(error))
+        , Timestamp_(TInstant::Now())
     { }
 
     TString ChooseHostOrThrow() const
@@ -61,32 +63,28 @@ public:
         return Hosts_[RandomNumber<size_t>(Hosts_.size())];
     }
 
+    TDuration GetAge() const
+    {
+        return TInstant::Now() - Timestamp_;
+    }
+
 private:
     TVector<TString> Hosts_;
     std::exception_ptr Error_;
+    TInstant Timestamp_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THostManager::THostManager()
-{
-    Restart();
-}
-
-void THostManager::Restart()
-{
-    UpdateHandle_ = NCron::StartPeriodicJob(
-        // NB. It's safe to use raw pointer as the thread is joined
-        // in the destructor of UpdateHandle_.
-        [this] {
-            UpdateHosts();
-        },
-        TConfig::Get()->HostListUpdateInterval);
-}
-
 THostManager& THostManager::Get()
 {
     return *Singleton<THostManager>();
+}
+
+void THostManager::Reset()
+{
+    auto guard = Guard(Lock_);
+    ClusterHosts_.clear();
 }
 
 TString THostManager::GetProxyForHeavyRequest(TStringBuf cluster)
@@ -94,7 +92,7 @@ TString THostManager::GetProxyForHeavyRequest(TStringBuf cluster)
     {
         auto guard = Guard(Lock_);
         auto it = ClusterHosts_.find(cluster);
-        if (it != ClusterHosts_.end()) {
+        if (it != ClusterHosts_.end() && it->second.GetAge() < TConfig::Get()->HostListUpdateInterval) {
             return it->second.ChooseHostOrThrow();
         }
     }
@@ -125,29 +123,6 @@ THostManager::TClusterHostList THostManager::GetHosts(TStringBuf cluster)
         return TClusterHostList(std::move(hosts));
     } catch (const std::exception& e) {
         return TClusterHostList(std::current_exception());
-    }
-}
-
-void THostManager::UpdateHosts()
-{
-    TVector<TString> clusters;
-    {
-        auto guard = Guard(Lock_);
-        for (const auto& [cluster, hosts]: ClusterHosts_) {
-            clusters.push_back(cluster);
-        }
-    }
-
-    YT_LOG_DEBUG("Fetching host lists (Clusters: [%v])", JoinStrings(clusters, ", "));
-    THashMap<TString, TClusterHostList> newClusterHosts;
-    for (const auto& cluster : clusters) {
-        newClusterHosts.emplace(cluster, GetHosts(cluster));
-    }
-    YT_LOG_DEBUG("Fetched host lists (Clusters: [%v])", JoinStrings(clusters, ", "));
-
-    {
-        auto guard = Guard(Lock_);
-        std::swap(newClusterHosts, ClusterHosts_);
     }
 }
 
