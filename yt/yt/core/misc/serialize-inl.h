@@ -40,6 +40,12 @@ template <class TOutput, class T>
 void WritePod(TOutput& output, const T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    static_assert(
+        std::has_unique_object_representations_v<T> ||
+        std::is_same_v<T, float> ||
+        std::is_same_v<T, double>,
+        "T must have unique representations.");
+
     output.Write(&obj, sizeof(obj));
 }
 
@@ -86,20 +92,6 @@ size_t ReadRefPadded(TInput& input, TMutableRef ref)
     }
 
     return AlignUp(ref.Size(), SerializationAlignment);
-}
-
-template <class TInput, class T>
-size_t ReadPodPadded(TInput& input, T& obj)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return ReadRefPadded(input, TMutableRef::FromPod(obj));
-}
-
-template <class TOutput, class T>
-size_t WritePodPadded(TOutput& output, const T& obj)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return WriteRefPadded(output, TRef::FromPod(obj));
 }
 
 template <class TInput, class T>
