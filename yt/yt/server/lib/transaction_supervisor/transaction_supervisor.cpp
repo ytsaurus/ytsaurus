@@ -1745,19 +1745,20 @@ private:
         YT_VERIFY(HasMutationContext());
 
         auto transactionId = commit->GetTransactionId();
+        auto prepareMode = commit->GetCoordinatorPrepareMode();
+        auto latePrepare = prepareMode == ETransactionCoordinatorPrepareMode::Late;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %x@%v",
+            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %x@%v, PrepareMode: %v",
             transactionId,
             commit->PrepareTimestamp(),
-            commit->PrepareTimestampClusterTag());
+            commit->PrepareTimestampClusterTag(),
+            prepareMode);
 
         try {
             // Any exception thrown here is caught below.
             const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
             YT_VERIFY(prerequisiteTransactionIds.empty());
-
-            auto latePrepare = commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late;
 
             TTransactionPrepareOptions options{
                 .Persistent = true,
@@ -1774,6 +1775,25 @@ private:
                 transactionId,
                 ECommitState::Prepare,
                 NRpc::GetCurrentAuthenticationIdentity());
+
+            // If prepare mode is late, we have to abort transaction at all participants.
+            // For early prepare mode it is sufficient to abort at coordinator only.
+            if (latePrepare) {
+                // COMPAT(gritukan)
+                // Currently, transactions with late prepare are coordinated by master only
+                // and rolling update of abort semantics change is not possible.
+                auto reign = GetCurrentMutationContext()->Request().Reign;
+                // EMasterReign::FixLatePrepareTxAbort = 2124.
+                YT_VERIFY(reign >= 2124 && reign <= 3000);
+
+                auto error = TError(
+                    NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
+                    "Coordinator has failed to prepare")
+                    << ex;
+                ChangeCommitTransientState(commit, ECommitState::Aborting, error);
+                return false;
+            }
+
             SetCommitFailed(commit, ex);
             RemovePersistentCommit(commit);
             try {
