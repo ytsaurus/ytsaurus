@@ -386,7 +386,7 @@ private:
 
     virtual TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes() override
     {
-        if (IsLocal()) {
+        if (!IsMulticell()) {
             return GetSize()
                 .Apply(BIND([=, this_ = MakeStrong(this)] (i64 size) {
                     return std::vector{std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size)};
@@ -490,6 +490,29 @@ private:
                 return EObjectType::LocalInconsistentlyPlacedChunkMap;
             default:
                 YT_ABORT();
+        }
+    }
+
+    bool IsMulticell() const
+    {
+        switch (Type_) {
+            case EObjectType::LostChunkMap:
+            case EObjectType::LostVitalChunkMap:
+            case EObjectType::PrecariousChunkMap:
+            case EObjectType::PrecariousVitalChunkMap:
+            case EObjectType::OverreplicatedChunkMap:
+            case EObjectType::UnderreplicatedChunkMap:
+            case EObjectType::DataMissingChunkMap:
+            case EObjectType::ParityMissingChunkMap:
+            case EObjectType::OldestPartMissingChunkMap:
+            case EObjectType::QuorumMissingChunkMap:
+            case EObjectType::UnsafelyPlacedChunkMap:
+            case EObjectType::InconsistentlyPlacedChunkMap:
+            case EObjectType::ChunkMap:
+            case EObjectType::ForeignChunkMap:
+                return true;
+            default:
+                return false;
         }
     }
 
