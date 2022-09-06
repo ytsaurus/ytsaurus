@@ -30,6 +30,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("argcomplete", "argcomplete/py2"),
     "simplejson",
     "cloudpickle",
+    "decorator",
     "backports_abc",
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
@@ -132,7 +133,6 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
     # Replace certificate.
     cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "certifi"))
 
-    replace(python_contrib_path("python-decorator/src/decorator.py"), packages_dir)
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
     if prepare_bindings:

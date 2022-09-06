@@ -3,7 +3,6 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
                        uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated, underscore_case_to_camel_case)
 import yt.yson as yson
 
-from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type, string_types
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
@@ -11,6 +10,10 @@ try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
+try:
+    from yt.packages.decorator import decorator
+except ImportError:
+    from decorator import decorator
 
 import argparse
 import collections
