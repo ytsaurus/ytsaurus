@@ -16,6 +16,8 @@ import (
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/distribution/distribution/v3/registry/storage/driver/base"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
+
+	"a.yandex-team.ru/yt/go/docker_registry/internal/utils"
 )
 
 const (
@@ -65,7 +67,10 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 }
 
 func New(clusterName, token string, homeDirectory string) (*Driver, error) {
-	config := &yt.Config{Proxy: clusterName}
+	logger, stop := utils.GetLogger()
+	defer stop()
+
+	config := &yt.Config{Proxy: clusterName, Logger: logger}
 	if token == "" {
 		config.ReadTokenFromFile = true
 	} else {

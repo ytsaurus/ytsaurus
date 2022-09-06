@@ -32,7 +32,10 @@ func (ac *accessController) validateYTPermissions(ctx context.Context, token str
 		return nil
 	}
 
-	yc, err := ythttp.NewClient(&yt.Config{Proxy: ac.cluster, Token: token})
+	logger, stop := utils.GetLogger()
+	defer stop()
+
+	yc, err := ythttp.NewClient(&yt.Config{Proxy: ac.cluster, Token: token, Logger: logger})
 	if err != nil {
 		return err
 	}
