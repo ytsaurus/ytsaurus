@@ -58,7 +58,7 @@ TFuture<void> TBundleState::FetchStatistics()
 
 void TBundleState::DoUpdateState()
 {
-    YT_LOG_DEBUG("Started fetching tablet cells");
+    YT_LOG_DEBUG("Started fetching tablet cells (CellCount: %v)", CellIds_.size());
     auto tabletCells = FetchTabletCells();
     YT_LOG_DEBUG("Finished fetching tablet cells");
 
@@ -76,9 +76,9 @@ void TBundleState::DoUpdateState()
         }
     }
 
-    YT_LOG_DEBUG("Started fetching tablet table ids");
+    YT_LOG_DEBUG("Started fetching tablet table ids (NewTabletCount: %v)", newTabletIds.size());
     auto tabletInfos = FetchTabletTableIds(newTabletIds);
-    YT_LOG_DEBUG("Finished fetching tablet table ids");
+    YT_LOG_DEBUG("Finished fetching tablet table ids (NewTabletCount: %v)", tabletInfos.size());
 
     THashSet<TTableId> newTableIds;
     THashMap<TTableId, std::vector<TTabletId>> newTableIdToTablets;
@@ -93,9 +93,9 @@ void TBundleState::DoUpdateState()
         }
     }
 
-    YT_LOG_DEBUG("Started fetching basic table attributes");
+    YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
     auto tableInfos = FetchBasicTableAttributes(newTableIds);
-    YT_LOG_DEBUG("Finished fetching basic table attributes");
+    YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
 
     for (auto& [tableId, tableInfo] : tableInfos) {
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
@@ -134,9 +134,9 @@ bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
 
 void TBundleState::DoFetchStatistics()
 {
-    YT_LOG_DEBUG("Started fetching actual table settings");
+    YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", Bundle_->Tables.size());
     auto tableSettings = FetchActualTableSettings();
-    YT_LOG_DEBUG("Finished fetching actual table settings");
+    YT_LOG_DEBUG("Finished fetching actual table settings (TableCount: %v)", tableSettings.size());
 
     THashSet<TTableId> tableIds;
     for (const auto& [id, info] : tableSettings) {
@@ -162,12 +162,12 @@ void TBundleState::DoFetchStatistics()
         table->Tablets.clear();
     }
 
-    YT_LOG_DEBUG("Started fetching table statistics");
+    YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
     auto tableIdToStatistics = FetchTableStatistics(tableIdsToFetch);
-    YT_LOG_DEBUG("Finished fetching table statistics");
+    YT_LOG_DEBUG("Finished fetching table statistics (TableCount: %v)", tableIdToStatistics.size());
 
     THashSet<TTableId> missingTables;
-    for (const auto& [tableId, statistics] : tableIdToStatistics) {
+    for (const auto& tableId : tableIdsToFetch) {
         EmplaceOrCrash(missingTables, tableId);
     }
 
@@ -218,6 +218,8 @@ void TBundleState::DoFetchStatistics()
             tablet->Statistics = tabletResponse.Statistics;
             tablet->State = tabletResponse.State;
 
+            YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
+
             table->Tablets.push_back(tablet);
         }
         EraseOrCrash(missingTables, tableId);
@@ -226,6 +228,15 @@ void TBundleState::DoFetchStatistics()
     for (auto tableId : missingTables) {
         EraseOrCrash(Bundle_->Tables, tableId);
     }
+
+    THashSet<TTabletId> tabletIds;
+    for (const auto& [tableId, table] : Bundle_->Tables) {
+        for (const auto& tablet : table->Tablets) {
+            tabletIds.insert(tablet->Id);
+        }
+    }
+
+    DropMissingKeys(&Tablets_, tabletIds);
 }
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
