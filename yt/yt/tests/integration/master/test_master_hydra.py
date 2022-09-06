@@ -1,8 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, get, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
+    authors, wait, get, set, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address,
+    reset_state_hash)
 
 from yt.common import YtError
 
@@ -53,3 +54,21 @@ class TestMasterLeaderSwitch(YTEnvSetup):
         wait(lambda: is_active_primary_master_follower(old_leader_rpc_address))
 
         assert _get_master_grace_delay_status(new_leader_rpc_address) == "previous_lease_abandoned"
+
+
+class TestMasterResetStateHash(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    @authors("gritukan")
+    def test_reset_state_hash(self):
+        cell_id = get("//sys/@cell_id")
+
+        def _test(new_state_hash):
+            reset_state_hash(cell_id, new_state_hash)
+            # Do something and do not crash.
+            for i in range(10):
+                set("//tmp/@foo", i)
+
+        _test(new_state_hash=None)
+        _test(new_state_hash=0xbebebebe)

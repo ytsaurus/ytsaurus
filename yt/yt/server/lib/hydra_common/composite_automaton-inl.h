@@ -64,10 +64,28 @@ void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback,
     const std::vector<TString>& aliases)
 {
+    Automaton_->RegisterMethod(callback, aliases);
+}
+
+template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
+void TCompositeAutomatonPart::RegisterMethod(
+    TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
+    const std::vector<TString>& aliases)
+{
+    Automaton_->RegisterMethod(callback, aliases);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+void TCompositeAutomaton::RegisterMethod(
+    TCallback<void(TRequest*)> callback,
+    const std::vector<TString>& aliases)
+{
     auto mutationHandler = BIND([=] (TMutationContext* context) {
         auto request = ObjectPool<TRequest>().Allocate();
-        auto* descriptor = Automaton_->GetMethodDescriptor(TRequest::default_instance().GetTypeName());
-        Automaton_->DeserializeRequestAndProfile(
+        auto* descriptor = GetMethodDescriptor(TRequest::default_instance().GetTypeName());
+        DeserializeRequestAndProfile(
             request.get(),
             context->Request().Data,
             descriptor);
@@ -94,7 +112,7 @@ void TCompositeAutomatonPart::RegisterMethod(
 }
 
 template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
-void TCompositeAutomatonPart::RegisterMethod(
+void TCompositeAutomaton::RegisterMethod(
     TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
     const std::vector<TString>& aliases)
 {
@@ -102,8 +120,8 @@ void TCompositeAutomatonPart::RegisterMethod(
         auto request = ObjectPool<THandlerRequest>().Allocate();
         auto response = ObjectPool<THandlerResponse>().Allocate();
 
-        auto* descriptor = Automaton_->GetMethodDescriptor(THandlerRequest::default_instance().GetTypeName());
-        Automaton_->DeserializeRequestAndProfile(
+        auto* descriptor = GetMethodDescriptor(THandlerRequest::default_instance().GetTypeName());
+        DeserializeRequestAndProfile(
             request.get(),
             context->Request().Data,
             descriptor);

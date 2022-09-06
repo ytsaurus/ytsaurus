@@ -78,6 +78,11 @@ ui64 TMutationContext::GetStateHash() const
     return StateHash_;
 }
 
+void TMutationContext::SetStateHash(ui64 newStateHash)
+{
+    StateHash_ = newStateHash;
+}
+
 void TMutationContext::SetResponseData(TSharedRefArray data)
 {
     ResponseData_ = std::move(data);

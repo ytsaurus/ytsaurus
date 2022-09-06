@@ -45,6 +45,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResetStateHashCommand
+    : public TTypedCommand<NApi::TResetStateHashOptions>
+{
+public:
+    TResetStateHashCommand();
+
+private:
+    NHydra::TCellId CellId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THealExecNodeCommand
     : public TTypedCommand<NApi::THealExecNodeOptions>
 {

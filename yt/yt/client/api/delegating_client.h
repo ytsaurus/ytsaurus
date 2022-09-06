@@ -442,6 +442,10 @@ public:
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options = {}) override;
 
+    TFuture<void> ResetStateHash(
+        NHydra::TCellId cellId,
+        const TResetStateHashOptions& options = {}) override;
+
     TFuture<void> GCCollect(
         const TGCCollectOptions& options = {}) override;
 

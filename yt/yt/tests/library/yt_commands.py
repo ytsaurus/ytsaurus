@@ -2049,6 +2049,13 @@ def resume_tablet_cells(cell_ids, **kwargs):
     return execute_command("resume_tablet_cells", kwargs)
 
 
+def reset_state_hash(cell_id, new_state_hash=None, **kwargs):
+    kwargs["cell_id"] = cell_id
+    if new_state_hash:
+        kwargs["new_state_hash"] = new_state_hash
+    return execute_command("reset_state_hash", kwargs)
+
+
 def create_access_control_object_namespace(name, **kwargs):
     kwargs["type"] = "access_control_object_namespace"
     if "attributes" not in kwargs:

@@ -14,6 +14,14 @@ using NElection::TPeerIdSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqResetStateHash;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IAutomaton)
 DECLARE_REFCOUNTED_STRUCT(ISimpleHydraManager)
 DECLARE_REFCOUNTED_STRUCT(IHydraManager)

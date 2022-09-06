@@ -1499,6 +1499,13 @@ TFuture<void> TClient::SwitchLeader(
     ThrowUnimplemented("SwitchLeader");
 }
 
+TFuture<void> TClient::ResetStateHash(
+    NHydra::TCellId /*cellId*/,
+    const TResetStateHashOptions& /*options*/)
+{
+    ThrowUnimplemented("ResetStateHash");
+}
+
 TFuture<void> TClient::GCCollect(const TGCCollectOptions& options)
 {
     auto proxy = CreateApiServiceProxy();

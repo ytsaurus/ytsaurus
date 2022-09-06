@@ -698,6 +698,13 @@ TFuture<void> TDelegatingClient::SwitchLeader(
     return Underlying_->SwitchLeader(cellId, newLeaderAddress, options);
 }
 
+TFuture<void> TDelegatingClient::ResetStateHash(
+    NHydra::TCellId cellId,
+    const TResetStateHashOptions& options)
+{
+    return Underlying_->ResetStateHash(cellId, options);
+}
+
 TFuture<void> TDelegatingClient::GCCollect(
     const TGCCollectOptions& options)
 {

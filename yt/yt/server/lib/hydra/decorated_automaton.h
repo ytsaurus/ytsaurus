@@ -295,7 +295,7 @@ private:
     int RecoveryRecordCount_ = 0;
     i64 RecoveryDataSize_ = 0;
 
-    std::atomic<EPeerState> State_ = {EPeerState::Stopped};
+    std::atomic<EPeerState> State_ = EPeerState::Stopped;
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     // LoggedVersion_ is only maintained when the peer is active, e.g. not during recovery.

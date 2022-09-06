@@ -82,6 +82,23 @@ void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TResetStateHashCommand::TResetStateHashCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("new_state_hash", Options.NewStateHash)
+        .Optional();
+}
+
+void TResetStateHashCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->ResetStateHash(CellId_, Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THealExecNodeCommand::THealExecNodeCommand()
 {
     RegisterParameter("address", Address_);

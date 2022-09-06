@@ -138,10 +138,6 @@ private:
     using TThis = TCompositeAutomatonPart;
     friend class TCompositeAutomaton;
 
-    void RegisterMethod(
-        const TString& name,
-        TCallback<void(TMutationContext*)> callback);
-
     void StartEpoch();
     void StopEpoch();
 
@@ -204,6 +200,19 @@ protected:
     void InitLoadContext(
         TLoadContext& context,
         ICheckpointableInputStream* input);
+
+    template <class TRequest>
+    void RegisterMethod(
+        TCallback<void(TRequest*)> callback,
+        const std::vector<TString>& aliases = {});
+    template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
+    void RegisterMethod(
+        TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
+        const std::vector<TString>& aliases = {});
+
+    void RegisterMethod(
+        const TString& name,
+        TCallback<void(TMutationContext*)> callback);
 
 private:
     using TThis = TCompositeAutomaton;
@@ -291,6 +300,8 @@ private:
 
     bool IsRecovery() const;
     bool IsMutationLoggingEnabled() const;
+
+    void HydraResetStateHash(NProto::TReqResetStateHash* request);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)
