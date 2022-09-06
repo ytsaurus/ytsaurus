@@ -163,7 +163,10 @@ func initFunc(ctx context.Context, repository distribution.Repository, options m
 		return nil, fmt.Errorf("no %s parameter provided", paramHomeDirectory)
 	}
 
-	config := &yt.Config{Proxy: clusterName.(string)}
+	logger, stop := utils.GetLogger()
+	defer stop()
+
+	config := &yt.Config{Proxy: clusterName.(string), Logger: logger}
 	if token == "" {
 		config.ReadTokenFromFile = true
 	} else {
