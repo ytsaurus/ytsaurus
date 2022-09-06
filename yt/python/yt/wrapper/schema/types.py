@@ -10,11 +10,15 @@ try:
     import yandex.type_info.typing as ti
     import copy
     import dataclasses
-    from typing_extensions import Annotated, dataclass_transform
+    from typing_extensions import Annotated
 except ImportError:
-    if not typing.TYPE_CHECKING:
-        def dataclass_transform():
-            return lambda x: x
+    pass
+
+if typing.TYPE_CHECKING:
+    from typing_extensions import dataclass_transform
+else:
+    def dataclass_transform():
+        return lambda x: x
 
 
 @dataclass_transform()
