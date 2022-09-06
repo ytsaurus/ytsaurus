@@ -12,6 +12,7 @@
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
@@ -212,6 +213,8 @@ public:
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResetStateHash)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
     }
 
     void Initialize() override
@@ -1152,6 +1155,17 @@ private:
 
         response->set_peer_state(ToUnderlying(state));
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ResetStateHash)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        context->SetRequestInfo("NewStateHash: %x", request->new_state_hash());
+        context->SetResponseInfo();
+
+        auto mutation = CreateMutation(this, *request);
+        mutation->CommitAndReply(context);
     }
 
 

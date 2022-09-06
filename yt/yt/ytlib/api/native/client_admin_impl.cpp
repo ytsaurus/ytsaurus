@@ -187,13 +187,32 @@ void TClient::DoSwitchLeader(
 
     auto newLeaderChannel = createChannel(newLeaderAddress);
 
-    NHydra::SwitchLeader(peerChannels,
+    NHydra::SwitchLeader(
+        peerChannels,
         currentLeaderChannel,
         newLeaderChannel,
         addresses,
         newLeaderAddress,
         options.Timeout,
         Options_.User);
+}
+
+void TClient::DoResetStateHash(
+    TCellId cellId,
+    const TResetStateHashOptions& options)
+{
+    ValidateSuperuserPermissions();
+
+    auto channel = GetCellChannelOrThrow(cellId);
+    THydraServiceProxy proxy(std::move(channel));
+
+    auto newStateHash = options.NewStateHash.value_or(RandomNumber<ui64>());
+    auto req = proxy.ResetStateHash();
+    req->set_new_state_hash(newStateHash);
+    req->SetTimeout(options.Timeout);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 void TClient::DoGCCollect(const TGCCollectOptions& options)

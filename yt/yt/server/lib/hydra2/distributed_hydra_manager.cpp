@@ -13,6 +13,7 @@
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
@@ -660,6 +661,7 @@ private:
             RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareLeaderSwitch));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ResetStateHash));
         }
 
     private:
@@ -737,6 +739,17 @@ private:
 
             response->set_peer_state(ToUnderlying(state));
             context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ResetStateHash)
+        {
+            context->SetRequestInfo("NewStateHash: %x", request->new_state_hash());
+            context->SetResponseInfo();
+
+            auto owner = GetOwnerOrThrow();
+
+            auto mutation = CreateMutation(owner, *request);
+            mutation->CommitAndReply(context);
         }
     };
     const TIntrusivePtr<THydraService> HydraService_;

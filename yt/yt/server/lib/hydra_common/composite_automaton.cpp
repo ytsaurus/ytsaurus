@@ -6,6 +6,8 @@
 #include "snapshot.h"
 #include "validate_snapshot.h"
 
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
@@ -114,23 +116,6 @@ void TCompositeAutomatonPart::RegisterLoader(
         callback.Run(context);
     });
     YT_VERIFY(Automaton_->PartNameToLoaderDescriptor_.emplace(name, descriptor).second);
-}
-
-void TCompositeAutomatonPart::RegisterMethod(
-    const TString& type,
-    TCallback<void(TMutationContext*)> callback)
-{
-    auto profiler = Automaton_->Profiler_.WithTag("type", type);
-    TCompositeAutomaton::TMethodDescriptor descriptor{
-        callback,
-        profiler.TimeCounter("/cumulative_mutation_time"),
-        profiler.TimeCounter("/cumulative_mutation_execute_time"),
-        profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
-        profiler.Counter("/mutation_count"),
-        profiler.Gauge("/mutation_request_size"),
-        New<TProfilerTag>("mutation_type", type),
-    };
-    YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
 }
 
 bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)
@@ -246,7 +231,9 @@ TCompositeAutomaton::TCompositeAutomaton(
     , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
     , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
-{ }
+{
+    RegisterMethod(BIND(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
+}
 
 void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
 {
@@ -315,6 +302,23 @@ void TCompositeAutomaton::InitLoadContext(
     context.Dumper().SetLowerWriteCountDumpLimit(LowerWriteCountDumpLimit_);
     context.Dumper().SetUpperWriteCountDumpLimit(UpperWriteCountDumpLimit_);
     context.SetEnableTotalWriteCountReport(EnableTotalWriteCountReport_);
+}
+
+void TCompositeAutomaton::RegisterMethod(
+    const TString& type,
+    TCallback<void(TMutationContext*)> callback)
+{
+    auto profiler = Profiler_.WithTag("type", type);
+    TCompositeAutomaton::TMethodDescriptor descriptor{
+        callback,
+        profiler.TimeCounter("/cumulative_mutation_time"),
+        profiler.TimeCounter("/cumulative_mutation_execute_time"),
+        profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
+        profiler.Counter("/mutation_count"),
+        profiler.Gauge("/mutation_request_size"),
+        New<TProfilerTag>("mutation_type", type),
+    };
+    EmplaceOrCrash(MethodNameToDescriptor_, type, descriptor);
 }
 
 TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -637,6 +641,20 @@ void TCompositeAutomaton::CheckInvariants()
             part->CheckInvariants();
         }
     }
+}
+
+void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* request)
+{
+    auto newStateHash = request->new_state_hash();
+
+    auto* mutationContext = GetCurrentMutationContext();
+
+    YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        "Resetting state hash (CurrrentStateHash: %x, NewStateHash: %x)",
+        mutationContext->GetStateHash(),
+        newStateHash);
+
+    mutationContext->SetStateHash(newStateHash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

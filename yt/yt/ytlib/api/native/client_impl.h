@@ -515,6 +515,10 @@ public:
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options),
         (cellId, newLeaderAddress, options))
+    IMPLEMENT_METHOD(void, ResetStateHash, (
+        NObjectClient::TCellId cellId,
+        const TResetStateHashOptions& options),
+        (cellId, options))
     IMPLEMENT_METHOD(void, GCCollect, (
         const TGCCollectOptions& options),
         (options))
@@ -1399,6 +1403,9 @@ private:
         NObjectClient::TCellId cellId,
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options);
+    void DoResetStateHash(
+        NObjectClient::TCellId cellId,
+        const TResetStateHashOptions& options);
     void DoGCCollect(
         const TGCCollectOptions& options);
     void DoKillProcess(

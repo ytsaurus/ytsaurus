@@ -1424,6 +1424,13 @@ struct TSwitchLeaderOptions
     : public TTimeoutOptions
 { };
 
+struct TResetStateHashOptions
+    : public TTimeoutOptions
+{
+    //! If not set, random number is used.
+    std::optional<ui64> NewStateHash;
+};
+
 struct TGCCollectOptions
     : public TTimeoutOptions
 {
@@ -1998,6 +2005,10 @@ struct IClient
         NHydra::TCellId cellId,
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options = {}) = 0;
+
+    virtual TFuture<void> ResetStateHash(
+        NHydra::TCellId cellId,
+        const TResetStateHashOptions& options = {}) = 0;
 
     virtual TFuture<void> GCCollect(
         const TGCCollectOptions& options = {}) = 0;

@@ -181,6 +181,10 @@ public:
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, ResetStateHash, (
+        NHydra::TCellId cellId,
+        const TResetStateHashOptions& options), (override));
+
     MOCK_METHOD(TFuture<void>, GCCollect, (
         const TGCCollectOptions& options), (override));
 

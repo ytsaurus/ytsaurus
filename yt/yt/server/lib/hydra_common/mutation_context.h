@@ -70,6 +70,10 @@ public:
     i64 GetSequenceNumber() const;
     ui64 GetStateHash() const;
 
+    //! Used by ResetStateHash mutation.
+    //! Probably you do not want to use it in other contexts.
+    void SetStateHash(ui64 newStateHash);
+
     void SetResponseData(TSharedRefArray data);
     void SetResponseData(TError error);
     const TSharedRefArray& GetResponseData() const;
