@@ -872,12 +872,13 @@ public:
 private:
     const TSharedRange<TLegacyKey> Keys_;
     const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+
     std::vector<bool> KeyFilterTest_;
     TKeyWideningOptions KeyWideningOptions_;
+    bool HasMoreBlocks_ = true;
 
     void InitFirstBlock() override;
     void InitNextBlock() override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
@@ -905,24 +906,19 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             return true;
         }
 
-        if (!BlockReader_) {
-            // Nothing to read from chunk.
-            if (RowCount_ == std::ssize(Keys_)) {
-                return false;
-            }
+        // Nothing to read from chunk.
+        if (RowCount_ == std::ssize(Keys_)) {
+            return false;
+        }
 
+        // BlockReader_ is not set when there are no blocks.
+        if (!HasMoreBlocks_ || !BlockReader_) {
             while (rows.size() < rows.capacity()) {
                 YT_VERIFY(RowCount_ < std::ssize(Keys_));
                 rows.push_back(TUnversionedRow());
                 ++RowCount_;
             }
 
-            return true;
-        }
-
-        if (BlockEnded_) {
-            BlockReader_.reset();
-            OnBlockEnded();
             return true;
         }
 
@@ -937,7 +933,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             } else {
                 auto key = Keys_[RowCount_];
                 if (!BlockReader_->SkipToKey(key)) {
-                    BlockEnded_ = true;
+                    HasMoreBlocks_ = OnBlockEnded();
                     return true;
                 }
 
@@ -955,10 +951,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             }
 
             ++RowCount_;
-        }
-
-        if (RowCount_ == std::ssize(Keys_)) {
-            BlockEnded_ = true;
         }
 
         return true;
