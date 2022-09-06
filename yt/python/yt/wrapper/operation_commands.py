@@ -15,9 +15,13 @@ from . import yson
 import yt.logger as logger
 from yt.common import format_error, to_native_str, flatten, join_exceptions
 
-from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, iterkeys
 from yt.packages.six.moves import builtins, filter as ifilter, map as imap
+
+try:
+    from yt.packages.decorator import decorator
+except ImportError:
+    from decorator import decorator
 
 import logging
 from datetime import datetime, timedelta
