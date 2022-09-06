@@ -76,7 +76,9 @@ private:
     bool IsBalancingAllowed(const TBundleStatePtr& bundle) const;
 
     void BalanceViaReshard(const TBundleStatePtr& bundle) const;
-    void BalanceViaMove(const TBundleStatePtr& bundle) const;
+    void BalanceViaMove(const TTabletCellBundlePtr& bundle) const;
+    void BalanceViaMoveInMemory(const TTabletCellBundlePtr& bundle) const;
+    void BalanceViaMoveOrdinary(const TTabletCellBundlePtr& bundle) const;
 
     void UpdateBundleList();
 
@@ -161,7 +163,7 @@ void TTabletBalancer::BalancerIteration()
         }
 
         if (!IsBalancingAllowed(bundle)) {
-            YT_LOG_DEBUG("Balancing is not allowed (BundleName: %v)", bundleName);
+            YT_LOG_DEBUG("Balancing is disabled (BundleName: %v)", bundleName);
             continue;
         }
 
@@ -173,7 +175,7 @@ void TTabletBalancer::BalancerIteration()
         // TODO(alexelex): Use Tablets as tablets for each table.
 
         if (IterationIndex_ % 2 != 0) {
-            BalanceViaMove(bundle);
+            BalanceViaMove(bundle->GetBundle());
         } else {
             BalanceViaReshard(bundle);
         }
@@ -264,14 +266,15 @@ void TTabletBalancer::UpdateBundleList()
     DropMissingKeys(&Bundles_, currentBundles);
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveInMemory(const TTabletCellBundlePtr& bundle) const
 {
-    if (!bundle->GetBundle()->Config->EnableInMemoryCellBalancer) {
+    if (!bundle->Config->EnableInMemoryCellBalancer) {
+        YT_LOG_DEBUG("Balancing in memory via move is disabled (BundleName: %v)", bundle->Name);
         return;
     }
 
     auto descriptors = ReassignInMemoryTablets(
-        bundle->GetBundle(),
+        bundle,
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
         Logger);
@@ -280,16 +283,50 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
 
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
-            YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v)",
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundle->Name, descriptor);
         }
 
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance tablets via move finished (ActionCount: %v)", actionCount);
+    YT_LOG_DEBUG("Balance in memory tablets via move finished (ActionCount: %v)", actionCount);
+}
+
+void TTabletBalancer::BalanceViaMoveOrdinary(const TTabletCellBundlePtr& bundle) const
+{
+    if (!bundle->Config->EnableCellBalancer) {
+        YT_LOG_DEBUG("Balancing ordinary via move is disabled (BundleName: %v)", bundle->Name);
+        return;
+    }
+
+    auto descriptors = ReassignOrdinaryTablets(
+        bundle,
+        /*movableTables*/ std::nullopt,
+        Logger);
+
+    int actionCount = 0;
+
+    if (!descriptors.empty()) {
+        for (auto descriptor : descriptors) {
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId);
+            ActionManager_->ScheduleActionCreation(bundle->Name, descriptor);
+        }
+
+        actionCount += std::ssize(descriptors);
+    }
+
+    YT_LOG_DEBUG("Balance ordinary tablets via move finished (ActionCount: %v)", actionCount);
+}
+
+void TTabletBalancer::BalanceViaMove(const TTabletCellBundlePtr& bundle) const
+{
+    BalanceViaMoveInMemory(bundle);
+    BalanceViaMoveOrdinary(bundle);
 }
 
 void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const

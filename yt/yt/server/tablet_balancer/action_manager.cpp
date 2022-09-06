@@ -19,6 +19,7 @@ namespace NYT::NTabletBalancer {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -204,8 +205,12 @@ void TActionManager::Poll()
         }
     }
 
+    YT_LOG_DEBUG("Started fetching tablet action states (ActionCount: %v)", actionIds.size());
+
     static const std::vector<TString> attributeKeys{"state", "error"};
     auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys);
+
+    YT_LOG_DEBUG("Finished fetching tablet action states (ActionCount: %v)", actionToAttributes.size());
 
     for (const auto& [bundle, actions] : RunningActions_) {
         for (const auto& action : actions) {
@@ -241,7 +246,7 @@ void TActionManager::Poll()
 
 void TActionManager::MoveFinishedActionsFromRunningToFinished()
 {
-    THashSet<TString> bundlesToRemove;
+    THashSet<TString> relevantBundles;
 
     for (auto& [bundleName, runningActions] : RunningActions_) {
         auto& finishedActions = FinishedActions_[bundleName];
@@ -258,12 +263,12 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
             }
         }
 
-        if (runningActions.empty()) {
-            bundlesToRemove.emplace(bundleName);
+        if (!runningActions.empty()) {
+            relevantBundles.emplace(bundleName);
         }
     }
 
-    DropMissingKeys(&RunningActions_, bundlesToRemove);
+    DropMissingKeys(&RunningActions_, relevantBundles);
 }
 
 IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescriptor& descriptor)

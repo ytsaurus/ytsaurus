@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NTabletClient;
@@ -273,6 +275,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     const NLogging::TLogger& Logger)
 {
     YT_VERIFY(!tabletRange.empty());
+
     std::vector<TTabletPtr> tablets(
         tabletRange.Begin(),
         tabletRange.End());
@@ -317,8 +320,35 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
 
     // TODO(alexelex): remove it.
     for (int i = 0; i < std::ssize(tablets); ++i) {
-        YT_VERIFY(tablets[i]->Index == i);
-        YT_VERIFY(table->Tablets[i]->Index == i);
+        YT_LOG_FATAL_IF(
+            tablets[i]->Table != table,
+            "Tablet belongs to another table (TabletId: %v, ExpectedTableId: %v, ActualTableId: %v)",
+            table->Id,
+            tablets[i]->Table->Id,
+            tablets[i]->Id);
+
+        YT_LOG_FATAL_IF(
+            tablets[i]->Index >= std::ssize(table->Tablets),
+            "Tablet index is not less than the number of tablets in the table "
+            "(TabletId: %v, TabletIndex: %v, TabletCount: %v)",
+            tablets[i]->Id,
+            tablets[i]->Index,
+            std::ssize(table->Tablets));
+
+        YT_LOG_FATAL_IF(
+            tablets[i]->Index < i,
+            "Tablet index is less than expected (TabletIndex: %v, ExpectedAtLeast: %v)",
+            tablets[i]->Index,
+            i);
+
+        YT_LOG_FATAL_IF(
+            table->Tablets[tablets[i]->Index].Get() != tablets[i].Get(),
+            "Tablets are expected to be the same, but they are different "
+            "(ExpectedTabletId: %v, ActualTabletId: %v, ExpectedTabletPtr: %v, ActialTabletPtr: %v)",
+            table->Tablets[tablets[i]->Index]->Id,
+            tablets[i]->Id,
+            table->Tablets[tablets[i]->Index].Get(),
+            tablets[i].Get());
     }
 
     std::vector<TReshardDescriptor> descriptors;
@@ -333,13 +363,16 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
             descriptors.push_back(*descriptor);
 
             // TODO(alexelex): remove it.
-            YT_VERIFY(!context->IsTabletUntouched(tablet->Id));
+            YT_LOG_FATAL_IF(
+                context->IsTabletUntouched(tablet->Id),
+                "Planning to create an action while the tablet is not touched (TabletId: %v)",
+                tablet->Id);
         }
     }
     return descriptors;
 }
 
-bool IsTabletReshardable(const TTabletPtr tablet, bool ignoreConfig)
+bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
 {
     // TODO(alexelex): Check if the tablet has unfinished action.
     return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
@@ -469,6 +502,263 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     }
 
     return moveDescriptors;
+}
+
+void ReassignOrdinaryTabletsOfTable(
+    const std::vector<TTabletPtr>& tablets,
+    const std::vector<TTabletCellPtr>& bundleCells,
+    THashMap<const TTablet*, TTabletCellId>* tabletToTargetCell,
+    THashMap<const TTabletCell*, std::vector<TTabletPtr>>* slackTablets,
+    const NLogging::TLogger& /*Logger*/)
+{
+    YT_VERIFY(!tablets.empty());
+
+    THashMap<const TTabletCell*, std::vector<TTabletPtr>> cellToTablets;
+    for (const auto& tablet : tablets) {
+        cellToTablets[tablet->Cell].push_back(tablet);
+    }
+
+    std::vector<std::pair<int, const TTabletCell*>> cells;
+    for (const auto& [cell, cellTablets] : cellToTablets) {
+        cells.emplace_back(cellTablets.size(), cell);
+    }
+
+    // Cells with the same number of tablets of current table should be distributed
+    // randomly each time. It gives better per-cell distribution on average.
+    Shuffle(cells.begin(), cells.end());
+    std::sort(cells.begin(), cells.end(), [] (auto lhs, auto rhs) {
+        return lhs.first > rhs.first;
+    });
+
+    int expectedCellCount = std::min(std::ssize(tablets), std::ssize(bundleCells));
+
+    for (const auto& cell : bundleCells) {
+        if (std::ssize(cells) == expectedCellCount) {
+            break;
+        }
+        if (!cellToTablets.contains(cell.Get())) {
+            cells.emplace_back(0, cell.Get());
+        }
+    }
+
+    auto getExpectedTabletCount = [&] (int cellIndex) {
+        int cellCount = std::ssize(bundleCells);
+        int tabletCount = std::ssize(tablets);
+        return tabletCount / cellCount + (cellIndex < tabletCount % cellCount);
+    };
+
+    const int minCellSize = tablets.size() / bundleCells.size();
+
+    auto moveTablets = [&] (int srcIndex, int dstIndex, int limit) {
+        int moveCount = 0;
+        auto& srcTablets = cellToTablets[cells[srcIndex].second];
+        while (moveCount < limit && !srcTablets.empty()) {
+            auto tablet = srcTablets.back();
+            srcTablets.pop_back();
+
+            (*tabletToTargetCell)[tablet.Get()] = cells[dstIndex].second->Id;
+            ++moveCount;
+            --cells[srcIndex].first;
+            ++cells[dstIndex].first;
+
+            if (slackTablets && cells[dstIndex].first > minCellSize) {
+                GetOrCrash(*slackTablets, cells[dstIndex].second).push_back(std::move(tablet));
+            }
+        }
+        YT_VERIFY(moveCount == limit);
+    };
+
+    YT_VERIFY(!cells.empty());
+    int dstIndex = cells.size() - 1;
+
+    for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
+        int srcLimit = cells[srcIndex].first - getExpectedTabletCount(srcIndex);
+        while (srcLimit > 0 && srcIndex < dstIndex) {
+            int dstLimit = getExpectedTabletCount(dstIndex) - cells[dstIndex].first;
+            int moveCount = std::min(srcLimit, dstLimit);
+            YT_VERIFY(moveCount >= 0);
+            moveTablets(srcIndex, dstIndex, moveCount);
+            if (moveCount == dstLimit) {
+                --dstIndex;
+            }
+            srcLimit -= moveCount;
+        }
+    }
+
+    if (slackTablets) {
+        for (auto [cellId, cell] : cells) {
+            auto& tablets = cellToTablets[cell];
+            if (std::ssize(tablets) > minCellSize) {
+                GetOrCrash(*slackTablets, cell).push_back(cellToTablets[cell].back());
+            } else {
+                break;
+            }
+        }
+    }
+
+    for (int cellIndex = 0; cellIndex < std::ssize(cells); ++cellIndex) {
+        YT_VERIFY(cells[cellIndex].first == getExpectedTabletCount(cellIndex));
+    }
+}
+
+void ReassignSlackTablets(
+    std::vector<std::pair<const TTabletCell*, std::vector<TTabletPtr>>> cellTablets,
+    THashMap<const TTablet*, TTabletCellId>* tabletToTargetCell,
+    const NLogging::TLogger& /*Logger*/)
+{
+    std::sort(
+        cellTablets.begin(),
+        cellTablets.end(),
+        [](const auto& lhs, const auto& rhs) {
+            return lhs.second.size() > rhs.second.size();
+        });
+
+    std::vector<THashSet<const TTable*>> presentTables;
+    std::vector<int> tabletCount;
+    int totalTabletCount = 0;
+    for (const auto& [cell, tablets] : cellTablets) {
+        totalTabletCount += std::ssize(tablets);
+        tabletCount.push_back(std::ssize(tablets));
+
+        presentTables.emplace_back();
+        for (const auto& tablet : tablets) {
+            InsertOrCrash(presentTables.back(), tablet->Table);
+        }
+    }
+
+    auto getExpectedTabletCount = [&] (int cellIndex) {
+        int cellCount = std::ssize(cellTablets);
+        return totalTabletCount / cellCount + (cellIndex < totalTabletCount % cellCount);
+    };
+
+    auto moveTablets = [&] (int srcIndex, int dstIndex, int limit) {
+        int moveCount = 0;
+        auto& srcTablets = cellTablets[srcIndex].second;
+        for (int tabletIndex = 0; tabletIndex < std::ssize(srcTablets) && moveCount < limit; ++tabletIndex) {
+            const auto& tablet = srcTablets[tabletIndex];
+            if (!presentTables[dstIndex].contains(tablet->Table)) {
+                presentTables[dstIndex].insert(tablet->Table);
+                (*tabletToTargetCell)[tablet.Get()] = cellTablets[dstIndex].first->Id;
+                std::swap(srcTablets[tabletIndex], srcTablets.back());
+                srcTablets.pop_back();
+
+                ++moveCount;
+                --tabletIndex;
+                --tabletCount[srcIndex];
+                ++tabletCount[dstIndex];
+            }
+        }
+        YT_VERIFY(moveCount == limit);
+    };
+
+    YT_VERIFY(!cellTablets.empty());
+    int dstIndex = std::ssize(cellTablets) - 1;
+
+    for (int srcIndex = 0; srcIndex < dstIndex; ++srcIndex) {
+        int srcLimit = tabletCount[srcIndex] - getExpectedTabletCount(srcIndex);
+        while (srcLimit > 0 && srcIndex < dstIndex) {
+            int dstLimit = getExpectedTabletCount(dstIndex) - tabletCount[dstIndex];
+            int moveCount = std::min(srcLimit, dstLimit);
+            YT_VERIFY(moveCount >= 0);
+            moveTablets(srcIndex, dstIndex, moveCount);
+            if (moveCount == dstLimit) {
+                --dstIndex;
+            }
+            srcLimit -= moveCount;
+        }
+    }
+
+    for (int cellIndex = 0; cellIndex < std::ssize(cellTablets); ++cellIndex) {
+        YT_ASSERT(tabletCount[cellIndex] == getExpectedTabletCount(cellIndex));
+    }
+}
+
+std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
+    const TTabletCellBundlePtr& bundle,
+    const std::optional<THashSet<TTableId>>& movableTables,
+    const NLogging::TLogger& Logger)
+{
+    /*
+        Balancing happens in two iterations. First iteration goes per-table.
+        Tablets of each table are spread between cells as evenly as possible.
+        Due to rounding errors some cells will contain more tablets than
+        the others. These extra tablets are called slack tablets. In the
+        picture C are slack tablets, T are the others.
+
+        | C  C       |
+        | T  T  T  T |
+        | T  T  T  T |
+        +------------+
+
+        Next iteration runs only if there are empty cells (usually when new
+        cells are added). All slack tablets are spead between cells
+        once again. Tablets are moved from cells with many tablets to cells
+        with fewer. After balancing no two slack tablets from the same
+        table may be on the same cell.
+    */
+
+    auto cells = bundle->GetAliveCells();
+
+    bool haveEmptyCells = false;
+    THashMap<const TTabletCell*, std::vector<TTabletPtr>> slackTablets;
+    THashMap<const TTable*, std::vector<TTabletPtr>> tableToTablets;
+    for (const auto& cell : cells) {
+        slackTablets[cell.Get()] = {};
+        haveEmptyCells |= cell->Tablets.empty();
+
+        for (const auto& tablet : cell->Tablets) {
+            if (!tablet->Table->TableConfig->EnableAutoTabletMove) {
+                continue;
+            }
+
+            if (movableTables && !movableTables->contains(tablet->Table->Id)) {
+                continue;
+            }
+
+            if (tablet->Table->InMemoryMode != EInMemoryMode::None) {
+                continue;
+            }
+
+            if (!tablet->Cell) {
+                // Unmounted tablet.
+                continue;
+            }
+
+            tableToTablets[tablet->Table].push_back(tablet);
+        }
+    }
+
+    THashMap<const TTablet*, TTabletCellId> tabletToTargetCell;
+    for (const auto& [table, tablets] : tableToTablets) {
+        ReassignOrdinaryTabletsOfTable(
+            tablets,
+            cells,
+            &tabletToTargetCell,
+            haveEmptyCells ? &slackTablets : nullptr,
+            Logger);
+    }
+
+    if (haveEmptyCells) {
+        std::vector<std::pair<const TTabletCell*, std::vector<TTabletPtr>>> slackTabletsVector;
+        for (auto&& pair : slackTablets) {
+            slackTabletsVector.emplace_back(pair.first, std::move(pair.second));
+        }
+        ReassignSlackTablets(
+            std::move(slackTabletsVector),
+            &tabletToTargetCell,
+            Logger);
+    }
+
+    std::vector<TMoveDescriptor> descriptors;
+    for (const auto& [tablet, cellId] : tabletToTargetCell) {
+        if (!tablet->Cell || tablet->Cell->Id != cellId) {
+            descriptors.emplace_back(TMoveDescriptor{
+                .TabletId = tablet->Id,
+                .TabletCellId = cellId});
+        }
+    }
+
+    return descriptors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
