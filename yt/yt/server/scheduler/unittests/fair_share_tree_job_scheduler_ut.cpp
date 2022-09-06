@@ -1064,8 +1064,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         EXPECT_NEAR(0.8, starvingOperationElement->GetEffectiveFairShareStarvationTolerance(), 1e-7);
         EXPECT_NEAR(0.8, guaranteedPool->GetEffectiveFairShareStarvationTolerance(), 1e-7);
 
-        EXPECT_EQ(ESchedulableStatus::BelowFairShare, starvingOperationElement->GetStatus(/*atUpdate*/ true));
-        EXPECT_EQ(ESchedulableStatus::BelowFairShare, guaranteedPool->GetStatus(/*atUpdate*/ true));
+        EXPECT_EQ(ESchedulableStatus::BelowFairShare, starvingOperationElement->GetStatus());
+        EXPECT_EQ(ESchedulableStatus::BelowFairShare, guaranteedPool->GetStatus());
 
         EXPECT_EQ(now, starvingOperationElement->PersistentAttributes().BelowFairShareSince);
         EXPECT_EQ(now, guaranteedPool->PersistentAttributes().BelowFairShareSince);

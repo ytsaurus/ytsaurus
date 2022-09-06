@@ -1138,7 +1138,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
         pool->Attributes().DemandShare + TResourceVector::SmallEpsilon(),
         pool->Attributes().FairShare.Total));
 
-    EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus(/*atUpdate*/ true));
+    EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

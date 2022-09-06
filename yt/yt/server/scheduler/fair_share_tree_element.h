@@ -229,7 +229,7 @@ public:
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
-    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
+    virtual ESchedulableStatus GetStatus() const;
 
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
     virtual TResourceVector GetMaxShare() const = 0;
@@ -335,13 +335,11 @@ protected:
     virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
+    ESchedulableStatus GetStatusImpl(double defaultTolerance) const;
     void CheckForStarvationImpl(
         TDuration fairShareStarvationTimeout,
         TDuration fairShareAggressiveStarvationTimeout,
         TInstant now);
-
-    TResourceVector GetResourceUsageShare() const;
 
     virtual void ComputeSatisfactionRatioAtUpdate();
 
@@ -564,7 +562,7 @@ public:
     void ChangeParent(TSchedulerCompositeElement* newParent);
     void DetachParent();
 
-    ESchedulableStatus GetStatus(bool atUpdate = true) const override;
+    ESchedulableStatus GetStatus() const override;
 
     // Used for diagnostics only.
     TResourceVector GetMaxShare() const override;
@@ -740,7 +738,7 @@ public:
     void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;
 
-    ESchedulableStatus GetStatus(bool atUpdate = true) const override;
+    ESchedulableStatus GetStatus() const override;
 
     void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);

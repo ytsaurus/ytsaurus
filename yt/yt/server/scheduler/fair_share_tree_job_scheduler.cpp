@@ -1704,7 +1704,7 @@ void TScheduleJobsContext::CheckForDeactivation(
     }
 
     if (element->Spec()->PreemptionMode == EPreemptionMode::Graceful &&
-        element->GetStatus(/* atUpdate */ false) == ESchedulableStatus::Normal)
+        element->GetStatus() == ESchedulableStatus::Normal)
     {
         OnOperationDeactivated(element, EDeactivationReason::FairShareExceeded);
         return;

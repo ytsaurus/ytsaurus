@@ -254,7 +254,7 @@ int TSchedulerElement::GetPendingJobCount() const
     return PendingJobCount_;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus(bool /* atUpdate */) const
+ESchedulableStatus TSchedulerElement::GetStatus() const
 {
     return ESchedulableStatus::Normal;
 }
@@ -292,11 +292,6 @@ TJobResources TSchedulerElement::GetInstantResourceUsage() const
 double TSchedulerElement::GetMaxShareRatio() const
 {
     return MaxComponent(GetMaxShare());
-}
-
-TResourceVector TSchedulerElement::GetResourceUsageShare() const
-{
-    return TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_);
 }
 
 double TSchedulerElement::GetResourceDominantUsageShareAtUpdate() const
@@ -431,16 +426,11 @@ bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs
     return true;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpdate) const
+ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance) const
 {
-    // TODO(eshcherbin): |GetResourceUsageShare| uses |ResourceUsageAtUpdate_| so there is no need for |atUpdate|.
-    auto usageShare = atUpdate
-        ? Attributes_.UsageShare
-        : GetResourceUsageShare();
-
     // Fair share may be slightly greater than demand share due to precision errors. See: YT-15359.
     auto adjustedFairShareBound = TResourceVector::Min(Attributes_.FairShare.Total * tolerance, Attributes_.DemandShare);
-    if (IsStrictlyDominatesNonBlocked(adjustedFairShareBound, usageShare)) {
+    if (IsStrictlyDominatesNonBlocked(adjustedFairShareBound, Attributes_.UsageShare)) {
         return ESchedulableStatus::BelowFairShare;
     }
 
@@ -718,8 +708,9 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
             // TODO(eshcherbin): Should we use vectors instead of ratios?
             // Yes, but nobody uses this feature yet, so it's not really important.
-            auto usageRatio = MaxComponent(child->GetResourceUsageShare());
-            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, usageRatio);
+            // NB(eshcherbin): |child->Attributes().UsageShare| is not calculated at this stage yet, so we do it manually.
+            auto usageShare = TResourceVector::FromJobResources(child->GetResourceUsageAtUpdate(), child->GetTotalResourceLimits());
+            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, MaxComponent(usageShare));
         }
     }
 
@@ -1243,9 +1234,9 @@ TIntegralResourcesState& TSchedulerPoolElement::IntegralResourcesState()
     return PersistentAttributes_.IntegralResourcesState;
 }
 
-ESchedulableStatus TSchedulerPoolElement::GetStatus(bool atUpdate) const
+ESchedulableStatus TSchedulerPoolElement::GetStatus() const
 {
-    return TSchedulerElement::GetStatusImpl(EffectiveFairShareStarvationTolerance_, atUpdate);
+    return TSchedulerElement::GetStatusImpl(EffectiveFairShareStarvationTolerance_);
 }
 
 std::optional<double> TSchedulerPoolElement::GetSpecifiedFairShareStarvationTolerance() const
@@ -1741,7 +1732,7 @@ const TSchedulingTagFilter& TSchedulerOperationElement::GetSchedulingTagFilter()
     return SchedulingTagFilter_;
 }
 
-ESchedulableStatus TSchedulerOperationElement::GetStatus(bool atUpdate) const
+ESchedulableStatus TSchedulerOperationElement::GetStatus() const
 {
     if (UnschedulableReason_) {
         return ESchedulableStatus::Normal;
@@ -1752,7 +1743,7 @@ ESchedulableStatus TSchedulerOperationElement::GetStatus(bool atUpdate) const
         tolerance = 1.0;
     }
 
-    return TSchedulerElement::GetStatusImpl(tolerance, atUpdate);
+    return TSchedulerElement::GetStatusImpl(tolerance);
 }
 
 void TSchedulerOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus)
