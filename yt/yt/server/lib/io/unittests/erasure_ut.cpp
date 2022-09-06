@@ -162,8 +162,8 @@ std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int block
 TEST(TErasureCodingTest, RandomText)
 {
     std::map<ECodec, int> guaranteedRepairCount;
-    guaranteedRepairCount[ECodec::ReedSolomon_6_3] = 3;
-    guaranteedRepairCount[ECodec::Lrc_12_2_2] = 3;
+    guaranteedRepairCount[ECodec::IsaReedSolomon_6_3] = 3;
+    guaranteedRepairCount[ECodec::IsaLrc_12_2_2] = 3;
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
@@ -175,7 +175,10 @@ TEST(TErasureCodingTest, RandomText)
             continue;
         }
 
-        auto codec = GetCodec(codecId);
+        auto* codec = FindCodec(codecId);
+        if (!codec) {
+            continue;
+        }
 
         int blocksCount = codec->GetTotalPartCount();
         YT_VERIFY(blocksCount <= 16);
@@ -234,7 +237,7 @@ DEFINE_ENUM(ETestPartInfo,
     ((Erased)   (2))
 );
 
-class TErasuseMixtureTest
+class TErasureMixtureTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<ECodec>
 {
@@ -527,12 +530,15 @@ public:
     static std::mt19937 Gen_;
 };
 
-std::mt19937 TErasuseMixtureTest::Gen_(7657457);
+std::mt19937 TErasureMixtureTest::Gen_(7657457);
 
-TEST_P(TErasuseMixtureTest, Writer)
+TEST_P(TErasureMixtureTest, Writer)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -561,10 +567,13 @@ TEST_P(TErasuseMixtureTest, Writer)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, WriterStriped)
+TEST_P(TErasureMixtureTest, WriterStriped)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -603,10 +612,13 @@ TEST_P(TErasuseMixtureTest, WriterStriped)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Reader)
+TEST_P(TErasureMixtureTest, Reader)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -653,10 +665,13 @@ TEST_P(TErasuseMixtureTest, Reader)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, ReaderStriped)
+TEST_P(TErasureMixtureTest, ReaderStriped)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -710,10 +725,10 @@ TEST_P(TErasuseMixtureTest, ReaderStriped)
     Cleanup(codec);
 }
 
-TEST_F(TErasuseMixtureTest, Repair1)
+TEST_F(TErasureMixtureTest, Repair1)
 {
-    auto codecId = ECodec::ReedSolomon_6_3;
-    auto codec = GetCodec(codecId);
+    auto codecId = ECodec::IsaReedSolomon_6_3;
+    auto* codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<TString> dataStrings({"a"});
@@ -743,10 +758,13 @@ TEST_F(TErasuseMixtureTest, Repair1)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Repair2)
+TEST_P(TErasureMixtureTest, Repair2)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -781,10 +799,13 @@ TEST_P(TErasuseMixtureTest, Repair2)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Repair3)
+TEST_P(TErasureMixtureTest, Repair3)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data (in this test we have multiple erasure windows).
     auto dataRefs = GetRandomTextBlocks(20, 100, 100);
@@ -821,10 +842,13 @@ TEST_P(TErasuseMixtureTest, Repair3)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Repair4)
+TEST_P(TErasureMixtureTest, Repair4)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     auto dataRefs = GetRandomTextBlocks(20, 100, 200);
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -857,10 +881,13 @@ TEST_P(TErasuseMixtureTest, Repair4)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Repair5)
+TEST_P(TErasureMixtureTest, Repair5)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data (in this test we have multiple erasure windows).
     auto dataRefs = GetRandomTextBlocks(2000, 100, 100);
@@ -896,10 +923,13 @@ TEST_P(TErasuseMixtureTest, Repair5)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, Repair6)
+TEST_P(TErasureMixtureTest, Repair6)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data (in this test we have multiple erasure windows).
     auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
@@ -935,10 +965,13 @@ TEST_P(TErasuseMixtureTest, Repair6)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, RepairingReaderChecksums)
+TEST_P(TErasureMixtureTest, RepairingReaderChecksums)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
 
@@ -968,10 +1001,13 @@ TEST_P(TErasuseMixtureTest, RepairingReaderChecksums)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, RepairStriped1)
+TEST_P(TErasureMixtureTest, RepairStriped1)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -1011,10 +1047,14 @@ TEST_P(TErasuseMixtureTest, RepairStriped1)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, RepairStriped2)
+TEST_P(TErasureMixtureTest, RepairStriped2)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
+
     auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
 
     WriteErasureChunk(codecId, codec, dataRefs, 256, true, 2048);
@@ -1050,10 +1090,11 @@ TEST_P(TErasuseMixtureTest, RepairStriped2)
     Cleanup(codec);
 }
 
-TEST_F(TErasuseMixtureTest, RepairingReaderAllCorrect)
+TEST_F(TErasureMixtureTest, RepairingReaderAllCorrect)
 {
-    auto codecId = ECodec::ReedSolomon_6_3;
-    auto codec = GetCodec(codecId);
+    auto codecId = ECodec::IsaReedSolomon_6_3;
+    auto* codec = GetCodec(codecId);
+
     auto data = GetRandomData(Gen_, 20, 100);
 
     auto dataRefs = ToSharedRefs(data);
@@ -1065,10 +1106,11 @@ TEST_F(TErasuseMixtureTest, RepairingReaderAllCorrect)
     Cleanup(codec);
 }
 
-TEST_F(TErasuseMixtureTest, RepairingReaderSimultaneousFail)
+TEST_F(TErasureMixtureTest, RepairingReaderSimultaneousFail)
 {
-    auto codecId = ECodec::ReedSolomon_6_3;
-    auto codec = GetCodec(codecId);
+    auto codecId = ECodec::IsaReedSolomon_6_3;
+    auto* codec = GetCodec(codecId);
+
     auto data = GetRandomData(Gen_, 20, 100);
 
     auto dataRefs = ToSharedRefs(data);
@@ -1089,10 +1131,14 @@ TEST_F(TErasuseMixtureTest, RepairingReaderSimultaneousFail)
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, RepairingReaderSequenceFail)
+TEST_P(TErasureMixtureTest, RepairingReaderSequenceFail)
 {
     auto codecId = GetParam();
-    auto codec = GetCodec(codecId);
+    auto* codec = FindCodec(codecId);
+    if (!codec) {
+        return;
+    }
+
     auto data = GetRandomData(Gen_, 50, 5);
     auto dataRefs = ToSharedRefs(data);
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -1110,10 +1156,11 @@ TEST_P(TErasuseMixtureTest, RepairingReaderSequenceFail)
     Cleanup(codec);
 }
 
-TEST_F(TErasuseMixtureTest, RepairingReaderUnrecoverable)
+TEST_P(TErasureMixtureTest, RepairingReaderUnrecoverable)
 {
-    auto codecId = ECodec::ReedSolomon_6_3;
-    auto codec = GetCodec(codecId);
+    auto codecId = ECodec::IsaReedSolomon_6_3;
+    auto* codec = GetCodec(codecId);
+
     auto data = GetRandomData(Gen_, 20, 100);
     auto dataRefs = ToSharedRefs(data);
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -1136,7 +1183,7 @@ TEST_F(TErasuseMixtureTest, RepairingReaderUnrecoverable)
     Cleanup(codec);
 }
 
-void TErasuseMixtureTest::ExecAdaptiveRepairTest(
+void TErasureMixtureTest::ExecAdaptiveRepairTest(
     NErasure::ICodec* codec,
     const std::vector<TSharedRef>& dataRefs,
     const TPartIndexList& erasedIndices,
@@ -1179,9 +1226,9 @@ void TErasuseMixtureTest::ExecAdaptiveRepairTest(
     Cleanup(codec);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair1)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair1)
 {
-    auto codec = GetCodec(ECodec::ReedSolomon_6_3);
+    auto* codec = GetCodec(ECodec::IsaReedSolomon_6_3);
 
     // Prepare data.
     auto data = ToSharedRefs(GetRandomData(Gen_, 20, 100));
@@ -1192,9 +1239,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair1)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair2)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair2)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     // Prepare data.
     std::vector<TString> dataStrings = {
@@ -1208,9 +1258,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair2)
     ExecAdaptiveRepairTest(codec, ToSharedRefs(dataStrings), erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair3)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair3)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     auto data = GetRandomTextBlocks(20, 100, 100);
 
@@ -1220,9 +1273,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair3)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair4)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair4)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
@@ -1232,9 +1288,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair4)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair5)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair5)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
@@ -1244,9 +1303,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair5)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepair6)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepair6)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
@@ -1256,9 +1318,12 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair6)
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
-TEST_P(TErasuseMixtureTest, TestAdaptiveRepairFailingMeta)
+TEST_P(TErasureMixtureTest, TestAdaptiveRepairFailingMeta)
 {
-    auto codec = GetCodec(GetParam());
+    auto* codec = FindCodec(GetParam());
+    if (!codec) {
+        return;
+    }
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
@@ -1301,8 +1366,8 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepairFailingMeta)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TErasuseMixtureTest,
-    TErasuseMixtureTest,
+    TErasureMixtureTest,
+    TErasureMixtureTest,
     ::testing::Values(ECodec::Lrc_12_2_2, ECodec::IsaLrc_12_2_2));
 
 ////////////////////////////////////////////////////////////////////////////////
