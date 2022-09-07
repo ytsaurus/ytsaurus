@@ -248,13 +248,13 @@ TChunkLocation::TChunkLocation(
     DynamicIOEngine_ = CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
-        id,
+        Id_,
         Profiler_,
-        DataNodeLogger.WithTag("LocationId: %v", id));
+        DataNodeLogger.WithTag("LocationId: %v", Id_));
     IOEngineModel_ = CreateIOModelInterceptor(
-        id,
+        Id_,
         DynamicIOEngine_,
-        DataNodeLogger.WithTag("IOModel: %v", id));
+        DataNodeLogger.WithTag("IOModel: %v", Id_));
     IOEngine_ = IOEngineModel_;
 
     auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
@@ -1272,7 +1272,7 @@ TStoreLocation::TStoreLocation(
         this,
         ChunkContext_,
         ChunkStoreHost_->GetMemoryUsageTracker()))
-    , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
+    , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", Id_)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
