@@ -34,7 +34,7 @@ from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
-from yandex.type_info import typing
+import yandex.type_info as typing
 
 import io
 import json

@@ -14,7 +14,7 @@ import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
 from yt.packages.six import PY3
 
-from yandex.type_info import typing
+import yandex.type_info as typing
 
 from flaky import flaky
 

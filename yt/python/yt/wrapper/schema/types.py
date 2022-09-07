@@ -4,11 +4,12 @@ from ..errors import YtError
 
 from .. import skiff
 
+import copy
 import typing
 
+import yandex.type_info as ti
+
 try:
-    import yandex.type_info.typing as ti
-    import copy
     import dataclasses
     from typing_extensions import Annotated
 except ImportError:

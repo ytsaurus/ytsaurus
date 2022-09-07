@@ -11,14 +11,7 @@ from yt.packages.six.moves import builtins
 import copy
 import collections
 
-try:
-    import yandex.type_info.typing as ti
-except ImportError:
-    pass
-
-
-def _check_ti_available():
-    check_schema_module_available(skiff=False, py3=False)
+import yandex.type_info as ti
 
 
 class SortColumn(object):
@@ -42,7 +35,6 @@ class ColumnSchema(object):
         type_ = type
         type = builtins.type
 
-        _check_ti_available()
         self.name = name
 
         if ti.is_valid_type(type_):
@@ -69,7 +61,6 @@ class ColumnSchema(object):
 
     @classmethod
     def from_yson_type(cls, obj):
-        _check_ti_available()
         type = ti.deserialize_yson(yt.yson.dumps(obj["type_v3"]))
         return ColumnSchema(obj["name"], type, sort_order=obj.get("sort_order"), group=obj.get("group"))
 
@@ -105,8 +96,6 @@ class TableSchema(object):
     """
 
     def __init__(self, columns=None, strict=None, unique_keys=None):
-        _check_ti_available()
-
         if columns is None:
             self.columns = []
         else:
@@ -205,7 +194,6 @@ class TableSchema(object):
 
     @classmethod
     def from_yson_type(cls, obj):
-        _check_ti_available()
         columns = [ColumnSchema.from_yson_type(c) for c in obj]
         attrs = obj.attributes
         kwargs = {}

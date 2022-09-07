@@ -8,9 +8,9 @@ from ..errors import YtError
 
 import copy
 
-try:
-    import yandex.type_info.typing as ti
+import yandex.type_info as ti
 
+try:
     import dataclasses
 except ImportError:
     pass
