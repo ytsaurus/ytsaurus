@@ -126,16 +126,23 @@ public:
             auto [it, inserted] = FinishedResponses_.emplace(id, response);
 
             if (inserted) {
-                auto* mutationContext = GetCurrentMutationContext();
-
+                ui64 responseHash = 0;
                 for (const auto& part : response) {
-                    mutationContext->CombineStateHash(FarmHash(part.begin(), part.size()));
+                    CombineHashes(responseHash, FarmHash(part.begin(), part.size()));
                 }
+
+                auto* mutationContext = GetCurrentMutationContext();
+                mutationContext->CombineStateHash(responseHash);
 
                 ResponseEvictionQueue_.emplace_back(id, mutationContext->GetTimestamp());
 
                 ++FinishedResponseCount_;
                 FinishedResponseSpace_ += space;
+
+                YT_LOG_DEBUG("Response added to persistent response keeper "
+                    "(MutationId: %v, ResponseHash: %v)",
+                    id,
+                    responseHash);
             }
         }
 

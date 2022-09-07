@@ -106,6 +106,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixOrderedTablesReplicatoinProgress)                          (2122))  // savrus
     ((FixDestroyedReplicasPersistence)                              (2123))  // babenko
     ((FixLatePrepareTxAbort)                                        (2124))  // gritukan
+    ((NewStateHashForPersistentResponseKeeper)                      (2125))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
