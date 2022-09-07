@@ -62,6 +62,8 @@ struct TChunkMergerSession
     EMergeSessionResult Result = EMergeSessionResult::None;
 
     TChunkMergerTraversalInfo TraversalInfo;
+
+    int JobCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +198,7 @@ private:
         NCypressClient::TObjectId NodeId;
         EMergeSessionResult Result;
         TChunkMergerTraversalInfo TraversalInfo;
+        int JobCount = 0;
     };
     std::queue<TMergeSessionResult> SessionsAwaitingFinalizaton_;
 

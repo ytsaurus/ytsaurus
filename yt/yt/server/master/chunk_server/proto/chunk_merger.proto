@@ -55,6 +55,7 @@ message TReqFinalizeChunkMergeSessions
         required NYT.NProto.TGuid node_id = 1;
         required int32 result = 2; // EMergeSessionResult
         optional TTraversalInfo traversal_info = 3;
+        optional int32 job_count = 4;
     }
 
     repeated TSessionResult subrequests = 1;

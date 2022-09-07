@@ -122,6 +122,8 @@ public:
     //! Fraction (in percents) of shallow merge jobs for which validation is run.
     int ShallowMergeValidationProbability;
 
+    bool RescheduleMergeOnSuccess;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

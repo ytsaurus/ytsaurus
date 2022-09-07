@@ -429,6 +429,29 @@ class TestChunkMerger(YTEnvSetup):
         traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
         assert traversal_info3["config_version"] > traversal_info2["config_version"]
 
+    @authors("aleksandra-zh")
+    def test_chunks_from_one_chunklist(self):
+        set("//sys/@config/chunk_manager/chunk_merger/reschedule_merge_on_success", True)
+
+        create("table", "//tmp/t")
+        for _ in range(32):
+            write_table("<append=true>//tmp/t", {"a": "b"})
+
+        concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
+
+        get("//tmp/t/@chunk_count")
+
+        set("//sys/@config/chunk_manager/chunk_merger/max_jobs_per_chunklist", 2)
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+
+        assert get("//tmp/t/@chunk_count") == 1
+
     @authors("cookiedoth")
     @pytest.mark.parametrize("with_erasure", [False, True])
     def test_multiple_merge(self, with_erasure):
