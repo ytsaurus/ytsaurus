@@ -17,7 +17,8 @@ from yt_commands import (
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
-    get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error)
+    get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
+    create_table_replica, sync_enable_table_replica)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -2274,6 +2275,185 @@ class TestChaos(ChaosTestBase):
         assert get("#{0}/@mode".format(replica_ids[0])) == "async"
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=True)
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "sync")
+
+    @authors("savrus")
+    @pytest.mark.parametrize("reshard", [True, False])
+    @pytest.mark.parametrize("first", ["chaos", "replicated"])
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_switch_to_replicated_table(self, mode, first, reshard):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": schema})
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+
+        data_replicas = []
+        data_replica_ids = []
+        for replica, replica_id in zip(replicas, replica_ids):
+            if replica["content_type"] == "data":
+                data_replicas.append(replica)
+                data_replica_ids.append(replica_id)
+
+        sync_create_cells(1)
+        create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True})
+        if reshard:
+            reshard_table("//tmp/rt", [[], [3], [6]])
+        sync_mount_table("//tmp/rt")
+        rt_replica_ids = []
+        for replica in data_replicas:
+            attributes = {"mode": replica["mode"]}
+            replica_id = create_table_replica("//tmp/rt", replica["cluster_name"], replica["replica_path"], attributes=attributes)
+            sync_enable_table_replica(replica_id)
+            rt_replica_ids.append(replica_id)
+
+        self._create_replica_tables(replicas, replica_ids, mount_tables=False)
+        for replica in replicas:
+            driver = get_driver(cluster=replica["cluster_name"])
+            path = replica["replica_path"]
+            if reshard:
+                reshard_table(path, [[], [5]], driver=driver)
+            if replica["content_type"] == "queue":
+                sync_mount_table(path, driver=driver)
+
+        def _check(keys, values):
+            for replica in data_replicas:
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                if replica["mode"] == "sync":
+                    assert lookup_rows(path, keys, driver=driver) == values
+                else:
+                    wait(lambda: lookup_rows(path, keys, driver=driver) == values)
+
+        def _switch(new_replica_ids):
+            for replica, new_id in zip(data_replicas, new_replica_ids):
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                sync_unmount_table(path, driver=driver)
+                alter_table(path, upstream_replica_id=new_id, driver=driver)
+                sync_mount_table(path, driver=driver)
+
+        values = None
+        keys = [{"key": i} for i in range(10)]
+
+        for iteration in range(3):
+            begin = 0 if first == "chaos" else 1
+            if iteration % 2 == begin:
+                _switch(data_replica_ids)
+                self._sync_replication_era(card_id, replicas)
+                table = "//tmp/crt"
+            else:
+                _switch(rt_replica_ids)
+                table = "//tmp/rt"
+
+            new_values = [{"key": i, "value": str(i + iteration)} for i in range(0, 10, iteration + 1)]
+            if values is None:
+                values = new_values
+            else:
+                for new_value in new_values:
+                    for value in values:
+                        if value["key"] == new_value["key"]:
+                            value["value"] = new_value["value"]
+
+            insert_rows(table, new_values)
+            _check(keys, values)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("tablet_count", [1, 2])
+    @pytest.mark.parametrize("first", ["chaos", "replicated"])
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_ordered_switch_to_replicated_table(self, mode, first, tablet_count):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": schema})
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+
+        sync_create_cells(1)
+        create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True, "preserve_tablet_index": True})
+        if tablet_count > 1:
+            reshard_table("//tmp/rt", tablet_count)
+        sync_mount_table("//tmp/rt")
+        rt_replica_ids = []
+        for replica in replicas:
+            attributes = {"mode": replica["mode"]}
+            replica_id = create_table_replica("//tmp/rt", replica["cluster_name"], replica["replica_path"], attributes=attributes)
+            sync_enable_table_replica(replica_id)
+            rt_replica_ids.append(replica_id)
+
+        self._create_replica_tables(replicas, replica_ids, mount_tables=False, ordered=True)
+        if tablet_count > 1:
+            for replica in replicas:
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                reshard_table(path, tablet_count, driver=driver)
+
+        def _check(tablet_index, values):
+            import logging
+            logger = logging.getLogger()
+            logger.debug("Expected: {0}".format(values))
+
+            for replica in replicas:
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                query = "key, value from [{0}] where [$tablet_index] = {1}". format(path, tablet_index)
+                wait(lambda: select_rows(query, driver=driver) == values)
+
+        def _switch(new_replica_ids, progress=None):
+            for replica, new_id in zip(replicas, new_replica_ids):
+                driver = get_driver(cluster=replica["cluster_name"])
+                path = replica["replica_path"]
+                sync_unmount_table(path, driver=driver)
+                alter_table(path, upstream_replica_id=new_id, driver=driver)
+                if progress:
+                    alter_table(path, replication_progress=progress, driver=driver)
+                sync_mount_table(path, driver=driver)
+
+        values = [[] for i in range(tablet_count)]
+
+        for iteration in range(3):
+            if (iteration % 2 == 0) == (first == "chaos"):
+                timestamp = generate_timestamp()
+                progress = {
+                    "segments": [{"lower_key": [], "timestamp": timestamp}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                }
+                _switch(replica_ids, progress)
+                self._sync_replication_era(card_id, replicas)
+                table = "//tmp/crt"
+            else:
+                _switch(rt_replica_ids)
+                table = "//tmp/rt"
+
+            new_values = [{"$tablet_index": i % tablet_count, "key": i, "value": str(i + iteration)} for i in range(0, 10, iteration + 1)]
+            for value in new_values:
+                values[value["$tablet_index"]].append({"key": value["key"], "value": value["value"]})
+
+            import logging
+            logger = logging.getLogger()
+            logger.debug("Inserting: {0}".format(new_values))
+
+            insert_rows(table, new_values)
+            for tablet_index in range(tablet_count):
+                _check(tablet_index, values[tablet_index])
 
 
 ##################################################################
