@@ -534,7 +534,7 @@ void LoadLlvmBitcode(
         void *oldDiagnosticContext = context.getDiagnosticContext();
         context.setDiagnosticHandlerCallBack((DiagnosticHandler::DiagnosticHandlerTy)handler, &os, true);
 
-        linkerFailed = Linker::linkModules(*dest, std::move(implementationModule));
+        linkerFailed = Linker::linkModules(*dest, std::move(implementationModule), Linker::Flags::OverrideFromSrc);
 
         context.setDiagnosticHandlerCallBack(oldDiagnosticHandler, oldDiagnosticContext, true);
 #endif
