@@ -78,16 +78,6 @@ TEST(TClientOptionsTest, AllowEmptyUser)
     EXPECT_TRUE(!clientOptions.User);
 }
 
-TEST(TClientOptionsTest, ErrorIfNoToken)
-{
-    NTesting::TScopedEnvironment envGuard{{
-        {"YT_TOKEN", ""},
-        {"HOME", "/some_non_existing_dir"},
-    }};
-
-    ASSERT_THROW_MESSAGE_HAS_SUBSTR(GetClientOpsFromEnv(), std::exception, "No YtToken found!");
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging

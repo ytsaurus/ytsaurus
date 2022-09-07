@@ -34,7 +34,6 @@ NApi::TClientOptions GetClientOpsFromEnv()
             options.Token = Strip(TIFStream(path).ReadAll());
         }
     }
-    Y_ENSURE(options.Token && !options.Token->empty() , "No YtToken found!");
     return options;
 }
 
