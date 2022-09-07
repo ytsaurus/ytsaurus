@@ -84,6 +84,11 @@ TInstanceResources& TInstanceResources::operator=(const THulkInstanceResources& 
     return *this;
 }
 
+bool TInstanceResources::operator==(const TInstanceResources& other) const
+{
+    return std::tie(Vcpu, Memory) == std::tie(other.Vcpu, other.Memory);
+}
+
 void TBundleConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_node_count", &TThis::TabletNodeCount)

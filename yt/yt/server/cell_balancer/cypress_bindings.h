@@ -121,6 +121,9 @@ struct TInstanceResources
     i64 Memory;
 
     TInstanceResources& operator=(const THulkInstanceResources& resources);
+
+    bool operator==(const TInstanceResources& resources) const;
+
     void Clear();
 
     REGISTER_YSON_STRUCT(TInstanceResources);

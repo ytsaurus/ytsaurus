@@ -13,6 +13,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString SpareBundleName = "spare";
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString GetPodIdForInstance(const TString& name)
 {
     auto endPos = name.find(".");
@@ -161,12 +165,16 @@ THashSet<TString> GenerateNodesForBundle(
 {
     THashSet<TString> result;
 
+    const auto& zoneInfo = inputState.Zones.begin()->second;
+    const auto& targetConfig = (bundleName == SpareBundleName) ?
+        zoneInfo->SpareTargetConfig : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
+
     for (int index = 0; index < nodeCount; ++index) {
         int nodeIndex = std::ssize(inputState.TabletNodes);
         auto nodeId = Format("seneca-ayt-%v-%v-%v-tab-%v.search.yandex.net",
             nodeIndex,
             bundleName,
-            instanceIndex,
+            instanceIndex + index,
             inputState.Config->Cluster);
         auto nodeInfo = New<TTabletNodeInfo>();
         nodeInfo->Banned = false;
@@ -177,6 +185,7 @@ THashSet<TString> GenerateNodesForBundle(
         nodeInfo->Annotations->NannyService = "nanny-bunny-tablet-nodes";
         nodeInfo->Annotations->YPCluster = "pre-pre";
         nodeInfo->Annotations->AllocatedForBundle = bundleName;
+        nodeInfo->Annotations->Resource = CloneYsonSerializable(targetConfig->TabletNodeResourceGuarantee);
 
         for (int index = 0; index < slotCount; ++index) {
             nodeInfo->TabletSlots.push_back(New<TTabletSlot>());
@@ -201,6 +210,10 @@ THashSet<TString> GenerateProxiesForBundle(
 {
     THashSet<TString> result;
 
+    const auto& zoneInfo = inputState.Zones.begin()->second;
+    const auto& targetConfig = (bundleName == SpareBundleName) ?
+        zoneInfo->SpareTargetConfig : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
+
     for (int index = 0; index < proxyCount; ++index) {
         int proxyIndex = std::ssize(inputState.RpcProxies);
         auto proxyName = Format("seneca-ayt-%v-%v-aa-proxy-%v.search.yandex.net",
@@ -213,6 +226,7 @@ THashSet<TString> GenerateProxiesForBundle(
         proxyInfo->Annotations->NannyService = "nanny-bunny-rpc-proxies";
         proxyInfo->Annotations->YPCluster = "pre-pre";
         proxyInfo->Annotations->AllocatedForBundle = bundleName;
+        proxyInfo->Annotations->Resource = CloneYsonSerializable(targetConfig->RpcProxyResourceGuarantee);
 
         if (setRole) {
             proxyInfo->Role = bundleName;
@@ -847,7 +861,7 @@ TEST(TBundleSchedulerTest, TestSpareNodesDeallocate)
     auto zoneInfo = input.Zones["default-zone"];
 
     zoneInfo->SpareTargetConfig->TabletNodeCount = 2;
-    GenerateNodesForBundle(input, "spare", 3);
+    GenerateNodesForBundle(input, SpareBundleName, 3);
 
     TSchedulerMutations mutations;
 
@@ -857,7 +871,7 @@ TEST(TBundleSchedulerTest, TestSpareNodesDeallocate)
     EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
     EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["spare"]->NodeDeallocations));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates[SpareBundleName]->NodeDeallocations));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -936,7 +950,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    auto spareNodes = GenerateNodesForBundle(input, "spare", 3, false, SlotCount);
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1031,7 +1045,7 @@ TEST(TBundleSchedulerTest, CheckDisruptedState)
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    GenerateNodesForBundle(input, "spare", 3);
+    GenerateNodesForBundle(input, SpareBundleName, 3);
     GenerateNodesForBundle(input, "default-bundle", 4);
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
@@ -1052,7 +1066,7 @@ TEST(TBundleSchedulerTest, CheckAllocationLimit)
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    GenerateNodesForBundle(input, "spare", 3);
+    GenerateNodesForBundle(input, SpareBundleName, 3);
     GenerateNodesForBundle(input, "default-bundle", 4);
 
     zoneInfo->MaxTabletNodeCount = 5;
@@ -1072,7 +1086,7 @@ TEST(TBundleSchedulerTest, CheckDynamicConfig)
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    GenerateNodesForBundle(input, "spare", 3);
+    GenerateNodesForBundle(input, SpareBundleName, 3);
     GenerateNodesForBundle(input, "default-bundle", 5);
 
     TSchedulerMutations mutations;
@@ -1414,7 +1428,7 @@ TEST(TBundleSchedulerTest, TestSpareProxiesAllocate)
     EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
     EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
     EXPECT_EQ(3, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["spare"]->ProxyAllocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates[SpareBundleName]->ProxyAllocations));
 }
 
 TEST(TBundleSchedulerTest, TestSpareProxyDeallocate)
@@ -1423,7 +1437,7 @@ TEST(TBundleSchedulerTest, TestSpareProxyDeallocate)
     auto zoneInfo = input.Zones["default-zone"];
 
     zoneInfo->SpareTargetConfig->RpcProxyCount = 2;
-    GenerateProxiesForBundle(input, "spare", 3);
+    GenerateProxiesForBundle(input, SpareBundleName, 3);
 
     TSchedulerMutations mutations;
 
@@ -1433,7 +1447,7 @@ TEST(TBundleSchedulerTest, TestSpareProxyDeallocate)
     EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
     EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["spare"]->ProxyDeallocations));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates[SpareBundleName]->ProxyDeallocations));
 }
 
 TEST(TBundleSchedulerTest, CheckProxyZoneDisruptedState)
@@ -1443,7 +1457,7 @@ TEST(TBundleSchedulerTest, CheckProxyZoneDisruptedState)
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    GenerateProxiesForBundle(input, "spare", 3);
+    GenerateProxiesForBundle(input, SpareBundleName, 3);
     GenerateProxiesForBundle(input, "default-bundle", 4);
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
@@ -1464,7 +1478,7 @@ TEST(TBundleSchedulerTest, ProxyCheckAllocationLimit)
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    GenerateProxiesForBundle(input, "spare", 3);
+    GenerateProxiesForBundle(input, SpareBundleName, 3);
     GenerateProxiesForBundle(input, "default-bundle", 4);
 
     zoneInfo->MaxRpcProxyCount = 5;
@@ -1519,7 +1533,7 @@ TEST(TProxyRoleManagement, TestBundleProxyBanned)
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, "spare", 3);
+    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1559,7 +1573,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, "spare", 3);
+    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1793,6 +1807,125 @@ TEST(SchedulerUtilsTest, CheckGeneratePodTemplate)
 {
     EXPECT_EQ("<short-hostname>-venus212-0ab-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 171));
     EXPECT_EQ("<short-hostname>-venus212-2710-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 10000));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, ReAllocateOutdatedNodes)
+{
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->ReallocateInstanceBudget = 2;
+    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, nodeInfo] : input.TabletNodes)
+    {
+        nodeInfo->Annotations->Resource->Vcpu /= 2;
+        EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 2);
+}
+
+TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
+    input.Config->ReallocateInstanceBudget = 4;
+    GenerateProxiesForBundle(input, "default-bundle", 5);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, proxyInfo] : input.RpcProxies)
+    {
+        proxyInfo->Annotations->Resource->Memory /= 2;
+        EXPECT_TRUE(proxyInfo->Annotations->Resource->Memory);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyProxyAllocationRequests(mutations, 4);
+}
+
+THashSet<TString> GetRandomElements(const auto& collection, int count)
+{
+    std::vector<TString> nodesToRemove(collection.begin(), collection.end());
+    std::random_shuffle(nodesToRemove.begin(), nodesToRemove.end());
+    nodesToRemove.resize(count);
+    return {nodesToRemove.begin(), nodesToRemove.end()};
+}
+
+TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
+{
+    auto input = GenerateSimpleInputContext(2);
+    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 5);
+
+    // Mark random nodes as outdated
+    auto nodesToRemove = GetRandomElements(nodeNames, 3);
+    for (auto& nodeName : nodesToRemove) {
+        auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Annotations->Resource->Memory *= 2;
+        EXPECT_TRUE(nodeInfo->Annotations->Resource->Memory);
+    }
+
+    TSchedulerMutations mutations;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+
+    // Verify that only outdated nodes are peeked
+    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+        EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
+    }
+}
+
+TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 5);
+
+    // Mark random proxies as outdated
+    auto proxiesToRemove = GetRandomElements(proxyNames, 3);
+    for (auto& proxyName : proxiesToRemove) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        proxyInfo->Annotations->Resource->Vcpu *= 2;
+        EXPECT_TRUE(proxyInfo->Annotations->Resource->Vcpu);
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+
+    // Verify that only outdated proxies are peeked
+    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+        EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

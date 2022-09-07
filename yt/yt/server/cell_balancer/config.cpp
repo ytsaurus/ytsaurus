@@ -63,13 +63,16 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("snapshot_disk_space_per_cell", &TThis::SnapshotDiskSpacePerCell)
         .GreaterThan(0)
         .Default(15_GB);
-    registrar.Parameter("MinNodeCount", &TThis::MinNodeCount)
+    registrar.Parameter("min_node_count", &TThis::MinNodeCount)
         .GreaterThan(0)
         .Default(1000);
-    registrar.Parameter("MinChunkCount", &TThis::MinChunkCount)
+    registrar.Parameter("min_chunk_count", &TThis::MinChunkCount)
         .GreaterThan(0)
         .Default(1000);
 
+    registrar.Parameter("reallocate_instance_budget", &TThis::ReallocateInstanceBudget)
+        .GreaterThan(0)
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
