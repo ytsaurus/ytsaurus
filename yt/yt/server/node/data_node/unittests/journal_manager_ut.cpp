@@ -72,37 +72,37 @@ class TJournalTest
     : public ::testing::Test
 {
 public:
-    IBlockCachePtr BlockCache = GetNullBlockCache();
-    TActionQueuePtr Thread = New<TActionQueue>("JournalTest");
+    const IBlockCachePtr BlockCache = GetNullBlockCache();
+    const TActionQueuePtr Thread = New<TActionQueue>("JournalTest");
 
-    TDataNodeConfigPtr Config = New<TDataNodeConfig>();
-    TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
-    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
+    const TDataNodeConfigPtr Config = New<TDataNodeConfig>();
+    const TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
 
-    INodeMemoryTrackerPtr MemoryTracker = CreateNodeMemoryTracker(
+    const INodeMemoryTrackerPtr MemoryTracker = CreateNodeMemoryTracker(
         1_GB,
         std::vector<std::pair<EMemoryCategory, i64>>{},
         Logger,
         NProfiling::TProfiler{});
-    IChunkMetaManagerPtr ChunkMetaManager = CreateChunkMetaManager(
+    const IChunkMetaManagerPtr ChunkMetaManager = CreateChunkMetaManager(
         Config,
         DynamicConfigManager,
         MemoryTracker);
 
-    IChunkStoreHostPtr ChunkStoreHost = New<TFakeChunkStoreHost>();
-    IBlobReaderCachePtr BlobReaderCache = CreateBlobReaderCache(
+    const IChunkStoreHostPtr ChunkStoreHost = New<TFakeChunkStoreHost>();
+    const IBlobReaderCachePtr BlobReaderCache = CreateBlobReaderCache(
         Config,
         DynamicConfigManager,
         ChunkMetaManager);
 
-    TChunkReaderSweeperPtr ChunkReaderSweeper = New<TChunkReaderSweeper>(
+    const TChunkReaderSweeperPtr ChunkReaderSweeper = New<TChunkReaderSweeper>(
         DynamicConfigManager,
         Thread->GetInvoker());
     IJournalDispatcherPtr JournalDispatcher = CreateJournalDispatcher(
         Config,
         DynamicConfigManager);
 
-    TChunkContextPtr ChunkContext = New<TChunkContext>(TChunkContext{
+    const TChunkContextPtr ChunkContext = New<TChunkContext>(TChunkContext{
         .ChunkMetaManager = ChunkMetaManager,
 
         .StorageHeavyInvoker = CreatePrioritizedInvoker(Thread->GetInvoker()),
@@ -120,8 +120,12 @@ public:
     {
         auto locationConfig = New<TStoreLocationConfig>();
         locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
+        locationConfig->Postprocess();
 
         Config->StoreLocations.push_back(locationConfig);
+        Config->Postprocess();
+
+        DynamicConfig->Postprocess();
 
         ChunkStore = New<TChunkStore>(
             Config,
@@ -164,7 +168,7 @@ TEST_F(TJournalTest, Write)
     auto journalManager = ChunkStore->Locations()[0]->GetJournalManager();
 
     for (bool multiplexed : {true, false}) {
-        auto journalId = TGuid::Create();
+        auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, /*cellTag*/ 1);
 
         auto changelog = journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{})
             .Get()

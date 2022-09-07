@@ -82,11 +82,11 @@ class TVolumeManagerTest
     : public ::testing::TestWithParam<TTestOptions>
 {
 public:
-    TActionQueuePtr Thread = New<TActionQueue>("VolumeManagerTest");
+    const TActionQueuePtr Thread = New<TActionQueue>("VolumeManagerTest");
 
-    TDataNodeConfigPtr Config = New<TDataNodeConfig>();
-    TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
-    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
+    const TDataNodeConfigPtr Config = New<TDataNodeConfig>();
+    const TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
 
     TMockChunkCachePtr MockChunkCache = New<TMockChunkCache>();
 
@@ -104,10 +104,14 @@ public:
         auto testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
         layerLocation->Path = GetOutputPath() / testInfo->test_suite_name() / testInfo->name() / "location";
         layerLocation->LocationIsAbsolute = false;
+        layerLocation->Postprocess();
 
         Config->VolumeManager->LayerLocations.push_back(layerLocation);
         Config->VolumeManager->ConvertLayersToSquashfs = GetParam().UseSquashfs;
         Config->VolumeManager->Tar2SquashToolPath = BinaryPath("yt/go/tar2squash/tar2squash");
+        Config->Postprocess();
+
+        DynamicConfig->Postprocess();
 
         BIND([this] {
             VolumeManager = WaitFor(CreatePortoVolumeManager(
@@ -234,7 +238,7 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
     TestSquashFS,
     TVolumeManagerTest,
-    ::testing::Values(TTestOptions{.UseSquashfs=true}));
+    ::testing::Values(TTestOptions{.UseSquashfs = true}));
 
 ////////////////////////////////////////////////////////////////////////////////
 
