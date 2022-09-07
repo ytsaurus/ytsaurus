@@ -19,8 +19,8 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NYson;
 using namespace NYPath;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

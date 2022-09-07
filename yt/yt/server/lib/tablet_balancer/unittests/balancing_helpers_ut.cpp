@@ -308,6 +308,10 @@ TEST_P(TTestReassignInMemoryTablets, Simple)
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<3>(params)));
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
 
+    std::sort(descriptors.begin(), descriptors.end(), [] (const TMoveDescriptor& lhs, const TMoveDescriptor& rhs) {
+        return lhs.TabletId < rhs.TabletId;
+    });
+
     for (int index = 0; index < std::ssize(expected); ++index) {
         EXPECT_TRUE(IsEqual(expected[index], descriptors[index], bundle))
             << "index: " << index << std::endl;
@@ -353,6 +357,73 @@ INSTANTIATE_TEST_SUITE_P(
                         /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}"})},
             /*moveDescriptors*/ "[{tablet_index=0; cell_index=1}; {tablet_index=1; cell_index=2};]")));
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReassignOrdinaryTablets
+    : public TTestTabletBalancingHelpers
+{ };
+
+TEST_P(TTestReassignOrdinaryTablets, Simple)
+{
+    const auto& params = GetParam();
+    auto bundle = CreateTabletCellBundle(std::get<0>(params), std::get<1>(params), std::get<2>(params));
+
+    auto descriptors = ReassignOrdinaryTablets(
+        bundle.Bundle,
+        /*movableTables*/ std::nullopt);
+
+    auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<3>(params)));
+    EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
+
+    std::sort(descriptors.begin(), descriptors.end(), [] (const TMoveDescriptor& lhs, const TMoveDescriptor& rhs) {
+        return lhs.TabletId < rhs.TabletId;
+    });
+
+    for (int index = 0; index < std::ssize(expected); ++index) {
+        EXPECT_TRUE(IsEqual(expected[index], descriptors[index], bundle))
+            << "index: " << index << std::endl;
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTestReassignOrdinaryTablets,
+    TTestReassignOrdinaryTablets,
+    ::testing::Values(
+        std::make_tuple(
+            /*cells*/ "[{memory_size=100}; {memory_size=0}]",
+            /*bundleConfig*/ "{}",
+            /*tables*/ std::vector<std::tuple<TStringBuf, TStringBuf, std::vector<TStringBuf>>>{
+                std::make_tuple(
+                    /*tableSettings*/ "{sorted=true; in_memory_mode=uncompressed}",
+                    /*tableConfig*/ "{}",
+                    /*tablets*/ std::vector<TStringBuf>{
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}"})},
+            /*moveDescriptors*/ "[]"),
+        std::make_tuple(
+            /*cells*/ "[{memory_size=100}; {memory_size=0}]",
+            /*bundleConfig*/ "{}",
+            /*tables*/ std::vector<std::tuple<TStringBuf, TStringBuf, std::vector<TStringBuf>>>{
+                std::make_tuple(
+                    /*tableSettings*/ "{sorted=true; in_memory_mode=none}",
+                    /*tableConfig*/ "{}",
+                    /*tablets*/ std::vector<TStringBuf>{
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}"})},
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]"), 
+        std::make_tuple(
+            /*cells*/ "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
+            /*bundleConfig*/ "{}",
+            /*tables*/ std::vector<std::tuple<TStringBuf, TStringBuf, std::vector<TStringBuf>>>{
+                std::make_tuple(
+                    /*tableSettings*/ "{sorted=true; in_memory_mode=none}",
+                    /*tableConfig*/ "{}",
+                    /*tablets*/ std::vector<TStringBuf>{
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}"})},
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1}; {tablet_index=2; cell_index=2};]")));
+ 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestMergeSplitTabletsOfTable
@@ -507,6 +578,73 @@ INSTANTIATE_TEST_SUITE_P(
                         /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}",
                         /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=50}"})})));
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReassignOrdinaryTabletsUniform
+    : public TTestTabletBalancingHelpersWithoutDescriptors
+{ };
+
+TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
+{
+    const auto& params = GetParam();
+    auto bundle = CreateTabletCellBundle(std::get<0>(params), std::get<1>(params), std::get<2>(params));
+
+    auto descriptors = ReassignOrdinaryTablets(
+        bundle.Bundle,
+        /*movableTables*/ std::nullopt);
+
+    i64 totalSize = 0;
+    THashMap<TTabletCellId, i64> cellSizes;
+    for (const auto& cell : bundle.Cells) {
+        EmplaceOrCrash(cellSizes, cell->Id, cell->Statistics.MemorySize);
+        totalSize += cell->Statistics.MemorySize;
+    }
+
+    for (const auto& descriptor : descriptors) {
+        auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
+        EXPECT_TRUE(tablet != nullptr);
+        EXPECT_TRUE(tablet->Cell != nullptr);
+        EXPECT_TRUE(tablet->Cell->Id != descriptor.TabletCellId);
+        EXPECT_TRUE(tablet->Table->InMemoryMode == EInMemoryMode::None);
+        auto tabletSize = GetTabletBalancingSize(tablet);
+        cellSizes[tablet->Cell->Id] -= tabletSize;
+        cellSizes[descriptor.TabletCellId] += tabletSize;
+    }
+
+    EXPECT_FALSE(cellSizes.empty());
+    EXPECT_TRUE(totalSize % cellSizes.size() == 0);
+    i64 expectedSize = totalSize / cellSizes.size();
+    for (const auto& [cellId, memorySize] : cellSizes) {
+        EXPECT_EQ(memorySize, expectedSize)
+            << "cell_id: " << ToString(cellId) << std::endl;
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTestReassignOrdinaryTabletsUniform,
+    TTestReassignOrdinaryTabletsUniform,
+    ::testing::Values(
+        std::make_tuple(
+            /*cells*/ "[{memory_size=100}; {memory_size=0}]",
+            /*bundleConfig*/ "{}",
+            /*tables*/ std::vector<std::tuple<TStringBuf, TStringBuf, std::vector<TStringBuf>>>{
+                std::make_tuple(
+                    /*tableSettings*/ "{sorted=true; in_memory_mode=none}",
+                    /*tableConfig*/ "{}",
+                    /*tablets*/ std::vector<TStringBuf>{
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=0}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=0}"})}), 
+        std::make_tuple(
+            /*cells*/ "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
+            /*bundleConfig*/ "{}",
+            /*tables*/ std::vector<std::tuple<TStringBuf, TStringBuf, std::vector<TStringBuf>>>{
+                std::make_tuple(
+                    /*tableSettings*/ "{sorted=true; in_memory_mode=none}",
+                    /*tableConfig*/ "{}",
+                    /*tablets*/ std::vector<TStringBuf>{
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=0}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=0}",
+                        /*tablet*/ "{uncompressed_data_size=50; cell_index=0; memory_size=0}"})})));
 
 ////////////////////////////////////////////////////////////////////////////////
 
