@@ -177,7 +177,13 @@ private:
         void EnqueueSubmission(TDelayedExecutorEntryPtr entry)
         {
             SubmitQueue_.Enqueue(std::move(entry));
-            EventCount_->NotifyOne();
+
+            if (NotificationScheduled_.load(std::memory_order_relaxed)) {
+                return;
+            }
+            if (!NotificationScheduled_.exchange(true)) {
+                EventCount_->NotifyOne();
+            }
         }
 
         void EnqueueCancelation(TDelayedExecutorEntryPtr entry)
@@ -187,6 +193,8 @@ private:
 
     private:
         const TIntrusivePtr<NThreading::TEventCount> EventCount_ = New<NThreading::TEventCount>();
+
+        std::atomic<bool> NotificationScheduled_ = false;
 
         //! Only touched from DelayedPoller thread.
         std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
@@ -220,6 +228,11 @@ private:
         {
             while (true) {
                 auto cookie = EventCount_->PrepareWait();
+                // Reset notificagtion flag before processing queues but after prepare wait.
+                // Otherwise notifies occured after processing queues and before wait
+                // can be lost. No new notifies can happen if notify flag is true before
+                // prepare wait.
+                NotificationScheduled_.store(false);
 
                 ProcessQueues();
 
