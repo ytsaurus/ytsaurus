@@ -23,7 +23,7 @@ TDiskLocation::TDiskLocation(
     TString id,
     const NLogging::TLogger& logger)
     : Id_(std::move(id))
-    , Logger(logger.WithTag("LocationId: %v", id))
+    , Logger(logger.WithTag("LocationId: %v", Id_))
     , StaticConfig_(std::move(config))
     , RuntimeConfig_(StaticConfig_)
 { }
