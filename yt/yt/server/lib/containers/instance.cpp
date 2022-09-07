@@ -462,11 +462,16 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(cpuGuaranteeRsp, "Failed to get CPU guarantee from Porto");
 
         double cpuGuarantee;
-        YT_VERIFY(cpuGuaranteeRsp.Value().EndsWith('c'));
-        auto cpuGuaranteeValue = TStringBuf(cpuGuaranteeRsp.Value().begin(), cpuGuaranteeRsp.Value().size() - 1);
-        if (!TryFromString<double>(cpuGuaranteeValue, cpuGuarantee)) {
-            THROW_ERROR_EXCEPTION("Failed to parse CPU guarantee value from Porto")
-                << TErrorAttribute(cpuGuaranteeProperty, cpuGuaranteeRsp.Value());
+        if (!cpuGuaranteeRsp.Value()) {
+            // XXX: hack for missing response from porto.
+            cpuGuarantee = 0.0;
+        } else {
+            YT_VERIFY(cpuGuaranteeRsp.Value().EndsWith('c'));
+            auto cpuGuaranteeValue = TStringBuf(cpuGuaranteeRsp.Value().begin(), cpuGuaranteeRsp.Value().size() - 1);
+            if (!TryFromString<double>(cpuGuaranteeValue, cpuGuarantee)) {
+                THROW_ERROR_EXCEPTION("Failed to parse CPU guarantee value from Porto")
+                    << TErrorAttribute(cpuGuaranteeProperty, cpuGuaranteeRsp.Value());
+            }
         }
 
         return TResourceLimits{
