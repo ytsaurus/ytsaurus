@@ -17,8 +17,6 @@
 
 #include <google/protobuf/message.h>
 
-#include <statbox/ydl/runtime/cpp/traits/traits.h>
-
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/generic/yexception.h>
@@ -27,21 +25,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-///
-/// @brief "Marker" type to use for YDL types in @ref NYT::TTableReader.
-///
-/// @tparam TYdlRowTypes Possible types of rows to be read.
-template<class... TYdlRowTypes>
-class TYdlOneOf
-{
-public:
-    static_assert(
-        (NYdl::TIsYdlGenerated<TYdlRowTypes>::value && ...),
-        "Template parameters can only be YDL types");
-    
-    TYdlOneOf() = delete;
-};
 
 ///
 /// @brief "Marker" type to use for several protobuf types in @ref NYT::TTableReader.
@@ -75,10 +58,6 @@ public:
 
 namespace NDetail {
 
-/// "Marker" type to use for YDL types in @ref NYT::TTableWriter.
-class TYdlGenericRowType
-{ };
-
 template <class TTuple>
 struct TProtoOneOfFromTuple;
 
@@ -103,10 +82,8 @@ struct INodeReaderImpl;
 struct IYaMRReaderImpl;
 struct IProtoReaderImpl;
 struct ISkiffRowReaderImpl;
-struct IYdlReaderImpl;
 struct INodeWriterImpl;
 struct IYaMRWriterImpl;
-struct IYdlWriterImpl;
 struct IProtoWriterImpl;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -475,14 +452,6 @@ private:
         const ISkiffRowSkipperPtr& skipper,
         const NSkiff::TSkiffSchemaPtr& schema) = 0;
 
-    virtual ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
-        const TRichYPath& /*path*/,
-        const TTableReaderOptions& /*options*/,
-        NTi::TTypePtr /*type*/)
-    {
-        Y_FAIL("Unimplemented");
-    }
-
     virtual ::TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) = 0;
 
@@ -493,14 +462,6 @@ private:
         const TRichYPath& path,
         const TTableWriterOptions& options,
         const ::google::protobuf::Message* prototype) = 0;
-
-    virtual ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
-        const TRichYPath& /*path*/,
-        const TTableWriterOptions& /*options*/,
-        NTi::TTypePtr /*type*/)
-    {
-        Y_FAIL("Unimplemented");
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

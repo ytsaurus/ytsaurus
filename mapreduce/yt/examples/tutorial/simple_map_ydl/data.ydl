@@ -1,9 +1,0 @@
-struct TLoginRecord {
-    Name: String;
-    Login: String;
-}
-
-struct TEmailRecord {
-    Name: String;
-    Email: String;
-}

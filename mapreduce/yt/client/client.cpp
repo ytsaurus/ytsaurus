@@ -36,8 +36,6 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/skiff_row_table_reader.h>
-#include <mapreduce/yt/io/ydl_table_reader.h>
-#include <mapreduce/yt/io/ydl_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
@@ -667,16 +665,6 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
         CreateClientReader(path, TFormat::YaMRLenval(), options, /* useFormatFromTableAttributes = */ true));
 }
 
-::TIntrusivePtr<IYdlReaderImpl> TClientBase::CreateYdlReader(
-    const TRichYPath& path,
-    const TTableReaderOptions& options,
-    NTi::TTypePtr type)
-{
-    return MakeIntrusive<TNodeYdlTableReader>(
-        CreateClientReader(path, TFormat::YsonBinary(), options),
-        TVector({type->GetHash()}));
-}
-
 ::TIntrusivePtr<IProtoReaderImpl> TClientBase::CreateProtoReader(
     const TRichYPath& path,
     const TTableReaderOptions& options,
@@ -730,23 +718,6 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 
     return new TYaMRTableWriter(
         CreateClientWriter(path, format, options));
-}
-
-::TIntrusivePtr<IYdlWriterImpl> TClientBase::CreateYdlWriter(
-    const TRichYPath& path,
-    const TTableWriterOptions& options,
-    NTi::TTypePtr type)
-{
-    auto pathWithSchema = path;
-    if (!path.Schema_) {
-        pathWithSchema.Schema(CreateTableSchema(type));
-    }
-
-    auto format = TFormat::YsonBinary();
-    ApplyFormatHints<TNode>(&format, options.FormatHints_);
-    return MakeIntrusive<TNodeYdlTableWriter>(
-        CreateClientWriter(pathWithSchema, format, options),
-        TVector({type->GetHash()}));
 }
 
 ::TIntrusivePtr<IProtoWriterImpl> TClientBase::CreateProtoWriter(
@@ -1246,7 +1217,7 @@ TYtPoller& TClient::GetYtPoller()
 void TClient::Shutdown()
 {
     auto g = Guard(YtPollerLock_);
-    
+
     if (!Shutdown_.exchange(true) && YtPoller_) {
         YtPoller_->Stop();
     }

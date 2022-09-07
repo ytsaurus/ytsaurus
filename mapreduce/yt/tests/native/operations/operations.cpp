@@ -7,9 +7,6 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types_proto3.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
-#include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
-
 #include <mapreduce/yt/interface/logging/logger.h>
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
@@ -52,9 +49,6 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
-namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRangeBasedTIdMapper
@@ -69,65 +63,6 @@ public:
     }
 };
 REGISTER_MAPPER(TRangeBasedTIdMapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYdlMultipleInputMapper
-    : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            NYdlRows::TRow row;
-            if (reader->GetTableIndex() == 0) {
-                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
-            } else if (reader->GetTableIndex() == 1) {
-                row.SetStringField(*reader->GetRow<NYdlRows::THostRow>().GetHost());
-            }
-            writer->AddRow(row);
-        }
-    }
-};
-REGISTER_MAPPER(TYdlMultipleInputMapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYdlFailingInputMapper
-    : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            NYdlRows::TRow row;
-            if (reader->GetTableIndex() == 0) {
-                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
-            } else if (reader->GetTableIndex() == 1) {
-                row.SetStringField(*reader->GetRow<NYdlRows::TUrlRow>().GetHost());
-            }
-            writer->AddRow(row);
-        }
-    }
-};
-REGISTER_MAPPER(TYdlFailingInputMapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYdlFailingOutputMapper
-    : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            NYdlRows::TRow row;
-            row.SetStringField(*reader->GetRow().GetHost());
-            writer->AddRow<NYdlRows::TRow>(row, 1);
-        }
-    }
-};
-REGISTER_MAPPER(TYdlFailingOutputMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,24 +261,6 @@ REGISTER_MAPPER(TProtobufMapperTypeOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYdlMapper
-    : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        NYdlRows::TRow row;
-        for (; reader->IsValid(); reader->Next()) {
-            reader->MoveRow(&row);
-            row.SetStringField(row.GetStringField() + " mapped");
-            writer->AddRow<NYdlRows::TRow>(row);
-        }
-    }
-};
-REGISTER_MAPPER(TYdlMapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSplitGoodUrlMapper
     : public IMapper<TTableReader<TUrlRow>, TTableWriter<::google::protobuf::Message>>
 {
@@ -385,50 +302,6 @@ public:
     }
 };
 REGISTER_REDUCER(TCountHttpCodeTotalReducer)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSplitGoodUrlYdlMapper
-    : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            auto urlRow = reader->GetRow();
-            if (urlRow.GetHttpCode() == 200) {
-                NYdlRows::TGoodUrl goodUrl;
-                goodUrl.SetUrl(*urlRow.GetHost() + *urlRow.GetPath());
-                writer->AddRow<NYdlRows::TGoodUrl>(goodUrl, 1);
-            }
-            writer->AddRow<NYdlRows::TUrlRow>(urlRow, 0);
-        }
-    }
-};
-REGISTER_MAPPER(TSplitGoodUrlYdlMapper)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCountHttpCodeTotalYdlReducer
-    : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::THostRow>>
-{
-public:
-    void Do(TReader* reader, TWriter* writer) override
-    {
-        NYdlRows::THostRow hostRow;
-        i32 total = 0;
-        for (; reader->IsValid(); reader->Next()) {
-            auto urlRow = reader->GetRow();
-            if (hostRow.GetHost().Empty()) {
-                hostRow.SetHost(urlRow.GetHost());
-            }
-            total += *urlRow.GetHttpCode();
-        }
-        hostRow.SetHttpCodeTotal(total);
-        writer->AddRow(hostRow);
-    }
-};
-REGISTER_REDUCER(TCountHttpCodeTotalYdlReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -654,7 +527,6 @@ public:
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TNode>)
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TYaMRRow>)
 REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TEmbeddedMessage>)
-REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<NYdlRows::TMessage>)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1659,118 +1531,6 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(row["RepeatedEnumIntField"], TNode().Add(1).Add(1));
         }
     }
-    Y_UNIT_TEST(YdlMap)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto inputTable = TRichYPath(workingDir + "/input");
-        auto outputTable = TRichYPath(workingDir + "/output");
-        {
-            auto writer = client->CreateTableWriter<TNode>(inputTable);
-            writer->AddRow(TNode()("StringField", "raz"));
-            writer->AddRow(TNode()("StringField", "dva"));
-            writer->AddRow(TNode()("StringField", "tri"));
-            writer->Finish();
-        }
-
-        client->Map(
-            new TYdlMapper,
-            Structured<NYdlRows::TRow>(inputTable),
-            Structured<NYdlRows::TRow>(outputTable));
-
-        TVector<TNode> expected = {
-            TNode()("StringField", "raz mapped"),
-            TNode()("StringField", "dva mapped"),
-            TNode()("StringField", "tri mapped"),
-        };
-        auto actual = ReadTable(client, outputTable.Path_);
-        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
-    }
-
-    Y_UNIT_TEST(MultipleInputYdlMap)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto inputTable1 = TRichYPath(workingDir + "/input1");
-        auto inputTable2 = TRichYPath(workingDir + "/input2");
-        auto outputTable = TRichYPath(workingDir + "/output");
-
-        {
-            auto writer = client->CreateTableWriter<NYdlRows::TUrlRow>(inputTable1);
-            NYdlRows::TUrlRow row;
-            row.SetHost("https://www.google.com");
-            writer->AddRow(row);
-            writer->Finish();
-        }
-        {
-            auto writer = client->CreateTableWriter<NYdlRows::THostRow>(inputTable2);
-            NYdlRows::THostRow row;
-            row.SetHost("https://www.yandex.ru");
-            writer->AddRow(row);
-            writer->Finish();
-        }
-
-        client->Map(
-            new TYdlMultipleInputMapper,
-            {Structured<NYdlRows::TUrlRow>(inputTable1), Structured<NYdlRows::THostRow>(inputTable2)},
-            Structured<NYdlRows::TRow>(outputTable));
-
-        client->Sort(outputTable, outputTable, "StringField");
-
-        TVector<TNode> expected = {
-            TNode()("StringField", "https://www.google.com"),
-            TNode()("StringField", "https://www.yandex.ru"),
-        };
-        auto actual = ReadTable(client, outputTable.Path_);
-        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
-    }
-
-    Y_UNIT_TEST(YdlRowTypeCheckFail)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto inputTable1 = TRichYPath(workingDir + "/input1");
-        auto inputTable2 = TRichYPath(workingDir + "/input2");
-        auto outputTable1 = TRichYPath(workingDir + "/output1");
-        auto outputTable2 = TRichYPath(workingDir + "/output2");
-
-        {
-            auto writer = client->CreateTableWriter<NYdlRows::TUrlRow>(inputTable1);
-            NYdlRows::TUrlRow row;
-            row.SetHost("https://www.google.com");
-            writer->AddRow(row);
-            writer->Finish();
-        }
-        {
-            auto writer = client->CreateTableWriter<NYdlRows::THostRow>(inputTable2);
-            NYdlRows::THostRow row;
-            row.SetHost("https://www.yandex.ru");
-            writer->AddRow(row);
-            writer->Finish();
-        }
-
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            client->Map(
-                new TYdlFailingInputMapper,
-               {Structured<NYdlRows::TUrlRow>(inputTable1), Structured<NYdlRows::THostRow>(inputTable2)},
-                Structured<NYdlRows::TRow>(outputTable1)),
-            TOperationFailedError,
-            "Invalid row type at index");
-
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            client->Map(
-                new TYdlFailingOutputMapper,
-                Structured<NYdlRows::TUrlRow>(inputTable1),
-                {Structured<NYdlRows::TRow>(outputTable1), Structured<NYdlRows::THostRow>(outputTable2)}),
-            TOperationFailedError,
-            "Invalid row type at index");
-    }
 
     Y_UNIT_TEST(JobPrefix)
     {
@@ -1951,16 +1711,6 @@ Y_UNIT_TEST_SUITE(Operations)
            THostRow,
            TSplitGoodUrlMapper,
            TCountHttpCodeTotalReducer>();
-    }
-
-    Y_UNIT_TEST(MapReduceMapOutputYdl)
-    {
-        TestMapReduceMapOutput<
-            NYdlRows::TUrlRow,
-            NYdlRows::TGoodUrl,
-            NYdlRows::THostRow,
-            TSplitGoodUrlYdlMapper,
-            TCountHttpCodeTotalYdlReducer>();
     }
 
     Y_UNIT_TEST(AddLocalFile)
@@ -2587,11 +2337,6 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(RangeIndices_Protobuf)
     {
         TestRangeIndices<TEmbeddedMessage>(ENodeReaderFormat::Yson);
-    }
-
-    Y_UNIT_TEST(RangeIndices_Ydl)
-    {
-        TestRangeIndices<NYdlRows::TMessage>(ENodeReaderFormat::Yson);
     }
 
     Y_UNIT_TEST(OrderedDynamicTableReadLimits)

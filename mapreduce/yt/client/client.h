@@ -246,11 +246,6 @@ private:
     ::TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) override;
 
-    ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
-        const TRichYPath& path,
-        const TTableReaderOptions& options,
-        NTi::TTypePtr type) override;
-
     ::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
         const TRichYPath& path,
         const TTableReaderOptions& options,
@@ -267,11 +262,6 @@ private:
 
     ::TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override;
-
-    ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
-        const TRichYPath& path,
-        const TTableWriterOptions& options,
-        NTi::TTypePtr type) override;
 
     ::TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
         const TRichYPath& path,
@@ -483,7 +473,7 @@ private:
 
     void CheckShutdown() const;
 
-    std::atomic<bool> Shutdown_ = false; 
+    std::atomic<bool> Shutdown_ = false;
     TMutex YtPollerLock_;
     THolder<TYtPoller> YtPoller_;
 };

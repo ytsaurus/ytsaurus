@@ -7,8 +7,6 @@
 
 #include "fwd.h"
 
-#include <statbox/ydl/runtime/cpp/traits/traits.h>
-
 #include <library/cpp/type_info/type_info.h>
 #include <library/cpp/yson/node/node.h>
 
@@ -717,17 +715,6 @@ inline TTableSchema CreateTableSchema(
 /// `Strict` flag is set to true, all other attribute of schema and columns
 /// are left with default values
 TTableSchema CreateTableSchema(NTi::TTypePtr type);
-
-/// @deprecated Create table schema by YDL type.
-template <class TYdlType, typename = std::enable_if_t<NYdl::TIsYdlGenerated<TYdlType>::value>>
-inline TTableSchema CreateTableSchema()
-{
-    static_assert(
-        NYdl::TIsYdlGenerated<TYdlType>::value,
-        "Template argument must be YDL generated type");
-
-    return CreateTableSchema(NYdl::TYdlTraits<TYdlType>::Reflect());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

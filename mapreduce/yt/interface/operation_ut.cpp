@@ -3,7 +3,6 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
-#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <library/cpp/yson/node/node_io.h>
@@ -12,7 +11,6 @@
 
 using namespace NYT;
 using namespace NYT::NUnitTesting;
-namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
 
 class TDummyInferenceContext
     : public IOperationPreparationContext
@@ -157,7 +155,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         builder
             .InputDescription<TUrlRow>(0)
             .BeginInputGroup(2, 3)
-                .Description<NYdlRows::TUrlRow>()
+                .Description<TUrlRow>()
             .EndInputGroup()
             .BeginInputGroup(TVector<int>{1, 4})
                 .Description<TRowSerializedRepeatedFields>()
@@ -170,7 +168,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
             .OutputDescription<TUrlRow>(0, false)
             .OutputDescription<TRowFieldSerializationOption>(1)
             .BeginOutputGroup(2, 4)
-                .Description<NYdlRows::TUrlRow>()
+                .Description<TUrlRow>()
             .EndOutputGroup()
             .BeginOutputGroup(TVector<int>{4,6})
                 .Description<TRowSerializedRepeatedFields>()
@@ -196,7 +194,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         auto expectedInputDescriptions = TVector<TMaybe<TTableStructure>>{
             {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TRowSerializedRepeatedFields::descriptor()}},
-            {TYdlTableStructure{urlRowStruct}},
+            {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TRowSerializedRepeatedFields::descriptor()}},
         };
@@ -205,8 +203,8 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         auto expectedOutputDescriptions = TVector<TMaybe<TTableStructure>>{
             {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TRowFieldSerializationOption::descriptor()}},
-            {TYdlTableStructure{urlRowStruct}},
-            {TYdlTableStructure{urlRowStruct}},
+            {TProtobufTableStructure{TUrlRow::descriptor()}},
+            {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TRowSerializedRepeatedFields::descriptor()}},
             {TProtobufTableStructure{TUrlRow::descriptor()}},
             {TProtobufTableStructure{TRowSerializedRepeatedFields::descriptor()}},

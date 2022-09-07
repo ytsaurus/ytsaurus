@@ -77,11 +77,6 @@ bool operator==(const TProtobufTableStructure& lhs, const TProtobufTableStructur
     return lhs.Descriptor == rhs.Descriptor;
 }
 
-bool operator==(const TYdlTableStructure& lhs, const TYdlTableStructure& rhs)
-{
-    return NTi::NEq::TStrictlyEqual()(lhs.Type, rhs.Type);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 const TVector<TStructuredTablePath>& TOperationInputSpecBase::GetStructuredInputs() const

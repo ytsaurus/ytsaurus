@@ -25,16 +25,6 @@ namespace NYT {
 namespace NDetail {
 
 template<class T>
-struct TIsYdlOneOf
-    : std::false_type
-{ };
-
-template<class... TYdlRowTypes>
-struct TIsYdlOneOf<TYdlOneOf<TYdlRowTypes...>>
-    : std::true_type
-{ };
-
-template<class T>
 struct TIsProtoOneOf
     : std::false_type
 { };
@@ -107,30 +97,6 @@ struct TRowTraits<TSkiffRowOneOf<TSkiffRowTypes...>>
     using IReaderImpl = ISkiffRowReaderImpl;
 };
 
-template <>
-struct TRowTraits<NDetail::TYdlGenericRowType>
-{
-    using TRowType = NDetail::TYdlGenericRowType;
-    using IReaderImpl = IYdlReaderImpl;
-    using IWriterImpl = IYdlWriterImpl;
-};
-
-template <class T>
-struct TRowTraits<T, std::enable_if_t<NYdl::TIsYdlGenerated<T>::value>>
-{
-    using TRowType = T;
-    using IReaderImpl = IYdlReaderImpl;
-    using IWriterImpl = IYdlWriterImpl;
-};
-
-template <class... TYdlRowTypes>
-struct TRowTraits<TYdlOneOf<TYdlRowTypes...>>
-{
-    using TRowType = TYdlOneOf<TYdlRowTypes...>;
-    using IReaderImpl = IYdlReaderImpl;
-    using IWriterImpl = IYdlWriterImpl;
-};
-
 template <class... TProtoRowTypes>
 struct TRowTraits<TProtoOneOf<TProtoRowTypes...>>
 {
@@ -173,13 +139,6 @@ struct IYaMRReaderImpl
     {
         *row = GetRow();
     }
-};
-
-struct IYdlReaderImpl
-    : public IReaderImplBase
-{
-    virtual const TNode& GetRow() const = 0;
-    virtual void VerifyRowType(ui64 rowTypeHash) const = 0;
 };
 
 struct IProtoReaderImpl
@@ -375,93 +334,6 @@ class TTableReader<TYaMRRow>
     using TSimpleTableReader<TYaMRRow>::TSimpleTableReader;
 };
 
-template<class... TYdlRowTypes>
-class TTableReader<TYdlOneOf<TYdlRowTypes...>>
-    : public NDetail::TTableReaderBase<TYdlOneOf<TYdlRowTypes...>>
-{
-public:
-    using TBase = NDetail::TTableReaderBase<TYdlOneOf<TYdlRowTypes...>>;
-
-    using TBase::TBase;
-
-    template <class U>
-    const U& GetRow() const
-    {
-        AssertIsOneOf<U>();
-        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
-        return TBase::DoGetRowCached(
-            /* cacher */ [&] {
-                std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
-            },
-            /* cacheGetter */ [&] {
-                return &std::get<U>(CachedRows_);
-            });
-    }
-
-    template <class U>
-    void MoveRow(U* result)
-    {
-        AssertIsOneOf<U>();
-        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
-        return TBase::DoMoveRowCached(
-            result,
-            /* mover */ [&] (U* result) {
-                *result = U::DeserializeFromYson(Reader_->GetRow());
-            },
-            /* cacheMover */ [&] (U* result) {
-                *result = std::move(std::get<U>(CachedRows_));
-            });
-    }
-
-    template <class U>
-    U MoveRow()
-    {
-        U result;
-        MoveRow(&result);
-        return result;
-    }
-
-private:
-    using TBase::Reader_;
-    // std::variant could also be used here, but std::tuple leads to better performance
-    // because of deallocations that std::variant has to do
-    mutable std::tuple<TYdlRowTypes...> CachedRows_;
-
-    template <class U>
-    static constexpr void AssertIsOneOf()
-    {
-        static_assert(
-            (std::is_same<U, TYdlRowTypes>::value || ...),
-            "Template parameter must be one of TYdlOneOf types");
-    }
-};
-
-template <class T>
-class TTableReader<T, std::enable_if_t<NYdl::TIsYdlGenerated<T>::value>>
-   : public TTableReader<TYdlOneOf<T>>
-{
-public:
-    using TBase = TTableReader<TYdlOneOf<T>>;
-    using TRowType = T;
-
-    using TBase::TBase;
-
-    const TRowType& GetRow() const
-    {
-        return TBase::template GetRow<TRowType>();
-    }
-
-    void MoveRow(TRowType* result)
-    {
-        TBase::template MoveRow<TRowType>(result);
-    }
-
-    T MoveRow()
-    {
-        return TBase::template MoveRow<TRowType>();
-    }
-};
-
 template <>
 class TTableReader<Message>
     : public NDetail::TTableReaderBase<Message>
@@ -629,7 +501,7 @@ public:
 
     explicit TTableReader(::TIntrusivePtr<typename TBase::IReaderImpl> reader)
         : TBase(reader)
-        , Parsers_({(CreateSkiffParser<TSkiffRowTypes>(&std::get<TSkiffRowTypes>(CachedRows_)))...})   
+        , Parsers_({(CreateSkiffParser<TSkiffRowTypes>(&std::get<TSkiffRowTypes>(CachedRows_)))...})
     { }
 
     template <class U>
@@ -750,8 +622,6 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
     if constexpr (TIsBaseOf<Message, T>::Value) {
         TAutoPtr<T> prototype(new T);
         return new TTableReader<T>(CreateProtoReader(path, options, prototype.Get()));
-    } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        return new TTableReader<T>(CreateYdlReader(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else if constexpr (TIsSkiffRow<T>::value) {
         auto schema = GetSkiffSchema<T>();
         auto skipper = CreateSkiffSkipper<T>();
@@ -857,14 +727,6 @@ struct IYaMRWriterImpl
 {
     virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
     virtual void AddRow(TYaMRRow&& row, size_t tableIndex) = 0;
-};
-
-struct IYdlWriterImpl
-    : public IWriterImplBase
-{
-    virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
-    virtual void AddRow(TNode&& row, size_t tableIndex) = 0;
-    virtual void VerifyRowType(ui64 rowTypeHash, size_t tableIndex) const = 0;
 };
 
 struct IProtoWriterImpl
@@ -979,46 +841,6 @@ public:
 };
 
 template <>
-class TTableWriter<NDetail::TYdlGenericRowType>
-    : public TTableWriterBase<NDetail::TYdlGenericRowType>
-{
-public:
-    using TBase = TTableWriterBase<NDetail::TYdlGenericRowType>;
-
-    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
-        : TBase(writer)
-    { }
-
-    template<class U, std::enable_if_t<NYdl::TIsYdlGenerated<U>::value>* = nullptr>
-    void AddRow(const U& row, size_t tableIndex = 0)
-    {
-        GetWriterImpl()->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash(), tableIndex);
-        TNode node;
-        TNodeBuilder builder(&node);
-        row.SerializeAsYson(builder);
-        TBase::DoAddRow(node, tableIndex);
-    }
-};
-
-template <class T>
-class TTableWriter<T, std::enable_if_t<NYdl::TIsYdlGenerated<T>::value>>
-   : public TTableWriter<NDetail::TYdlGenericRowType>
-{
-public:
-    using TBase = TTableWriter<NDetail::TYdlGenericRowType>;
-    using TRowType = T;
-
-    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
-        : TBase(std::move(writer))
-    { }
-
-    void AddRow(const T& row, size_t tableIndex = 0)
-    {
-        TBase::template AddRow<T>(row, tableIndex);
-    }
-};
-
-template <>
 class TTableWriter<Message>
     : public TTableWriterBase<Message>
 {
@@ -1075,8 +897,6 @@ inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
     if constexpr (TIsBaseOf<Message, T>::Value) {
         TAutoPtr<T> prototype(new T);
         return new TTableWriter<T>(CreateProtoWriter(path, options, prototype.Get()));
-    } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        return new TTableWriter<T>(CreateYdlWriter(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else {
         static_assert(TDependentFalse<T>, "Unsupported type for table writer");
     }

@@ -65,15 +65,6 @@ TString CreateProtoConfig(const TVector<const ::google::protobuf::Descriptor*>& 
     return result;
 }
 
-TString CreateYdlConfig(const TVector<NTi::TTypePtr>& descriptorList)
-{
-    TStringStream structHashList;
-    for (const auto& descriptor : descriptorList) {
-        structHashList << descriptor->GetHash() << Endl;
-    }
-    return structHashList.Str();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetTableStructureDescriptionStringImpl {
@@ -91,14 +82,6 @@ struct TGetTableStructureDescriptionStringImpl {
             }
             out << " protobuf message";
             return res;
-        } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
-            TString name;
-            if (description.Type->AsStruct()->GetName().Defined()) {
-                name = *description.Type->AsStruct()->GetName();
-            } else {
-                name = "<unknown>";
-            }
-            return name + " YDL type";
         } else {
             static_assert(TDependentFalse<T>, "Unknown type");
         }
@@ -158,9 +141,6 @@ TVector<TRichYPath> GetPathList(
     auto maybeInferSchema = [&] (const TStructuredJobTable& table, ui32 tableIndex) -> TMaybe<TTableSchema> {
         if (jobSchemaInferenceResult && !jobSchemaInferenceResult->at(tableIndex).Empty()) {
             return jobSchemaInferenceResult->at(tableIndex);
-        }
-        if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
-            return CreateTableSchema(std::get<TYdlTableStructure>(table.Description).Type);
         }
         if (inferSchemaFromDescriptions) {
             return GetTableSchema(table.Description);
@@ -234,8 +214,6 @@ struct TFormatBuilder::TFormatSwitcher
             return &TFormatBuilder::CreateYamrFormat;
         } else if constexpr (std::is_same_v<T, TProtobufStructuredRowStream>) {
             return &TFormatBuilder::CreateProtobufFormat;
-        } else if constexpr (std::is_same_v<T, TYdlStructuredRowStream>) {
-            return &TFormatBuilder::CreateNodeYdlFormat;
         } else if constexpr (std::is_same_v<T, TVoidStructuredRowStream>) {
             return &TFormatBuilder::CreateVoidFormat;
         } else {
@@ -417,61 +395,6 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
         << " is tagged with " << descriptorName;
 }
 
-std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
-    const IStructuredJob& job,
-    const EIODirection& direction,
-    const TStructuredJobTableList& structuredTableList,
-    const TMaybe<TFormatHints>& formatHints,
-    ENodeReaderFormat /*nodeReaderFormat*/,
-    bool /*allowFormatFromTableAttribute*/)
-{
-    TVector<NTi::TTypePtr> descriptorList;
-
-    NTi::TTypePtr jobDescriptor =
-        std::get<TYdlStructuredRowStream>(GetJobStreamDescription(job, direction)).Type;
-    Y_ENSURE(!structuredTableList.empty(),
-             "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
-
-    for (const auto& table : structuredTableList) {
-        NTi::TTypePtr descriptor = nullptr;
-        if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
-            descriptor = std::get<TYdlTableStructure>(table.Description).Type;
-        } else if (table.RichYPath) {
-            ThrowUnsupportedStructureDescription(direction, table, job);
-        }
-        if (!descriptor) {
-            // It must be intermediate table, because there is no proper way
-            // to add such table to spec (AddInput requires to specify proper type).
-            Y_VERIFY(!table.RichYPath, "Descriptors for all tables except intermediate must be known");
-            if (jobDescriptor) {
-                descriptor = jobDescriptor;
-            } else {
-                ThrowTypeDeriveFail(direction, job, "ydl");
-            }
-        }
-        if (jobDescriptor && descriptor->AsStruct()->GetName() != jobDescriptor->AsStruct()->GetName()) {
-            ThrowUnexpectedDifferentDescriptors(
-                direction,
-                table,
-                job,
-                jobDescriptor->AsStruct()->GetName(),
-                descriptor->AsStruct()->GetName());
-        }
-        descriptorList.push_back(descriptor);
-    }
-    Y_VERIFY(!descriptorList.empty(), "Descriptors for ydl format are unknown");
-
-    auto format = TFormat::YsonBinary();
-    NYT::NDetail::ApplyFormatHints<TNode>(&format, formatHints);
-    return {
-        format,
-        TSmallJobFile{
-            TString("ydl") + GetSuffix(direction),
-            CreateYdlConfig(descriptorList),
-        },
-    };
-}
-
 std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     const IStructuredJob& job,
     const EIODirection& direction,
@@ -545,8 +468,6 @@ struct TGetTableSchemaImpl
                 return Nothing();
             }
             return CreateTableSchema(*description.Descriptor);
-        } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
-            return CreateTableSchema(description.Type);
         } else {
             static_assert(TDependentFalse<T>, "unknown type");
         }
