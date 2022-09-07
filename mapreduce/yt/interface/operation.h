@@ -41,22 +41,15 @@ struct TProtobufTableStructure
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-/// Tag class marking that table rows have YDL type.
-struct TYdlTableStructure
-{
-    NTi::TTypePtr Type = nullptr;
-};
 
 /// Tag class to specify table row type.
 using TTableStructure = std::variant<
     TUnspecifiedTableStructure,
-    TProtobufTableStructure,
-    TYdlTableStructure
+    TProtobufTableStructure
 >;
 
 bool operator==(const TUnspecifiedTableStructure&, const TUnspecifiedTableStructure&);
 bool operator==(const TProtobufTableStructure& lhs, const TProtobufTableStructure& rhs);
-bool operator==(const TYdlTableStructure& lhs, const TYdlTableStructure& rhs);
 
 /// Table path marked with @ref NYT::TTableStructure tag.
 struct TStructuredTablePath
@@ -79,11 +72,6 @@ struct TStructuredTablePath
     TStructuredTablePath(const char* path)
         : RichYPath(path)
         , Description(TUnspecifiedTableStructure())
-    { }
-
-    TStructuredTablePath(TRichYPath richYPath, NTi::TTypePtr typePtr)
-        : RichYPath(std::move(richYPath))
-        , Description(TYdlTableStructure{std::move(typePtr)})
     { }
 
     TRichYPath RichYPath;
@@ -112,12 +100,6 @@ struct TTNodeStructuredRowStream
 struct TTYaMRRowStructuredRowStream
 { };
 
-/// Tag class marking that row stream consists of YDL rows of given type.
-struct TYdlStructuredRowStream
-{
-    NTi::TTypePtr Type = nullptr;
-};
-
 /// Tag class marking that row stream consists of protobuf rows of given type.
 struct TProtobufStructuredRowStream
 {
@@ -132,7 +114,6 @@ using TStructuredRowStreamDescription = std::variant<
     TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
-    TYdlStructuredRowStream,
     TProtobufStructuredRowStream
 >;
 

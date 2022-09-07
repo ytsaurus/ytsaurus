@@ -15,8 +15,6 @@
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>
 
-#include <statbox/ydl/runtime/cpp/traits/traits.h>
-
 #include <typeindex>
 
 namespace NYT {
@@ -46,16 +44,6 @@ TStructuredRowStreamDescription GetStructuredRowStreamDescription()
         return TProtobufStructuredRowStream{TRow::descriptor()};
     } else if constexpr (TIsProtoOneOf<TRow>::value) {
         return TProtobufStructuredRowStream{nullptr};
-    } else if constexpr (
-        NYdl::TIsYdlGenerated<TRow>::value
-        || TIsYdlOneOf<TRow>::value
-        || std::is_same<TRow, TYdlGenericRowType>::value)
-    {
-        if constexpr (NYdl::TIsYdlGenerated<TRow>::value) {
-            return TYdlStructuredRowStream{NYdl::TYdlTraits<TRow>::Reflect()};
-        } else {
-            return TYdlStructuredRowStream{nullptr};
-        }
     } else {
         static_assert(TDependentFalse<TRow>, "Unknown row type");
     }
@@ -86,8 +74,6 @@ TTableStructure StructuredTableDescription()
         } else {
             return TProtobufTableStructure{TRow::descriptor()};
         }
-    } else if constexpr (NYdl::TIsYdlGenerated<TRow>::value) {
-        return TYdlTableStructure{NYdl::TYdlTraits<TRow>::Reflect()};
     } else {
         static_assert(TDependentFalse<TRow>, "Unknown row type");
     }
@@ -159,12 +145,10 @@ const TVector<TRichYPath>& TRawMapReduceOperationIoSpec<TDerived>::GetMapOutputs
 ::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
 ::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader();
 ::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader();
-::TIntrusivePtr<IYdlReaderImpl> CreateJobYdlReader();
 
 ::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount);
 ::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount);
 ::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount);
-::TIntrusivePtr<IYdlWriterImpl> CreateJobYdlWriter(size_t outputTableCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,10 +178,6 @@ inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl(
 {
     if constexpr (TIsBaseOf<Message, T>::Value || NDetail::TIsProtoOneOf<T>::value) {
         return CreateJobProtoReader();
-    } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        return CreateJobYdlReader();
-    } else if constexpr (NDetail::TIsYdlOneOf<T>::value) {
-        return CreateJobYdlReader();
     } else {
         static_assert(TDependentFalse<T>, "Unknown row type");
     }
@@ -249,10 +229,6 @@ inline TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount)
 {
     if constexpr (TIsBaseOf<Message, T>::Value) {
         return TProtoWriterCreator<T>::Create(CreateJobProtoWriter(outputTableCount));
-    } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
-        return new TTableWriter<T>(CreateJobYdlWriter(outputTableCount));
-    } else if constexpr (std::is_same<T, NDetail::TYdlGenericRowType>::value) {
-        return new TTableWriter<T>(CreateJobYdlWriter(outputTableCount));
     } else {
         static_assert(TDependentFalse<T>, "Unknown row type");
     }

@@ -4,13 +4,7 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types_proto3.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
-#include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
-
 namespace NYT::NTesting {
-
-namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
-namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,29 +87,7 @@ public:
     }
 };
 
-class TYdlUrlRowIdMapper : public IMapper<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::TUrlRow>>
-{
-public:
-    void Do(TReader* reader, TWriter* writer)
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            writer->AddRow(reader->GetRow());
-        }
-    }
-};
-
 class TUrlRowIdReducer : public IReducer<TTableReader<TUrlRow>, TTableWriter<TUrlRow>>
-{
-public:
-    void Do(TReader* reader, TWriter* writer)
-    {
-        for (; reader->IsValid(); reader->Next()) {
-            writer->AddRow(reader->GetRow());
-        }
-    }
-};
-
-class TYdlUrlRowIdReducer : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::TUrlRow>>
 {
 public:
     void Do(TReader* reader, TWriter* writer)

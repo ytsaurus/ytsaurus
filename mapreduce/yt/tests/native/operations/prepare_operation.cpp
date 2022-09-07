@@ -7,9 +7,6 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types_proto3.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
-#include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
-
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -18,9 +15,6 @@
 
 using namespace NYT;
 using namespace NYT::NTesting;
-
-namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
-namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 void InferringNodeMapperPrepareOperation(
     const IOperationPreparationContext& context,
@@ -210,7 +204,6 @@ public:
     }
 };
 REGISTER_MAPPER(TInferringMapper<TUrlRowIdMapper>);
-REGISTER_MAPPER(TInferringMapper<TYdlUrlRowIdMapper>);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -556,11 +549,6 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         TestPrecedenceOverInference<TUrlRow, TUrlRowIdMapper, TInferringMapper<TUrlRowIdMapper>>();
     }
 
-    Y_UNIT_TEST(PrecedenceOverYdlInference)
-    {
-        TestPrecedenceOverInference<NYdlRows::TUrlRow, TYdlUrlRowIdMapper, TInferringMapper<TYdlUrlRowIdMapper>>();
-    }
-
     Y_UNIT_TEST(JobPreparerOldWay)
     {
         TTestFixture fixture;
@@ -773,11 +761,6 @@ Y_UNIT_TEST_SUITE(SchemaInference)
     Y_UNIT_TEST(ProtobufSchemaInference_Options)
     {
         TestSchemaInference<TUrlRow, TUrlRowIdMapper, TUrlRowIdReducer>(true);
-    }
-
-    Y_UNIT_TEST(YdlSchemaInference)
-    {
-        TestSchemaInference<NYdlRows::TUrlRow, TYdlUrlRowIdMapper, TYdlUrlRowIdReducer>(true);
     }
 
 } // Y_UNIT_TEST_SUITE(SchemaInference)

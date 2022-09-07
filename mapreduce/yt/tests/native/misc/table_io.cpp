@@ -2,9 +2,6 @@
 
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
-#include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
-
 #include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/interface/errors.h>
@@ -28,9 +25,6 @@
 
 using namespace NYT;
 using namespace NYT::NTesting;
-
-namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
-namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 static TString RandomBytes()
 {
@@ -565,11 +559,6 @@ Y_UNIT_TEST_SUITE(TableIo)
         TestTableReaders<TUrlRow>();
     }
 
-    Y_UNIT_TEST(Ydl)
-    {
-        TestTableReaders<NYdlRows::TUrlRow>();
-    }
-
     Y_UNIT_TEST(ErrorInTableWriter)
     {
         const TNode DATA = TString(1024, 'a');
@@ -915,56 +904,6 @@ Y_UNIT_TEST_SUITE(TableIo)
         UNIT_ASSERT_VALUES_EQUAL(expected, got);
     }
 
-    Y_UNIT_TEST(ReadingWritingYdlAllTypes)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto path = TRichYPath(workingDir + "/ydl_table");
-        NYdlAllTypes::TAllTypes message;
-
-        message.SetDoubleField(42.4242);
-        message.SetFloatField(3.14159);
-        message.SetInt8Field(-10);
-        message.SetInt16Field(-10000);
-        message.SetInt32Field(-100000000);
-        message.SetInt64Field(-100000000000);
-        message.SetUint8Field(10);
-        message.SetUint16Field(10000);
-        message.SetUint32Field(100000000);
-        message.SetUint64Field(100000000000);
-        message.SetBoolField(true);
-        message.SetStringField("42");
-        message.SetDirectionField(NYdlAllTypes::Direction::north);
-
-        {
-            auto writer = client->CreateTableWriter<NYdlAllTypes::TAllTypes>(path);
-            writer->AddRow(message);
-            writer->Finish();
-        }
-        {
-            auto reader = client->CreateTableReader<NYdlAllTypes::TAllTypes>(path);
-            UNIT_ASSERT(reader->IsValid());
-            const auto& row = reader->GetRow();
-            UNIT_ASSERT_DOUBLES_EQUAL(1e-6, message.GetDoubleField(), row.GetDoubleField());
-            UNIT_ASSERT_DOUBLES_EQUAL(1e-6, message.GetFloatField(), row.GetFloatField());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetInt8Field(), row.GetInt8Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetInt16Field(), row.GetInt16Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetInt32Field(), row.GetInt32Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetInt64Field(), row.GetInt64Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetUint8Field(), row.GetUint8Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetUint16Field(), row.GetUint16Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetUint32Field(), row.GetUint32Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetUint64Field(), row.GetUint64Field());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetBoolField(), row.GetBoolField());
-            UNIT_ASSERT_VALUES_EQUAL(message.GetStringField(), row.GetStringField());
-            UNIT_ASSERT_EQUAL(message.GetDirectionField(), row.GetDirectionField());
-            reader->Next();
-            UNIT_ASSERT(!reader->IsValid());
-        }
-    }
-
     Y_UNIT_TEST(SimpleRetrylessWriter)
     {
         TTestFixture fixture;
@@ -1104,11 +1043,6 @@ Y_UNIT_TEST_SUITE(TableIo)
     Y_UNIT_TEST(ProtobufWriteAutoflush)
     {
         WriteAutoFlush<TUrlRow>();
-    }
-
-    Y_UNIT_TEST(YdlWriteAutoflush)
-    {
-        WriteAutoFlush<NYdlRows::TUrlRow>();
     }
 
     Y_UNIT_TEST(TestFormatHint)
