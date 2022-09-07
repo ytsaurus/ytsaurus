@@ -75,6 +75,12 @@ DEFINE_REFCOUNTED_TYPE(IJobResourceManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EResourcesState,
+    ((Waiting)   (0))
+    ((Acquired)  (1))
+    ((Released)  (2))
+);
+
 class TResourceHolder
 {
 public:
@@ -113,13 +119,6 @@ private:
     NNodeTrackerClient::NProto::TNodeResources Resources_;
 
     std::vector<int> Ports_;
-
-    enum class EResourcesState
-    {
-        Waiting,
-        Acquired,
-        Released,
-    };
 
     EResourcesState State_ = EResourcesState::Waiting;
 

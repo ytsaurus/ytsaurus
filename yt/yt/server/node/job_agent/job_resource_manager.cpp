@@ -659,7 +659,11 @@ TResourceHolder::TResourceHolder(
 
 TResourceHolder::~TResourceHolder()
 {
-    YT_VERIFY(State_ == EResourcesState::Released);
+    YT_LOG_DEBUG_IF(
+        State_ != EResourcesState::Released,
+        "Destruct unreleased resoure holder (State: %v, Resources: %v)",
+        State_,
+        FormatResources(Resources_));
 }
 
 void TResourceHolder::AcquireResources(TAcquiredResources&& acquiredResources)
