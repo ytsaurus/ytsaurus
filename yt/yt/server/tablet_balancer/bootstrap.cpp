@@ -21,6 +21,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/http/server.h>
@@ -189,6 +191,11 @@ void TBootstrap::DoRun()
 
     SetNodeByYPath(
         orchidRoot,
+        "/tablet_balancer",
+        CreateVirtualNode(TabletBalancer_->GetOrchidService()));
+
+    SetNodeByYPath(
+        orchidRoot,
         "/dynamic_config_manager",
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
 
@@ -253,8 +260,12 @@ void TBootstrap::RegisterInstance()
         req->set_ignore_existing(true);
         req->set_recursive(true);
         req->set_type(static_cast<int>(EObjectType::Orchid));
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("remote_addresses", LocalAddress_);
+
+        auto attributes = NYTree::CreateEphemeralAttributes();
+        attributes->Set("remote_addresses", ConvertToYsonString(NNodeTrackerClient::TAddressMap{
+            {NNodeTrackerClient::DefaultNetworkName, LocalAddress_}
+        }));
+
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
         batchReq->AddRequest(req);

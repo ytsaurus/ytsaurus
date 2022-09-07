@@ -274,6 +274,7 @@ class YTEnvSetup(object):
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
+    ENABLE_STANDALONE_TABLET_BALANCER = False
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_TEST_PARTITIONS = 1
@@ -614,6 +615,15 @@ class YTEnvSetup(object):
                     driver=driver,
                 )
 
+                if cls.ENABLE_STANDALONE_TABLET_BALANCER:
+                    if not yt_commands.exists("//sys/tablet_balancer/config", driver=driver):
+                        yt_commands.create(
+                            "document",
+                            "//sys/tablet_balancer/config",
+                            attributes={"value": {}},
+                            force=True,
+                            driver=driver)
+
         if cls.USE_CUSTOM_ROOTFS:
             yt_commands.create("map_node", "//layers")
 
@@ -646,7 +656,7 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["tablet_balancer"]):
             config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
             configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_cell_balancer_config(configs["tablet_balancer"][index])
+            cls.modify_tablet_balancer_config(configs["tablet_balancer"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             config = update_inplace(
@@ -764,6 +774,7 @@ class YTEnvSetup(object):
                 self._setup_tablet_manager(driver=driver)
                 self._clear_ql_pools(driver=driver)
                 self._restore_default_bundle_options(driver=driver)
+                self._setup_tablet_balancer_dynamic_config(driver=driver)
 
             if not self.get_param("DEFER_SECONDARY_CELL_START", cluster_index):
                 yt_commands.wait_for_nodes(driver=driver)
@@ -1247,6 +1258,18 @@ class YTEnvSetup(object):
             driver=driver,
         ):
             assert not yt_commands.get_batch_error(response)
+
+    def _setup_tablet_balancer_dynamic_config(self, driver=None):
+        tablet_balancer_config_path = "//sys/tablet_balancer/config"
+        if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            yt_commands.set(
+                "{}/enable".format(tablet_balancer_config_path),
+                self.ENABLE_STANDALONE_TABLET_BALANCER,
+                driver=driver)
+            yt_commands.set(
+                "{}/enable_everywhere".format(tablet_balancer_config_path),
+                self.ENABLE_STANDALONE_TABLET_BALANCER,
+                driver=driver)
 
     def _clear_ql_pools(self, driver=None):
         yt_commands.remove("//sys/ql_pools/*", driver=driver)
