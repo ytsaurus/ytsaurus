@@ -212,6 +212,11 @@ private:
             return;
         }
 
+        if (instanceCountToAllocate == 0) {
+            auto outdatedInstanceCount = GetOutdatedInstanceCount(adapter, input, bundleInfo);
+            instanceCountToAllocate = std::min(outdatedInstanceCount, input.Config->ReallocateInstanceBudget);
+        }
+
         for (int i = 0; i < instanceCountToAllocate; ++i) {
             TString allocationId = ToString(TGuid::Create());
 
@@ -235,6 +240,32 @@ private:
             allocationState->PodIdTemplate = spec->PodIdTemplate;
             allocationsState[allocationId] = allocationState;
         }
+    }
+
+    int GetOutdatedInstanceCount(
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        const TBundleInfoPtr& bundleInfo)
+    {
+        int count = 0;
+        const auto& targetResource = adapter->GetResourceGuarantee(bundleInfo);
+
+        for (const auto& instanceName : adapter->GetAliveInstancies()) {
+            const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
+            const auto& instanceResource = instanceInfo->Annotations->Resource;
+
+            if (*instanceResource != *targetResource) {
+                YT_LOG_WARNING("Instance resource is outdated "
+                    "(InstanceName: %v, InstanceResource: %v, TargetResource: %v)",
+                    instanceName,
+                    ConvertToYsonString(instanceResource, EYsonFormat::Text),
+                    ConvertToYsonString(targetResource, EYsonFormat::Text));
+
+                ++count;
+            }
+        }
+
+        return count;
     }
 
     TString GetPodIdTemplate(
@@ -512,7 +543,7 @@ private:
             return;
         }
 
-        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(instanceCountToDeallocate, input);
+        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(instanceCountToDeallocate, bundleInfo, input);
 
         for (const auto& instanceName : instanciesToRemove) {
             TString deallocationId = ToString(TGuid::Create());
@@ -716,13 +747,14 @@ int GetUsedSlotCount(const TTabletNodeInfoPtr& nodeInfo)
 
 struct TNodeRemoveOrder
 {
+    bool Actual = true;
     int UsedSlotCount = 0;
     TString NodeName;
 
     bool operator<(const TNodeRemoveOrder& other) const
     {
-        return std::tie(UsedSlotCount, NodeName)
-            < std::tie(other.UsedSlotCount, other.NodeName);
+        return std::tie(Actual, UsedSlotCount, NodeName)
+            < std::tie(other.Actual, other.UsedSlotCount, other.NodeName);
     }
 };
 
@@ -1396,14 +1428,23 @@ public:
 
     std::vector<TString> PeekInstanciesToDeallocate(
         int nodeCountToRemove,
+        const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
         std::vector<TNodeRemoveOrder> nodesOrder;
         nodesOrder.reserve(AliveBundleNodes_.size());
 
+        const auto& targetResource = GetResourceGuarantee(bundleInfo);
+
         for (auto nodeName : AliveBundleNodes_) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            nodesOrder.push_back({GetUsedSlotCount(nodeInfo), nodeName});
+            const auto& instanceResource = nodeInfo->Annotations->Resource;
+
+            nodesOrder.push_back(TNodeRemoveOrder{
+                .Actual = (*targetResource == *instanceResource),
+                .UsedSlotCount = GetUsedSlotCount(nodeInfo),
+                .NodeName = nodeName,
+            });
         }
 
         auto endIt = nodesOrder.end();
@@ -1425,6 +1466,20 @@ private:
     TBundleControllerStatePtr State_;
     const std::vector<TString>& BundleNodes_;
     const THashSet<TString>& AliveBundleNodes_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProxyRemoveOrder
+{
+    bool Actual = true;
+    TString ProxyName;
+
+    bool operator<(const TProxyRemoveOrder& other) const
+    {
+        return std::tie(Actual, ProxyName)
+            < std::tie(other.Actual, other.ProxyName);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1586,10 +1641,39 @@ public:
 
     std::vector<TString> PeekInstanciesToDeallocate(
         int proxiesCountToRemove,
-        const TSchedulerInputState& /*input*/) const
+        const TBundleInfoPtr& bundleInfo,
+        const TSchedulerInputState& input) const
     {
         YT_VERIFY(std::ssize(AliveProxies_) >= proxiesCountToRemove);
-        return {AliveProxies_.begin(), std::next(AliveProxies_.begin(), proxiesCountToRemove)};
+
+        std::vector<TProxyRemoveOrder> proxyOrder;
+        proxyOrder.reserve(AliveProxies_.size());
+
+        const auto& targetResource = GetResourceGuarantee(bundleInfo);
+
+        for (const auto& proxyName : AliveProxies_) {
+            const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+            const auto& instanceResource = proxyInfo->Annotations->Resource;
+
+            proxyOrder.push_back(TProxyRemoveOrder{
+                .Actual = (*targetResource == *instanceResource),
+                .ProxyName = proxyName,
+            });
+        }
+
+        auto endIt = proxyOrder.end();
+        if (std::ssize(proxyOrder) > proxiesCountToRemove) {
+            endIt = proxyOrder.begin() + proxiesCountToRemove;
+            std::nth_element(proxyOrder.begin(), endIt, proxyOrder.end());
+        }
+
+        std::vector<TString> result;
+        result.reserve(std::distance(proxyOrder.begin(), endIt));
+        for (auto it = proxyOrder.begin(); it != endIt; ++it) {
+            result.push_back(it->ProxyName);
+        }
+
+        return result;
     }
 
 private:

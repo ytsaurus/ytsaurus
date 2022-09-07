@@ -71,6 +71,8 @@ public:
     int MinNodeCount;
     int MinChunkCount;
 
+    int ReallocateInstanceBudget;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);
