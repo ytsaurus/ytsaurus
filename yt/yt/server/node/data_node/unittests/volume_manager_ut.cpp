@@ -174,7 +174,7 @@ public:
         };
     }
 };
-
+/*
 TEST_P(TVolumeManagerTest, SetUp)
 { }
 
@@ -239,7 +239,7 @@ INSTANTIATE_TEST_SUITE_P(
     TestSquashFS,
     TVolumeManagerTest,
     ::testing::Values(TTestOptions{.UseSquashfs = true}));
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
