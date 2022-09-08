@@ -278,13 +278,11 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_peer_probing_in_data_node_lookup", &TThis::EnablePeerProbingInDataNodeLookup)
         .Default(false);
 
+
     registrar.Parameter("max_parallel_partition_lookups", &TThis::MaxParallelPartitionLookups)
         .Optional()
         .GreaterThan(0)
         .LessThanOrEqual(MaxParallelPartitionLookupsLimit);
-
-    registrar.Parameter("enable_rejects_in_data_node_lookup_if_throttling", &TThis::EnableRejectsInDataNodeLookupIfThrottling)
-        .Default(false);
 
     registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
@@ -298,9 +296,6 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
 
-    registrar.Parameter("min_hunk_compaction_total_hunk_length", &TThis::MinHunkCompactionTotalHunkLength)
-        .GreaterThanOrEqual(0)
-        .Default(1_MB);
     registrar.Parameter("max_hunk_compaction_garbage_ratio", &TThis::MaxHunkCompactionGarbageRatio)
         .InRange(0.0, 1.0)
         .Default(0.5);

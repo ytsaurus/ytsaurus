@@ -2077,10 +2077,9 @@ private:
         const THunkChunkPtr& hunkChunk)
     {
         const auto& mountConfig = tablet->GetSettings().MountConfig;
-        return
-            hunkChunk->GetTotalHunkLength() >= mountConfig->MinHunkCompactionTotalHunkLength &&
-            static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) / hunkChunk->GetTotalHunkLength() <
-                1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
+        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) /
+            hunkChunk->GetTotalHunkLength();
+        return referencedHunkLengthRatio < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
     }
 
     static bool IsSmallHunkCompactionNeeded(
