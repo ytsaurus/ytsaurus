@@ -159,6 +159,7 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Abort() }()
 
 	err = tx.InsertRows(ctx, m.tableData, rowsData, nil)
 	if err != nil {
@@ -170,17 +171,28 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 		return err
 	}
 
-	err = tx.InsertRows(ctx, m.tableMetadataTags, rowsMetadataTags, nil)
+	err = tx.Commit()
 	if err != nil {
 		return err
 	}
 
-	err = tx.InsertRows(ctx, m.tableMetadataTagsValues, rowsMetadataTagsValues, nil)
+	txtags, err := m.yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{Atomicity: &yt.AtomicityNone})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = txtags.Abort() }()
+
+	err = txtags.InsertRows(ctx, m.tableMetadataTags, rowsMetadataTags, nil)
 	if err != nil {
 		return err
 	}
 
-	return tx.Commit()
+	err = txtags.InsertRows(ctx, m.tableMetadataTagsValues, rowsMetadataTagsValues, nil)
+	if err != nil {
+		return err
+	}
+
+	return txtags.Commit()
 }
 
 func (m *TableStorage) MetadataIdsQuery(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, queryLimit int) ([]ytprof.ProfID, error) {

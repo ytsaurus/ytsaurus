@@ -31,11 +31,11 @@ var (
 	SchemaMetadataTags       = schema.MustInfer(&ProfileMetadataTags{})
 	SchemaMetadataTagsValues = schema.MustInfer(&ProfileMetadataTagsValues{})
 
-	Schema = map[string]schema.Schema{
-		TableMetadata:           SchemaMetadata,
-		TableData:               SchemaData,
-		TableMetadataTags:       SchemaMetadataTags,
-		TableMetadataTagsValues: SchemaMetadataTagsValues,
+	Tables = map[string]migrate.Table{
+		TableMetadata:           {Schema: SchemaMetadata},
+		TableData:               {Schema: SchemaData},
+		TableMetadataTags:       {Schema: SchemaMetadataTags, Attributes: map[string]interface{}{"atomicity": "none"}},
+		TableMetadataTagsValues: {Schema: SchemaMetadataTagsValues, Attributes: map[string]interface{}{"atomicity": "none"}},
 	}
 )
 
@@ -133,10 +133,8 @@ func (s *ProfileMetadata) String() string {
 func MigrateTables(yc yt.Client, root ypath.Path) error {
 	tables := map[ypath.Path]migrate.Table{}
 
-	for name, tableSchema := range Schema {
-		tables[root.Child(name)] = migrate.Table{
-			Schema: tableSchema,
-		}
+	for name, table := range Tables {
+		tables[root.Child(name)] = table
 	}
 
 	alter := migrate.OnConflictTryAlter(context.Background(), yc)
