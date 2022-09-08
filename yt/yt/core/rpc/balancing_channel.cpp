@@ -280,16 +280,31 @@ IChannelPtr CreateBalancingChannel(
     IAttributeDictionaryPtr endpointAttributes,
     TDiscoverRequestHook discoverRequestHook)
 {
-    YT_VERIFY(config);
-    YT_VERIFY(channelFactory);
-
-    auto channelProvider = New<TBalancingChannelProvider>(
+    auto channelProvider = CreateBalancingChannelProvider(
         std::move(config),
         std::move(channelFactory),
         std::move(endpointDescription),
         std::move(endpointAttributes),
         std::move(discoverRequestHook));
     return CreateRoamingChannel(channelProvider);
+}
+
+IRoamingChannelProviderPtr CreateBalancingChannelProvider(
+    TBalancingChannelConfigPtr config,
+    IChannelFactoryPtr channelFactory,
+    TString endpointDescription,
+    IAttributeDictionaryPtr endpointAttributes,
+    TDiscoverRequestHook discoverRequestHook)
+{
+    YT_VERIFY(config);
+    YT_VERIFY(channelFactory);
+
+    return New<TBalancingChannelProvider>(
+        std::move(config),
+        std::move(channelFactory),
+        std::move(endpointDescription),
+        std::move(endpointAttributes),
+        std::move(discoverRequestHook));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
