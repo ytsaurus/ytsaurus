@@ -880,6 +880,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public Operation attachOperation(GUID operationId) {
+        return new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod());
+    }
+
+    @Override
     public CompletableFuture<Void> abortOperation(AbortOperation req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_OPERATION.createRequestBuilder(rpcOptions)),
