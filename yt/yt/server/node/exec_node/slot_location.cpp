@@ -338,9 +338,15 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
     .Run();
 }
 
+struct TSlotLocationIOTags
+{
+    int SlotIndex;
+};
+
 static THashMap<TString, TString> BuildSandboxCopyTags(
     const char* direction,
-    const NDataNode::TChunkLocationPtr& location)
+    const NDataNode::TChunkLocationPtr& location,
+    const std::optional<TSlotLocationIOTags>& slotLocationTags)
 {
     THashMap<TString, TString> result{
         {FormatIOTag(EAggregateIOTag::Direction), direction},
@@ -351,6 +357,10 @@ static THashMap<TString, TString> BuildSandboxCopyTags(
         result[FormatIOTag(EAggregateIOTag::LocationType)] = FormatEnum(location->GetType());
         result[FormatIOTag(EAggregateIOTag::Medium)] = location->GetMediumName();
         result[FormatIOTag(EAggregateIOTag::DiskFamily)] = location->GetDiskFamily();
+    }
+    if (slotLocationTags) {
+        result[FormatIOTag(EAggregateIOTag::LocationType)] = "slot";
+        result[FormatIOTag(ERawIOTag::SlotIndex)] = ToString(slotLocationTags->SlotIndex);
     }
     return result;
 }
@@ -393,7 +403,10 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                         .Bytes = sourceFile.GetLength(),
                         .IORequests = 1,
                     },
-                    /*tags*/ BuildSandboxCopyTags("read", sourceLocation));
+                    /*tags*/ BuildSandboxCopyTags(
+                        "read",
+                        sourceLocation,
+                        /*slotLocationTags*/ std::nullopt));
 
                 if (!IsInsideTmpfs(fullArtifactPath)) {
                     Bootstrap_->GetIOTracker()->Enqueue(
@@ -401,7 +414,10 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                             .Bytes = sourceFile.GetLength(),
                             .IORequests = 1,
                         },
-                        /*tags*/ BuildSandboxCopyTags("write", /*location*/ nullptr));
+                        /*tags*/ BuildSandboxCopyTags(
+                            "write",
+                            /*location*/ nullptr,
+                            /*slotLocationTags*/ TSlotLocationIOTags{.SlotIndex = slotIndex}));
                 }
             }
 
@@ -509,6 +525,8 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                            {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
+                            {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},
                         });
                 }
             }
