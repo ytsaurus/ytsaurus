@@ -13,7 +13,7 @@ func ValidateStringParameter(pattern string, value string) error {
 		return err
 	}
 	if !matched {
-		return yterrors.Err(fmt.Sprintf("'%v' does not match regular expression '%v'", value, pattern))
+		return yterrors.Err(fmt.Sprintf("%q does not match regular expression %q", value, pattern))
 	}
 	return nil
 }
