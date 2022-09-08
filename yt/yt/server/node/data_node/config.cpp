@@ -105,13 +105,7 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)
-        .DefaultCtor([] {
-            TEnumIndexedVector<EChunkLocationThrottlerKind, TThroughputThrottlerConfigPtr> result;
-            for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
-                result[kind] = New<TThroughputThrottlerConfig>();
-            }
-            return result;
-        });
+        .Default();
 
     registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
@@ -135,6 +129,14 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("reset_uuid", &TThis::ResetUuid)
         .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+            if (!config->Throttlers[kind]) {
+                config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,13 +642,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)
-        .DefaultCtor([] {
-            TEnumIndexedVector<EDataNodeThrottlerKind, TRelativeThroughputThrottlerConfigPtr> result;
-            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-                result[kind] = New<TRelativeThroughputThrottlerConfig>();
-            }
-            return result;
-        });
+        .Default();
 
     registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
         .DefaultNew();
@@ -741,6 +737,12 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TThis* config) {
+        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+            if (!config->Throttlers[kind]) {
+                config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
+            }
+        }
+
         // COMPAT(gritukan)
         if (!config->MasterConnector->IncrementalHeartbeatPeriod) {
             config->MasterConnector->IncrementalHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
