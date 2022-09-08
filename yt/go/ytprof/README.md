@@ -25,7 +25,12 @@ Help
 
 Here is a [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) to the nanny service.
 
-### HTTP Requsts
+### Pprof UI
+
+* `/ytprof/ui/{profile_id}/`: entry point to pprof UI for given profile
+Example: `curl <url>/ytprof/ui/e2c699bb-4d58862c-f741fb63-6c2ed55a/`
+
+### HTTP Requests
 
 * `/ytprof/api/get`: get profile by ProfileID in the format of guid (type GET)
 Example: `curl <url>/ytprof/api/get?profile_id=e2c699bb-4d58862c-f741fb63-6c2ed55a`

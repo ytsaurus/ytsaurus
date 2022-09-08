@@ -3,8 +3,13 @@ package app
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/pprof/driver"
 	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -108,7 +113,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 		}
 	}
 
-	a.l.Debug("list request succeded", log.Int("profiles found", len(res)))
+	a.l.Debug("list request succeded", log.Int("profiles_found", len(res)))
 
 	return &api.ListResponse{Metadata: res, Size: int32(len(respLen))}, nil
 }
@@ -122,7 +127,7 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 
 	resp, err := a.ts.FindData(ctx, ytprof.ProfIDFromGUID(profileGUID))
 	if err != nil {
-		a.l.Error("metaquery failed", log.Error(err))
+		a.l.Error("finding profile failed: profile with such id does not exist", log.Error(err))
 		return nil, err
 	}
 
@@ -233,4 +238,62 @@ func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, o
 	return &api.SuggestValuesResponse{
 		Value: resp,
 	}, nil
+}
+
+func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
+	a.l.Debug("receiving HTTP UI request", log.String("path", r.URL.Path))
+
+	guidString := chi.RouteContext(r.Context()).URLParam("profileID")
+	profileGUID, err := guid.ParseString(guidString)
+	if err != nil {
+		a.l.Error("failed HTTP UI request: wrong guid format", log.Error(err))
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	profile, err := a.ts.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
+	if err != nil {
+		a.l.Error("failed HTTP UI request: profile not found", log.Error(err))
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	fetcher := profileFetcher{profile: profile}
+
+	fullPrefix := fmt.Sprintf("%s/%s", UIRequestPrefix, profileGUID)
+
+	strippedURL := strings.TrimPrefix(r.URL.Path, fullPrefix)
+
+	a.l.Debug("finding profile succesed",
+		log.String("profile_id", profileGUID.String()),
+		log.String("stripped_url", strippedURL))
+
+	server := func(args *driver.HTTPServerArgs) error {
+		handler := http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
+			h, ok := args.Handlers[strippedURL]
+			if !ok {
+				http.NotFound(writer, req)
+				return
+			}
+			h.ServeHTTP(writer, req)
+		})
+
+		http.StripPrefix(fullPrefix, handler).(http.HandlerFunc)(w, r)
+
+		return nil
+	}
+
+	opts := &driver.Options{
+		HTTPServer: server,
+		Fetch:      &fetcher,
+		Flagset:    baseFlags(),
+	}
+
+	err = driver.PProf(opts)
+	if err != nil {
+		a.l.Error("failed request to pprof UI", log.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	a.l.Debug("request to pprof UI succseeded")
 }

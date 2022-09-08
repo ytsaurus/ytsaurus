@@ -2,31 +2,30 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/zap"
-
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
-	"a.yandex-team.ru/yt/go/ytprof/api"
-	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
-
-	"encoding/json"
 	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc/status"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/yterrors"
+
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"a.yandex-team.ru/yt/go/ytprof/api"
+	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
 const DefaultQueryLimit = 1000000
+const UIRequestPrefix = "/ytprof/ui"
 
 type App struct {
 	l          *zap.Logger
@@ -77,6 +76,9 @@ func NewApp(l *zap.Logger, config Config) *App {
 	l.Info("started HTTP listener", log.String("addr", app.httpListen.Addr().String()))
 
 	r := chi.NewMux()
+	r.HandleFunc(UIRequestPrefix+"/{profileID}/*", func(w http.ResponseWriter, r *http.Request) {
+		app.UIHandler(w, r)
+	})
 
 	httpServer := &http.Server{
 		Addr:    config.HTTPEndpoint,

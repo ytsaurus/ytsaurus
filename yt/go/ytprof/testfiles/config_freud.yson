@@ -4,7 +4,7 @@
     "services" = [
         {
             "profile_type" = "cpu";
-            "service_type" = "node";
+            "service_type" = "dat-node";
             "period" = 300000000000;
             "probability" = 0.5;
             "path" = "ytprof/profile";
@@ -13,18 +13,148 @@
                     "port" = 10012;
                     "podset" = "sas-yt-freud-dat-nodes";
                     "cluster" = "sas"
-                };
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "exe-node";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
                 {
                     "port" = 10012;
                     "podset" = "sas-yt-freud-exe-nodes";
                     "cluster" = "sas"
-                };
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "exe-tab-node";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
                 {
                     "port" = 10012;
                     "podset" = "sas-yt-freud-exe-tab-nodes";
                     "cluster" = "sas"
                 }
             ]
-        }    
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "master";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10010;
+                    "podset" = "sas-yt-freud-masters";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "master-caches";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10018;
+                    "podset" = "sas-yt-freud-master-caches";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "scheduler";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10011;
+                    "podset" = "sas-yt-freud-schedulers";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "clock";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10016;
+                    "podset" = "sas-yt-freud-clocks";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "controller-agent";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10014;
+                    "podset" = "sas-yt-freud-controller-agents";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "discovery";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10020;
+                    "podset" = "sas-yt-freud-discovery";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "http-proxy";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10013;
+                    "podset" = "sas-yt-freud-proxies";
+                    "cluster" = "sas"
+                }
+            ]
+        };
+        {
+            "profile_type" = "cpu";
+            "service_type" = "rpc-proxy";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10017;
+                    "podset" = "sas-yt-freud-rpc-proxies";
+                    "cluster" = "sas"
+                }
+            ]
+        };
     ]
 }
