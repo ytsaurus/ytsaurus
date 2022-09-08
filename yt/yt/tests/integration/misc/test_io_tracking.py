@@ -1318,7 +1318,8 @@ class TestJobIOTracking(TestJobIOTrackingBase):
             else:
                 assert "medium@" not in event
                 assert "disk_family@" not in event
-                assert "location_type@" not in event
+                assert event["location_type@"] == "slot"
+                "slot_index" in event
 
             if descriptor not in event_paths:
                 event_paths[descriptor] = []

@@ -17,6 +17,7 @@ DEFINE_ENUM(ERawIOTag,
     ((OperationId)    (5))
     ((ChunkId)        (6))
     ((LocationId)     (7))
+    ((SlotIndex)      (8))
 );
 
 DEFINE_ENUM(EAggregateIOTag,
