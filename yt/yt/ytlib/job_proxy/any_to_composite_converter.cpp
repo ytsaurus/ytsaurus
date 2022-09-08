@@ -111,6 +111,11 @@ TRange<TUnversionedRow> TAnyToCompositeConverter::ConvertAnyToComposite(TRange<T
     return ConvertedRows_;
 }
 
+void TAnyToCompositeConverter::Flush()
+{
+    UnderlyingWriter_->Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

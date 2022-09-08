@@ -306,6 +306,11 @@ void TSchemalessFormatWriterBase::RegisterError(const TError& error)
     Error_ = error;
 }
 
+void TSchemalessFormatWriterBase::Flush()
+{
+    TryFlushBuffer(true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(

@@ -1503,7 +1503,8 @@ struct TRowsetTraits<TVersionedRow>
 void ValidateRowsetDescriptor(
     const NProto::TRowsetDescriptor& descriptor,
     int expectedVersion,
-    NProto::ERowsetKind expectedKind)
+    NProto::ERowsetKind expectedKind,
+    NProto::ERowsetFormat expectedFormat)
 {
     if (descriptor.wire_format_version() != expectedVersion) {
         THROW_ERROR_EXCEPTION(
@@ -1511,16 +1512,17 @@ void ValidateRowsetDescriptor(
             expectedVersion,
             descriptor.wire_format_version());
     }
+
     if (descriptor.rowset_kind() != expectedKind) {
         THROW_ERROR_EXCEPTION(
             "Incompatible rowset kind: expected %Qv, got %Qv",
             NProto::ERowsetKind_Name(expectedKind),
             NProto::ERowsetKind_Name(descriptor.rowset_kind()));
     }
-    if (descriptor.rowset_format() != NProto::RF_YT_WIRE) {
+    if (descriptor.rowset_format() != expectedFormat) {
         THROW_ERROR_EXCEPTION(
             "Incompatible rowset format: expected %Qv, got %Qv",
-            NProto::ERowsetFormat_Name(NProto::RF_YT_WIRE),
+            NProto::ERowsetFormat_Name(expectedFormat),
             NProto::ERowsetFormat_Name(descriptor.rowset_format()));
     }
 }
@@ -1643,7 +1645,8 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     ValidateRowsetDescriptor(
         descriptor,
         NApi::NRpcProxy::CurrentWireFormatVersion,
-        TRowsetTraits<TRow>::Kind);
+        TRowsetTraits<TRow>::Kind,
+        NApi::NRpcProxy::NProto::RF_YT_WIRE);
 
     struct TDeserializedRowsetTag { };
     auto reader = CreateWireProtocolReader(data, New<TRowBuffer>(TDeserializedRowsetTag()));

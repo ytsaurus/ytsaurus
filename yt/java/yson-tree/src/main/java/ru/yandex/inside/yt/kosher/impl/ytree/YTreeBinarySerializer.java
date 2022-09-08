@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -45,10 +46,18 @@ public class YTreeBinarySerializer {
         return new ByteArrayInputStream(baos.toByteArray());
     }
 
+    /*
+     * This method will consume whole input stream and will throw {@link YsonError} exception if
+     * stream contains trailing (non whitespace) bytes.
+     */
     public static YTreeNode deserialize(InputStream input) {
         return deserialize(input, new byte[DEFAULT_BUFFER_SIZE]);
     }
 
+    /*
+     * This method will consume whole input stream and will throw {@link YsonError} exception if
+     * stream contains trailing (non whitespace) bytes.
+     */
     public static YTreeNode deserialize(InputStream input, byte[] buffer) {
         YTreeBuilder builder = YTree.builder();
         YsonParser parser = new YsonParser(input, buffer);
@@ -56,8 +65,31 @@ public class YTreeBinarySerializer {
         return builder.build();
     }
 
+    /*
+     * This method will consume whole input stream and will throw {@link YsonError} exception if
+     * stream contains trailing (non whitespace) bytes.
+     */
     public static void deserialize(InputStream input, YsonConsumer consumer) {
         YsonParser parser = new YsonParser(input, DEFAULT_BUFFER_SIZE);
         parser.parseNode(consumer);
+    }
+
+    /*
+     * This method will read all `yson` items from stream .
+     */
+    public static List<YTreeNode> deserializeAll(InputStream input) {
+        return deserializeAll(input, new byte[DEFAULT_BUFFER_SIZE]);
+    }
+
+    /*
+     * This method will read all `yson` items from stream.
+     */
+    public static List<YTreeNode> deserializeAll(InputStream input, byte[] buffer) {
+        YTreeBuilder builder = YTree.builder().beginList();
+        YsonParser parser = new YsonParser(input, buffer);
+        while (parser.parseListFragmentItem(builder)) {
+            continue;
+        }
+        return builder.buildList().asList();
     }
 }

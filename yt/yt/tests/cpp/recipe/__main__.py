@@ -84,6 +84,7 @@ def start(args):
 
     if yt_instance.yt_config.http_proxy_count > 0:
         set_env("YT_HTTP_PROXY_ADDRESS", yt_instance.get_http_proxy_address())
+        set_env("YT_PROXY", yt_instance.get_http_proxy_address())
 
     if driver_backend == "native":
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])

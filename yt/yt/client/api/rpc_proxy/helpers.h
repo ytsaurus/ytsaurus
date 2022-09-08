@@ -203,7 +203,8 @@ bool IsRetriableError(const TError& error, bool retryProxyBanned = true);
 void ValidateRowsetDescriptor(
     const NProto::TRowsetDescriptor& descriptor,
     int expectedVersion,
-    NProto::ERowsetKind expectedKind);
+    NProto::ERowsetKind expectedKind,
+    NProto::ERowsetFormat expectedFormat);
 
 std::vector<TSharedRef> SerializeRowset(
     const NTableClient::TNameTablePtr& nameTable,

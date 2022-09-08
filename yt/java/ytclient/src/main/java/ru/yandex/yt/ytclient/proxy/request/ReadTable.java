@@ -30,6 +30,7 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private boolean omitInaccessibleColumns = false;
     private YTreeNode config = null;
     private ERowsetFormat desiredRowsetFormat = ERowsetFormat.RF_YT_WIRE;
+    private Format format = null;
 
     private TransactionalOptions transactionalOptions = null;
 
@@ -130,6 +131,12 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         return this;
     }
 
+    public ReadTable<T> setFormat(Format format) {
+        this.format = format;
+        this.desiredRowsetFormat = ERowsetFormat.RF_FORMAT;
+        return this;
+    }
+
     public ReadTable<T> setDesiredRowsetFormat(ERowsetFormat desiredRowsetFormat) {
         this.desiredRowsetFormat = desiredRowsetFormat;
         return this;
@@ -149,6 +156,12 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
             byte[] data = baos.toByteArray();
             builder.setConfig(ByteString.copyFrom(data));
         }
+        if (format != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            YTreeBinarySerializer.serialize(format.toTree(), baos);
+            byte[] data = baos.toByteArray();
+            builder.setFormat(ByteString.copyFrom(data));
+        }
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
@@ -156,6 +169,11 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
             builder.mergeFrom(additionalData);
         }
         builder.setDesiredRowsetFormat(desiredRowsetFormat);
+        if (desiredRowsetFormat == ERowsetFormat.RF_FORMAT) {
+            if (format == null) {
+                throw new IllegalStateException("`format` is required for desiredRowsetFormat == RF_FORMAT");
+            }
+        }
         return builder;
     }
 

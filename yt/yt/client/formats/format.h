@@ -48,6 +48,8 @@ struct ISchemalessFormatWriter
     virtual TBlob GetContext() const = 0;
 
     virtual i64 GetWrittenSize() const = 0;
+
+    virtual void Flush() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)

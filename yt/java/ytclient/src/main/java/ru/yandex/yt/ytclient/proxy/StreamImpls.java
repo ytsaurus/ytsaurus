@@ -37,14 +37,17 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReadFileMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
@@ -61,6 +64,7 @@ import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
@@ -77,6 +81,7 @@ import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
+import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
@@ -500,17 +505,159 @@ class RawTableWriterImpl extends StreamWriterImpl<TRspWriteTable>
 
 @NonNullApi
 @NonNullFields
-class TableRowsSerializer<T> {
-    private TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.newBuilder().build();
+class TableRowsWireSerializer<T> extends TableRowsSerializer<T> {
     private final WireRowSerializer<T> rowSerializer;
-    private final Map<String, Integer> column2id = new HashMap<>();
 
-    TableRowsSerializer(WireRowSerializer<T> rowSerializer) {
+    TableRowsWireSerializer(WireRowSerializer<T> rowSerializer) {
+        super(ERowsetFormat.RF_YT_WIRE);
         this.rowSerializer = Objects.requireNonNull(rowSerializer);
     }
 
     public WireRowSerializer<T> getRowSerializer() {
         return rowSerializer;
+    }
+
+    @Override
+    public TableSchema getSchema() {
+        return rowSerializer.getSchema();
+    }
+
+    @Override
+    protected void writeMergedRow(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping
+    ) {
+        WireProtocolWriter writer = new WireProtocolWriter();
+        rowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowset(rows, rowSerializer, idMapping);
+
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+    }
+
+    @Override
+    protected void writeMergedRowWithoutCount(
+            ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
+        WireProtocolWriter writer = new WireProtocolWriter();
+        rowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowsetWithoutCount(rows, rowSerializer, idMapping);
+
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+    }
+
+    public void writeMeta(ByteBuf buf, ByteBuf serializedRows, int rowsCount) {
+        int mergedRowSizeIndex = buf.writerIndex();
+        buf.writeLongLE(0); // reserve space
+
+        // Write rows count
+        WireProtocolWriter writer = new WireProtocolWriter();
+        writer.writeRowCount(rowsCount);
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+
+        // Save serialized rows data's size
+        buf.setLongLE(mergedRowSizeIndex,
+                serializedRows.readableBytes() + (buf.writerIndex() - mergedRowSizeIndex) - 8);
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class TableRowsYsonSerializer<T> extends TableRowsSerializer<T> {
+    private final Format format;
+    private final YTreeRowSerializer<T> ysonSerializer;
+    private TableSchema schema;
+
+    TableRowsYsonSerializer(Format format, YTreeRowSerializer<T> ysonSerializer) {
+        super(ERowsetFormat.RF_FORMAT);
+        this.format = format;
+        this.ysonSerializer = ysonSerializer;
+        this.schema = MappedRowSerializer.asTableSchema(ysonSerializer.getFieldMap());
+    }
+
+    @Override
+    public TableSchema getSchema() {
+        return schema;
+    }
+
+    @Override
+    protected void writeMergedRow(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping
+    ) {
+        updateSchema(descriptor);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        YTreeBinarySerializer.serializeAllObjects(rows, ysonSerializer, output);
+        buf.writeBytes(output.toByteArray());
+    }
+
+    @Override
+    protected void writeMergedRowWithoutCount(
+            ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
+        writeMergedRow(buf, descriptor, rows, idMapping);
+    }
+
+    @Override
+    public void writeMeta(ByteBuf buf, ByteBuf serializedRows, int rowsCount) {
+    }
+
+    private void updateSchema(TRowsetDescriptor schemaDelta) {
+        TableSchema.Builder builder = this.schema.toBuilder();
+        for (TRowsetDescriptor.TNameTableEntry entry : schemaDelta.getNameTableEntriesList()) {
+            if (schema.findColumn(entry.getName()) != -1) {
+                builder.add(new ColumnSchema(entry.getName(), ColumnValueType.fromValue(entry.getType())));
+            }
+        }
+        this.schema = builder.build();
+    }
+}
+
+@NonNullApi
+@NonNullFields
+abstract class TableRowsSerializer<T> {
+    private static final String YSON = "yson";
+
+    private TRowsetDescriptor rowsetDescriptor;
+    private final Map<String, Integer> column2id = new HashMap<>();
+    private final ERowsetFormat rowsetFormat;
+
+    TableRowsSerializer(ERowsetFormat rowsetFormat) {
+        this.rowsetFormat = rowsetFormat;
+        rowsetDescriptor = TRowsetDescriptor.newBuilder().setRowsetFormat(rowsetFormat).build();
+    }
+
+    public abstract TableSchema getSchema();
+
+    @Nullable
+    public static <T> TableRowsSerializer<T> getRowsSerializer(WriteTable<T> req) {
+        if (req.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
+            Optional<WireRowSerializer<T>> reqSerializer = req.getSerializer();
+            if (reqSerializer.isPresent()) {
+                return new TableRowsWireSerializer<>(reqSerializer.get());
+            }
+            return null;
+        } else if (req.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
+            if (!req.getFormat().isPresent()) {
+                throw new IllegalArgumentException("No format with RF_FORMAT");
+            }
+            if (!req.getYsonSerializer().isPresent()) {
+                throw new IllegalArgumentException("No yson serializer for RF_FORMAT");
+            }
+            if (!req.getFormat().get().getType().equals(YSON)) {
+                throw new IllegalArgumentException("Format " + req.getFormat().get().getType() + " isn't supported");
+            }
+            return new TableRowsYsonSerializer<>(req.getFormat().get(), req.getYsonSerializer().get());
+        } else {
+            throw new IllegalArgumentException("Unsupported rowset format");
+        }
     }
 
     public ByteBuf serializeRows(List<T> rows, TableSchema schema) {
@@ -538,19 +685,7 @@ class TableRowsSerializer<T> {
 
         buf.setLongLE(descriptorSizeIndex, buf.writerIndex() - descriptorSizeIndex - 8);
 
-        int mergedRowSizeIndex = buf.writerIndex();
-        buf.writeLongLE(0); // reserve space
-
-        // Write rows count
-        WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeRowCount(rowsCount);
-        for (byte[] bytes : writer.finish()) {
-            buf.writeBytes(bytes);
-        }
-
-        // Save serialized rows data's size
-        buf.setLongLE(mergedRowSizeIndex,
-            serializedRows.readableBytes() + (buf.writerIndex() - mergedRowSizeIndex) - 8);
+        writeMeta(buf, serializedRows, rowsCount);
 
         int bufSize = buf.readableBytes();
 
@@ -569,6 +704,8 @@ class TableRowsSerializer<T> {
 
         return result;
     }
+
+    public abstract void writeMeta(ByteBuf buf, ByteBuf serializedRows, int rowsCount);
 
     public byte[] serialize(List<T> rows, TableSchema schema) throws IOException {
         TRowsetDescriptor currentDescriptor = getCurrentRowsetDescriptor(schema);
@@ -595,6 +732,7 @@ class TableRowsSerializer<T> {
                 column2id.put(descriptor.getName(), column2id.size());
             }
         }
+        builder.setRowsetFormat(rowsetFormat);
 
         return builder.build();
     }
@@ -633,6 +771,7 @@ class TableRowsSerializer<T> {
     private void updateRowsetDescriptor(TRowsetDescriptor currentDescriptor) {
         if (currentDescriptor.getNameTableEntriesCount() > 0) {
             TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
+            merged.setRowsetFormat(rowsetFormat);
             merged.mergeFrom(rowsetDescriptor);
             merged.addAllNameTableEntries(currentDescriptor.getNameTableEntriesList());
             rowsetDescriptor = merged.build();
@@ -659,25 +798,8 @@ class TableRowsSerializer<T> {
         buf.writeBytes(byteArrayOutputStream.toByteArray());
     }
 
-    private void writeMergedRow(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
-        WireProtocolWriter writer = new WireProtocolWriter();
-        rowSerializer.updateSchema(descriptor);
-        writer.writeUnversionedRowset(rows, rowSerializer, idMapping);
-
-        for (byte[] bytes : writer.finish()) {
-            buf.writeBytes(bytes);
-        }
-    }
-
-    private void writeMergedRowWithoutCount(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
-        WireProtocolWriter writer = new WireProtocolWriter();
-        rowSerializer.updateSchema(descriptor);
-        writer.writeUnversionedRowsetWithoutCount(rows, rowSerializer, idMapping);
-
-        for (byte[] bytes : writer.finish()) {
-            buf.writeBytes(bytes);
-        }
-    }
+    protected abstract void writeMergedRowWithoutCount(
+            ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping);
 
     private void writeRowsData(
             ByteBuf buf,
@@ -702,6 +824,12 @@ class TableRowsSerializer<T> {
 
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }
+
+    protected abstract void writeMergedRow(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping);
 }
 
 @NonNullApi
@@ -811,10 +939,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         this.secondaryReq = new WriteTable<>(this.req);
         this.secondaryReq.setPath(this.secondaryReq.getYPath().append(true));
 
-        WireRowSerializer<T> reqSerializer = this.req.getSerializer();
-        if (reqSerializer != null) {
-            this.rowsSerializer = new TableRowsSerializer<>(reqSerializer);
-        }
+        this.rowsSerializer = TableRowsSerializer.getRowsSerializer(this.req);
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -845,11 +970,11 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
                                 if (this.rowsSerializer == null) {
-                                    Class<T> objectClazz = this.req.getObjectClazz();
-                                    if (objectClazz == null) {
-                                        throw new RuntimeException("No serializer and objectClazz in WriteTable");
+                                    if (!this.req.getObjectClazz().isPresent()) {
+                                        throw new IllegalStateException("No object clazz");
                                     }
-                                    this.rowsSerializer = new TableRowsSerializer<>(MappedRowSerializer.forClass(
+                                    Class<T> objectClazz = this.req.getObjectClazz().get();
+                                    this.rowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
                                             YTreeObjectSerializerFactory.forClass(objectClazz, result.schema)
                                     ));
                                 }
@@ -870,7 +995,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         if (rowsSerializer == null) {
             throw new RuntimeException("No rowsSerializer in TableWriter");
         }
-        return rowsSerializer.getRowSerializer().getSchema();
+        return rowsSerializer.getSchema();
     }
 
     private boolean addAbortable(Abortable<?> abortable) {
@@ -1119,23 +1244,13 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
 @NonNullApi
 class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, RpcStreamConsumer {
     @Nullable private TableSchema schema;
+    private WriteTable<T> req;
     @Nullable TableRowsSerializer<T> rowsSerializer = null;
-    // For creating rowsSerializer when table schema will be known.
-    @Nullable Class<T> objectClazz = null;
 
-    TableWriterImpl(long windowSize, long packetSize, Class<T> objectClazz) {
-        super(windowSize, packetSize);
-        this.objectClazz = objectClazz;
-    }
-
-    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
-        super(windowSize, packetSize);
-        this.rowsSerializer = new TableRowsSerializer<>(serializer);
-    }
-
-    @Override
-    public TableSchema getSchema() {
-        return rowsSerializer.getRowSerializer().getSchema();
+    TableWriterImpl(WriteTable<T> req) {
+        super(req.getWindowSize(), req.getPacketSize());
+        this.req = req;
+        this.rowsSerializer = TableRowsSerializer.getRowsSerializer(this.req);
     }
 
     public CompletableFuture<TableWriter<T>> startUpload() {
@@ -1158,11 +1273,16 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
             self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
             logger.debug("schema -> {}", schema.toYTree().toString());
 
-            if (self.rowsSerializer == null) {
-                Objects.requireNonNull(self.objectClazz);
-                self.rowsSerializer = new TableRowsSerializer<>(MappedRowSerializer.forClass(
-                        YTreeObjectSerializerFactory.forClass(self.objectClazz, self.schema)));
+            if (this.rowsSerializer == null) {
+                if (!this.req.getObjectClazz().isPresent()) {
+                    throw new IllegalStateException("No object clazz");
+                }
+                Class<T> objectClazz = self.req.getObjectClazz().get();
+                this.rowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
+                        YTreeObjectSerializerFactory.forClass(objectClazz, self.schema)
+                ));
             }
+
             return self;
         });
     }
@@ -1171,6 +1291,11 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
         byte[] serializedRows = rowsSerializer.serialize(rows, schema);
         return write(serializedRows);
+    }
+
+    @Override
+    public TableSchema getSchema() {
+        return rowsSerializer.getSchema();
     }
 
     @Override

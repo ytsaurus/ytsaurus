@@ -3,6 +3,7 @@
 #include "access_checker.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "format_row_stream.h"
 #include "proxy_coordinator.h"
 #include "security_manager.h"
 #include "private.h"
@@ -36,6 +37,8 @@
 #include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -262,38 +265,54 @@ TServiceDescriptor GetServiceDescriptor()
 }
 
 IRowStreamEncoderPtr CreateRowStreamEncoder(
-    NApi::NRpcProxy::NProto::ERowsetFormat format,
+    NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat,
     TTableSchemaPtr schema,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    NFormats::TControlAttributesConfigPtr controlAttributesConfig,
+    std::optional<NFormats::TFormat> format)
 {
-    switch (format) {
+    switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
             return CreateWireRowStreamEncoder(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
             return CreateArrowRowStreamEncoder(std::move(schema), std::move(nameTable));
+        
+        case NApi::NRpcProxy::NProto::RF_FORMAT:
+            if (!format) {
+                THROW_ERROR_EXCEPTION("No format for %Qv", NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+            }
+            return CreateFormatRowStreamEncoder(        
+                std::move(nameTable), std::move(*format), std::move(schema), std::move(controlAttributesConfig));
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
-                NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
     }
 }
 
 IRowStreamDecoderPtr CreateRowStreamDecoder(
-    NApi::NRpcProxy::NProto::ERowsetFormat format,
+    NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat,
     TTableSchemaPtr schema,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    std::optional<NFormats::TFormat> format)
 {
-    switch (format) {
+    switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
             return CreateWireRowStreamDecoder(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
             return CreateArrowRowStreamDecoder(std::move(schema), std::move(nameTable));
 
+        case NApi::NRpcProxy::NProto::RF_FORMAT:
+            if (!format) {
+                THROW_ERROR_EXCEPTION("No format for %Qv", NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+            }
+            return CreateFormatRowStreamDecoder(std::move(nameTable), std::move(*format), std::move(schema));
+
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
-                NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
     }
 }
 
@@ -4378,10 +4397,22 @@ private:
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
 
+        std::optional<NFormats::TFormat> format;
+        if (request->has_format()) {
+            format = ConvertTo<NFormats::TFormat>(TYsonStringBuf(request->format()));
+        }
+
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = request->enable_row_index();
+        controlAttributesConfig->EnableTableIndex = request->enable_table_index();
+        controlAttributesConfig->EnableRangeIndex = request->enable_range_index();
+
         auto encoder = CreateRowStreamEncoder(
             desiredRowsetFormat,
             tableReader->GetTableSchema(),
-            tableReader->GetNameTable());
+            tableReader->GetNameTable(),
+            controlAttributesConfig,
+            std::move(format));
 
         auto outputStream = context->GetResponseAttachmentsStream();
         NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
@@ -4452,15 +4483,21 @@ private:
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
 
+        std::optional<NFormats::TFormat> format;
+        if (request->has_format()) {
+            format = ConvertTo<NFormats::TFormat>(TYsonString(request->format()));
+        }
+
         THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamDecoderPtr> parserMap;
-        auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat format) {
-            auto it =  parserMap.find(format);
+        auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat) {
+            auto it =  parserMap.find(rowsetFormat);
             if (it == parserMap.end()) {
                 auto parser = CreateRowStreamDecoder(
-                    format,
+                    rowsetFormat,
                     tableWriter->GetSchema(),
-                    tableWriter->GetNameTable());
-                it = parserMap.emplace(format, std::move(parser)).first;
+                    tableWriter->GetNameTable(),
+                    format);
+                it = parserMap.emplace(rowsetFormat, std::move(parser)).first;
             }
             return it->second;
         };
@@ -4482,7 +4519,8 @@ private:
                 ValidateRowsetDescriptor(
                     descriptor,
                     NApi::NRpcProxy::CurrentWireFormatVersion,
-                    NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+                    NApi::NRpcProxy::NProto::RK_UNVERSIONED,
+                    descriptor.rowset_format());
 
                 auto decoder = getOrCreateDecoder(descriptor.rowset_format());
 

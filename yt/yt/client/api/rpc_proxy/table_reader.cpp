@@ -198,7 +198,8 @@ private:
                 ValidateRowsetDescriptor(
                     descriptor,
                     NApi::NRpcProxy::CurrentWireFormatVersion,
-                    NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+                    NApi::NRpcProxy::NProto::RK_UNVERSIONED,
+                    NApi::NRpcProxy::NProto::ERowsetFormat::RF_YT_WIRE);
 
                 auto decoder = GetOrCreateDecoder(descriptor.rowset_format());
                 auto batch = decoder->Decode(payloadRef, descriptor);
