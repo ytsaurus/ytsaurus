@@ -19,6 +19,13 @@ IChannelPtr CreateBalancingChannel(
     NYTree::IAttributeDictionaryPtr endpointAttributes,
     TDiscoverRequestHook discoverRequestHook = {});
 
+IRoamingChannelProviderPtr CreateBalancingChannelProvider(
+    TBalancingChannelConfigPtr config,
+    IChannelFactoryPtr channelFactory,
+    TString endpointDescription,
+    NYTree::IAttributeDictionaryPtr endpointAttributes,
+    TDiscoverRequestHook discoverRequestHook = {});
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
