@@ -63,7 +63,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
         return output, pools
 
-    def test_scheduler_simulator(self):
+    def test_simple(self):
         create_pool("parent_pool", pool_tree="default", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
         create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
 
