@@ -149,7 +149,10 @@ void TMemoryTagQueue::UpdateStatistics()
             auto operationId = operationInfo.Id ? std::make_optional(operationInfo.Id) : std::nullopt;
             auto alive = operationId && UsedTags_.contains(tag);
 
-            auto usage = usages[index] + heapUsage[tag] + operationInfo.TestingMemoryFootprint;
+            auto usage = usages[index] + heapUsage[tag];
+            if (alive) {
+                usage += operationInfo.TestingMemoryFootprint;
+            }
 
             YT_LOG_INFO("Memory usage (Tag: %v, OperationId: %v, Usage: %v, Alive: %v)", tag, operationId, usage, alive);
 
