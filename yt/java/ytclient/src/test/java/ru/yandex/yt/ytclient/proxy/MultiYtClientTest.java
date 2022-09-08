@@ -1,14 +1,21 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.Test;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
+import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -119,6 +126,108 @@ public class MultiYtClientTest {
             assertThat("Exception was expected", false);
         } catch (Exception ex) {
         }
+    }
+
+    @Test
+    public void testLagPenaltyProvider() throws InterruptedException {
+        MockYtClient hahnClient = new MockYtClient("hahn");
+        MockYtClient freudClient = new MockYtClient("freud");
+        MockYtClient pythiaClient = new MockYtClient("pythia");
+
+        hahnClient.mockMethod(
+                "lookupRows",
+                () -> CompletableFuture.completedFuture(List.of(Row.of("hahn value"))),
+                3);
+
+        freudClient.mockMethod(
+                "lookupRows",
+                () -> CompletableFuture.completedFuture(List.of(Row.of("freud value"))),
+                3);
+
+        GUID replicaIdHahn = GUID.valueOf("23f18-8a2d0-3f302c5-2188b2fc");
+        GUID replicaIdFreud = GUID.valueOf("23f18-a0f8f-3f302c5-6ab4b47b");
+
+        pythiaClient.mockMethod(
+                "getNode",
+                () -> CompletableFuture.completedFuture(
+                        YTree.builder()
+                                .beginAttributes()
+                                .key("replicas")
+                                .beginMap()
+                                    .key(replicaIdHahn.toString())
+                                    .beginMap()
+                                        .key("mode").value("async")
+                                        .key("cluster_name").value("hahn")
+                                        .key("replica_path").value("//path-to-table")
+                                        .key("state").value("enabled")
+                                        .key("replication_lag_time").value(0)
+                                        .key("replicated_table_tracker_enabled").value(true)
+                                        .key("error_count").value(0)
+                                    .endMap()
+                                    .key(replicaIdFreud.toString())
+                                    .beginMap()
+                                        .key("mode").value("async")
+                                        .key("cluster_name").value("freud")
+                                        .key("replica_path").value("//path-to-table")
+                                        .key("state").value("enabled")
+                                        .key("replication_lag_time").value(0)
+                                        .key("replicated_table_tracker_enabled").value(true)
+                                        .key("error_count").value(0)
+                                    .endMap()
+                                .endMap()
+                                .endAttributes()
+                                .entity().build()
+                )
+        );
+
+        pythiaClient.mockMethod(
+                "getNode",
+                () -> CompletableFuture.completedFuture(
+                        YTree.builder().beginAttributes().key("tablet_count").value(5).endAttributes().entity().build())
+        );
+
+        YtTimestamp now = YtTimestamp.fromInstant(Instant.now());
+
+        pythiaClient.mockMethod(
+                "getTabletInfos",
+                () -> CompletableFuture.completedFuture(
+                        List.of(
+                                new TabletInfo(1, 1, 1,
+                                        List.of(
+                                                new TabletInfoReplica(replicaIdHahn, now.getValue()),
+                                                new TabletInfoReplica(replicaIdFreud, 100) // very old ts
+                                        )
+                                )
+                        ))
+        );
+
+        MultiYtClient multiClient = MultiYtClient.builder()
+                .addClients(
+                        MultiYtClient.YtClientOptions.builder(freudClient).build(),
+                        MultiYtClient.YtClientOptions.builder(hahnClient)
+                                .setInitialPenalty(Duration.ofSeconds(5))
+                                .build()
+                )
+                .setPenaltyProvider(PenaltyProvider.lagPenaltyProviderBuilder()
+                        .setClient(pythiaClient)
+                        .setTablePath(YPath.simple("//replica-path"))
+                        .setReplicaClusters(List.of("hahn", "freud"))
+                        .setMaxTabletLag(Duration.ofSeconds(1000))
+                        .setLagPenalty(Duration.ofSeconds(1000))
+                        .setClearPenaltiesOnErrors(true)
+                        .setCheckPeriod(Duration.ofSeconds(15))
+                        .build())
+                .build();
+
+        Thread.sleep(Duration.ofSeconds(10).toMillis());
+
+        var result = doLookup(multiClient);
+        assertThat("Expected response from hahn", result.join().get(0).key.equals("hahn value"));
+
+        // During this time we get error inside LagReplicationPenaltyProvider and clear penalties
+        Thread.sleep(Duration.ofSeconds(10).toMillis());
+        result = doLookup(multiClient);
+        assertThat("Expected response from freud", result.join().get(0).key.equals("freud value"));
     }
 
     @SuppressWarnings("checkstyle:AvoidNestedBlocks")

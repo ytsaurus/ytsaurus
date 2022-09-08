@@ -7,7 +7,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Client interface with common methods for YtClient and MockYtClient.
  */
-public interface BaseYtClient extends TransactionalClient, Closeable {
+public interface BaseYtClient extends ApiServiceClient, Closeable {
     /**
      * Get a list of client clusters
      */
