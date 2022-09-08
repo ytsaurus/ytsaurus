@@ -260,6 +260,11 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
     }
 
     @Override
+    public Operation attachOperation(GUID operationId) {
+        return null;
+    }
+
+    @Override
     public CompletableFuture<Operation> startVanilla(VanillaOperation req) {
         return (CompletableFuture<Operation>) callMethod("startVanilla");
     }

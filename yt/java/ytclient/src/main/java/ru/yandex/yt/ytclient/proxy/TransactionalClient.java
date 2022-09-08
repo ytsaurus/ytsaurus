@@ -118,6 +118,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req);
 
+    Operation attachOperation(GUID operationId);
+
     default CompletableFuture<Operation> remoteCopy(RemoteCopyOperation req) {
         return startRemoteCopy(req).thenCompose(op -> op.watch().thenApply(unused -> op));
     }

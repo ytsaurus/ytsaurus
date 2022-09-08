@@ -461,6 +461,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
+    public Operation attachOperation(GUID operationId) {
+        return client.attachOperation(operationId);
+    }
+
+    @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
     }
