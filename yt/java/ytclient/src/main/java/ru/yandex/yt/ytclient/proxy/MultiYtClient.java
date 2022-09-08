@@ -56,12 +56,13 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
 
     @Override
     public void close() {
-        for (MultiExecutor.YtClientEntry entry : executor.clients) {
-            try {
+        try {
+            for (MultiExecutor.YtClientEntry entry : executor.clients) {
                 entry.client.close();
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
             }
+            executor.close();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
     }
 
@@ -220,7 +221,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
         }
 
         /**
-         * Add usual cluster (for requests without preferredAllowance)
+         * Add usual cluster (for requests without preferredAllowance).
          * @return self
          */
         public Builder addCluster(String cluster) {
@@ -229,7 +230,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
         }
 
         /**
-         * Add preferred cluster (for requests with preferredAllowance)
+         * Add preferred cluster (for requests with preferredAllowance).
          * @return self
          */
         public Builder addPreferredCluster(String cluster) {
@@ -238,7 +239,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
         }
 
         /**
-         * Set a penalty that will be assigned in case of errors
+         * Set a penalty that will be assigned in case of errors.
          * @return self
          */
         public Builder setBanPenalty(Duration banPenalty) {
@@ -247,7 +248,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
         }
 
         /**
-         * Set the duration after which the error penalty can be reset (if there are no more errors)
+         * Set the duration after which the error penalty can be reset (if there are no more errors).
          * @return self
          */
         public Builder setBanDuration(Duration banDuration) {
@@ -256,11 +257,21 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
         }
 
         /**
-         * Set duration between requests in usual and preferred clusters
+         * Set duration between requests in usual and preferred clusters.
          * @return self
          */
         public Builder setPreferredAllowance(Duration preferredAllowance) {
             this.preferredAllowance = preferredAllowance;
+            return this;
+        }
+
+        /**
+         * Set penalty provider for assigning additional penalties depended on external events,
+         * for instance, if replica is `lagged`.
+         * @return self
+         */
+        public Builder setPenaltyProvider(PenaltyProvider penaltyProvider) {
+            this.penaltyProvider = penaltyProvider;
             return this;
         }
 
@@ -273,7 +284,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
 
 @NonNullApi
 @NonNullFields
-class MultiExecutor {
+class MultiExecutor implements Closeable {
     final Duration banPenalty;
     final Duration banDuration;
     final PenaltyProvider penaltyProvider;
@@ -383,7 +394,8 @@ class MultiExecutor {
     private Duration getMinPenalty(List<YtClientEntry> clients) {
         Duration minPenalty = MAX_DURATION;
         for (YtClientEntry client : clients) {
-            client.externalPenalty = penaltyProvider.getPenalty(client.getClusterName());
+            String shortClusterName = client.getClusterName().split("\\.")[0];
+            client.externalPenalty = penaltyProvider.getPenalty(shortClusterName);
             Duration currentPenalty = client.getPenalty();
             if (currentPenalty.compareTo(minPenalty) < 0) {
                 minPenalty = currentPenalty;
@@ -466,6 +478,11 @@ class MultiExecutor {
                 delayedTask.cancel();
             }
         });
+    }
+
+    @Override
+    public void close() throws IOException {
+        penaltyProvider.close();
     }
 
     class DelayedTask<R> {

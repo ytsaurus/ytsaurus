@@ -9,46 +9,86 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import javax.annotation.Nullable;
+
 import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.yt.rpcproxy.EAtomicity;
+import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.request.AbortJob;
+import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
+import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
+import ru.yandex.yt.ytclient.proxy.request.AlterTable;
+import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
+import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
+import ru.yandex.yt.ytclient.proxy.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
+import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
+import ru.yandex.yt.ytclient.proxy.request.GcCollect;
+import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
+import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
+import ru.yandex.yt.ytclient.proxy.request.GetJob;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderr;
+import ru.yandex.yt.ytclient.proxy.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.GetOperation;
+import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
+import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
+import ru.yandex.yt.ytclient.proxy.request.ListJobs;
+import ru.yandex.yt.ytclient.proxy.request.ListJobsResult;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
+import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
+import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
+import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
+import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
+import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
+import ru.yandex.yt.ytclient.proxy.request.TrimTable;
+import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
+import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
+import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class MockYtClient implements TransactionalClient, BaseYtClient {
+public class MockYtClient implements BaseYtClient {
     private final Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
     private Map<String, Long> timesCalled = new HashMap<>();
     private final YtCluster cluster;
@@ -74,6 +114,12 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
             }
 
             mocks.get(methodName).add(callback);
+        }
+    }
+
+    public void mockMethod(String methodName, Callable<CompletableFuture<?>> callback, long times) {
+        for (long i = 0; i < times; ++i) {
+            mockMethod(methodName, callback);
         }
     }
 
@@ -202,6 +248,190 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return (CompletableFuture<Void>) callMethod("concatenateNodes");
+    }
+
+    @Override
+    public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(PingTransaction req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> commitTransaction(CommitTransaction req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> abortTransaction(AbortTransaction req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<GUID> createObject(CreateObject req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req) {
+        return null;
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> lookupRows(AbstractLookupRowsRequest<?> request,
+                                                  YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+        return null;
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> versionedLookupRows(LookupRowsRequest request,
+                                                           YTreeObjectSerializer<T> serializer,
+                                                           ConsumerSource<T> consumer) {
+        return null;
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Long> buildSnapshot(BuildSnapshot req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> gcCollect(GcCollect req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> mountTable(MountTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> unmountTable(UnmountTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> remountTable(RemountTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> freezeTable(FreezeTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> unfreezeTable(UnfreezeTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
+        return null;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<List<TabletInfo>> getTabletInfos(GetTabletInfos req) {
+        return (CompletableFuture<List<TabletInfo>>) callMethod("getTabletInfos");
+    }
+
+    @Override
+    public CompletableFuture<YtTimestamp> generateTimestamps(GenerateTimestamps req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> reshardTable(ReshardTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> trimTable(TrimTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> alterTable(AlterTable req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> alterTableReplica(GUID replicaId, boolean enabled, ETableReplicaMode mode, boolean preserveTimestamp, EAtomicity atomicity) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> alterTableReplica(AlterTableReplica req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> abortOperation(AbortOperation req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> suspendOperation(SuspendOperation req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> resumeOperation(ResumeOperation req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<YTreeNode> getJob(GetJob req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> abortJob(AbortJob req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<ListJobsResult> listJobs(ListJobs req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req) {
+        return null;
+    }
+
+    @Override
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req, @Nullable TableAttachmentReader<T> reader) {
+        return null;
     }
 
     @Override
