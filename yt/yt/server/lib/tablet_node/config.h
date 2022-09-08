@@ -212,7 +212,6 @@ public:
     bool EnableDataNodeLookup;
     std::optional<int> MaxParallelPartitionLookups;
     bool EnablePeerProbingInDataNodeLookup;
-    bool EnableRejectsInDataNodeLookupIfThrottling;
 
     int LookupRpcMultiplexingParallelism;
 
@@ -221,7 +220,6 @@ public:
 
     bool EnableHunkColumnarProfiling;
 
-    i64 MinHunkCompactionTotalHunkLength;
     double MaxHunkCompactionGarbageRatio;
 
     i64 MaxHunkCompactionSize;
@@ -230,6 +228,7 @@ public:
     int MinHunkCompactionChunkCount;
     int MaxHunkCompactionChunkCount;
 
+    // TODO(akozhikhov): Make these true by default.
     bool PrecacheChunkReplicasOnMount;
     bool RegisterChunkReplicasOnStoresUpdate;
 

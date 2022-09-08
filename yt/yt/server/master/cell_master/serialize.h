@@ -80,6 +80,7 @@ DEFINE_ENUM(EMasterReign,
     ((AlwaysUseNewHeartbeats)                                       (2044))  // gepardo
     ((ExpectedTabletState)                                          (2045))  // savrus
     ((FixOrderedTablesReplicatoinProgress222)                       (2046))  // savrus
+    ((DropSomeUselessConfigOptions)                                 (2047))  // akozhikhov
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
