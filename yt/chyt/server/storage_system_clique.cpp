@@ -71,7 +71,7 @@ public:
             res_columns[7]->insert(name == ToString(InstanceId_));
             res_columns[8]->insert(attributes->Get<ui64>("job_cookie"));
             res_columns[9]->insert(static_cast<DB::Decimal64>(attributes->Get<TInstant>("start_time").MicroSeconds()));
-            res_columns[10]->insert(std::string(ToString(attributes->Get<TGuid>("clique_id"))));
+            res_columns[10]->insert(std::string(attributes->Get<TString>("clique_id")));
             res_columns[11]->insert(attributes->Get<i64>("clique_incarnation"));
         }
 
@@ -95,7 +95,7 @@ private:
             {"job_cookie", std::make_shared<DB::DataTypeUInt32>()},
             {"start_time", std::make_shared<DB::DataTypeDateTime64>(6)},
             {"clique_id", std::make_shared<DB::DataTypeString>()},
-            {"clique_incarnation", std::make_shared<DB::DataTypeInt8>()},
+            {"clique_incarnation", std::make_shared<DB::DataTypeInt64>()},
         });
     }
 };

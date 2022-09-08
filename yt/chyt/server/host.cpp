@@ -154,8 +154,7 @@ public:
         // Configure clique's directory.
         Config_->Discovery->Directory += "/" + ToString(Config_->CliqueId);
         switch (Config_->Discovery->Version) {
-            case 1:
-            {
+            case 1: {
                 Discovery_ = CreateDiscoveryV1(
                     Config_->Discovery,
                     RootClient_,
@@ -164,8 +163,7 @@ public:
                     Logger);
                 break;
             }
-            case 2:
-            {
+            case 2: {
                 auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
                 Config_->Discovery->GroupId = "/chyt/" + groupId;
                 Discovery_ = CreateDiscoveryV2(
