@@ -1003,21 +1003,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        TableWriterImpl<T> tableWriter;
-        if (req.getSerializer() != null) {
-            tableWriter = new TableWriterImpl<>(
-                    req.getWindowSize(),
-                    req.getPacketSize(),
-                    req.getSerializer());
-        } else if (req.getObjectClazz() != null) {
-            tableWriter = new TableWriterImpl<>(
-                    req.getWindowSize(),
-                    req.getPacketSize(),
-                    req.getObjectClazz()
-            );
-        } else {
-            throw new RuntimeException("No objectClazz and serializer in WriteTable");
-        }
+        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(req);
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture

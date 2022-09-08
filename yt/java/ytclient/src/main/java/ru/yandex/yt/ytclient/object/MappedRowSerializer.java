@@ -32,7 +32,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     private static final int OUTPUT_SIZE = 256;
 
     private final YTreeRowSerializer<T> objectSerializer;
-    private final TableSchema tableSchema;
+    private TableSchema tableSchema;
     private final YTreeConsumerProxy delegate;
     private final boolean supportState;
 
@@ -68,8 +68,13 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
     @Override
     public void updateSchema(TRowsetDescriptor schemaDelta) {
-        // TODO: maybe update this.tableSchema here?
-
+        TableSchema.Builder builder = this.tableSchema.toBuilder();
+        for (TRowsetDescriptor.TNameTableEntry entry : schemaDelta.getNameTableEntriesList()) {
+            if (tableSchema.findColumn(entry.getName()) == -1) {
+                builder.add(new ColumnSchema(entry.getName(), ColumnValueType.fromValue(entry.getType())));
+            }
+        }
+        this.tableSchema = builder.build();
         delegate.updateSchema(schemaDelta);
     }
 

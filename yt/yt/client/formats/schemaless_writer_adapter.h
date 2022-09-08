@@ -34,6 +34,8 @@ public:
 
     i64 GetWrittenSize() const override;
 
+    void Flush() override;
+
 protected:
     const NTableClient::TNameTablePtr NameTable_;
     const NConcurrency::IAsyncOutputStreamPtr Output_;

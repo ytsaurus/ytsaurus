@@ -10,9 +10,11 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
@@ -25,6 +27,8 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private final String stringPath;
     @Nullable
     private final WireRowSerializer<T> serializer;
+    @Nullable
+    private final YTreeRowSerializer<T> ysonSerializer;
     @Nullable private final Class<T> objectClazz;
 
     private YTreeNode config = null;
@@ -38,12 +42,16 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private int maxWritesInFlight = 1;
     private int chunkSize = 524288000;
 
+    private ERowsetFormat rowsetFormat = ERowsetFormat.RF_YT_WIRE;
+    private Format format;
+
     public WriteTable(WriteTable<T> other) {
         super(other);
         this.path = other.path;
         this.stringPath = other.stringPath;
         this.serializer = other.serializer;
         this.objectClazz = other.objectClazz;
+        this.ysonSerializer = other.ysonSerializer;
         this.config = other.config;
         if (other.transactionalOptions != null) {
             this.transactionalOptions = new TransactionalOptions(other.transactionalOptions);
@@ -53,6 +61,8 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.needRetries = other.needRetries;
         this.maxWritesInFlight = other.maxWritesInFlight;
         this.chunkSize = other.chunkSize;
+        this.rowsetFormat = other.rowsetFormat;
+        this.format = other.format;
     }
 
     public WriteTable(YPath path, WireRowSerializer<T> serializer) {
@@ -60,10 +70,24 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.stringPath = null;
         this.serializer = serializer;
         this.objectClazz = null;
+        this.ysonSerializer = null;
     }
 
     public WriteTable(YPath path, YTreeSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
+    }
+
+    public WriteTable(YPath path, YTreeSerializer<T> serializer, Format format) {
+        if (!(serializer instanceof YTreeRowSerializer)) {
+            throw new IllegalArgumentException("YTreeRowSerializer was expected");
+        }
+        this.path = path;
+        this.stringPath = null;
+        this.ysonSerializer = (YTreeRowSerializer<T>) serializer;
+        this.serializer = null;
+        this.objectClazz = null;
+        this.rowsetFormat = ERowsetFormat.RF_FORMAT;
+        this.format = format;
     }
 
     public WriteTable(YPath path, Class<T> objectClazz) {
@@ -71,6 +95,7 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.stringPath = null;
         this.serializer = null;
         this.objectClazz = objectClazz;
+        this.ysonSerializer = null;
     }
 
     /**
@@ -82,6 +107,7 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.path = null;
         this.serializer = serializer;
         this.objectClazz = null;
+        this.ysonSerializer = null;
     }
 
     /**
@@ -92,12 +118,16 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this(path, MappedRowSerializer.forClass(serializer));
     }
 
-    public WireRowSerializer<T> getSerializer() {
-        return this.serializer;
+    public Optional<WireRowSerializer<T>> getSerializer() {
+        return Optional.ofNullable(this.serializer);
     }
 
-    public Class<T> getObjectClazz() {
-        return this.objectClazz;
+    public Optional<YTreeRowSerializer<T>> getYsonSerializer() {
+        return Optional.ofNullable(this.ysonSerializer);
+    }
+
+    public Optional<Class<T>> getObjectClazz() {
+        return Optional.ofNullable(this.objectClazz);
     }
 
     public WriteTable<T> setWindowSize(long windowSize) {
@@ -108,6 +138,14 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     public WriteTable<T> setPacketSize(long packetSize) {
         this.packetSize = packetSize;
         return this;
+    }
+
+    public ERowsetFormat getRowsetFormat() {
+        return rowsetFormat;
+    }
+
+    public Optional<Format> getFormat() {
+        return Optional.ofNullable(format);
     }
 
     /**
@@ -217,6 +255,12 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         }
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
+        }
+        if (format != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            YTreeBinarySerializer.serialize(format.toTree(), baos);
+            byte[] data = baos.toByteArray();
+            builder.setFormat(ByteString.copyFrom(data));
         }
         return builder;
     }
