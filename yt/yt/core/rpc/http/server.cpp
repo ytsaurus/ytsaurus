@@ -289,7 +289,7 @@ private:
         TRequestId requestId;
         if (requestIdString) {
             if (!TRequestId::FromString(*requestIdString, &requestId)) {
-                return TError("Invalid \"X-YT-Request-Id\" header value")
+                return TError("Invalid %Qv header value", RequestIdHeaderName)
                     << TErrorAttribute("value", *requestIdString);
             }
         } else {

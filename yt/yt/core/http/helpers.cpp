@@ -52,6 +52,7 @@ static const TString CacheControlHeaderName("Cache-Control");
 static const TString XContentTypeOptionsHeaderName("X-Content-Type-Options");
 static const TString XFrameOptionsHeaderName("X-Frame-Options");
 static const TString XDnsPrefetchControlHeaderName("X-DNS-Prefetch-Control");
+static const TString XYTRequestIdHeaderName("X-YT-Request-Id");
 static const TString XYTTraceIdHeaderName("X-YT-Trace-Id");
 static const TString XYTSpanIdHeaderName("X-YT-Span-Id");
 
@@ -340,6 +341,13 @@ void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId)
 {
     if (traceId != NTracing::InvalidTraceId) {
         rsp->GetHeaders()->Set(XYTTraceIdHeaderName, ToString(traceId));
+    }
+}
+
+void SetRequestId(const IResponseWriterPtr& rsp, NRpc::TRequestId requestId)
+{
+    if (requestId) {
+        rsp->GetHeaders()->Set(XYTRequestIdHeaderName, ToString(requestId));
     }
 }
 

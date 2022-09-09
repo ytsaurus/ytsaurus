@@ -213,6 +213,8 @@ private:
                 NTracing::TTraceContextGuard guard(traceContext);
                 SetTraceId(response, traceContext->GetTraceId());
 
+                SetRequestId(response, request->GetRequestId());
+
                 handler->HandleRequest(request, response);
 
                 NTracing::FlushCurrentTraceContextTime();
