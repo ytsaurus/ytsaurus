@@ -41,12 +41,6 @@ def sudo_move(src_path, dst_path):
     subprocess.check_call(["sudo", "mv", src_path, dst_path])
 
 
-def is_inside_arcadia(inside_arcadia):
-    if inside_arcadia is None:
-        inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
-    return inside_arcadia
-
-
 def search_binary_path(binary_name, binary_root=None, build_path_dir=None):
     """
     Search for binary with given name in arcadia build_path.
@@ -91,8 +85,7 @@ exec sudo -En {} {} {} {} "$@"
 
 
 def prepare_yt_binaries(destination,
-                        binary_root=None, inside_arcadia=None,
-                        package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
+                        binary_root=None, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
     if package_dir is None:
         package_dir = "yt/yt"
