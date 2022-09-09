@@ -125,7 +125,7 @@ i64 GetDirectorySize(
 //! Sets the access and modification times to now.
 void Touch(const TString& path);
 
-//! Converts all back slashes to forward slashes.
+//! Converts all path separators to platform path separators.
 TString NormalizePathSeparators(const TString& path);
 
 //! Sets permissions for a file.
