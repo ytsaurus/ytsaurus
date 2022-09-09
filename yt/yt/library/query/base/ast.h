@@ -245,10 +245,10 @@ struct TInExpression
     TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
-        const TLiteralValueTupleList& values)
+        TLiteralValueTupleList values)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
-        , Values(values)
+        , Values(std::move(values))
     { }
 
     TExpressionList Expr;
