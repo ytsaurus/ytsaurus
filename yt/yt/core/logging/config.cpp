@@ -3,6 +3,8 @@
 #include "file_log_writer.h"
 #include "stream_log_writer.h"
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <util/string/vector.h>
 #include <util/system/env.h>
 
@@ -232,7 +234,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
     writerConfig->Type = TFileLogWriterConfig::Type;
 
     auto fileWriterConfig = New<TFileLogWriterConfig>();
-    fileWriterConfig->FileName = path;
+    fileWriterConfig->FileName = NFS::NormalizePathSeparators(path);
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
@@ -314,21 +316,16 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
         rule->MinLevel = currentLogLevel == ELogLevel::Error ? ELogLevel::Warning : currentLogLevel;
         rule->Writers.push_back(ToString(currentLogLevel));
 
+        auto writerConfig = New<TLogWriterConfig>();
+        writerConfig->Type = TFileLogWriterConfig::Type;
+
+        auto fileWriterConfig = New<TFileLogWriterConfig>();
         auto fileName = Format(
             "%v/%v%v.log",
             directory,
             componentName,
             currentLogLevel == ELogLevel::Info ? "" : "." + FormatEnum(currentLogLevel));
-
-        auto writerConfig = New<TLogWriterConfig>();
-        writerConfig->Type = TFileLogWriterConfig::Type;
-
-        auto fileWriterConfig = New<TFileLogWriterConfig>();
-        fileWriterConfig->FileName = Format(
-            "%v/%v%v.log",
-            directory,
-            componentName,
-            currentLogLevel == ELogLevel::Info ? "" : "." + FormatEnum(currentLogLevel));
+        fileWriterConfig->FileName = NFS::NormalizePathSeparators(fileName);
 
         config->Rules.push_back(rule);
         config->Writers.emplace(ToString(currentLogLevel), writerConfig->BuildFullConfig(fileWriterConfig));
@@ -346,11 +343,12 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
         writerConfig->Format = ELogFormat::Yson;
 
         auto fileWriterConfig = New<TFileLogWriterConfig>();
-        fileWriterConfig->FileName = Format(
+        auto fileName = Format(
             "%v/%v.yson.%v.log",
             directory,
             componentName,
             writerName);
+        fileWriterConfig->FileName = NFS::NormalizePathSeparators(fileName);
 
         config->Rules.push_back(rule);
         config->Writers.emplace(writerName, writerConfig->BuildFullConfig(fileWriterConfig));

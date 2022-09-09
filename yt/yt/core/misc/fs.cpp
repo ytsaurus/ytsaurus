@@ -540,11 +540,18 @@ TString JoinPaths(const TString& path1, const TString& path2)
 
 TString NormalizePathSeparators(const TString& path)
 {
+#ifdef _unix_
+    constexpr char platformPathSeparator = '/';
+    constexpr char foreignPathSeparator = '\\';
+#else
+    constexpr char platformPathSeparator = '\\';
+    constexpr char foreignPathSeparator = '/';
+#endif
     TString result;
     result.reserve(path.length());
     for (int i = 0; i < std::ssize(path); ++i) {
-        if (path[i] == '\\') {
-            result.append('/');
+        if (path[i] == foreignPathSeparator) {
+            result.append(platformPathSeparator);
         } else {
             result.append(path[i]);
         }
