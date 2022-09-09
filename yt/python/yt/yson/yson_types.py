@@ -100,6 +100,7 @@ def proxy(cls):
         "__eq__",
         "__ne__",
         "__repr__",
+        "__format__",
         "__dict__",
         "__qualname__",
         "__class__",
@@ -136,6 +137,9 @@ class YsonStringProxy(YsonType):
         if self.has_attributes():
             return repr({"attributes": self.attributes, "value": value})
         return value
+
+    def __format__(self, format_spec):
+        return repr(self)
 
     def __copy__(self):
         return self
