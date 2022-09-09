@@ -916,10 +916,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
 
-    registrar.Parameter("obligatory_account_mediums", &TThis::ObligatoryAccountMediums)
+    registrar.Parameter("obligatory_account_media", &TThis::ObligatoryAccountMedia)
+        .Alias("obligatory_account_mediums")
         .Default();
 
-    registrar.Parameter("deprecated_mediums", &TThis::DeprecatedMediums)
+    registrar.Parameter("deprecated_media", &TThis::DeprecatedMedia)
+        .Alias("deprecated_mediums")
         .Default();
 
     registrar.Parameter("enable_master_resource_usage_accounting", &TThis::EnableMasterResourceUsageAccounting)

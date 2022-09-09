@@ -7054,13 +7054,13 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
             }
             diskRequest->MediumIndex = mediumDescriptor->Index;
 
-            if (Config->ObligatoryAccountMediums.contains(mediumName)) {
+            if (Config->ObligatoryAccountMedia.contains(mediumName)) {
                 if (!diskRequest->Account) {
                     THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium")
                         << TErrorAttribute("medium_name", mediumName);
                 }
             }
-            if (Config->DeprecatedMediums.contains(mediumName)) {
+            if (Config->DeprecatedMedia.contains(mediumName)) {
                 THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                     << TErrorAttribute("medium_name", mediumName);
             }
