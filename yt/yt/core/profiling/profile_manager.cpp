@@ -26,6 +26,7 @@
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
+#include <util/generic/hash_multi_map.h>
 #include <util/generic/iterator_range.h>
 
 namespace NYT::NProfiling {
