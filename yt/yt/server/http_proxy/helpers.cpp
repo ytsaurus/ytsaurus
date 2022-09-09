@@ -359,9 +359,8 @@ void ReplyError(const IResponseWriterPtr& response, const TError& error)
     });
 }
 
-void ProcessDebugHeaders(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
+void ProcessDebugHeaders(const IRequestPtr& /*request*/, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    response->GetHeaders()->Add("X-YT-Request-Id", ToString(request->GetRequestId()));
     response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelf()->GetHost());
 }
 

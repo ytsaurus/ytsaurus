@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/tracing/public.h>
@@ -42,6 +44,8 @@ void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonCon
 
 NTracing::TTraceId GetTraceId(const IRequestPtr& req);
 void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId);
+
+void SetRequestId(const IResponseWriterPtr& rsp, NRpc::TRequestId requestId);
 
 NTracing::TSpanId GetSpanId(const IRequestPtr& req);
 
