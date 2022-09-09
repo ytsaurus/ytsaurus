@@ -467,6 +467,7 @@ struct TDynamicRowRef
     { }
 
     TDynamicRowRef(const TDynamicRowRef& other) = default;
+    TDynamicRowRef& operator=(const TDynamicRowRef& other) = default;
 
     TDynamicRowRef(
         TStore* store,
