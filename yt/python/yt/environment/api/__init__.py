@@ -7,7 +7,6 @@ except ImportError:
 @attr.s
 class LocalYtConfig(object):
     """High level local YT configuration"""
-    inside_arcadia = attr.ib(True)
     path = attr.ib(None)
     tmpfs_path = attr.ib(None)
     fqdn = attr.ib("localhost")
