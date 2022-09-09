@@ -11,7 +11,7 @@ ENV SBT_VERSION ${SBT_VERSION:-1.5.4}
 # add docker for dind tests
 RUN apt-get update && apt-get -y install docker docker.io default-jdk python3.7 python3-pip
 RUN python3 -m pip install pip
-RUN python3 -m pip install tox twine "setuptools<60.0.0"
+RUN python3 -m pip install tox twine "setuptools<60.0.0" click
 
 RUN apt-get install -y locales && locale-gen en_US.UTF-8
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'

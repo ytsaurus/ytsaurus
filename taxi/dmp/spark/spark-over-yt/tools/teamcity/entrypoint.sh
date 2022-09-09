@@ -13,7 +13,7 @@ export SBT_CREDENTIALS=$HOME/.sbt/.credentials
 
 # generate XML credentials
 if [ -f $SBT_CREDENTIALS ]; then
-    python3 /app/spark-over-yt/tools/teamcity/generate_xml_creds.py $SBT_CREDENTIALS $HOME/.m2/settings.xml
+    python3 /app/spark-over-yt/tools/teamcity/cli.py generate-xml-creds $SBT_CREDENTIALS $HOME/.m2/settings.xml
 fi
 
 SBT="sbt -Duser.home=/app --sbt-dir /cache/sbt --sbt-boot /cache/sbt/boot --ivy /cache/ivy"
@@ -41,13 +41,29 @@ e2e)
 custom)
     case $SPYT_PUBLISH_MODE in
     client)
-        command="$SBT spytPublishClientSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client"
+        command="$SBT spytPublishClientSnapshot && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client"
         ;;
     cluster)
-        command="$SBT spytPublishClusterSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client cluster"
+        command="$SBT spytPublishClusterSnapshot && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster"
         ;;
     spark-fork)
-        command="$SBT spytPublishSparkForkSnapshot && python3 /app/spark-over-yt/tools/teamcity/report.py client cluster spark-fork"
+        command="$SBT spytPublishSparkForkSnapshot && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster spark-fork"
+        ;;
+    *)
+        command="echo Unknown publish mode $SPYT_PUBLISH_MODE && false"
+        ;;
+    esac
+    ;;
+release)
+        case $SPYT_PUBLISH_MODE in
+    client)
+        command="$SBT test && $SBT spytPublishSparkForkRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client "
+        ;;
+    cluster)
+        command="$SBT test && $SBT spytPublishSparkForkRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster"
+        ;;
+    spark-fork)
+        command="$SBT test && $SBT spytPublishSparkForkRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster spark-fork"
         ;;
     *)
         command="echo Unknown publish mode $SPYT_PUBLISH_MODE && false"
