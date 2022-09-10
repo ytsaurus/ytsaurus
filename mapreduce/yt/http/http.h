@@ -11,6 +11,8 @@
 #include <library/cpp/deprecated/atomic/atomic.h>
 #include <library/cpp/http/io/stream.h>
 
+#include <util/generic/hash.h>
+#include <util/generic/hash_multi_map.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/guid.h>
 #include <util/network/socket.h>
