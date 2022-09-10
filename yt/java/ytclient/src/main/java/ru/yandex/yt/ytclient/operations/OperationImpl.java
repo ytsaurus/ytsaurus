@@ -91,6 +91,7 @@ public class OperationImpl implements Operation {
         client.getOperation(new GetOperation(id)
                         .addAttribute("state")
                         .addAttribute("brief_progress")
+                        .addAttribute("type")
                         .addAttribute("operation_type"))
                 .thenApply(this::getAndLogStatus)
                 .thenCompose(status -> {
@@ -155,7 +156,11 @@ public class OperationImpl implements Operation {
             }
             previousBriefProgressBuildTime = buildTime;
         }
-        logger.info("Operation {} ({}): {}", id, attrs.get("operation_type").stringValue(), statusDescription);
+        try {
+            logger.info("Operation {} ({}): {}", id, attrs.get("type").stringValue(), statusDescription);
+        } catch (Exception ex) {
+            logger.info("Operation {}: {}", id, statusDescription);
+        }
         return status;
     }
 
