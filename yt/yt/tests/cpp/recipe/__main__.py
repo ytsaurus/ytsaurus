@@ -18,18 +18,14 @@ import sys
 RECIPE_INFO_FILE = "recipe_info.yson"
 
 
-def get_output_dir():
-    output_ram_drive_path = arcadia_interop.yatest_common.output_ram_drive_path()
-    if output_ram_drive_path is None:
-        return arcadia_interop.yatest_common.output_path()
-    else:
-        return output_ram_drive_path
-
-
-def prepare_yatest_environment():
-    destination = os.path.join(get_output_dir(), "build")
+def prepare_yatest_environment(output_dir):
+    destination = os.path.join(output_dir, "build")
     os.makedirs(destination)
-    path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all="YT_OUTPUT" not in os.environ, need_suid=False)
+    path = arcadia_interop.prepare_yt_environment(
+        destination,
+        copy_ytserver_all="YT_OUTPUT" not in os.environ,
+        need_suid=False,
+    )
     os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 
@@ -51,8 +47,9 @@ def start(args):
     parser.add_argument("--cluster-config", help="YSON file containing options for yt_local")
     parsed_args = parser.parse_args(args)
 
-    prepare_yatest_environment()
-    path = os.path.join(get_output_dir(), "yt_wd")
+    output_dir = arcadia_interop.get_output_path()
+    prepare_yatest_environment(output_dir)
+    path = os.path.join(output_dir, "yt_wd")
 
     if parsed_args.cluster_config is not None:
         options_file_path = yatest.common.test_source_path(parsed_args.cluster_config)
