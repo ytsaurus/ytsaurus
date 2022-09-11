@@ -2831,6 +2831,9 @@ void TClient::DoAlterReplicationCard(
     if (options.EnableReplicatedTableTracker) {
         req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
     }
+    if (options.ReplicationCardCollocationId) {
+        ToProto(req->mutable_replication_card_collocation_id(), *options.ReplicationCardCollocationId);
+    }
 
     WaitFor(req->Invoke())
         .ThrowOnError();

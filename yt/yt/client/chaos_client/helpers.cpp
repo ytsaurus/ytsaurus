@@ -46,6 +46,15 @@ TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstr
         : TReplicationCardId();
 }
 
+TReplicationCardId MakeReplicationCardCollocationId(TObjectId randomId)
+{
+    return MakeId(
+        EObjectType::ReplicationCardCollocation,
+        CellTagFromId(randomId),
+        CounterFromId(randomId),
+        HashFromId(randomId) & 0xffff0000);
+}
+
 TCellTag GetSiblingChaosCellTag(TCellTag cellTag)
 {
     return cellTag ^ 1;

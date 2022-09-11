@@ -122,7 +122,7 @@ private:
         auto enabled = attributes->Get<bool>("enabled", false);
         auto catchup = attributes->Get<bool>("catchup", true);
         auto replicationProgress = attributes->Find<TReplicationProgress>("replication_progress");
-        auto enableReplicatedTableTracker = attributes->Get<bool>("enable_replicated_table_tracker", false);
+        auto enableReplicatedTableTracker = attributes->Get<bool>("enable_replicated_table_tracker", true);
 
         auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));

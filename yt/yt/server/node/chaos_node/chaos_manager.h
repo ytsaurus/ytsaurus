@@ -59,6 +59,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqMigrateReplicationCards,
         NChaosClient::NProto::TRspMigrateReplicationCards
     >>;
+    using TCtxCreateReplicationCardCollocationPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqCreateReplicationCardCollocation,
+        NChaosClient::NProto::TRspCreateReplicationCardCollocation
+    >>;
 
     virtual void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) = 0;
     virtual void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) = 0;
@@ -70,6 +74,7 @@ struct IChaosManager
     virtual void AlterReplicationCard(const TCtxAlterReplicationCardPtr& context) = 0;
     virtual void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
+    virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
@@ -87,6 +92,8 @@ struct IChaosManager
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCard, TReplicationCard);
     virtual TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) = 0;
+
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCardCollocation, TReplicationCardCollocation);
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

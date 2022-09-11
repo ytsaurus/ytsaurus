@@ -70,6 +70,7 @@ message TReqAlterReplicationCard
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
     optional string replicated_table_options = 2; // NTabletClient::TReplicatedTableOptions
     optional bool enable_replicated_table_tracker = 3;
+    optional NYT.NProto.TGuid replication_card_collocation_id = 4;
 }
 
 message TRspAlterReplicationCard
@@ -142,5 +143,17 @@ message TReqMigrateReplicationCards
 
 message TRspMigrateReplicationCards
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateReplicationCardCollocation
+{
+    repeated NYT.NProto.TGuid replication_card_ids = 1;
+}
+
+message TRspCreateReplicationCardCollocation
+{
+    required NYT.NProto.TGuid replication_card_collocation_id = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

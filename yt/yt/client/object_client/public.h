@@ -293,6 +293,7 @@ DEFINE_ENUM(EObjectType,
     ((ReplicationCard)                    (1204))
     ((ChaosTableReplica)                  (1205))
     ((ChaosReplicatedTable)               (1206))
+    ((ReplicationCardCollocation)         (1207))
 );
 
 //! A bit mask marking schema types.

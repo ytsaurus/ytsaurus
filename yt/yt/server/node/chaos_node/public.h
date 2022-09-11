@@ -47,6 +47,9 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 using TReplicationCardId = NChaosClient::TReplicationCardId;
 DECLARE_ENTITY_TYPE(TReplicationCard, NChaosClient::TReplicationCardId, NObjectClient::TDirectObjectIdHash)
 
+using TReplicationCardCollocationId = NChaosClient::TReplicationCardCollocationId;
+DECLARE_ENTITY_TYPE(TReplicationCardCollocation, NChaosClient::TReplicationCardCollocationId, NObjectClient::TDirectObjectIdHash)
+
 using TTransactionId = NTransactionClient::TTransactionId;
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 

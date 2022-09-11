@@ -22,8 +22,22 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TObjectIdComparer
+{
+    template <class TObjectPtr>
+    bool operator()(const TObjectPtr& lhs, const TObjectPtr& rhs) const;
+
+    template <class TObjectPtr>
+    static bool Compare(const TObjectPtr& lhs, const TObjectPtr& rhs);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities);
+
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 

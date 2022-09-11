@@ -38,6 +38,8 @@ TAlterReplicationCardCommand::TAlterReplicationCardCommand()
         .Optional();
     RegisterParameter("enable_replicated_table_tracker", Options.EnableReplicatedTableTracker)
         .Optional();
+    RegisterParameter("replication_card_collocation_id", Options.ReplicationCardCollocationId)
+        .Optional();
 }
 
 void TAlterReplicationCardCommand::DoExecute(ICommandContextPtr context)

@@ -4,6 +4,7 @@
 #include "chaos_slot.h"
 #include "private.h"
 #include "replication_card.h"
+#include "replication_card_collocation.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
@@ -61,6 +62,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableReplicaProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
     }
 
 private:
@@ -113,6 +115,10 @@ private:
         protoReplicationCard->set_table_path(replicationCard->GetTablePath());
         protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
         protoReplicationCard->set_current_timestamp(replicationCard->GetCurrentTimestamp());
+
+        if (auto* collocation = replicationCard->GetCollocation()) {
+            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());
+        }
 
         std::vector<TCellId> coordinators;
         if (fetchOptions.IncludeCoordinators) {
@@ -248,6 +254,15 @@ private:
         chaosManager->MigrateReplicationCards(std::move(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateReplicationCardCollocation)
+    {
+        auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+
+        context->SetRequestInfo("ReplicationCardIds: %v", replicationCardIds);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->CreateReplicationCardCollocation(std::move(context));
+    }
 };
 
 IServicePtr CreateChaosNodeService(IChaosSlotPtr slot)

@@ -10,6 +10,20 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TObjectPtr>
+inline bool TObjectIdComparer::operator()(const TObjectPtr& lhs, const TObjectPtr& rhs) const
+{
+    return Compare(lhs, rhs);
+}
+
+template <class TObjectPtr>
+inline bool TObjectIdComparer::Compare(const TObjectPtr& lhs, const TObjectPtr& rhs)
+{
+    return lhs->GetId() < rhs->GetId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities)
 {
@@ -18,6 +32,21 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 
     for (const auto& [key, entity] : entities) {
         values.push_back(entity);
+    }
+    std::sort(values.begin(), values.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs->GetId() < rhs->GetId();
+    });
+    return values;
+}
+
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
+{
+    std::vector<TValue*> values;
+    values.reserve(entities.size());
+
+    for (auto* object : entities) {
+        values.push_back(object);
     }
     std::sort(values.begin(), values.end(), [] (const auto& lhs, const auto& rhs) {
         return lhs->GetId() < rhs->GetId();

@@ -11,6 +11,7 @@ namespace NYT::NChaosClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TReplicationCardId = NObjectClient::TObjectId;
+using TReplicationCardCollocationId = NObjectClient::TObjectId;
 using TReplicaId = NObjectClient::TObjectId;
 using TReplicationEra = ui64;
 using TReplicaIdIndex = ui16;

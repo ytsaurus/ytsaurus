@@ -1,7 +1,10 @@
 #include "replication_card.h"
 
 #include "replication_card_serialization.h"
+#include "replication_card_collocation.h"
 #include "serialize.h"
+
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/client/chaos_client/public.h>
 
@@ -75,6 +78,7 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, Migration_);
     Save(context, State_);
     Save(context, *ReplicatedTableOptions_);
+    Save(context, Collocation_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -101,11 +105,15 @@ void TReplicationCard::Load(TLoadContext& context)
     if (context.GetVersion() >= EChaosReign::ReplicatedTableOptions) {
         Load(context, *ReplicatedTableOptions_);
     }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EChaosReign::ReplicationCardCollocation) {
+        Load(context, Collocation_);
+    }
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, ReplicatedTableOptions: %v}",
+    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, ReplicatedTableOptions: %v, CollocationId %v}",
         replicationCard.GetId(),
         replicationCard.Replicas(),
         replicationCard.GetEra(),
@@ -113,12 +121,27 @@ void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicatio
         replicationCard.GetTablePath(),
         replicationCard.GetTableClusterName(),
         replicationCard.GetCurrentTimestamp(),
-        ConvertToYsonString(replicationCard.GetReplicatedTableOptions(), EYsonFormat::Text).AsStringBuf());
+        ConvertToYsonString(replicationCard.GetReplicatedTableOptions(), EYsonFormat::Text).AsStringBuf(),
+        (replicationCard.GetCollocation() ? replicationCard.GetCollocation()->GetId() : TGuid()));
 }
 
 bool TReplicationCard::IsMigrated() const
 {
     return GetState() == EReplicationCardState::Migrated;
+}
+
+bool TReplicationCard::IsCollocationMigrating() const
+{
+    return Collocation_
+        ? Collocation_->IsMigrating()
+        : false;
+}
+
+void TReplicationCard::ValidateCollocationNotMigrating() const
+{
+    if (Collocation_) {
+        Collocation_->ValidateNotMigrating();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

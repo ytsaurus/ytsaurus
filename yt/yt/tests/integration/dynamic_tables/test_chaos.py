@@ -43,6 +43,38 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_NODES = 5
     NUM_CHAOS_NODES = 1
 
+    class CellsDisabled():
+        def __init__(self, clusters=[], tablet_bundles=[], chaos_bundles=[]):
+            self._clusters = clusters
+            self._tablet_bundles = tablet_bundles
+            self._chaos_bundles = chaos_bundles
+
+        def __enter__(self):
+            self._set_tag_filters("invalid")
+            self._wait_for_cells("failed")
+
+        def __exit__(self, exc_type, exception, traceback):
+            self._set_tag_filters("")
+            self._wait_for_cells("good")
+
+        def _set_tag_filters(self, tag_filter):
+            for cluster in self._clusters:
+                driver = get_driver(cluster=cluster)
+                for bundle in self._tablet_bundles:
+                    set("//sys/tablet_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
+                for bundle in self._chaos_bundles:
+                    set("//sys/chaos_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
+
+        def _wait_for_cells(self, state):
+            for cluster in self._clusters:
+                driver = get_driver(cluster=cluster)
+                for bundle in self._tablet_bundles:
+                    wait(lambda: get("//sys/tablet_cell_bundles/{0}/@health".format(bundle), driver=driver) == state)
+                for bundle in self._chaos_bundles:
+                    for cell in get("//sys/chaos_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver):
+                        target = ["good"] if state == "good" else ["failed", "degraded"]
+                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
+
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
@@ -86,11 +118,15 @@ class ChaosTestBase(DynamicTablesBase):
         return orchids
 
     def _wait_for_era(self, path, era=1, check_write=False, driver=None):
+        import logging
+        logger = logging.getLogger()
         def _check():
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
+                    logger.debug("Waiting for era {0} got {1}".format(era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
                     return False
                 if check_write and orchid["write_mode"] != "direct":
+                    logger.debug("Waiting for direct write mode but got {0}".format(orchid["write_mode"]))
                     return False
             return True
         wait(_check)
@@ -141,13 +177,17 @@ class ChaosTestBase(DynamicTablesBase):
             create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
-    def _sync_replication_era(self, card_id, replicas):
-        repliation_card = self._sync_replication_card(card_id)
+    def _sync_replication_era(self, card_id, replicas=None):
+        replication_card = self._sync_replication_card(card_id)
+        if not replicas:
+            replicas = replication_card["replicas"].values()
+        def _enabled(replica):
+            return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
         for replica in replicas:
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
-            check_write = replica["mode"] == "sync" and replica["enabled"]
-            self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
+            check_write = replica["mode"] == "sync" and _enabled(replica)
+            self._wait_for_era(path, era=replication_card["era"], check_write=check_write, driver=driver)
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
         card_id = create_replication_card(chaos_cell_id=cell_id)
@@ -253,6 +293,17 @@ class ChaosTestBase(DynamicTablesBase):
                 return False
         wait(_do)
 
+    def _init_replicated_table_tracker(self):
+        for driver in self._get_drivers():
+            set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
+            set("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache", {
+                "expire_after_successful_update_time": 100,
+                "expire_after_failed_update_time": 100,
+                "expire_after_access_time": 100,
+                "refresh_time": 50,
+            },
+            driver=driver)
+
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
 
@@ -282,7 +333,7 @@ class ChaosTestBase(DynamicTablesBase):
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 14
+    NUM_TEST_PARTITIONS = 20
 
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
@@ -2202,16 +2253,7 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     def test_replicated_table_tracker(self):
-        for driver in self._get_drivers():
-            set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
-            set("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache", {
-                "expire_after_successful_update_time": 100,
-                "expire_after_failed_update_time": 100,
-                "expire_after_access_time": 100,
-                "refresh_time": 50,
-            },
-            driver=driver)
-
+        self._init_replicated_table_tracker()
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -2231,38 +2273,35 @@ class TestChaos(ChaosTestBase):
         assert options["min_sync_replica_count"] == 1
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t", "enable_replicated_table_tracker": True},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1", "enable_replicated_table_tracker": True},
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0", "enable_replicated_table_tracker": True},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1", "enable_replicated_table_tracker": True},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1"},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids)
 
-        wait(lambda: get("#{0}/@mode".format(replica_ids[3])) == "sync")
-        self._sync_replication_era(card_id, replicas)
-
-        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
-        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "failed")
-        wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
-        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "async")
-        wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
-
-        values = [{"key": 0, "value": "0"}]
-        keys = [{"key": 0}]
-        self._insistent_insert_rows("//tmp/t", values)
-        assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
-        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
-
         cypress_replicas = get("//tmp/crt/@replicas")
         assert all(cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids)
 
-        alter_table_replica(replica_ids[0], enable_replicated_table_tracker=False)
-        assert not get("//tmp/crt/@replicas/{0}/replicated_table_tracker_enabled".format(replica_ids[0]))
+        wait(lambda: get("#{0}/@mode".format(replica_ids[3])) == "sync")
+        self._sync_replication_era(card_id)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=["default"]):
+            wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
+            wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "async")
+            wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
+
+            alter_table_replica(replica_ids[0], enable_replicated_table_tracker=False)
+            assert not get("//tmp/crt/@replicas/{0}/replicated_table_tracker_enabled".format(replica_ids[0]))
+
+            values = [{"key": 0, "value": "0"}]
+            keys = [{"key": 0}]
+            self._insistent_insert_rows("//tmp/t", values)
+            assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
 
         alter_replication_card(card_id, enable_replicated_table_tracker=False)
         assert not get("//tmp/crt/@replicated_table_options/enable_replicated_table_tracker")
-
         replicated_table_options["min_sync_replica_count"] = 2
         alter_replication_card(card_id, replicated_table_options=replicated_table_options)
         options = get("//tmp/crt/@replicated_table_options")
@@ -2275,6 +2314,179 @@ class TestChaos(ChaosTestBase):
         assert get("#{0}/@mode".format(replica_ids[0])) == "async"
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=True)
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "sync")
+
+    @authors("savrus")
+    @pytest.mark.parametrize("snapshotting", ["none", "snapshot"])
+    @pytest.mark.parametrize("migration", ["none", "migrate"])
+    @pytest.mark.parametrize("max_sync", [1, 2])
+    def test_replication_card_collocation(self, max_sync, migration, snapshotting):
+        self._init_replicated_table_tracker()
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        cells = [cell_id]
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": False,
+            "min_sync_replica_count": 1,
+            "max_sync_replica_count": max_sync,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+
+        def _create_supertable(prefix, clusters, sync_cluster):
+            crt = "{0}-crt".format(prefix)
+            create("chaos_replicated_table", crt, attributes={
+                "chaos_cell_bundle": "c",
+                "replicated_table_options": replicated_table_options
+            })
+            card_id = get("{0}/@replication_card_id".format(crt))
+
+            replicas = [
+                {
+                    "cluster_name": cluster,
+                    "content_type": content_type,
+                    "mode": "sync" if cluster == sync_cluster else "async",
+                    "enabled": True,
+                    "replica_path": "{0}-{1}-{2}".format(prefix, cluster, content_type),
+                }
+                for content_type in ["data", "queue"]
+                for cluster in clusters
+            ]
+            replica_ids = self._create_chaos_table_replicas(replicas, table_path=crt)
+            self._create_replica_tables(replicas, replica_ids)
+            self._sync_replication_era(card_id, replicas)
+            return crt, card_id, replicas, replica_ids
+
+        clusters = self.get_cluster_names()
+        crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
+        crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
+
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [crt1, crt2]
+        })
+        for crt in [crt1, crt2]:
+            assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
+
+        def _get_orchid(cell_id, path):
+            address = get("#{0}/@peers/0/address".format(cell_id))
+            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path))
+        collocation = _get_orchid(cell_id, "/chaos_manager/replication_card_collocations/{0}".format(collocation_id))
+        assert collocation["state"] == "normal"
+        assert collocation["size"] == 2
+
+        if migration == "migrate":
+            dst_cell_id = self._sync_create_chaos_cell()
+            cells.append(dst_cell_id)
+
+            with raises_yt_error("Trying to move incomplete collocation"):
+                migrate_replication_cards(cell_id, [card1], destination_cell_id=dst_cell_id)
+
+            def _sync_migrate_replication_cards(cell_id, card_ids, destination_cell_id):
+                migrate_replication_cards(cell_id, card_ids, destination_cell_id=destination_cell_id)
+
+                def _get_orchid_path(cell_id):
+                    address = get("#{0}/@peers/0/address".format(cell_id))
+                    return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+                cell_orchid_path = _get_orchid_path(cell_id)
+                dst_orchid_path = _get_orchid_path(destination_cell_id)
+
+                for card_id in card_ids:
+                    migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(cell_orchid_path, card_id)
+                    wait(lambda: get(migration_path) == "migrated")
+
+                    migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(dst_orchid_path, card_id)
+                    wait(lambda: exists(migrated_card_path))
+
+            _sync_migrate_replication_cards(cell_id, [card1, card2], destination_cell_id=dst_cell_id)
+
+            self._sync_replication_era(card1, replicas1)
+            self._sync_replication_era(card2, replicas2)
+
+            options = get("{0}/@replicated_table_options".format(crt1))
+            assert not options["enable_replicated_table_tracker"]
+            assert options["max_sync_replica_count"] == max_sync
+
+            replicas = get("{0}/@replicas".format(crt1))
+            assert all(replica["replicated_table_tracker_enabled"] for replica in replicas.values())
+
+        alter_replication_card(card1, enable_replicated_table_tracker=True)
+        alter_replication_card(card2, enable_replicated_table_tracker=True)
+
+        if snapshotting:
+            _, remote_driver0, remote_driver1 = self._get_drivers()
+            for cell in cells:
+                def _get_snapshots(cell):
+                    return [
+                        len(ls("//sys/chaos_cells/{0}/{1}/snapshots".format(cell, index), driver=driver))
+                        for index, driver in enumerate(self._get_drivers())
+                    ]
+                snapshots = _get_snapshots(cell)
+                build_snapshot(cell_id=cell)
+                wait(lambda: all(new > old for new, old in zip(_get_snapshots(cell), snapshots)))
+            with self.CellsDisabled(clusters=self.get_cluster_names(), chaos_bundles=["c"]):
+                pass
+
+        def _get_sync_replica_clusters(crt, content_type):
+            replicas = get("{0}/@replicas".format(crt))
+            valid = lambda replica: replica["mode"] == "sync" and replica["content_type"] == content_type
+            return list(builtins.set(replica["cluster_name"] for replica in replicas.values() if valid(replica)))
+
+        def _check(content_type):
+            sync1 = _get_sync_replica_clusters(crt1, content_type)
+            sync2 = _get_sync_replica_clusters(crt2, content_type)
+            sync1.sort()
+            sync2.sort()
+            import logging
+            logger = logging.getLogger()
+            logger.debug("Comparing sync {0} replicas: {1} vs {2}".format(content_type, sync1, sync2))
+            return sync1 == sync2 and len(sync1) == [2, max_sync][content_type == "data"]
+        wait(lambda: _check("data"))
+        wait(lambda: _check("queue"))
+
+        for content_type in ["data", "queue"]:
+            sync_clusters = _get_sync_replica_clusters(crt1, content_type)
+            with self.CellsDisabled(clusters=[sync_clusters[0]], tablet_bundles=["default"]):
+                wait(lambda: _get_sync_replica_clusters(crt1, content_type) != sync_clusters)
+                wait(lambda: _check(content_type))
+
+    @authors("savrus")
+    @pytest.mark.parametrize("method", ["alter", "remove"])
+    def test_replication_card_collocation_removed(self, method):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        def _create(prefix):
+            crt = "{0}-crt".format(prefix)
+            create("chaos_replicated_table", crt, attributes={"chaos_cell_bundle": "c"})
+            card_id = get("{0}/@replication_card_id".format(crt))
+            return crt, card_id
+
+        crt1, card1 = _create("//tmp/a")
+        crt2, card2 = _create("//tmp/b")
+
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [crt1, crt2]
+        })
+
+        def _get_orchid_path(cell_id, path):
+            address = get("#{0}/@peers/0/address".format(cell_id))
+            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path)
+        collocation_path = _get_orchid_path(cell_id, "/chaos_manager/replication_card_collocations")
+        assert len(get("{0}/{1}/replication_card_ids".format(collocation_path, collocation_id))) == 2
+
+        def _unbind(crt, card):
+            if method == "remove":
+                remove(crt)
+            else:
+                alter_replication_card(card, replication_card_collocation_id="0-0-0-0")
+
+        _unbind(crt1, card1)
+        wait(lambda: get("{0}/{1}/replication_card_ids".format(collocation_path, collocation_id)) == [card2])
+        _unbind(crt2, card2)
+        wait(lambda: len(get(collocation_path)) == 0)
 
     @authors("savrus")
     @pytest.mark.parametrize("reshard", [True, False])

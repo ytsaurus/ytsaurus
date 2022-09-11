@@ -68,6 +68,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMigration, Migration);
     DEFINE_BYVAL_RW_PROPERTY(EReplicationCardState, State);
 
+    DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocation*, Collocation);
+
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);
 
@@ -78,6 +80,8 @@ public:
     void Load(TLoadContext& context);
 
     bool IsMigrated() const;
+    bool IsCollocationMigrating() const;
+    void ValidateCollocationNotMigrating() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/);

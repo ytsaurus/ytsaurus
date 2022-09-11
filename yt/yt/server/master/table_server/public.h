@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/ytlib/table_client/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableServer {
@@ -33,9 +35,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 
-DEFINE_ENUM(ETableCollocationType,
-    ((Replication)  (0))
-);
+using NTableClient::ETableCollocationType;
 
 static constexpr int MaxTableCollocationSize = 100;
 

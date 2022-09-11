@@ -10,6 +10,7 @@ TReplicationCardId MakeReplicationCardId(NObjectClient::TObjectId randomId);
 TReplicaId MakeReplicaId(TReplicationCardId replicationCardId, TReplicaIdIndex index);
 TReplicationCardId ReplicationCardIdFromReplicaId(TReplicaId replicaId);
 TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstreamReplicaId);
+TReplicationCardId MakeReplicationCardCollocationId(NObjectClient::TObjectId randomId);
 
 NObjectClient::TCellTag GetSiblingChaosCellTag(NObjectClient::TCellTag cellTag);
 

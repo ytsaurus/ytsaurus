@@ -21,6 +21,7 @@ DEFINE_ENUM(EChaosReign,
     ((Migration)                    (300004)) // savrus
     ((ReplicatedTableOptions)       (300005)) // savrus
     ((SupportQueueReplicasInRTT)    (300006)) // akozhikhov
+    ((ReplicationCardCollocation)   (300007)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,3 +43,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosNode
+
+#define SERIALIZE_INL_H_
+#include "serialize-inl.h"
+#undef SERIALIZE_INL_H_
