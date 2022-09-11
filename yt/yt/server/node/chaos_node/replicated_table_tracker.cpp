@@ -3,6 +3,7 @@
 #include "chaos_manager.h"
 #include "chaos_slot.h"
 #include "replication_card.h"
+#include "replication_card_collocation.h"
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
@@ -40,7 +41,7 @@ public:
 
             const auto& chaosManager = slot->GetChaosManager();
             for (auto [_, replicationCard] : chaosManager->ReplicationCards()) {
-                if (replicationCard->IsMigrated()) {
+                if (replicationCard->IsMigrated() || replicationCard->IsCollocationMigrating()) {
                     continue;
                 }
 
@@ -53,14 +54,25 @@ public:
                     snapshot.Replicas.push_back(TReplicaData{
                         .TableId = replicationCard->GetId(),
                         .Id = replicaId,
-                        .Mode = replica.Mode,
-                        .Enabled = IsReplicaEnabled(replica.State),
+                        .Mode = GetTargetReplicaMode(replica.Mode),
+                        .Enabled = GetTargetReplicaState(replica.State) == ETableReplicaState::Enabled,
                         .ClusterName = replica.ClusterName,
                         .TablePath = replica.ReplicaPath,
                         .TrackingEnabled = replica.EnableReplicatedTableTracker,
                         .ContentType = replica.ContentType,
                     });
                 }
+            }
+
+            for (auto [_, collocation] : chaosManager->ReplicationCardCollocations()) {
+                if (collocation->IsMigrating()) {
+                    continue;
+                }
+
+                snapshot.Collocations.push_back(TTableCollocationData{
+                    .Id = collocation->GetId(),
+                    .TableIds = collocation->GetReplicationCardIds()
+                });
             }
 
             host->LoadingFromSnapshotRequested_.store(false);
@@ -101,7 +113,10 @@ public:
                 auto* replica = replicationCard->FindReplica(replicaId);
                 if (replica) {
                     auto minTimestamp = GetReplicationProgressMinTimestamp(replica->ReplicationProgress);
-                    results.emplace_back(replicaId, TimestampDiffToDuration(minTimestamp, latestTimestamp).second);
+                    auto lagTime = minTimestamp < latestTimestamp
+                        ? TimestampDiffToDuration(minTimestamp, latestTimestamp).second
+                        : TDuration::Zero();
+                    results.emplace_back(replicaId, lagTime);
                 }
             }
 
@@ -197,13 +212,11 @@ public:
     {
         Slot_->SubscribeReplicatedTableTrackerConfigChanged(BIND(
             [callback = std::move(callback)] (
-                const TDynamicReplicatedTableTrackerConfigPtr& /* oldConfig */,
+                const TDynamicReplicatedTableTrackerConfigPtr& /*oldConfig*/,
                 const TDynamicReplicatedTableTrackerConfigPtr& newConfig)
             {
                 callback(newConfig);
-            })
-            .Via(GetAutomatonInvoker())
-        );
+            }));
     }
 
 private:

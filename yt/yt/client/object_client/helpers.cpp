@@ -198,6 +198,13 @@ bool IsTableReplicaType(EObjectType type)
         type == EObjectType::ChaosTableReplica;
 }
 
+bool IsCollocationType(EObjectType type)
+{
+    return
+        type == EObjectType::TableCollocation ||
+        type == EObjectType::ReplicationCardCollocation;
+}
+
 bool HasSchema(EObjectType type)
 {
     if (type == EObjectType::Master) {

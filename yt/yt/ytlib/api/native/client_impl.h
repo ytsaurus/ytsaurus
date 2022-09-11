@@ -601,6 +601,7 @@ private:
     friend class TNodeConcatenator;
     friend class TReplicatedTableReplicaTypeHandler;
     friend class TReplicationCardTypeHandler;
+    friend class TReplicationCardCollocationTypeHandler;
     friend class TChaosTableReplicaTypeHandler;
     friend class TTableCollocationTypeHandler;
     friend class TTabletActionTypeHandler;

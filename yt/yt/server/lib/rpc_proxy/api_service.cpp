@@ -2362,6 +2362,9 @@ private:
         if (request->has_enable_replicated_table_tracker()) {
             options.EnableReplicatedTableTracker = request->enable_replicated_table_tracker();
         }
+        if (request->has_replication_card_collocation_id()) {
+            options.ReplicationCardCollocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
+        }
 
         context->SetRequestInfo("ReplicationCardId: %v",
             replicationCardId);

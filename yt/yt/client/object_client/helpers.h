@@ -54,6 +54,9 @@ bool IsReplicatedTableType(EObjectType);
 //! Checks if the given type is a table replica.
 bool IsTableReplicaType(EObjectType type);
 
+//! Checks if the given type is a collocation.
+bool IsCollocationType(EObjectType type);
+
 //! Extracts the type component from #id.
 EObjectType TypeFromId(TObjectId id);
 

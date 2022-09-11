@@ -79,6 +79,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Era);
         descriptors->push_back(EInternedAttributeKey::CoordinatorCellIds);
         descriptors->push_back(EInternedAttributeKey::Replicas);
+        descriptors->push_back(EInternedAttributeKey::ReplicationCollocationId);
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
@@ -217,6 +218,13 @@ private:
                     .Apply(BIND([] (const TReplicationCardPtr& card) {
                         return BuildYsonStringFluently()
                             .Value(card->ReplicatedTableOptions);
+                    }));
+
+            case EInternedAttributeKey::ReplicationCollocationId:
+                return GetReplicationCard()
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
+                        return BuildYsonStringFluently()
+                            .Value(card->ReplicationCardCollocationId);
                     }));
 
             default:

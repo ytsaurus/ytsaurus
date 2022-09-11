@@ -1544,6 +1544,7 @@ message TReqAlterReplicationCard
 
     optional bytes replicated_table_options = 2; // YSON
     optional bool enable_replicated_table_tracker = 3;
+    optional NYT.NProto.TGuid replication_card_collocation_id = 4;
 
     optional TMutatingOptions mutating_options = 100;
 }

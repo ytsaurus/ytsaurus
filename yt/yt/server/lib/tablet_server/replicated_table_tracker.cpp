@@ -13,6 +13,8 @@
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NTabletServer {
@@ -709,6 +711,14 @@ public:
         return &GetOrCrash(IdToReplica_, replicaId);
     }
 
+    struct TReplicaIdFormatter
+    {
+        void operator()(TStringBuilderBase *builder, const TReplica* replica) const
+        {
+            FormatValue(builder, replica->GetId(), TStringBuf());
+        }
+    };
+
     using TReplicaList = TCompactVector<TReplica*, TypicalTableReplicaCount>;
     using TReplicasByState = TEnumIndexedVector<EReplicaState, TReplicaList>;
 
@@ -812,6 +822,14 @@ public:
             while (maxSyncReplicaCount < std::ssize(replicasByState[EReplicaState::GoodSync])) {
                 changeReplicaState(EReplicaState::GoodSync, EReplicaState::GoodAsync);
             }
+
+            YT_LOG_DEBUG("Grouped replicas by target state (TableId: %v, ContentType: %v, GoodSync: %v, BadSync: %v, GoodAsync: %v, BadAsync: %v)",
+                Id_,
+                contentType,
+                MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()),
+                MakeFormattableView(replicasByState[EReplicaState::BadSync], TReplicaIdFormatter()),
+                MakeFormattableView(replicasByState[EReplicaState::GoodAsync], TReplicaIdFormatter()),
+                MakeFormattableView(replicasByState[EReplicaState::BadAsync], TReplicaIdFormatter()));
 
             return replicasByState;
         }
@@ -1045,43 +1063,49 @@ private:
             }
         }
 
-        THashMap<TTableCollocationId, THashMap<TString, int>> collocationIdToClusterPriorities;
+        THashMap<ETableReplicaContentType, THashMap<TTableCollocationId, THashMap<TString, int>>> collocationIdToClusterPriorities;
         for (const auto& [collocationId, collocation] : IdToCollocation_) {
-            std::optional<THashSet<TStringBuf>> goodReplicaClusters;
+            for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                std::optional<THashSet<TStringBuf>> goodReplicaClusters;
 
-            for (auto tableId : collocation.TableIds) {
-                // TODO(akozhikhov): Support collocations for chaos replicated tables.
-                auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
-                    .TableId = tableId,
-                    .ContentType = ETableReplicaContentType::Data
-                });
-                if (it != replicaFamilyToReplicasByState.end()) {
-                    THashSet<TStringBuf> tableGoodReplicaClusters;
-                    for (auto* replica : it->second[EReplicaState::GoodSync]) {
-                        tableGoodReplicaClusters.insert(replica->GetClusterName());
-                    }
-                    for (auto* replica : it->second[EReplicaState::GoodAsync]) {
-                        tableGoodReplicaClusters.insert(replica->GetClusterName());
-                    }
+                for (auto tableId : collocation.TableIds) {
+                    auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
+                        .TableId = tableId,
+                        .ContentType = contentType
+                    });
+                    if (it != replicaFamilyToReplicasByState.end()) {
+                        THashSet<TStringBuf> tableGoodReplicaClusters;
+                        for (auto* replica : it->second[EReplicaState::GoodSync]) {
+                            tableGoodReplicaClusters.insert(replica->GetClusterName());
+                        }
+                        for (auto* replica : it->second[EReplicaState::GoodAsync]) {
+                            tableGoodReplicaClusters.insert(replica->GetClusterName());
+                        }
 
-                    if (!goodReplicaClusters) {
-                        goodReplicaClusters = tableGoodReplicaClusters;
-                    } else {
-                        for (auto it = goodReplicaClusters->begin(); it != goodReplicaClusters->end();) {
-                            auto nextIt = std::next(it);
-                            if (!tableGoodReplicaClusters.contains(*it)) {
-                                goodReplicaClusters->erase(it);
+                        if (!goodReplicaClusters) {
+                            goodReplicaClusters = tableGoodReplicaClusters;
+                        } else {
+                            for (auto it = goodReplicaClusters->begin(); it != goodReplicaClusters->end();) {
+                                auto nextIt = std::next(it);
+                                if (!tableGoodReplicaClusters.contains(*it)) {
+                                    goodReplicaClusters->erase(it);
+                                }
+                                it = nextIt;
                             }
-                            it = nextIt;
                         }
                     }
                 }
-            }
 
-            auto it = EmplaceOrCrash(collocationIdToClusterPriorities, collocationId, THashMap<TString, int>());
-            if (goodReplicaClusters) {
-                for (auto clusterName : *goodReplicaClusters) {
-                    it->second[clusterName] = 2;
+                YT_LOG_DEBUG("Identified good clusters for collocation (CollocationId: %v, ContentType: %v, GoodClusters: %v)",
+                    collocationId,
+                    contentType,
+                    goodReplicaClusters);
+
+                auto it = EmplaceOrCrash(collocationIdToClusterPriorities[contentType], collocationId, THashMap<TString, int>());
+                if (goodReplicaClusters) {
+                    for (auto clusterName : *goodReplicaClusters) {
+                        it->second[clusterName] = 2;
+                    }
                 }
             }
         }
@@ -1094,7 +1118,7 @@ private:
                 replicaClusterPriorities.emplace();
             }
             if (table.GetCollocationId() != NullObjectId) {
-                replicaClusterPriorities = GetOrCrash(collocationIdToClusterPriorities, table.GetCollocationId());
+                replicaClusterPriorities = GetOrCrash(collocationIdToClusterPriorities[replicaFamily.ContentType], table.GetCollocationId());
             }
 
             if (preferredSyncReplicaClusters) {
@@ -1152,6 +1176,11 @@ private:
     {
         auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
         auto& asyncReplicas = (*replicasByState)[EReplicaState::GoodAsync];
+        auto syncReplicaCount = syncReplicas.size();
+
+        YT_LOG_DEBUG("Updating target modes by cluster priorities (GoodSync: %v, GoodAsync: %v)",
+            MakeFormattableView(syncReplicas, TReplicaIdFormatter()),
+            MakeFormattableView(asyncReplicas, TReplicaIdFormatter()));
 
         if (replicaClusterPriorities && !syncReplicas.empty() && !asyncReplicas.empty()) {
             auto getPriority = [&] (auto* replica) {
@@ -1179,7 +1208,7 @@ private:
                     oldReplicas = &asyncReplicas;
                 }
 
-                TReplicaList* newReplicas = std::ssize(newSyncReplicas) < std::ssize(syncReplicas)
+                TReplicaList* newReplicas = newSyncReplicas.size() < syncReplicaCount
                     ? &newSyncReplicas
                     : &newAsyncReplicas;
 
@@ -1190,6 +1219,10 @@ private:
             syncReplicas = std::move(newSyncReplicas);
             asyncReplicas = std::move(newAsyncReplicas);
         }
+
+        YT_LOG_DEBUG("Updated target modes by cluster priorities (GoodSync: %v, GoodAsync: %v)",
+            MakeFormattableView(syncReplicas, TReplicaIdFormatter()),
+            MakeFormattableView(asyncReplicas, TReplicaIdFormatter()));
 
         std::vector<TChangeReplicaModeCommand> commands;
         for (auto state : TEnumTraits<EReplicaState>::GetDomainValues()) {
@@ -1265,8 +1298,9 @@ private:
         EnqueueAction(BIND([=, this_ = MakeStrong(this), data = std::move(data)] {
             auto tableId = data.Id;
 
-            YT_LOG_DEBUG("Replicated table created (TableId: %v)",
-                tableId);
+            YT_LOG_DEBUG("Replicated table created (TableId: %v, Options: %v)",
+                tableId,
+                ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
             YT_VERIFY(IsReplicatedTableType(TypeFromId(tableId)));
 
@@ -1297,8 +1331,9 @@ private:
     void OnReplicatedTableOptionsUpdated(TTableId tableId, TReplicatedTableOptionsPtr options)
     {
         EnqueueAction(BIND([=, this_ = MakeStrong(this), options = std::move(options)] {
-            YT_LOG_DEBUG("Replicated table options updated (TableId: %v)",
-                tableId);
+            YT_LOG_DEBUG("Replicated table options updated (TableId: %v, Options: %v)",
+                tableId,
+                ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf());
 
             GetTable(tableId)->SetOptions(std::move(options));
         }));
@@ -1396,7 +1431,7 @@ private:
             YT_LOG_DEBUG("Replication collocation updated (CollocationId: %v)",
                 data.Id);
 
-            YT_VERIFY(TypeFromId(data.Id) == EObjectType::TableCollocation);
+            YT_VERIFY(IsCollocationType(TypeFromId(data.Id)));
 
             auto [it, _] = IdToCollocation_.try_emplace(data.Id);
             for (auto tableId : it->second.TableIds) {
@@ -1418,7 +1453,7 @@ private:
             YT_LOG_DEBUG("Replication collocation destroyed (CollocationId: %v)",
                 collocationId);
 
-            YT_VERIFY(TypeFromId(collocationId) == EObjectType::TableCollocation);
+            YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
             const auto& collocation = GetOrCrash(IdToCollocation_, collocationId);
             for (auto tableId : collocation.TableIds) {
@@ -1486,7 +1521,7 @@ private:
 
         for (const auto& collocationData : snapshot.Collocations) {
             auto collocationId = collocationData.Id;
-            YT_VERIFY(TypeFromId(collocationId) == EObjectType::TableCollocation);
+            YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
             auto it = EmplaceOrCrash(IdToCollocation_, collocationId, TTableCollocation{});
             for (auto tableId : collocationData.TableIds) {

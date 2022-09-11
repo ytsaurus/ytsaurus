@@ -88,14 +88,15 @@ TString ToString(const TReplicaInfo& replicaInfo)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x}",
+    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, CollocationId: %v}",
         replicationCard.Era,
         replicationCard.Replicas,
         replicationCard.CoordinatorCellIds,
         replicationCard.TableId,
         replicationCard.TablePath,
         replicationCard.TableClusterName,
-        replicationCard.CurrentTimestamp);
+        replicationCard.CurrentTimestamp,
+        replicationCard.ReplicationCardCollocationId);
 }
 
 TString ToString(const TReplicationCard& replicationCard)
@@ -189,6 +190,20 @@ bool IsReplicaDisabled(ETableReplicaState state)
 bool IsReplicaReallySync(ETableReplicaMode mode, ETableReplicaState state)
 {
     return IsReplicaSync(mode) && IsReplicaEnabled(state);
+}
+
+ETableReplicaMode GetTargetReplicaMode(ETableReplicaMode mode)
+{
+    return (mode == ETableReplicaMode::Sync || mode == ETableReplicaMode::AsyncToSync)
+        ? ETableReplicaMode::Sync
+        : ETableReplicaMode::Async;
+}
+
+ETableReplicaState GetTargetReplicaState(ETableReplicaState state)
+{
+    return (state == ETableReplicaState::Enabled || state == ETableReplicaState::Enabling)
+        ? ETableReplicaState::Enabled
+        : ETableReplicaState::Disabled;
 }
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update)

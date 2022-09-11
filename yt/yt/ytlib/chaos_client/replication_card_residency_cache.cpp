@@ -82,7 +82,7 @@ public:
         TCellTag cellTag,
         const NLogging::TLogger& logger)
         : Owner_(owner)
-        , ReplicationCardId_ (replicationCardId)
+        , ReplicationCardId_(replicationCardId)
         , CellTag_(cellTag)
         , Logger(logger
             .WithTag("ReplicationCardId: %v, CacheSessionId: %v",

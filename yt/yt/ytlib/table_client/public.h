@@ -124,6 +124,10 @@ class THunkChunkWriterCounters;
 
 class TSliceBoundaryKey;
 
+DEFINE_ENUM(ETableCollocationType,
+    ((Replication)  (0))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

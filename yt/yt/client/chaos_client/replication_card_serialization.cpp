@@ -115,6 +115,7 @@ struct TSerializableReplicationCard
     TString TableClusterName;
     NTransactionClient::TTimestamp CurrentTimestamp;
     NTabletClient::TReplicatedTableOptionsPtr ReplicatedTableOptions;
+    TReplicationCardCollocationId ReplicationCardCollocationId;
 
     REGISTER_YSON_STRUCT(TSerializableReplicationCard);
 
@@ -134,6 +135,8 @@ struct TSerializableReplicationCard
         registrar.Parameter("current_timestamp", &TThis::CurrentTimestamp)
             .Default();
         registrar.Parameter("replicated_table_options", &TThis::ReplicatedTableOptions)
+            .Default();
+        registrar.Parameter("replication_card_collocation_id", &TThis::ReplicationCardCollocationId)
             .Default();
     }
 };
@@ -178,6 +181,7 @@ void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplication
     replicationCard.TableClusterName = serializable->TableClusterName;
     replicationCard.CurrentTimestamp = serializable->CurrentTimestamp;
     replicationCard.ReplicatedTableOptions = serializable->ReplicatedTableOptions;
+    replicationCard.ReplicationCardCollocationId = serializable->ReplicationCardCollocationId;
 }
 
 void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
@@ -249,6 +253,7 @@ void Serialize(
         .Item("content_type").Value(replicaInfo.ContentType)
         .Item("mode").Value(replicaInfo.Mode)
         .Item("state").Value(replicaInfo.State)
+        .Item("enable_replicated_table_tracker").Value(replicaInfo.EnableReplicatedTableTracker)
         .DoIf(options.IncludeProgress, [&] (auto fluent) {
             fluent
                 .Item("replication_progress").Value(replicaInfo.ReplicationProgress);
@@ -256,10 +261,6 @@ void Serialize(
         .DoIf(options.IncludeHistory, [&] (auto fluent) {
             fluent
                 .Item("history").Value(replicaInfo.History);
-        })
-        .DoIf(options.IncludeReplicatedTableOptions, [&] (auto fluent) {
-            fluent
-                .Item("enable_replicated_table_tracker").Value(replicaInfo.EnableReplicatedTableTracker);
         });
 }
 
@@ -313,7 +314,8 @@ void Serialize(
         .Item("table_id").Value(replicationCard.TableId)
         .Item("table_path").Value(replicationCard.TablePath)
         .Item("table_cluster_name").Value(replicationCard.TableClusterName)
-        .Item("current_timestamp").Value(replicationCard.CurrentTimestamp);
+        .Item("current_timestamp").Value(replicationCard.CurrentTimestamp)
+        .Item("replication_card_collocation_id").Value(replicationCard.ReplicationCardCollocationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,14 +370,12 @@ void ToProto(
     protoReplicaInfo->set_content_type(ToProto<i32>(replicaInfo.ContentType));
     protoReplicaInfo->set_mode(ToProto<i32>(replicaInfo.Mode));
     protoReplicaInfo->set_state(ToProto<i32>(replicaInfo.State));
+    protoReplicaInfo->set_enable_replicated_table_tracker(replicaInfo.EnableReplicatedTableTracker);
     if (options.IncludeProgress) {
         ToProto(protoReplicaInfo->mutable_progress(), replicaInfo.ReplicationProgress);
     }
     if (options.IncludeHistory) {
         ToProto(protoReplicaInfo->mutable_history(), replicaInfo.History);
-    }
-    if (options.IncludeReplicatedTableOptions) {
-        protoReplicaInfo->set_enable_replicated_table_tracker(replicaInfo.EnableReplicatedTableTracker);
     }
 }
 
@@ -416,6 +416,7 @@ void ToProto(
     protoReplicationCard->set_table_path(replicationCard.TablePath);
     protoReplicationCard->set_table_cluster_name(replicationCard.TableClusterName);
     protoReplicationCard->set_current_timestamp(replicationCard.CurrentTimestamp);
+    ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard.ReplicationCardCollocationId);
 }
 
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard)
@@ -433,6 +434,9 @@ void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TR
     replicationCard->CurrentTimestamp = protoReplicationCard.current_timestamp();
     if (protoReplicationCard.has_replicated_table_options()) {
         replicationCard->ReplicatedTableOptions = ConvertTo<TReplicatedTableOptionsPtr>(TYsonString(protoReplicationCard.replicated_table_options()));
+    }
+    if (protoReplicationCard.has_replication_card_collocation_id()) {
+        FromProto(&replicationCard->ReplicationCardCollocationId, protoReplicationCard.replication_card_collocation_id());
     }
 }
 

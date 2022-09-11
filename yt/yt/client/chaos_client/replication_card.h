@@ -50,7 +50,7 @@ struct TReplicaInfo
     NTabletClient::ETableReplicaState State;
     TReplicationProgress ReplicationProgress;
     std::vector<TReplicaHistoryItem> History;
-    bool EnableReplicatedTableTracker = false;
+    bool EnableReplicatedTableTracker = true;
 
     //! Returns index of history item corresponding to timestamp, -1 if none.
     int FindHistoryItemIndex(NTransactionClient::TTimestamp timestamp);
@@ -67,6 +67,7 @@ struct TReplicationCard
     TString TableClusterName;
     NTransactionClient::TTimestamp CurrentTimestamp = NTransactionClient::NullTimestamp;
     NTabletClient::TReplicatedTableOptionsPtr ReplicatedTableOptions;
+    TReplicationCardCollocationId ReplicationCardCollocationId;
 
     //! Returns pointer to replica with a given id, nullptr if none.
     TReplicaInfo* FindReplica(TReplicaId replicaId);
@@ -112,6 +113,8 @@ bool IsReplicaAsync(NTabletClient::ETableReplicaMode mode);
 bool IsReplicaEnabled(NTabletClient::ETableReplicaState state);
 bool IsReplicaDisabled(NTabletClient::ETableReplicaState state);
 bool IsReplicaReallySync(NTabletClient::ETableReplicaMode mode, NTabletClient::ETableReplicaState state);
+NTabletClient::ETableReplicaMode GetTargetReplicaMode(NTabletClient::ETableReplicaMode mode);
+NTabletClient::ETableReplicaState GetTargetReplicaState(NTabletClient::ETableReplicaState state);
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update);
 
