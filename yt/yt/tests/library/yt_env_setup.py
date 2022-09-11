@@ -89,12 +89,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
         )
         assert path == bin_path
 
-    if ytrecipe:
-        SANDBOX_ROOTDIR = os.environ.get("YT_OUTPUT")
-    elif ram_drive_path is None:
-        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_path()
-    else:
-        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
+    SANDBOX_ROOTDIR = arcadia_interop.get_output_path()
 
     return bin_path
 

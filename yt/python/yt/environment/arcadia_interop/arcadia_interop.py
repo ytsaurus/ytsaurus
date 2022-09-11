@@ -41,6 +41,18 @@ def sudo_move(src_path, dst_path):
     subprocess.check_call(["sudo", "mv", src_path, dst_path])
 
 
+def get_output_path():
+    assert yatest_common is not None
+
+    yt_output = os.environ.get("YT_OUTPUT")
+    if yt_output is not None:
+        return yt_output
+    elif yatest_common.ram_drive_path() is not None:
+        return yatest_common.output_ram_drive_path()
+    else:
+        return yatest_common.output_path()
+
+
 def search_binary_path(binary_name, binary_root=None, build_path_dir=None):
     """
     Search for binary with given name in arcadia build_path.
