@@ -41,6 +41,10 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("attr", "attrs"),
 ]
 
+LIBRARY_PYTHON_PACKAGE_LIST = [
+    "type_info",
+]
+
 PY23_BINARIES = [
     "yt/wrapper/bin/yt",
     "yt/wrapper/bin/yt-fuse",
@@ -69,6 +73,18 @@ def fix_chardet_package(chardet_path):
                 fout.write(data)
 
 
+def fix_type_info_package(type_info_path):
+    for root, dirs, files in os.walk(type_info_path):
+        for file in files:
+            with open(os.path.join(root, file)) as fin:
+                data = fin.read()
+            data = data.replace(
+                "import six\n",
+                "import yt.packages.six as six\n")
+            with open(os.path.join(root, file), "w") as fout:
+                fout.write(data)
+
+
 def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
                                prepare_binary_symlinks=False, prepare_bindings=True):
     def python_contrib_path(path):
@@ -78,6 +94,7 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
         arcadia_root = yt_root
 
     packages_dir = os.path.join(python_root, "yt", "packages")
+    library_dir = os.path.join(python_root, "yandex")
 
     # Cleanup old stuff
     for fname in os.listdir(packages_dir):
@@ -85,6 +102,26 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
             if fname.startswith(package):
                 rm_rf(os.path.join(packages_dir, fname))
 
+    if os.path.exists(library_dir):
+        rm_rf(library_dir)
+
+    # Prepare library dependencies
+    os.makedirs(library_dir, exist_ok=True)
+    open(os.path.join(library_dir, "__init__.py"), "a").close()
+
+    for package_name in LIBRARY_PYTHON_PACKAGE_LIST:
+        logger.info("Preparing package %s", package_name)
+
+        path_to_copy = "{arcadia_root}/library/python/{package_name}".format(
+            arcadia_root=arcadia_root,
+            package_name=package_name)
+
+        cp_r(path_to_copy, library_dir)
+
+        if package_name == "type_info":
+            fix_type_info_package(os.path.join(library_dir, package_name))
+
+    # Prepare contribs
     for package_name in YT_PYTHON_PACKAGE_LIST:
         if isinstance(package_name, tuple):
             package_name, package_relative_path = package_name
