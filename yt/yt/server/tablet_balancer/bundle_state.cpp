@@ -31,6 +31,7 @@ TBundleState::TBundleState(
     IInvokerPtr invoker)
     : Bundle_(New<TTabletCellBundle>(name))
     , Logger(TabletBalancerLogger.WithTag("BundleName: %v", name))
+    , Profiler_(TabletBalancerProfiler.WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , Invoker_(invoker)
 { }
@@ -99,6 +100,7 @@ void TBundleState::DoUpdateState()
 
     for (auto& [tableId, tableInfo] : tableInfos) {
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
+        InitializeProfilingCounters(it->second);
 
         auto tablets = GetOrCrash(newTableIdToTablets, tableId);
         for (auto tabletId : tablets) {
@@ -230,13 +232,16 @@ void TBundleState::DoFetchStatistics()
     }
 
     THashSet<TTabletId> tabletIds;
+    THashSet<TTableId> finalTableIds;
     for (const auto& [tableId, table] : Bundle_->Tables) {
         for (const auto& tablet : table->Tablets) {
-            tabletIds.insert(tablet->Id);
+            InsertOrCrash(tabletIds, tablet->Id);
         }
+        InsertOrCrash(finalTableIds, tableId);
     }
 
     DropMissingKeys(&Tablets_, tabletIds);
+    DropMissingKeys(&ProfilingCounters_, tableIds);
 }
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
@@ -386,6 +391,22 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
     }
 
     return tableStatistics;
+}
+
+void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
+{
+    TTableProfilingCounters profilingCounters;
+    auto profiler = Profiler_
+        .WithTag("table", table->Path);
+
+    profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
+    profilingCounters.ExtMemoryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
+    profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
+    profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
+    profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
+    // TODO(alexelex): add ParametrizedMoves counter
+
+    EmplaceOrCrash(ProfilingCounters_, table->Id, std::move(profilingCounters));
 }
 
 void Deserialize(

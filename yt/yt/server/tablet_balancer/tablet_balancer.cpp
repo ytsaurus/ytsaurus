@@ -76,9 +76,9 @@ private:
     bool IsBalancingAllowed(const TBundleStatePtr& bundle) const;
 
     void BalanceViaReshard(const TBundleStatePtr& bundle) const;
-    void BalanceViaMove(const TTabletCellBundlePtr& bundle) const;
-    void BalanceViaMoveInMemory(const TTabletCellBundlePtr& bundle) const;
-    void BalanceViaMoveOrdinary(const TTabletCellBundlePtr& bundle) const;
+    void BalanceViaMove(const TBundleStatePtr& bundle) const;
+    void BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const;
+    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const;
 
     void UpdateBundleList();
 
@@ -175,7 +175,7 @@ void TTabletBalancer::BalancerIteration()
         // TODO(alexelex): Use Tablets as tablets for each table.
 
         if (IterationIndex_ % 2 != 0) {
-            BalanceViaMove(bundle->GetBundle());
+            BalanceViaMove(bundle);
         } else {
             BalanceViaReshard(bundle);
         }
@@ -189,11 +189,12 @@ void TTabletBalancer::BalancerIteration()
 void TTabletBalancer::TryBalancerIteration()
 {
     TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TabletBalancer"));
-    try {
-        // TODO(alexelex): Add profile timing here.
-        BalancerIteration();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Balancer iteration failed");
+    YT_PROFILE_TIMING("/tablet_balancer/balancer_iteration_time") {
+        try {
+            BalancerIteration();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Balancer iteration failed");
+        }
     }
 }
 
@@ -266,15 +267,16 @@ void TTabletBalancer::UpdateBundleList()
     DropMissingKeys(&Bundles_, currentBundles);
 }
 
-void TTabletBalancer::BalanceViaMoveInMemory(const TTabletCellBundlePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const
 {
-    if (!bundle->Config->EnableInMemoryCellBalancer) {
-        YT_LOG_DEBUG("Balancing in memory via move is disabled (BundleName: %v)", bundle->Name);
+    if (!bundle->GetBundle()->Config->EnableInMemoryCellBalancer) {
+        YT_LOG_DEBUG("Balancing in memory via move is disabled (BundleName: %v)",
+            bundle->GetBundle()->Name);
         return;
     }
 
     auto descriptors = ReassignInMemoryTablets(
-        bundle,
+        bundle->GetBundle(),
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
         Logger);
@@ -286,24 +288,30 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TTabletCellBundlePtr& bundle)
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundle->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+
+            auto tablet = GetOrCrash(bundle->Tablets(), descriptor.TabletId);
+            auto& profilingCounters = GetOrCrash(bundle->ProfilingCounters(), tablet->Table->Id);
+            profilingCounters.InMemoryMoves.Increment(1);
         }
 
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance in memory tablets via move finished (ActionCount: %v)", actionCount);
+    YT_LOG_DEBUG("Balance in memory tablets via move finished (ActionCount: %v)",
+        actionCount);
 }
 
-void TTabletBalancer::BalanceViaMoveOrdinary(const TTabletCellBundlePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const
 {
-    if (!bundle->Config->EnableCellBalancer) {
-        YT_LOG_DEBUG("Balancing ordinary via move is disabled (BundleName: %v)", bundle->Name);
+    if (!bundle->GetBundle()->Config->EnableCellBalancer) {
+        YT_LOG_DEBUG("Balancing ordinary via move is disabled (BundleName: %v)",
+            bundle->GetBundle()->Name);
         return;
     }
 
     auto descriptors = ReassignOrdinaryTablets(
-        bundle,
+        bundle->GetBundle(),
         /*movableTables*/ std::nullopt,
         Logger);
 
@@ -314,16 +322,17 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TTabletCellBundlePtr& bundle)
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundle->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
         }
 
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance ordinary tablets via move finished (ActionCount: %v)", actionCount);
+    YT_LOG_DEBUG("Balance ordinary tablets via move finished (ActionCount: %v)",
+        actionCount);
 }
 
-void TTabletBalancer::BalanceViaMove(const TTabletCellBundlePtr& bundle) const
+void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
 {
     BalanceViaMoveInMemory(bundle);
     BalanceViaMoveOrdinary(bundle);
@@ -360,6 +369,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
             continue;
         }
 
+        auto& profilingCounters = GetOrCrash(bundle->ProfilingCounters(), (*beginIt)->Table->Id);
         auto tabletRange = MakeRange(beginIt, endIt);
         beginIt = endIt;
 
@@ -376,11 +386,20 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
                 descriptor.TabletCount,
                 descriptor.DataSize);
             ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+
+            if (descriptor.TabletCount == 1) {
+                profilingCounters.TabletMerges.Increment(1);
+            } else if (std::ssize(descriptor.Tablets) == 1) {
+                profilingCounters.TabletSplits.Increment(1);
+            } else {
+                profilingCounters.NonTrivialReshards.Increment(1);
+            }
         }
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance tablets via reshard finished (ActionCount: %v)", actionCount);
+    YT_LOG_DEBUG("Balance tablets via reshard finished (ActionCount: %v)",
+        actionCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

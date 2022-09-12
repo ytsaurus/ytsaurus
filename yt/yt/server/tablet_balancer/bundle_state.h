@@ -15,15 +15,28 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTableProfilingCounters
+{
+    NProfiling::TCounter InMemoryMoves;
+    NProfiling::TCounter ExtMemoryMoves;
+    NProfiling::TCounter TabletMerges;
+    NProfiling::TCounter TabletSplits;
+    NProfiling::TCounter NonTrivialReshards;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBundleState
     : public TRefCounted
 {
 public:
     using TTabletMap = THashMap<TTabletId, TTabletPtr>;
+    using TTableProfilingCounterMap = THashMap<TTableId, TTableProfilingCounters>;
 
     DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle, nullptr);
+    DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
 
 public:
     TBundleState(
@@ -68,7 +81,8 @@ private:
         i64 DataWeight;
     };
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler_;
 
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
@@ -92,6 +106,8 @@ private:
         const THashSet<TTableId>& tableIds) const;
 
     bool IsTableBalancingAllowed(const TTableSettings& table) const;
+
+    void InitializeProfilingCounters(const TTablePtr& table);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleState)
