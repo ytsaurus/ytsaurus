@@ -57,13 +57,13 @@ custom)
 release)
         case $SPYT_PUBLISH_MODE in
     client)
-        command="$SBT test && $SBT spytPublishClientRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client "
+        command="$SBT test && $SBT -mem 16384 spytPublishClientRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client "
         ;;
     cluster)
-        command="$SBT test && $SBT spytPublishClusterRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster"
+        command="$SBT test && $SBT -mem 16384 spytPublishClusterRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster"
         ;;
     spark-fork)
-        command="$SBT test && $SBT spytPublishSparkForkRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster spark-fork"
+        command="$SBT test && $SBT -mem 16384 spytPublishSparkForkRelease && python3 /app/spark-over-yt/tools/teamcity/cli.py teamcity-report client cluster spark-fork"
         ;;
     *)
         command="echo Unknown publish mode $SPYT_PUBLISH_MODE && false"
