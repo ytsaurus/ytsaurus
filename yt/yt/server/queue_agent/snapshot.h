@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dynamic_state.h"
+#include "performance_counters.h"
 
 namespace NYT::NQueueAgent {
 
@@ -19,6 +20,12 @@ struct TQueueSnapshot
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
     THashMap<NQueueClient::TCrossClusterReference, TConsumerSnapshotPtr> ConsumerSnapshots;
+
+    //! Total write counters over all partitions.
+    TPerformanceCounters WriteRate;
+
+    bool HasTimestampColumn = false;
+    bool HasCumulativeDataWeightColumn = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueSnapshot);
@@ -37,6 +44,9 @@ struct TQueuePartitionSnapshot
     i64 AvailableRowCount = -1;
     TInstant LastRowCommitTime;
     TDuration CommitIdleTime;
+
+    //! Write counters for the given partition.
+    TPerformanceCounters WriteRate;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot);
@@ -58,6 +68,9 @@ struct TConsumerSnapshot
     i64 PartitionCount = 0;
 
     std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
+
+    //! Total read counters over all partitions.
+    TPerformanceCounters ReadRate;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot);
@@ -96,10 +109,16 @@ struct TConsumerPartitionSnapshot
     //! Offset of the next row with respect to the upper row index in the partition.
     //! May be negative if the consumer is ahead of the partition.
     i64 UnreadRowCount = -1;
-    //! If #Disposition == PendingConsumption, the commit timestamp of the next row to be read by the consumer;
+    //! If #Disposition == PendingConsumption and commit timestamp is set up, the commit timestamp of the next row to be read by the consumer;
     //! std::nullopt otherwise.
     std::optional<TInstant> NextRowCommitTime;
+    //! If #NextRowCommitTime is set, difference between Now() and *NextRowCommitTime; zero otherwise.
     TDuration ProcessingLag;
+
+    ui64 CumulativeDataWeight = 0;
+
+    //! Read counters of the given consumer for the partition.
+    TPerformanceCounters ReadRate;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerPartitionSnapshot);
