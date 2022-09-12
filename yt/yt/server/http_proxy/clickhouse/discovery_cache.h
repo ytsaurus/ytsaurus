@@ -20,7 +20,7 @@ public:
         NScheduler::TOperationId operationId,
         NClickHouseServer::IDiscoveryPtr discovery);
 
-    DEFINE_BYREF_RO_PROPERTY(NClickHouseServer::IDiscoveryPtr, Discovery);
+    DEFINE_BYREF_RO_PROPERTY(NClickHouseServer::IDiscoveryPtr, Value);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedDiscovery)

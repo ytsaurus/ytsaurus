@@ -64,9 +64,17 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select * from system.clique", database="*test_alias@aaa")
 
-    @authors("dakovalkov")
-    def test_http_proxy(self):
-        with Clique(1) as clique:
+    @authors("dakovalkov", "gudqeit")
+    @pytest.mark.parametrize("discovery_version", [1, 2])
+    def test_http_proxy(self, discovery_version):
+        patch = {
+            "yt": {
+                "discovery": {
+                    "version": discovery_version
+                }
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
             proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
@@ -130,7 +138,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert clique.get_active_instance_count() == 2
 
         assert cache_missed_count.get_delta(verbose=True) == 1
-        assert force_update_count.get_delta(verbose=True) == 1
+        assert force_update_count.get_delta(verbose=True) == 0
         assert banned_count.get_delta(verbose=True) == 1
 
     @authors("dakovalkov")
@@ -177,7 +185,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert clique.get_active_instance_count() == 1
 
         assert cache_missed_count.get_delta(verbose=True) == 1
-        assert force_update_count.get_delta(verbose=True) == 1
+        assert force_update_count.get_delta(verbose=True) == 0
         assert banned_count.get_delta(verbose=True) == 1
 
     @authors("dakovalkov")

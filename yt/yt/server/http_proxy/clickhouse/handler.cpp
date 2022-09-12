@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "discovery_cache.h"
+#include "helpers.h"
 
 #include <yt/yt/server/http_proxy/bootstrap.h>
 #include <yt/yt/server/http_proxy/coordinator.h>
@@ -14,6 +15,7 @@
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
 #include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -26,6 +28,9 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 
@@ -50,6 +55,7 @@ using namespace NYPath;
 using namespace NTracing;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NRpc::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +94,7 @@ public:
         const TDiscoveryCachePtr discoveryCache,
         const TCounter forceUpdateCounter,
         const TCounter bannedCounter,
+        const std::vector<TString>& discoveryServers,
         IInvokerPtr controlInvoker,
         NLogging::TLogger logger)
         : Logger(logger)
@@ -103,6 +110,8 @@ public:
         , ForceUpdateCounter_(forceUpdateCounter)
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
+        , DiscoveryServers_(discoveryServers)
+        , ChannelFactory_(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()))
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
             YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);
@@ -216,6 +225,15 @@ private:
     TString InstanceHost_;
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
+    std::vector<TString> DiscoveryServers_;
+    NRpc::IChannelFactoryPtr ChannelFactory_;
+
+    static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
+        "host",
+        "http_port",
+        "job_cookie",
+        "clique_incarnation",
+    };
 
     // These fields define the proxied request issued to a randomly chosen instance.
     TString ProxiedRequestUrl_;
@@ -570,6 +588,65 @@ private:
         }
     }
 
+    IDiscoveryPtr CreateDiscoveryV1()
+    {
+        auto config = New<TDiscoveryV1Config>();
+        auto path = Format("%v/%v", Config_->DiscoveryPath, OperationId_);
+        config->Directory = path;
+        config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
+        config->ReadFrom = NApi::EMasterChannelKind::Cache;
+        config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;
+        return NClickHouseServer::CreateDiscoveryV1(
+            std::move(config),
+            Client_,
+            ControlInvoker_,
+            DiscoveryAttributes_,
+            Logger);
+    }
+
+    IDiscoveryPtr CreateDiscoveryV2()
+    {
+        auto config = New<TDiscoveryV2Config>();
+        auto groupId = OperationAlias_.value_or(ToString(OperationId_));
+        config->GroupId = "/chyt/" + groupId;
+        config->ServerAddresses = DiscoveryServers_;
+        config->ReadQuorum = 1;
+        config->WriteQuorum = 1;
+        config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
+        return NClickHouseServer::CreateDiscoveryV2(
+            std::move(config),
+            ChannelFactory_,
+            ControlInvoker_,
+            DiscoveryAttributes_,
+            Logger);
+    }
+
+    IDiscoveryPtr TryChooseDiscovery()
+    {
+        auto discoveryV1 = CreateDiscoveryV1();
+        auto discoveryV1Future = discoveryV1->UpdateList().Apply(BIND([discovery = std::move(discoveryV1)] { return discovery; }));
+        auto futures = std::vector{discoveryV1Future};
+
+        if (!DiscoveryServers_.empty()) {
+            auto discoveryV2 = CreateDiscoveryV2();
+            auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
+            futures.emplace_back(std::move(discoveryV2Future));
+        }
+
+        auto valueOrError = WaitFor(AnySucceeded(futures));
+        if (!valueOrError.IsOK()) {
+            if (valueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION("Clique directory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
+                    << valueOrError;
+            } else {
+                THROW_ERROR_EXCEPTION("Clique discovery is not found")
+                    << valueOrError;
+            }
+        }
+
+        return valueOrError.Value();
+    }
+
     bool TryFindDiscovery()
     {
         if (Discovery_) {
@@ -584,45 +661,13 @@ private:
             if (cookie.IsActive()) {
                 YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", OperationId_);
 
-                TString path = Config_->DiscoveryPath + "/" + ToString(OperationId_);
-                NApi::TGetNodeOptions options;
-                options.ReadFrom = NApi::EMasterChannelKind::Cache;
+                auto discovery = TryChooseDiscovery();
 
-                i64 version = 0;
-                YT_PROFILE_TIMING("/clickhouse_proxy/query_time/create_discovery") {
-                    auto nodeOrError = WaitFor(Client_->GetNode(path + "/@", options));
-
-                    if (!nodeOrError.IsOK() && nodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        auto error = TError("Clique directory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
-                            << nodeOrError;
-                        PushError(error);
-                        cookie.Cancel(error);
-                        return false;
-                    }
-                    auto node = ConvertToNode(nodeOrError.ValueOrThrow())->AsMap()->FindChild("discovery_version");
-                    if (node) {
-                        version = node->GetValue<i64>();
-                    }
-                }
-
-                YT_LOG_DEBUG("Fetched discovery version (Version: %v)", version);
-
-                auto config = New<TDiscoveryV1Config>();
-                config->Directory = path;
-                config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
-                config->ReadFrom = NApi::EMasterChannelKind::Cache;
-                config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;
-                if (version == 0) {
-                    config->SkipUnlockedParticipants = false;
-                }
+                YT_LOG_DEBUG("Fetched discovery version (Version: %v)", discovery->Version());
 
                 cookie.EndInsert(New<TCachedDiscovery>(
                     OperationId_,
-                    CreateDiscoveryV1(config,
-                        Client_,
-                        ControlInvoker_,
-                        std::vector<TString>{"host", "http_port", "job_cookie"},
-                        Logger)));
+                    std::move(discovery)));
 
                 YT_LOG_DEBUG("New discovery inserted to the cache (OperationId: %v)", OperationId_);
             }
@@ -653,8 +698,8 @@ private:
             }
 
             YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
-            Discovery_->Discovery()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
-            auto updatedFuture = Discovery_->Discovery()->UpdateList(
+            Discovery_->Value()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
+            auto updatedFuture = Discovery_->Value()->UpdateList(
                 forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
                 YT_LOG_DEBUG("Waiting for discovery");
@@ -666,7 +711,10 @@ private:
                 YT_LOG_DEBUG("Discovery updated");
             }
 
-            auto instances = Discovery_->Discovery()->List();
+            auto instances = Discovery_->Value()->List();
+            if (Discovery_->Value()->Version() == 2) {
+                instances = FilterInstancesByIncarnation(instances);
+            }
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
                 PushError(TError("Clique %v has no running instances", OperationIdOrAlias_));
@@ -885,7 +933,7 @@ private:
                 << TErrorAttribute("proxy_retry_index", retryIndex));
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             BannedCounter_.Increment();
-            Discovery_->Discovery()->Ban(InstanceId_);
+            Discovery_->Value()->Ban(InstanceId_);
             return false;
         }
     }
@@ -938,6 +986,10 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , QueryCount_(ClickHouseProfiler.Counter("/query_count"))
     , ForceUpdateCount_(ClickHouseProfiler.Counter("/force_update_count"))
     , BannedCount_(ClickHouseProfiler.Counter("/banned_count"))
+    , DiscoveryServerUpdateExecutor_(New<TPeriodicExecutor>(
+        ControlInvoker_,
+        BIND(&TClickHouseHandler::UpdateDiscoveryServers, MakeWeak(this)),
+        Config_->DiscoveryServerUpdatePeriod))
 {
     OperationCache_ = New<TOperationCache>(
         Config_->OperationCache,
@@ -950,6 +1002,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         ClickHouseProfiler.WithPrefix("/permission_cache"));
 
     DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.WithPrefix("/discovery_cache"));
+    DiscoveryServerUpdateExecutor_->Start();
 }
 
 void TClickHouseHandler::HandleRequest(
@@ -990,6 +1043,7 @@ void TClickHouseHandler::HandleRequest(
             DiscoveryCache_,
             ForceUpdateCount_,
             BannedCount_,
+            GetDiscoveryServers(),
             ControlInvoker_,
             Logger);
 
@@ -1021,6 +1075,33 @@ void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
 
     entry->first += delta;
     entry->second.Update(entry->first);
+}
+
+std::vector<TString> TClickHouseHandler::GetDiscoveryServers()
+{
+    auto guard = ReaderGuard(DiscoveryServerLock_);
+    return DiscoveryServers_;
+}
+
+void TClickHouseHandler::UpdateDiscoveryServers()
+{
+    auto Logger = ClickHouseUnstructuredLogger;
+    std::vector<TString> discoveryServers;
+    try {
+        TListNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::MasterCache;
+        auto discoveryServersYson = WaitFor(Client_->ListNode("//sys/discovery_servers", options))
+            .ValueOrThrow();
+        discoveryServers = ConvertTo<std::vector<TString>>(discoveryServersYson);
+    } catch (const std::exception& ex) {
+        // Non-throwing method for periodic executor
+        YT_LOG_DEBUG(ex, "Can not list '//sys/discovery_servers'");
+    }
+
+    auto guard = WriterGuard(DiscoveryServerLock_);
+    if (!discoveryServers.empty()) {
+        DiscoveryServers_ = discoveryServers;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

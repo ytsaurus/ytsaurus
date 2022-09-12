@@ -13,7 +13,7 @@ TCachedDiscovery::TCachedDiscovery(
     TOperationId operationId,
     NClickHouseServer::IDiscoveryPtr discovery)
     : TAsyncCacheValueBase(std::move(operationId))
-    , Discovery_(std::move(discovery))
+    , Value_(std::move(discovery))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
