@@ -753,8 +753,8 @@ struct TNodeRemoveOrder
 
     bool operator<(const TNodeRemoveOrder& other) const
     {
-        return std::tie(Actual, UsedSlotCount, NodeName)
-            < std::tie(other.Actual, other.UsedSlotCount, other.NodeName);
+        return std::tie(Actual, UsedSlotCount, NodeName) <
+            std::tie(other.Actual, other.UsedSlotCount, other.NodeName);
     }
 };
 
@@ -1477,8 +1477,8 @@ struct TProxyRemoveOrder
 
     bool operator<(const TProxyRemoveOrder& other) const
     {
-        return std::tie(Actual, ProxyName)
-            < std::tie(other.Actual, other.ProxyName);
+        return std::tie(Actual, ProxyName) <
+            std::tie(other.Actual, other.ProxyName);
     }
 };
 
