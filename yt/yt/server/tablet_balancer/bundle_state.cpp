@@ -241,7 +241,7 @@ void TBundleState::DoFetchStatistics()
     }
 
     DropMissingKeys(&Tablets_, tabletIds);
-    DropMissingKeys(&ProfilingCounters_, tableIds);
+    DropMissingKeys(&ProfilingCounters_, finalTableIds);
 }
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
