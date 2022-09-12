@@ -106,7 +106,8 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
         rm_rf(library_dir)
 
     # Prepare library dependencies
-    os.makedirs(library_dir, exist_ok=True)
+    if not os.path.exists(library_dir):
+        os.makedirs(library_dir)
     open(os.path.join(library_dir, "__init__.py"), "a").close()
 
     for package_name in LIBRARY_PYTHON_PACKAGE_LIST:
