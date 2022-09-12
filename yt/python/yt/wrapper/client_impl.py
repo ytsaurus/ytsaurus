@@ -816,7 +816,6 @@ class YtClient(ClientState):
             paths):
         """
         Gets columnar statistics of tables listed in paths
-
         :param paths: paths to tables
         :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
 
@@ -831,7 +830,6 @@ class YtClient(ClientState):
             limit=None, format=None):
         """
         Gets dynamic table tablet and replication errors.
-
         :param str path: path to table
         :param int limit: maximum number of returned errors of any kind
 

@@ -17,6 +17,10 @@ def create_class_method(func):
     def decorator(self, *args, **kwargs):
         return original_func(*args, client=self, **kwargs)
 
+    return create_class_method_impl(func, decorator)
+
+
+def create_class_method_impl(func, decorator):
     is_class = False
     if inspect.isclass(func):
         func = func.__dict__["__init__"]
