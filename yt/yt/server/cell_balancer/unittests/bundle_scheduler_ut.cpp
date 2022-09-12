@@ -166,8 +166,9 @@ THashSet<TString> GenerateNodesForBundle(
     THashSet<TString> result;
 
     const auto& zoneInfo = inputState.Zones.begin()->second;
-    const auto& targetConfig = (bundleName == SpareBundleName) ?
-        zoneInfo->SpareTargetConfig : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
+    const auto& targetConfig = (bundleName == SpareBundleName)
+        ? zoneInfo->SpareTargetConfig
+        : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
 
     for (int index = 0; index < nodeCount; ++index) {
         int nodeIndex = std::ssize(inputState.TabletNodes);
@@ -211,8 +212,9 @@ THashSet<TString> GenerateProxiesForBundle(
     THashSet<TString> result;
 
     const auto& zoneInfo = inputState.Zones.begin()->second;
-    const auto& targetConfig = (bundleName == SpareBundleName) ?
-        zoneInfo->SpareTargetConfig : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
+    const auto& targetConfig = (bundleName == SpareBundleName)
+        ? zoneInfo->SpareTargetConfig
+        : GetOrCrash(inputState.Bundles, bundleName)->TargetConfig;
 
     for (int index = 0; index < proxyCount; ++index) {
         int proxyIndex = std::ssize(inputState.RpcProxies);
