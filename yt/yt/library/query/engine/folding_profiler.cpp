@@ -462,7 +462,7 @@ size_t TExpressionProfiler::Profile(
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
     id.AddInteger(static_cast<ui8>(referenceExpr->GetWireType()));
-    
+
     auto indexInSchema = schema->GetColumnIndexOrThrow(referenceExpr->ColumnName);
     id.AddInteger(indexInSchema);
 
@@ -491,7 +491,7 @@ size_t TExpressionProfiler::Profile(
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
-    id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));    
+    id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));
     id.AddString(functionExpr->FunctionName.c_str());
 
     std::vector<size_t> argIds;
@@ -543,7 +543,7 @@ size_t TExpressionProfiler::Profile(
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
-    id.AddInteger(static_cast<ui8>(unaryOp->GetWireType()));    
+    id.AddInteger(static_cast<ui8>(unaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
     size_t operand = Profile(unaryOp->Operand, schema, fragments, isolated);
@@ -846,6 +846,7 @@ void TQueryProfiler::Profile(
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
         Fold(static_cast<int>(groupClause->CommonPrefixWithPrimaryKey));
+        Fold(static_cast<int>(query->UseDisjointGroupBy));
 
         std::vector<EValueType> keyTypes;
         std::vector<EValueType> stateTypes;
