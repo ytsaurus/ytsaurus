@@ -32,6 +32,11 @@ public:
         : Slot_(std::move(slot))
     { }
 
+    bool AlwaysUseNewReplicatedTableTracker() const override
+    {
+        return true;
+    }
+
     TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
     {
         YT_VERIFY(LoadingFromSnapshotRequested());

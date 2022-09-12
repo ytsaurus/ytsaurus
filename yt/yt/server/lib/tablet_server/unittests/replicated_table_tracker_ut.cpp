@@ -62,6 +62,11 @@ class TMockReplicatedTableTrackerHost
     : public IReplicatedTableTrackerHost
 {
 public:
+    bool AlwaysUseNewReplicatedTableTracker() const override
+    {
+        return false;
+    }
+
     // Snapshot stuff.
     TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
     {

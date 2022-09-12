@@ -71,6 +71,9 @@ using TApplyChangeReplicaCommandResults = std::vector<TError>;
 struct IReplicatedTableTrackerHost
     : public TRefCounted
 {
+    // COMPAT(akozhikhov): Drop with old RTT.
+    virtual bool AlwaysUseNewReplicatedTableTracker() const = 0;
+
     virtual TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() = 0;
 
     virtual bool LoadingFromSnapshotRequested() const = 0;
