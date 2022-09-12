@@ -58,6 +58,8 @@ public:
     //! Clique discovery cache.
     TDiscoveryCacheConfigPtr DiscoveryCache;
 
+    TDuration DiscoveryServerUpdatePeriod;
+
     REGISTER_YSON_STRUCT(TStaticClickHouseConfig);
 
     static void Register(TRegistrar registrar);

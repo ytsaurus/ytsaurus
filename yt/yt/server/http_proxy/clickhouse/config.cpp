@@ -38,6 +38,8 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("discovery_cache", &TThis::DiscoveryCache)
         .DefaultNew();
+    registrar.Parameter("discovery_server_update_period", &TThis::DiscoveryServerUpdatePeriod)
+        .Default(TDuration::Seconds(15));
 
     registrar.Preprocessor([] (TThis* config) {
         config->OperationCache->RefreshTime = TDuration::Minutes(1);

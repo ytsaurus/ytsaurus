@@ -52,7 +52,13 @@ private:
     NProfiling::TCounter ForceUpdateCount_;
     NProfiling::TCounter BannedCount_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoveryServerLock_);
+    NConcurrency::TPeriodicExecutorPtr DiscoveryServerUpdateExecutor_;
+    std::vector<TString> DiscoveryServers_;
+
     void AdjustQueryCount(const TString& user, int delta);
+    void UpdateDiscoveryServers();
+    std::vector<TString> GetDiscoveryServers();
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseHandler)
