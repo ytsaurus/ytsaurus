@@ -946,7 +946,7 @@ private:
 
     void RunTrackerIteration()
     {
-        if (!Config_->UseNewReplicatedTableTracker) {
+        if (!UseNewReplicatedTableTracker(Config_)) {
             YT_LOG_DEBUG("New replicated table tracker is disabled");
             ScheduleTrackerIteration();
             return;
@@ -1469,7 +1469,7 @@ private:
         EnqueueAction(BIND([=, this_ = MakeStrong(this), config = std::move(config)] {
             YT_LOG_DEBUG("Replicated table tracker config changed");
 
-            if (Config_->UseNewReplicatedTableTracker != config->UseNewReplicatedTableTracker) {
+            if (UseNewReplicatedTableTracker(Config_) != UseNewReplicatedTableTracker(config)) {
                 YT_LOG_DEBUG("New replicated table tracker is turned on; will load state from snapshot");
                 RequestLoadingFromSnapshot();
             }
@@ -1529,6 +1529,11 @@ private:
                 GetTable(tableId)->SetCollocationId(collocationId);
             }
         }
+    }
+
+    bool UseNewReplicatedTableTracker(const TDynamicReplicatedTableTrackerConfigPtr& config) const
+    {
+        return config->UseNewReplicatedTableTracker || Host_->AlwaysUseNewReplicatedTableTracker();
     }
 };
 

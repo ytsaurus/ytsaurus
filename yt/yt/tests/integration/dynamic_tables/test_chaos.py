@@ -2315,6 +2315,81 @@ class TestChaos(ChaosTestBase):
         alter_table_replica(replica_ids[0], enable_replicated_table_tracker=True)
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "sync")
 
+    @authors("akozhikhov")
+    def test_banned_replica_cluster(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": True,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replicated_table_options": replicated_table_options
+        })
+        card_id = get("//tmp/crt/@replication_card_id")
+        options = get("//tmp/crt/@replicated_table_options")
+        assert options["enable_replicated_table_tracker"]
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids)
+
+        for driver in self._get_drivers():
+            set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
+
+        self._sync_replication_era(card_id, replicas)
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
+
+        wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
+
+    @authors("savrus")
+    def test_ordered_replicated_table_tracker(self):
+        self._init_replicated_table_tracker()
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": True,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replicated_table_options": replicated_table_options
+        })
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, ordered=True)
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
+        wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
+        wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
+        self._sync_replication_era(card_id)
+
+        data_values = [{"key": i, "value": str(i)} for i in range(1)]
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1)]
+        insert_rows("//tmp/t", values)
+
+        for replica in replicas:
+            wait(lambda: select_rows("key, value from [{0}]".format(replica["replica_path"]), driver=get_driver(cluster=replica["cluster_name"])) == data_values)
+
     @authors("savrus")
     @pytest.mark.parametrize("snapshotting", ["none", "snapshot"])
     @pytest.mark.parametrize("migration", ["none", "migrate"])

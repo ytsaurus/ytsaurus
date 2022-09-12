@@ -104,7 +104,9 @@ private:
         : public TDynamicConfigManagerBase<TDynamicReplicatedTableTrackerConfig>
     {
     public:
-        TReplicatedTableTrackerConfigFetcher(TDynamicConfigManagerConfigPtr config, const NClusterNode::IBootstrap* bootstrap)
+        TReplicatedTableTrackerConfigFetcher(
+            TDynamicConfigManagerConfigPtr config,
+            const NClusterNode::IBootstrap* bootstrap)
             : TDynamicConfigManagerBase<TDynamicReplicatedTableTrackerConfig>(
                 TDynamicConfigManagerOptions{
                     .ConfigPath = "//sys/@config/tablet_manager/replicated_table_tracker",
@@ -119,7 +121,7 @@ private:
 
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_ = CreateShortcutSnapshotStore();
- 
+
     TThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;
     TIntrusivePtr<TReplicatedTableTrackerConfigFetcher> ReplicatedTableTrackerConfigFetcher_;

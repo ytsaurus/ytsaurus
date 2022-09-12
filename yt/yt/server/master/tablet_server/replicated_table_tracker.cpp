@@ -1311,6 +1311,11 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
+    bool AlwaysUseNewReplicatedTableTracker() const override
+    {
+        return false;
+    }
+
     TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
     {
         YT_VERIFY(LoadingFromSnapshotRequested());
