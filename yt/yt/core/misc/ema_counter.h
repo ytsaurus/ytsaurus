@@ -38,6 +38,12 @@ struct TEmaCounter
     void Update(i64 newCount, TInstant newTimestamp = TInstant::Now());
 };
 
+// Operators for linear transformations (addition, scaling) of counters over the fixed set of windows.
+
+TEmaCounter operator+(const TEmaCounter& lhs, const TEmaCounter& rhs);
+TEmaCounter& operator+=(TEmaCounter& lhs, const TEmaCounter& rhs);
+TEmaCounter& operator*=(TEmaCounter& lhs, double coefficient);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

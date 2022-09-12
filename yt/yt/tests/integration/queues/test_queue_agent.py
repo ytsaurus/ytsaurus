@@ -195,10 +195,13 @@ class TestQueueAgentBase(YTEnvSetup):
         remove("//sys/queue_agents/queues", force=True)
         remove("//sys/queue_agents/consumers", force=True)
 
-    def _create_queue(self, path, partition_count=1, enable_timestamp_column=True, **kwargs):
+    def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
+                      enable_cumulative_data_weight_column=True, **kwargs):
         schema = [{"name": "data", "type": "string"}]
         if enable_timestamp_column:
             schema += [{"name": "$timestamp", "type": "uint64"}]
+        if enable_cumulative_data_weight_column:
+            schema += [{"name": "$cumulative_data_weight", "type": "int64"}]
         attributes = {
             "dynamic": True,
             "schema": schema,
@@ -611,6 +614,82 @@ class TestQueueController(TestQueueAgentBase):
         partitions = orchid.get_consumer_partitions("primary://tmp/c")
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
+
+    @authors("max42")
+    def test_rates(self):
+        eps = 1e-2
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+
+        # We advance consumer in both partitions by one beforehand in order to workaround
+        # the corner-case when consumer stands on the first row in the available row window.
+        # In such case we (currently) cannot reliably know cumultive data weight.
+
+        insert_rows("//tmp/q", [{"data": "x", "$tablet_index": 0}, {"data": "x", "$tablet_index": 1}])
+        self._advance_bigrt_consumer("//tmp/c", 0, 1)
+        self._advance_bigrt_consumer("//tmp/c", 1, 1)
+
+        # Expose queue and consumer.
+
+        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
+        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        # Test queue write rate. Initially rates are zero.
+
+        orchid.wait_fresh_poll()
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+        partitions = orchid.get_queue_partitions("primary://tmp/q")
+        assert len(partitions) == 2
+        assert partitions[0]["write_row_count_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+        assert partitions[1]["write_row_count_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+
+        # After inserting (resp.) 2 and 1 rows, write rates should be non-zero and proportional to (resp.) 2 and 1.
+
+        insert_rows("//tmp/q", [{"data": "x", "$tablet_index": 0}] * 2 + [{"data": "x", "$tablet_index": 1}])
+
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+        partitions = orchid.get_queue_partitions("primary://tmp/q")
+        assert len(partitions) == 2
+        assert partitions[1]["write_row_count_rate"]["1m"] > 0
+        assert abs(partitions[0]["write_row_count_rate"]["1m"] - 2 * partitions[1]["write_row_count_rate"]["1m"]) < eps
+
+        # Check total write rate.
+
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert abs(status["write_row_count_rate"]["1m"] - 3 * partitions[1]["write_row_count_rate"]["1m"]) < eps
+
+        # Test consumer read rate. Again, initially rates are zero.
+
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert len(partitions) == 2
+        assert partitions[0]["read_row_count_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+        assert partitions[1]["read_row_count_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+        assert partitions[0]["read_data_weight_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+        assert partitions[1]["read_data_weight_rate"] == {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+
+        # Advance consumer by (resp.) 2 and 1. Again, same statements should hold for read rates.
+
+        self._advance_bigrt_consumer("//tmp/c", 0, 3)
+        self._advance_bigrt_consumer("//tmp/c", 1, 2)
+
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert len(partitions) == 2
+        assert partitions[1]["read_row_count_rate"]["1m"] > 0
+        assert abs(partitions[0]["read_row_count_rate"]["1m"] - 2 * partitions[1]["read_row_count_rate"]["1m"]) < eps
+        assert partitions[1]["read_data_weight_rate"]["1m"] > 0
+        assert abs(partitions[0]["read_data_weight_rate"]["1m"] -
+                   2 * partitions[1]["read_data_weight_rate"]["1m"]) < eps
+
+        # Check total read rate.
+
+        status = orchid.get_consumer_status("primary://tmp/c")
+        assert abs(status["read_row_count_rate"]["1m"] - 3 * partitions[1]["read_row_count_rate"]["1m"]) < eps
+        assert abs(status["read_data_weight_rate"]["1m"] - 3 * partitions[1]["read_data_weight_rate"]["1m"]) < eps
 
 
 class TestMultipleAgents(TestQueueAgentBase):

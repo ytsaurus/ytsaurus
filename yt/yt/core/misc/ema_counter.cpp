@@ -40,6 +40,42 @@ void TEmaCounter::Update(i64 newCount, TInstant newTimestamp)
     }
 }
 
+TEmaCounter operator+(const TEmaCounter& lhs, const TEmaCounter& rhs)
+{
+    TEmaCounter result = lhs;
+    result += rhs;
+    return result;
+}
+
+TEmaCounter& operator+=(TEmaCounter& lhs, const TEmaCounter& rhs)
+{
+    YT_VERIFY(lhs.WindowDurations == rhs.WindowDurations);
+    lhs.Timestamp = std::max(lhs.Timestamp, rhs.Timestamp);
+    lhs.Count += rhs.Count;
+    lhs.ImmediateRate += rhs.ImmediateRate;
+    for (int windowIndex = 0; windowIndex < std::ssize(lhs.WindowDurations); ++windowIndex) {
+        lhs.WindowRates[windowIndex] += rhs.WindowRates[windowIndex];
+    }
+    return lhs;
+}
+
+TEmaCounter& operator*=(TEmaCounter& lhs, double coefficient)
+{
+    lhs.Count *= coefficient;
+    lhs.ImmediateRate *= coefficient;
+    for (auto& rate : lhs.WindowRates) {
+        rate *= coefficient;
+    }
+    return lhs;
+}
+
+TEmaCounter operator*(const TEmaCounter& lhs, double coefficient)
+{
+    TEmaCounter result = lhs;
+    result *= coefficient;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

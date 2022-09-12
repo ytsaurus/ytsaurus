@@ -16,9 +16,9 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/yt/client/api/rowset.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/ema_counter.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -43,13 +43,16 @@ using namespace std::placeholders;
 class TQueueSnapshotBuildSession final
 {
 public:
-    TQueueSnapshotBuildSession(TQueueTableRow row, IInvokerPtr invoker, TLogger logger, TClientDirectoryPtr clientDirectory)
-        : Invoker_(std::move(invoker))
+    TQueueSnapshotBuildSession(
+        TQueueSnapshotPtr previousQueueSnapshot,
+        IInvokerPtr invoker,
+        TLogger logger,
+        TClientDirectoryPtr clientDirectory)
+        : PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
+        , Invoker_(std::move(invoker))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
-    {
-        QueueSnapshot->Row = std::move(row);
-    }
+    { }
 
     TQueueSnapshotPtr Build()
     {
@@ -67,16 +70,20 @@ public:
     }
 
 private:
-    TQueueSnapshotPtr QueueSnapshot = New<TQueueSnapshot>();
+    TQueueSnapshotPtr PreviousQueueSnapshot_;
     IInvokerPtr Invoker_;
     TLogger Logger;
     TClientDirectoryPtr ClientDirectory_;
+
+    TQueueSnapshotPtr QueueSnapshot = New<TQueueSnapshot>();
 
     void DoBuild()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Building queue snapshot");
+
+        QueueSnapshot->Row = PreviousQueueSnapshot_->Row;
 
         auto queueRef = QueueSnapshot->Row.Queue;
 
@@ -90,6 +97,10 @@ private:
             .ValueOrThrow();
 
         YT_LOG_DEBUG("Table info collected (TabletCount: %v)", tableInfo->Tablets.size());
+
+        const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        QueueSnapshot->HasTimestampColumn = schema->HasTimestampColumn();
+        QueueSnapshot->HasCumulativeDataWeightColumn = schema->FindColumn(CumulativeDataWeightColumnName);
 
         auto& partitionCount = QueueSnapshot->PartitionCount;
         partitionCount = tableInfo->Tablets.size();
@@ -123,12 +134,22 @@ private:
 
         for (int index = 0; index < std::ssize(tabletInfos); ++index) {
             const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];
+            auto previousPartitionSnapshot = (index < std::ssize(PreviousQueueSnapshot_->PartitionSnapshots))
+                ? PreviousQueueSnapshot_->PartitionSnapshots[index]
+                : nullptr;
             const auto& tabletInfo = tabletInfos[index];
             partitionSnapshot->UpperRowIndex = tabletInfo.TotalRowCount;
             partitionSnapshot->LowerRowIndex = tabletInfo.TrimmedRowCount;
             partitionSnapshot->AvailableRowCount = partitionSnapshot->UpperRowIndex - partitionSnapshot->LowerRowIndex;
             partitionSnapshot->LastRowCommitTime = TimestampToInstant(tabletInfo.LastWriteTimestamp).first;
             partitionSnapshot->CommitIdleTime = TInstant::Now() - partitionSnapshot->LastRowCommitTime;
+
+            if (previousPartitionSnapshot) {
+                partitionSnapshot->WriteRate = previousPartitionSnapshot->WriteRate;
+            }
+
+            partitionSnapshot->WriteRate.RowCount.Update(tabletInfo.TotalRowCount);
+            QueueSnapshot->WriteRate += partitionSnapshot->WriteRate;
         }
 
         YT_LOG_DEBUG("Queue snapshot built");
@@ -140,14 +161,18 @@ private:
 class TConsumerSnapshotBuildSession final
 {
 public:
-    TConsumerSnapshotBuildSession(TConsumerTableRow row, IInvokerPtr invoker, TLogger logger, TClientDirectoryPtr clientDirectory, TQueueSnapshotPtr queueSnapshot)
-        : Invoker_(std::move(invoker))
+    TConsumerSnapshotBuildSession(
+        TConsumerSnapshotPtr previousConsumerSnapshot,
+        IInvokerPtr invoker,
+        TLogger logger,
+        TClientDirectoryPtr clientDirectory,
+        TQueueSnapshotPtr queueSnapshot)
+        : PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
+        , Invoker_(std::move(invoker))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
         , QueueSnapshot_(std::move(queueSnapshot))
-    {
-        ConsumerSnapshot_->Row = std::move(row);
-    }
+    { }
 
     TConsumerSnapshotPtr Build()
     {
@@ -165,15 +190,19 @@ public:
     }
 
 private:
-    TConsumerSnapshotPtr ConsumerSnapshot_ = New<TConsumerSnapshot>();
+    TConsumerSnapshotPtr PreviousConsumerSnapshot_;
     IInvokerPtr Invoker_;
     TLogger Logger;
     TClientDirectoryPtr ClientDirectory_;
     TQueueSnapshotPtr QueueSnapshot_;
 
+    TConsumerSnapshotPtr ConsumerSnapshot_ = New<TConsumerSnapshot>();
+
     void DoBuild()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        ConsumerSnapshot_->Row = PreviousConsumerSnapshot_->Row;
 
         auto consumerRef = ConsumerSnapshot_->Row.Consumer;
         auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
@@ -182,7 +211,7 @@ private:
         ConsumerSnapshot_->Vital = ConsumerSnapshot_->Row.Vital.value_or(false);
         ConsumerSnapshot_->Owner = *ConsumerSnapshot_->Row.Owner;
 
-        YT_LOG_DEBUG("Building consumer snapshot", consumerRef);
+        YT_LOG_DEBUG("Building consumer snapshot");
 
         if (!ConsumerSnapshot_->Row.Schema) {
             THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
@@ -210,6 +239,11 @@ private:
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {
                 auto partitionIndex = consumerPartitionInfo.PartitionIndex;
 
+                if (consumerPartitionInfo.PartitionIndex >= partitionCount) {
+                    // Probably that is a row for an obsolete partition. Just ignore it.
+                    continue;
+                }
+
                 auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[partitionIndex];
 
                 consumerPartitionSnapshot->NextRowIndex = consumerPartitionInfo.NextRowIndex;
@@ -217,15 +251,18 @@ private:
             }
         }
 
-        // Construct the QL expression for extracting commit timestamps by tablet indices and row indices.
-        TStringBuilder nextRowCommitTimeQuery;
-        nextRowCommitTimeQuery.AppendFormat(
-            "[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
-            QueueSnapshot_->Row.Queue.Path);
-        bool isFirstTuple = true;
-
         for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
             consumerPartitionSnapshot->ConsumeIdleTime = TInstant::Now() - consumerPartitionSnapshot->LastConsumeTime;
+
+            auto previousPartitionSnapshot = (partitionIndex < std::size(PreviousConsumerSnapshot_->PartitionSnapshots))
+                ? PreviousConsumerSnapshot_->PartitionSnapshots[partitionIndex]
+                : nullptr;
+
+            if (previousPartitionSnapshot) {
+                consumerPartitionSnapshot->ReadRate = previousPartitionSnapshot->ReadRate;
+            }
+
+            consumerPartitionSnapshot->ReadRate.RowCount.Update(consumerPartitionSnapshot->NextRowIndex);
 
             const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
             if (queuePartitionSnapshot->Error.IsOK()) {
@@ -243,58 +280,141 @@ private:
                 } else {
                     Y_UNREACHABLE();
                 }
-
-                if (consumerPartitionSnapshot->Disposition == EConsumerPartitionDisposition::PendingConsumption) {
-                    if (!isFirstTuple) {
-                        nextRowCommitTimeQuery.AppendString(", ");
-                    }
-                    nextRowCommitTimeQuery.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex);
-                    isFirstTuple = false;
-                }
             } else {
                 consumerPartitionSnapshot->Error = queuePartitionSnapshot->Error;
             }
         }
 
-        nextRowCommitTimeQuery.AppendString(")");
+        std::vector<TFuture<void>> futures;
 
-        // TODO(max42): perform action below only if $timestamp is present in queue's schema.
-        // Calculate next row commit times and processing lags.
-        if (!isFirstTuple) {
-            const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-            auto query = nextRowCommitTimeQuery.Flush();
-            YT_LOG_TRACE("Executing query for next row commit times (Query: %Qv)", query);
-            auto result = WaitFor(client->SelectRows(query))
-                .ValueOrThrow();
+        if (QueueSnapshot_->HasTimestampColumn) {
+            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run());
+        }
 
-            for (const auto& row : result.Rowset->GetRows()) {
-                YT_VERIFY(row.GetCount() == 2);
+        if (QueueSnapshot_->HasCumulativeDataWeightColumn) {
+            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectCumulativeDataWeights, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run());
+        }
 
-                const auto& tabletIndexValue = row[0];
-                YT_VERIFY(tabletIndexValue.Type == EValueType::Int64);
-                auto tabletIndex = tabletIndexValue.Data.Int64;
+        WaitFor(AllSucceeded(futures))
+            .ThrowOnError();
 
-                const auto& commitTimestampValue = row[1];
-                YT_VERIFY(commitTimestampValue.Type == EValueType::Uint64);
-                auto commitTimestamp = commitTimestampValue.Data.Uint64;
+        for (const auto& consumerPartitionSnapshot : ConsumerSnapshot_->PartitionSnapshots) {
+            // If consumer has read all rows in the partition, we assume its processing lag to be zero;
+            // otherwise the processing lag is defined as the duration since the commit time of the next
+            // row in the partition to be read by the consumer.
+            consumerPartitionSnapshot->ProcessingLag = consumerPartitionSnapshot->NextRowCommitTime
+                ? TInstant::Now() - *consumerPartitionSnapshot->NextRowCommitTime
+                : TDuration::Zero();
+            ConsumerSnapshot_->ReadRate += consumerPartitionSnapshot->ReadRate;
+        }
 
-                auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
-                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
-            }
+        YT_LOG_DEBUG("Consumer snapshot built");
+    }
 
-            for (const auto& consumerPartitionSnapshot : ConsumerSnapshot_->PartitionSnapshots) {
-                if (consumerPartitionSnapshot->NextRowCommitTime) {
-                    // If consumer has read all rows in the partition, we assume its processing lag to be zero;
-                    // otherwise the processing lag is defined as the duration since the commit time of the next
-                    // row in the partition to be read by the consumer.
-                    consumerPartitionSnapshot->ProcessingLag = consumerPartitionSnapshot->UnreadRowCount == 0
-                        ? TDuration::Zero()
-                        : TInstant::Now() - *consumerPartitionSnapshot->NextRowCommitTime;
+    void CollectTimestamps()
+    {
+        YT_LOG_DEBUG("Collecting consumer timestamps");
+
+        auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
+
+        TStringBuilder queryBuilder;
+        queryBuilder.AppendFormat("[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
+            QueueSnapshot_->Row.Queue.Path);
+        bool isFirstTuple = true;
+
+        for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
+            if (consumerPartitionSnapshot->Error.IsOK() && consumerPartitionSnapshot->Disposition == EConsumerPartitionDisposition::PendingConsumption) {
+                if (!isFirstTuple) {
+                    queryBuilder.AppendString(", ");
                 }
+                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex );
+                isFirstTuple = false;
             }
         }
 
-        YT_LOG_DEBUG("Consumer snapshot built", consumerRef);
+        queryBuilder.AppendString(")");
+
+        if (isFirstTuple) {
+            return;
+        }
+
+        // Calculate next row commit times and processing lags.
+        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
+        auto query = queryBuilder.Flush();
+        YT_LOG_TRACE("Executing query for next row commit times (Query: %Qv)", query);
+        auto result = WaitFor(client->SelectRows(query))
+            .ValueOrThrow();
+
+        for (const auto& row : result.Rowset->GetRows()) {
+            YT_VERIFY(row.GetCount() == 2);
+            YT_VERIFY(row[0].Type == EValueType::Int64);
+            auto tabletIndex = row[0].Data.Int64;
+
+            auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
+
+            YT_VERIFY(row[1].Type == EValueType::Uint64);
+            auto commitTimestamp = row[1].Data.Uint64;
+            consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
+        }
+
+        YT_LOG_DEBUG("Consumer timestamps collected");
+    }
+
+    void CollectCumulativeDataWeights()
+    {
+        YT_LOG_DEBUG("Collecting cumulative data weights");
+
+        auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
+
+        TStringBuilder queryBuilder;
+        queryBuilder.AppendFormat("[$tablet_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
+            QueueSnapshot_->Row.Queue.Path);
+        bool isFirstTuple = true;
+
+        for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
+            const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
+            if (consumerPartitionSnapshot->Error.IsOK() &&
+                consumerPartitionSnapshot->NextRowIndex > queuePartitionSnapshot->LowerRowIndex &&
+                consumerPartitionSnapshot->NextRowIndex <= queuePartitionSnapshot->UpperRowIndex)
+            {
+                if (!isFirstTuple) {
+                    queryBuilder.AppendString(", ");
+                }
+                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex - 1);
+                isFirstTuple = false;
+            }
+        }
+
+        queryBuilder.AppendString(")");
+
+        if (isFirstTuple) {
+            return;
+        }
+
+        // Calculate next row commit times and processing lags.
+        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
+        auto query = queryBuilder.Flush();
+        YT_LOG_TRACE("Executing query for cumulative data weights (Query: %Qv)", query);
+        auto result = WaitFor(client->SelectRows(query))
+            .ValueOrThrow();
+
+        for (const auto& row : result.Rowset->GetRows()) {
+            YT_VERIFY(row.GetCount() == 2);
+            YT_VERIFY(row[0].Type == EValueType::Int64);
+            auto tabletIndex = row[0].Data.Int64;
+
+            auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
+
+            YT_VERIFY(row[1].Type == EValueType::Int64);
+            consumerPartitionSnapshot->CumulativeDataWeight = row[1].Data.Int64;
+            consumerPartitionSnapshot->ReadRate.DataWeight.Update(consumerPartitionSnapshot->CumulativeDataWeight);
+        }
+
+        YT_LOG_DEBUG("Cumulative data weights collected");
     }
 };
 
@@ -468,7 +588,7 @@ private:
 
         // First, update queue snapshot.
         auto nextQueueSnapshot = TQueueSnapshotBuildSession(
-            QueueSnapshot_->Row,
+            QueueSnapshot_,
             Invoker_,
             Logger,
             ClientDirectory_)
@@ -484,7 +604,7 @@ private:
 
             for (const auto& [consumerRef, consumerSnapshot] : ConsumerSnapshots_) {
                 auto session = New<TConsumerSnapshotBuildSession>(
-                    consumerSnapshot->Row,
+                    consumerSnapshot,
                     Invoker_,
                     Logger.WithTag("Consumer: %Qv", consumerRef),
                     ClientDirectory_,
@@ -502,6 +622,8 @@ private:
                 nextConsumerSnapshots[consumerSnapshot->Row.Consumer] = consumerSnapshot;
             }
         }
+
+        // By this moment we may be sure that updating succeeds.
 
         // Connect queue snapshot to consumer snapshots with pointers.
         nextQueueSnapshot->ConsumerSnapshots = nextConsumerSnapshots;
