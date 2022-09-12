@@ -10,6 +10,9 @@ import typing
 import click
 
 
+ARCADIA_PROJECT_ROOT = 'taxi/dmp/spark/'
+
+
 class ComponentVersion(typing.NamedTuple):
     component: str
     version: str
@@ -117,6 +120,23 @@ def generate_xml_creds(src, dst):
     tree.write(dst)
 
 
+def _get_changed_files(branch='trunk'):
+    diff = subprocess.run([
+        'arc',
+        'diff',
+        '--name-only',
+        branch,
+        '.',
+    ],
+        check=True,
+        capture_output=True,
+    )
+    output = diff.stdout.decode('utf-8').strip()
+    changed_files = output.split('\n') if output else set()
+    for file in changed_files:
+        yield str(pathlib.Path(file).relative_to(ARCADIA_PROJECT_ROOT))
+
+
 @click.group()
 def cli():
     pass
@@ -155,22 +175,12 @@ def _(component):
     help='send version bump to arcadia',
 )
 def _():
-    diff = subprocess.run([
-        'arc',
-        'diff',
-        '--name-only',
-        '.',
-    ],
-        check=True,
-        capture_output=True,
-    )
-    output = diff.stdout.decode('utf-8').strip()
-    changed_files = set(output.split('\n')) if output else set()
+    changed_files = set(_get_changed_files('trunk'))
     components = ['cluster', 'client']
     files_to_commit = []
     for component_name in project_version_collectors:
         collector = project_version_collectors[component_name]
-        if collector.path in changed_files:
+        if str(collector.path) in changed_files:
             components.append(component_name)
             files_to_commit.append(collector.path)
     released_versions = collect_released_versions(*components)
