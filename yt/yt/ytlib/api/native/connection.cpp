@@ -284,6 +284,8 @@ public:
             NodeDirectory_);
 
         ChunkReplicaCache_ = CreateChunkReplicaCache(this);
+
+        SetupTvmIdSynchronization();
     }
 
     // IConnection implementation.
@@ -779,6 +781,30 @@ private:
 
             QueueAgentChannels_[stage] = std::move(channel);
         }
+    }
+
+    void SetupTvmIdSynchronization()
+    {
+        if (!Options_.TvmService) {
+            return;
+        }
+        ClusterDirectory_->SubscribeOnClusterUpdated(
+            BIND_NO_PROPAGATE([tvmService = Options_.TvmService] (const TString& name, INodePtr nativeConnectionConfig) {
+                static const auto& Logger = TvmSynchronizerLogger;
+
+                NNative::TConnectionConfigPtr config;
+                try {
+                    config = ConvertTo<NNative::TConnectionConfigPtr>(nativeConnectionConfig);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Cannot update cluster TVM ids because of invalid connection config (Name: %v)", name);
+                    return;
+                }
+
+                if (config->TvmId) {
+                    YT_LOG_INFO("Adding cluster service ticket to TVM client (Name: %v, TvmId: %v)", name, *config->TvmId);
+                    tvmService->AddDestinationServiceIds({*config->TvmId});
+                }
+            }));
     }
 };
 

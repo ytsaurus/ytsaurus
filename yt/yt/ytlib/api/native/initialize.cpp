@@ -38,27 +38,7 @@ IConnectionPtr CreateMainConnection(
 {
     YT_VERIFY(!options.TvmService);
     options.TvmService = tvmService;
-
-    auto connection = CreateConnection(config, options);
-
-    connection->GetClusterDirectory()->SubscribeOnClusterUpdated(
-        BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
-            static const auto& Logger = TvmSynchronizerLogger;
-
-            NNative::TConnectionConfigPtr config;
-            try {
-                config = ConvertTo<NNative::TConnectionConfigPtr>(nativeConnectionConfig);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Cannot update cluster TVM ids because of invalid connection config (Name: %v)", name);
-            }
-
-            if (tvmService && config->TvmId) {
-                YT_LOG_INFO("Adding cluster service ticket to TVM client (Name: %v, TvmId: %v)", name, *config->TvmId);
-                tvmService->AddDestinationServiceIds({*config->TvmId});
-            }
-        }));
-
-    return connection;
+    return CreateConnection(config, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
