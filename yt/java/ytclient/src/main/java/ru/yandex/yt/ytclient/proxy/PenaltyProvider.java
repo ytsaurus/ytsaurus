@@ -37,6 +37,7 @@ import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 public abstract class PenaltyProvider implements Closeable {
     /**
      * Allow getting penalty for current cluster
+     *
      * @param clusterName: current cluster
      * @return penalty duration
      */
@@ -58,7 +59,7 @@ public abstract class PenaltyProvider implements Closeable {
 
     @NonNullApi
     @NonNullFields
-    static class DummyPenaltyProvider extends PenaltyProvider {
+    public static class DummyPenaltyProvider extends PenaltyProvider {
         DummyPenaltyProvider(Builder builder) {
         }
 
@@ -80,7 +81,7 @@ public abstract class PenaltyProvider implements Closeable {
 
     @NonNullApi
     @NonNullFields
-    static class LagPenaltyProvider extends PenaltyProvider {
+    public static class LagPenaltyProvider extends PenaltyProvider {
         private static final Logger logger = LoggerFactory.getLogger(LagPenaltyProvider.class);
 
         private final Map<String, ReplicaInfo> replicaClusters;
