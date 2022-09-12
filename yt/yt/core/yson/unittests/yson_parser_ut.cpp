@@ -99,6 +99,11 @@ TEST_F(TYsonParserTest, Nan)
     EXPECT_THROW(NYTree::ConvertToNode(TYsonString(percentLessBadNanString)), std::exception);
 }
 
+TEST_F(TYsonParserTest, YT_17658)
+{
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonStringBuf("\x01\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc")), std::exception);
+}
+
 TEST_F(TYsonParserTest, Infinity)
 {
     InSequence dummy;
