@@ -2362,11 +2362,11 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
             in_="//tmp/table_in",
             out="//tmp/table_out",
             command="""
-                dd if=/dev/urandom of={0}/myfile count=1000 bs=1024 oflag=direct && \
+                dd if=/dev/urandom of={0}/myfile count=400 bs=1024 oflag=direct && \
                 sleep 1 && \
-                dd if={0}/myfile of={0}/myfile2 count=1000 bs=1024 iflag=direct oflag=direct && \
+                dd if={0}/myfile of={0}/myfile2 count=400 bs=1024 iflag=direct oflag=direct && \
                 sleep 1 && \
-                dd if=/dev/urandom of={0}/myfile3 count=1000 bs=1024 oflag=direct && \
+                dd if=/dev/urandom of={0}/myfile3 count=400 bs=1024 oflag=direct && \
                 sync && \
                 sleep 1 && \
                 cat""".format(self.default_disk_path),
