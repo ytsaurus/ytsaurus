@@ -30,7 +30,7 @@ from yt.wrapper.prepare_operation import TypedJob
 
 import yt.yson as yson
 import yt.wrapper as yt
-import yt.type_info as ti
+import yandex.type_info as ti
 
 from dataclasses import dataclass
 
