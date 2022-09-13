@@ -654,13 +654,25 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     THashMap<TString, TInstanceResourcesPtr> aliveResources;
     THashMap<TString, TInstanceResourcesPtr> allocatedResources;
 
-    auto calculateResources = [] (const auto& aliveNames, const auto& instancesInfo, TInstanceResourcesPtr& target) {
+    auto calculateResources = [] (
+        const auto& aliveNames,
+        const auto& instancesInfo,
+        TInstanceResourcesPtr& target,
+        auto& countBySize)
+    {
         for (const auto& instanceName : aliveNames) {
             const auto& instanceInfo = GetOrCrash(instancesInfo, instanceName);
-            target->Vcpu += instanceInfo->Annotations->Resource->Vcpu;
-            target->Memory += instanceInfo->Annotations->Resource->Memory;
+            const auto& resource = instanceInfo->Annotations->Resource;
+            target->Vcpu += resource->Vcpu;
+            target->Memory += resource->Memory;
+            ++countBySize[resource->Type];
         }
     };
+
+    input.AliveNodesBySize.clear();
+    input.AllocatedProxiesBySize.clear();
+    input.AllocatedProxiesBySize.clear();
+    input.AliveProxiesBySize.clear();
 
     for (const auto& [bundleName, _] : input.Bundles) {
         {
@@ -668,10 +680,10 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             aliveResourceUsage->Clear();
 
             auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input);
-            calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage);
+            calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
             auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input);
-            calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage);
+            calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
         }
@@ -679,8 +691,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         {
             auto allocated = New<TInstanceResources>();
             allocated->Clear();
-            calculateResources(input.BundleNodes[bundleName], input.TabletNodes, allocated);
-            calculateResources(input.BundleProxies[bundleName], input.RpcProxies, allocated);
+            calculateResources(input.BundleNodes[bundleName], input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
+            calculateResources(input.BundleProxies[bundleName], input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
             allocatedResources[bundleName] = allocated;
         }

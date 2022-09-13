@@ -34,10 +34,14 @@ static const TYPath TabletCellsPath("//sys/tablet_cells");
 static const TYPath RpcProxiesPath("//sys/rpc_proxies");
 static const TYPath BundleSystemQuotasPath("//sys/account_tree/bundle_system_quotas");
 
+static const TString SensorTagInstanceSize = "instance_size";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleSensors final
 {
+    TProfiler Profiler;
+
     TGauge CpuAllocated;
     TGauge CpuAlive;
     TGauge CpuQuota;
@@ -45,6 +49,22 @@ struct TBundleSensors final
     TGauge MemoryAllocated;
     TGauge MemoryAlive;
     TGauge MemoryQuota;
+
+    TGauge WriteThreadPoolSize;
+    TGauge TabletDynamicSize;
+    TGauge TabletStaticSize;
+    TGauge BlockCacheSize;
+    TGauge VersionedChunkMetaSize;
+    TGauge LookupRowCacheSize;
+
+    THashMap<TString, TGauge> AliveNodesBySize;
+    THashMap<TString, TGauge> AliveProxiesBySize;
+
+    THashMap<TString, TGauge> AllocatedNodesBySize;
+    THashMap<TString, TGauge> AllocatedProxiesBySize;
+
+    THashMap<TString, TGauge> TargetTabletNodeSize;
+    THashMap<TString, TGauge> TargetRpcProxSize;
 };
 
 using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
@@ -314,6 +334,12 @@ private:
         int removingCellCount = 0;
         auto now = TInstant::Now();
 
+        TDuration nodeAllocationRequestAge;
+        TDuration nodeDeallocationRequestAge;
+        TDuration removingCellsAge;
+        TDuration proxyAllocationRequestAge;
+        TDuration proxyDeallocationRequestAge;
+
         // TODO(capone212): think about per-bundle sensors.
         for (const auto& [_, state] : mutations.ChangedStates) {
             nodeAllocationCount += state->NodeAllocations.size();
@@ -324,23 +350,23 @@ private:
             proxyDeallocationCount += state->ProxyDeallocations.size();
 
             for (const auto& [_, allocation] : state->NodeAllocations) {
-                NodeAllocationRequestAge_.Update(now - allocation->CreationTime);
+                nodeAllocationRequestAge = std::max(nodeAllocationRequestAge, now - allocation->CreationTime);
             }
 
             for (const auto& [_, deallocation] : state->NodeDeallocations) {
-                NodeDeallocationRequestAge_.Update(now - deallocation->CreationTime);
+                nodeDeallocationRequestAge = std::max(nodeDeallocationRequestAge, now - deallocation->CreationTime);
             }
 
             for (const auto& [_, removingCell] : state->RemovingCells) {
-                RemovingCellsAge_.Update(now - removingCell->RemovedTime);
+                removingCellsAge = std::max(removingCellsAge, now - removingCell->RemovedTime);
             }
 
             for (const auto& [_, allocation] : state->ProxyAllocations) {
-                ProxyAllocationRequestAge_.Update(now - allocation->CreationTime);
+                proxyAllocationRequestAge = std::max(proxyAllocationRequestAge, now - allocation->CreationTime);
             }
 
             for (const auto& [_, deallocation] : state->ProxyDeallocations) {
-                ProxyDeallocationRequestAge_.Update(now - deallocation->CreationTime);
+                proxyDeallocationRequestAge = std::max(proxyDeallocationRequestAge, now - deallocation->CreationTime);
             }
         }
 
@@ -349,9 +375,62 @@ private:
         InflightCellRemovalCount_.Update(removingCellCount);
         InflightProxyAllocationCounter_.Update(proxyAllocationCount);
         InflightProxyDeallocationCounter_.Update(proxyDeallocationCount);
+
+        NodeAllocationRequestAge_.Update(nodeAllocationRequestAge);
+        NodeDeallocationRequestAge_.Update(nodeDeallocationRequestAge);
+        RemovingCellsAge_.Update(removingCellsAge);
+        ProxyAllocationRequestAge_.Update(proxyAllocationRequestAge);
+        ProxyDeallocationRequestAge_.Update(proxyAllocationRequestAge);
     }
 
-    void ReportResourceUsage(const TSchedulerInputState& input) const
+    void ReportInstanceCountBySize(
+        const TSchedulerInputState::TInstanceCountBySize& countBySize,
+        const TString& sensorName,
+        TProfiler& profiler,
+        THashMap<TString, TGauge>& sensors) const
+    {
+        for (auto& [sizeName, count] : countBySize) {
+            auto it = sensors.find(sizeName);
+            if (it != sensors.end()) {
+                it->second.Update(count);
+            } else {
+                auto& sensor = sensors[sizeName];
+                sensor = profiler.WithTag(SensorTagInstanceSize, sizeName).Gauge(sensorName);
+                sensor.Update(count);
+            }
+        }
+
+        for (auto& [sizeName, gauge] : sensors) {
+            if (countBySize.find(sizeName) == countBySize.end()) {
+                gauge.Update(0);
+            }
+        }
+    }
+
+    void ReportTargetInstanceCount(
+        const TString& targetSizeName,
+        const TString& sensorName,
+        int instanceCount,
+        TProfiler& profiler,
+        THashMap<TString, TGauge>& sensors) const
+    {
+        auto it = sensors.find(targetSizeName);
+        if (it != sensors.end()) {
+            it->second.Update(instanceCount);
+        } else {
+            auto& sensor = sensors[targetSizeName];
+            sensor = profiler.WithTag(SensorTagInstanceSize, targetSizeName).Gauge(sensorName);
+            sensor.Update(instanceCount);
+        }
+
+        for (auto& [sizeName, gauge] : sensors) {
+            if (sizeName != targetSizeName) {
+                gauge.Update(0);
+            }
+        }
+    }
+
+    void ReportResourceUsage(TSchedulerInputState& input) const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -368,14 +447,85 @@ private:
         }
 
         for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-            auto sensors = GetBundleSensors(bundleName);
             const auto& quota = bundleInfo->ResourceQuota;
-
             if (!bundleInfo->EnableBundleController || !quota) {
                 continue;
             }
+            auto sensors = GetBundleSensors(bundleName);
             sensors->CpuQuota.Update(quota->Vcpu());
             sensors->MemoryQuota.Update(quota->Memory);
+        }
+
+        for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+            if (!bundleInfo->EnableBundleController) {
+                continue;
+            }
+
+            const auto& targetConfig = bundleInfo->TargetConfig;
+            auto sensors = GetBundleSensors(bundleName);
+            sensors->WriteThreadPoolSize.Update(targetConfig->CpuLimits->WriteThreadPoolSize);
+
+            const auto& memoryLimits = targetConfig->MemoryLimits;
+            sensors->TabletStaticSize.Update(memoryLimits->TabletStatic ? *memoryLimits->TabletStatic : 0);
+            sensors->TabletDynamicSize.Update(memoryLimits->TabletDynamic ? *memoryLimits->TabletDynamic : 0);
+            sensors->BlockCacheSize.Update(memoryLimits->BlockCache ? *memoryLimits->BlockCache : 0);
+            sensors->VersionedChunkMetaSize.Update(memoryLimits->VersionedChunkMeta ? *memoryLimits->VersionedChunkMeta : 0);
+            sensors->LookupRowCacheSize.Update(memoryLimits->LookupRowCache ? *memoryLimits->LookupRowCache : 0);
+        }
+
+        for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+            if (!bundleInfo->EnableBundleController) {
+                continue;
+            }
+
+            auto sensors = GetBundleSensors(bundleName);
+
+            ReportInstanceCountBySize(
+                input.AllocatedNodesBySize[bundleName],
+                "/allocated_tablet_node_count",
+                sensors->Profiler,
+                sensors->AllocatedNodesBySize);
+
+            ReportInstanceCountBySize(
+                input.AliveNodesBySize[bundleName],
+                "/alive_tablet_node_count",
+                sensors->Profiler,
+                sensors->AliveNodesBySize);
+
+            ReportInstanceCountBySize(
+                input.AllocatedProxiesBySize[bundleName],
+                "/allocated_rpc_proxy_count",
+                sensors->Profiler,
+                sensors->AllocatedProxiesBySize);
+
+            ReportInstanceCountBySize(
+                input.AliveProxiesBySize[bundleName],
+                "/alive_rpc_proxy_count",
+                sensors->Profiler,
+                sensors->AliveProxiesBySize);
+        }
+
+        for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+            if (!bundleInfo->EnableBundleController) {
+                continue;
+            }
+
+            const auto& targetConfig = bundleInfo->TargetConfig;
+            auto sensors = GetBundleSensors(bundleName);
+
+            ReportTargetInstanceCount(
+                targetConfig->TabletNodeResourceGuarantee->Type,
+                "/target_tablet_node_count",
+                targetConfig->TabletNodeCount,
+                sensors->Profiler,
+                sensors->TargetTabletNodeSize);
+
+            ReportTargetInstanceCount(
+                targetConfig->RpcProxyResourceGuarantee->Type,
+                "/target_rpc_proxy_count",
+                targetConfig->RpcProxyCount,
+                sensors->Profiler,
+                sensors->TargetRpcProxSize);
         }
     }
 
@@ -387,8 +537,9 @@ private:
         }
 
         auto sensors = New<TBundleSensors>();
-
-        auto bundleProfiler = Profiler.WithPrefix("/resource").WithTag("bundle", bundleName);
+        sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("bundle", bundleName);
+        auto& bundleProfiler = sensors->Profiler;
+    
         sensors->CpuAllocated = bundleProfiler.Gauge("/cpu_allocated");
         sensors->CpuAlive = bundleProfiler.Gauge("/cpu_alive");
         sensors->CpuQuota = bundleProfiler.Gauge("/cpu_quota");
@@ -396,6 +547,12 @@ private:
         sensors->MemoryAllocated = bundleProfiler.Gauge("/memory_allocated");
         sensors->MemoryAlive = bundleProfiler.Gauge("/memory_alive");
         sensors->MemoryQuota = bundleProfiler.Gauge("/memory_quota");
+
+        sensors->WriteThreadPoolSize = bundleProfiler.Gauge("/write_thread_pool_size");
+        sensors->BlockCacheSize = bundleProfiler.Gauge("/block_cache_size");
+        sensors->LookupRowCacheSize = bundleProfiler.Gauge("/lookup_row_cache_size");
+        sensors->TabletDynamicSize = bundleProfiler.Gauge("/tablet_dynamic_size");
+        sensors->TabletStaticSize = bundleProfiler.Gauge("/tablet_static_size");
 
         BundleSensors_[bundleName] = sensors;
         return sensors;

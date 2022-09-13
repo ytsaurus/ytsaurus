@@ -119,6 +119,7 @@ struct TInstanceResources
 {
     int Vcpu;
     i64 Memory;
+    TString Type;
 
     TInstanceResources& operator=(const THulkInstanceResources& resources);
 
