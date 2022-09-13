@@ -27,11 +27,9 @@ import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
-import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
@@ -52,7 +50,9 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
+import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -353,7 +353,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
-        return client.existsNode(req.setTransactionalOptions(transactionalOptions));
+        return client.existsNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
@@ -363,7 +363,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
-        return client.listNode(req.setTransactionalOptions(transactionalOptions));
+        return client.listNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
