@@ -517,6 +517,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(2);
+    input.Config->HulkFailedRequestRetryTimeout = TDuration::Hours(1);
     TSchedulerMutations mutations;
 
     GenerateNodesForBundle(input, "default-bundle", 2);
@@ -533,11 +534,25 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
-
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
-    // TODO(capone212): use constants instead of inline strings
+
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+
+    // Allocation request is removed from state only after timeout
+    {
+        auto& allocState = input.BundleStates["default-bundle"]->NodeAllocations.begin()->second;
+        allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 0);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
@@ -683,6 +698,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
 TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(1);
+    input.Config->HulkFailedRequestRetryTimeout = TDuration::Hours(1);
     TSchedulerMutations mutations;
 
     auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
@@ -697,11 +713,23 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
-    // TODO(capone212): use constants instead of inline strings
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
+
+    // Deallocation request is removed from state only after timeout
+    {
+        auto& allocState = input.BundleStates["default-bundle"]->NodeDeallocations.begin()->second;
+        allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 0);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
 }
 
 TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
@@ -1231,6 +1259,7 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
 TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    input.Config->HulkFailedRequestRetryTimeout = TDuration::Hours(1);
     TSchedulerMutations mutations;
 
     GenerateProxiesForBundle(input, "default-bundle", 2);
@@ -1245,6 +1274,22 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
 
     ScheduleBundles(input, &mutations);
 
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
+
+    // Allocation request is removed from state only after timeout
+    {
+        auto& allocState = input.BundleStates["default-bundle"]->ProxyAllocations.begin()->second;
+        allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
@@ -1345,6 +1390,7 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
 TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 1);
+    input.Config->HulkFailedRequestRetryTimeout = TDuration::Hours(1);
     TSchedulerMutations mutations;
 
     auto bundleProxies = GenerateProxiesForBundle(input, "default-bundle", 1);
@@ -1359,11 +1405,22 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
-    // TODO(capone212): use constants instead of inline strings
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
+
+    {
+        auto& allocState = input.BundleStates["default-bundle"]->ProxyDeallocations.begin()->second;
+        allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
 }
 
 TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
