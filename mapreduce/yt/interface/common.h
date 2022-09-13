@@ -721,36 +721,93 @@ TTableSchema CreateTableSchema(NTi::TTypePtr type);
 ///
 /// @brief Enumeration describing comparison operation used in key bound.
 ///
-/// Names are self describing.
+/// ERelation is a part of @ref NYT::TKeyBound that can be used as
+/// lower or upper key limit in @ref TReadLimit.
+///
+/// Relations `Less` and `LessOrEqual` are for upper limit and
+/// relations `Greater` and `GreaterOrEqual` are for lower limit.
+///
+/// It is a error to use relation in the limit of wrong kind.
 enum class ERelation
 {
-    /// @cond Doxygen_Suppress
+    ///
+    /// @brief Relation "less"
+    ///
+    /// Specifies range of keys that are before specified key.
+    /// Can only be used in upper limit.
     Less            /* "<"  */,
+
+    ///
+    /// @brief Relation "less or equal"
+    ///
+    /// Specifies range of keys that are before or equal specified key.
+    /// Can only be used in upper limit.
     LessOrEqual     /* "<=" */,
+
+    ///
+    /// @brief Relation "greater"
+    ///
+    /// Specifies range of keys that are after specified key.
+    /// Can only be used in lower limit.
     Greater         /* ">"  */,
+
+    ///
+    /// @brief Relation "greater or equal"
+    ///
+    /// Specifies range of keys that are after or equal than specified key.
+    /// Can only be used in lower limit.
     GreaterOrEqual  /* ">=" */,
-    /// @endcond
 };
 
-/// @brief Bound of key range
+/// @brief Key with relation specifying interval of keys in lower or upper limit of @ref NYT::TReadRange
 struct TKeyBound
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TKeyBound;
 
     explicit TKeyBound(ERelation relation = ERelation::Less, TKey key = TKey{});
 
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(ERelation, Relation, ERelation::Less);
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(TKey, Key, TKey{});
+    /// @endcond
 };
 
+///
+/// @brief Description of the read limit.
+///
+/// It is actually a variant and must store exactly one field.
 struct TReadLimit
 {
     using TSelf = TReadLimit;
 
+    ///
+    /// @brief KeyBound specifies table key and whether to include it
+    ///
+    /// It can be used in lower or upper limit when reading tables.
     FLUENT_FIELD_OPTION(TKeyBound, KeyBound);
+
+    ///
+    /// @brief Table key
+    ///
+    /// It can be used in exact, lower or upper limit when reading tables.
     FLUENT_FIELD_OPTION(TKey, Key);
+
+    ///
+    /// @brief Row index
+    ///
+    /// It can be used in exact, lower or upper limit when reading tables.
     FLUENT_FIELD_OPTION(i64, RowIndex);
+
+    ///
+    /// @brief File offset
+    ///
+    /// It can be used in lower or upper limit when reading files.
     FLUENT_FIELD_OPTION(i64, Offset);
+
+    ///
+    /// @brief File offset
+    ///
+    /// It can be used in lower or upper limit when reading files.
     FLUENT_FIELD_OPTION(i64, TabletIndex);
 };
 
