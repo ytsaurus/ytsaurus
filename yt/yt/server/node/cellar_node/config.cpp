@@ -62,7 +62,7 @@ TMemoryLimitsEnumIndexedVector TMemoryLimits::AsEnumIndexedVector() const
 {
     TMemoryLimitsEnumIndexedVector result;
 
-    auto populate = [&result] (EMemoryCategory category, std::optional<int> value) {
+    auto populate = [&result] (EMemoryCategory category, std::optional<i64> value) {
         if (value) {
             auto limit = New<NClusterNode::TMemoryLimit>();
             limit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
