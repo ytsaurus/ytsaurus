@@ -976,6 +976,16 @@ private:
         auto logMessage = builder.Flush();
         if (TraceContext_ && TraceContext_->IsRecorded()) {
             TraceContext_->AddTag(RequestInfoAnnotation, logMessage);
+            const auto& authenticationIdentity = GetAuthenticationIdentity();
+            if (authenticationIdentity.User) {
+                TStringBuilder builder;
+                builder.AppendString(authenticationIdentity.User);
+                if (authenticationIdentity.UserTag && authenticationIdentity.UserTag != authenticationIdentity.User) {
+                    builder.AppendChar(':');
+                    builder.AppendString(authenticationIdentity.UserTag);
+                }
+                TraceContext_->AddTag(RequestUser, builder.Flush());
+            }
         }
         YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->RequestLoggingAnchor, logMessage);
     }

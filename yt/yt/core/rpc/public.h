@@ -135,6 +135,7 @@ using TDiscoverRequestHook = TCallback<void(NProto::TReqDiscover*)>;
 extern const TString RequestIdAnnotation;
 extern const TString EndpointAnnotation;
 extern const TString RequestInfoAnnotation;
+extern const TString RequestUser;
 extern const TString ResponseInfoAnnotation;
 
 extern const TString FeatureIdAttributeKey;
