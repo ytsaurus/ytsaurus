@@ -345,6 +345,7 @@ private:
             }
 
             const auto& allocationInfo = it->second;
+            auto allocationAge = TInstant::Now() - allocationState->CreationTime;
 
             if (IsAllocationFailed(allocationInfo)) {
                 YT_LOG_WARNING("Allocation Failed (AllocationId: %v, InstanceType: %v, BundleName: %v)",
@@ -358,6 +359,10 @@ private:
                     .Description = Format("Allocation request %v has failed.",
                         allocationId),
                 });
+
+                if (allocationAge < input.Config->HulkFailedRequestRetryTimeout) {
+                    aliveAllocations[allocationId] = allocationState;
+                }
                 continue;
             }
 
@@ -370,7 +375,6 @@ private:
                 continue;
             }
 
-            auto allocationAge = TInstant::Now() - allocationState->CreationTime;
             if (allocationAge > input.Config->HulkRequestTimeout) {
                 YT_LOG_WARNING("Allocation Request is stuck (AllocationId: %v, AllocationAge: %v, Threshold: %v)",
                     allocationId,
@@ -462,7 +466,8 @@ private:
                 .Description = Format("Deallocation request %v has failed.",
                     deallocationId),
             });
-            return false;
+
+            return deallocationAge < input.Config->HulkFailedRequestRetryTimeout;
         }
 
         if (IsAllocationCompleted(it->second) && adapter->EnsureDeallocatedInstanceTagsSet(instanceName, input, mutations)) {
