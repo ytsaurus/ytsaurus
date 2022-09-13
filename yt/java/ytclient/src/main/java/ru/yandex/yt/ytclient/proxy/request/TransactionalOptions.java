@@ -52,14 +52,14 @@ public class TransactionalOptions {
         return writeTo(TTransactionalOptions.newBuilder()).build();
     }
 
-    YTreeBuilder toTree(YTreeBuilder builder) {
+    public YTreeBuilder toTree(YTreeBuilder builder) {
         if (transactionId != null) {
             builder.key("transaction_id").value(transactionId.toString());
         }
         return builder;
     }
 
-    void writeArgumentsLogString(StringBuilder sb) {
+    public void writeArgumentsLogString(StringBuilder sb) {
         if (transactionId != null) {
             sb.append("TransactionId: ").append(transactionId).append("; ");
         } else {

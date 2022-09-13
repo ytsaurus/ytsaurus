@@ -16,7 +16,7 @@ public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelReque
     }
 
     public ExistsNode(YPath path) {
-        super(path);
+        setPath(path);
     }
 
     public ExistsNode(ExistsNode existsNode) {

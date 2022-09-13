@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.operations.Operation;
@@ -17,7 +18,6 @@ import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockMode;
@@ -41,6 +41,7 @@ import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.GetNode;
 
 /**
  * Interface of transactional YT client.
@@ -61,6 +62,14 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<Void> setNode(SetNode req);
 
     CompletableFuture<YTreeNode> getNode(GetNode req);
+
+    default CompletableFuture<YTreeNode> getNode(YPath path) {
+        return getNode(GetNode.builder().setPath(path).build());
+    }
+
+    default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?> getNode) {
+        return getNode(getNode.build());
+    }
 
     CompletableFuture<YTreeNode> listNode(ListNode req);
 
@@ -141,7 +150,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<YTreeNode> getNode(String path, @Nullable Duration requestTimeout) {
-        return getNode(new GetNode(path).setTimeout(requestTimeout));
+        return getNode(GetNode.builder().setPath(YPath.simple(path)).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<YTreeNode> listNode(String path) {

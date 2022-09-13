@@ -30,7 +30,6 @@ import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
@@ -53,6 +52,7 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -358,7 +358,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
-        return client.getNode(req.setTransactionalOptions(transactionalOptions));
+        return client.getNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
