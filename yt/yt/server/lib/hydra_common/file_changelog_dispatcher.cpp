@@ -58,6 +58,7 @@ public:
         , ProcessQueueCallback_(BIND_NO_PROPAGATE(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
         , ChangelogReadIOTimer_(Profiler.Timer("/changelog_read_io_time"))
+        , ChangelogReadCopyTimer_(Profiler.Timer("/changelog_read_copy_time"))
         , ChangelogFlushIOTimer_(Profiler.Timer("/changelog_flush_io_time"))
     { }
 
@@ -76,26 +77,24 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TFuture<void> result;
-        {
-            auto guard = Guard(SpinLock_);
-            for (const auto& record : records) {
-                AppendQueue_.push_back(record);
-            }
-            AppendQueueByteSize_ += byteSize;
-            AppendQueueEmpty_.store(false);
-            YT_VERIFY(FlushPromise_);
-            result = FlushPromise_;
+        auto guard = WriterGuard(SpinLock_);
+
+        for (const auto& record : records) {
+            AppendQueue_.push_back(record);
         }
 
-        return result;
+        AppendQueueByteSize_ += byteSize;
+        AppendQueueEmpty_.store(false);
+
+        YT_VERIFY(FlushPromise_);
+        return FlushPromise_;
     }
 
     TFuture<void> AsyncFlush()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
             return VoidFuture;
@@ -153,7 +152,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
-        TEventTimerGuard guard(ChangelogReadIOTimer_);
+        std::optional<TEventTimerGuard> readIOTimerGuard(ChangelogReadIOTimer_);
 
         std::vector<TSharedRef> records;
         int currentRecordId = firstRecordId;
@@ -178,9 +177,39 @@ public:
                 // Recall that the underlying changelog works in terms of raw bytes (including headers and padding).
                 // Try to avoid reading too few bytes and thus making too many requests at the very end.
                 std::max(needBytes, 256_KBs));
+
             if (someRecords.empty()) {
+                if (needMore()) {
+                    // If more records are still needed, try to fetch these from memory.
+                    readIOTimerGuard.reset();
+                    TEventTimerGuard readCopyTimerGuard(ChangelogReadCopyTimer_);
+
+                    std::optional<int> firstCopiedRecordId;
+                    std::optional<int> lastCopiedRecordId;
+
+                    auto lockGuard = ReaderGuard(SpinLock_);
+
+                    auto readFromMemory = [&] (const std::vector<TSharedRef>& memoryRecords, int firstMemoryRecordId) {
+                        int memoryIndex = currentRecordId - firstMemoryRecordId;
+                        while (needMore() && memoryIndex >= 0 && memoryIndex < std::ssize(memoryRecords)) {
+                            if (!firstCopiedRecordId) {
+                                firstCopiedRecordId = currentRecordId;
+                            }
+                            lastCopiedRecordId = currentRecordId;
+                            appendRecord(memoryRecords[memoryIndex++]);
+                        }
+                    };
+
+                    readFromMemory(FlushQueue_, FlushedRecordCount_);
+                    readFromMemory(AppendQueue_, FlushedRecordCount_ + std::ssize(FlushQueue_));
+
+                    YT_LOG_DEBUG_IF(firstCopiedRecordId, "Changelog records copied from memory (RecordIds: %v-%v)",
+                        *firstCopiedRecordId,
+                        *lastCopiedRecordId);
+                }
                 break;
             }
+
             for (auto&& record : someRecords) {
                 appendRecord(record);
                 if (!needMore()) {
@@ -248,7 +277,7 @@ private:
     //! True if #AppendQueue_ is empty.
     std::atomic<bool> AppendQueueEmpty_ = true;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     //! These records are currently being flushed to the underlying sync changelog and
     //! immediately follow the flushed part.
@@ -259,10 +288,11 @@ private:
     TPromise<void> FlushPromise_ = NewPromise<void>();
 
     std::atomic<bool> FlushForced_ = false;
-    std::atomic<NProfiling::TCpuInstant> LastFlushed_ = 0;
+    std::atomic<NProfiling::TCpuInstant> LastFlushed_ = GetCpuInstant();
     std::atomic<bool> ProcessQueueCallbackPending_ = false;
 
     TEventTimer ChangelogReadIOTimer_;
+    TEventTimer ChangelogReadCopyTimer_;
     TEventTimer ChangelogFlushIOTimer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
@@ -274,10 +304,11 @@ private:
 
         TPromise<void> flushPromise;
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             YT_VERIFY(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
+
             AppendQueueByteSize_.store(0);
             AppendQueueEmpty_.store(true);
 
@@ -301,7 +332,7 @@ private:
         }
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             FlushedRecordCount_ += FlushQueue_.size();
             FlushQueue_.clear();
         }
