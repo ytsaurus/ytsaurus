@@ -17,8 +17,6 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-#include <pthread.h>
-
 namespace NYT {
 
 using namespace NConcurrency;
@@ -148,7 +146,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
-    pthread_key_t ThreadDtorKey_;
 
     THazardPointerManager();
 
@@ -163,6 +160,15 @@ private:
     DECLARE_LEAKY_SINGLETON_FRIEND()
 };
 
+struct THazardThreadStateDestroyer
+{
+    THazardThreadState* ThreadState;
+
+    ~THazardThreadStateDestroyer() {
+        THazardPointerManager::Get()->DestroyThread(ThreadState);
+    }
+};
+
 /////////////////////////////////////////////////////////////////////////////
 
 static void* HazardPointerManagerInitializer = [] {
@@ -174,10 +180,6 @@ static void* HazardPointerManagerInitializer = [] {
 
 THazardPointerManager::THazardPointerManager()
 {
-    pthread_key_create(&ThreadDtorKey_, [] (void* ptr) {
-        THazardPointerManager::Get()->DestroyThread(ptr);
-    });
-
     NThreading::RegisterAtForkHandlers(
         [=] { BeforeFork(); },
         [=] { AfterForkParent(); },
@@ -216,8 +218,8 @@ THazardThreadState* THazardPointerManager::AllocateThread()
 {
     auto* threadState = new THazardThreadState(&HazardPointer);
 
-    // Need to pass some non-null value for DestroyThread to be called.
-    pthread_setspecific(ThreadDtorKey_, threadState);
+    // Unregisters thread from hazard ptr manager on thread exit
+    static thread_local THazardThreadStateDestroyer destroyer{threadState};
 
     {
         auto guard = WriterGuard(ThreadRegistryLock_);
