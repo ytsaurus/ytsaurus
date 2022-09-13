@@ -35,7 +35,6 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
     "tqdm",
-    "chardet",
     ("idna", "idna/py2"),
     "six",
     ("attr", "attrs"),
@@ -59,18 +58,6 @@ YT_PREFIX_BINARIES = [
     "yt/tools/bin/lock.py",
     "yt/tools/bin/set_account.py",
 ]
-
-
-def fix_chardet_package(chardet_path):
-    for root, dirs, files in os.walk(chardet_path):
-        for file in files:
-            with open(os.path.join(root, file)) as fin:
-                data = fin.read()
-            data = data.replace(
-                "from chardet.sbcharsetprober import SingleByteCharSetModel\n",
-                "from .sbcharsetprober import SingleByteCharSetModel\n")
-            with open(os.path.join(root, file), "w") as fout:
-                fout.write(data)
 
 
 def fix_type_info_package(type_info_path):
@@ -164,9 +151,6 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
                 package_name=package_name))
         for path in files_to_copy:
             cp_r(path, packages_dir)
-
-        if package_name == "chardet":
-            fix_chardet_package(os.path.join(packages_dir, "chardet"))
 
     # Replace certificate.
     cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "certifi"))
