@@ -29,7 +29,8 @@ public abstract class MutateNode<T extends MutateNode<T>> extends TransactionalR
         return Optional.of(mutatingOptions);
     }
 
-    YTreeBuilder toTree(YTreeBuilder builder) {
+    @Override
+    protected YTreeBuilder toTree(YTreeBuilder builder) {
         if (prerequisiteOptions != null) {
             builder = builder.apply(prerequisiteOptions::toTree);
         }

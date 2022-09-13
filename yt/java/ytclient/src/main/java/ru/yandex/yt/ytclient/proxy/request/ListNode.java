@@ -19,7 +19,7 @@ public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<T
     }
 
     public ListNode(YPath path) {
-        super(path);
+        setPath(path);
     }
 
     public ListNode(ListNode listNode) {

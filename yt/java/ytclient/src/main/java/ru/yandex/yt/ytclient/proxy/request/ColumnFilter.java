@@ -47,7 +47,7 @@ public class ColumnFilter {
         return builder;
     }
 
-    boolean isPresent() {
+    public boolean isPresent() {
         return columns != null;
     }
 
