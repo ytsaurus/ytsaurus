@@ -1,21 +1,15 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import javax.annotation.Nonnull;
-
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqListNode;
-import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
-public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<TReqListNode.Builder> {
+public class ListNode extends ru.yandex.yt.ytclient.request.ListNode.BuilderBase<ListNode>  {
     public ListNode(String path) {
         this(YPath.simple(path));
+    }
+
+    public ListNode() {
     }
 
     public ListNode(YPath path) {
@@ -26,44 +20,12 @@ public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<T
         super(listNode);
     }
 
-
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
-        builder.body().setPath(path.toString());
-        if (attributes != null) {
-            // TODO(max42): switch to modern "attributes" field.
-            builder.body().setLegacyAttributes(attributes.writeTo(TLegacyAttributeKeys.newBuilder()));
-        }
-        if (maxSize != null) {
-            builder.body().setMaxSize(maxSize);
-        }
-        if (transactionalOptions != null) {
-            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-        }
-        if (prerequisiteOptions != null) {
-            builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-        }
-        if (masterReadOptions != null) {
-            builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
-        }
-        if (suppressableAccessTrackingOptions != null) {
-            builder.body().setSuppressableAccessTrackingOptions(
-                    suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder())
-            );
-        }
-        if (additionalData != null) {
-            builder.body().mergeFrom(additionalData);
-        }
+    public ListNode(ru.yandex.yt.ytclient.request.ListNode listNode) {
+        super(listNode.toBuilder());
     }
 
-    @Nonnull
     @Override
     protected ListNode self() {
         return this;
-    }
-
-    @Override
-    protected void writeArgumentsLogString(StringBuilder sb) {
-        super.writeArgumentsLogString(sb);
     }
 }

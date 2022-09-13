@@ -15,11 +15,9 @@ import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
-import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
@@ -41,7 +39,9 @@ import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
+import ru.yandex.yt.ytclient.request.ListNode;
 
 /**
  * Interface of transactional YT client.
@@ -63,15 +63,15 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<YTreeNode> getNode(GetNode req);
 
-    default CompletableFuture<YTreeNode> getNode(YPath path) {
-        return getNode(GetNode.builder().setPath(path).build());
-    }
-
     default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?> getNode) {
         return getNode(getNode.build());
     }
 
     CompletableFuture<YTreeNode> listNode(ListNode req);
+
+    default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?> listNode) {
+        return listNode(listNode.build());
+    }
 
     CompletableFuture<LockNodeResult> lockNode(LockNode req);
 
@@ -82,6 +82,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<GUID> moveNode(MoveNode req);
 
     CompletableFuture<Boolean> existsNode(ExistsNode req);
+
+    default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?> req) {
+        return existsNode(req.build());
+    }
 
     CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
 
@@ -145,6 +149,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req);
 
+    default CompletableFuture<YTreeNode> getNode(YPath path) {
+        return getNode(GetNode.builder().setPath(path).build());
+    }
+
     default CompletableFuture<YTreeNode> getNode(String path) {
         return getNode(path, null);
     }
@@ -153,12 +161,16 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
         return getNode(GetNode.builder().setPath(YPath.simple(path)).setTimeout(requestTimeout).build());
     }
 
+    default CompletableFuture<YTreeNode> listNode(YPath path) {
+        return listNode(ListNode.builder().setPath(path).build());
+    }
+
     default CompletableFuture<YTreeNode> listNode(String path) {
         return listNode(path, null);
     }
 
     default CompletableFuture<YTreeNode> listNode(String path, @Nullable Duration requestTimeout) {
-        return listNode(new ListNode(path).setTimeout(requestTimeout));
+        return listNode(ListNode.builder().setPath(YPath.simple(path)).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<Void> setNode(String path, byte[] data) {
@@ -182,7 +194,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<Boolean> existsNode(String path, @Nullable Duration requestTimeout) {
-        return existsNode(new ExistsNode(path).setTimeout(requestTimeout));
+        return existsNode(ExistsNode.builder().setPath(YPath.simple(path)).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<GUID> createNode(String path, ObjectType type) {

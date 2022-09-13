@@ -128,7 +128,7 @@ public abstract class GetLikeReq extends TransactionalRequest {
             return self();
         }
 
-        public T setMaxSize(Integer maxSize) {
+        public T setMaxSize(@Nullable Integer maxSize) {
             this.maxSize = maxSize;
             return self();
         }
