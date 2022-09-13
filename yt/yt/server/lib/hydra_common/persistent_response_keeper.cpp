@@ -29,8 +29,7 @@ struct TEvictionItem
 
     // For Load.
     TEvictionItem() = default;
-    TEvictionItem(
-        TMutationId id, TInstant when)
+    TEvictionItem(TMutationId id, TInstant when)
         : Id(id)
         , When(when)
     { }
