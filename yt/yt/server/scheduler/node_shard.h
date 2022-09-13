@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
+#include <util/generic/hash_multi_map.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

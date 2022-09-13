@@ -14,7 +14,7 @@
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
-#include <util/generic/map.h>
+#include <util/generic/hash_multi_map.h>
 
 namespace NYT::NCypressServer {
 
