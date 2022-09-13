@@ -55,6 +55,8 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
+    bool UseNewHydra;
+
     REGISTER_YSON_STRUCT(TClusterClockConfig);
 
     static void Register(TRegistrar registrar);
