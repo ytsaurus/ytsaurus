@@ -231,6 +231,8 @@ void TBootstrap::DoRun()
     ElectionManager_->SubscribeLeadingEnded(BIND(&ITabletBalancer::Stop, TabletBalancer_));
 
     ElectionManager_->Start();
+
+    YT_LOG_INFO("Finished initializing bootstrap");
 }
 
 void TBootstrap::RegisterInstance()

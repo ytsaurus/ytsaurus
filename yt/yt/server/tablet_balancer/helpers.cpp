@@ -106,6 +106,24 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchTableAttributes(
     return FetchAttributesByCellTags(client, objectIdsWithCellTags, attributeKeys);
 }
 
+namespace {
+
+TInstant TruncateToMinutes(TInstant t)
+{
+    auto timeval = t.TimeVal();
+    timeval.tv_usec = 0;
+    timeval.tv_sec /= 60;
+    timeval.tv_sec *= 60;
+    return TInstant(timeval);
+}
+
+} // namespace
+
+TInstant TruncatedNow()
+{
+    return TruncateToMinutes(Now());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

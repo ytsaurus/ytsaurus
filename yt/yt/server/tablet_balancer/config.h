@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/core/misc/arithmetic_formula.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +47,8 @@ public:
 
     // Ignore bundle attribute EnableStandaloneTabletBalancer and balance each bundle.
     bool EnableEverywhere;
+
+    TTimeFormula Schedule;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 

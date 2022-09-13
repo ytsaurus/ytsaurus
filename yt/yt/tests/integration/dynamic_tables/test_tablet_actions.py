@@ -631,6 +631,12 @@ class TabletBalancerBase(TabletActionsBase):
     def _set_enable_tablet_balancer(self, value):
         raise Exception("Function is not implemented")
 
+    def _set_default_schedule_formula(self, value):
+        raise Exception("Function is not implemented")
+
+    def _get_enable_tablet_balancer(self):
+        raise Exception("Function is not implemented")
+
     @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
@@ -1148,6 +1154,74 @@ class TabletBalancerBase(TabletActionsBase):
         print_debug(sizes)
         assert max(sizes) - min(sizes) <= 1
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("enable", [False, True])
+    def test_tablet_balancer_schedule(self, enable):
+        assert self._get_enable_tablet_balancer()
+        self._set_default_schedule_formula("1" if enable else "0")
+        sleep(1)
+        self._configure_bundle("default")
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+        if enable:
+            wait(lambda: get("//tmp/t/@tablet_count") == 1)
+        else:
+            sleep(1)
+            assert get("//tmp/t/@tablet_count") == 2
+
+    @authors("ifsmirnov")
+    @pytest.mark.timeout(180)
+    def test_tablet_balancer_schedule_formulas(self):
+        self._configure_bundle("default")
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+
+        def check_balancer_is_active(should_be_active):
+            sync_reshard_table("//tmp/t", [[], [1]])
+            sync_mount_table("//tmp/t")
+            if should_be_active:
+                wait(lambda: get("//tmp/t/@tablet_count") == 1)
+                wait_for_tablet_state("//tmp/t", "mounted")
+            else:
+                sleep(1)
+                wait(lambda: get("//tmp/t/@tablet_count") == 2)
+            sync_unmount_table("//tmp/t")
+
+        local_config = "//sys/tablet_cell_bundles/default/@tablet_balancer_config/tablet_balancer_schedule"
+
+        check_balancer_is_active(True)
+        if not self.ENABLE_STANDALONE_TABLET_BALANCER:
+            with pytest.raises(YtError):
+                self._set_default_schedule_formula("")
+
+            with pytest.raises(YtError):
+                self._set_default_schedule_formula("wrong_variable")
+            check_balancer_is_active(True)
+
+        with pytest.raises(YtError):
+            set(local_config, "wrong_variable")
+
+        set(local_config, "")
+        check_balancer_is_active(True)
+
+        set(local_config, "0")
+        check_balancer_is_active(False)
+
+        set(local_config, "")
+        self._set_default_schedule_formula("0")
+        sleep(1)
+        check_balancer_is_active(False)
+
+        self._set_default_schedule_formula("1")
+        check_balancer_is_active(True)
+
+        self._set_default_schedule_formula("1/0")
+        sleep(1)
+        check_balancer_is_active(False)
+
 
 ##################################################################
 
@@ -1161,6 +1235,15 @@ class TestTabletBalancer(TabletBalancerBase):
             value,
             recursive=True,
         )
+
+    def _set_default_schedule_formula(self, value):
+        set(
+            "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule",
+            value,
+        )
+
+    def _get_enable_tablet_balancer(self):
+        return get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
 
     @authors("ifsmirnov")
     def test_sync_move_all_tables(self):
@@ -1289,75 +1372,6 @@ class TestTabletBalancer(TabletBalancerBase):
         wait(wait_func)
 
         _check()
-
-    @authors("ifsmirnov", "shakurov")
-    @pytest.mark.parametrize("enable", [False, True])
-    def test_tablet_balancer_schedule(self, enable):
-        assert get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule",
-            "1" if enable else "0",
-        )
-        sleep(1)
-        self._configure_bundle("default")
-        sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [1]])
-        sync_mount_table("//tmp/t")
-        if enable:
-            wait(lambda: get("//tmp/t/@tablet_count") == 1)
-        else:
-            sleep(1)
-            assert get("//tmp/t/@tablet_count") == 2
-
-    @authors("ifsmirnov")
-    def test_tablet_balancer_schedule_formulas(self):
-        self._configure_bundle("default")
-        sync_create_cells(1)
-
-        self._create_sorted_table("//tmp/t")
-
-        def check_balancer_is_active(should_be_active):
-            sync_reshard_table("//tmp/t", [[], [1]])
-            sync_mount_table("//tmp/t")
-            if should_be_active:
-                wait(lambda: get("//tmp/t/@tablet_count") == 1)
-                wait_for_tablet_state("//tmp/t", "mounted")
-            else:
-                sleep(1)
-                wait(lambda: get("//tmp/t/@tablet_count") == 2)
-            sync_unmount_table("//tmp/t")
-
-        global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"
-        local_config = "//sys/tablet_cell_bundles/default/@tablet_balancer_config/tablet_balancer_schedule"
-
-        check_balancer_is_active(True)
-        with pytest.raises(YtError):
-            set(global_config, "")
-        with pytest.raises(YtError):
-            set(global_config, "wrong_variable")
-        check_balancer_is_active(True)
-
-        with pytest.raises(YtError):
-            set(local_config, "wrong_variable")
-
-        set(local_config, "")
-        check_balancer_is_active(True)
-
-        set(local_config, "0")
-        check_balancer_is_active(False)
-
-        set(local_config, "")
-        set(global_config, "0")
-        sleep(1)
-        check_balancer_is_active(False)
-
-        set(global_config, "1")
-        check_balancer_is_active(True)
-
-        set(global_config, "1/0")
-        sleep(1)
-        check_balancer_is_active(False)
 
     @authors("ifsmirnov")
     def test_min_tablet_count(self):
