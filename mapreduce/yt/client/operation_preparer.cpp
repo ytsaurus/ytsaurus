@@ -478,6 +478,11 @@ TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) cons
         uniquePath,
         OperationPreparer_.GetPreparationId());
 
+    auto attributes = TNode()("replication_factor", GetFileCacheReplicationFactor());
+    if (Options_.FileExpirationTimeout_) {
+        attributes["expiration_timeout"] = Options_.FileExpirationTimeout_->MilliSeconds();
+    }
+
     Create(
         OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
         OperationPreparer_.GetAuth(),
@@ -487,7 +492,7 @@ TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) cons
         TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true)
-    .Attributes(TNode()("replication_factor", GetFileCacheReplicationFactor()))
+            .Attributes(attributes)
     );
     {
         TFileWriter writer(
