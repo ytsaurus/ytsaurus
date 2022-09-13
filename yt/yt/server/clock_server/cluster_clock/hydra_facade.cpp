@@ -18,6 +18,9 @@
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/private.h>
 
+#include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra2/private.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
@@ -74,17 +77,31 @@ public:
         TDistributedHydraManagerOptions hydraManagerOptions;
         hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
         hydraManagerOptions.UseFork = true;
-        HydraManager_ = CreateDistributedHydraManager(
-            Config_->HydraManager,
-            Bootstrap_->GetControlInvoker(),
-            GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-            Automaton_,
-            Bootstrap_->GetRpcServer(),
-            electionManagerThunk,
-            Bootstrap_->GetCellManager()->GetCellId(),
-            Bootstrap_->GetChangelogStoreFactory(),
-            Bootstrap_->GetSnapshotStore(),
-            hydraManagerOptions);
+        if (Config_->UseNewHydra) {
+            HydraManager_ = NHydra2::CreateDistributedHydraManager(
+                Config_->HydraManager,
+                Bootstrap_->GetControlInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+                Automaton_,
+                Bootstrap_->GetRpcServer(),
+                electionManagerThunk,
+                Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetChangelogStoreFactory(),
+                Bootstrap_->GetSnapshotStore(),
+                hydraManagerOptions);
+        } else {
+            HydraManager_ = NHydra::CreateDistributedHydraManager(
+                Config_->HydraManager,
+                Bootstrap_->GetControlInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+                Automaton_,
+                Bootstrap_->GetRpcServer(),
+                electionManagerThunk,
+                Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetChangelogStoreFactory(),
+                Bootstrap_->GetSnapshotStore(),
+                hydraManagerOptions);
+        }
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
