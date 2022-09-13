@@ -35,6 +35,8 @@ void TInstanceResources::Register(TRegistrar registrar)
     registrar.Parameter("memory", &TThis::Memory)
         .GreaterThanOrEqual(0)
         .Default(120_GB);
+    registrar.Parameter("type", &TThis::Type)
+        .Default();
 }
 
 void TResourceQuota::Register(TRegistrar registrar)
