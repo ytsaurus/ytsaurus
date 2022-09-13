@@ -455,6 +455,8 @@ struct TInstanceAnnotations
     bool Allocated;
     TInstanceResourcesPtr Resource;
 
+    std::optional<TInstant> DeallocatedAt;
+
     REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
     static void Register(TRegistrar registrar);

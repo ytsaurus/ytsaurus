@@ -73,6 +73,8 @@ public:
 
     int ReallocateInstanceBudget;
 
+    TDuration RemoveInstanceCypressNodeAfter;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);

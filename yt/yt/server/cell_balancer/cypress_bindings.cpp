@@ -303,6 +303,8 @@ void TInstanceAnnotations::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("resources", &TThis::Resource)
         .DefaultNew();
+    registrar.Parameter("deallocated_at", &TThis::DeallocatedAt)
+        .Optional();
 }
 
 void TTabletSlot::Register(TRegistrar registrar)
