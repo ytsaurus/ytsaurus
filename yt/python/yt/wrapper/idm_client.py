@@ -219,3 +219,20 @@ class YtIdmClient(object):
     def remove_all_roles(self, object_id, recursive=False):
         """Removes all roles from object and from it's descendants if recursive is set to True"""
         return self._make_request("delete", "roles", dict(id=object_id, recursive=recursive))
+
+    def add_column_group(self, name, columns, path):
+        """Adds column group."""
+        column_group = dict(columns=columns, name=name)
+        params = dict(path=path)
+        return self._make_request("put", "column_group", params, column_group)
+
+    def update_column_group(self, guid, name, columns, enabled):
+        """Updates column group."""
+        column_group = dict(id=guid, columns=columns, name=name, enabled=enabled)
+        params = dict()
+        return self._make_request("post", "column_group", params, column_group)
+
+    def remove_column_group(self, guid):
+        """Removes column group."""
+        params = dict(id=guid)
+        return self._make_request("delete", "column_group", params)
