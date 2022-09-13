@@ -6,6 +6,8 @@
 
 namespace NYT::NTabletBalancer {
 
+const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
@@ -30,6 +32,14 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_everywhere", &TThis::EnableEverywhere)
         .Default(false);
+    registrar.Parameter("schedule", &TThis::Schedule)
+        .Default(DefaultTabletBalancerSchedule);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Schedule.IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Schedule cannot be empty");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

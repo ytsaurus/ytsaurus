@@ -24,6 +24,8 @@ THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchTableAt
     const std::vector<TString>& attributeKeys,
     const THashMap<TTableId, TTablePtr>& Tables);
 
+TInstant TruncatedNow();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

@@ -54,13 +54,21 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
             "enable": value
         })
 
+    def _set_default_schedule_formula(self, value):
+        self._apply_dynamic_config_patch({
+            "schedule": value
+        })
+
+    def _get_enable_tablet_balancer(self):
+        return get("//sys/tablet_balancer/config/enable")
+
     @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
         assert not get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
 
     @authors("alexelexa")
     def test_standalone_tablet_balancer_on(self):
-        assert get("//sys/tablet_balancer/config/enable")
+        assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
 

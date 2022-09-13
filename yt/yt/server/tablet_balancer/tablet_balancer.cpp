@@ -3,6 +3,7 @@
 #include "bundle_state.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "helpers.h"
 #include "private.h"
 #include "public.h"
 #include "tablet_balancer.h"
@@ -36,6 +37,8 @@ static const auto& Logger = TabletBalancerLogger;
 
 static const TString TabletCellBundlesPath("//sys/tablet_cell_bundles");
 
+constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancer
@@ -62,12 +65,16 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
+    THashSet<TString> BundleNamesToMoveOnNextIteration_;
     TThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
 
     std::atomic<bool> Enable_{false};
     std::atomic<bool> EnableEverywhere_{false};
+    TAtomicObject<TTimeFormula> ScheduleFormula_;
 
+    TInstant CurrentIterationStartTime_;
+    TInstant PreviousIterationStartTime_;
     i64 IterationIndex_;
 
     void BalancerIteration();
@@ -80,7 +87,10 @@ private:
     void BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const;
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const;
 
-    void UpdateBundleList();
+    std::vector<TString> UpdateBundleList();
+
+    bool DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle) const;
+    TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
 };
@@ -106,6 +116,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->TabletActionPollingPeriod,
         Bootstrap_->GetClient(),
         Bootstrap_))
+    , PreviousIterationStartTime_(TruncatedNow())
     , IterationIndex_(0)
 {
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
@@ -116,6 +127,8 @@ void TTabletBalancer::Start()
     VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Starting tablet balancer instance");
+
+    BundleNamesToMoveOnNextIteration_.clear();
 
     PollExecutor_->Start();
 
@@ -146,8 +159,10 @@ void TTabletBalancer::BalancerIteration()
     YT_LOG_INFO("Balancer iteration (IterationIndex: %v)", IterationIndex_);
 
     YT_LOG_DEBUG("Started fetching bundles");
-    UpdateBundleList();
-    YT_LOG_DEBUG("Finished fetching bundles");
+    auto newBundles = UpdateBundleList();
+    YT_LOG_DEBUG("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
+
+    CurrentIterationStartTime_ = TruncatedNow();
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (ActionManager_->HasUnfinishedActions(bundleName)) {
@@ -174,16 +189,21 @@ void TTabletBalancer::BalancerIteration()
 
         // TODO(alexelex): Use Tablets as tablets for each table.
 
-        if (IterationIndex_ % 2 != 0) {
+        if (auto it = BundleNamesToMoveOnNextIteration_.find(bundleName); it != BundleNamesToMoveOnNextIteration_.end()) {
+            BundleNamesToMoveOnNextIteration_.erase(it);
             BalanceViaMove(bundle);
-        } else {
+        } else if (DidBundleBalancingTimeHappen(bundle->GetBundle())) {
+            BundleNamesToMoveOnNextIteration_.insert(bundleName);
             BalanceViaReshard(bundle);
+        } else {
+            YT_LOG_DEBUG("Skip balancing iteration because the time has not yet come (BundleName: %v)", bundleName);
         }
 
         ActionManager_->CreateActions(bundleName);
     }
 
     ++IterationIndex_;
+    PreviousIterationStartTime_ = CurrentIterationStartTime_;
 }
 
 void TTabletBalancer::TryBalancerIteration()
@@ -230,6 +250,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     // and balance everything, while EnableEverywhere has no effect if Enable is set to false.
     Enable_.store(newConfig->Enable);
     EnableEverywhere_.store(newConfig->EnableEverywhere);
+    ScheduleFormula_.Store(newConfig->Schedule);
 
     YT_LOG_DEBUG(
         "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -237,7 +258,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-void TTabletBalancer::UpdateBundleList()
+std::vector<TString> TTabletBalancer::UpdateBundleList()
 {
     TListNodeOptions options;
     options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids"};
@@ -250,27 +271,78 @@ void TTabletBalancer::UpdateBundleList()
 
     // Gather current bundles.
     THashSet<TString> currentBundles;
+    std::vector<TString> newBundles;
     for (const auto& bundle : bundlesList->GetChildren()) {
         const auto& name = bundle->AsString()->GetValue();
         currentBundles.insert(bundle->AsString()->GetValue());
 
-        auto it = Bundles_.emplace(
+        auto [it, isNew] = Bundles_.emplace(
             name,
             New<TBundleState>(
                 name,
                 Bootstrap_->GetClient(),
-                WorkerPool_->GetInvoker())).first;
+                WorkerPool_->GetInvoker()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
+
+        if (isNew) {
+            newBundles.push_back(name);
+        }
     }
 
     // Find bundles that are not in the list of bundles (probably deleted) and erase them.
     DropMissingKeys(&Bundles_, currentBundles);
+    return newBundles;
+}
+
+bool TTabletBalancer::DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle) const
+{
+    auto formula = GetBundleSchedule(bundle);
+
+    try {
+        if (Config_->Period >= MinBalanceFrequency) {
+            TInstant timePoint = PreviousIterationStartTime_ + MinBalanceFrequency;
+            if (timePoint > CurrentIterationStartTime_) {
+                return false;
+            }
+            while (timePoint <= CurrentIterationStartTime_) {
+                if (formula.IsSatisfiedBy(timePoint)) {
+                    return true;
+                }
+                timePoint += MinBalanceFrequency;
+            }
+            return false;
+        } else {
+            return formula.IsSatisfiedBy(CurrentIterationStartTime_);
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to evaluate tablet balancer schedule formula");
+        return false;
+    }
+}
+
+TTimeFormula TTabletBalancer::GetBundleSchedule(const TTabletCellBundlePtr& bundle) const
+{
+    const auto& local = bundle->Config->TabletBalancerSchedule;
+    if (!local.IsEmpty()) {
+        YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
+            bundle->Name,
+            local.GetFormula());
+        return local;
+    }
+    auto formula = ScheduleFormula_.Load();
+    YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
+        bundle->Name,
+        formula.GetFormula());
+    return formula;
 }
 
 void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const
 {
+    YT_LOG_DEBUG("Balancing in memory tablets via move started (BundleName: %v)",
+        bundle->GetBundle()->Name);
+
     if (!bundle->GetBundle()->Config->EnableInMemoryCellBalancer) {
-        YT_LOG_DEBUG("Balancing in memory via move is disabled (BundleName: %v)",
+        YT_LOG_DEBUG("Balancing in memory tablets via move is disabled (BundleName: %v)",
             bundle->GetBundle()->Name);
         return;
     }
@@ -298,14 +370,18 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) cons
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance in memory tablets via move finished (ActionCount: %v)",
+    YT_LOG_DEBUG("Balancing in memory tablets via move finished (BundleName: %v, ActionCount: %v)",
+        bundle->GetBundle()->Name,
         actionCount);
 }
 
 void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const
 {
+    YT_LOG_DEBUG("Balancing ordinary tablets via move started (BundleName: %v)",
+        bundle->GetBundle()->Name);
+
     if (!bundle->GetBundle()->Config->EnableCellBalancer) {
-        YT_LOG_DEBUG("Balancing ordinary via move is disabled (BundleName: %v)",
+        YT_LOG_DEBUG("Balancing ordinary tablets via move is disabled (BundleName: %v)",
             bundle->GetBundle()->Name);
         return;
     }
@@ -328,7 +404,8 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) cons
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance ordinary tablets via move finished (ActionCount: %v)",
+    YT_LOG_DEBUG("Balancing ordinary tablets via move finished (BundleName: %v, ActionCount: %v)",
+        bundle->GetBundle()->Name,
         actionCount);
 }
 
@@ -340,6 +417,9 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
 
 void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
 {
+    YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v)",
+        bundle->GetBundle()->Name);
+
     std::vector<TTabletPtr> tablets;
     for (const auto& [id, tablet] : bundle->Tablets()) {
         if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
@@ -398,7 +478,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
         actionCount += std::ssize(descriptors);
     }
 
-    YT_LOG_DEBUG("Balance tablets via reshard finished (ActionCount: %v)",
+    YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, ActionCount: %v)",
+        bundle->GetBundle()->Name,
         actionCount);
 }
 

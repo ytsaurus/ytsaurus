@@ -1254,15 +1254,14 @@ class YTEnvSetup(object):
             assert not yt_commands.get_batch_error(response)
 
     def _setup_tablet_balancer_dynamic_config(self, driver=None):
-        tablet_balancer_config_path = "//sys/tablet_balancer/config"
         if self.ENABLE_STANDALONE_TABLET_BALANCER:
             yt_commands.set(
-                "{}/enable".format(tablet_balancer_config_path),
-                self.ENABLE_STANDALONE_TABLET_BALANCER,
-                driver=driver)
-            yt_commands.set(
-                "{}/enable_everywhere".format(tablet_balancer_config_path),
-                self.ENABLE_STANDALONE_TABLET_BALANCER,
+                "//sys/tablet_balancer/config",
+                {
+                    "enable": self.ENABLE_STANDALONE_TABLET_BALANCER,
+                    "enable_everywhere": self.ENABLE_STANDALONE_TABLET_BALANCER,
+                    "schedule": "1"
+                },
                 driver=driver)
 
     def _clear_ql_pools(self, driver=None):
