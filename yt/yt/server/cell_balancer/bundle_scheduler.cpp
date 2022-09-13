@@ -1422,7 +1422,9 @@ public:
         const auto& instanceInfo = GetInstanceInfo(nodeName, input);
         const auto& annotations = instanceInfo->Annotations;
         if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
-            mutations->ChangeNodeAnnotations[nodeName] = New<TInstanceAnnotations>();
+            auto newAnnotations = New<TInstanceAnnotations>();
+            newAnnotations->DeallocatedAt = TInstant::Now();
+            mutations->ChangeNodeAnnotations[nodeName] = newAnnotations;
             return false;
         }
         return true;
@@ -1635,7 +1637,9 @@ public:
         const auto& instanceInfo = GetInstanceInfo(proxyName, input);
         const auto& annotations = instanceInfo->Annotations;
         if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
-            mutations->ChangedProxyAnnotations[proxyName] = New<TInstanceAnnotations>();
+            auto newAnnotations = New<TInstanceAnnotations>();
+            newAnnotations->DeallocatedAt = TInstant::Now();
+            mutations->ChangedProxyAnnotations[proxyName] = newAnnotations;
             return false;
         }
         return true;
@@ -1696,6 +1700,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TInstanceMap>
+THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input, const TInstanceMap& instanceMap)
+{
+    THashSet<TString> result;
+    auto obsoleteThreshold = input.Config->RemoveInstanceCypressNodeAfter;
+    auto now = TInstant::Now();
+
+    for (const auto& [instanceName, instanceInfo] : instanceMap) {
+        auto annotations = instanceInfo->Annotations;
+        if (annotations->Allocated ||  !annotations->DeallocatedAt) {
+            continue;
+        }
+        if (now - *annotations->DeallocatedAt > obsoleteThreshold) {
+            result.insert(instanceName);
+        }
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     // For each zone create virtual spare bundles
@@ -1752,7 +1778,8 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         }
     }
 
-    // TODO(capone212): cleanup stale instances: that are gone a lot of time ago (2 weeks)
+    mutations->NodesToCleanup = ScanForObsoleteCypressNodes(input, input.TabletNodes);
+    mutations->ProxiesToCleanup = ScanForObsoleteCypressNodes(input, input.RpcProxies);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

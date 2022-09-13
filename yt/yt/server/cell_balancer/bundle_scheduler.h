@@ -107,6 +107,9 @@ struct TSchedulerMutations
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
+
+    THashSet<TString> NodesToCleanup;
+    THashSet<TString> ProxiesToCleanup;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -496,6 +496,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->Resource->Vcpu, 9999);
         EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(88_GB));
         EXPECT_TRUE(annotations->Allocated);
+        EXPECT_FALSE(annotations->DeallocatedAt);
 
         input.TabletNodes[nodeId]->Annotations = annotations;
     }
@@ -510,6 +511,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
     EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+    EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
@@ -633,6 +635,10 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
 
+    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+        EXPECT_FALSE(state->HulkRequestCreated);
+    }
+
     input.BundleStates = mutations.ChangedStates;
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -669,6 +675,9 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     auto& bundleState = mutations.ChangedStates["default-bundle"];
     VerifyNodeDeallocationRequests(mutations, bundleState, 3);
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+        EXPECT_TRUE(state->HulkRequestCreated);
+    }
 }
 
 TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
@@ -726,6 +735,8 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->AllocatedForBundle.empty());
         EXPECT_TRUE(annotations->NannyService.empty());
         EXPECT_FALSE(annotations->Allocated);
+        EXPECT_TRUE(annotations->DeallocatedAt);
+        EXPECT_TRUE(TInstant::Now() - *annotations->DeallocatedAt < TDuration::Minutes(10));
 
         input.TabletNodes[nodeId]->Annotations = annotations;
     }
@@ -739,6 +750,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
+    EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
 
 TEST(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
@@ -1200,6 +1212,7 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->Resource->Vcpu, 1111);
         EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(18_GB));
         EXPECT_TRUE(annotations->Allocated);
+        EXPECT_FALSE(annotations->DeallocatedAt);
 
         input.RpcProxies[proxyName]->Annotations = annotations;
     }
@@ -1313,6 +1326,10 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
 
+    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+        EXPECT_FALSE(state->HulkRequestCreated);
+    }
+
     input.BundleStates = mutations.ChangedStates;
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1320,6 +1337,9 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     // Hulk deallocation requests are created.
     auto& bundleState = mutations.ChangedStates["default-bundle"];
     VerifyProxyDeallocationRequests(mutations, bundleState, 3);
+    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+        EXPECT_TRUE(state->HulkRequestCreated);
+    }
 }
 
 TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
@@ -1377,6 +1397,9 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->AllocatedForBundle.empty());
         EXPECT_TRUE(annotations->NannyService.empty());
         EXPECT_FALSE(annotations->Allocated);
+
+        EXPECT_TRUE(annotations->DeallocatedAt);
+        EXPECT_TRUE(TInstant::Now() - *annotations->DeallocatedAt < TDuration::Minutes(10));
 
         input.RpcProxies[proxyName]->Annotations = annotations;
     }
@@ -1931,6 +1954,61 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 5);
+
+    const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
+
+    auto proxiesToRemove = GetRandomElements(proxyNames, 3);
+    for (auto& proxyName : proxiesToRemove) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        proxyInfo->Annotations->Allocated = false;
+        proxyInfo->Annotations->DeallocatedAt = DateInThePast;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(3, std::ssize(mutations.ProxiesToCleanup));
+    EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
+
+    for (const auto& proxyName : mutations.ProxiesToCleanup) {
+        EXPECT_TRUE(proxiesToRemove.count(proxyName));
+    }
+}
+
+TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 5);
+
+    const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
+
+    auto nodesToRemove = GetRandomElements(nodeNames, 3);
+    for (auto& nodeName : nodesToRemove) {
+        auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Annotations->Allocated = false;
+        nodeInfo->Annotations->DeallocatedAt = DateInThePast;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.ProxiesToCleanup));
+    EXPECT_EQ(3, std::ssize(mutations.NodesToCleanup));
+
+    for (const auto& nodeName : mutations.NodesToCleanup) {
+        EXPECT_TRUE(nodesToRemove.count(nodeName));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace
 } // NYT::NCellBalancer

@@ -87,6 +87,7 @@ public:
         , InstanceDeallocationCounter_(Profiler.Counter("/instance_deallocation_counter"))
         , CellCreationCounter_(Profiler.Counter("/cell_creation_counter"))
         , CellRemovalCounter_(Profiler.Counter("/cell_removal_counter"))
+        , InstanceCypressNodeRemovalCounter_(Profiler.Counter("/instance_cypress_node_removal_counter"))
         , ChangedNodeUserTagCounter_(Profiler.Counter("/changed_node_user_tag_counter"))
         , ChangedDecommissionedFlagCounter_(Profiler.Counter("/changed_decommissioned_flag_counter"))
         , ChangedNodeAnnotationCounter_(Profiler.Counter("/changed_node_annotation_counter"))
@@ -138,6 +139,7 @@ private:
     TCounter InstanceDeallocationCounter_;
     TCounter CellCreationCounter_;
     TCounter CellRemovalCounter_;
+    TCounter InstanceCypressNodeRemovalCounter_;
 
     TCounter ChangedNodeUserTagCounter_;
     TCounter ChangedDecommissionedFlagCounter_;
@@ -322,10 +324,14 @@ private:
         ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
         ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
         ChangedNodeAnnotationCounter_.Increment(mutations.ChangeNodeAnnotations.size());
+        InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
+
+        RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
+        RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
 
         int nodeAllocationCount = 0;
         int nodeDeallocationCount = 0;
@@ -828,6 +834,14 @@ private:
     {
         for (const auto& cellId : cellsToRemove) {
             WaitFor(transaction->RemoveNode(Format("%v/%v", TabletCellsPath, cellId)))
+                .ThrowOnError();
+        }
+    }
+
+    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<TString>& instanciesToRemove)
+    {
+        for (const auto& instanceName : instanciesToRemove) {
+            WaitFor(transaction->RemoveNode(Format("%v/%v", basePath, instanceName)))
                 .ThrowOnError();
         }
     }
