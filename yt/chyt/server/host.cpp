@@ -55,6 +55,7 @@
 
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
+#include <Interpreters/ProcessList.h>
 #include <IO/HTTPCommon.h>
 
 #include <common/DateLUT.h>
@@ -491,6 +492,38 @@ public:
         const auto& queryId = DB::CurrentThread::getQueryId();
         WriteToStderr(queryId.data, queryId.size);
         WriteToStderr(" ***\n");
+
+        if (DB::CurrentThread::isInitialized()) {
+            auto& status = DB::CurrentThread::get();
+            const auto& context = status.getQueryContext();
+            if (context) {
+                const auto* queryContext = GetQueryContext(context);
+                WriteToStderr("*** Current user: ");
+                WriteToStderr(queryContext->User.data(), queryContext->User.size());
+                WriteToStderr(" ***\n");
+
+                if (queryContext->InitialQuery) {
+                    WriteToStderr("*** Begin of the initial query ***\n");
+                    WriteToStderr(queryContext->InitialQuery->data(), queryContext->InitialQuery->size());
+                    WriteToStderr("\n*** End of the initial query ***\n");
+                } else {
+                    WriteToStderr("*** Initial query is missing ***\n");
+                }
+
+                if (const auto* status = context->getProcessListElement()) {
+                    const auto& info = status->getInfo();
+                    WriteToStderr("*** Begin of the context query ***\n");
+                    WriteToStderr(info.query.data(), info.query.size());
+                    WriteToStderr("\n*** End of the context query ***\n");
+                } else {
+                    WriteToStderr("*** Query is not in the process list ***\n");
+                }
+            } else {
+                WriteToStderr("*** Query context is unavailable ***\n");
+            }
+        } else {
+            WriteToStderr("*** Current thread is not initialized ***\n");
+        }
     }
 
     TFuture<void> GetIdleFuture() const
