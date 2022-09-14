@@ -82,15 +82,15 @@ public:
 
     const TString& GetEndpointDescription() const override
     {
-        return GetChannel()->GetEndpointDescription();
+        return TryGetChannel()->GetEndpointDescription();
     }
 
     const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return GetChannel()->GetEndpointAttributes();
+        return TryGetChannel()->GetEndpointAttributes();
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
+    TFuture<IChannelPtr> GetChannel() override
     {
         EnsureStarted();
         auto guard = Guard(Lock_);
@@ -102,6 +102,16 @@ public:
                 << TerminationError_);
         }
         return ChannelPromise_;
+    }
+
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
+    {
+        return GetChannel();
     }
 
     void Terminate(const TError& error) override
@@ -156,7 +166,7 @@ private:
         SyncExecutor_->ScheduleOutOfBand();
     }
 
-    IChannelPtr GetChannel() const
+    IChannelPtr TryGetChannel() const
     {
         EnsureStarted();
         auto guard = Guard(Lock_);

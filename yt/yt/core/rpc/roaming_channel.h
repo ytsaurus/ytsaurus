@@ -19,9 +19,16 @@ struct IRoamingChannelProvider
     //! Cf. IChannel::GetEndpointAttributes.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
-    //! Returns the actual channel to be used for sending to service with
-    //! a given #serviceName.
+    //! Returns the actual channel to use for sending to service with
+    //! a given #serviceName from request and other request properties.
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) = 0;
+
+    //! Returns the actual channel to use for sending to service with
+    //! a given #serviceName.
+    virtual TFuture<IChannelPtr> GetChannel(const TString& serviceName) = 0;
+
+    //! Returns a channel to use.
+    virtual TFuture<IChannelPtr> GetChannel() = 0;
 
     //! Terminates the cached channels, if any.
     virtual void Terminate(const TError& error) = 0;

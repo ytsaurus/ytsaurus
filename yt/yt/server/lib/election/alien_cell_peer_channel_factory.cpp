@@ -61,7 +61,27 @@ public:
         return *EndpointAttributes_;
     }
 
+    TFuture<IChannelPtr> GetChannel() override
+    {
+        auto address = CellDirectory_->FindPeerAddress(CellId_, PeerId_);
+
+        if (!address) {
+            return MakeFuture<IChannelPtr>(UnavailableError_);
+        }
+
+        auto channelFactory = NRpc::NBus::CreateBusChannelFactory(New<NYT::NBus::TTcpBusConfig>());
+        auto channel = CreateRealmChannel(
+            channelFactory->CreateChannel(*address),
+            CellId_);
+        return MakeFuture(channel);
+    }
+
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*request*/) override
     {
         return GetChannel();
     }
@@ -80,20 +100,6 @@ private:
 
     const TError UnavailableError_;
 
-    TFuture<IChannelPtr> GetChannel()
-    {
-        auto address = CellDirectory_->FindPeerAddress(CellId_, PeerId_);
-
-        if (!address) {
-            return MakeFuture<IChannelPtr>(UnavailableError_);
-        }
-
-        auto channelFactory = NRpc::NBus::CreateBusChannelFactory(New<NYT::NBus::TTcpBusConfig>());
-        auto channel = CreateRealmChannel(
-            channelFactory->CreateChannel(*address),
-            CellId_);
-        return MakeFuture(channel);
-    }
 
 };
 

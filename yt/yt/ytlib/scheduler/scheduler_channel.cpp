@@ -58,7 +58,7 @@ public:
         return *EndpointAttributes_;
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    TFuture<IChannelPtr> GetChannel() override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -94,6 +94,16 @@ public:
 
                 return channel;
             }));
+    }
+
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
+    {
+        return GetChannel();
     }
 
     void Terminate(const TError& error) override

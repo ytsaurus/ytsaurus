@@ -85,6 +85,11 @@ public:
         return Pool_->GetChannel(request, hedgingOptions);
     }
 
+    TFuture<IChannelPtr> GetChannel()
+    {
+        return Pool_->GetRandomChannel();
+    }
+
     void Terminate(const TError& error)
     {
         Pool_->Terminate(error);
@@ -209,6 +214,16 @@ public:
         } else {
             return GetSubprovider(request->GetService())->GetChannel(request);
         }
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& serviceName) override
+    {
+        return GetSubprovider(serviceName)->GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel() override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     void Terminate(const TError& error) override

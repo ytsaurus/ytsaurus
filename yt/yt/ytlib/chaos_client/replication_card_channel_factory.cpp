@@ -73,7 +73,21 @@ public:
         return *EndpointAttributes_;
     }
 
+    TFuture<IChannelPtr> GetChannel() override
+    {
+        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.Get().IsOK())) {
+            return future;
+        }
+
+        return CreateChannel();
+    }
+
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
     {
         return GetChannel();
     }
@@ -100,15 +114,6 @@ private:
     IChannelPtr Channel_;
     TCellTag CellTag_ = InvalidCellTag;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-
-    TFuture<IChannelPtr> GetChannel()
-    {
-        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.Get().IsOK())) {
-            return future;
-        }
-
-        return CreateChannel();
-    }
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& error)
     {

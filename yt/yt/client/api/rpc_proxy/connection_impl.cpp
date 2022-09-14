@@ -136,7 +136,7 @@ public:
         return *EndpointAttributes_;
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    TFuture<IChannelPtr> GetChannel() override
     {
         if (Sticky_) {
             auto guard = Guard(SpinLock_);
@@ -151,6 +151,16 @@ public:
 
     void Terminate(const TError& /*error*/) override
     { }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    {
+        return GetChannel();
+    }
 
 private:
     const TDynamicChannelPoolPtr Pool_;
