@@ -397,6 +397,7 @@ void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
 {
     TTableProfilingCounters profilingCounters;
     auto profiler = Profiler_
+        .WithSparse()
         .WithTag("table", table->Path);
 
     profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
