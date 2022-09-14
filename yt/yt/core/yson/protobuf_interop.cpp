@@ -397,6 +397,11 @@ public:
         return Underlying_->type();
     }
 
+    const char* GetTypeName() const
+    {
+        return Underlying_->type_name();
+    }
+
     bool IsRepeated() const
     {
         return Underlying_->is_repeated() && !IsYsonMap();
@@ -2135,6 +2140,66 @@ private:
         return true;
     }
 
+    template <class T>
+    void ParseFixedPacked(ui64 length, auto field, auto&& func)
+    {
+        YT_ASSERT(length % sizeof(T) == 0);
+        for (auto index = 0u; index < length / sizeof(T); ++index) {
+            T unsignedValue;
+            auto readResult = false;
+            if constexpr (std::is_same_v<T, ui64>) {
+                readResult = CodedStream_.ReadLittleEndian64(&unsignedValue);
+            } else {
+                readResult = CodedStream_.ReadLittleEndian32(&unsignedValue);
+            }
+            if (!readResult) {
+                THROW_ERROR_EXCEPTION("Error reading %Qv value from field %v",
+                    field->GetTypeName(),
+                    YPathStack_.GetHumanReadablePath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+            if (index > 0) {
+                YT_ASSERT(field->IsRepeated());
+                OnListItem(TypeStack_.back().GenerateNextListIndex());
+            }
+            ParseScalar([&] {func(unsignedValue);});
+        }
+    }
+
+    template <class T>
+    void ParseVarintPacked(ui64 length, auto field, auto&& func)
+    {
+        const void* data = nullptr;
+        int size = 0;
+        CodedStream_.GetDirectBufferPointer(&data, &size);
+        YT_ASSERT(length <= static_cast<ui64>(size));
+        ArrayInputStream array(data, length);
+        CodedInputStream in(&array);
+        size_t index = 0;
+        while (static_cast<ui64>(in.CurrentPosition()) < length) {
+            T unsignedValue;
+            auto read = false;
+            if constexpr (std::is_same_v<T, ui64>) {
+                read = in.ReadVarint64(&unsignedValue);
+            } else {
+                read = in.ReadVarint32(&unsignedValue);
+            }
+            if (!read) {
+                THROW_ERROR_EXCEPTION("Error reading \"%v\" value for field %v",
+                    field->GetTypeName(),
+                    YPathStack_.GetHumanReadablePath())
+                    << TErrorAttribute("ypath", YPathStack_.GetPath());
+            }
+            if (index > 0) {
+                YT_ASSERT(field->IsRepeated());
+                OnListItem(TypeStack_.back().GenerateNextListIndex());
+            }
+            ++index;
+            ParseScalar([&] {func(unsignedValue);});
+        }
+        CodedStream_.Skip(length);
+    }
+
     void ParseFieldValue(
         const TProtobufField* field,
         int tag,
@@ -2333,6 +2398,69 @@ private:
                                 OnBeginMap();
                             }
                         }
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_FIXED32: {
+                        ParseFixedPacked<ui32>(length, field, [&] (auto value) {Consumer_->OnUint64Scalar(value);});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_FIXED64: {
+                        ParseFixedPacked<ui64>(length, field, [&] (auto value) {Consumer_->OnUint64Scalar(value);});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_SFIXED32: {
+                        ParseFixedPacked<ui32>(length, field, [&] (auto value) {Consumer_->OnInt64Scalar(static_cast<i32>(value));});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_SFIXED64: {
+                        ParseFixedPacked<ui64>(length, field, [&] (auto value) {Consumer_->OnInt64Scalar(static_cast<i64>(value));});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_FLOAT: {
+                        ParseFixedPacked<ui32>(length, field, 
+                            [&] (auto value) {
+                                auto floatValue = WireFormatLite::DecodeFloat(value);
+                                Consumer_->OnDoubleScalar(floatValue);
+                            });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_DOUBLE: {
+                        ParseFixedPacked<ui64>(length, field, 
+                            [&] (auto value) {
+                                auto doubleValue = WireFormatLite::DecodeDouble(value);
+                                Consumer_->OnDoubleScalar(doubleValue);
+                            });
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_INT32: {
+                        ParseVarintPacked<ui32>(length, field, [&] (auto value) {Consumer_->OnInt64Scalar(static_cast<i32>(value));});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_INT64: {
+                        ParseVarintPacked<ui64>(length, field, [&] (auto value) {Consumer_->OnInt64Scalar(static_cast<i64>(value));});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_UINT32: {
+                        ParseVarintPacked<ui32>(length, field, [&] (auto value) {Consumer_->OnUint64Scalar(value);});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_UINT64: {
+                        ParseVarintPacked<ui64>(length, field, [&] (auto value) {Consumer_->OnUint64Scalar(value);});
+                        break;
+                    }
+
+                    case FieldDescriptor::TYPE_ENUM: {
+                        ParseVarintPacked<ui32>(length, field, [&] (auto value) {Consumer_->OnInt64Scalar(value);});
                         break;
                     }
 

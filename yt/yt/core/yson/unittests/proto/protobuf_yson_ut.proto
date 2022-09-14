@@ -145,3 +145,23 @@ message TNestedMessageWithCustomConverter
     optional int32 x = 1;
     optional int32 y = 2;
 }
+
+message TPackedRepeatedMessage
+{
+    enum EEnum {
+        VALUE0 = 0;
+        VALUE1 = 1;
+    };
+    repeated int32 int32_rep = 1 [packed = true];
+    repeated uint32 uint32_rep = 2 [packed = true];
+    repeated int64 int64_rep = 3 [packed = true];
+    repeated uint64 uint64_rep = 4 [packed = true];
+    repeated float float_rep = 5 [packed = true];
+    repeated double double_rep = 6 [packed = true];
+    repeated fixed32 fixed32_rep = 7 [packed = true];
+    repeated fixed64 fixed64_rep = 8 [packed = true];
+    repeated sfixed32 sfixed32_rep = 9 [packed = true];
+    repeated sfixed64 sfixed64_rep = 10 [packed = true];
+    repeated EEnum enum_rep = 11 [packed = true];
+    
+}
