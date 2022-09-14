@@ -222,7 +222,7 @@ public:
             const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
             auto userSlotCount = slotManager->GetUsedSlotCount();
 
-            // TSlotManager::ReleaseSlot is async, so TSlotManager::GetUsedSlotCount() may be greater then ResourceUsage_.user_slots().
+            // TSlotManager::ReleaseSlot is async, so TSlotManager::GetUsedSlotCount() may be greater than ResourceUsage_.user_slots().
             YT_LOG_FATAL_IF(
                 userSlotCount < ResourceUsage_.user_slots(),
                 "Unexpected user slot count (JobResourcesManagerValue: %v, SlotManagerValue: %v, SlotManagerEnabled: %v)",
@@ -664,6 +664,9 @@ TResourceHolder::~TResourceHolder()
         "Destruct unreleased resoure holder (State: %v, Resources: %v)",
         State_,
         FormatResources(Resources_));
+    if (State_ != EResourcesState::Released) {
+        ReleaseResources();
+    }
 }
 
 void TResourceHolder::AcquireResources(TAcquiredResources&& acquiredResources)
