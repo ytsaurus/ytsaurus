@@ -4,7 +4,6 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
 )
-from yt.packages.six.moves import range
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
