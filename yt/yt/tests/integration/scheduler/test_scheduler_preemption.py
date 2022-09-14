@@ -19,8 +19,6 @@ from yt_scheduler_helpers import (
 
 from yt_helpers import profiler_factory
 
-from yt.packages.six.moves import range
-
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError, YtResponseError
