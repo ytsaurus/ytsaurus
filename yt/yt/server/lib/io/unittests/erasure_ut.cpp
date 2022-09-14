@@ -280,7 +280,6 @@ public:
             config,
             TSessionId(),
             codecId,
-            codec,
             writers,
             TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());

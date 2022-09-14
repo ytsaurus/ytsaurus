@@ -24,6 +24,39 @@ ICodec* GetCodec(ECodec id)
     THROW_ERROR_EXCEPTION("Unsupported erasure codec %Qlv", id);
 }
 
+ECodec GetEffectiveCodecId(ECodec id)
+{
+    ECodec effectiveCodecId;
+    switch (id) {
+        case ECodec::JerasureReedSolomon_6_3:
+        case ECodec::IsaReedSolomon_6_3:
+            effectiveCodecId = ECodec::IsaReedSolomon_6_3;
+            break;
+
+        case ECodec::IsaReedSolomon_3_3:
+            effectiveCodecId = ECodec::IsaReedSolomon_3_3;
+            break;
+
+        case ECodec::JerasureLrc_12_2_2:
+        case ECodec::IsaLrc_12_2_2:
+            effectiveCodecId = ECodec::IsaLrc_12_2_2;
+            break;
+
+        case ECodec::None:
+            effectiveCodecId = ECodec::None;
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    if (FindCodec(effectiveCodecId)) {
+        return effectiveCodecId;
+    }
+
+    return id;
+}
+
 const std::vector<ECodec>& GetSupportedCodecIds()
 {
     static const std::vector<ECodec> supportedCodecIds = [] {

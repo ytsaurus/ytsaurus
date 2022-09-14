@@ -11,7 +11,6 @@ DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
 
     ((ReedSolomon_6_3)              (1))
     ((JerasureReedSolomon_6_3)      (1))
-
     ((IsaReedSolomon_6_3)           (5))
 
     ((ReedSolomon_3_3)              (4))

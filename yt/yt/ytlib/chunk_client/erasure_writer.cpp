@@ -233,20 +233,19 @@ public:
         TErasureWriterConfigPtr config,
         TSessionId sessionId,
         ECodec codecId,
-        ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers,
         const TWorkloadDescriptor& workloadDescriptor)
         : Config_(config)
         , SessionId_(sessionId)
         , CodecId_(codecId)
-        , Codec_(codec)
+        , Codec_(NErasure::GetCodec(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
-        , ErasureWindowSize_(RoundUp<i64>(config->ErasureWindowSize, codec->GetWordSize()))
+        , ErasureWindowSize_(RoundUp<i64>(config->ErasureWindowSize, Codec_->GetWordSize()))
         , ReadyEvent_(VoidFuture)
         , Writers_(writers)
         , BlockReorderer_(config)
     {
-        YT_VERIFY(std::ssize(writers) == codec->GetTotalPartCount());
+        YT_VERIFY(std::ssize(writers) == Codec_->GetTotalPartCount());
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
@@ -580,7 +579,6 @@ IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     TSessionId sessionId,
     ECodec codecId,
-    ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -588,7 +586,6 @@ IChunkWriterPtr CreateErasureWriter(
         config,
         sessionId,
         codecId,
-        codec,
         writers,
         workloadDescriptor);
 }
