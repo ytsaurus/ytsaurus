@@ -1202,6 +1202,7 @@ class TestBulkInsert(DynamicTablesBase):
         ts_after = generate_timestamp()
 
         tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
+
         def _check_preload():
             if in_memory_mode == "none":
                 return True
@@ -1216,6 +1217,7 @@ class TestBulkInsert(DynamicTablesBase):
                     if store["preload_state"] != "complete":
                         return False
             return True
+
         def _wait_preload():
             wait(_check_preload)
 

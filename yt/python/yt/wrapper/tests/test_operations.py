@@ -1505,6 +1505,7 @@ class TestPythonOperations(object):
     def test_yson_string_proxy(self):
         if not PY3:
             return
+
         def mapper(row):
             row["is_unicode"] = is_unicode(row["string"])
             row["bytes"] = get_bytes(row["string"])

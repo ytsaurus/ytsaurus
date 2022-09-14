@@ -106,6 +106,7 @@ class ParseStructuredArgument(Action):
 
 def populate_argument_help(parser):
     old_add_argument = parser.add_argument
+
     def add_argument(*args, **kwargs):
         help = []
         if kwargs.get("required", False):

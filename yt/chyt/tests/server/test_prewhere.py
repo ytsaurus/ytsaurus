@@ -148,6 +148,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         })
 
         from random import randint as rnd
+
         def random_str():
             return hex(rnd(16**1023, 16**1024 - 1))[2:]
 
@@ -181,6 +182,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         sync_mount_table("//tmp/t")
 
         from random import randint as rnd
+
         def random_str():
             return hex(rnd(16**1023, 16**1024 - 1))[2:]
 

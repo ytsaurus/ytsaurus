@@ -37,6 +37,7 @@ class TestP2P(YTEnvSetup):
         self.write_table()
 
         eligible_nodes = profiler_factory().at_node(self.seed).gauge("data_node/p2p/eligible_nodes")
+
         def check():
             count = eligible_nodes.get()
             return count is not None and count > 0

@@ -383,6 +383,7 @@ class TestTableCommands(object):
 
         with set_config_option("proxy/content_encoding", "identity"):
             table = TEST_DIR + "/table"
+
             def gen_table():
                 yield b'{"abc": "123"}\n' * 100000
                 yield b'{a:b}\n'

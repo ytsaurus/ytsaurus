@@ -2631,6 +2631,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
         def _check():
             orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
             errors = orchid["replication_errors"]

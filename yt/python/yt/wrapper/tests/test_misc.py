@@ -252,6 +252,7 @@ class TestDriverLogging(object):
 class TestMutations(object):
     def check_command(self, command, post_action=None, check_action=None, final_action=None):
         mutation_id = yt.common.generate_uuid()
+
         def run_command():
             yt.config.COMMAND_PARAMS["mutation_id"] = mutation_id
             try:
@@ -727,6 +728,7 @@ def test_keyboard_interrupts_catcher():
             raise KeyboardInterrupt()
 
     list = []
+
     def append_and_raise():
         list.append(None)
         raise KeyboardInterrupt()

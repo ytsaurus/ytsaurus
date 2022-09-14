@@ -3265,6 +3265,7 @@ class TestTabletOrchid(DynamicTablesBase):
         # Get tablet memory detailed statistics.
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         node_address = get_tablet_leader_address(tablet_id)
+
         def get_stats():
             return get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_slot_manager/memory_usage_statistics")
 
