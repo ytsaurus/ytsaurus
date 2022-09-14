@@ -210,8 +210,8 @@ def _():
         'pr',
         'create',
         '--push',
-        '--message',
         '--wait',
+        '--message',
         release_message,
     ], check=True,
     )
