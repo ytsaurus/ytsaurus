@@ -2444,5 +2444,116 @@ TEST(TYsonToProtobufTest, YsonStringMerger)
     ASSERT_EQ(protobufStringBinary, protobufStringMerged);
 }
 
+template <class T, class TNodeList, class TRepeated>
+void CopyToProto(const TNodeList& from, TRepeated& rep)
+{
+    for (auto child : from->GetChildren()) {
+        rep.Add(child->template GetValue<T>());
+    }
+}
+
+TEST(TPackedRepeatedProtobufTest, Parse)
+{
+    auto expectedYsonNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("int32_rep").BeginList()
+                .Item().Value(0)
+                .Item().Value(42)
+                .Item().Value(-100)
+                .Item().Value(Max<i32>())
+                .Item().Value(Min<i32>())
+            .EndList()
+            .Item("int64_rep").BeginList()
+                .Item().Value(0)
+                .Item().Value(42)
+                .Item().Value(-100)
+                .Item().Value(Min<i64>())
+                .Item().Value(Max<i64>())
+            .EndList()
+            .Item("uint32_rep").BeginList()
+                .Item().Value(0U)
+                .Item().Value(42U)
+                .Item().Value(Min<ui32>())
+                .Item().Value(Max<ui32>())
+            .EndList()
+            .Item("uint64_rep").BeginList()
+                .Item().Value(0U)
+                .Item().Value(42U)
+                .Item().Value(Min<ui64>())
+                .Item().Value(Max<ui64>())
+            .EndList()
+            .Item("float_rep").BeginList()
+                .Item().Value(0.F)
+                .Item().Value(42.F)
+                .Item().Value(-100.F)
+                .Item().Value(Min<float>())
+                .Item().Value(Max<float>())
+            .EndList()
+            .Item("double_rep").BeginList()
+                .Item().Value(0.)
+                .Item().Value(42.)
+                .Item().Value(-100.)
+                .Item().Value(Min<double>())
+                .Item().Value(Max<double>())
+            .EndList()
+            .Item("fixed32_rep").BeginList()
+                .Item().Value(0U)
+                .Item().Value(42U)
+                .Item().Value(Min<ui32>())
+                .Item().Value(Max<ui32>())
+            .EndList()
+            .Item("fixed64_rep").BeginList()
+                .Item().Value(0U)
+                .Item().Value(42U)
+                .Item().Value(Min<ui64>())
+                .Item().Value(Max<ui64>())
+            .EndList()
+            .Item("sfixed32_rep").BeginList()
+                .Item().Value(0)
+                .Item().Value(42)
+                .Item().Value(-100)
+                .Item().Value(Max<i32>())
+                .Item().Value(Min<i32>())
+            .EndList()
+            .Item("sfixed64_rep").BeginList()
+                .Item().Value(0)
+                .Item().Value(42)
+                .Item().Value(-100)
+                .Item().Value(Max<i64>())
+                .Item().Value(Min<i64>())
+            .EndList()
+            .Item("enum_rep").BeginList()
+                .Item().Value(0)
+                .Item().Value(1)
+            .EndList()
+        .EndMap();
+
+    NProto::TPackedRepeatedMessage msg;
+    auto map = expectedYsonNode->AsMap();
+    CopyToProto<i64>(map->FindChild("int32_rep")->AsList(), *msg.mutable_int32_rep());
+    CopyToProto<i64>(map->FindChild("int64_rep")->AsList(), *msg.mutable_int64_rep());
+    CopyToProto<ui64>(map->FindChild("uint32_rep")->AsList(), *msg.mutable_uint32_rep());
+    CopyToProto<ui64>(map->FindChild("uint64_rep")->AsList(), *msg.mutable_uint64_rep());
+    CopyToProto<double>(map->FindChild("float_rep")->AsList(), *msg.mutable_float_rep());
+    CopyToProto<double>(map->FindChild("double_rep")->AsList(), *msg.mutable_double_rep());
+    CopyToProto<ui64>(map->FindChild("fixed32_rep")->AsList(), *msg.mutable_fixed32_rep());
+    CopyToProto<ui64>(map->FindChild("fixed64_rep")->AsList(), *msg.mutable_fixed64_rep());
+    CopyToProto<i64>(map->FindChild("sfixed32_rep")->AsList(), *msg.mutable_sfixed32_rep());
+    CopyToProto<i64>(map->FindChild("sfixed64_rep")->AsList(), *msg.mutable_sfixed64_rep());
+    CopyToProto<i64>(map->FindChild("enum_rep")->AsList(), *msg.mutable_enum_rep());
+
+    TString protobufString;
+    Y_UNUSED(msg.SerializeToString(&protobufString));
+
+    TString newYsonString;
+    TStringOutput newYsonOutputStream(newYsonString);
+    TYsonWriter ysonWriter(&newYsonOutputStream, NYT::NYson::EYsonFormat::Pretty);
+    ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    EXPECT_NO_THROW(ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TPackedRepeatedMessage>()));
+
+    auto actualYsonNode = ConvertToNode(TYsonString(newYsonString));
+    EXPECT_TRUE(AreNodesEqual(actualYsonNode, expectedYsonNode));
+}
+
 } // namespace
 } // namespace NYT::NYson
