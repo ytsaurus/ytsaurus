@@ -470,7 +470,7 @@ class TestDataCenters(YTEnvSetup):
                 rack = hollow_racks[dc]
             set("//sys/cluster_nodes/{}/@rack".format(node), rack)
 
-        assert get("#{}/@replication_status/default/unsafely_placed".format(chunk_id))
+        wait(lambda: get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
 
