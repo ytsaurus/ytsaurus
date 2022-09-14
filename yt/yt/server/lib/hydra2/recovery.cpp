@@ -146,7 +146,10 @@ TRecoveryResult TRecovery::DoRun()
         auto snapshotStateHash = snapshotMeta.state_hash();
         auto snapshotTimestamp = FromProto<TInstant>(snapshotMeta.timestamp());
         // COMPAT(aleksandra-zh)
-        auto snapshotSegmentId = snapshotMeta.has_last_segment_id() ? snapshotMeta.last_segment_id() : snapshotId;
+        auto snapshotSegmentId = snapshotMeta.last_segment_id();
+        if (!snapshotSegmentId) {
+            snapshotSegmentId = snapshotId;
+        }
         auto snapshotRecordId = snapshotMeta.last_record_id();
         auto snapshotLastMutationTerm = snapshotMeta.last_mutation_term();
 
