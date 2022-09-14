@@ -32,6 +32,12 @@ public:
         , QueryContext_(queryContext)
         , SubquerySpec_(std::move(subquerySpec))
     {
+        if (QueryContext_->InitialQuery) {
+            YT_VERIFY(*QueryContext_->InitialQuery == SubquerySpec_.InitialQuery);
+        } else {
+            QueryContext_->InitialQuery = SubquerySpec_.InitialQuery;
+        }
+
         DB::StorageInMemoryMetadata storage_metadata;
         storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Composite)));
         setInMemoryMetadata(storage_metadata);
@@ -91,12 +97,6 @@ public:
                 "Testing Fibbonacci number calculated (Index: %v, Value: %v)",
                 StorageContext_->Settings->Testing->SubqueryAllocationSize - 1,
                 leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
-        }
-
-        if (QueryContext_->InitialQuery) {
-            YT_VERIFY(*QueryContext_->InitialQuery == SubquerySpec_.InitialQuery);
-        } else {
-            QueryContext_->InitialQuery = SubquerySpec_.InitialQuery;
         }
 
         Logger = StorageContext_->Logger;
