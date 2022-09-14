@@ -433,6 +433,7 @@ class TestCypressCommands(object):
 
         yt.create("table", table)
         yt.write_table(table, [{"x": 1}])
+
         def read_table(client=None):
             return list(yt.read_table(table, client=client))
 

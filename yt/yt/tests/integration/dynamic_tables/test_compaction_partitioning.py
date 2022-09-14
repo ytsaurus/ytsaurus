@@ -200,6 +200,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             self._create_simple_table("//tmp/t", schema=[{"name": "key", "type": "int64"}])
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
         def _get_last_rotated():
             return get(f"//sys/tablets/{tablet_id}/orchid/last_periodic_rotation_time")
 
@@ -446,6 +447,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         profiler = profiler_factory().at_node(cell_node)
+
         def _get_running_compaction_count():
             return profiler.get("tablet_node/store_compactor/running_compactions")
 

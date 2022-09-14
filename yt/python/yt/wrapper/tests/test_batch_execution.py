@@ -250,6 +250,7 @@ class TestBatchExecution(object):
             create_result.is_ok()
 
         result = []
+
         @authors("ostyakov")
         def test_result_function(output, error):
             assert error is None

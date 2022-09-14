@@ -120,6 +120,7 @@ class ChaosTestBase(DynamicTablesBase):
     def _wait_for_era(self, path, era=1, check_write=False, driver=None):
         import logging
         logger = logging.getLogger()
+
         def _check():
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
@@ -181,6 +182,7 @@ class ChaosTestBase(DynamicTablesBase):
         replication_card = self._sync_replication_card(card_id)
         if not replicas:
             replicas = replication_card["replicas"].values()
+
         def _enabled(replica):
             return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
         for replica in replicas:
@@ -206,6 +208,7 @@ class ChaosTestBase(DynamicTablesBase):
 
         enabled = kwargs.get("enabled", None)
         mode = kwargs.get("mode", None)
+
         def _replica_checker(replica_info):
             if enabled is not None and replica_info["state"] != ("enabled" if enabled else "disabled"):
                 return False
@@ -1868,6 +1871,7 @@ class TestChaos(ChaosTestBase):
         sync_unmount_table("//tmp/q1", driver=remote_driver1)
 
         timestamp = generate_timestamp()
+
         def _get_card_progress_timestamp():
             segments = get("#{0}/@replicas/{1}/replication_progress/segments".format(card_id, replica_ids[0]))
             return min(segment["timestamp"] for segment in segments)
@@ -2233,6 +2237,7 @@ class TestChaos(ChaosTestBase):
                 replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
                 upstream_replica_id=replica_ids[3],
                 driver=get_driver(cluster=replicas[3]["cluster_name"]))
+
             def _unversion(row):
                 result = {"key": row["key"]}
                 for value in "a", "b":
@@ -2240,6 +2245,7 @@ class TestChaos(ChaosTestBase):
                         result[value] = str(row[value][0])
                 return result
             return [_unversion(row) for row in rows]
+
         def _check():
             rows = _pull_rows()
             return len(rows) > 0 and "b" in rows[-1]
@@ -3095,6 +3101,7 @@ class TestChaosClockRpcProxy(ChaosClockBase):
         set("//sys/rpc_proxies/@config", config, driver=driver)
 
         proxies = ls("//sys/rpc_proxies")
+
         def _check_config():
             orchid_path = "orchid/dynamic_config_manager/effective_config/cluster_connection/clock_manager/clock_cluster_tag"
             for proxy in proxies:

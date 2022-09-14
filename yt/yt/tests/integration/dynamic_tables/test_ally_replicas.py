@@ -135,10 +135,12 @@ class TestAllyReplicas(YTEnvSetup):
 
         def _get_any_replica(chunk_id):
             return get("//sys/chunks/{}/@stored_replicas/0".format(chunk_id))
+
         def _ban_any_replica(chunk_id):
             node = str(_get_any_replica(chunk_id))
             self._set_node_banned_and_wait_for_replicas(node, True, chunk_id)
             banned_nodes.add(node)
+
         def _unban_any_node(chunk_id):
             node = banned_nodes.pop()
             self._set_node_banned_and_wait_for_replicas(node, False, chunk_id)

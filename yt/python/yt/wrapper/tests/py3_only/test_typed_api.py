@@ -1115,6 +1115,7 @@ class TestTypedApi(object):
             def __init__(self, input_type, output_type):
                 self._input_type = input_type
                 self._output_type = output_type
+
             def prepare_operation(self, context, preparer):
                 preparer.inputs(range(3), type=self._input_type).outputs(range(3), type=self._output_type)
 

@@ -342,6 +342,7 @@ LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "m
 
 def formatted_print(obj, path, long_format, recursive_resource_usage):
     attributes = getattr(obj, "attributes", {})
+
     def get_attr(attr_name):
         if attr_name not in attributes:
             attributes.update(yt.get(path + "&/@"))
@@ -1029,6 +1030,7 @@ def add_select_rows_parser(add_parser):
     parser.add_argument("--print-statistics", default=None, action="store_true")
 
     error_message = "Use 'select-rows' instead of 'select'"
+
     def print_error():
         raise RuntimeError(error_message)
     parser = add_parser("select", print_error, help=error_message)
@@ -1070,6 +1072,7 @@ def add_lookup_rows_parser(add_parser):
     parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
     error_message = "Use 'lookup-rows' instead of 'lookup'"
+
     def print_error():
         raise RuntimeError(error_message)
     parser = add_parser("lookup", print_error, help=error_message)
@@ -1100,6 +1103,7 @@ def add_insert_rows_parser(add_parser):
     aggregate_parser.add_argument("--no-aggregate", dest="aggregate", default=None, action="store_false")
 
     error_message = "Use 'insert-rows' instead of 'insert'"
+
     def print_error():
         raise RuntimeError(error_message)
     parser = add_parser("insert", print_error, help=error_message)
@@ -1113,6 +1117,7 @@ def add_delete_rows_parser(add_parser):
     parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
     error_message = "Use 'delete-rows' instead of 'delete'"
+
     def print_error():
         raise RuntimeError(error_message)
     parser = add_parser("delete", print_error, help=error_message)
@@ -1993,6 +1998,7 @@ def clickhouse_execute_handler(**kwargs):
     class FakeStream:
         def __init__(self, stream):
             self.stream = stream
+
         def _read_rows(self):
             return (row + b"\n" for row in self.stream)
 
@@ -2149,6 +2155,7 @@ def add_clickhouse_ctl_parser(add_parser):
 
     # We replace original "parse_known_args" with our implementation, which fetches and registers available commands before parsing.
     do_parse_known_args = parser.parse_known_args
+
     def parse_known_args(*args, **kwargs):
         parsed_address, unparsed = address_parser.parse_known_args(*args, **kwargs)
         register_commands(parsed_address.address)

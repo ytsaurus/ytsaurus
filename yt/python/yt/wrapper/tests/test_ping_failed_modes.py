@@ -101,6 +101,7 @@ class TestPingFailedModes(object):
     def test_call_function(self):
         called = []
         assert not called
+
         def func():
             called.append(True)
         with set_config_option("ping_failed_mode", "call_function"), set_config_option("ping_failed_function", func):

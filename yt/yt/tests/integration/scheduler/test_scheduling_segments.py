@@ -949,6 +949,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             set("//sys/racks/" + r + "/@data_center", dc)
 
         dc_count = len(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS)
+
         def get_node_rack(i, node):
             if ibc_to_dc is None:
                 return BaseTestSchedulingSegmentsMultiModule.RACKS[i % dc_count]
