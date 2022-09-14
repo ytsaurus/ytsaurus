@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixLatePrepareTxAbort)                                        (2124))  // gritukan
     ((NewStateHashForPersistentResponseKeeper)                      (2125))  // gritukan
     ((DropSomeUselessConfigOptions_22_3)                            (2126))  // akozhikhov
+    ((EffectiveErasureCodecs)                                       (2127))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

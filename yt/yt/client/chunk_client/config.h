@@ -377,6 +377,8 @@ public:
 
     bool EnableStripedErasure;
 
+    bool UseEffectiveErasureCodecs;
+
     REGISTER_YSON_STRUCT(TErasureWriterConfig);
 
     static void Register(TRegistrar registrar);

@@ -576,6 +576,35 @@ class TestErasure(TestErasureBase):
         _test("repairable", replicas[:5], False)
         _test("repairable", replicas[:3], True)
 
+    @authors("gritukan")
+    @pytest.mark.parametrize(
+        "erasure_codec",
+        ["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    def test_use_effective_erasure_codecs(self, erasure_codec):
+        create("table", "//tmp/t", attributes={"erasure_codec": erasure_codec})
+
+        rows = [{"x": i} for i in range(10)]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"use_effective_erasure_codecs": True},
+        )
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        if "12_2_2" in erasure_codec:
+            expected_codec = "isa_lrc_12_2_2"
+        elif "6_3" in erasure_codec:
+            expected_codec = "isa_reed_solomon_6_3"
+        elif "3_3" in erasure_codec:
+            expected_codec = "reed_solomon_3_3"
+        else:
+            assert False
+
+        assert read_table("//tmp/t") == rows
+        assert get(f"#{chunk_id}/@erasure_codec") == expected_codec
+
+
 ##################################################################
 
 

@@ -508,9 +508,15 @@ private:
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), Writer_->GetChunkId());
         ToProto(chunkSpec.mutable_replicas(), Writer_->GetWrittenChunkReplicas());
-        chunkSpec.set_erasure_codec(ToProto<int>(UnderlyingWriterOptions_->ErasureCodec));
         chunkSpec.set_table_index(0);
-        *chunkSpec.mutable_chunk_meta() = std::move(*Writer_->GetChunkMeta());
+
+        const auto& chunkMeta = *Writer_->GetChunkMeta();
+        *chunkSpec.mutable_chunk_meta() = chunkMeta;
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+        chunkSpec.set_erasure_codec(miscExt.erasure_codec());
+        chunkSpec.set_striped_erasure(miscExt.striped_erasure());
+
         return chunkSpec;
     }
 };

@@ -80,6 +80,10 @@ ICodec* FindCodec(ECodec id);
 //! Finds an erasure codec by id. Throws an error if codec is not supported.
 ICodec* GetCodec(ECodec id);
 
+//! For a given codec id returns the id of most optimal erasure codec
+//! that has the same number of data and parity parts.
+ECodec GetEffectiveCodecId(ECodec id);
+
 //! Returns the list of supported erasure codecs.
 const std::vector<ECodec>& GetSupportedCodecIds();
 

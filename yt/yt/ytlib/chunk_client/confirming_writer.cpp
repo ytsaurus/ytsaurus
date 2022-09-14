@@ -60,7 +60,7 @@ public:
         TSessionId sessionId,
         TChunkReplicaWithMediumList targetReplicas)
         : Config_(CloneYsonSerializable(config))
-        , Options_(std::move(options))
+        , Options_(CloneYsonSerializable(options))
         , CellTag_(cellTag)
         , TransactionId_(transactionId)
         , ParentChunkListId_(parentChunkListId)
@@ -82,8 +82,11 @@ public:
 
         // TODO(gritukan): Unify.
         Config_->EnableStripedErasure |= Options_->EnableStripedErasure;
-    }
 
+        if (Config_->UseEffectiveErasureCodecs) {
+            Options_->ErasureCodec = GetEffectiveCodecId(Options_->ErasureCodec);
+        }
+    }
 
     TFuture<void> Open() override
     {
@@ -287,7 +290,6 @@ private:
                 Config_,
                 SessionId_,
                 Options_->ErasureCodec,
-                erasureCodec,
                 writers,
                 Config_->WorkloadDescriptor);
         }

@@ -341,6 +341,9 @@ void TErasureWriterConfig::Register(TRegistrar registrar)
     registrar.Parameter("erasure_stripe_size", &TThis::ErasureStripeSize)
         .Default()
         .GreaterThan(0);
+
+    registrar.Parameter("use_effective_erasure_codecs", &TThis::UseEffectiveErasureCodecs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
