@@ -20,7 +20,6 @@ struct TTable final
 
     i64 CompressedDataSize;
     i64 UncompressedDataSize;
-    i64 DataWeight;
 
     EInMemoryMode InMemoryMode;
     TTableTabletBalancerConfigPtr TableConfig;
