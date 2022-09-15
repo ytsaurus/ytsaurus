@@ -199,7 +199,14 @@ def _():
         'arc',
         'add',
         *files_to_commit,
-    ], check=False),
+    ], check=True),
+
+    subprocess.run([
+        'arc',
+        'commit',
+        '-m',
+        'Bump versions'
+    ], check=True),
 
     release_message = 'Released versions: ' + ' '.join(
         f'{version.component} {version.version}'
