@@ -65,7 +65,11 @@ void TBundleState::DoUpdateState()
 
     THashSet<TTabletId> tabletIds;
     for (const auto& [id, info] : tabletCells) {
-        tabletIds.insert(info.TabletIds.begin(), info.TabletIds.end());
+        for (auto tabletId : info.TabletIds) {
+            if (TypeFromId(tabletId) == EObjectType::Tablet) {
+                InsertOrCrash(tabletIds, tabletId);
+            }
+        }
     }
 
     DropMissingKeys(&Tablets_, tabletIds);
