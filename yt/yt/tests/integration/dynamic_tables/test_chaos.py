@@ -851,6 +851,52 @@ class TestChaos(ChaosTestBase):
         assert orchid["write_mode"] == new_wirte_mode
 
     @authors("savrus")
+    def test_queue_replica_mode_stuck_in_cataclysm(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        alter_table_replica(replica_ids[1], mode="async")
+        wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [])
+        assert get("#{0}/@mode".format(replica_ids[1])) == "sync_to_async"
+
+        with self.CellsDisabled(clusters=self.get_cluster_names(), chaos_bundles=["c"]):
+            pass
+
+        assert get("#{0}/@mode".format(replica_ids[1])) == "sync_to_async"
+        assert get("#{0}/@coordinator_cell_ids".format(card_id)) == []
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == values
+
+    @authors("savrus")
+    def test_queue_replica_state_stuck_in_cataclysm(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        alter_table_replica(replica_ids[1], enabled=False)
+        wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [])
+        assert get("#{0}/@state".format(replica_ids[1])) == "disabling"
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == values
+
+    @authors("savrus")
     def test_replication_progress(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
@@ -1441,7 +1487,8 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("disable_data", [True, False])
-    def test_trim_replica_history_items(self, disable_data):
+    @pytest.mark.parametrize("wait_alter", [True, False])
+    def test_trim_replica_history_items(self, disable_data, wait_alter):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
@@ -1451,29 +1498,28 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
-        def _insistent_alter_table_replica(replica_id, mode):
-            try:
-                alter_table_replica(replica_id, mode=mode)
-                return True
-            except YtError as err:
-                if err.contains_text("Replica mode is transitioning"):
-                    return False
-                raise err
+        def _alter_table_replica(replica_id, mode):
+            alter_table_replica(replica_id, mode=mode)
+            if wait_alter:
+                wait(lambda: get("#{0}/@mode".format(replica_id)) == mode)
 
-        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "sync"))
-        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "async"))
+        _alter_table_replica(replica_ids[2], "sync")
+        _alter_table_replica(replica_ids[1], "async")
         if disable_data:
             self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
-        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "sync"))
-        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "async"))
-        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "sync"))
-        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "async"))
+        _alter_table_replica(replica_ids[1], "sync")
+        _alter_table_replica(replica_ids[2], "async")
+        _alter_table_replica(replica_ids[2], "sync")
+        _alter_table_replica(replica_ids[1], "async")
         if disable_data:
             self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
 
+        wait(lambda: all(replica["mode"] in ["sync", "async"] for replica in get("#{0}/@replicas".format(card_id)).values()))
+        self._sync_replication_era(card_id)
+
         def _check():
             card = get("#{0}/@".format(card_id))
-            if card["era"] < 4 or any(len(replica["history"]) > 1 for replica in card["replicas"].values()):
+            if any(len(replica["history"]) > 1 for replica in card["replicas"].values()):
                 return False
             return True
         wait(_check)
@@ -2251,6 +2297,7 @@ class TestChaos(ChaosTestBase):
             return len(rows) > 0 and "b" in rows[-1]
         wait(_check)
 
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")
         self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=False)
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 

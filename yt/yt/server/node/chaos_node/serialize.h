@@ -22,6 +22,7 @@ DEFINE_ENUM(EChaosReign,
     ((ReplicatedTableOptions)       (300005)) // savrus
     ((SupportQueueReplicasInRTT)    (300006)) // akozhikhov
     ((ReplicationCardCollocation)   (300007)) // savrus
+    ((AllowAlterInCataclysm)        (300008)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

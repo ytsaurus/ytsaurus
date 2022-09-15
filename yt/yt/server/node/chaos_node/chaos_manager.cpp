@@ -914,18 +914,24 @@ private:
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        if (!IsStableReplicaMode(replicaInfo->Mode)) {
-            THROW_ERROR_EXCEPTION("Replica mode is transitioning")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("mode", replicaInfo->Mode);
+        // COMPAT(savrus)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
+            if (!IsStableReplicaMode(replicaInfo->Mode)) {
+                THROW_ERROR_EXCEPTION("Replica mode is transitioning")
+                    << TErrorAttribute("replication_card_id", replicationCardId)
+                    << TErrorAttribute("replica_id", replicaId)
+                    << TErrorAttribute("mode", replicaInfo->Mode);
+            }
         }
 
-        if (!IsStableReplicaState(replicaInfo->State)) {
-            THROW_ERROR_EXCEPTION("Replica state is transitioning")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replicaInfo->State);
+        // COMPAT(savrus)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
+            if (!IsStableReplicaState(replicaInfo->State)) {
+                THROW_ERROR_EXCEPTION("Replica state is transitioning")
+                    << TErrorAttribute("replication_card_id", replicationCardId)
+                    << TErrorAttribute("replica_id", replicaId)
+                    << TErrorAttribute("state", replicaInfo->State);
+            }
         }
 
         if (replicationCard->GetState() == EReplicationCardState::RevokingShortcutsForMigration) {
@@ -938,17 +944,33 @@ private:
         bool revoke = false;
 
         if (mode && replicaInfo->Mode != *mode) {
-            switch (replicaInfo->Mode) {
-                case ETableReplicaMode::Sync:
-                    replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
-                    break;
+            // COMPAT(savrus)
+            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
+                switch (*mode) {
+                    case ETableReplicaMode::Sync:
+                        replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
+                        break;
 
-                case ETableReplicaMode::Async:
-                    replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
-                    break;
+                    case ETableReplicaMode::Async:
+                        replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
+                        break;
 
-                default:
-                    YT_ABORT();
+                    default:
+                        YT_ABORT();
+                }
+            } else {
+                switch (replicaInfo->Mode) {
+                    case ETableReplicaMode::Sync:
+                        replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
+                        break;
+
+                    case ETableReplicaMode::Async:
+                        replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
             }
 
             revoke = true;
@@ -957,17 +979,24 @@ private:
 
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
         if (enabled && *enabled != currentlyEnabled) {
-            switch (replicaInfo->State) {
-                case ETableReplicaState::Disabled:
-                    replicaInfo->State = ETableReplicaState::Enabling;
-                    break;
+            // COMPAT(savrus)
+            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
+                replicaInfo->State = *enabled
+                    ? ETableReplicaState::Enabling
+                    : ETableReplicaState::Disabling;
+            } else {
+                switch (replicaInfo->State) {
+                    case ETableReplicaState::Disabled:
+                        replicaInfo->State = ETableReplicaState::Enabling;
+                        break;
 
-                case ETableReplicaState::Enabled:
-                    replicaInfo->State = ETableReplicaState::Disabling;
-                    break;
+                    case ETableReplicaState::Enabled:
+                        replicaInfo->State = ETableReplicaState::Disabling;
+                        break;
 
-                default:
-                    YT_ABORT();
+                    default:
+                        YT_ABORT();
+                }
             }
 
             revoke = true;
@@ -1582,7 +1611,8 @@ private:
         auto hasSyncQueue = [&] {
             for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
                 if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
-                    (replicaInfo.Mode == ETableReplicaMode::Sync || replicaInfo.Mode == ETableReplicaMode::AsyncToSync))
+                    GetTargetReplicaState(replicaInfo.State) == ETableReplicaState::Enabled &&
+                    GetTargetReplicaMode(replicaInfo.Mode) == ETableReplicaMode::Sync)
                 {
                     return true;
                 }
@@ -1626,7 +1656,12 @@ private:
                     };
                 }
 
-                replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
+                if (replicaInfo.History.empty() ||
+                    replicaInfo.History.back().Mode != replicaInfo.Mode ||
+                    replicaInfo.History.back().State != replicaInfo.State)
+                {
+                    replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
+                }
             }
         }
 
