@@ -72,7 +72,7 @@ const TBusNetworkCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& 
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
-    IPollerPtr* pollerPtr,
+    IThreadPoolPollerPtr* pollerPtr,
     bool isXfer,
     const TString& threadNamePrefix)
 {

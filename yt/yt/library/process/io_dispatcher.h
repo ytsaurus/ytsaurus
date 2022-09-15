@@ -26,7 +26,7 @@ private:
 
     Y_DECLARE_SINGLETON_FRIEND();
 
-    TLazyIntrusivePtr<NConcurrency::IPoller> Poller_;
+    TLazyIntrusivePtr<NConcurrency::IThreadPoolPoller> Poller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

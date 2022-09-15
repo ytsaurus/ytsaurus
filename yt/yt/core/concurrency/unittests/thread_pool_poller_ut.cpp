@@ -43,6 +43,11 @@ public:
         return LoggingTag_;
     }
 
+    EPollablePriority GetPriority() const override
+    {
+        return EPollablePriority::Default;
+    }
+
     void OnEvent(EPollControl control) override
     {
         // NB: Retry is the only event we trigger in this unittest via |IPoller::Retry|.
@@ -94,7 +99,7 @@ public:
 protected:
     const int InitialThreadCount = 4;
 
-    IPollerPtr Poller;
+    IThreadPoolPollerPtr Poller;
 };
 
 TEST_F(TThreadPoolPollerTest, SimplePollable)

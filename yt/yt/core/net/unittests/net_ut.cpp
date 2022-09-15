@@ -20,23 +20,23 @@ class TNetTest
     : public ::testing::Test
 {
 protected:
-    IPollerPtr Poller;
+    IThreadPoolPollerPtr Poller_;
 
     void SetUp() override
     {
-        Poller = CreateThreadPoolPoller(2, "nettest");
+        Poller_ = CreateThreadPoolPoller(2, "nettest");
     }
 
     void TearDown() override
     {
-        Poller->Shutdown();
+        Poller_->Shutdown();
     }
 
     IDialerPtr CreateDialer()
     {
         return NNet::CreateDialer(
             New<TDialerConfig>(),
-            Poller,
+            Poller_,
             NetLogger);
     }
 };
@@ -44,23 +44,23 @@ protected:
 TEST_F(TNetTest, ReconfigurePoller)
 {
     for (int i = 1; i <= 10; ++i) {
-        Poller->Reconfigure(i);
+        Poller_->Reconfigure(i);
     }
     for (int i = 9; i >= 10; --i) {
-        Poller->Reconfigure(i);
+        Poller_->Reconfigure(i);
     }
 }
 
 TEST_F(TNetTest, CreateConnectionPair)
 {
     IConnectionPtr a, b;
-    std::tie(a, b) = CreateConnectionPair(Poller);
+    std::tie(a, b) = CreateConnectionPair(Poller_);
 }
 
 TEST_F(TNetTest, TransferFourBytes)
 {
     IConnectionPtr a, b;
-    std::tie(a, b) = CreateConnectionPair(Poller);
+    std::tie(a, b) = CreateConnectionPair(Poller_);
 
     a->Write(TSharedRef::FromString("ping")).Get();
 
@@ -72,7 +72,7 @@ TEST_F(TNetTest, TransferFourBytes)
 TEST_F(TNetTest, TransferFourBytesUsingWriteV)
 {
     IConnectionPtr a, b;
-    std::tie(a, b) = CreateConnectionPair(Poller);
+    std::tie(a, b) = CreateConnectionPair(Poller_);
 
     a->WriteV(TSharedRefArray(std::vector<TSharedRef>{
         TSharedRef::FromString("p"),
@@ -91,7 +91,7 @@ TEST_F(TNetTest, BigTransfer)
     const int N = 1024, K = 256 * 1024;
 
     IConnectionPtr a, b;
-    std::tie(a, b) = CreateConnectionPair(Poller);
+    std::tie(a, b) = CreateConnectionPair(Poller_);
 
     auto sender = BIND([=] {
         auto buffer = TSharedRef::FromString(TString(K, 'f'));
@@ -101,7 +101,7 @@ TEST_F(TNetTest, BigTransfer)
 
         WaitFor(a->CloseWrite()).ThrowOnError();
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run();
 
     auto receiver = BIND([=] {
@@ -115,7 +115,7 @@ TEST_F(TNetTest, BigTransfer)
 
         EXPECT_EQ(N * K, received);
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run();
 
     sender.Get().ThrowOnError();
@@ -127,7 +127,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
     const int N = 1024, K = 256 * 1024;
 
     IConnectionPtr a, b;
-    std::tie(a, b) = CreateConnectionPair(Poller);
+    std::tie(a, b) = CreateConnectionPair(Poller_);
 
     auto startSender = [&] (IConnectionPtr conn) {
         return BIND([=] {
@@ -138,7 +138,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
 
             WaitFor(conn->CloseWrite()).ThrowOnError();
         })
-            .AsyncVia(Poller->GetInvoker())
+            .AsyncVia(Poller_->GetInvoker())
             .Run();
     };
 
@@ -154,7 +154,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
 
             EXPECT_EQ(N * K, received);
         })
-            .AsyncVia(Poller->GetInvoker())
+            .AsyncVia(Poller_->GetInvoker())
             .Run();
     };
 
@@ -172,7 +172,7 @@ TEST_F(TNetTest, StressConcurrentClose)
 {
     for (int i = 0; i < 10; i++) {
         IConnectionPtr a, b;
-        std::tie(a, b) = CreateConnectionPair(Poller);
+        std::tie(a, b) = CreateConnectionPair(Poller_);
 
         auto runSender = [&] (IConnectionPtr conn) {
             return BIND([=] {
@@ -181,7 +181,7 @@ TEST_F(TNetTest, StressConcurrentClose)
                     WaitFor(conn->Write(buffer)).ThrowOnError();
                 }
             })
-                .AsyncVia(Poller->GetInvoker())
+                .AsyncVia(Poller_->GetInvoker())
                 .Run();
         };
 
@@ -192,7 +192,7 @@ TEST_F(TNetTest, StressConcurrentClose)
                     WaitFor(conn->Read(buffer)).ThrowOnError();
                 }
             })
-                .AsyncVia(Poller->GetInvoker())
+                .AsyncVia(Poller_->GetInvoker())
                 .Run();
         };
 
@@ -212,10 +212,10 @@ TEST_F(TNetTest, Bind)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller, Poller);
-        EXPECT_THROW(CreateListener(listener->GetAddress(), Poller, Poller), TErrorException);
+        auto listener = CreateListener(address, Poller_, Poller_);
+        EXPECT_THROW(CreateListener(listener->GetAddress(), Poller_, Poller_), TErrorException);
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -228,7 +228,7 @@ TEST_F(TNetTest, DialError)
         auto dialer = CreateDialer();
         EXPECT_THROW(dialer->Dial(address).Get().ValueOrThrow(), TErrorException);
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -238,7 +238,7 @@ TEST_F(TNetTest, DialSuccess)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller, Poller);
+        auto listener = CreateListener(address, Poller_, Poller_);
         auto dialer = CreateDialer();
 
         auto futureDial = dialer->Dial(listener->GetAddress());
@@ -247,7 +247,7 @@ TEST_F(TNetTest, DialSuccess)
         WaitFor(futureDial).ValueOrThrow();
         WaitFor(futureAccept).ValueOrThrow();
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -257,7 +257,7 @@ TEST_F(TNetTest, ManyDials)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller, Poller);
+        auto listener = CreateListener(address, Poller_, Poller_);
         auto dialer = CreateDialer();
 
         auto futureAccept1 = listener->Accept();
@@ -268,7 +268,7 @@ TEST_F(TNetTest, ManyDials)
 
         WaitFor(AllSucceeded(std::vector<TFuture<IConnectionPtr>>{futureDial1, futureDial2, futureAccept1, futureAccept2})).ValueOrThrow();
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -278,12 +278,12 @@ TEST_F(TNetTest, AbandonDial)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller, Poller);
+        auto listener = CreateListener(address, Poller_, Poller_);
         auto dialer = CreateDialer();
 
         dialer->Dial(listener->GetAddress());
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -293,11 +293,11 @@ TEST_F(TNetTest, AbandonAccept)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller, Poller);
+        auto listener = CreateListener(address, Poller_, Poller_);
 
         listener->Accept();
     })
-        .AsyncVia(Poller->GetInvoker())
+        .AsyncVia(Poller_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();

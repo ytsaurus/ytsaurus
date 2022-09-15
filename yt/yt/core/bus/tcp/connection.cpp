@@ -95,6 +95,7 @@ TTcpConnection::TTcpConnection(
     EConnectionType connectionType,
     TConnectionId id,
     int socket,
+    EMultiplexingBand multiplexingBand,
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
     const TNetworkAddress& endpointNetworkAddress,
@@ -118,6 +119,7 @@ TTcpConnection::TTcpConnection(
     , LoggingTag_(Format("ConnectionId: %v", Id_))
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
+    , MultiplexingBand_(multiplexingBand)
     , Decoder_(Logger, Config_->VerifyChecksums)
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(Logger)
@@ -248,6 +250,16 @@ void TTcpConnection::RunPeriodicCheck()
     }
 }
 
+EPollablePriority TTcpConnection::GetPriority() const
+{
+    switch (MultiplexingBand_.load(std::memory_order::relaxed)) {
+        case EMultiplexingBand::RealTime:
+            return EPollablePriority::RealTime;
+        default:
+            return EPollablePriority::Default;
+    }
+}
+
 const TString& TTcpConnection::GetLoggingTag() const
 {
     return LoggingTag_;
@@ -257,6 +269,9 @@ void TTcpConnection::EnqueueHandshake()
 {
     NProto::THandshake handshake;
     ToProto(handshake.mutable_foreign_connection_id(), Id_);
+    if (ConnectionType_ == EConnectionType::Client) {
+        handshake.set_multiplexing_band(ToProto<int>(MultiplexingBand_.load()));
+    }
 
     auto message = MakeHandshakeMessage(handshake);
     auto messageSize = GetByteSize(message);
@@ -1033,8 +1048,18 @@ bool TTcpConnection::OnHandshakePacketReceived()
         return false;
     }
 
-    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v)",
-        FromProto<TConnectionId>(optionalHandshake->foreign_connection_id()));
+    const auto& handshake = *optionalHandshake;
+    auto optionalMultiplexingBand = handshake.has_multiplexing_band()
+        ? std::make_optional(FromProto<EMultiplexingBand>(handshake.multiplexing_band()))
+        : std::nullopt;
+
+    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v, MultiplexingBand: %v)",
+        FromProto<TConnectionId>(handshake.foreign_connection_id()),
+        optionalMultiplexingBand);
+
+    if (ConnectionType_ == EConnectionType::Server && optionalMultiplexingBand) {
+        MultiplexingBand_.store(*optionalMultiplexingBand);
+    }
 
     return true;
 }

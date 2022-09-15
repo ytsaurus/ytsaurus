@@ -190,7 +190,11 @@ private:
             while (bucket.Sessions.size() <= index) {
                 auto session = New<TSession>(options.MultiplexingBand);
                 auto messageHandler = New<TMessageHandler>(session);
-                auto bus = Client_->CreateBus(messageHandler);
+                auto bus = Client_->CreateBus(
+                    messageHandler,
+                    {
+                        .MultiplexingBand = options.MultiplexingBand
+                    });
                 session->Initialize(bus);
                 bucket.Sessions.push_back(session);
                 results.emplace_back(std::move(bus), std::move(session));

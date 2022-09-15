@@ -228,6 +228,7 @@ protected:
                 EConnectionType::Server,
                 connectionId,
                 clientSocket,
+                EMultiplexingBand::Default,
                 endpointDescription,
                 *endpointAttributes,
                 clientAddress,
@@ -434,7 +435,7 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 {
     std::vector<IBusServerPtr> servers;
     if (config->Port) {
-        servers.push_back(New< TTcpBusServerProxy<TRemoteTcpBusServer> >(config));
+        servers.push_back(New<TTcpBusServerProxy<TRemoteTcpBusServer>>(config));
     }
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.

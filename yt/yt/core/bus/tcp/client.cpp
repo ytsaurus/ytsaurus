@@ -152,15 +152,16 @@ public:
         return *EndpointAttributes_;
     }
 
-    IBusPtr CreateBus(IMessageHandlerPtr handler) override
+    IBusPtr CreateBus(IMessageHandlerPtr handler, const TCreateBusOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto id = TConnectionId::Create();
 
-        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
+        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v, MultiplexingBand: %v)",
             EndpointDescription_,
-            id);
+            id,
+            options.MultiplexingBand);
 
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -175,6 +176,7 @@ public:
             EConnectionType::Client,
             id,
             INVALID_SOCKET,
+            options.MultiplexingBand,
             EndpointDescription_,
             *endpointAttributes,
             TNetworkAddress(),

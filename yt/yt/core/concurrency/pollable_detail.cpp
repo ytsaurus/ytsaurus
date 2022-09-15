@@ -14,6 +14,11 @@ void* TPollableBase::GetCookie() const
     return Cookie_.Get();
 }
 
+EPollablePriority TPollableBase::GetPriority() const
+{
+    return EPollablePriority::Default;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
