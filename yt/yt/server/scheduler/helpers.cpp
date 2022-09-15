@@ -354,7 +354,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/block_io/io_write", "Number of writes to the local block device by the job", "pieces"},
         {"user_job/block_io/io_total", "Number of input/output operations with the local block device by the job proxy process", "pieces"},
 
-        {"user_job/current_memory/major_page_faults", "Major page faults in the user process", "bytes"},
+        {"user_job/current_memory/major_page_faults", "Major page faults in the user process", "pieces"},
         {"user_job/current_memory/rss", "RSS at the end of the job", "bytes"},
         {"user_job/current_memory/mapped_file", "Memory mapped files size at the end of the job", "bytes"},
 
