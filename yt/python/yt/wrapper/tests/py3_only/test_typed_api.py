@@ -1342,3 +1342,32 @@ class TestTypedApi(object):
     def test_bad_multiple_tables_schema_inferring_from_type_hints(self, config):
         with pytest.raises(YtError):
             self.test_multiple_tables_schema_inferring_from_type_hints(config)
+
+    @authors("aleexfi")
+    def test_schema_inference_with_postponed_type_hints_evaluation(self):
+        @yt_dataclass
+        class Struct:
+            str_field: "str"
+            uint8_field: "typing.Optional[Uint64]"
+
+        expected_schema = TableSchema() \
+            .add_column("str_field", ti.Utf8) \
+            .add_column("uint8_field", ti.Optional[ti.Uint64])
+
+        assert TableSchema.from_row_type(Struct) == expected_schema
+
+        @yt_dataclass
+        class TheRow:
+            int32_field: "Int64"
+            str_field: "str"
+            struct_field: "typing.Optional[Struct]" = None
+
+        expected_schema = TableSchema() \
+            .add_column("int32_field", ti.Int64) \
+            .add_column("str_field", ti.Utf8) \
+            .add_column("struct_field", ti.Optional[ti.Struct[
+                "str_field": ti.Utf8,
+                "uint8_field": ti.Optional[ti.Uint64],
+            ]])
+
+        assert TableSchema.from_row_type(TheRow) == expected_schema

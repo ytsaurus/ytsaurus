@@ -12,6 +12,7 @@ import yandex.type_info as ti
 
 try:
     import dataclasses
+    from typing_extensions import get_type_hints
 except ImportError:
     pass
 
@@ -313,14 +314,16 @@ def _validate_py_schema_impl(py_schema, for_reading, field_path):
 
 def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, allow_other_columns=False):
     assert is_yt_dataclass(py_type)
+    name_to_type = get_type_hints(py_type, include_extras=True)
+
     if yt_fields is None:
         py_schema_fields = []
         other_columns_field = None
         for field in dataclasses.fields(py_type):
-            if field.type == types.OtherColumns:
-                other_columns_field = FieldMissingFromSchema(field.name, field.type)
+            if name_to_type[field.name] == types.OtherColumns:
+                other_columns_field = FieldMissingFromSchema(field.name, name_to_type[field.name])
             else:
-                py_schema_fields.append(StructField(field.name, _create_py_schema(field.type, field_name=field.name)))
+                py_schema_fields.append(StructField(field.name, _create_py_schema(name_to_type[field.name], field_name=field.name)))
         return StructSchema(py_schema_fields, py_type,
                             other_columns_field=other_columns_field, is_ti_type_optional=is_ti_type_optional)
 
@@ -336,13 +339,13 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
         if field is None:
             py_schema_fields.append(FieldMissingFromRowClass(yt_name, ti_type))
         else:
-            struct_field = StructField(field.name, _create_py_schema(field.type, ti_type, field_name=field.name))
+            struct_field = StructField(field.name, _create_py_schema(name_to_type[field.name], ti_type, field_name=field.name))
             py_schema_fields.append(struct_field)
             del name_to_field[yt_name]
     other_columns_field = None
     for field in name_to_field.values():
-        struct_field = FieldMissingFromSchema(field.name, field.type)
-        if field.type == types.OtherColumns:
+        struct_field = FieldMissingFromSchema(field.name, name_to_type[field.name])
+        if name_to_type[field.name] == types.OtherColumns:
             other_columns_field = struct_field
         else:
             py_schema_fields.append(struct_field)
