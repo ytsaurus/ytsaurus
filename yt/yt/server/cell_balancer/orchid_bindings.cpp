@@ -40,6 +40,17 @@ void TBundleInfo::Register(TRegistrar registrar)
     registrar.Parameter("assigned_spare_rpc_proxies", &TThis::AssignedSpareRpcProxies)
         .Default();
 
+    registrar.Parameter("removing_cell_count", &TThis::RemovingCellCount)
+        .Default();
+    registrar.Parameter("allocating_tablet_node_count", &TThis::AllocatingTabletNodeCount)
+        .Default();
+    registrar.Parameter("deallocating_tablet_node_count", &TThis::DeallocatingTabletNodeCount)
+        .Default();
+    registrar.Parameter("allocating_rpc_proxy_count", &TThis::AllocatingRpcProxyCount)
+        .Default();
+    registrar.Parameter("deallocating_rpc_proxy_count", &TThis::DeallocatingRpcProxyCount)
+        .Default();
+
     registrar.Parameter("alerts", &TThis::Alerts)
         .Default();
 }
@@ -109,6 +120,15 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
 
         if (auto it = state.BundleResourceAllocated.find(bundleName); it != state.BundleResourceAllocated.end()) {
             bundleOrchidInfo->ResourceAllocated = CloneYsonSerializable(it->second);
+        }
+
+        if (auto it = mutations.ChangedStates.find(bundleName); it != mutations.ChangedStates.end()) {
+            const auto& state = it->second;
+            bundleOrchidInfo->RemovingCellCount = state->RemovingCells.size();
+            bundleOrchidInfo->AllocatingTabletNodeCount = state->NodeAllocations.size();
+            bundleOrchidInfo->DeallocatingTabletNodeCount = state->NodeDeallocations.size();
+            bundleOrchidInfo->AllocatingRpcProxyCount = state->ProxyAllocations.size();
+            bundleOrchidInfo->DeallocatingRpcProxyCount = state->ProxyDeallocations.size();
         }
 
         result[bundleName] = bundleOrchidInfo;
