@@ -110,6 +110,7 @@ DEFINE_ENUM(EMasterReign,
     ((NewStateHashForPersistentResponseKeeper)                      (2125))  // gritukan
     ((DropSomeUselessConfigOptions_22_3)                            (2126))  // akozhikhov
     ((EffectiveErasureCodecs)                                       (2127))  // gritukan
+    ((MulticellEnableConsistentChunkReplicaPlacement)               (2128))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
