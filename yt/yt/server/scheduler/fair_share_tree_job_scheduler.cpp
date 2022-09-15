@@ -130,248 +130,28 @@ const TStaticAttributes& TStaticAttributesList::AttributesOf(const TSchedulerEle
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicAttributesList::TDynamicAttributesList(int size)
-    : Value_(static_cast<size_t>(size))
+    : std::vector<TDynamicAttributes>(size)
 { }
 
 TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element)
 {
     int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
-    return Value_[index];
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
+    return (*this)[index];
 }
 
 const TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
-    return Value_[index];
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
+    return (*this)[index];
 }
 
-void TDynamicAttributesList::UpdateAttributes(
-    TSchedulerElement* element,
-    const TFairShareTreeSchedulingSnapshotPtr& schedulingSnapshot,
-    bool checkLiveness,
-    TChildHeapMap* childHeapMap)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Pool:
-        case ESchedulerElementType::Root:
-            UpdateAttributesAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element), schedulingSnapshot, checkLiveness, childHeapMap);
-            break;
-        case ESchedulerElementType::Operation:
-            UpdateAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element), schedulingSnapshot, checkLiveness, childHeapMap);
-            break;
-        default:
-            YT_ABORT();
-    }
-}
+////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicAttributesList::DeactivateAll()
-{
-    for (auto& attributes : Value_) {
-        attributes.Active = false;
-    }
-}
-
-void TDynamicAttributesList::InitializeResourceUsage(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
-    TCpuInstant now)
-{
-    auto* rootElement = treeSnapshot->RootElement().Get();
-    Value_.resize(rootElement->SchedulableElementCount());
-    FillResourceUsage(rootElement, treeSnapshot, resourceUsageSnapshot);
-
-    for (auto& attributes : Value_) {
-        attributes.ResourceUsageUpdateTime = now;
-    }
-}
-
-void TDynamicAttributesList::ActualizeResourceUsageOfOperation(
-    TSchedulerOperationElement* element,
-    const TFairShareTreeJobSchedulerOperationSharedStatePtr& operationSharedState)
-{
-    AttributesOf(element).ResourceUsage = (element->IsAlive() && operationSharedState->IsEnabled())
-        ? element->GetInstantResourceUsage()
-        : TJobResources();
-}
-
-void TDynamicAttributesList::UpdateAttributesAtCompositeElement(
-    TSchedulerCompositeElement* element,
-    const TFairShareTreeSchedulingSnapshotPtr& schedulingSnapshot,
-    bool checkLiveness,
-    TChildHeapMap* childHeapMap)
-{
-    auto& attributes = AttributesOf(element);
-
-    if (checkLiveness && !element->IsAlive()) {
-        attributes.Active = false;
-        return;
-    }
-
-    // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
-    // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
-    // and thus are not in the |SchedulableChildren_| list.
-    if (element->GetMutable()) {
-        attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->ResourceUsageAtUpdate());
-    } else {
-        attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
-    }
-
-    // Declare the element passive if all children are passive.
-    attributes.Active = false;
-    attributes.BestLeafDescendant = nullptr;
-
-    while (auto bestChild = GetBestActiveChild(element, childHeapMap)) {
-        const auto& bestChildAttributes = AttributesOf(bestChild);
-        auto childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
-        if (checkLiveness && !childBestLeafDescendant->IsAlive()) {
-            UpdateAttributes(bestChild, schedulingSnapshot, checkLiveness, childHeapMap);
-            if (!bestChildAttributes.Active) {
-                continue;
-            }
-            childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
-        }
-
-        attributes.SatisfactionRatio = std::min(bestChildAttributes.SatisfactionRatio, attributes.SatisfactionRatio);
-        attributes.BestLeafDescendant = childBestLeafDescendant;
-        attributes.Active = true;
-        break;
-    }
-}
-
-void TDynamicAttributesList::UpdateAttributesAtOperation(
-    TSchedulerOperationElement* element,
-    const TFairShareTreeSchedulingSnapshotPtr& schedulingSnapshot,
-    bool checkLiveness,
-    TChildHeapMap* /*childHeapMap*/)
-{
-    auto& attributes = AttributesOf(element);
-    attributes.BestLeafDescendant = element;
-
-    // NB: We treat unset Active attribute as unknown here.
-    if (!attributes.Active) {
-        if (checkLiveness) {
-            YT_ASSERT(schedulingSnapshot);
-
-            attributes.Active = element->IsAlive() && schedulingSnapshot->GetEnabledOperationSharedState(element)->IsEnabled();
-        } else {
-            attributes.Active = true;
-        }
-    }
-
-    if (element->GetMutable()) {
-        attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->ResourceUsageAtUpdate());
-    } else {
-        attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
-    }
-}
-
-TSchedulerElement* TDynamicAttributesList::GetBestActiveChild(TSchedulerCompositeElement* element, TChildHeapMap* childHeapMap) const
-{
-    const auto& childHeapIt = childHeapMap->find(element->GetTreeIndex());
-    if (childHeapIt != childHeapMap->end()) {
-        const auto& childHeap = childHeapIt->second;
-        auto* topChild = childHeap.GetTop();
-        return AttributesOf(topChild).Active
-            ? topChild
-            : nullptr;
-    }
-
-    switch (element->GetMode()) {
-        case ESchedulingMode::Fifo:
-            return GetBestActiveChildFifo(element);
-        case ESchedulingMode::FairShare:
-            return GetBestActiveChildFairShare(element);
-        default:
-            YT_ABORT();
-    }
-}
-
-TSchedulerElement* TDynamicAttributesList::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
-{
-    TSchedulerElement* bestChild = nullptr;
-    for (const auto& child : element->SchedulableChildren()) {
-        if (!AttributesOf(child.Get()).Active) {
-            continue;
-        }
-
-        if (!bestChild || element->HasHigherPriorityInFifoMode(child.Get(), bestChild)) {
-            bestChild = child.Get();
-        }
-    }
-    return bestChild;
-}
-
-TSchedulerElement* TDynamicAttributesList::GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const
-{
-    TSchedulerElement* bestChild = nullptr;
-    double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
-    for (const auto& child : element->SchedulableChildren()) {
-        if (!AttributesOf(child.Get()).Active) {
-            continue;
-        }
-
-        double childSatisfactionRatio = AttributesOf(child.Get()).SatisfactionRatio;
-        if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio) {
-            bestChild = child.Get();
-            bestChildSatisfactionRatio = childSatisfactionRatio;
-        }
-    }
-    return bestChild;
-}
-
-TJobResources TDynamicAttributesList::FillResourceUsage(
-    TSchedulerElement* element,
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Pool:
-        case ESchedulerElementType::Root:
-            return FillResourceUsageAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element), treeSnapshot, resourceUsageSnapshot);
-        case ESchedulerElementType::Operation:
-            return FillResourceUsageAtOperation(static_cast<TSchedulerOperationElement*>(element), treeSnapshot, resourceUsageSnapshot);
-        default:
-            YT_ABORT();
-    }
-}
-
-TJobResources TDynamicAttributesList::FillResourceUsageAtCompositeElement(
-    TSchedulerCompositeElement* element,
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
-{
-    auto& attributes = AttributesOf(element);
-
-    attributes.ResourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
-    for (const auto& child : element->SchedulableChildren()) {
-        attributes.ResourceUsage += FillResourceUsage(child.Get(), treeSnapshot, resourceUsageSnapshot);
-    }
-
-    return attributes.ResourceUsage;
-}
-
-TJobResources TDynamicAttributesList::FillResourceUsageAtOperation(
-    TSchedulerOperationElement* element,
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
-{
-    auto& attributes = AttributesOf(element);
-
-    if (resourceUsageSnapshot != nullptr) {
-        auto operationId = element->GetOperationId();
-        auto it = resourceUsageSnapshot->OperationIdToResourceUsage.find(operationId);
-        attributes.ResourceUsage = it != resourceUsageSnapshot->OperationIdToResourceUsage.end()
-            ? it->second
-            : TJobResources();
-        attributes.Alive = resourceUsageSnapshot->AliveOperationIds.contains(operationId);
-    } else {
-        ActualizeResourceUsageOfOperation(element, treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element));
-    }
-
-    return attributes.ResourceUsage;
-}
+TDynamicAttributesListSnapshot::TDynamicAttributesListSnapshot(TDynamicAttributesList value)
+    : Value(std::move(value))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,7 +184,7 @@ TSchedulerElement* TChildHeap::GetTop() const
     return ChildHeap_.front();
 }
 
-void TChildHeap::Update(TSchedulerElement* child)
+void TChildHeap::Update(const TSchedulerElement* child)
 {
     int heapIndex = DynamicAttributesList_->AttributesOf(child).HeapIndex;
     YT_VERIFY(heapIndex != InvalidChildHeapIndex);
@@ -446,13 +226,322 @@ bool TChildHeap::Comparator(const TSchedulerElement* lhs, const TSchedulerElemen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChildHeapMap::UpdateChild(TSchedulerCompositeElement* parent, TSchedulerElement* child)
+TDynamicAttributesList TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
+    TCpuInstant now)
 {
-    auto it = find(parent->GetTreeIndex());
-    if (it != end()) {
-        auto& childHeap = it->second;
-        childHeap.Update(child);
+    auto* rootElement = treeSnapshot->RootElement().Get();
+    TDynamicAttributesList attributesList(rootElement->SchedulableElementCount());
+
+    TFillResourceUsageContext context{
+        .TreeSnapshot = treeSnapshot,
+        .ResourceUsageSnapshot = resourceUsageSnapshot,
+        .Now = now,
+        .AttributesList = &attributesList,
+    };
+    FillResourceUsage(rootElement, &context);
+
+    return attributesList;
+}
+
+TDynamicAttributesManager::TDynamicAttributesManager(TFairShareTreeSchedulingSnapshotPtr schedulingSnapshot, int size)
+    : SchedulingSnapshot_(std::move(schedulingSnapshot))
+    , AttributesList_(size)
+{ }
+
+void TDynamicAttributesManager::SetAttributesList(TDynamicAttributesList attributesList)
+{
+    AttributesList_ = std::move(attributesList);
+}
+
+TDynamicAttributes& TDynamicAttributesManager::AttributesOf(const TSchedulerElement* element)
+{
+    return AttributesList_.AttributesOf(element);
+}
+
+const TDynamicAttributes& TDynamicAttributesManager::AttributesOf(const TSchedulerElement* element) const
+{
+    return AttributesList_.AttributesOf(element);
+}
+
+void TDynamicAttributesManager::InitializeAttributesAtCompositeElement(
+    TSchedulerCompositeElement* element,
+    bool useChildHeap)
+{
+    UpdateAttributesAtCompositeElement(element);
+
+    if (useChildHeap) {
+        EmplaceOrCrash(ChildHeapMap_, element->GetTreeIndex(), TChildHeap(element, &AttributesList_));
     }
+}
+
+void TDynamicAttributesManager::InitializeAttributesAtOperation(
+    TSchedulerOperationElement* element,
+    bool isActive)
+{
+    AttributesOf(element).Active = isActive;
+
+    if (isActive) {
+        UpdateAttributesAtOperation(element);
+    }
+}
+
+void TDynamicAttributesManager::ActivateOperation(TSchedulerOperationElement* element)
+{
+    AttributesOf(element).Active = true;
+    UpdateAttributesHierarchically(element, /*deltaResourceUsage*/ {}, /*checkAncestorsActiveness*/ false);
+}
+
+void TDynamicAttributesManager::DeactivateOperation(TSchedulerOperationElement* element)
+{
+    AttributesOf(element).Active = false;
+    UpdateAttributesHierarchically(element);
+}
+
+void TDynamicAttributesManager::UpdateOperationResourceUsage(TSchedulerOperationElement* element, TCpuInstant now)
+{
+    if (!element->IsSchedulable()) {
+        return;
+    }
+
+    auto& attributes = AttributesOf(element);
+    auto resourceUsageBeforeUpdate = attributes.ResourceUsage;
+    const auto& operationSharedState = SchedulingSnapshot_->GetEnabledOperationSharedState(element);
+    DoUpdateOperationResourceUsage(element, &attributes, operationSharedState, now);
+
+    auto resourceUsageDelta = attributes.ResourceUsage - resourceUsageBeforeUpdate;
+    UpdateAttributesHierarchically(element, resourceUsageDelta);
+}
+
+void TDynamicAttributesManager::Clear()
+{
+    for (auto& attributes : AttributesList_) {
+        attributes.Active = false;
+    }
+
+    ChildHeapMap_.clear();
+    CompositeElementDeactivationCount_ = 0;
+}
+
+int TDynamicAttributesManager::GetCompositeElementDeactivationCount() const
+{
+    return CompositeElementDeactivationCount_;
+}
+
+const TChildHeapMap& TDynamicAttributesManager::GetChildHeapMapInTest() const
+{
+    return ChildHeapMap_;
+}
+
+bool TDynamicAttributesManager::ShouldCheckLiveness() const
+{
+    return SchedulingSnapshot_ != nullptr;
+}
+
+void TDynamicAttributesManager::UpdateAttributesHierarchically(
+    TSchedulerOperationElement* element,
+    const TJobResources& resourceUsageDelta,
+    bool checkAncestorsActiveness)
+{
+    UpdateAttributes(element);
+
+    auto* ancestor = element->GetMutableParent();
+    while (ancestor) {
+        if (checkAncestorsActiveness) {
+            YT_VERIFY(AttributesOf(ancestor).Active);
+        }
+
+        AttributesOf(ancestor).ResourceUsage += resourceUsageDelta;
+        UpdateAttributes(ancestor);
+
+        ancestor = ancestor->GetMutableParent();
+    }
+}
+
+void TDynamicAttributesManager::UpdateAttributes(TSchedulerElement* element)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Pool:
+        case ESchedulerElementType::Root:
+            UpdateAttributesAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element));
+            break;
+        case ESchedulerElementType::Operation:
+            UpdateAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element));
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    if (const auto* parent = element->GetParent()) {
+        UpdateChildInHeap(parent, element);
+    }
+}
+
+void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCompositeElement* element)
+{
+    auto& attributes = AttributesOf(element);
+    auto finallyGuard = Finally([&, activeBefore = attributes.Active] {
+        bool activeAfter = attributes.Active;
+        if (activeBefore && !activeAfter) {
+            ++CompositeElementDeactivationCount_;
+        }
+    });
+
+    if (ShouldCheckLiveness() && !element->IsAlive()) {
+        attributes.Active = false;
+        return;
+    }
+
+    // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
+    // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
+    // and thus are not in the |SchedulableChildren_| list.
+    const auto& resourceUsage = element->GetMutable()
+        ? element->ResourceUsageAtUpdate()
+        : attributes.ResourceUsage;
+    attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(resourceUsage);
+
+    if (const auto* bestChild = GetBestActiveChild(element)) {
+        const auto& bestChildAttributes = AttributesOf(bestChild);
+        attributes.Active = true;
+        attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
+        attributes.SatisfactionRatio = std::min(bestChildAttributes.SatisfactionRatio, attributes.SatisfactionRatio);
+    } else {
+        // Declare the element passive if all children are passive.
+        attributes.Active = false;
+        attributes.BestLeafDescendant = nullptr;
+    }
+}
+
+void TDynamicAttributesManager::UpdateAttributesAtOperation(TSchedulerOperationElement* element)
+{
+    auto& attributes = AttributesOf(element);
+    const auto& resourceUsage = element->GetMutable()
+        ? element->ResourceUsageAtUpdate()
+        : attributes.ResourceUsage;
+    attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(resourceUsage);
+    attributes.BestLeafDescendant = element;
+}
+
+void TDynamicAttributesManager::UpdateChildInHeap(const TSchedulerCompositeElement* parent, const TSchedulerElement* child)
+{
+    if (AttributesOf(child).HeapIndex == InvalidChildHeapIndex) {
+        return;
+    }
+
+    GetOrCrash(ChildHeapMap_, parent->GetTreeIndex()).Update(child);
+}
+
+TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompositeElement* element) const
+{
+    const auto& childHeapIt = ChildHeapMap_.find(element->GetTreeIndex());
+    if (childHeapIt != ChildHeapMap_.end()) {
+        const auto& childHeap = childHeapIt->second;
+        auto* topChild = childHeap.GetTop();
+        return AttributesOf(topChild).Active
+            ? topChild
+            : nullptr;
+    }
+
+    switch (element->GetMode()) {
+        case ESchedulingMode::Fifo:
+            return GetBestActiveChildFifo(element);
+        case ESchedulingMode::FairShare:
+            return GetBestActiveChildFairShare(element);
+        default:
+            YT_ABORT();
+    }
+}
+
+TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
+{
+    TSchedulerElement* bestChild = nullptr;
+    for (const auto& child : element->SchedulableChildren()) {
+        if (!AttributesOf(child.Get()).Active) {
+            continue;
+        }
+
+        if (!bestChild || element->HasHigherPriorityInFifoMode(child.Get(), bestChild)) {
+            bestChild = child.Get();
+        }
+    }
+    return bestChild;
+}
+
+TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const
+{
+    TSchedulerElement* bestChild = nullptr;
+    double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
+    for (const auto& child : element->SchedulableChildren()) {
+        if (!AttributesOf(child.Get()).Active) {
+            continue;
+        }
+
+        double childSatisfactionRatio = AttributesOf(child.Get()).SatisfactionRatio;
+        if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio) {
+            bestChild = child.Get();
+            bestChildSatisfactionRatio = childSatisfactionRatio;
+        }
+    }
+    return bestChild;
+}
+
+void TDynamicAttributesManager::DoUpdateOperationResourceUsage(
+    const TSchedulerOperationElement* element,
+    TDynamicAttributes* operationAttributes,
+    const TFairShareTreeJobSchedulerOperationSharedStatePtr& operationSharedState,
+    TCpuInstant now)
+{
+    operationAttributes->ResourceUsage = (element->IsAlive() && operationSharedState->IsEnabled())
+        ? element->GetInstantResourceUsage()
+        : TJobResources();
+    operationAttributes->ResourceUsageUpdateTime = now;
+}
+
+TJobResources TDynamicAttributesManager::FillResourceUsage(const TSchedulerElement* element, TFillResourceUsageContext* context)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Pool:
+        case ESchedulerElementType::Root:
+            return FillResourceUsageAtCompositeElement(static_cast<const TSchedulerCompositeElement*>(element), context);
+        case ESchedulerElementType::Operation:
+            return FillResourceUsageAtOperation(static_cast<const TSchedulerOperationElement*>(element), context);
+        default:
+            YT_ABORT();
+    }
+}
+
+TJobResources TDynamicAttributesManager::FillResourceUsageAtCompositeElement(const TSchedulerCompositeElement* element, TFillResourceUsageContext* context)
+{
+    auto& attributes = context->AttributesList->AttributesOf(element);
+
+    attributes.ResourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
+    for (const auto& child : element->SchedulableChildren()) {
+        attributes.ResourceUsage += FillResourceUsage(child.Get(), context);
+    }
+
+    return attributes.ResourceUsage;
+}
+
+TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSchedulerOperationElement* element, TFillResourceUsageContext* context)
+{
+    auto& attributes = context->AttributesList->AttributesOf(element);
+    if (context->ResourceUsageSnapshot) {
+        auto operationId = element->GetOperationId();
+        auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsage.find(operationId);
+        attributes.ResourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
+            ? it->second
+            : TJobResources();
+        attributes.Alive = context->ResourceUsageSnapshot->AliveOperationIds.contains(operationId);
+    } else {
+        DoUpdateOperationResourceUsage(
+            element,
+            &attributes,
+            context->TreeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element),
+            context->Now);
+    }
+
+    return attributes.ResourceUsage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -489,7 +578,7 @@ TDynamicAttributesListSnapshotPtr TFairShareTreeSchedulingSnapshot::GetDynamicAt
     return DynamicAttributesListSnapshot_.Acquire();
 }
 
-void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesSnapshot(
+void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesListSnapshot(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
 {
@@ -498,11 +587,11 @@ void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesSnapshot(
         return;
     }
 
-    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>();
-    attributesSnapshot->Value.InitializeResourceUsage(
-        treeSnapshot,
-        resourceUsageSnapshot,
-        NProfiling::GetCpuInstant());
+    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>(
+        TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
+            treeSnapshot,
+            resourceUsageSnapshot,
+            NProfiling::GetCpuInstant()));
     DynamicAttributesListSnapshot_.Store(std::move(attributesSnapshot));
 }
 
@@ -581,6 +670,7 @@ TScheduleJobsContext::TScheduleJobsContext(
     , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
     , StrategyHost_(strategyHost)
     , Logger(logger)
+    , DynamicAttributesManager_(TreeSnapshot_->SchedulingSnapshot())
 { }
 
 void TScheduleJobsContext::PrepareForScheduling()
@@ -596,17 +686,15 @@ void TScheduleJobsContext::PrepareForScheduling()
             CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
         }
 
-        if (DynamicAttributesListSnapshot_) {
-            DynamicAttributesList_ = DynamicAttributesListSnapshot_->Value;
-        } else {
-            DynamicAttributesList_.InitializeResourceUsage(
+        auto dynamicAttributesList = DynamicAttributesListSnapshot_
+            ? DynamicAttributesListSnapshot_->Value
+            : TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
                 TreeSnapshot_,
                 /*resourceUsageSnapshot*/ nullptr,
                 SchedulingContext_->GetNow());
-        }
+        DynamicAttributesManager_.SetAttributesList(std::move(dynamicAttributesList));
     } else {
-        DynamicAttributesList_.DeactivateAll();
-        ChildHeapMap_.clear();
+        DynamicAttributesManager_.Clear();
     }
 }
 
@@ -624,6 +712,9 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(bool ignorePacking
 {
     ++StageState_->ScheduleJobAttemptCount;
 
+    // TODO(eshcherbin): We call |ScheduleJobAtCompositeElement| only for root, so we don't really need this "polymorphism".
+    // Rename this method to |FindBestOperationForScheduling| and make it only return best leaf descendant.
+    // Then process best operation here by calling |ScheduleJobAtOperation|.
     return ScheduleJobAtCompositeElement(TreeSnapshot_->RootElement().Get(), ignorePacking);
 }
 
@@ -964,6 +1055,7 @@ void TScheduleJobsContext::FinishStage()
 {
     YT_VERIFY(StageState_);
 
+    StageState_->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant] = DynamicAttributesManager_.GetCompositeElementDeactivationCount();
     SchedulingStatistics_.ScheduleJobAttemptCountPerStage[GetStageType()] = StageState_->ScheduleJobAttemptCount;
     ProfileAndLogStatisticsOfStage();
 
@@ -1065,18 +1157,16 @@ const TJobWithPreemptionInfoSet& TScheduleJobsContext::GetConditionallyPreemptib
     return it != ConditionallyPreemptibleJobSetMap_.end() ? it->second : EmptyJobWithPreemptionInfoSet;
 }
 
-TDynamicAttributes& TScheduleJobsContext::DynamicAttributesOf(const TSchedulerElement* element)
-{
-    YT_ASSERT(Initialized_);
-
-    return DynamicAttributesList_.AttributesOf(element);
-}
-
 const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesOf(const TSchedulerElement* element) const
 {
     YT_ASSERT(Initialized_);
 
-    return DynamicAttributesList_.AttributesOf(element);
+    return DynamicAttributesManager_.AttributesOf(element);
+}
+
+const TChildHeapMap& TScheduleJobsContext::GetChildHeapMapInTest() const
+{
+    return DynamicAttributesManager_.GetChildHeapMapInTest();
 }
 
 const TStaticAttributes& TScheduleJobsContext::StaticAttributesOf(const TSchedulerElement* element) const
@@ -1086,7 +1176,7 @@ const TStaticAttributes& TScheduleJobsContext::StaticAttributesOf(const TSchedul
 
 bool TScheduleJobsContext::IsActive(const TSchedulerElement* element) const
 {
-    return DynamicAttributesList_.AttributesOf(element).Active;
+    return DynamicAttributesManager_.AttributesOf(element).Active;
 }
 
 TJobResources TScheduleJobsContext::GetCurrentResourceUsage(const TSchedulerElement* element) const
@@ -1096,11 +1186,6 @@ TJobResources TScheduleJobsContext::GetCurrentResourceUsage(const TSchedulerElem
     } else {
         return element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
     }
-}
-
-void TScheduleJobsContext::UpdateDynamicAttributes(TSchedulerElement* element, bool checkLiveness)
-{
-    DynamicAttributesList_.UpdateAttributes(element, TreeSnapshot_->SchedulingSnapshot(), checkLiveness, &ChildHeapMap_);
 }
 
 TJobResources TScheduleJobsContext::GetHierarchicalAvailableResources(const TSchedulerElement* element) const
@@ -1155,11 +1240,9 @@ void TScheduleJobsContext::PrescheduleJobAtCompositeElement(
     TSchedulerCompositeElement* element,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
-    auto& attributes = DynamicAttributesOf(element);
-
     auto onDeactivated = [&] (EDeactivationReason deactivationReason) {
         ++StageState_->DeactivationReasons[deactivationReason];
-        YT_VERIFY(!attributes.Active);
+        YT_VERIFY(!DynamicAttributesOf(element).Active);
     };
 
     if (!element->IsAlive()) {
@@ -1176,10 +1259,15 @@ void TScheduleJobsContext::PrescheduleJobAtCompositeElement(
         PrescheduleJob(child.Get(), targetOperationPreemptionPriority);
     }
 
-    UpdateDynamicAttributes(element, /*checkLiveness*/ true);
-    InitializeChildHeap(element);
+    bool useChildHeap = false;
+    if (std::ssize(element->SchedulableChildren()) >= TreeSnapshot_->TreeConfig()->MinChildHeapSize) {
+        useChildHeap = true;
+        StageState_->TotalHeapElementCount += std::ssize(element->SchedulableChildren());
+    }
 
-    if (attributes.Active) {
+    DynamicAttributesManager_.InitializeAttributesAtCompositeElement(element, useChildHeap);
+
+    if (DynamicAttributesOf(element).Active) {
         ++StageState_->ActiveTreeSize;
     }
 }
@@ -1188,23 +1276,18 @@ void TScheduleJobsContext::PrescheduleJobAtOperation(
     TSchedulerOperationElement* element,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
-    auto& attributes = DynamicAttributesOf(element);
+    bool isActive = CheckForDeactivation(element, targetOperationPreemptionPriority);
+    DynamicAttributesManager_.InitializeAttributesAtOperation(element, isActive);
 
-    CheckForDeactivation(element, targetOperationPreemptionPriority);
-    if (!attributes.Active) {
-        return;
+    if (isActive) {
+        ++StageState_->ActiveTreeSize;
+        ++StageState_->ActiveOperationCount;
     }
-
-    UpdateDynamicAttributes(element, /*checkLiveness*/ true);
-
-    ++StageState_->ActiveTreeSize;
-    ++StageState_->ActiveOperationCount;
 }
 
 TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtCompositeElement(TSchedulerCompositeElement* element, bool ignorePacking)
 {
-    auto& attributes = DynamicAttributesOf(element);
-
+    const auto& attributes = DynamicAttributesOf(element);
     TSchedulerOperationElement* bestLeafDescendant = nullptr;
     TSchedulerOperationElement* lastConsideredBestLeafDescendant = nullptr;
     while (!bestLeafDescendant) {
@@ -1216,21 +1299,20 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtCompositeElement(
         }
 
         bestLeafDescendant = attributes.BestLeafDescendant;
-        if (!bestLeafDescendant->IsAlive()) {
-            DynamicAttributesOf(bestLeafDescendant).Active = false;
-            UpdateDynamicAttributes(element, /*checkLiveness*/ true);
+        if (!bestLeafDescendant->IsAlive() || !IsOperationEnabled(bestLeafDescendant)) {
+            DeactivateOperation(bestLeafDescendant, EDeactivationReason::IsNotAlive);
             bestLeafDescendant = nullptr;
             continue;
         }
-        if (lastConsideredBestLeafDescendant != bestLeafDescendant && IsUsageOutdated(bestLeafDescendant)) {
-            UpdateCurrentResourceUsage(bestLeafDescendant);
+        if (lastConsideredBestLeafDescendant != bestLeafDescendant && IsOperationResourceUsageOutdated(bestLeafDescendant)) {
+            UpdateOperationResourceUsage(bestLeafDescendant);
             lastConsideredBestLeafDescendant = bestLeafDescendant;
             bestLeafDescendant = nullptr;
             continue;
         }
     }
 
-    auto childResult = ScheduleJob(bestLeafDescendant, ignorePacking);
+    auto childResult = ScheduleJobAtOperation(bestLeafDescendant, ignorePacking);
     return TFairShareScheduleJobResult{
         .Finished = false,
         .Scheduled = childResult.Scheduled,
@@ -1434,7 +1516,7 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         schedulingIndex,
         GetStageType());
 
-    UpdateCurrentResourceUsage(element);
+    UpdateOperationResourceUsage(element);
 
     if (heartbeatSnapshot) {
         recordPackingHeartbeatWithTimer(*heartbeatSnapshot);
@@ -1479,17 +1561,6 @@ void TScheduleJobsContext::PrepareConditionalUsageDiscountsAtOperation(
     }
 
     SchedulingContext_->SetConditionalDiscountForOperation(element->GetOperationId(), context->CurrentConditionalDiscount);
-}
-
-void TScheduleJobsContext::InitializeChildHeap(const TSchedulerCompositeElement* element)
-{
-    if (std::ssize(element->SchedulableChildren()) < TreeSnapshot_->TreeConfig()->MinChildHeapSize) {
-        return;
-    }
-
-    StageState_->TotalHeapElementCount += std::ssize(element->SchedulableChildren());
-
-    ChildHeapMap_.emplace(element->GetTreeIndex(), TChildHeap(element, &DynamicAttributesList_));
 }
 
 std::optional<EDeactivationReason> TScheduleJobsContext::TryStartScheduleJob(
@@ -1654,19 +1725,15 @@ EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriorit
     return EOperationPreemptionPriority::None;
 }
 
-void TScheduleJobsContext::CheckForDeactivation(
+bool TScheduleJobsContext::CheckForDeactivation(
     TSchedulerOperationElement* element,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     const auto& treeConfig = TreeSnapshot_->TreeConfig();
-    auto& attributes = DynamicAttributesOf(element);
 
-    // Reset operation element activeness (it can be active after scheduling without preemption).
-    attributes.Active = false;
-
-    if (!attributes.Alive) {
+    if (!DynamicAttributesOf(element).Alive) {
         OnOperationDeactivated(element, EDeactivationReason::IsNotAlive);
-        return;
+        return false;
     }
 
     if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
@@ -1690,34 +1757,34 @@ void TScheduleJobsContext::CheckForDeactivation(
             }
         }();
         OnOperationDeactivated(element, deactivationReason, /*considerInOperationCounter*/ false);
-        return;
+        return false;
     }
 
     if (TreeSnapshot_->TreeConfig()->CheckOperationForLivenessInPreschedule && !element->IsAlive()) {
         OnOperationDeactivated(element, EDeactivationReason::IsNotAlive);
-        return;
+        return false;
     }
 
     if (auto blockedReason = CheckBlocked(element)) {
         OnOperationDeactivated(element, *blockedReason);
-        return;
+        return false;
     }
 
     if (element->Spec()->PreemptionMode == EPreemptionMode::Graceful &&
         element->GetStatus() == ESchedulableStatus::Normal)
     {
         OnOperationDeactivated(element, EDeactivationReason::FairShareExceeded);
-        return;
+        return false;
     }
 
     if (treeConfig->EnableSchedulingTags && !CanSchedule(StaticAttributesOf(element).SchedulingTagFilterIndex)) {
         OnOperationDeactivated(element, EDeactivationReason::UnmatchedSchedulingTag);
-        return;
+        return false;
     }
 
     if (!IsSchedulingSegmentCompatibleWithNode(element)) {
         OnOperationDeactivated(element, EDeactivationReason::IncompatibleSchedulingSegment);
-        return;
+        return false;
     }
 
     if (SsdPriorityPreemptionEnabled_ &&
@@ -1725,7 +1792,7 @@ void TScheduleJobsContext::CheckForDeactivation(
         !StaticAttributesOf(element).AreRegularJobsOnSsdNodesAllowed)
     {
         OnOperationDeactivated(element, EDeactivationReason::RegularJobOnSsdNodeForbidden);
-        return;
+        return false;
     }
 
     if (element->GetTentative() &&
@@ -1735,29 +1802,22 @@ void TScheduleJobsContext::CheckForDeactivation(
             treeConfig->TentativeTreeSaturationDeactivationPeriod))
     {
         OnOperationDeactivated(element, EDeactivationReason::SaturatedInTentativeTree);
-        return;
+        return false;
     }
 
-    // NB: we explicitly set Active flag to avoid another call to IsAlive().
-    attributes.Active = true;
+    return true;
 }
 
 void TScheduleJobsContext::ActivateOperation(TSchedulerOperationElement* element)
 {
-    auto& attributes = DynamicAttributesOf(element);
-    YT_VERIFY(!attributes.Active);
-    attributes.Active = true;
-    ChildHeapMap_.UpdateChild(element->GetMutableParent(), element);
-    UpdateAncestorsDynamicAttributes(element, /*deltaResourceUsage*/ TJobResources(), /*checkAncestorsActiveness*/ false);
+    YT_VERIFY(!DynamicAttributesOf(element).Active);
+    DynamicAttributesManager_.ActivateOperation(element);
 }
 
 void TScheduleJobsContext::DeactivateOperation(TSchedulerOperationElement* element, EDeactivationReason reason)
 {
-    auto& attributes = DynamicAttributesOf(element);
-    YT_VERIFY(attributes.Active);
-    attributes.Active = false;
-    ChildHeapMap_.UpdateChild(element->GetMutableParent(), element);
-    UpdateAncestorsDynamicAttributes(element, /*deltaResourceUsage*/ TJobResources());
+    YT_VERIFY(DynamicAttributesOf(element).Active);
+    DynamicAttributesManager_.DeactivateOperation(element);
     OnOperationDeactivated(element, reason, /*considerInOperationCounter*/ true);
 }
 
@@ -1816,25 +1876,16 @@ bool TScheduleJobsContext::IsSchedulingSegmentCompatibleWithNode(const TSchedule
     return *element->SchedulingSegment() == nodeSegment;
 }
 
-bool TScheduleJobsContext::IsUsageOutdated(TSchedulerOperationElement* element) const
+bool TScheduleJobsContext::IsOperationResourceUsageOutdated(const TSchedulerOperationElement* element) const
 {
     auto now = SchedulingContext_->GetNow();
     auto updateTime = DynamicAttributesOf(element).ResourceUsageUpdateTime;
     return updateTime + DurationToCpuDuration(TreeSnapshot_->TreeConfig()->AllowedResourceUsageStaleness) < now;
 }
 
-void TScheduleJobsContext::UpdateCurrentResourceUsage(TSchedulerOperationElement* element)
+void TScheduleJobsContext::UpdateOperationResourceUsage(TSchedulerOperationElement* element)
 {
-    auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(element);
-    DynamicAttributesList_.ActualizeResourceUsageOfOperation(element, TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element));
-    DynamicAttributesOf(element).ResourceUsageUpdateTime = SchedulingContext_->GetNow();
-
-    UpdateDynamicAttributes(element, /*checkLiveness*/ true);
-    auto resourceUsageAfterUpdate = GetCurrentResourceUsage(element);
-    auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
-
-    ChildHeapMap_.UpdateChild(element->GetMutableParent(), element);
-    UpdateAncestorsDynamicAttributes(element, resourceUsageDelta);
+    DynamicAttributesManager_.UpdateOperationResourceUsage(element, SchedulingContext_->GetNow());
 }
 
 bool TScheduleJobsContext::HasJobsSatisfyingResourceLimits(const TSchedulerOperationElement* element) const
@@ -1845,35 +1896,6 @@ bool TScheduleJobsContext::HasJobsSatisfyingResourceLimits(const TSchedulerOpera
         }
     }
     return false;
-}
-
-void TScheduleJobsContext::UpdateAncestorsDynamicAttributes(
-    TSchedulerOperationElement* element,
-    const TJobResources& resourceUsageDelta,
-    bool checkAncestorsActiveness)
-{
-    auto* ancestor = element->GetMutableParent();
-    while (ancestor) {
-        bool activeBefore = DynamicAttributesOf(ancestor).Active;
-        if (checkAncestorsActiveness) {
-            YT_VERIFY(activeBefore);
-        }
-
-        DynamicAttributesOf(ancestor).ResourceUsage += resourceUsageDelta;
-
-        UpdateDynamicAttributes(ancestor, /*checkLiveness*/ true);
-
-        bool activeAfter = DynamicAttributesOf(ancestor).Active;
-        if (activeBefore && !activeAfter) {
-            ++StageState_->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
-        }
-
-        if (ancestor->GetMutableParent()) {
-            ChildHeapMap_.UpdateChild(ancestor->GetMutableParent(), ancestor);
-        }
-
-        ancestor = ancestor->GetMutableParent();
-    }
 }
 
 TFairShareStrategyPackingConfigPtr TScheduleJobsContext::GetPackingConfig() const
@@ -2146,6 +2168,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
     if (config->EnableResourceUsageSnapshot) {
         if (auto snapshot = treeSnapshot->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()) {
             YT_LOG_DEBUG_IF(enableSchedulingInfoLogging, "Using dynamic attributes snapshot for job scheduling");
+
             context.SetDynamicAttributesListSnapshot(std::move(snapshot));
         }
     }
@@ -2297,7 +2320,7 @@ void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOper
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
-    for (const auto& job: jobs) {
+    for (const auto& job : jobs) {
         TJobResourcesWithQuota resourceUsageWithQuota = job->ResourceUsage();
         resourceUsageWithQuota.SetDiskQuota(job->DiskQuota());
         operationSharedState->OnJobStarted(
@@ -2479,10 +2502,9 @@ void TFairShareTreeJobScheduler::PostUpdate(
         UpdateCachedJobPreemptionStatuses(fairSharePostUpdateContext, postUpdateContext);
     }
 
-    TDynamicAttributesList dynamicAttributesList(postUpdateContext->RootElement->GetTreeSize());
-    TChildHeapMap childHeapMap;
-    ComputeDynamicAttributesAtUpdateRecursively(postUpdateContext->RootElement, &dynamicAttributesList, &childHeapMap);
-    BuildSchedulableIndices(&dynamicAttributesList, &childHeapMap, postUpdateContext);
+    TDynamicAttributesManager dynamicAttributesManager(/*schedulingSnapshot*/ {}, postUpdateContext->RootElement->GetTreeSize());
+    ComputeDynamicAttributesAtUpdateRecursively(postUpdateContext->RootElement, &dynamicAttributesManager);
+    BuildSchedulableIndices(&dynamicAttributesManager, postUpdateContext);
 
     ManageSchedulingSegments(fairSharePostUpdateContext, &postUpdateContext->ManageSchedulingSegmentsContext);
 
@@ -2515,7 +2537,7 @@ void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const
 {
-    treeSnapshot->SchedulingSnapshot()->UpdateDynamicAttributesSnapshot(treeSnapshot, resourceUsageSnapshot);
+    treeSnapshot->SchedulingSnapshot()->UpdateDynamicAttributesListSnapshot(treeSnapshot, resourceUsageSnapshot);
 }
 
 void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
@@ -2903,60 +2925,30 @@ void TFairShareTreeJobScheduler::UpdateCachedJobPreemptionStatuses(
 
 void TFairShareTreeJobScheduler::ComputeDynamicAttributesAtUpdateRecursively(
     TSchedulerElement* element,
-    TDynamicAttributesList* dynamicAttributesList,
-    TChildHeapMap* childHeapMap) const
+    TDynamicAttributesManager* dynamicAttributesManager) const
 {
-    auto updateDynamicAttributes = [&] {
-        dynamicAttributesList->UpdateAttributes(element, /*schedulingSnapshot*/ {}, /*checkLiveness*/ false, childHeapMap);
-    };
-
     if (element->IsOperation()) {
-        updateDynamicAttributes();
+        dynamicAttributesManager->InitializeAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element));
     } else {
-        const auto* compositeElement = static_cast<const TSchedulerCompositeElement*>(element);
-        for (const auto& child: compositeElement->SchedulableChildren()) {
-            ComputeDynamicAttributesAtUpdateRecursively(
-                child.Get(),
-                dynamicAttributesList,
-                childHeapMap);
+        auto* compositeElement = static_cast<TSchedulerCompositeElement*>(element);
+        for (const auto& child : compositeElement->SchedulableChildren()) {
+            ComputeDynamicAttributesAtUpdateRecursively(child.Get(), dynamicAttributesManager);
         }
 
-        updateDynamicAttributes();
-
-        EmplaceOrCrash(
-            *childHeapMap,
-            element->GetTreeIndex(),
-            TChildHeap(compositeElement, dynamicAttributesList));
+        dynamicAttributesManager->InitializeAttributesAtCompositeElement(compositeElement);
     }
 }
 
 void TFairShareTreeJobScheduler::BuildSchedulableIndices(
-    TDynamicAttributesList* dynamicAttributesList,
-    TChildHeapMap* childHeapMap,
+    TDynamicAttributesManager* dynamicAttributesManager,
     TJobSchedulerPostUpdateContext* context) const
 {
-    auto& dynamicAttributes = dynamicAttributesList->AttributesOf(context->RootElement);
-
+    const auto& dynamicAttributes = const_cast<const TDynamicAttributesManager*>(dynamicAttributesManager)->AttributesOf(context->RootElement);
     int schedulingIndex = 0;
-    TSchedulerOperationElement* bestLeafDescendant = nullptr;
-    while (true) {
-        if (!dynamicAttributes.Active) {
-            break;
-        }
-
-        bestLeafDescendant = dynamicAttributes.BestLeafDescendant;
-        auto& bestLeafDescendantAttributes = context->StaticAttributesList.AttributesOf(bestLeafDescendant);
-        bestLeafDescendantAttributes.SchedulingIndex = schedulingIndex++;
-
-        dynamicAttributesList->AttributesOf(bestLeafDescendant).Active = false;
-
-        TSchedulerElement* current = bestLeafDescendant;
-        while (auto* parent = current->GetMutableParent()) {
-            childHeapMap->UpdateChild(parent, current);
-            // NB(eshcherbin): Scheduling snapshot is needed only for liveness check.
-            dynamicAttributesList->UpdateAttributes(parent, /*schedulingSnapshot*/ nullptr, /*checkLiveness*/ false, childHeapMap);
-            current = parent;
-        }
+    while (dynamicAttributes.Active) {
+        auto* bestLeafDescendant = dynamicAttributes.BestLeafDescendant;
+        context->StaticAttributesList.AttributesOf(bestLeafDescendant).SchedulingIndex = schedulingIndex++;
+        dynamicAttributesManager->DeactivateOperation(bestLeafDescendant);
     }
 }
 
