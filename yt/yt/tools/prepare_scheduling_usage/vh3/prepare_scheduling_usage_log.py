@@ -4,8 +4,8 @@ from typing import Literal
 
 @vh3.decorator.operation(deterministic=True, owner='robot-yt-sch-usage')
 @vh3.decorator.autorelease_to_nirvana_on_trunk_commit(
-    version="https://nirvana.yandex-team.ru/alias/operation/prepare-scheduling-usage-log/1.12",
-    ya_make_folder_path="yt/yt/tools/prepare_scheduling_usage",
+    version="https://nirvana.yandex-team.ru/alias/operation/prepare-scheduling-usage-log/1.11",
+    ya_make_folder_path="yt/yt/tools/prepare_scheduling_usage/vh3",
 )
 @vh3.decorator.resources(vh3.YaMakeResource("yt/yt/tools/prepare_scheduling_usage/prepare_scheduling_usage"))
 @vh3.decorator.job_command_from_str(
