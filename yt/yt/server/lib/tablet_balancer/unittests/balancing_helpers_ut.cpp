@@ -75,7 +75,6 @@ struct TTestTable
     bool Sorted;
     i64 CompressedDataSize;
     i64 UncompressedDataSize;
-    i64 DataWeight;
     EInMemoryMode InMemoryMode;
 
     TTestTable()
@@ -85,8 +84,6 @@ struct TTestTable
         RegisterParameter("compressed_data_size", CompressedDataSize)
             .Default(100);
         RegisterParameter("uncompressed_data_size", UncompressedDataSize)
-            .Default(100);
-        RegisterParameter("data_weight", DataWeight)
             .Default(100);
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);
@@ -105,7 +102,6 @@ struct TTestTable
         table->Dynamic = true;
         table->CompressedDataSize = CompressedDataSize;
         table->UncompressedDataSize = UncompressedDataSize;
-        table->DataWeight = DataWeight;
         table->InMemoryMode = InMemoryMode;
         return table;
     }

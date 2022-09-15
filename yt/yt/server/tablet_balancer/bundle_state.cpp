@@ -182,7 +182,6 @@ void TBundleState::DoFetchStatistics()
         auto& table = GetOrCrash(Bundle_->Tables, tableId);
         table->CompressedDataSize = statistics.CompressedDataSize;
         table->UncompressedDataSize = statistics.UncompressedDataSize;
-        table->DataWeight = statistics.DataWeight;
 
         for (auto& tabletResponse : statistics.Tablets) {
             TTabletPtr tablet;
@@ -365,7 +364,6 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
         "tablets",
         "compressed_data_size",
         "uncompressed_data_size",
-        "data_weight",
     };
     auto tableToAttributes = FetchTableAttributes(
         Client_,
@@ -381,12 +379,10 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
         auto tablets = attributes->Get<std::vector<TTableStatisticsResponse::TTabletResponse>>("tablets");
         auto compressedSize = attributes->Get<i64>("compressed_data_size");
         auto uncompressedSize = attributes->Get<i64>("uncompressed_data_size");
-        auto dataWeight = attributes->Get<i64>("data_weight");
         EmplaceOrCrash(tableStatistics, tableId, TTableStatisticsResponse{
             .Tablets = std::move(tablets),
             .CompressedDataSize = compressedSize,
             .UncompressedDataSize = uncompressedSize,
-            .DataWeight = dataWeight
         });
     }
 

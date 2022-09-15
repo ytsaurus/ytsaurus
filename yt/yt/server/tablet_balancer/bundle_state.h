@@ -78,7 +78,6 @@ private:
         std::vector<TTabletResponse> Tablets;
         i64 CompressedDataSize;
         i64 UncompressedDataSize;
-        i64 DataWeight;
     };
 
     const NLogging::TLogger Logger;
