@@ -854,7 +854,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::EnableConsistentChunkReplicaPlacement:
-            if (!isDynamic || isExternal) {
+            if (!isDynamic) {
                 break;
             }
 
@@ -1348,7 +1348,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::EnableConsistentChunkReplicaPlacement: {
             ValidateNoTransaction();
 
-            if (!table->IsDynamic() || table->IsExternal()) {
+            if (!table->IsDynamic()) {
                 break;
             }
 

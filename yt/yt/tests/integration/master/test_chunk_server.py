@@ -624,6 +624,7 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
 
 class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBase):
     NUM_TEST_PARTITIONS = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("shakurov")
     def test_token_count_attribute(self):
@@ -642,6 +643,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
     @authors("shakurov")
     def test_regular(self):
         self._create_table_with_two_consistently_placed_chunks("//tmp/t1")
+        assert get("//tmp/t1/@enable_consistent_chunk_replica_placement")
         chunk_ids = get("//tmp/t1/@chunk_ids")
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 3)
         wait(lambda: self._are_chunks_collocated(chunk_ids))
