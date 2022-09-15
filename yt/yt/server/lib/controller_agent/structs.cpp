@@ -162,7 +162,6 @@ TCompletedJobSummary::TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus
     , InterruptReason(status->has_interruption_reason()
         ? CheckedEnumCast<EInterruptReason>(status->interruption_reason())
         : EInterruptReason::None)
-    , InterruptionReasonReceivedFromNode(status->has_interruption_reason())
 {
     YT_VERIFY(State == ExpectedState);
 }
@@ -262,9 +261,7 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, 
     JobEventsCommonPartToProto(protoEvent, finishedJobSummary);
     protoEvent->set_finish_time(ToProto<ui64>(finishedJobSummary.FinishTime));
     protoEvent->set_job_execution_completed(finishedJobSummary.JobExecutionCompleted);
-    if (finishedJobSummary.InterruptReason) {
-        protoEvent->set_interrupt_reason(static_cast<int>(*finishedJobSummary.InterruptReason));
-    }
+    protoEvent->set_interrupt_reason(static_cast<int>(finishedJobSummary.InterruptReason));
     if (finishedJobSummary.PreemptedFor) {
         ToProto(protoEvent->mutable_preempted_for(), *finishedJobSummary.PreemptedFor);
     }
@@ -279,9 +276,10 @@ void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSch
     JobEventsCommonPartFromProto(finishedJobSummary, protoEvent);
     finishedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
     finishedJobSummary->JobExecutionCompleted = protoEvent->job_execution_completed();
-    if (protoEvent->has_interrupt_reason()) {
-        finishedJobSummary->InterruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
-    }
+    YT_VERIFY(protoEvent->has_interrupt_reason());
+
+    finishedJobSummary->InterruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
+
     if (protoEvent->has_preempted_for()) {
         finishedJobSummary->PreemptedFor = FromProto<NScheduler::TPreemptedFor>(protoEvent->preempted_for());
     }
@@ -406,23 +404,16 @@ std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
 {
     MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
 
-    if (nodeJobSummary->InterruptionReasonReceivedFromNode && schedulerJobSummary.InterruptReason) {
-        YT_LOG_FATAL_IF(
-            nodeJobSummary->InterruptReason != *schedulerJobSummary.InterruptReason,
-            "Interruption reasons received from scheduler and node differ (JobId: %v, SchedulerInterruptionREason: %v, NodeInterruptionReason: %v)",
+    if (nodeJobSummary->InterruptReason != EInterruptReason::None) {
+        YT_LOG_DEBUG(
+            "Interruption reason received from node and scheduler "
+            "(JobId: %v, SchedulerInterruptionReason: %v, NodeInterruptionReason: %v)",
             schedulerJobSummary.Id,
             schedulerJobSummary.InterruptReason,
             nodeJobSummary->InterruptReason);
+    } else {
+        nodeJobSummary->InterruptReason = schedulerJobSummary.InterruptReason;
     }
-
-    if (!schedulerJobSummary.InterruptReason && nodeJobSummary->InterruptionReasonReceivedFromNode) {
-        YT_LOG_FATAL(
-            "Scheduler did not send interruption reason but node did (JobId: %v, NodeInterruptionReason: %v)",
-            schedulerJobSummary.Id,
-            nodeJobSummary->InterruptReason);
-    }
-
-    nodeJobSummary->InterruptReason = schedulerJobSummary.InterruptReason.value_or(EInterruptReason::None);
 
     return nodeJobSummary;
 }

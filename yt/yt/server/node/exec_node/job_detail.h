@@ -177,7 +177,7 @@ public:
 
     void GuardedInterrupt(
         TDuration timeout,
-        std::optional<NScheduler::EInterruptReason> interruptionReason,
+        NScheduler::EInterruptReason interruptionReason,
         const std::optional<TString>& preemptionReason);
 
     void GuardedFail();
@@ -198,12 +198,12 @@ public:
 
     void Interrupt(
         TDuration timeout,
-        std::optional<NScheduler::EInterruptReason> interruptionReason,
+        NScheduler::EInterruptReason interruptionReason,
         const std::optional<TString>& preemptionReason);
 
     void Fail();
 
-    std::optional<NScheduler::EInterruptReason> GetInterruptionReason() const noexcept;
+    NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -307,7 +307,7 @@ private:
 
     NJobAgent::TJobEvents JobEvents_;
 
-    std::optional<NScheduler::EInterruptReason> InterruptionReason_;
+    NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;

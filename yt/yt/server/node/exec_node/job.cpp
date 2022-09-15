@@ -1038,7 +1038,7 @@ void TJob::ReportProfile()
 
 void TJob::GuardedInterrupt(
     TDuration timeout,
-    std::optional<EInterruptReason> interruptionReason,
+    EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1056,8 +1056,6 @@ void TJob::GuardedInterrupt(
         Abort(error);
         return;
     }
-
-    InterruptionReason_ = interruptionReason;
 
     if (InterruptionTimeoutCookie_) {
         YT_LOG_DEBUG("Job interruption is already requested, ignore");
@@ -1080,6 +1078,8 @@ void TJob::GuardedInterrupt(
         // We're done with this job, no need to interrupt.
         return;
     }
+
+    InterruptionReason_ = interruptionReason;
 
     try {
         GetJobProbeOrThrow()->Interrupt();
@@ -1164,7 +1164,7 @@ const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetCont
 
 void TJob::Interrupt(
     TDuration timeout,
-    std::optional<EInterruptReason> interruptionReason,
+    EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason)
 {
     YT_LOG_INFO("Interrupting job (PreemptionReason: %v, Timeout: %v)",
@@ -1189,7 +1189,7 @@ void TJob::Fail()
     }
 }
 
-std::optional<NScheduler::EInterruptReason> TJob::GetInterruptionReason() const noexcept
+NScheduler::EInterruptReason TJob::GetInterruptionReason() const noexcept
 {
     return InterruptionReason_;
 }
@@ -2923,9 +2923,7 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
 {
     FillJobStatus(jobStatus, schedulerJob);
     jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
-    if (auto interruptionReason = schedulerJob->GetInterruptionReason()) {
-        jobStatus->set_interruption_reason(static_cast<int>(*interruptionReason));
-    }
+    jobStatus->set_interruption_reason(static_cast<int>(schedulerJob->GetInterruptionReason()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

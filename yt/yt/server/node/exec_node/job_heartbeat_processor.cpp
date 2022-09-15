@@ -51,7 +51,7 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
             if (jobToInterrupt.has_preemption_reason()) {
                 preemptionReason = jobToInterrupt.preemption_reason();
             }
-            std::optional<EInterruptReason> interruptionReason;
+            EInterruptReason interruptionReason = EInterruptReason::None;
             if (jobToInterrupt.has_interruption_reason()) {
                 interruptionReason = CheckedEnumCast<EInterruptReason>(jobToInterrupt.interruption_reason());
             }

@@ -172,7 +172,7 @@ private:
                 job->GetType());
         }
 
-        std::optional<EInterruptReason> interruptionReason;
+        EInterruptReason interruptionReason = EInterruptReason::None;
         if (request->has_interruption_reason()) {
             interruptionReason = CheckedEnumCast<EInterruptReason>(request->interruption_reason());
         }
