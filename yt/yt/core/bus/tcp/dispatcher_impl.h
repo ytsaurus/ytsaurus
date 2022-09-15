@@ -62,7 +62,7 @@ private:
     void OnPeriodicCheck();
 
     NConcurrency::IPollerPtr GetOrCreatePoller(
-        NConcurrency::IPollerPtr* poller,
+        NConcurrency::IThreadPoolPollerPtr* poller,
         bool isXfer,
         const TString& threadNamePrefix);
 
@@ -71,8 +71,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
-    NConcurrency::IPollerPtr AcceptorPoller_;
-    NConcurrency::IPollerPtr XferPoller_;
+    NConcurrency::IThreadPoolPollerPtr AcceptorPoller_;
+    NConcurrency::IThreadPoolPollerPtr XferPoller_;
 
     TMpscStack<TWeakPtr<TTcpConnection>> ConnectionsToRegister_;
     std::vector<TWeakPtr<TTcpConnection>> ConnectionList_;

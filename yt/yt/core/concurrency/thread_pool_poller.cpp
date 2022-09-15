@@ -108,37 +108,35 @@ using TPollerImplEvent = TPollerImpl::TEvent;
 } // namespace
 
 class TThreadPoolPoller
-    : public IPoller
+    : public IThreadPoolPoller
 {
 public:
-    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
+    explicit TThreadPoolPoller(const TString& threadNamePrefix)
         : ThreadNamePrefix_(threadNamePrefix)
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
         , ShutdownCookie_(RegisterShutdownCallback(
             Format("ThreadPoolPoller(%v)", threadNamePrefix),
             BIND(&TThreadPoolPoller::Shutdown, MakeWeak(this)),
             /*priority*/ 300))
-        , Invoker_(New<TInvoker>(this))
         , PollerThread_(New<TPollerThread>(this))
-        , HandlerThreads_(threadCount)
-    {
-        for (int index = 0; index < threadCount; ++index) {
-            HandlerThreads_[index] = New<THandlerThread>(this, HandlerEventCount_, index);
-        }
-    }
+        , Invoker_(New<TInvoker>(this, EPollablePriority::Default))
+    { }
 
     ~TThreadPoolPoller()
     {
         Shutdown();
     }
 
-    void Start()
+    void Start(int threadCount)
     {
-        PollerThread_->Start();
-        for (const auto& thread : HandlerThreads_) {
-            thread->Start();
+        for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+            ReconfigureHandlerThreadSet(priority, threadCount);
         }
-        YT_LOG_INFO("Thread pool poller started");
+
+        PollerThread_->Start();
+
+        YT_LOG_INFO("Thread pool poller started (ThreadCount: %v)",
+            threadCount);
     }
 
     void Shutdown() override
@@ -155,9 +153,7 @@ public:
             YT_LOG_INFO("Shutting down thread pool invoker");
 
             pollables.insert(pollables.end(), Pollables_.begin(), Pollables_.end());
-
-            handlerThreads.insert(handlerThreads.end(), HandlerThreads_.begin(), HandlerThreads_.end());
-            handlerThreads.insert(handlerThreads.end(), DyingHandlerThreads_.begin(), DyingHandlerThreads_.end());
+            handlerThreads = CollectAllHandlerThreads();
         }
 
         Invoker_->Shutdown();
@@ -175,15 +171,22 @@ public:
             auto guard = Guard(SpinLock_);
 
             Pollables_.clear();
-            HandlerThreads_.clear();
-            DyingHandlerThreads_.clear();
+
+            for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+                ClearHandlerThreads(priority);
+            }
         }
 
-        DrainRetryQueue();
-        DrainPollerEventQueue();
+        for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+            DrainRetryQueue(priority);
+            DrainPollerEventQueue(priority);
+        }
+
         PollerThread_->DrainRetryQueue();
         PollerThread_->DrainUnregisterQueueAndList();
+
         Invoker_->DrainQueue();
+
         for (const auto& thread : handlerThreads) {
             thread->DrainUnregisterQueue();
         }
@@ -191,44 +194,11 @@ public:
 
     void Reconfigure(int threadCount) override
     {
-        threadCount = std::clamp(threadCount, 1, MaxThreadCount);
-
-        int oldThreadCount;
-        std::vector<THandlerThreadPtr> newThreads;
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (ShutdownStarted_.load()) {
-                return;
-            }
-
-            if (threadCount == std::ssize(HandlerThreads_)) {
-                return;
-            }
-
-            oldThreadCount = std::ssize(HandlerThreads_);
-
-            while (threadCount > std::ssize(HandlerThreads_)) {
-                HandlerThreads_.push_back(New<THandlerThread>(
-                    this,
-                    HandlerEventCount_,
-                    std::ssize(HandlerThreads_)));
-                newThreads.push_back(HandlerThreads_.back());
-            }
-
-            while (threadCount < std::ssize(HandlerThreads_)) {
-                auto thread = HandlerThreads_.back();
-                HandlerThreads_.pop_back();
-                thread->MarkDying();
-            }
+        for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+            ReconfigureHandlerThreadSet(priority, threadCount);
         }
 
-        for (const auto& thread : newThreads) {
-            thread->Start();
-        }
-
-        YT_LOG_INFO("Poller thread pool size reconfigured (ThreadPoolSize: %v -> %v)",
-            oldThreadCount,
+        YT_LOG_INFO("Poller thread pool size reconfigured (ThreadCount: %v)",
             threadCount);
     }
 
@@ -299,8 +269,6 @@ private:
 
     const TShutdownCookie ShutdownCookie_;
 
-    const TIntrusivePtr<NThreading::TEventCount> HandlerEventCount_ = New<NThreading::TEventCount>();
-
     class TPollerThread
         : public TThread
     {
@@ -309,10 +277,13 @@ private:
             : TThread(Format("%v:Poll", poller->ThreadNamePrefix_))
             , Poller_(poller)
             , Logger(Poller_->Logger)
-            , PollerEventQueueToken_(Poller_->PollerEventQueue_)
-            , PollerRetryQueueToken_(Poller_->RetryQueue_)
-            , RetryQueueToken_(RetryQueue_)
         {
+            for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+                auto& set = Poller_->HandlerThreadSets_[priority];
+                EventQueueTokens_[priority].emplace(set.EventQueue);
+                RetryQueueTokens_[priority].emplace(set.RetryQueue);
+            }
+
             PollerImpl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
         }
 
@@ -350,25 +321,27 @@ private:
                 pollable->GetLoggingTag(),
                 wakeup);
 
+            auto priority = pollable->GetPriority();
+
             if (wakeup) {
-                RetryQueue_.enqueue(pollable);
+                LocalRetryQueue_.enqueue(pollable);
                 if (!RetryScheduled_.exchange(true)) {
                     ScheduleWakeup();
                 }
             } else {
-                Poller_->RetryQueue_.enqueue(pollable);
+                Poller_->HandlerThreadSets_[priority].RetryQueue.enqueue(pollable);
             }
 
             if (Y_UNLIKELY(Poller_->ShutdownStarted_.load())) {
                 DrainRetryQueue();
-                Poller_->DrainRetryQueue();
+                Poller_->DrainRetryQueue(priority);
             }
         }
 
         void DrainRetryQueue()
         {
             IPollablePtr pollable;
-            while (RetryQueue_.try_dequeue(pollable));
+            while (LocalRetryQueue_.try_dequeue(pollable));
         }
 
         void DrainUnregisterQueueAndList()
@@ -389,19 +362,20 @@ private:
         std::atomic<bool> WakeupScheduled_ = false;
 #endif
 
-        std::array<TPollerImplEvent, MaxEventsPerPoll> PollerImplEvents_;
-        std::array<TPollerEvent, MaxEventsPerPoll> PollerEvents_;
+        std::array<TPollerImplEvent, MaxEventsPerPoll> PooledImplEvents_;
+        TEnumIndexedVector<EPollablePriority, std::vector<TPollerEvent>> PooledEvents_;
+        TEnumIndexedVector<EPollablePriority, std::vector<IPollablePtr>> PooledRetries_;
 
-        moodycamel::ProducerToken PollerEventQueueToken_;
-        moodycamel::ProducerToken PollerRetryQueueToken_;
+        TEnumIndexedVector<EPollablePriority, std::optional<moodycamel::ProducerToken>> EventQueueTokens_;
+        TEnumIndexedVector<EPollablePriority, std::optional<moodycamel::ProducerToken>> RetryQueueTokens_;
 
         TRelaxedMpscQueue<IPollablePtr> UnregisterQueue_;
         std::vector<IPollablePtr> UnregisterList_;
 
         std::atomic<bool> RetryScheduled_ = false;
 
-        moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;
-        moodycamel::ConsumerToken RetryQueueToken_;
+        moodycamel::ConcurrentQueue<IPollablePtr> LocalRetryQueue_;
+        moodycamel::ConsumerToken LocalRetryQueueToken_{LocalRetryQueue_};
 
 
         virtual void StopPrologue() override
@@ -421,55 +395,67 @@ private:
         void ThreadMainLoopStep()
         {
             DequeueUnregisterRequests();
-            int count = 0;
-            count += HandlePollerEvents();
-            count += HandleRetries();
-            Poller_->HandlerEventCount_->NotifyMany(count);
+
+            TEnumIndexedVector<EPollablePriority, int> handlerEventCounts;
+            HandleEvents(&handlerEventCounts);
+            HandleRetries(&handlerEventCounts);
+
+            for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+                if (auto count = handlerEventCounts[priority]; count > 0) {
+                    auto& set = Poller_->HandlerThreadSets_[priority];
+                    set.EventCount->NotifyMany(count);
+                }
+            }
         }
 
-        int HandlePollerEvents()
+        void HandleEvents(TEnumIndexedVector<EPollablePriority, int>* handlerEventCounts)
         {
-            int count = 0;
             bool mustDrain = !UnregisterList_.empty();
             do {
-                int subcount = WaitForPollerEvents(mustDrain ? TDuration::Zero() : PollerThreadQuantum);
-                if (subcount == 0) {
+                auto timeout = mustDrain ? TDuration::Zero() : PollerThreadQuantum;
+                if (!WaitForEvents(timeout, handlerEventCounts)) {
                     HandleUnregisterRequests();
                     mustDrain = false;
                 }
-                count += subcount;
             } while (mustDrain);
-            return count;
         }
 
-        int WaitForPollerEvents(TDuration timeout)
+        bool WaitForEvents(TDuration timeout, TEnumIndexedVector<EPollablePriority, int>* handlerEventCounts)
         {
-            int implEventCount = PollerImpl_.Wait(PollerImplEvents_.data(), PollerImplEvents_.size(), timeout.MicroSeconds());
+            int implEventCount = PollerImpl_.Wait(PooledImplEvents_.data(), PooledImplEvents_.size(), timeout.MicroSeconds());
 
-            int eventCount = 0;
             for (int index = 0; index < implEventCount; ++index) {
-                const auto& implEvent = PollerImplEvents_[index];
+                const auto& implEvent = PooledImplEvents_[index];
                 auto control = FromImplControl(TPollerImpl::ExtractFilter(&implEvent));
                 if (auto* pollable = FromImplPollable(TPollerImpl::ExtractEvent(&implEvent))) {
+                    auto priority = pollable->GetPriority();
                     auto* cookie = TPollableCookie::FromPollable(pollable);
                     YT_VERIFY(cookie->PendingUnregisterCount.load() == -1);
-                    PollerEvents_[eventCount++] = {
+                    PooledEvents_[priority].push_back({
                         .Pollable = pollable,
                         .Control = control
-                    };
+                    });
                 }
             }
 
-            Poller_->PollerEventQueue_.enqueue_bulk(
-                PollerEventQueueToken_,
-                std::make_move_iterator(PollerEvents_.data()),
-                eventCount);
+            for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+                auto& events = PooledEvents_[priority];
+                auto& set = Poller_->HandlerThreadSets_[priority];
+                (*handlerEventCounts)[priority] += std::ssize(events);
+                set.EventQueue.enqueue_bulk(
+                    *EventQueueTokens_[priority],
+                    std::make_move_iterator(events.begin()),
+                    events.size());
+                events.clear();
+            }
+
 #ifndef _linux_
             // Drain wakeup handle in order to prevent deadlocking on pipe.
             WakeupHandle_.Clear();
             WakeupScheduled_.store(false);
 #endif
-            return implEventCount;
+
+            return implEventCount > 0;
         }
 
         void DequeueUnregisterRequests()
@@ -487,40 +473,40 @@ private:
             }
 
             auto guard = Guard(Poller_->SpinLock_);
+
+            auto handlerThreads = Poller_->CollectAllHandlerThreads();
+
             for (const auto& pollable : UnregisterList_) {
                 auto* cookie = TPollableCookie::FromPollable(pollable);
-                cookie->PendingUnregisterCount = std::ssize(Poller_->HandlerThreads_) + std::ssize(Poller_->DyingHandlerThreads_);
-                for (const auto& thread : Poller_->HandlerThreads_) {
-                    thread->ScheduleUnregister(pollable);
-                }
-                for (const auto& thread : Poller_->DyingHandlerThreads_) {
+                cookie->PendingUnregisterCount = std::ssize(handlerThreads);
+                for (const auto& thread : handlerThreads) {
                     thread->ScheduleUnregister(pollable);
                 }
             }
-
             UnregisterList_.clear();
         }
 
-        int HandleRetries()
+        void HandleRetries(TEnumIndexedVector<EPollablePriority, int>* handlerEventCounts)
         {
             RetryScheduled_.store(false);
 
-            std::vector<IPollablePtr> pollables;
-            {
-                IPollablePtr pollable;
-                while (RetryQueue_.try_dequeue(RetryQueueToken_, pollable)) {
-                    pollables.push_back(std::move(pollable));
-                }
+            IPollablePtr pollable;
+            while (LocalRetryQueue_.try_dequeue(LocalRetryQueueToken_, pollable)) {
+                auto priority = pollable->GetPriority();
+                PooledRetries_[priority].push_back(std::move(pollable));
             }
 
-            if (pollables.empty()) {
-                return 0;
+            for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+                auto& set = Poller_->HandlerThreadSets_[priority];
+                auto& pollables = PooledRetries_[priority];
+                (*handlerEventCounts)[priority] += std::ssize(pollables);
+                std::reverse(pollables.begin(), pollables.end());
+                set.RetryQueue.enqueue_bulk(
+                    *RetryQueueTokens_[priority],
+                    std::make_move_iterator(pollables.begin()),
+                    pollables.size());
+                pollables.clear();
             }
-
-            std::reverse(pollables.begin(), pollables.end());
-            int count = std::ssize(pollables);
-            Poller_->RetryQueue_.enqueue_bulk(PollerRetryQueueToken_, std::make_move_iterator(pollables.begin()), count);
-            return count;
         }
 
         void ScheduleWakeup()
@@ -549,22 +535,24 @@ private:
     public:
         THandlerThread(
             TThreadPoolPoller* poller,
-            TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+            const TString& threadNamePrefix,
+            EPollablePriority priority,
             int index)
             : TSchedulerThread(
-                std::move(callbackEventCount),
-                poller->ThreadNamePrefix_,
-                Format("%v:%v", poller->ThreadNamePrefix_, index))
+                poller->HandlerThreadSets_[priority].EventCount,
+                threadNamePrefix,
+                Format("%v:%v", threadNamePrefix, index))
             , Poller_(poller)
+            , Priority_(priority)
             , Logger(Poller_->Logger.WithTag("ThreadIndex: %v", index))
-            , RetryQueueToken_(Poller_->RetryQueue_)
-            , PollerEventQueueToken_(Poller_->PollerEventQueue_)
+            , RetryQueueToken_(Poller_->HandlerThreadSets_[priority].RetryQueue)
+            , EventQueueToken_(Poller_->HandlerThreadSets_[priority].EventQueue)
         { }
 
         void MarkDying()
         {
             VERIFY_SPINLOCK_AFFINITY(Poller_->SpinLock_);
-            InsertOrCrash(Poller_->DyingHandlerThreads_, this);
+            InsertOrCrash(Poller_->HandlerThreadSets_[Priority_].DyingHandlerThreads, this);
             YT_VERIFY(!Dying_.exchange(true));
             CallbackEventCount_->NotifyAll();
         }
@@ -582,6 +570,13 @@ private:
         }
 
     protected:
+        void OnStart() override
+        {
+            if (Priority_ == EPollablePriority::RealTime) {
+                EnableRealTimePriority();
+            }
+        }
+
         void OnStop() override
         {
             HandleUnregisterRequests();
@@ -614,12 +609,13 @@ private:
 
     private:
         TThreadPoolPoller* const Poller_;
+        const EPollablePriority Priority_;
         const NLogging::TLogger Logger;
 
         const TClosure DummyCallback_ = BIND([] { });
 
         moodycamel::ConsumerToken RetryQueueToken_;
-        moodycamel::ConsumerToken PollerEventQueueToken_;
+        moodycamel::ConsumerToken EventQueueToken_;
 
         TRelaxedMpscQueue<IPollablePtr> UnregisterQueue_;
 
@@ -631,7 +627,7 @@ private:
             bool gotEvent = false;
             while (true) {
                 TPollerEvent event;
-                if (!Poller_->PollerEventQueue_.try_dequeue(PollerEventQueueToken_, event)) {
+                if (!Poller_->HandlerThreadSets_[Priority_].EventQueue.try_dequeue(EventQueueToken_, event)) {
                     break;
                 }
                 gotEvent = true;
@@ -651,7 +647,7 @@ private:
             bool gotRetry = false;
             while (true) {
                 IPollablePtr pollable;
-                if (!Poller_->RetryQueue_.try_dequeue(RetryQueueToken_, pollable)) {
+                if (!Poller_->HandlerThreadSets_[Priority_].RetryQueue.try_dequeue(RetryQueueToken_, pollable)) {
                     break;
                 }
                 gotRetry = true;
@@ -699,18 +695,29 @@ private:
         void MarkDead()
         {
             auto guard = Guard(Poller_->SpinLock_);
-            EraseOrCrash(Poller_->DyingHandlerThreads_, this);
+            EraseOrCrash(Poller_->HandlerThreadSets_[Priority_].DyingHandlerThreads, this);
         }
     };
 
     using THandlerThreadPtr = TIntrusivePtr<THandlerThread>;
 
+    struct THandlerThreadSet
+    {
+        std::vector<THandlerThreadPtr> ActiveHandlerThreads;
+        THashSet<THandlerThreadPtr> DyingHandlerThreads;
+
+        const TIntrusivePtr<NThreading::TEventCount> EventCount = New<NThreading::TEventCount>();
+
+        moodycamel::ConcurrentQueue<TPollerEvent> EventQueue{};
+        moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue{};
+    };
+
     class TInvoker
         : public IInvoker
     {
     public:
-        explicit TInvoker(TThreadPoolPoller* poller)
-            : HandlerEventCount_(poller->HandlerEventCount_)
+        explicit TInvoker(TThreadPoolPoller* poller, EPollablePriority priority)
+            : HandlerEventCount_(poller->HandlerThreadSets_[priority].EventCount)
         { }
 
         void Shutdown()
@@ -765,19 +772,97 @@ private:
         moodycamel::ConcurrentQueue<TClosure> Callbacks_;
     };
 
-    const TIntrusivePtr<TInvoker> Invoker_;
-
     std::atomic<bool> ShutdownStarted_ = false;
-
-    moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;
-    moodycamel::ConcurrentQueue<TPollerEvent> PollerEventQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<IPollablePtr> Pollables_;
-    TPollerThreadPtr PollerThread_;
-    std::vector<THandlerThreadPtr> HandlerThreads_;
-    THashSet<THandlerThreadPtr> DyingHandlerThreads_;
+    TEnumIndexedVector<EPollablePriority, THandlerThreadSet> HandlerThreadSets_;
 
+    const TPollerThreadPtr PollerThread_;
+    const TIntrusivePtr<TInvoker> Invoker_;
+
+
+    std::vector<THandlerThreadPtr> CollectAllHandlerThreads()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        std::vector<THandlerThreadPtr> threads;
+        for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
+            auto& set = HandlerThreadSets_[priority];
+            threads.insert(threads.end(), set.ActiveHandlerThreads.begin(), set.ActiveHandlerThreads.end());
+            threads.insert(threads.end(), set.DyingHandlerThreads.begin(), set.DyingHandlerThreads.end());
+        }
+
+        return threads;
+    }
+
+    void ClearHandlerThreads(EPollablePriority priority)
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        auto& set = HandlerThreadSets_[priority];
+        set.ActiveHandlerThreads.clear();
+        set.DyingHandlerThreads.clear();
+    }
+
+    TString MakeThreadNamePrefix(EPollablePriority priority)
+    {
+        auto result = ThreadNamePrefix_;
+        if (priority == EPollablePriority::RealTime) {
+            result += "RT";
+        }
+        return result;
+    }
+
+    void ReconfigureHandlerThreadSet(EPollablePriority priority, int newThreadCount)
+    {
+        int oldThreadCount;
+        std::vector<THandlerThreadPtr> newThreads;
+
+        newThreadCount = std::clamp(newThreadCount, 1, MaxThreadCount);
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (ShutdownStarted_.load()) {
+                return;
+            }
+
+            auto& set = HandlerThreadSets_[priority];
+
+            if (newThreadCount == std::ssize(set.ActiveHandlerThreads)) {
+                return;
+            }
+
+            oldThreadCount = std::ssize(set.ActiveHandlerThreads);
+
+            auto threadNamePrefix = MakeThreadNamePrefix(priority);
+
+            while (newThreadCount > std::ssize(set.ActiveHandlerThreads)) {
+                set.ActiveHandlerThreads.push_back(New<THandlerThread>(
+                    this,
+                    threadNamePrefix,
+                    priority,
+                    std::ssize(set.ActiveHandlerThreads)));
+                newThreads.push_back(set.ActiveHandlerThreads.back());
+            }
+
+            while (newThreadCount < std::ssize(set.ActiveHandlerThreads)) {
+                auto thread = set.ActiveHandlerThreads.back();
+                set.ActiveHandlerThreads.pop_back();
+                thread->MarkDying();
+            }
+        }
+
+        for (const auto& thread : newThreads) {
+            thread->Start();
+        }
+
+        YT_LOG_INFO("Poller thread pool size reconfigured (PollablePriority: %v, ThreadPoolSize: %v -> %v)",
+            priority,
+            oldThreadCount,
+            newThreadCount);
+    }
 
     void InvokeUnregisterCompleted(const IPollablePtr& pollable)
     {
@@ -788,31 +873,34 @@ private:
 
         YT_LOG_DEBUG("Pollable unregistered (%v)",
             pollable->GetLoggingTag());
+
         pollable->OnShutdown();
         cookie->UnregisterPromise.Set();
     }
 
-    void DrainRetryQueue()
+    void DrainRetryQueue(EPollablePriority priority)
     {
+        auto& set = HandlerThreadSets_[priority];
         IPollablePtr pollable;
-        while (RetryQueue_.try_dequeue(pollable));
+        while (set.RetryQueue.try_dequeue(pollable));
     }
 
-    void DrainPollerEventQueue()
+    void DrainPollerEventQueue(EPollablePriority priority)
     {
+        auto& set = HandlerThreadSets_[priority];
         TPollerEvent event;
-        while (PollerEventQueue_.try_dequeue(event));
+        while (set.EventQueue.try_dequeue(event));
     }
 };
 
-IPollerPtr CreateThreadPoolPoller(
+////////////////////////////////////////////////////////////////////////////////
+
+IThreadPoolPollerPtr CreateThreadPoolPoller(
     int threadCount,
     const TString& threadNamePrefix)
 {
-    auto poller = New<TThreadPoolPoller>(
-        threadCount,
-        threadNamePrefix);
-    poller->Start();
+    auto poller = New<TThreadPoolPoller>(threadNamePrefix);
+    poller->Start(threadCount);
     return poller;
 }
 

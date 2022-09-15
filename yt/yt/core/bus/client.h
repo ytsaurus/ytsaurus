@@ -8,6 +8,11 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateBusOptions
+{
+    EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+};
+
 //! A factory for creating client IBus-es.
 /*!
  *  Thread affinity: any.
@@ -31,7 +36,9 @@ struct IBusClient
      *  \return A new bus.
      *
      */
-    virtual IBusPtr CreateBus(IMessageHandlerPtr handler) = 0;
+    virtual IBusPtr CreateBus(
+        IMessageHandlerPtr handler,
+        const TCreateBusOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBusClient)

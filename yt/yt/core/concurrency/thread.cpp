@@ -225,6 +225,12 @@ void TThread::StopPrologue()
 void TThread::StopEpilogue()
 { }
 
+void TThread::EnableRealTimePriority()
+{
+    YT_VERIFY(ThreadId_ != InvalidThreadId);
+    // TODO(babenko): actually set priority.
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

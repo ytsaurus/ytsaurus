@@ -59,6 +59,7 @@ public:
         EConnectionType connectionType,
         TConnectionId id,
         SOCKET socket,
+        EMultiplexingBand multiplexingBand,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
         const NNet::TNetworkAddress& endpointNetworkAddress,
@@ -76,6 +77,7 @@ public:
     TBusNetworkStatistics GetBusStatistics() const;
 
     // IPollable implementation.
+    NConcurrency::EPollablePriority GetPriority() const override;
     const TString& GetLoggingTag() const override;
     void OnEvent(NConcurrency::EPollControl control) override;
     void OnShutdown() override;
@@ -193,6 +195,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     SOCKET Socket_ = INVALID_SOCKET;
+
+    std::atomic<EMultiplexingBand> MultiplexingBand_ = EMultiplexingBand::Default;
 
     TAtomicObject<TError> Error_;
 

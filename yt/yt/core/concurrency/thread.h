@@ -52,6 +52,8 @@ protected:
 
     virtual void ThreadMain() = 0;
 
+    void EnableRealTimePriority();
+
 private:
     const TString ThreadName_;
     const int ShutdownPriority_;
@@ -75,7 +77,6 @@ private:
 
     static void* StaticThreadMainTrampoline(void* opaque);
     void ThreadMainTrampoline();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TThread)
