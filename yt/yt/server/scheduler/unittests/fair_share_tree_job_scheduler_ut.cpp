@@ -1216,10 +1216,10 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
             auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
             ASSERT_TRUE(scheduleJobResult.Scheduled);
 
-            const auto& childHeapMap = context.ChildHeapMap();
+            const auto& childHeapMap = context.GetChildHeapMapInTest();
             YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
 
-            const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
+            const auto& childHeap = GetOrCrash(childHeapMap, rootElement->GetTreeIndex());
 
             int heapIndex = 0;
             for (auto* element : childHeap.GetHeap()) {
@@ -1237,10 +1237,10 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
     context.PrescheduleJob();
 
     for (auto operationElement : operationElements) {
-        const auto& childHeapMap = context.ChildHeapMap();
+        const auto& childHeapMap = context.GetChildHeapMapInTest();
         YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
 
-        const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
+        const auto& childHeap = GetOrCrash(childHeapMap, rootElement->GetTreeIndex());
         int heapIndex = 0;
         for (auto* element : childHeap.GetHeap()) {
             ASSERT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
