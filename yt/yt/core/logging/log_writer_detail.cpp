@@ -86,8 +86,6 @@ TStreamLogWriterBase::TStreamLogWriterBase(
         TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Gauge("/current_segment_size"))
 { }
 
-TStreamLogWriterBase::~TStreamLogWriterBase() = default;
-
 void TStreamLogWriterBase::Write(const TLogEvent& event)
 {
     auto* stream = GetOutputStream();

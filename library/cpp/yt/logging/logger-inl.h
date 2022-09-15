@@ -182,7 +182,7 @@ void AppendLogMessageWithFormat(
 
 struct TLogMessage
 {
-    TSharedRef Message;
+    TSharedRef MessageRef;
     TStringBuf Anchor;
 };
 
@@ -281,7 +281,8 @@ inline void LogEventImpl(
     TSharedRef message)
 {
     auto event = CreateLogEvent(loggingContext, logger, level);
-    event.Message = std::move(message);
+    event.MessageKind = ELogMessageKind::Unstructured;
+    event.MessageRef = std::move(message);
     event.Family = ELogFamily::PlainText;
     event.SourceFile = sourceLocation.File;
     event.SourceLine = sourceLocation.Line;

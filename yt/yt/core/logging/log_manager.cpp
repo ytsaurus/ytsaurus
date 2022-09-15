@@ -597,7 +597,7 @@ public:
             // Collect last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error ***\n");
-            formatter.AppendString(TStringBuf(event.Message.Begin(), event.Message.End()));
+            formatter.AppendString(event.MessageRef.ToStringBuf());
             formatter.AppendString("\n*** Aborting ***\n");
 
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());

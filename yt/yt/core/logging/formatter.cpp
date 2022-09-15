@@ -30,10 +30,11 @@ TLogEvent GetStartLogEvent()
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.Message = TSharedRef::FromString(Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
+    event.MessageRef = TSharedRef::FromString(Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
         GetVersion(),
         GetBuildHost(),
         GetBuildTime()));
+    event.MessageKind = ELogMessageKind::Unstructured;
     return event;
 }
 
@@ -43,12 +44,14 @@ TLogEvent GetStartLogStructuredEvent()
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.StructuredMessage = BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
+    event.MessageRef = BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
         .Item("message").Value("Logging started")
         .Item("version").Value(GetVersion())
         .Item("build_host").Value(GetBuildHost())
         .Item("build_time").Value(GetBuildTime())
-        .Finish();
+        .Finish()
+        .ToSharedRef();
+    event.MessageKind = ELogMessageKind::Structured;
     return event;
 }
 
@@ -58,9 +61,10 @@ TLogEvent GetSkippedLogEvent(i64 count, TStringBuf skippedBy)
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.Message = TSharedRef::FromString(Format("Skipped log records in last second (Count: %v, SkippedBy: %v)",
+    event.MessageRef = TSharedRef::FromString(Format("Skipped log records in last second (Count: %v, SkippedBy: %v)",
         count,
         skippedBy));
+    event.MessageKind = ELogMessageKind::Unstructured;
     return event;
 }
 
@@ -70,11 +74,13 @@ TLogEvent GetSkippedLogStructuredEvent(i64 count, TStringBuf skippedBy)
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.StructuredMessage = BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
+    event.MessageRef = BuildYsonStringFluently<NYson::EYsonType::MapFragment>()
         .Item("message").Value("Events skipped")
         .Item("skipped_by").Value(skippedBy)
         .Item("events_skipped").Value(count)
-        .Finish();
+        .Finish()
+        .ToSharedRef();
+    event.MessageKind = ELogMessageKind::Structured;
     return event;
 }
 
@@ -132,7 +138,7 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
 
     buffer->AppendChar('\t');
 
-    FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
+    FormatMessage(buffer, event.MessageRef.ToStringBuf());
 
     buffer->AppendChar('\t');
 
@@ -235,7 +241,12 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
             .DoFor(CommonFields_, [] (auto fluent, auto item) {
                 fluent.Item(item.first).Value(item.second);
             })
-            .Items(event.StructuredMessage)
+            .DoIf(event.MessageKind == ELogMessageKind::Structured, [&] (auto fluent) {
+                fluent.Items(TYsonString(event.MessageRef, EYsonType::MapFragment));
+            })
+            .DoIf(event.MessageKind == ELogMessageKind::Unstructured, [&] (auto fluent) {
+                fluent.Item("message").Value(event.MessageRef.ToStringBuf());
+            })
             .Item("instant").Value(dateTimeBuffer.GetBuffer())
             .Item("level").Value(FormatEnum(event.Level))
             .Item("category").Value(event.Category->Name)

@@ -93,7 +93,8 @@ protected:
         event.Family = ELogFamily::PlainText;
         event.Category = Logger.GetCategory();
         event.Level = ELogLevel::Debug;
-        event.Message = TSharedRef::FromString("message");
+        event.MessageRef = TSharedRef::FromString("message");
+        event.MessageKind = ELogMessageKind::Unstructured;
         event.ThreadId = 0xba;
         WriteEvent(writer, event);
     }
@@ -434,10 +435,11 @@ TEST_F(TLoggingTest, StructuredLogging)
     event.Family = ELogFamily::Structured;
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Debug;
-    event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Item("message")
-        .Value("test_message")
-        .Finish();
+    event.MessageRef = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Item("message").Value("test_message")
+        .Finish()
+        .ToSharedRef();
+    event.MessageKind = ELogMessageKind::Structured;
 
     for (auto format : {ELogFormat::Yson, ELogFormat::Json}) {
         TTempFile logFile(GenerateLogFileName());
@@ -464,6 +466,40 @@ TEST_F(TLoggingTest, StructuredLogging)
     }
 }
 
+TEST_F(TLoggingTest, UnstructuredLogging)
+{
+    TLogEvent event;
+    event.Family = ELogFamily::Structured;
+    event.Category = Logger.GetCategory();
+    event.Level = ELogLevel::Debug;
+    event.MessageRef = TSharedRef::FromString("test_message");
+    event.MessageKind = ELogMessageKind::Unstructured;
+
+    for (auto format : {ELogFormat::Yson, ELogFormat::Json}) {
+        TTempFile logFile(GenerateLogFileName());
+
+        auto writerConfig = New<TFileLogWriterConfig>();
+        writerConfig->FileName = logFile.Name();
+
+        auto writer = CreateFileLogWriter(
+            std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}),
+            "test_writer",
+            writerConfig,
+            this);
+
+        WriteEvent(writer, event);
+        TLogManager::Get()->Synchronize();
+
+        auto lines = ReadPlainTextEvents(logFile.Name());
+        EXPECT_EQ(1, std::ssize(lines));
+
+        auto message = DeserializeStructuredEvent(lines[0], format);
+        EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
+        EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), FormatEnum(ELogLevel::Debug));
+        EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), Logger.GetCategory()->Name);
+    }
+}
+
 TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
 {
     TString longString(1000, 'a');
@@ -473,11 +509,13 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     event.Family = ELogFamily::Structured;
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Debug;
-    event.StructuredMessage = BuildYsonStringFluently<EYsonType::MapFragment>()
+    event.MessageRef = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Item("message").Value("test_message")
         .Item("nan_value").Value(std::nan("1"))
         .Item("long_string_value").Value(longString)
-        .Finish();
+        .Finish()
+        .ToSharedRef();
+    event.MessageKind = ELogMessageKind::Structured;
 
     auto jsonFormat = New<TJsonFormatConfig>();
     jsonFormat->StringifyNanAndInfinity = true;
@@ -510,7 +548,7 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
     EXPECT_EQ(message->GetChildOrThrow("nan_value")->AsString()->GetValue(), "nan");
     EXPECT_EQ(message->GetChildOrThrow("long_string_value")->AsString()->GetValue(), longStringPrefix);
-    EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
+    EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), FormatEnum(ELogLevel::Debug));
     EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), Logger.GetCategory()->Name);
 }
 
@@ -769,14 +807,14 @@ TEST_P(TLoggingTagsTest, All)
                 loggingContext,
                 logger,
                 "Log message (Value: %v)",
-                123).Message));
+                123).MessageRef));
     } else {
         EXPECT_EQ(
             expected,
             ToString(NLogging::NDetail::BuildLogMessage(
                 loggingContext,
                 logger,
-                "Log message").Message));
+                "Log message").MessageRef));
     }
 }
 
@@ -910,7 +948,7 @@ public:
     void Write(const TLogEvent& event) override
     {
         if (event.Category == Logger.GetCategory()) {
-            Messages_.push_back(TString(Config_->Padding, ' ') + ToString(event.Message));
+            Messages_.push_back(TString(Config_->Padding, ' ') + event.MessageRef.ToStringBuf());
         }
     }
 

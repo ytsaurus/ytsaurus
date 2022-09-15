@@ -75,6 +75,11 @@ using TRequestId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ELogMessageKind,
+    (Unstructured)
+    (Structured)
+);
+
 struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
@@ -82,8 +87,8 @@ struct TLogEvent
     ELogFamily Family = ELogFamily::PlainText;
     bool Essential = false;
 
-    TSharedRef Message;
-    NYson::TYsonString StructuredMessage;
+    ELogMessageKind MessageKind = ELogMessageKind::Unstructured;
+    TSharedRef MessageRef;
 
     TCpuInstant Instant = 0;
 
@@ -312,7 +317,7 @@ void LogStructuredEvent(
         static thread_local i64 localByteCounter__##__LINE__; \
         static thread_local ui8 localMessageCounter__##__LINE__; \
         \
-        localByteCounter__##__LINE__ += message__##__LINE__.Message.Size(); \
+        localByteCounter__##__LINE__ += message__##__LINE__.MessageRef.Size(); \
         if (Y_UNLIKELY(++localMessageCounter__##__LINE__ == 0)) { \
             anchor__##__LINE__->MessageCounter.Current += 256; \
             anchor__##__LINE__->ByteCounter.Current += localByteCounter__##__LINE__; \
@@ -324,7 +329,7 @@ void LogStructuredEvent(
             logger__##__LINE__, \
             level__##__LINE__, \
             location__##__LINE__, \
-            std::move(message__##__LINE__.Message)); \
+            std::move(message__##__LINE__.MessageRef)); \
     } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////

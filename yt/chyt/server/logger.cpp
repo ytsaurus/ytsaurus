@@ -30,7 +30,7 @@ public:
         NLogging::TLogEvent event;
         event.Category = Logger.GetCategory();
         event.Level = GetLogLevel(message.getPriority());
-        event.Message = TSharedRef::FromString(Format(
+        event.MessageRef = TSharedRef::FromString(Format(
             "[%v] %v",
             GetOriginalLevelLetter(message.getPriority()),
             TString(message.getText())));

@@ -45,7 +45,6 @@ public:
     TStreamLogWriterBase(
         std::unique_ptr<ILogFormatter> formatter,
         TString name);
-    ~TStreamLogWriterBase();
 
     void Write(const TLogEvent& event) override;
     void Flush() override;
