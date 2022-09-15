@@ -728,6 +728,8 @@ TTableSchema CreateTableSchema(NTi::TTypePtr type);
 /// relations `Greater` and `GreaterOrEqual` are for lower limit.
 ///
 /// It is a error to use relation in the limit of wrong kind.
+///
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 enum class ERelation
 {
     ///
@@ -759,7 +761,10 @@ enum class ERelation
     GreaterOrEqual  /* ">=" */,
 };
 
+///
 /// @brief Key with relation specifying interval of keys in lower or upper limit of @ref NYT::TReadRange
+///
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 struct TKeyBound
 {
     /// @cond Doxygen_Suppress
@@ -776,9 +781,13 @@ struct TKeyBound
 /// @brief Description of the read limit.
 ///
 /// It is actually a variant and must store exactly one field.
+///
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 struct TReadLimit
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TReadLimit;
+    /// @endcond
 
     ///
     /// @brief KeyBound specifies table key and whether to include it
@@ -805,20 +814,36 @@ struct TReadLimit
     FLUENT_FIELD_OPTION(i64, Offset);
 
     ///
-    /// @brief File offset
+    /// @brief Tablet index
     ///
-    /// It can be used in lower or upper limit when reading files.
+    /// It can be used in lower or upper limit in dynamic table operations
     FLUENT_FIELD_OPTION(i64, TabletIndex);
 };
 
+///
+/// @breif Range of a table or a file
+///
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 struct TReadRange
 {
     using TSelf = TReadRange;
 
+    ///
+    /// @brief Lower limit of the range
+    ///
+    /// It is usualy inclusive (except when @ref NYT::TKeyBound with realation @ref NYT::ERelation::Greater is used).
     FLUENT_FIELD(TReadLimit, LowerLimit);
+
+    ///
+    /// @brief Lower limit of the range
+    ///
+    /// It is usualy exclusive (except when @ref NYT::TKeyBound with realation @ref NYT::ERelation::LessOrEqual is used).
     FLUENT_FIELD(TReadLimit, UpperLimit);
+
+    /// Exact key or row index.
     FLUENT_FIELD(TReadLimit, Exact);
 
+    /// Create read range from row indexes.
     static TReadRange FromRowIndices(i64 lowerLimit, i64 upperLimit)
     {
         return TReadRange()
@@ -826,6 +851,7 @@ struct TReadRange
             .UpperLimit(TReadLimit().RowIndex(upperLimit));
     }
 
+    /// Create read range from keys.
     static TReadRange FromKeys(const TKey& lowerKeyInclusive, const TKey& upperKeyExclusive)
     {
         return TReadRange()
@@ -839,7 +865,7 @@ struct TReadRange
 ///
 /// Allows to specify additional attributes for path used in some operations.
 ///
-/// @see https://yt.yandex-team.ru/docs/description/common/ypath
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 struct TRichYPath
 {
     /// @cond Doxygen_Suppress
@@ -851,6 +877,8 @@ struct TRichYPath
 
     /// Specifies that path should be appended not overwritten
     FLUENT_FIELD_OPTION(bool, Append);
+
+    /// @deprecated Deprecated attribute.
     FLUENT_FIELD_OPTION(bool, PartiallySorted);
 
     /// Specifies that path is expected to be sorted by these columns
@@ -875,10 +903,20 @@ struct TRichYPath
 
     /// Specifies original path to be shown in Web UI
     FLUENT_FIELD_OPTION(TYPath, OriginalPath);
+
+    ///
+    /// @brief Specifies that this path points to executable file
+    ///
+    /// Used in operation specs.
     FLUENT_FIELD_OPTION(bool, Executable);
+
+    ///
+    /// @brief Specify format to use when loading table.
+    ///
+    /// Used in operation specs.
     FLUENT_FIELD_OPTION(TNode, Format);
 
-    /// Specifies table schema that will be set on the path
+    /// @brief Specifies table schema that will be set on the path
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
 
     /// Specifies compression codec that will be set on the path
@@ -898,9 +936,11 @@ struct TRichYPath
     /// because files will be loaded into tmpfs directly bypassing disk cache
     FLUENT_FIELD_OPTION(bool, BypassArtifactCache);
 
-    // Timestamp of dynamic table.
-    // NOTE: it is _not_ unix timestamp
-    // (instead it's transaction timestamp, that is more complex structure).
+    ///
+    /// @brief Timestamp of dynamic table.
+    ///
+    /// NOTE: it is _not_ unix timestamp
+    /// (instead it's transaction timestamp, that is more complex structure).
     FLUENT_FIELD_OPTION(i64, Timestamp);
 
     ///
@@ -932,9 +972,15 @@ struct TRichYPath
     /// @}
 };
 
+///
+/// @ref Create copy of @ref NYT::TRichYPath with schema derived from proto message.
+///
+///
 template <typename TProtoType>
 TRichYPath WithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSortColumns())
 {
+    static_assert(std::is_base_of_v<::google::protobuf::Message, TProtoType>, "TProtoType must be Protobuf message");
+
     auto schemedPath = path;
     if (!schemedPath.Schema_) {
         schemedPath.Schema(CreateTableSchema<TProtoType>(sortBy));
@@ -942,6 +988,11 @@ TRichYPath WithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSort
     return schemedPath;
 }
 
+///
+/// @ref Create copy of @ref NYT::TRichYPath with schema derived from TRowType if possible.
+///
+/// If TRowType is protobuf message schema is derived from it and set to returned path.
+/// Otherwise schema of original path is left unchanged (and probably unset).
 template <typename TRowType>
 TRichYPath MaybeWithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSortColumns())
 {
@@ -1014,15 +1065,23 @@ struct TTabletInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// List of attributes to retrieve in operations like @ref NYT::ICypressClient::Get
 struct TAttributeFilter
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TAttributeFilter;
+    /// @endcond
 
+    /// List of attributes.
     FLUENT_VECTOR_FIELD(TString, Attribute);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Check if none of the fields of @ref NYT::TReadLimit is set.
+///
+/// @return true if any field of readLimit is set and false otherwise.
 bool IsTrivial(const TReadLimit& readLimit);
 
 /// Convert yson node type to table schema type
@@ -1030,9 +1089,20 @@ EValueType NodeTypeToValueType(TNode::EType nodeType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Enumeration for specifiying how reading from master is performed.
+///
+/// Used in operations like NYT::ICypressClient::Get
 enum class EMasterReadKind : int
 {
+    ///
+    /// @brief Reading from leader.
+    ///
+    /// Should almost never be used since it's expensive and for regular uses has no difference from
+    /// "follower" read.
     Leader /* "leader" */,
+
+    /// @brief Reading from master follower (default).
     Follower /* "follower" */,
     Cache /* "cache" */,
     MasterCache /* "master_cache" */,
@@ -1040,6 +1110,7 @@ enum class EMasterReadKind : int
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// @cond Doxygen_Suppress
 namespace NDetail {
 
 // MUST NOT BE USED BY CLIENTS
@@ -1047,6 +1118,7 @@ namespace NDetail {
 TString ToString(EValueType type);
 
 } // namespace NDetail
+/// @endcond
 
 ////////////////////////////////////////////////////////////////////////////////
 
