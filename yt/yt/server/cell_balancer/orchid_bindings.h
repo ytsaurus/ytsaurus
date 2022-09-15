@@ -54,6 +54,12 @@ struct TBundleInfo
     THashMap<TString, TInstanceInfoPtr> AssignedSpareTabletNodes;
     THashMap<TString, TInstanceInfoPtr> AssignedSpareRpcProxies;
 
+    int RemovingCellCount;
+    int AllocatingTabletNodeCount;
+    int DeallocatingTabletNodeCount;
+    int AllocatingRpcProxyCount;
+    int DeallocatingRpcProxyCount;
+
     std::vector<TAlertPtr> Alerts;
 
     REGISTER_YSON_STRUCT(TBundleInfo);
