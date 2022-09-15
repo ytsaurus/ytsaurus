@@ -42,13 +42,13 @@ public:
 
     void Enqueue(TLogEvent&& event) override
     {
-        auto message = TString(event.Message.begin(), event.Message.end());
+        auto message = TString(event.MessageRef.ToStringBuf());
         LogMessage(
             ToImplLevel(event.Level),
             ::TSourceLocation(event.SourceFile, event.SourceLine),
             "%.*s",
-            event.Message.size(),
-            event.Message.begin());
+            event.MessageRef.size(),
+            event.MessageRef.begin());
     }
 
     const TLoggingCategory* GetCategory(TStringBuf categoryName) override

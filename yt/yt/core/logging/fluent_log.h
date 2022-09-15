@@ -53,7 +53,7 @@ class TStructuredLogBatcher
 public:
     explicit TStructuredLogBatcher(
         TLogger logger,
-        i64 maxBatchSize = 10_KB,
+        i64 maxBatchSize = 10_KBs,
         ELogLevel level = ELogLevel::Info);
 
     using TFluent = decltype(NYTree::BuildYsonListFragmentFluently(nullptr).Item());
@@ -66,10 +66,13 @@ private:
     const NLogging::TLogger Logger;
     const i64 MaxBatchSize_;
     const ELogLevel Level_;
-    
+
     TString BatchYson_;
     TStringOutput BatchOutputStream_{BatchYson_};
-    NYson::TYsonWriter BatchYsonWriter_{&BatchOutputStream_, NYson::EYsonFormat::Binary, NYson::EYsonType::ListFragment};
+    NYson::TYsonWriter BatchYsonWriter_{
+        &BatchOutputStream_,
+        NYson::EYsonFormat::Binary,
+        NYson::EYsonType::ListFragment};
     int BatchItemCount_ = 0;
 
     void Flush();

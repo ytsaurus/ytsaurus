@@ -39,7 +39,7 @@ public:
         bool enableControlMessages = true,
         bool enableSourceLocation = false);
 
-    i64  WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
+    i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
     void WriteLogStartEvent(IOutputStream* outputStream) const override;
     void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;

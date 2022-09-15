@@ -214,7 +214,8 @@ void LogStructuredEvent(
         loggingContext,
         logger,
         level);
-    event.StructuredMessage = std::move(message);
+    event.MessageKind = ELogMessageKind::Structured;
+    event.MessageRef = message.ToSharedRef();
     event.Family = ELogFamily::Structured;
     logger.Write(std::move(event));
 }
