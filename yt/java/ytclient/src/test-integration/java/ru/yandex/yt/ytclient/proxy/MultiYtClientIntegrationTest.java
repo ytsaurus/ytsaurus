@@ -60,7 +60,7 @@ public class MultiYtClientIntegrationTest {
                 .addClients(
                         MultiYtClient.YtClientOptions.builder(clientOne).build(),
                         MultiYtClient.YtClientOptions.builder(clientTwo)
-                                .setInitialPenalty(Duration.ofMillis(50)).build()
+                                .setInitialPenalty(Duration.ofSeconds(1)).build()
                 )
                 .setBanDuration(Duration.ofMillis(200))
                 .setBanPenalty(Duration.ofMillis(100))
