@@ -12,8 +12,13 @@ from yt.yson.yson_types import (YsonEntity, YsonMap, YsonList, YsonInt64,
                                 YsonStringProxy, NotUnicodeError,
                                 get_bytes, is_unicode)
 from yt.yson import to_yson_type, YsonError
-from yt.packages.six import PY3
-from yt.packages.six.moves import xrange
+
+try:
+    from yt.packages.six import PY3
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import PY3
+    from six.moves import xrange
 
 import copy
 import math

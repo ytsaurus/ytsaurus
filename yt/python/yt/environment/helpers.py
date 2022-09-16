@@ -23,8 +23,12 @@ except ImportError:
 
 import yt.yson as yson
 
-from yt.packages.six import iteritems, PY3, text_type, Iterator
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six import iteritems, PY3, text_type, Iterator
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six import iteritems, PY3, text_type, Iterator
+    from six.moves import xrange, map as imap
 
 import codecs
 import collections

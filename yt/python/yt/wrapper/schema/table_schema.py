@@ -6,7 +6,10 @@ from ..errors import YtError
 
 import yt.yson
 
-from yt.packages.six.moves import builtins
+try:
+    from yt.packages.six.moves import builtins
+except ImportError:
+    from six.moves import builtins
 
 import copy
 import collections

@@ -1,5 +1,10 @@
-from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
-from yt.packages.six.moves import map as imap
+try:
+    from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import iteritems, PY3, text_type, binary_type, string_types
+    from six.moves import map as imap
+
 import yt.json_wrapper as json
 
 try:

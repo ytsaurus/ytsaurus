@@ -5,8 +5,12 @@ from .mappings import VerifiedDict
 
 import yt.yson as yson
 import yt.json_wrapper as json
-import yt.packages.six as six
 from yt.yson import YsonEntity, YsonMap
+
+try:
+    import yt.packages.six as six
+except ImportError:
+    import six
 
 import os
 import sys

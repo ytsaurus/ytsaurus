@@ -1,6 +1,9 @@
 from . import common
 
-from yt.packages.six import Iterator
+try:
+    from yt.packages.six import Iterator
+except ImportError:
+    from six import Iterator
 
 
 class ResponseStream(Iterator):

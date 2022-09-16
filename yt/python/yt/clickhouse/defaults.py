@@ -1,6 +1,9 @@
 import yt.logger as logger
 
-from yt.packages.six import PY3, iteritems
+try:
+    from yt.packages.six import PY3, iteritems
+except ImportError:
+    from six import PY3, iteritems
 
 from yt.common import update
 

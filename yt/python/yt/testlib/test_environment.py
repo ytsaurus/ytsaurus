@@ -12,7 +12,10 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB, YtError
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
-from yt.packages.six import iteritems, itervalues
+try:
+    from yt.packages.six import iteritems, itervalues
+except ImportError:
+    from six import iteritems, itervalues
 
 import yt.wrapper as yt
 

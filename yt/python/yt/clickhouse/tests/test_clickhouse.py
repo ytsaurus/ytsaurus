@@ -6,8 +6,13 @@ from yt.testlib import authors, check_rows_equality, set_config_option
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
-from yt.packages.six import PY3
-from yt.packages.six.moves import map as imap
+
+try:
+    from yt.packages.six import PY3
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import PY3
+    from six.moves import map as imap
 
 from yt.test_helpers import wait
 

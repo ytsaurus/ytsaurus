@@ -8,7 +8,10 @@ from yt.wrapper.job_commands import get_job_input, get_job_fail_context
 import yt.logger as logger
 import yt.wrapper as yt
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import collections
 import json

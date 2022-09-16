@@ -6,7 +6,10 @@ from yt.yson.yson_types import (YsonEntity, YsonBoolean, YsonUnicode, YsonString
                                 YsonStringProxy, is_unicode, get_bytes, NotUnicodeError,
                                 make_byte_key)
 
-from yt.packages.six import PY3 # noqa
+try:
+    from yt.packages.six import PY3 # noqa
+except ImportError:
+    from six import PY3 # noqa
 
 import pytest
 

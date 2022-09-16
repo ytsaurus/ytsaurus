@@ -15,7 +15,10 @@ from yt.wrapper import heavy_commands, parallel_writer
 
 from yt.yson import YsonMap
 
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six.moves import xrange, map as imap
 
 from yt.local import start, stop
 

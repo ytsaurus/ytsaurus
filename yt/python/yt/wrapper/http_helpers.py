@@ -13,8 +13,12 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.common import _pretty_format_for_logging
 
-from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six import reraise, add_metaclass, PY3, iterbytes, iteritems
+    from six.moves import xrange, map as imap
 
 import os
 import sys
@@ -29,7 +33,10 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
+try:
+    from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
+except ImportError:
+    from six.moves.http_client import BadStatusLine, IncompleteRead
 
 # Used to distinguish
 try:

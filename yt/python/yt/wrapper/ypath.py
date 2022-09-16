@@ -5,8 +5,13 @@ from .config import get_config
 from .format import _ENCODING_SENTINEL
 
 import yt.yson as yson
-from yt.packages.six import binary_type, text_type, PY3
-from yt.packages.six.moves import map as imap
+
+try:
+    from yt.packages.six import binary_type, text_type, PY3
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import binary_type, text_type, PY3
+    from six.moves import map as imap
 
 from copy import deepcopy
 import string

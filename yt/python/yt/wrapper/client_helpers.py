@@ -3,7 +3,10 @@ from __future__ import print_function
 from .common import update, get_arg_spec
 from .default_config import get_default_config
 
-from yt.packages.six import PY3
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 from copy import deepcopy
 import inspect

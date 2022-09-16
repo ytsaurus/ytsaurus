@@ -3,8 +3,6 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 from yt_commands import (create, write_table, authors, raises_yt_error, print_debug, get, create_dynamic_table,
                          insert_rows, sync_mount_table)
 
-from yt.packages.six.moves import map as imap
-
 import random
 import copy
 import pytest
@@ -325,7 +323,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                                     "select key, lhs, rhs from {lhs_arg} l {globalness} {kind} join {rhs_arg} r "
                                     "using key order by key, lhs, rhs nulls first".format(**locals())
                                 )
-                                result = list(imap(sanitize_dict, clique.make_query(query, verbose=False)))
+                                result = list(map(sanitize_dict, clique.make_query(query, verbose=False)))
 
                                 expected = expected_results[kind]
                                 print_debug(
@@ -334,8 +332,8 @@ class TestJoinAndIn(ClickHouseTestBase):
                                     )
                                 )
                                 index += 1
-                                result = list(imap(str, result))
-                                expected = list(imap(str, expected))
+                                result = list(map(str, result))
+                                expected = list(map(str, expected))
                                 if result != expected:
                                     print_debug("Produced:")
                                     for row in result:

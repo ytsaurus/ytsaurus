@@ -23,8 +23,13 @@ from .ypath import TablePath, ypath_join
 import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
-from yt.packages.six import PY3
-from yt.packages.six.moves import map as imap, filter as ifilter, xrange
+
+try:
+    from yt.packages.six import PY3
+    from yt.packages.six.moves import map as imap, filter as ifilter, xrange
+except ImportError:
+    from six import PY3
+    from six.moves import map as imap, filter as ifilter, xrange
 
 from copy import deepcopy
 from datetime import datetime, timedelta

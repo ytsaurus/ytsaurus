@@ -12,7 +12,10 @@ from yt.common import YT_NULL_TRANSACTION_ID
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import string_types, raise_from
+try:
+    from yt.packages.six import string_types, raise_from
+except ImportError:
+    from six import string_types, raise_from
 
 from copy import deepcopy
 

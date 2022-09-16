@@ -9,8 +9,12 @@ try:
 except ImportError:
     from yt.wrapper.retries import run_with_retries
 
-from yt.packages.six import iteritems
-from yt.packages.six.moves import map as imap, zip as izip
+try:
+    from yt.packages.six import iteritems
+    from yt.packages.six.moves import map as imap, zip as izip
+except ImportError:
+    from six import iteritems
+    from six.moves import map as imap, zip as izip
 
 from yt.wrapper.http_helpers import get_token, get_proxy_url
 

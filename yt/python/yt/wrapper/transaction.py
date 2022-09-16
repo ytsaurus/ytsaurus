@@ -9,8 +9,12 @@ from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
 
 import yt.logger as logger
 
-from yt.packages.six import PY3
-from yt.packages.six.moves._thread import interrupt_main
+try:
+    from yt.packages.six import PY3
+    from yt.packages.six.moves._thread import interrupt_main
+except ImportError:
+    from six import PY3
+    from six.moves._thread import interrupt_main
 
 from copy import deepcopy
 from time import sleep

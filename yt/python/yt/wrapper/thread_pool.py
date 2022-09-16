@@ -1,6 +1,11 @@
-from yt.packages.six.moves.queue import Queue, Empty
-from yt.packages.six.moves import xrange
-from yt.packages.six import Iterator
+try:
+    from yt.packages.six.moves.queue import Queue, Empty
+    from yt.packages.six.moves import xrange
+    from yt.packages.six import Iterator
+except ImportError:
+    from six.moves.queue import Queue, Empty
+    from six.moves import xrange
+    from six import Iterator
 
 import threading
 

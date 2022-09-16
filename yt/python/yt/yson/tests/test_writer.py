@@ -8,7 +8,10 @@ import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonDouble, YsonError
 from yt.yson.yson_types import YsonStringProxy, make_byte_key
 
-from yt.packages.six import b, PY3
+try:
+    from yt.packages.six import b, PY3
+except ImportError:
+    from six import b, PY3
 
 try:
     import yt_yson_bindings

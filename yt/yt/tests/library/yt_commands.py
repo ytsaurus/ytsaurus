@@ -17,8 +17,12 @@ from yt.common import (
 )
 from yt.ypath import parse_ypath
 
-from yt.packages.six import PY3, itervalues, iteritems, iterkeys
-from yt.packages.six.moves import xrange, builtins
+try:
+    from yt.packages.six import PY3, itervalues, iteritems, iterkeys
+    from yt.packages.six.moves import xrange, builtins
+except ImportError:
+    from six import PY3, itervalues, iteritems, iterkeys
+    from six.moves import xrange, builtins
 
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError

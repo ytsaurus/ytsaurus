@@ -5,7 +5,10 @@ from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check
 
 from yt.wrapper.driver import get_api_version
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 from yt.local import start, stop
 

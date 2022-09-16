@@ -1,7 +1,11 @@
 from .common import get_value
 
-from yt.packages.six import iteritems
-from yt.packages.six.moves import map as imap
+try:
+    from yt.packages.six import iteritems
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import iteritems
+    from six.moves import map as imap
 
 # Python3 compatibility
 try:

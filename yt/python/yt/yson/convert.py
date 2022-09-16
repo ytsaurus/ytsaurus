@@ -3,8 +3,12 @@ from .yson_types import (
     YsonList, YsonMap, YsonEntity)
 from .common import YsonError
 
-from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
-from yt.packages.six.moves import map as imap
+try:
+    from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import text_type, binary_type, integer_types, iteritems, PY3
+    from six.moves import map as imap
 
 import copy
 

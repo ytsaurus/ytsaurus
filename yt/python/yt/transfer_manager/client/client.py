@@ -20,8 +20,13 @@ import yt.logger as logger
 import yt.json_wrapper as json
 
 import yt.packages.requests as requests
-from yt.packages.six import reraise
-from yt.packages.six.moves import queue
+
+try:
+    from yt.packages.six import reraise
+    from yt.packages.six.moves import queue
+except ImportError:
+    from six import reraise
+    from six.moves import queue
 
 import sys
 import time

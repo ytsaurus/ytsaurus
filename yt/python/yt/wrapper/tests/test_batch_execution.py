@@ -7,7 +7,10 @@ from yt.wrapper.batch_execution import YtBatchRequestFailedError
 
 import yt.wrapper as yt
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import pytest
 

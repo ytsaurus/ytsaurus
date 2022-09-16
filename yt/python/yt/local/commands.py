@@ -8,7 +8,10 @@ from yt.common import YtError, require, is_process_alive
 import yt.yson as yson
 import yt.json_wrapper as json
 
-from yt.packages.six.moves import map as imap, filter as ifilter
+try:
+    from yt.packages.six.moves import map as imap, filter as ifilter
+except ImportError:
+    from six.moves import map as imap, filter as ifilter
 
 import yt.wrapper as yt
 

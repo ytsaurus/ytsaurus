@@ -7,8 +7,12 @@ import yt.yson as yson
 from yt.wrapper.string_iter_io import StringIterIO
 from yt.wrapper.format import extract_key, create_format
 
-from yt.packages.six import byte2int, iterbytes, PY3
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six import byte2int, iterbytes, PY3
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import byte2int, iterbytes, PY3
+    from six.moves import xrange
 
 import yt.wrapper as yt
 

@@ -6,7 +6,10 @@ try:
 except ImportError:
     _CPP_WRAPPER_AVAILABLE = False
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import inspect
 import os

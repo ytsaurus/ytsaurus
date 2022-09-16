@@ -5,7 +5,10 @@ from yt.wrapper.common import update_inplace
 
 import yt.yson as yson
 
-from yt.packages.six.moves import reload_module
+try:
+    from yt.packages.six.moves import reload_module
+except ImportError:
+    from six.moves import reload_module
 
 import yt.wrapper as yt
 import yt.subprocess_wrapper as subprocess

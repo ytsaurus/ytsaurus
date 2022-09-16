@@ -6,7 +6,10 @@ import yt.yson.writer
 import yt.yson.parser
 from yt.yson.yson_types import YsonUint64
 
-from yt.packages.six import PY3
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 import pytest
 

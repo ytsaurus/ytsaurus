@@ -1,4 +1,8 @@
-from yt.packages.six import PY3, integer_types, binary_type, text_type
+try:
+    from yt.packages.six import PY3, integer_types, binary_type, text_type
+except ImportError:
+    from six import PY3, integer_types, binary_type, text_type
+
 from yt.common import YtError
 
 

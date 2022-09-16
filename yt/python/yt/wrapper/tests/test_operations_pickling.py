@@ -10,8 +10,12 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
 
 # It is used in skipif expression.
-from yt.packages.six import PY3, iteritems  # noqa
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six import PY3, iteritems  # noqa
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import PY3, iteritems  # noqa
+    from six.moves import xrange
 
 # Necessary for tests.
 try:
@@ -301,7 +305,10 @@ class C(object):
 """, "C()")
 
         metaclass_pickling_test = ("""\
-from yt.packages.six import add_metaclass
+try:
+    from yt.packages.six import add_metaclass
+except ImportError:
+    from six import add_metaclass
 from abc import ABCMeta, abstractmethod
 
 @add_metaclass(ABCMeta)

@@ -3,7 +3,10 @@ from yt.wrapper import YtClient
 
 import yt.logger as logger
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import time
 import logging

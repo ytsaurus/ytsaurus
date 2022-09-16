@@ -7,7 +7,10 @@ from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
-from yt.packages.six import binary_type
+try:
+    from yt.packages.six import binary_type
+except ImportError:
+    from six import binary_type
 
 import os
 import sys

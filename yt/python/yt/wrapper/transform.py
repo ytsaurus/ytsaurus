@@ -9,7 +9,10 @@ from .ypath import TablePath
 
 import yt.logger as logger
 
-from yt.packages.six.moves import xrange, map as imap, builtins
+try:
+    from yt.packages.six.moves import xrange, map as imap, builtins
+except ImportError:
+    from six.moves import xrange, map as imap, builtins
 
 from copy import deepcopy
 from random import Random

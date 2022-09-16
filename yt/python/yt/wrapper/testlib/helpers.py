@@ -1,7 +1,11 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import iteritems, integer_types, text_type, binary_type, b, PY3
+    from six.moves import xrange
 
 from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl
 from yt.test_helpers.job_events import JobEvents

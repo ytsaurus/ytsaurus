@@ -7,7 +7,10 @@ from . import client_state
 import yt.yson as yson
 import yt.json_wrapper as json
 
-import yt.packages.six as six
+try:
+    import yt.packages.six as six
+except ImportError:
+    import six
 
 import os
 import sys

@@ -8,8 +8,13 @@ from .run_operation_commands import run_operation
 from .batch_helpers import batch_apply
 
 import yt.logger as logger
-from yt.packages.six import PY3
-from yt.packages.six.moves import xrange, zip
+
+try:
+    from yt.packages.six import PY3
+    from yt.packages.six.moves import xrange, zip
+except ImportError:
+    from six import PY3
+    from six.moves import xrange, zip
 
 from collections import namedtuple
 from time import sleep

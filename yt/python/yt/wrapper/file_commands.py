@@ -20,7 +20,10 @@ from yt.common import to_native_str
 from yt.yson.parser import YsonParser
 from yt.yson import to_yson_type
 
-from yt.packages.six import PY3
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 import os
 import hashlib

@@ -2,7 +2,10 @@ from yt.wrapper.common import MB, GB
 
 from yt.common import update_inplace
 
-from yt.packages.six import iteritems, itervalues
+try:
+    from yt.packages.six import iteritems, itervalues
+except ImportError:
+    from six import iteritems, itervalues
 
 MASTER_CONFIG_PATCHES = [
     {

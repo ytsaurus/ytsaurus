@@ -19,9 +19,14 @@ import yt.json_wrapper as json
 import yt.logger as logger
 from yt.yson import YsonString, YsonUnicode
 
-from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
-                             indexbytes, int2byte, raise_from)
-from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
+try:
+    from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
+                                 indexbytes, int2byte, raise_from)
+    from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
+except ImportError:
+    from six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
+                     indexbytes, int2byte, raise_from)
+    from six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter

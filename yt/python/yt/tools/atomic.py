@@ -1,6 +1,9 @@
 import yt.logger as logger
 
-from yt.packages.six.moves import builtins, xrange
+try:
+    from yt.packages.six.moves import builtins, xrange
+except ImportError:
+    from six.moves import builtins, xrange
 
 import yt.wrapper as yt
 

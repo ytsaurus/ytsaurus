@@ -18,7 +18,10 @@ import pytest
 from copy import deepcopy
 import sys
 
-import six
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 
 class NonCopyable:
@@ -197,7 +200,7 @@ class TestSpecBuilders(object):
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
 
-        if six.PY3:
+        if PY3:
             import pathlib
             spec_builder = MapSpecBuilder() \
                 .begin_mapper() \

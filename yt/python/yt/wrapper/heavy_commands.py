@@ -18,7 +18,10 @@ import yt.logger as logger
 
 from yt.common import join_exceptions
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import sys
 import time
