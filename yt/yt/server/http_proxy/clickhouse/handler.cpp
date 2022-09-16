@@ -604,11 +604,19 @@ private:
             Logger);
     }
 
+    TString GetDiscoveryGroupId()
+    {
+        auto groupId = OperationAlias_.value_or(ToString(OperationId_));
+        if (groupId.StartsWith('*')) {
+            groupId = groupId.erase(0, 1);
+        }
+        return "/chyt/" + groupId;
+    }
+
     IDiscoveryPtr CreateDiscoveryV2()
     {
         auto config = New<TDiscoveryV2Config>();
-        auto groupId = OperationAlias_.value_or(ToString(OperationId_));
-        config->GroupId = "/chyt/" + groupId;
+        config->GroupId = GetDiscoveryGroupId();
         config->ServerAddresses = DiscoveryServers_;
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
