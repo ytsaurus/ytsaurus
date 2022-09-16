@@ -229,6 +229,8 @@ public:
 
     EOptimizeFor OptimizeFor;
 
+    bool EnableHashChunkIndex = false;
+
     //! Maximum number of heavy columns in approximate statistics.
     int MaxHeavyColumns;
 

@@ -1521,13 +1521,13 @@ private:
         options.WorkloadDescriptor = workloadDescriptor;
 
         auto chunkMeta = GetChunkMeta(reader, options);
-        auto blocksExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
+        auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
 
         return TChunkReadContext{
             .Reader = std::move(reader),
             .Meta = std::move(chunkMeta),
             .ChunkId = chunkId,
-            .BlockCount = blocksExt.data_blocks_size(),
+            .BlockCount = blockMetaExt.data_blocks_size(),
             .Options = options,
             .MergeChunkInfo = chunk
         };

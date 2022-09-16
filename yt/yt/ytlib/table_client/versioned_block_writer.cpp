@@ -1,5 +1,7 @@
 #include "versioned_block_writer.h"
 
+#include "chunk_index_builder.h"
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -15,7 +17,69 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 NullValue = 0;
+static constexpr i64 NullValue = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Key layout is as follows:
+/*!
+ * 8 bytes for each key column + timestamp offset + value offset
+ * 4 bytes for value count for each non-key column
+ * 2 bytes for write timestamp count and delete timestamp count
+ */
+int GetSimpleVersionedBlockKeySize(int keyColumnCount, int schemaColumnCount)
+{
+    return 8 * (keyColumnCount + 2) + 4 * (schemaColumnCount - keyColumnCount) + 2 * 2;
+}
+
+int GetSimpleVersionedBlockPaddedKeySize(int keyColumnCount, int schemaColumnCount)
+{
+    return AlignUp<int>(
+        GetSimpleVersionedBlockKeySize(keyColumnCount, schemaColumnCount),
+        SerializationAlignment);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedBlockWriterBase::TVersionedBlockWriterBase(
+    TTableSchemaPtr schema,
+    TMemoryUsageTrackerGuard guard)
+    : Schema_(std::move(schema))
+    , SchemaColumnCount_(Schema_->GetColumnCount())
+    , KeyColumnCount_(Schema_->GetKeyColumnCount())
+    , MemoryGuard_(std::move(guard))
+    , ColumnHunkFlags_(new bool[SchemaColumnCount_])
+{
+    for (int id = 0; id < SchemaColumnCount_; ++id) {
+        const auto& columnSchema = Schema_->Columns()[id];
+        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().has_value();
+    }
+}
+
+TBlock TVersionedBlockWriterBase::FlushBlock(
+    std::vector<TSharedRef> blockParts,
+    TDataBlockMeta meta)
+{
+    auto size = GetByteSize(blockParts);
+
+    meta.set_row_count(RowCount_);
+    meta.set_uncompressed_size(size);
+
+    TBlock block;
+    block.Data.swap(blockParts);
+    block.Meta.Swap(&meta);
+
+    if (MemoryGuard_) {
+        MemoryGuard_.SetSize(0);
+    }
+
+    return block;
+}
+
+bool TVersionedBlockWriterBase::IsInlineHunkValue(const TUnversionedValue& value) const
+{
+    return ColumnHunkFlags_[value.Id] && !Any(value.Flags & EValueFlags::Hunk);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,23 +89,14 @@ struct TSimpleVersionedBlockWriterTag
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     TTableSchemaPtr schema,
     TMemoryUsageTrackerGuard guard)
-    : MinTimestamp_(MaxTimestamp)
-    , MaxTimestamp_(MinTimestamp)
-    , Schema_(std::move(schema))
-    , SchemaColumnCount_(Schema_->GetColumnCount())
-    , KeyColumnCount_(Schema_->GetKeyColumnCount())
-    , ColumnHunkFlags_(new bool[Schema_->GetColumnCount()])
-    , MemoryGuard_(std::move(guard))
+    : TVersionedBlockWriterBase(
+        std::move(schema),
+        std::move(guard))
     , KeyStream_(TSimpleVersionedBlockWriterTag())
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())
     , StringDataStream_(TSimpleVersionedBlockWriterTag())
 {
-    for (int id = 0; id < Schema_->GetColumnCount(); ++id) {
-        const auto& columnSchema = Schema_->Columns()[id];
-        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
-    }
-
     if (Schema_->HasAggregateColumns()) {
         ValueAggregateFlags_ = TBitmapOutput();
     }
@@ -103,8 +158,9 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
         ++lastId;
     }
 
-    YT_ASSERT(static_cast<int>(KeyStream_.GetSize() - keyOffset) == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
-    WritePadding(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
+    YT_ASSERT(static_cast<int>(KeyStream_.GetSize() - keyOffset) ==
+        GetSimpleVersionedBlockKeySize(KeyColumnCount_, SchemaColumnCount_));
+    WritePadding(KeyStream_, GetSimpleVersionedBlockKeySize(KeyColumnCount_, SchemaColumnCount_));
 
     if (MemoryGuard_) {
         MemoryGuard_.SetSize(GetBlockSize());
@@ -132,28 +188,12 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
     auto strings = StringDataStream_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
 
-    i64 size = 0;
-    for (auto& part : blockParts) {
-        size += part.Size();
-    }
-
     TDataBlockMeta meta;
-    meta.set_row_count(RowCount_);
-    meta.set_uncompressed_size(size);
-
     auto* metaExt = meta.MutableExtension(TSimpleVersionedBlockMeta::block_meta_ext);
     metaExt->set_value_count(ValueCount_);
     metaExt->set_timestamp_count(TimestampCount_);
 
-    TBlock block;
-    block.Data.swap(blockParts);
-    block.Meta.Swap(&meta);
-
-    if (MemoryGuard_) {
-        MemoryGuard_.SetSize(0);
-    }
-
-    return block;
+    return TVersionedBlockWriterBase::FlushBlock(std::move(blockParts), std::move(meta));
 }
 
 void TSimpleVersionedBlockWriter::WriteValue(
@@ -192,12 +232,12 @@ void TSimpleVersionedBlockWriter::WriteValue(
         case EValueType::Any:
         case EValueType::Composite:
             WritePod(stream, static_cast<ui32>(StringDataStream_.GetSize()));
-            if (!ColumnHunkFlags_[value.Id] || Any(value.Flags & EValueFlags::Hunk)) {
-                WritePod(stream, value.Length);
-                StringDataStream_.Write(value.Data.String, value.Length);
-            } else {
+            if (IsInlineHunkValue(value)) {
                 WritePod(stream, value.Length + 1);
                 StringDataStream_.Write(static_cast<char>(EHunkValueTag::Inline));
+                StringDataStream_.Write(value.Data.String, value.Length);
+            } else {
+                WritePod(stream, value.Length);
                 StringDataStream_.Write(value.Data.String, value.Length);
             }
             nullFlags.Append(false);
@@ -227,22 +267,707 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         (ValueAggregateFlags_.operator bool() ? ValueAggregateFlags_->GetByteSize() : 0);
 }
 
-i64 TSimpleVersionedBlockWriter::GetRowCount() const
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template<typename T>
+void CopyPod(char** buffer, const T& object)
 {
-    return RowCount_;
+    memcpy(*buffer, &object, sizeof(T));
+    *buffer += sizeof(T);
 }
 
-int TSimpleVersionedBlockWriter::GetKeySize(int keyColumnCount, int schemaColumnCount)
+void WritePadding(char** buffer, i64 byteSize)
 {
-    // 8 bytes for each key column + timestamp offset + value offset
-    // 4 bytes for value count for each non-key column
-    // 2 bytes for write timestamp count and delete timestamp count
-    return 8 * (keyColumnCount + 2) + 4 * (schemaColumnCount - keyColumnCount) + 2 * 2;
+    memset(*buffer, 0, byteSize);
+    *buffer += byteSize;
 }
 
-int TSimpleVersionedBlockWriter::GetPaddedKeySize(int keyColumnCount, int schemaColumnCount)
+void AssertSerializationAligned(i64 byteSize)
 {
-    return AlignUp<int>(GetKeySize(keyColumnCount, schemaColumnCount), SerializationAlignment);
+    YT_ASSERT(AlignUpSpace<i64>(byteSize, SerializationAlignment) == 0);
+}
+
+void VerifySerializationAligned(i64 byteSize)
+{
+    YT_VERIFY(AlignUpSpace<i64>(byteSize, SerializationAlignment) == 0);
+}
+
+void MakeSerializationAligned(char** buffer, i64 byteSize)
+{
+    WritePadding(buffer, AlignUpSpace<i64>(byteSize, SerializationAlignment));
+}
+
+void AppendChecksum(char** buffer, i64 byteSize)
+{
+    CopyPod(buffer, GetChecksum(TRef(*buffer - byteSize, byteSize)));
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TIndexedVersionedBlockWriterTag
+{ };
+
+TIndexedVersionedBlockWriter::TIndexedVersionedBlockWriter(
+    TTableSchemaPtr schema,
+    int blockIndex,
+    IChunkIndexBuilderPtr chunkIndexBuilder,
+    TMemoryUsageTrackerGuard guard)
+    : TVersionedBlockWriterBase(
+        std::move(schema),
+        std::move(guard))
+    , ChunkIndexBuilder_(std::move(chunkIndexBuilder))
+    , BlockIndex_(blockIndex)
+    , GroupCount_(ChunkIndexBuilder_->GetGroupCount())
+    , HasAggregateColumns_(Schema_->HasAggregateColumns())
+    , SectorAlignmentSize_(ChunkIndexBuilder_->GetSectorAlignmentSize())
+    , GroupReorderingEnabled_(ChunkIndexBuilder_->IsGroupReorderingEnabled())
+    , Stream_(TIndexedVersionedBlockWriterTag())
+{
+    YT_VERIFY(AlignUpSpace<i64>(SectorAlignmentSize_, SerializationAlignment) == 0);
+    YT_VERIFY(GroupCount_ > 0);
+
+    RowData_.ValueData.Groups.resize(GroupCount_);
+}
+
+void TIndexedVersionedBlockWriter::WriteRow(TVersionedRow row)
+{
+    ++RowCount_;
+
+    ResetRowData(row);
+
+    auto rowByteSize = GetRowByteSize();
+    VerifySerializationAligned(rowByteSize);
+    VerifySerializationAligned(Stream_.GetSize());
+
+    char* buffer = Stream_.Preallocate(rowByteSize);
+    EncodeRow(buffer);
+
+    auto rowChecksum = GetChecksum(TRef(buffer, rowByteSize));
+
+    Stream_.Advance(rowByteSize);
+
+    WritePod(Stream_, rowChecksum);
+
+    TRange<int> groupOffsets;
+    TRange<int> groupIndexes;
+    if (GroupCount_ > 1) {
+        groupOffsets = MakeRange(
+            &GroupOffsets_[std::ssize(GroupOffsets_) - GroupCount_],
+            GroupCount_);
+        if (GroupReorderingEnabled_) {
+            groupIndexes = MakeRange(
+                &GroupIndexes_[std::ssize(GroupIndexes_) - GroupCount_],
+                GroupCount_);
+        }
+    }
+
+    ChunkIndexBuilder_->ProcessRow(
+        RowData_.Row,
+        BlockIndex_,
+        RowOffsets_.back(),
+        rowByteSize + sizeof(TChecksum),
+        groupOffsets,
+        groupIndexes);
+
+    if (MemoryGuard_) {
+        MemoryGuard_.SetSize(GetBlockSize());
+    }
+}
+
+TBlock TIndexedVersionedBlockWriter::FlushBlock()
+{
+    VerifySerializationAligned(Stream_.GetSize());
+
+    auto blockSize = GetUnalignedBlockSize();
+
+    // NB: We enforce sector alignment of blocks to simplify reasoning about sector alignment of column groups.
+    // Padding is added before row offsets and group offsets so block reader may easily access them.
+    WriteZeroes(Stream_, AlignUpSpace<i64>(blockSize, SectorAlignmentSize_));
+
+    for (auto rowOffset : RowOffsets_) {
+        WritePod(Stream_, rowOffset);
+    }
+    for (auto groupOffset : GroupOffsets_) {
+        WritePod(Stream_, groupOffset);
+    }
+    for (auto groupIndex : GroupIndexes_) {
+        WritePod(Stream_, groupIndex);
+    }
+
+    VerifySerializationAligned(Stream_.GetSize());
+
+    TDataBlockMeta meta;
+    auto* metaExt = meta.MutableExtension(TIndexedVersionedBlockMeta::block_meta_ext);
+    metaExt->set_group_reordering_enabled(GroupReorderingEnabled_);
+
+    return TVersionedBlockWriterBase::FlushBlock(Stream_.Flush(), std::move(meta));
+}
+
+i64 TIndexedVersionedBlockWriter::GetUnalignedBlockSize() const
+{
+    return
+        Stream_.GetSize() +
+        RowOffsets_.size() * sizeof(RowOffsets_[0]) +
+        GroupOffsets_.size() * sizeof(GroupOffsets_[0]) +
+        GroupIndexes_.size() * sizeof(GroupIndexes_[0]);
+}
+
+i64 TIndexedVersionedBlockWriter::GetBlockSize() const
+{
+    return AlignUp<i64>(GetUnalignedBlockSize(), SectorAlignmentSize_);
+}
+
+void TIndexedVersionedBlockWriter::ResetRowData(TVersionedRow row)
+{
+    RowData_.Row = row;
+    RowData_.RowSectorAlignmentSize = 0;
+
+    ResetKeyData();
+    ResetValueData();
+
+    RowData_.ValueData.GroupOrder = ComputeGroupAlignmentAndReordering();
+
+    if (RowData_.RowSectorAlignmentSize != 0) {
+        WriteZeroes(Stream_, RowData_.RowSectorAlignmentSize);
+    }
+
+    RowOffsets_.push_back(Stream_.GetSize());
+
+    if (GroupCount_ == 1) {
+        return;
+    }
+
+    auto groupIndexesStart = GroupIndexes_.size();
+    if (GroupReorderingEnabled_) {
+        GroupIndexes_.resize(GroupIndexes_.size() + GroupCount_);
+    }
+
+    auto groupOffset = GetRowMetadataByteSize();
+    for (int physicalGroupIndex = 0; physicalGroupIndex < GroupCount_; ++physicalGroupIndex) {
+        GroupOffsets_.push_back(groupOffset);
+
+        auto logicalGroupIndex = RowData_.ValueData.GroupOrder[physicalGroupIndex];
+        groupOffset += GetValueGroupDataByteSize(
+            logicalGroupIndex,
+            /*includeSectorAlignment*/ true);
+        if (GroupReorderingEnabled_) {
+            GroupIndexes_[groupIndexesStart + logicalGroupIndex] = physicalGroupIndex;
+        }
+    }
+}
+
+void TIndexedVersionedBlockWriter::ResetKeyData()
+{
+    auto& stringDataSize = RowData_.KeyData.StringDataSize;
+
+    stringDataSize = 0;
+    for (const auto* it = RowData_.Row.BeginKeys(); it != RowData_.Row.EndKeys(); ++it) {
+        const auto& value = *it;
+        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+
+        if (IsStringLikeType(value.Type)) {
+            YT_VERIFY(!IsInlineHunkValue(value));
+            stringDataSize += value.Length;
+        }
+    }
+}
+
+void TIndexedVersionedBlockWriter::ResetValueData()
+{
+    auto row = RowData_.Row;
+    auto& groups = RowData_.ValueData.Groups;
+
+    for (auto& group : groups) {
+        group.ValueCount = 0;
+        group.StringDataSize = 0;
+        group.ColumnValueRanges.clear();
+        group.SectorAlignmentSize = 0;
+    }
+
+    int currentId = KeyColumnCount_ + 1;
+    int currentIdBeginIndex = 0;
+    int groupId = ChunkIndexBuilder_->GetGroupIdFromValueId(currentId);
+
+    auto fillValueRange = [&] (int valueIndex) {
+        auto& group = groups[groupId];
+        group.ValueCount += valueIndex - currentIdBeginIndex;
+        group.ColumnValueRanges.emplace_back(currentIdBeginIndex, valueIndex);
+
+        currentIdBeginIndex = valueIndex;
+        ++currentId;
+        groupId = ChunkIndexBuilder_->GetGroupIdFromValueId(currentId);
+    };
+
+    for (int valueIndex = 0; valueIndex < row.GetValueCount(); ++valueIndex) {
+        const auto& value = row.BeginValues()[valueIndex];
+
+        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+        YT_ASSERT(currentId <= value.Id);
+
+        while (currentId < value.Id) {
+            fillValueRange(valueIndex);
+        }
+
+        if (IsStringLikeType(value.Type)) {
+            groups[groupId].StringDataSize += IsInlineHunkValue(value) ? 1 : 0;
+            groups[groupId].StringDataSize += value.Length;
+        }
+    }
+
+    while (currentId < SchemaColumnCount_) {
+        fillValueRange(row.GetValueCount());
+    }
+}
+
+i64 TIndexedVersionedBlockWriter::GetRowByteSize() const
+{
+    return
+        GetRowMetadataByteSize() +
+        GetValueDataByteSize();
+}
+
+i64 TIndexedVersionedBlockWriter::GetRowMetadataByteSize() const
+{
+    return
+        GetKeyDataByteSize() +
+        GetTimestampDataByteSize() +
+        GroupCount_ > 1 ? sizeof(TChecksum) : 0;
+}
+
+i64 TIndexedVersionedBlockWriter::GetKeyDataByteSize() const
+{
+    auto result =
+        sizeof(i64) * KeyColumnCount_ +
+        NBitmapDetail::GetByteSize(KeyColumnCount_);
+    result = AlignUp<i64>(result, SerializationAlignment);
+
+    result += AlignUp<i64>(RowData_.KeyData.StringDataSize, SerializationAlignment);
+
+    AssertSerializationAligned(result);
+
+    return result;
+}
+
+i64 TIndexedVersionedBlockWriter::GetTimestampDataByteSize() const
+{
+    int writeTimestampCount = RowData_.Row.GetWriteTimestampCount();
+    int deleteTimestampCount = RowData_.Row.GetDeleteTimestampCount();
+
+    auto result =
+        sizeof(writeTimestampCount) +
+        sizeof(deleteTimestampCount) +
+        sizeof(TTimestamp) * (writeTimestampCount + deleteTimestampCount);
+
+    AssertSerializationAligned(result);
+
+    return result;
+}
+
+i64 TIndexedVersionedBlockWriter::GetValueDataByteSize() const
+{
+    i64 result = 0;
+    for (int groupIndex = 0; groupIndex < GroupCount_; ++groupIndex) {
+        result += GetValueGroupDataByteSize(groupIndex, /*includeSectorAlignment*/ true);
+    }
+
+    AssertSerializationAligned(result);
+
+    return result;
+}
+
+i64 TIndexedVersionedBlockWriter::GetValueGroupDataByteSize(
+    int groupIndex,
+    bool includeSectorAlignment) const
+{
+    const auto& group = RowData_.ValueData.Groups[groupIndex];
+
+    auto result =
+        sizeof(group.ValueCount) +
+        sizeof(int) * group.ValueCount +
+        NBitmapDetail::GetByteSize(group.ValueCount) +
+        HasAggregateColumns_ ? NBitmapDetail::GetByteSize(group.ValueCount) : 0;
+    result = AlignUp<i64>(result, SerializationAlignment);
+
+    result += 2 * sizeof(i64) * group.ValueCount;
+    result += AlignUp<i64>(group.StringDataSize, SerializationAlignment);
+
+    result += includeSectorAlignment ? group.SectorAlignmentSize : 0;
+    result += GroupCount_ > 1 ? sizeof(TChecksum) : 0;
+
+    AssertSerializationAligned(result);
+
+    return result;
+}
+
+void TIndexedVersionedBlockWriter::EncodeRow(char* buffer)
+{
+    buffer = EncodeRowMetadata(buffer);
+    EncodeValueData(buffer);
+}
+
+char* TIndexedVersionedBlockWriter::EncodeRowMetadata(char* buffer)
+{
+    auto* bufferStart = buffer;
+
+    buffer = EncodeKeyData(buffer);
+    buffer = EncodeTimestampData(buffer);
+
+    if (GroupCount_ > 1) {
+        AppendChecksum(&buffer, buffer - bufferStart);
+    }
+
+    YT_ASSERT(buffer - bufferStart == GetRowMetadataByteSize());
+
+    return buffer;
+}
+
+char* TIndexedVersionedBlockWriter::EncodeKeyData(char* buffer) const
+{
+    auto* bufferStart = buffer;
+
+    auto* valuesBuffer = buffer;
+    buffer += sizeof(i64) * KeyColumnCount_;
+
+    TMutableBitmap nullFlagsBitmap(buffer);
+    buffer += NBitmapDetail::GetByteSize(KeyColumnCount_);
+
+    MakeSerializationAligned(&buffer, buffer - bufferStart);
+
+    auto* stringDataBuffer = buffer;
+    std::optional<TMutableBitmap> nullAggregateFlagsBitmap;
+    for (int keyColumnIndex = 0; keyColumnIndex < KeyColumnCount_; ++keyColumnIndex) {
+        const auto& value = RowData_.Row.BeginKeys()[keyColumnIndex];
+        DoWriteValue(
+            &valuesBuffer,
+            &stringDataBuffer,
+            keyColumnIndex,
+            value,
+            &nullFlagsBitmap,
+            &nullAggregateFlagsBitmap);
+    }
+
+    MakeSerializationAligned(&stringDataBuffer, RowData_.KeyData.StringDataSize);
+
+    YT_ASSERT(stringDataBuffer - bufferStart == GetKeyDataByteSize());
+
+    return stringDataBuffer;
+}
+
+char* TIndexedVersionedBlockWriter::EncodeTimestampData(char* buffer)
+{
+    auto* bufferStart = buffer;
+
+    auto row = RowData_.Row;
+
+    int writeTimestampCount = RowData_.Row.GetWriteTimestampCount();
+    int deleteTimestampCount = RowData_.Row.GetDeleteTimestampCount();
+
+    CopyPod(&buffer, writeTimestampCount);
+    CopyPod(&buffer, deleteTimestampCount);
+
+    auto writeTimestamps = [&] (const TTimestamp* begin, const TTimestamp* end) {
+        for (const auto* it = begin; it != end; ++it) {
+            TTimestamp timestamp = *it;
+            CopyPod(&buffer, timestamp);
+            MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
+            MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+        }
+    };
+    writeTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps());
+    writeTimestamps(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps());
+
+    YT_ASSERT(buffer - bufferStart == GetTimestampDataByteSize());
+
+    return buffer;
+}
+
+char* TIndexedVersionedBlockWriter::EncodeValueData(char* buffer)
+{
+    auto* bufferStart = buffer;
+
+    YT_VERIFY(RowData_.ValueData.Groups[RowData_.ValueData.GroupOrder.back()].SectorAlignmentSize == 0);
+
+    for (auto groupIndex : RowData_.ValueData.GroupOrder) {
+        auto* groupBufferStart = buffer;
+        buffer = EncodeValueGroupData(buffer, groupIndex);
+
+        if (GroupCount_ > 1) {
+            WritePadding(&buffer, RowData_.ValueData.Groups[groupIndex].SectorAlignmentSize);
+            AppendChecksum(&buffer, buffer - groupBufferStart);
+        }
+
+        VerifySerializationAligned(buffer - bufferStart);
+
+        YT_ASSERT(buffer - groupBufferStart == GetValueGroupDataByteSize(groupIndex, true));
+    }
+
+    YT_ASSERT(buffer - bufferStart == GetValueDataByteSize());
+
+    return buffer;
+}
+
+char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int groupIndex) const
+{
+    auto* bufferStart = buffer;
+
+    auto row = RowData_.Row;
+    const auto& group = RowData_.ValueData.Groups[groupIndex];
+
+    CopyPod(&buffer, group.ValueCount);
+
+    char* columnOffsetsBuffer = buffer;
+    buffer += sizeof(int) * group.ValueCount;
+
+    TMutableBitmap nullFlagsBitmap(buffer);
+    buffer += NBitmapDetail::GetByteSize(group.ValueCount);
+
+    std::optional<TMutableBitmap> aggregateFlagsBitmap;
+    if (HasAggregateColumns_) {
+        aggregateFlagsBitmap.emplace(buffer);
+        buffer += NBitmapDetail::GetByteSize(group.ValueCount);
+    }
+
+    MakeSerializationAligned(&buffer, buffer - bufferStart);
+
+    auto* stringDataBuffer = buffer + 2 * sizeof(i64) * group.ValueCount;
+
+    int valueIndexInGroup = 0;
+    for (auto [beginIndex, endIndex] : group.ColumnValueRanges) {
+        CopyPod(&columnOffsetsBuffer, valueIndexInGroup);
+
+        for (int index = beginIndex; index < endIndex; ++index) {
+            const auto& value = row.BeginValues()[index];
+            DoWriteValue(
+                &buffer,
+                &stringDataBuffer,
+                valueIndexInGroup,
+                value,
+                &nullFlagsBitmap,
+                &aggregateFlagsBitmap);
+            CopyPod(&buffer, value.Timestamp);
+
+            ++valueIndexInGroup;
+        }
+    }
+
+    YT_VERIFY(valueIndexInGroup == group.ValueCount);
+
+    MakeSerializationAligned(&stringDataBuffer, group.StringDataSize);
+
+    return stringDataBuffer;
+}
+
+TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount>
+TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
+{
+    /*
+        The purpose of this method is to compute row alignment and group alignment to achieve better disk utilization
+        and optionally reorder groups to diminish space amplification.
+
+        We try to align up to sector size, where sector size is determined via chunk index builder
+        and corresponds to page size.
+        Alignment is performed if it reduces number of sectors to be accessed
+        upon reading of the whole row or dedicated groups from disk.
+
+        Having a single group we only perform row alignment and the group goes right after row metadata.
+
+        With multiple groups each group may come with sector alignment.
+        Note that row metadata and the first group cannot be separated by alignment
+        as we always read row metadata so it makes no sence to align the first group.
+
+        If group reordering is enabled we perform best-fit-decreasing algorithm to pack groups in bins, where
+        bin capacity equals to sector alignment and group size is its actual size modulo sector alignment.
+        Sector alignment is applied to a single group within each bin
+        and finally group ordering is formed putting each bin's groups one by one.
+        First group (that is attached to row metadata) is chosen in some greedy fashion.
+
+        With multiple groups chunk index is provided with group offsets to allow accessing them from disk separately.
+        If reordering is enabled chunk index is also provided with mapping from logical to physical indexation.
+    */
+
+    auto bufferSize = Stream_.GetSize();
+    auto rowAlignUpSpace = AlignUpSpace<i64>(bufferSize, SectorAlignmentSize_);
+    auto rowMetadataSize = GetRowMetadataByteSize();
+
+    if (GroupCount_ == 1) {
+        auto rowSize =
+            rowMetadataSize +
+            GetValueGroupDataByteSize(0, /*includeSectorAlignment*/ false);
+        if (rowSize % SectorAlignmentSize_ > rowAlignUpSpace) {
+            RowData_.RowSectorAlignmentSize = rowAlignUpSpace;
+        }
+
+        return {0};
+    }
+
+    auto shouldAlignRowMetadata = rowMetadataSize % SectorAlignmentSize_ > rowAlignUpSpace;
+    if (shouldAlignRowMetadata) {
+        RowData_.RowSectorAlignmentSize = rowAlignUpSpace;
+        bufferSize += rowAlignUpSpace;
+    }
+
+    bufferSize += rowMetadataSize;
+
+    if (!GroupReorderingEnabled_) {
+        bufferSize += GetValueGroupDataByteSize(0, /*includeSectorAlignment*/ false);
+        for (int groupIndex = 1; groupIndex < GroupCount_; ++groupIndex) {
+            auto groupSize = GetValueGroupDataByteSize(groupIndex, /*includeSectorAlignment*/ false);
+            auto alignUpSpace = AlignUpSpace<i64>(bufferSize, SectorAlignmentSize_);
+            if (groupSize % SectorAlignmentSize_ > alignUpSpace) {
+                RowData_.ValueData.Groups[groupIndex - 1].SectorAlignmentSize = alignUpSpace;
+                bufferSize += alignUpSpace;
+            }
+
+            bufferSize += groupSize;
+        }
+
+        TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount> groupIndexes(GroupCount_);
+        std::iota(groupIndexes.begin(), groupIndexes.end(), 0);
+        return groupIndexes;
+    }
+
+    std::vector<std::pair<i64, int>> groupBinSizes;
+    for (int groupIndex = 0; groupIndex < GroupCount_; ++groupIndex) {
+        groupBinSizes.emplace_back(
+            GetValueGroupDataByteSize(groupIndex, /*includeSectorAlignment*/ false) % SectorAlignmentSize_,
+            groupIndex);
+    }
+
+    std::sort(groupBinSizes.begin(), groupBinSizes.end(), std::greater());
+
+    // Find the first group to fit right after metadata. Otherwise, pick the largest one.
+    auto firstGroupIt = std::lower_bound(
+        groupBinSizes.begin(),
+        groupBinSizes.end(),
+        AlignUpSpace<i64>(bufferSize, SectorAlignmentSize_),
+        [] (const std::pair<i64, int>& group, i64 binSize) {
+            return group.first > binSize;
+        });
+    int firstGroupIndex = firstGroupIt == groupBinSizes.end()
+        ? 0
+        : std::distance(groupBinSizes.begin(), firstGroupIt);
+
+    bufferSize += GetValueGroupDataByteSize(firstGroupIndex, /*includeSectorAlignment*/ false);
+
+    std::multimap<i64, std::vector<int>> binSpaceToGroupIndexes;
+    const auto& firstBin = *binSpaceToGroupIndexes.insert({
+        AlignUpSpace<i64>(bufferSize, SectorAlignmentSize_),
+        {firstGroupIndex}
+    });
+
+    for (auto [groupBinSize, groupIndex] : groupBinSizes) {
+        if (firstGroupIndex == groupIndex) {
+            continue;
+        }
+
+        auto it = binSpaceToGroupIndexes.lower_bound(groupBinSize);
+        if (it == binSpaceToGroupIndexes.end()) {
+            it = binSpaceToGroupIndexes.insert({SectorAlignmentSize_, {}});
+        }
+
+        auto node = binSpaceToGroupIndexes.extract(it);
+        node.key() -= groupBinSize;
+        node.mapped().push_back(groupIndex);
+        binSpaceToGroupIndexes.insert(std::move(node));
+    }
+
+    TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount> reorderedGroupIndexes;
+    reorderedGroupIndexes.reserve(GroupCount_);
+
+    reorderedGroupIndexes.insert(
+        reorderedGroupIndexes.end(),
+        firstBin.second.begin(),
+        firstBin.second.end());
+
+    for (auto it = binSpaceToGroupIndexes.begin(); it != binSpaceToGroupIndexes.end(); ++it) {
+        YT_VERIFY(it->first < SectorAlignmentSize_);
+        RowData_.ValueData.Groups[it->second.back()].SectorAlignmentSize = it->first;
+
+        if (it->second[0] == firstGroupIndex) {
+            continue;
+        }
+
+        reorderedGroupIndexes.insert(
+            reorderedGroupIndexes.end(),
+            it->second.begin(),
+            it->second.end());
+    }
+
+    RowData_.ValueData.Groups[reorderedGroupIndexes.back()].SectorAlignmentSize = 0;
+
+    return reorderedGroupIndexes;
+}
+
+void TIndexedVersionedBlockWriter::DoWriteValue(
+    char** buffer,
+    char** stringBuffer,
+    int valueIndex,
+    const TUnversionedValue& value,
+    TMutableBitmap* nullFlagsBitmap,
+    std::optional<TMutableBitmap>* aggregateFlagsBitmap) const
+{
+    if (aggregateFlagsBitmap->has_value()) {
+        (*aggregateFlagsBitmap)->Set(valueIndex, Any(value.Flags & EValueFlags::Aggregate));
+    }
+
+    switch (value.Type) {
+        case EValueType::Int64:
+            CopyPod(buffer, value.Data.Int64);
+            nullFlagsBitmap->Set(valueIndex, false);
+            break;
+        case EValueType::Uint64:
+            CopyPod(buffer, value.Data.Uint64);
+            nullFlagsBitmap->Set(valueIndex, false);
+            break;
+        case EValueType::Double:
+            CopyPod(buffer, value.Data.Double);
+            nullFlagsBitmap->Set(valueIndex, false);
+            break;
+
+        case EValueType::Boolean: {
+            // NB(psushin): all values in simple versioned block must be 64-bits.
+            ui64 castValue = static_cast<ui64>(value.Data.Boolean);
+            CopyPod(buffer, castValue);
+            nullFlagsBitmap->Set(valueIndex, false);
+            break;
+        }
+
+        case EValueType::String:
+        case EValueType::Any:
+        case EValueType::Composite: {
+            ui32 offset = static_cast<ui32>(*stringBuffer - *buffer);
+            CopyPod(buffer, offset);
+
+            if (IsInlineHunkValue(value)) {
+                auto hunkTag = static_cast<char>(EHunkValueTag::Inline);
+                ui32 lengthWithTag = value.Length + 1;
+                CopyPod(buffer, lengthWithTag);
+                CopyPod(stringBuffer, hunkTag);
+                memcpy(*stringBuffer, value.Data.String, value.Length);
+                *stringBuffer += value.Length;
+            } else {
+                CopyPod(buffer, value.Length);
+                memcpy(*stringBuffer, value.Data.String, value.Length);
+                *stringBuffer += value.Length;
+            }
+
+            nullFlagsBitmap->Set(valueIndex, false);
+
+            break;
+        }
+
+        case EValueType::Null:
+            CopyPod(buffer, NullValue);
+            nullFlagsBitmap->Set(valueIndex, true);
+            break;
+
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

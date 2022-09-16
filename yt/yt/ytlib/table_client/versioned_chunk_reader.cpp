@@ -143,6 +143,8 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     YT_VERIFY(PerformanceCounters_);
+    YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
+        ETableChunkBlockFormat::Default);
 
     if (dataSource) {
         PackBaggageFromDataSource(TraceContext_, *dataSource);

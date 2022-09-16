@@ -273,12 +273,18 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
-        : TCacheBasedVersionedChunkReaderBase(chunkId, std::move(state), chunkMeta)
+        : TCacheBasedVersionedChunkReaderBase(
+            chunkId,
+            std::move(state),
+            chunkMeta)
         , SchemaIdMapping_(
             ChunkState_->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
-    { }
+    {
+        YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
+            ETableChunkBlockFormat::Default);
+    }
 
     TSimpleVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,

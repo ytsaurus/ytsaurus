@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "private.h"
-#include "block_writer.h"
+#include "block.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -13,17 +13,16 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THorizontalBlockWriter
-    : public IBlockWriter
 {
 public:
     THorizontalBlockWriter(i64 reserveSize = 2 * 64 * 1024);
 
     void WriteRow(TUnversionedRow row);
 
-    TBlock FlushBlock() override;
+    TBlock FlushBlock();
 
-    i64 GetBlockSize() const override;
-    i64 GetRowCount() const override;
+    i64 GetBlockSize() const;
+    i64 GetRowCount() const;
 
     i64 GetCapacity() const;
 

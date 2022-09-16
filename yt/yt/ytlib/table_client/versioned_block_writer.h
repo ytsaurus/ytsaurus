@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "private.h"
-#include "block_writer.h"
+#include "block.h"
 #include "chunk_meta_extensions.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -19,13 +19,49 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleVersionedBlockWriter
-    : public IBlockWriter
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MinTimestamp);
-    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
+constexpr int SimpleVersionedBlockValueSize = 16;
+constexpr int SimpleVersionedBlockTimestampSize = 8;
 
+int GetSimpleVersionedBlockPaddedKeySize(int keyColumnCount, int schemaColumnCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedBlockWriterBase
+{
+protected:
+    TVersionedBlockWriterBase(
+        TTableSchemaPtr schema,
+        TMemoryUsageTrackerGuard guard);
+
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MinTimestamp, MaxTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp, MinTimestamp);
+
+    DEFINE_BYVAL_RO_PROPERTY(int, RowCount, 0);
+
+protected:
+    const TTableSchemaPtr Schema_;
+    const int SchemaColumnCount_;
+    const int KeyColumnCount_;
+
+    TMemoryUsageTrackerGuard MemoryGuard_;
+
+
+    TBlock FlushBlock(
+        std::vector<TSharedRef> blockParts,
+        NProto::TDataBlockMeta meta);
+
+    bool IsInlineHunkValue(const TUnversionedValue& value) const;
+
+private:
+    const std::unique_ptr<bool[]> ColumnHunkFlags_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleVersionedBlockWriter
+    : public TVersionedBlockWriterBase
+{
 public:
     explicit TSimpleVersionedBlockWriter(
         TTableSchemaPtr schema,
@@ -33,27 +69,11 @@ public:
 
     void WriteRow(TVersionedRow row);
 
-    TBlock FlushBlock() override;
+    TBlock FlushBlock();
 
-    i64 GetBlockSize() const override;
-    i64 GetRowCount() const override;
-
-    static int GetKeySize(int keyColumnCount, int schemaColumnCount);
-    static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
-
-    static const NChunkClient::EChunkFormat FormatVersion = NChunkClient::EChunkFormat::TableVersionedSimple;
-    static const int ValueSize = 16;
-    static const int TimestampSize = 8;
+    i64 GetBlockSize() const;
 
 private:
-    const TTableSchemaPtr Schema_;
-
-    const int SchemaColumnCount_;
-    const int KeyColumnCount_;
-    const std::unique_ptr<bool[]> ColumnHunkFlags_;
-
-    TMemoryUsageTrackerGuard MemoryGuard_;
-
     TChunkedOutputStream KeyStream_;
     TBitmapOutput KeyNullFlags_;
 
@@ -67,14 +87,112 @@ private:
 
     i64 TimestampCount_ = 0;
     i64 ValueCount_ = 0;
-    i64 RowCount_ = 0;
+
 
     void WriteValue(
         TChunkedOutputStream& stream,
         TBitmapOutput& nullFlags,
         std::optional<TBitmapOutput>& aggregateFlags,
         const TUnversionedValue& value);
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TIndexedVersionedBlockWriter
+    : public TVersionedBlockWriterBase
+{
+public:
+    TIndexedVersionedBlockWriter(
+        TTableSchemaPtr schema,
+        int blockIndex,
+        IChunkIndexBuilderPtr chunkIndexBuilder,
+        TMemoryUsageTrackerGuard guard = {});
+
+    void WriteRow(TVersionedRow row);
+
+    TBlock FlushBlock();
+
+    i64 GetBlockSize() const;
+
+private:
+    static constexpr int TypicalGroupCount = 1;
+
+    const IChunkIndexBuilderPtr ChunkIndexBuilder_;
+    const int BlockIndex_;
+    const int GroupCount_;
+    // TODO(akozhikhov): Consider having this flag per group to save space
+    // if aggregate flag bitmaps are not needed for particular groups.
+    const bool HasAggregateColumns_;
+    const i64 SectorAlignmentSize_;
+    const bool GroupReorderingEnabled_;
+
+    TChunkedOutputStream Stream_;
+
+    std::vector<i64> RowOffsets_;
+    std::vector<int> GroupOffsets_;
+    std::vector<int> GroupIndexes_;
+
+    struct TRowData
+    {
+        struct TKeyData
+        {
+            i64 StringDataSize;
+        };
+
+        struct TValueData
+        {
+            struct TGroupData
+            {
+                i64 StringDataSize;
+                int ValueCount;
+                std::vector<std::pair<int, int>> ColumnValueRanges;
+                i64 SectorAlignmentSize;
+            };
+
+            TCompactVector<TGroupData, TypicalGroupCount> Groups;
+            TCompactVector<int, TypicalGroupCount> GroupOrder;
+        };
+
+        TKeyData KeyData;
+        TValueData ValueData;
+
+        TVersionedRow Row;
+
+        i64 RowSectorAlignmentSize;
+    };
+
+    TRowData RowData_;
+
+
+    void ResetRowData(TVersionedRow row);
+    void ResetKeyData();
+    void ResetValueData();
+
+    i64 GetRowByteSize() const;
+    i64 GetRowMetadataByteSize() const;
+    i64 GetKeyDataByteSize() const;
+    i64 GetTimestampDataByteSize() const;
+    i64 GetValueDataByteSize() const;
+    i64 GetValueGroupDataByteSize(int groupIndex, bool includeSectorAlignment) const;
+
+    void EncodeRow(char* buffer);
+    char* EncodeRowMetadata(char* buffer);
+    char* EncodeKeyData(char* buffer) const;
+    char* EncodeTimestampData(char* buffer);
+    char* EncodeValueData(char* buffer);
+    char* EncodeValueGroupData(char* buffer, int groupIndex) const;
+
+    TCompactVector<int, TypicalGroupCount> ComputeGroupAlignmentAndReordering();
+
+    void DoWriteValue(
+        char** buffer,
+        char** stringBuffer,
+        int valueIndex,
+        const TUnversionedValue& value,
+        TMutableBitmap* nullFlagsBitmap,
+        std::optional<TMutableBitmap>* aggregateFlagsBitmap) const;
+
+    i64 GetUnalignedBlockSize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

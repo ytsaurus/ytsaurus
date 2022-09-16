@@ -175,6 +175,9 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         switch (chunkFormat) {
             case EChunkFormat::TableVersionedSimple: {
+                YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format()) ==
+                    ETableChunkBlockFormat::Default);
+
                 TSimpleVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,
