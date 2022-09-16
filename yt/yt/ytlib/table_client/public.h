@@ -35,9 +35,6 @@ class TGenericColumnFilterDictionary;
 using TColumnFilterDictionary = TGenericColumnFilterDictionary<TString>;
 using TStableColumnNameFilterDictionary = TGenericColumnFilterDictionary<TStableName>;
 
-struct IBlockWriter;
-class TBlockWriter;
-
 class THorizontalBlockReader;
 
 struct TTableReadSpec;
@@ -126,6 +123,18 @@ class TSliceBoundaryKey;
 
 DEFINE_ENUM(ETableCollocationType,
     ((Replication)  (0))
+);
+
+DEFINE_ENUM(EVersionedBlockFormat,
+    ((Simple)  (0))
+    ((Indexed) (1))
+);
+
+DECLARE_REFCOUNTED_STRUCT(IChunkIndexBuilder)
+
+DEFINE_ENUM(ETableChunkBlockFormat,
+    ((Default)                (0))
+    ((IndexedVersioned)       (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

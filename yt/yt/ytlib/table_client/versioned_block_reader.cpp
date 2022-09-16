@@ -59,16 +59,16 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
         Key_[index] = MakeUnversionedNullValue(index);
     }
 
-    KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
+    KeyData_ = TRef(const_cast<char*>(Block_.Begin()), GetSimpleVersionedBlockPaddedKeySize(
         ChunkKeyColumnCount_,
         ChunkColumnCount_) * Meta_.row_count());
 
     ValueData_ = TRef(
         KeyData_.End(),
-        TSimpleVersionedBlockWriter::ValueSize * VersionedMeta_.value_count());
+        SimpleVersionedBlockValueSize * VersionedMeta_.value_count());
 
     TimestampsData_ = TRef(ValueData_.End(),
-        TSimpleVersionedBlockWriter::TimestampSize * VersionedMeta_.timestamp_count());
+        SimpleVersionedBlockTimestampSize * VersionedMeta_.timestamp_count());
 
     const char* ptr = TimestampsData_.End();
     KeyNullFlags_.Reset(ptr, ChunkKeyColumnCount_ * Meta_.row_count());
@@ -142,7 +142,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
     }
 
     RowIndex_ = index;
-    KeyDataPtr_ = KeyData_.Begin() + TSimpleVersionedBlockWriter::GetPaddedKeySize(
+    KeyDataPtr_ = KeyData_.Begin() + GetSimpleVersionedBlockPaddedKeySize(
         ChunkKeyColumnCount_,
         ChunkColumnCount_) * RowIndex_;
 
@@ -402,7 +402,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 {
     YT_ASSERT(id >= ChunkKeyColumnCount_);
 
-    const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    const char* ptr = ValueData_.Begin() + SimpleVersionedBlockValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
     *value = {};
@@ -460,7 +460,7 @@ void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const
 
 TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex)
 {
-    const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    const char* ptr = ValueData_.Begin() + SimpleVersionedBlockValueSize * valueIndex;
     return *reinterpret_cast<const TTimestamp*>(ptr + 8);
 }
 
@@ -473,7 +473,7 @@ TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
 {
     return *reinterpret_cast<const TTimestamp*>(
         TimestampsData_.Begin() +
-        timestampIndex * TSimpleVersionedBlockWriter::TimestampSize);
+        timestampIndex * SimpleVersionedBlockTimestampSize);
 }
 
 i64 TSimpleVersionedBlockReader::GetRowIndex() const

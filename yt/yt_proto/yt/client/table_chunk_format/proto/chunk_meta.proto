@@ -154,9 +154,20 @@ message TSimpleVersionedBlockMeta
     required int32 timestamp_count = 2;
 }
 
+message TIndexedVersionedBlockMeta
+{
+    extend TDataBlockMeta
+    {
+        optional TIndexedVersionedBlockMeta block_meta_ext = 101;
+    }
+
+    optional bool group_reordering_enabled = 1;
+}
+
 message TDataBlockMetaExt
 {
     repeated TDataBlockMeta data_blocks = 1;
+    optional int32 block_format = 2; // ETableChunkBlockFormat
 }
 
 message TSystemBlockMeta

@@ -340,9 +340,8 @@ class TTaggedLogicalType;
 
 struct TStructField;
 
-//
-// Enumeration is used to describe compatibility of two schemas (or logical types).
-// Such compatibility tests are performed before altering table schema or before merge operation.
+//! Enumeration is used to describe compatibility of two schemas (or logical types).
+//! Such compatibility tests are performed before altering table schema or before merge operation.
 DEFINE_ENUM(ESchemaCompatibility,
     // Values are incompatible.
     // E.g. Int8 and String.

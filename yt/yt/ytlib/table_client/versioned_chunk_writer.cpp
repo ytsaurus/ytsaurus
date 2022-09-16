@@ -1,5 +1,6 @@
 #include "versioned_chunk_writer.h"
 
+#include "chunk_index_builder.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "private.h"
@@ -51,6 +52,7 @@ using namespace NTracing;
 
 using NYT::TRange;
 using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,16 +72,16 @@ public:
         IBlockCachePtr blockCache,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
-        , Options_(options)
-        , Config_(config)
-        , Schema_(schema)
+        , Options_(std::move(options))
+        , Config_(std::move(config))
+        , Schema_(std::move(schema))
         , SamplesMemoryUsageGuard_(
-              TMemoryUsageTrackerGuard::Acquire(
-                  options->MemoryTracker,
-                  /*size*/ 0))
+            TMemoryUsageTrackerGuard::Acquire(
+                Options_->MemoryTracker,
+                /*size*/ 0))
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
-            std::move(config),
-            std::move(options),
+            Config_,
+            Options_,
             std::move(chunkWriter),
             std::move(blockCache),
             Logger))
@@ -291,8 +293,78 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleBlockFormatAdapter
+{
+public:
+    void ResetBlockWriter(
+        TTableSchemaPtr schema,
+        IMemoryUsageTrackerPtr memoryTracker)
+    {
+        BlockWriter_ = std::make_unique<TSimpleVersionedBlockWriter>(
+            std::move(schema),
+            TMemoryUsageTrackerGuard::Acquire(
+                std::move(memoryTracker),
+                /*size*/ 0));
+    }
+
+    void OnDataBlocksWritten(const TEncodingChunkWriterPtr& /*encodingChunkWriter*/)
+    { }
+
+    ETableChunkBlockFormat GetBlockFormat() const
+    {
+        return ETableChunkBlockFormat::Default;
+    }
+
+protected:
+    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
+};
+
+class TIndexedBlockFormatAdapter
+{
+public:
+    void ResetBlockWriter(
+        TTableSchemaPtr schema,
+        IMemoryUsageTrackerPtr memoryTracker)
+    {
+        BlockWriter_ = std::make_unique<TIndexedVersionedBlockWriter>(
+            std::move(schema),
+            BlockCount_++,
+            ChunkIndexBuilder_,
+            TMemoryUsageTrackerGuard::Acquire(
+                std::move(memoryTracker),
+                /*size*/ 0));
+    }
+
+    void OnDataBlocksWritten(const TEncodingChunkWriterPtr& encodingChunkWriter)
+    {
+        encodingChunkWriter->WriteBlock(ChunkIndexBuilder_->BuildIndex());
+
+        const auto& meta = encodingChunkWriter->GetMeta();
+        auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
+        chunkFeatures |= EChunkFeatures::IndexedBlockFormat;
+        meta->set_features(ToProto<ui64>(chunkFeatures));
+    }
+
+    ETableChunkBlockFormat GetBlockFormat() const
+    {
+        return ETableChunkBlockFormat::IndexedVersioned;
+    }
+
+protected:
+    std::unique_ptr<TIndexedVersionedBlockWriter> BlockWriter_;
+
+private:
+    const IChunkIndexBuilderPtr ChunkIndexBuilder_ = CreateChunkIndexBuilder();
+
+    int BlockCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TBlockFormatAdapter>
 class TSimpleVersionedChunkWriter
     : public TVersionedChunkWriterBase
+    , protected TBlockFormatAdapter
 {
 public:
     TSimpleVersionedChunkWriter(
@@ -309,22 +381,24 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink)
-        , BlockWriter_(new TSimpleVersionedBlockWriter(
-              Schema_,
-              TMemoryUsageTrackerGuard::Acquire(
-                  Options_->MemoryTracker,
-                  /*size*/ 0)))
-    { }
+    {
+        ResetBlockWriter(Schema_, Options_->MemoryTracker);
+    }
 
     i64 GetCompressedDataSize() const override
     {
         return
             EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
-            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
+            BlockWriter_->GetBlockSize();
     }
 
 private:
-    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
+    using TBlockFormatAdapter::BlockWriter_;
+
+    using TBlockFormatAdapter::ResetBlockWriter;
+    using TBlockFormatAdapter::OnDataBlocksWritten;
+    using TBlockFormatAdapter::GetBlockFormat;
+
 
     void DoWriteRows(TRange<TVersionedRow> rows) override
     {
@@ -391,11 +465,7 @@ private:
         }
 
         FinishBlock(row.BeginKeys(), row.EndKeys());
-        BlockWriter_.reset(new TSimpleVersionedBlockWriter(
-            Schema_,
-            TMemoryUsageTrackerGuard::Acquire(
-                Options_->MemoryTracker,
-                /*size*/ 0)));
+        ResetBlockWriter(Schema_, Options_->MemoryTracker);
     }
 
     void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
@@ -418,6 +488,8 @@ private:
 
     void PrepareChunkMeta() override
     {
+        BlockMetaExt_.set_block_format(ToProto<int>(GetBlockFormat()));
+
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
@@ -431,6 +503,8 @@ private:
             FinishBlock(LastKey_.Begin(), LastKey_.End());
         }
 
+        OnDataBlocksWritten(EncodingChunkWriter_);
+
         PrepareChunkMeta();
 
         EncodingChunkWriter_->Close();
@@ -438,7 +512,7 @@ private:
 
     EChunkFormat GetChunkFormat() const override
     {
-        return TSimpleVersionedBlockWriter::FormatVersion;
+        return EChunkFormat::TableVersionedSimple;
     }
 };
 
@@ -716,13 +790,23 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             std::move(blockCache),
             dataSink);
     } else {
-        return New<TSimpleVersionedChunkWriter>(
-            std::move(config),
-            std::move(options),
-            std::move(schema),
-            std::move(chunkWriter),
-            std::move(blockCache),
-            dataSink);
+        if (options->EnableHashChunkIndex) {
+            return New<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>(
+                std::move(config),
+                std::move(options),
+                std::move(schema),
+                std::move(chunkWriter),
+                std::move(blockCache),
+                dataSink);
+        } else {
+            return New<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>(
+                std::move(config),
+                std::move(options),
+                std::move(schema),
+                std::move(chunkWriter),
+                std::move(blockCache),
+                dataSink);
+        }
     }
 }
 
