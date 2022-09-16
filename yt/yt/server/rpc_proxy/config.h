@@ -125,8 +125,6 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
-    NAuth::TTvmServiceConfigPtr NativeTvmService;
-
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);

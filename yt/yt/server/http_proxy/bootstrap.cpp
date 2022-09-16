@@ -15,7 +15,6 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
@@ -113,11 +112,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     auto connectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver);
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    NativeTvmService_ = CreateMainConnectionTvmService(Config_->TvmService, connectionConfig);
-    Connection_ = CreateMainConnection(
-        NativeTvmService_,
-        connectionConfig,
-        connectionOptions);
+    Connection_ = CreateConnection(connectionConfig, connectionOptions);
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     SetupClients();

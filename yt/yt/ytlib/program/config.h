@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/ytlib/auth/config.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 namespace NYT {
@@ -13,6 +15,8 @@ class TNativeSingletonsConfig
 {
 public:
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
+
+    NAuth::TNativeAuthenticationManagerConfigPtr NativeAuthenticationManager;
 
     REGISTER_YSON_STRUCT(TNativeSingletonsConfig);
 
@@ -28,6 +32,8 @@ class TNativeSingletonsDynamicConfig
 {
 public:
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
+
+    NAuth::TNativeAuthenticationManagerDynamicConfigPtr NativeAuthenticationManager;
 
     REGISTER_YSON_STRUCT(TNativeSingletonsDynamicConfig);
 

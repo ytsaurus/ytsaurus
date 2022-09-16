@@ -10,8 +10,6 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/library/auth_server/config.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1014,8 +1012,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
-    registrar.Parameter("tvm_service", &TThis::TvmService)
-        .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)

@@ -44,8 +44,6 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/yt/library/auth_server/public.h>
-
 #include <yt/yt/library/program/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
@@ -255,8 +253,6 @@ public:
     bool AbortOnUnrecognizedOptions;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
-    NAuth::TTvmServiceConfigPtr TvmService;
 
     bool UseNewHydra;
 

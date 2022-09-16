@@ -92,9 +92,6 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 
-    registrar.Parameter("native_tvm_service", &TThis::NativeTvmService)
-        .DefaultNew();
-
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default("//sys/rpc_proxies/@config");
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)

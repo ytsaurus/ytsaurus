@@ -1003,8 +1003,6 @@ void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("controller_agent", &TThis::ControllerAgent)
         .DefaultNew();
-    registrar.Parameter("tvm_service", &TThis::TvmService)
-        .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)

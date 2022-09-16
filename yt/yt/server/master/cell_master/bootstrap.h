@@ -60,8 +60,6 @@
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
-#include <yt/yt/library/auth_server/public.h>
-
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -223,7 +221,6 @@ protected:
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
-    NAuth::IDynamicTvmServicePtr TvmService_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 

@@ -91,7 +91,6 @@ private:
 
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
-    NAuth::IDynamicTvmServicePtr NativeTvmService_;
     TCompositeHttpAuthenticatorPtr HttpAuthenticator_;
 
     IDynamicConfigManagerPtr DynamicConfigManager_;

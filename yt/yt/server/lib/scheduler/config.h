@@ -17,8 +17,6 @@
 
 #include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/yt/library/auth_server/public.h>
-
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -912,8 +910,6 @@ class TSchedulerBootstrapConfig
 public:
     //! Node-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
-    NAuth::TTvmServiceConfigPtr TvmService;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

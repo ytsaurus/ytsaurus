@@ -22,7 +22,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -121,11 +120,9 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting scheduler");
 
-    TvmService_ = NApi::NNative::CreateMainConnectionTvmService(Config_->TvmService, Config_->ClusterConnection);
-
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = NApi::NNative::CreateMainConnection(TvmService_, Config_->ClusterConnection, std::move(connectionOptions));
+    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);

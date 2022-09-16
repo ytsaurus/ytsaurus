@@ -104,7 +104,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -705,7 +704,6 @@ private:
 
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
 
-    IDynamicTvmServicePtr TvmService_;
     NApi::NNative::IClientPtr Client_;
     NApi::NNative::IConnectionPtr Connection_;
 
@@ -772,12 +770,10 @@ private:
             Config_->ClusterConnection->ThreadPoolSize,
             "Connection");
 
-        TvmService_ = NApi::NNative::CreateMainConnectionTvmService(Config_->TvmService, Config_->ClusterConnection);
-
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
-        Connection_ = NApi::NNative::CreateMainConnection(TvmService_, Config_->ClusterConnection, std::move(connectionOptions));
+        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
@@ -1059,7 +1055,7 @@ private:
         }
 
         JobResourceManager_->Initialize();
-        
+
         // We must ensure we know actual status of job proxy binary before Run phase.
         // Otherwise we may erroneously receive some job which we fail to run due to missing
         // ytserver-job-proxy. This requires slot manager to be initialized before job controller
