@@ -255,6 +255,69 @@ bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TTestYTCHConversion, TestStringConversionSpeedSmall)
+{
+    std::vector<TString> ysons;
+    for (int i = 0; i < 10000; i++) {
+        ysons.push_back("E" + ToString(i));
+    }
+
+    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
+
+    auto anyYsons = ToYsonStringBufs(ysons);
+    auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
+
+    for (int i = 0; i < 10000; i++) {
+        TYTCHConverter converter(descriptor, Settings_);
+        converter.ConsumeYtColumn(*ytColumn);
+        converter.FlushColumn();
+    }
+}
+
+TEST_F(TTestYTCHConversion, TestStringConversionSpeedMedium)
+{
+    std::vector<TString> ysons;
+    for (int i = 0; i < 10000; i++) {
+        ysons.push_back(TString{"E", 14} + ToString(i));
+    }
+
+    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
+
+    auto anyYsons = ToYsonStringBufs(ysons);
+    auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
+
+    for (int i = 0; i < 10000; i++) {
+        TYTCHConverter converter(descriptor, Settings_);
+        converter.ConsumeYtColumn(*ytColumn);
+        converter.FlushColumn();
+    }
+}
+
+TEST_F(TTestYTCHConversion, TestStringConversionSpeedBig)
+{
+    std::vector<TString> ysons;
+    for (int i = 0; i < 10000; i++) {
+        ysons.push_back("E" + ToString(i) + TString(256, 'f'));
+    }
+
+    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
+
+    auto anyYsons = ToYsonStringBufs(ysons);
+    auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
+
+    for (int i = 0; i < 10000; i++) {
+        TYTCHConverter converter(descriptor, Settings_);
+        converter.ConsumeYtColumn(*ytColumn);
+        converter.FlushColumn();
+    }
+}
+
 TEST_F(TTestYTCHConversion, TestAnyPassthrough)
 {
     std::vector<TString> ysons = {
