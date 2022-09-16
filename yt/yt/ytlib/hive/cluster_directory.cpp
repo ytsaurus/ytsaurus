@@ -82,6 +82,11 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     auto clusterTag = GetClusterTag(cluster);
     cluster.Connection->Terminate();
     NameToCluster_.erase(it);
+    if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
+        auto iter = ClusterTvmIds_.find(*tvmId);
+        YT_VERIFY(iter != ClusterTvmIds_.end());
+        ClusterTvmIds_.erase(iter);
+    }
     YT_VERIFY(ClusterTagToCluster_.erase(clusterTag) == 1);
     YT_LOG_DEBUG("Remote cluster unregistered (Name: %v, ClusterTag: %v)",
         name,
@@ -93,6 +98,7 @@ void TClusterDirectory::Clear()
     auto guard = Guard(Lock_);
     ClusterTagToCluster_.clear();
     NameToCluster_.clear();
+    ClusterTvmIds_.clear();
 }
 
 void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnectionConfig)
@@ -104,6 +110,9 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
         }
         ClusterTagToCluster_[clusterTag] = cluster;
         NameToCluster_[name] = cluster;
+        if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
+            ClusterTvmIds_.insert(*tvmId);
+        }
     };
 
     auto it = NameToCluster_.find(name);
@@ -120,6 +129,11 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
         it->second.Connection->Terminate();
         ClusterTagToCluster_.erase(GetClusterTag(it->second));
         NameToCluster_.erase(it);
+        if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
+            auto iter = ClusterTvmIds_.find(*tvmId);
+            YT_VERIFY(iter != ClusterTvmIds_.end());
+            ClusterTvmIds_.erase(iter);
+        }
         addNewCluster(cluster);
         YT_LOG_DEBUG("Remote cluster updated (Name: %v, ClusterTag: %v)",
             name,
@@ -147,6 +161,12 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
     for (const auto& [name, config] : nameToConfig) {
         UpdateCluster(name, config);
     }
+}
+
+bool TClusterDirectory::HasTvmId(NAuth::TTvmId tvmId) const
+{
+    auto guard = Guard(Lock_);
+    return ClusterTvmIds_.find(tvmId) != ClusterTvmIds_.end();
 }
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config) const

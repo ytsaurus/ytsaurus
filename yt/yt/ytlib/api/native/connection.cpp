@@ -788,6 +788,9 @@ private:
         if (!Options_.TvmService) {
             return;
         }
+        if (Config_->TvmId) {
+            Options_.TvmService->AddDestinationServiceIds({*Config_->TvmId});
+        }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService = Options_.TvmService] (const TString& name, INodePtr nativeConnectionConfig) {
                 static const auto& Logger = TvmSynchronizerLogger;
@@ -928,6 +931,13 @@ IConnectionPtr GetRemoteConnectionOrThrow(
         THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return remoteConnection;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsValidSourceTvmId(const IConnectionPtr& connection, NAuth::TTvmId tvmId)
+{
+    return tvmId == connection->GetConfig()->TvmId || connection->GetClusterDirectory()->HasTvmId(tvmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

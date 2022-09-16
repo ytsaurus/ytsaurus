@@ -57,6 +57,9 @@ public:
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
     void UpdateDirectory(const NProto::TClusterDirectory& protoDirectory);
 
+    //! Returns true if there is a cluster with corresponding TVM id in the directory.
+    bool HasTvmId(NAuth::TTvmId tvmId) const;
+
     DEFINE_SIGNAL(void(const TString&, NYTree::INodePtr), OnClusterUpdated);
 
 private:
@@ -71,7 +74,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<NApi::TClusterTag, TCluster> ClusterTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
-
+    THashMultiSet<NAuth::TTvmId> ClusterTvmIds_;
 
     TCluster CreateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig) const;
     static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
