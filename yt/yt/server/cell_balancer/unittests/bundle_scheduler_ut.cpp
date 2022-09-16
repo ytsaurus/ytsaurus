@@ -8,12 +8,17 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NCellBalancer {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString SpareBundleName = "spare";
+constexpr int DefaultNodeCount = 0;
+constexpr int DefaultCellCount = 0;
+constexpr bool SetNodeTagFilters = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -378,14 +383,6 @@ void GenerateProxyDeallocationsForBundle(
     }
 }
 
-void SetNodeAnnotations(const TString& nodeId, const TString& bundleName, const TSchedulerInputState& input)
-{
-    auto& annotation = GetOrCrash(input.TabletNodes, nodeId)->Annotations;
-    annotation->YPCluster = "pre-pre";
-    annotation->AllocatedForBundle = bundleName;
-    annotation->Allocated = true;
-}
-
 void SetProxyAnnotations(const TString& nodeId, const TString& bundleName, const TSchedulerInputState& input)
 {
     auto& annotation = GetOrCrash(input.RpcProxies, nodeId)->Annotations;
@@ -612,13 +609,9 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
 TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
 {
-    auto input = GenerateSimpleInputContext(2);
-    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5);
+    auto input = GenerateSimpleInputContext(2, DefaultCellCount);
+    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, DefaultCellCount);
     GenerateNodeDeallocationsForBundle(input, "default-bundle", { *nodes.begin()});
-
-    for (const auto& [nodeId, _] : input.TabletNodes) {
-        SetNodeAnnotations(nodeId, "default-bundle", input);
-    }
 
     TSchedulerMutations mutations;
 
@@ -632,14 +625,46 @@ TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
     VerifyNodeDeallocationRequests(mutations, bundleState, 0);
 }
 
+TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
+{
+    constexpr int TabletSlotsCount = 10;
+
+    auto input = GenerateSimpleInputContext(2, TabletSlotsCount);
+    GenerateTabletCellsForBundle(input, "default-bundle", 2 * TabletSlotsCount);
+
+    // Do not deallocate nodes if node tag filter is not set for all alive nodes
+    GenerateNodesForBundle(input, "default-bundle", 5, !SetNodeTagFilters, TabletSlotsCount);
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+
+    // Do not deallocate nodes if cell cout is not actual for all the nodes
+    input.TabletNodes.clear();
+    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount / 2);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+
+    // Finally init deallocations if nodes are up to date.
+    input.TabletNodes.clear();
+    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+}
+
 TEST(TBundleSchedulerTest, CreateNewDeallocations)
 {
-    auto input = GenerateSimpleInputContext(2);
-    GenerateNodesForBundle(input, "default-bundle", 5);
+    constexpr int TabletSlotsCount = 10;
 
-    for (auto& [nodeId, _] : input.TabletNodes) {
-        SetNodeAnnotations(nodeId, "default-bundle", input);
-    }
+    auto input = GenerateSimpleInputContext(2, TabletSlotsCount);
+    GenerateTabletCellsForBundle(input, "default-bundle", 2 * TabletSlotsCount);
+    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount);
 
     TSchedulerMutations mutations;
 
@@ -1178,11 +1203,6 @@ TEST(TBundleSchedulerTest, CheckCypressBindings)
 {
     EXPECT_EQ(TFooBarStruct::GetAttributes().size(), 2u);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-const int DefaultNodeCount = 0;
-const int DefaultCellCount = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1950,15 +1970,15 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)
 THashSet<TString> GetRandomElements(const auto& collection, int count)
 {
     std::vector<TString> nodesToRemove(collection.begin(), collection.end());
-    std::random_shuffle(nodesToRemove.begin(), nodesToRemove.end());
+    Shuffle(nodesToRemove.begin(), nodesToRemove.end());
     nodesToRemove.resize(count);
     return {nodesToRemove.begin(), nodesToRemove.end()};
 }
 
 TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
 {
-    auto input = GenerateSimpleInputContext(2);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 5);
+    auto input = GenerateSimpleInputContext(10, DefaultCellCount);
+    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13, SetNodeTagFilters, DefaultCellCount);
 
     // Mark random nodes as outdated
     auto nodesToRemove = GetRandomElements(nodeNames, 3);
@@ -1980,13 +2000,14 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
     // Verify that only outdated nodes are peeked
     for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
+        EXPECT_TRUE(!deallocation->InstanceName.empty());
     }
 }
 
 TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
 {
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 5);
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
+    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
 
     // Mark random proxies as outdated
     auto proxiesToRemove = GetRandomElements(proxyNames, 3);
@@ -2007,6 +2028,138 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
     // Verify that only outdated proxies are peeked
     for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
         EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
+        EXPECT_TRUE(!deallocation->InstanceName.empty());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, ReallocateNodesUnderMaintenance)
+{
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->ReallocateInstanceBudget = 2;
+    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, nodeInfo] : input.TabletNodes)
+    {
+        nodeInfo->MaintenanceRequests["test_service2"] = New<TMaintenanceRequest>();
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 2);
+}
+
+TEST(TBundleSchedulerTest, ReallocateProxiesUnderMaintenance)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
+    input.Config->ReallocateInstanceBudget = 4;
+    GenerateProxiesForBundle(input, "default-bundle", 5);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, proxyInfo] : input.RpcProxies)
+    {
+        proxyInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyProxyAllocationRequests(mutations, 4);
+}
+
+TEST(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
+{
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->ReallocateInstanceBudget = 2;
+    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    {
+        auto nodeInfo = input.TabletNodes.begin()->second;
+        nodeInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+        nodeInfo->Annotations->Resource->Vcpu /= 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 1);
+}
+
+TEST(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
+{
+    auto input = GenerateSimpleInputContext(10, DefaultCellCount);
+    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13, SetNodeTagFilters, DefaultCellCount);
+
+    auto nodesToRemove = GetRandomElements(nodeNames, 3);
+    for (auto& nodeName : nodesToRemove) {
+        auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+    }
+
+    TSchedulerMutations mutations;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+
+    // Verify that only nodes under maintenance are peeked
+    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+        EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
+        EXPECT_TRUE(!deallocation->InstanceName.empty());
+    }
+}
+
+TEST(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
+    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
+
+    // Mark random proxies as outdated
+    auto proxiesToRemove = GetRandomElements(proxyNames, 3);
+    for (auto& proxyName : proxiesToRemove) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        proxyInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+
+    // Verify that only outdated proxies are peeked
+    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+        EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
     }
 }
 
@@ -2014,8 +2167,8 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
 
 TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
 {
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 5);
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
+    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
@@ -2040,8 +2193,8 @@ TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
 
 TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 {
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 5);
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
+    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13);
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
@@ -2065,7 +2218,6 @@ TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace
 } // NYT::NCellBalancer
