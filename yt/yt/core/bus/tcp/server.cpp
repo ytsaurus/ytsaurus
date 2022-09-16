@@ -168,6 +168,17 @@ protected:
         }
     }
 
+    int GetTotalServerConnectionCount(const TString& clientNetwork)
+    {
+        const auto& dispatcher = TTcpDispatcher::TImpl::Get();
+        int result = 0;
+        const auto& counters = dispatcher->GetCounters(clientNetwork);
+        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+            result += counters->PerBandCounters[band].ServerConnections.load(std::memory_order::relaxed);
+        }
+        return result;
+    }
+
     void OnAccept()
     {
         while (true) {
@@ -192,7 +203,7 @@ protected:
 
             const auto& dispatcher = TTcpDispatcher::TImpl::Get();
             auto clientNetwork = dispatcher->GetNetworkNameForAddress(clientAddress);
-            auto connectionCount = dispatcher->GetCounters(clientNetwork)->ServerConnections.load();
+            auto connectionCount = GetTotalServerConnectionCount(clientNetwork);
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             auto formattedClientAddress = ToString(clientAddress, NNet::TNetworkAddressFormatOptions{.IncludePort = false});
             if (connectionCount >= connectionLimit) {

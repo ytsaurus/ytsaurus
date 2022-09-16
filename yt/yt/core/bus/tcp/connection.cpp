@@ -230,7 +230,7 @@ void TTcpConnection::RunPeriodicCheck()
     auto now = NProfiling::GetCpuInstant();
 
     if (LastIncompleteWriteTime_.load(std::memory_order_relaxed) < now - WriteStallTimeout_) {
-        IncrementBusCounter(&TBusNetworkCounters::StalledWrites, 1);
+        IncrementBusCounter(&TBusNetworkBandCounters::StalledWrites, 1);
         Terminate(TError(
             NBus::EErrorCode::TransportError,
             "Socket write stalled")
@@ -240,7 +240,7 @@ void TTcpConnection::RunPeriodicCheck()
     }
 
     if (LastIncompleteReadTime_.load(std::memory_order_relaxed) < now - ReadStallTimeout_) {
-        IncrementBusCounter(&TBusNetworkCounters::StalledReads, 1);
+        IncrementBusCounter(&TBusNetworkBandCounters::StalledReads, 1);
         Terminate(TError(
             NBus::EErrorCode::TransportError,
             "Socket read stalled")
@@ -344,11 +344,11 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
-            IncrementBusCounter(&TBusNetworkCounters::ClientConnections, delta);
+            IncrementBusCounter(&TBusNetworkBandCounters::ClientConnections, delta);
             break;
 
         case EConnectionType::Server:
-            IncrementBusCounter(&TBusNetworkCounters::ServerConnections, delta);
+            IncrementBusCounter(&TBusNetworkBandCounters::ServerConnections, delta);
             break;
 
         default:
@@ -358,8 +358,8 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 
 void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
-    IncrementBusCounter(&TBusNetworkCounters::PendingOutPackets, countDelta);
-    IncrementBusCounter(&TBusNetworkCounters::PendingOutBytes, sizeDelta);
+    IncrementBusCounter(&TBusNetworkBandCounters::PendingOutPackets, countDelta);
+    IncrementBusCounter(&TBusNetworkBandCounters::PendingOutBytes, sizeDelta);
 }
 
 TConnectionId TTcpConnection::GetId() const
@@ -924,7 +924,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     }
 
     *bytesRead = static_cast<size_t>(result);
-    IncrementBusCounter(&TBusNetworkCounters::InBytes, result);
+    IncrementBusCounter(&TBusNetworkBandCounters::InBytes, result);
 
     YT_LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
@@ -947,7 +947,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            IncrementBusCounter(&TBusNetworkCounters::ReadErrors, 1);
+            IncrementBusCounter(&TBusNetworkBandCounters::ReadErrors, 1);
             Abort(TError(NBus::EErrorCode::TransportError, "Socket read error")
                 << TError::FromSystem(error));
         }
@@ -960,7 +960,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
 bool TTcpConnection::AdvanceDecoder(size_t size)
 {
     if (!Decoder_.Advance(size)) {
-        IncrementBusCounter(&TBusNetworkCounters::DecoderErrors, 1);
+        IncrementBusCounter(&TBusNetworkBandCounters::DecoderErrors, 1);
         Abort(TError(NBus::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
@@ -976,7 +976,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 
 bool TTcpConnection::OnPacketReceived() noexcept
 {
-    IncrementBusCounter(&TBusNetworkCounters::InPackets, 1);
+    IncrementBusCounter(&TBusNetworkBandCounters::InPackets, 1);
     switch (Decoder_.GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
@@ -1163,7 +1163,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     *bytesWritten = result >= 0 ? static_cast<size_t>(result) : 0;
     bool isOK = CheckWriteError(result);
     if (isOK) {
-        IncrementBusCounter(&TBusNetworkCounters::OutBytes, *bytesWritten);
+        IncrementBusCounter(&TBusNetworkBandCounters::OutBytes, *bytesWritten);
         YT_LOG_TRACE("Socket written (BytesWritten: %v)", *bytesWritten);
     }
     return isOK;
@@ -1285,7 +1285,7 @@ bool TTcpConnection::MaybeEncodeFragments()
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
-            IncrementBusCounter(&TBusNetworkCounters::EncoderErrors, 1);
+            IncrementBusCounter(&TBusNetworkBandCounters::EncoderErrors, 1);
             Abort(TError(NBus::EErrorCode::TransportError, "Error encoding outcoming packet"));
             return false;
         }
@@ -1318,7 +1318,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            IncrementBusCounter(&TBusNetworkCounters::WriteErrors, 1);
+            IncrementBusCounter(&TBusNetworkBandCounters::WriteErrors, 1);
             Abort(TError(NBus::EErrorCode::TransportError, "Socket write error")
                 << TError::FromSystem(error));
         }
@@ -1350,7 +1350,7 @@ void TTcpConnection::OnPacketSent()
     }
 
     UpdatePendingOut(-1, -packet->PacketSize);
-    IncrementBusCounter(&TBusNetworkCounters::OutPackets, 1);
+    IncrementBusCounter(&TBusNetworkBandCounters::OutPackets, 1);
 
     EncodedPackets_.pop();
 }
@@ -1539,10 +1539,11 @@ void TTcpConnection::UpdateStatistics(bool force)
 }
 
 template <class T, class U>
-void TTcpConnection::IncrementBusCounter(T TBusNetworkCounters::* field, U delta)
+void TTcpConnection::IncrementBusCounter(T TBusNetworkBandCounters::* field, U delta)
 {
-    (BusCounters_.*field).fetch_add(delta, std::memory_order::relaxed);
-    (BusCountersDelta_.*field).fetch_add(delta, std::memory_order::relaxed);
+    auto band = MultiplexingBand_.load(std::memory_order::relaxed);
+    (BusCounters_.PerBandCounters[band].*field).fetch_add(delta, std::memory_order::relaxed);
+    (BusCountersDelta_.PerBandCounters[band].*field).fetch_add(delta, std::memory_order::relaxed);
 }
 
 void TTcpConnection::UpdateTcpStatistics()
@@ -1557,7 +1558,7 @@ void TTcpConnection::UpdateTcpStatistics()
             i64 delta = info.tcpi_total_retrans < LastRetransmitCount_
                 ? info.tcpi_total_retrans + (Max<ui32>() - LastRetransmitCount_)
                 : info.tcpi_total_retrans - LastRetransmitCount_;
-            IncrementBusCounter(&TBusNetworkCounters::Retransmits, delta);
+            IncrementBusCounter(&TBusNetworkBandCounters::Retransmits, delta);
             LastRetransmitCount_ = info.tcpi_total_retrans;
         }
     }
@@ -1572,9 +1573,12 @@ void TTcpConnection::FlushBusStatistics()
     if (!networkCounters) {
         return;
     }
-#define XX(field) networkCounters->field.fetch_add(BusCountersDelta_.field.exchange(0));
-    FOR_EACH_BUS_NETWORK_STATISTICS_FIELD(XX)
+
+    for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+#define XX(camelCaseField, snakeCaseField) networkCounters->PerBandCounters[band].camelCaseField.fetch_add(BusCountersDelta_.PerBandCounters[band].camelCaseField.exchange(0));
+        ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
 #undef XX
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

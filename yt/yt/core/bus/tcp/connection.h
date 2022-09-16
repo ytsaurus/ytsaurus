@@ -302,7 +302,7 @@ private:
     void UpdateStatistics(bool force);
 
     template <class T, class U>
-    void IncrementBusCounter(T TBusNetworkCounters::* field, U delta);
+    void IncrementBusCounter(T TBusNetworkBandCounters::* field, U delta);
     void UpdateTcpStatistics();
     void FlushBusStatistics();
 
