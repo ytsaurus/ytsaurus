@@ -205,8 +205,8 @@ def _():
         'arc',
         'commit',
         '-m',
-        'Bump versions'
-    ], check=True),
+        'Bump versions',
+    ], check=True)
 
     release_message = 'Released versions: ' + ' '.join(
         f'{version.component} {version.version}'
@@ -217,6 +217,7 @@ def _():
         'pr',
         'create',
         '--push',
+        '--auto',
         '--message',
         release_message,
     ], check=True,
