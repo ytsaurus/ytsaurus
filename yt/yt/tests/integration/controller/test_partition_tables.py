@@ -159,14 +159,14 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
         max_partition_count = 1
-        with raises_yt_error(f'Maximum partition count exceeded: {max_partition_count}'):
+        with raises_yt_error(f"Maximum partition count exceeded: {max_partition_count}"):
             partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count)
 
     @authors("galtsev")
     def test_unordered_two_equal_tables(self):
         table = "//tmp/sorted-static"
-        table1 = table + '-1'
-        table2 = table + '-2'
+        table1 = table + "-1"
+        table2 = table + "-2"
         chunk_count = 6
         rows_per_chunk = 1000
         row_weight = 1000
@@ -197,8 +197,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     @authors("galtsev")
     def test_unordered_two_unequal_tables(self):
         table = "//tmp/sorted-static"
-        table1 = table + '-1'
-        table2 = table + '-2'
+        table1 = table + "-1"
+        table2 = table + "-2"
         chunk_count = 6
         rows_per_chunk = 1000
         row_weight1 = 1000
@@ -235,7 +235,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
-        partitions = partition_tables([f'{table}[#3141:#3141]'], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([f"{table}[#3141:#3141]"], data_weight_per_partition=data_weight // 3)
         assert partitions == []
 
     @authors("galtsev")
@@ -246,7 +246,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
-        partitions = partition_tables([f'{table}[#111:#5888]'], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([f"{table}[#111:#5888]"], data_weight_per_partition=data_weight // 3)
         assert partitions == [
             {
                 "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {"row_index": 111}, "upper_limit": {"row_index": 3000}}]})],
