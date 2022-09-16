@@ -22,17 +22,20 @@ public:
         , SourceValidator_(std::move(sourceValidator))
     { }
 
-    TFuture<NRpc::TAuthenticationResult> Authenticate(
-        const TAuthenticationContext& context) override
+    bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(TCredentialsExt::credentials_ext)) {
-            return std::nullopt;
+            return false;
         }
-
         const auto& ext = context.Header->GetExtension(TCredentialsExt::credentials_ext);
-        if (!ext.has_service_ticket()) {
-            return std::nullopt;
-        }
+        return ext.has_service_ticket();
+    }
+
+    TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
+        const TAuthenticationContext& context) override
+    {
+        YT_ASSERT(CanAuthenticate(context));
+        const auto& ext = context.Header->GetExtension(TCredentialsExt::credentials_ext);
 
         try {
             auto ticket = TvmService_->ParseServiceTicket(ext.service_ticket());

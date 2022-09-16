@@ -414,18 +414,20 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    TFuture<NRpc::TAuthenticationResult> Authenticate(
-        const NRpc::TAuthenticationContext& context) override
+    bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return std::nullopt;
+            return false;
         }
-
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
-        if (!ext.has_token()) {
-            return std::nullopt;
-        }
+        return ext.has_token();
+    }
 
+    TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
+        const NRpc::TAuthenticationContext& context) override
+    {
+        YT_ASSERT(CanAuthenticate(context));
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         TTokenCredentials credentials;
         credentials.UserIP = context.UserIP;
         credentials.Token = ext.token();

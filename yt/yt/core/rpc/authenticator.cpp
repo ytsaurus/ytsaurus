@@ -14,15 +14,26 @@ public:
         : Authenticators_(std::move(authenticators))
     { }
 
-    TFuture<TAuthenticationResult> Authenticate(
+    bool CanAuthenticate(const TAuthenticationContext& context) override
+    {
+        for (const auto& authenticator : Authenticators_) {
+            if (authenticator->CanAuthenticate(context)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    TFuture<TAuthenticationResult> AsyncAuthenticate(
         const TAuthenticationContext& context) override
     {
         for (const auto& authenticator : Authenticators_) {
-            auto asyncResult = authenticator->Authenticate(context);
-            if (asyncResult) {
-                return asyncResult;
+            if (authenticator->CanAuthenticate(context)) {
+                return authenticator->AsyncAuthenticate(context);
             }
         }
+        // Hypothetically some authenticator may change its opinion on whether it can authenticate request (e.g.
+        // due to dynamic configuration change), so we report an error instead of crashing.
         return MakeFuture<TAuthenticationResult>(TError(
             NYT::NRpc::EErrorCode::AuthenticationError,
             "Request is missing credentials"));
@@ -44,7 +55,12 @@ class TNoopAuthenticator
     : public IAuthenticator
 {
 public:
-    TFuture<TAuthenticationResult> Authenticate(
+    bool CanAuthenticate(const TAuthenticationContext& /*context*/) override
+    {
+        return true;
+    }
+
+    TFuture<TAuthenticationResult> AsyncAuthenticate(
         const TAuthenticationContext& context) override
     {
         static const auto Realm = TString("noop");
