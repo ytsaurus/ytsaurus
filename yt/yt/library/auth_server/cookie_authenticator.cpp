@@ -250,22 +250,25 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    TFuture<NRpc::TAuthenticationResult> Authenticate(
-        const NRpc::TAuthenticationContext& context) override
+    bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return std::nullopt;
+            return false;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
-            return std::nullopt;
+            return false;
         }
 
-        if (!context.UserIP.IsIP4() && !context.UserIP.IsIP6()) {
-            return std::nullopt;
-        }
+        return context.UserIP.IsIP4() || context.UserIP.IsIP6();
+    }
 
+    TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
+        const NRpc::TAuthenticationContext& context) override
+    {
+        YT_ASSERT(CanAuthenticate(context));
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         TCookieCredentials credentials;
         credentials.SessionId = ext.session_id();
         credentials.SslSessionId = ext.ssl_session_id();

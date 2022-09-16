@@ -1559,13 +1559,20 @@ void TServiceBase::HandleRequest(
         .Header = acceptedRequest.Header.get(),
         .UserIP = acceptedRequest.ReplyBus->GetEndpointNetworkAddress()
     };
-    auto asyncAuthResult = Authenticator_->Authenticate(authenticationContext);
-    if (asyncAuthResult.IsSet()) {
-        OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
+    if (Authenticator_->CanAuthenticate(authenticationContext)) {
+        auto asyncAuthResult = Authenticator_->AsyncAuthenticate(authenticationContext);
+        if (asyncAuthResult.IsSet()) {
+            OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
+        } else {
+            asyncAuthResult.Subscribe(
+                BIND(&TServiceBase::OnRequestAuthenticated, MakeStrong(this), timer, Passed(std::move(acceptedRequest))));
+        }
     } else {
-        asyncAuthResult.Subscribe(
-            BIND(&TServiceBase::OnRequestAuthenticated, MakeStrong(this), timer, Passed(std::move(acceptedRequest))));
+        OnRequestAuthenticated(timer, std::move(acceptedRequest), TError(
+            NYT::NRpc::EErrorCode::AuthenticationError,
+            "Request is missing credentials"));
     }
+
 }
 
 void TServiceBase::ReplyError(

@@ -181,14 +181,21 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    TFuture<NRpc::TAuthenticationResult> Authenticate(
-        const NRpc::TAuthenticationContext& context) override
+    bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return std::nullopt;
+            return false;
         }
-
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        return ext.has_user_ticket() || ext.has_service_ticket();
+    }
+
+    TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
+        const NRpc::TAuthenticationContext& context) override
+    {
+        YT_ASSERT(CanAuthenticate(context));
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+
         if (ext.has_user_ticket()) {
             TTicketCredentials credentials;
             credentials.Ticket = ext.user_ticket();
@@ -200,7 +207,9 @@ public:
                     rpcResult.UserTicket = authResult.UserTicket;
                     return rpcResult;
                 }));
-        } else if (ext.has_service_ticket()) {
+        }
+
+        if (ext.has_service_ticket()) {
             TServiceTicketCredentials credentials;
             credentials.Ticket = ext.service_ticket();
             return Underlying_->Authenticate(credentials).Apply(
@@ -212,7 +221,7 @@ public:
                 }));
         }
 
-        return std::nullopt;
+        YT_ABORT();
     }
 private:
     const ITicketAuthenticatorPtr Underlying_;

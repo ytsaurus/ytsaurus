@@ -26,12 +26,24 @@ struct TAuthenticationContext
 struct IAuthenticator
     : public virtual TRefCounted
 {
+    //! Returns true if #context contains credentials that can be parsed by
+    //! this authenticator.
+    //!
+    //! If this method returns true, AsyncAuthenticate may still return an error,
+    //! although in such case the composite authenticator will not proceed with
+    //! another underlying authenticator.
+    //!
+    //! Also, this method may be invoked multiple times for the same context.
+    //! Moreover, the returned values are allowed to be different which is useful
+    //! in rare occasions, e.g. in event of dynamic configuration change.
+    virtual bool CanAuthenticate(const TAuthenticationContext& context) = 0;
+
     //! Validates authentication credentials in #context.
     //! Returns either an error or authentication result containing
     //! the actual (and validated) username.
-    //! Returns null if #context contains no credentials that can be parsed by
-    //! this authenticator.
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    //!
+    //! Should be called only after CanAuthenticate(context) returns true.
+    virtual TFuture<TAuthenticationResult> AsyncAuthenticate(
         const TAuthenticationContext& context) = 0;
 };
 
