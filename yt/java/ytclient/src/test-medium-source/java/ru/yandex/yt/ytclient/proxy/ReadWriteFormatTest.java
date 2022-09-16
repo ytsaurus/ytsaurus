@@ -17,7 +17,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.type_info.TiType;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
@@ -33,7 +32,6 @@ import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
@@ -207,14 +205,19 @@ public class ReadWriteFormatTest {
         List<YTreeMapNode> rows = List.of(
                 YTree.builder().beginMap()
                         .key("key").value("key-0")
-                        .key("value").value("value-0")
                         .key("int").value(0)
                         .endMap().build().mapNode(),
                 YTree.builder().beginMap()
                         .key("key").value("key-1")
-                        .key("value").value("value-1")
                         .key("int").value(1)
-                        .endMap().build().mapNode(),
+                        .endMap().build().mapNode()
+        );
+
+        writer.write(rows, TableSchema.newBuilder().build());
+
+        writer.readyEvent().join();
+
+        rows = List.of(
                 YTree.builder().beginMap()
                         .key("key").value("key-2")
                         .key("value").value("value-2")
@@ -227,11 +230,7 @@ public class ReadWriteFormatTest {
                         .endMap().build().mapNode()
         );
 
-        writer.write(rows, TableSchema.newBuilder()
-                .add(new ColumnSchema("key", TiType.string()))
-                .add(new ColumnSchema("value", TiType.string()))
-                .add(new ColumnSchema("int", TiType.int64()))
-                .build());
+        writer.write(rows, TableSchema.newBuilder().build());
 
         writer.close().join();
 
@@ -247,13 +246,18 @@ public class ReadWriteFormatTest {
                     long intValue = mapRow.get("int").longValue();
                     Assert.assertEquals(currentRowNumber, intValue);
                     Assert.assertEquals(row.toString(), mapRow.get("key").stringValue(), "key-" + intValue);
-                    Assert.assertEquals(row.toString(), mapRow.get("value").stringValue(), "value-" + intValue);
-
+                    if (intValue >= 2) {
+                        Assert.assertEquals(row.toString(), mapRow.get("value").stringValue(), "value-" + intValue);
+                    } else {
+                        Assert.assertFalse(mapRow.containsKey("value"));
+                    }
                     currentRowNumber += 1;
                 }
             }
             reader.readyEvent().join();
         }
+
+        Assert.assertEquals(4, currentRowNumber);
 
         reader.close().join();
     }
