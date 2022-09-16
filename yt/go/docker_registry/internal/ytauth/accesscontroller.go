@@ -46,7 +46,7 @@ func (ac *accessController) validateYTPermissions(ctx context.Context, token str
 		}
 		p := utils.GetSchedulerHintsDocumentPath(ar.Resource.Name)
 		createNodeOptions := &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true}
-		if _, err := yc.CreateNode(ctx, p, yt.NodeMap, createNodeOptions); err != nil {
+		if _, err := yc.CreateNode(ctx, p, yt.NodeDocument, createNodeOptions); err != nil {
 			return err
 		}
 	}
