@@ -2487,7 +2487,15 @@ private:
         }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
 
-        auto userToDefaultPoolMap = ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value()));
+        auto future = 
+            BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
+                return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
+            })
+            .AsyncVia(GetBackgroundInvoker())
+            .Run();
+        auto userToDefaultPoolMap = WaitFor(future)
+            .ValueOrThrow();
+
         auto error = Strategy_->UpdateUserToDefaultPoolMap(userToDefaultPoolMap);
         if (error.IsOK()) {
             UserToDefaultPoolMap_ = std::move(userToDefaultPoolMap);
