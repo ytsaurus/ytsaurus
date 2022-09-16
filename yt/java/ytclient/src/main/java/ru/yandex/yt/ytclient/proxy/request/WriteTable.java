@@ -19,6 +19,7 @@ import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -30,6 +31,8 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     @Nullable
     private final YTreeRowSerializer<T> ysonSerializer;
     @Nullable private final Class<T> objectClazz;
+
+    @Nullable private TableSchema tableSchema;
 
     private YTreeNode config = null;
 
@@ -65,12 +68,17 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.format = other.format;
     }
 
-    public WriteTable(YPath path, WireRowSerializer<T> serializer) {
+    public WriteTable(YPath path, WireRowSerializer<T> serializer, @Nullable TableSchema tableSchema) {
         this.path = path;
         this.stringPath = null;
         this.serializer = serializer;
         this.objectClazz = null;
         this.ysonSerializer = null;
+        this.tableSchema = tableSchema;
+    }
+
+    public WriteTable(YPath path, WireRowSerializer<T> serializer) {
+        this(path, serializer, null);
     }
 
     public WriteTable(YPath path, YTreeSerializer<T> serializer) {
@@ -90,13 +98,19 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.format = format;
     }
 
-    public WriteTable(YPath path, Class<T> objectClazz) {
+    public WriteTable(YPath path, Class<T> objectClazz, @Nullable TableSchema tableSchema) {
         this.path = path;
         this.stringPath = null;
+        this.ysonSerializer = null;
         this.serializer = null;
         this.objectClazz = objectClazz;
-        this.ysonSerializer = null;
+        this.tableSchema = tableSchema;
     }
+
+    public WriteTable(YPath path, Class<T> objectClazz) {
+        this(path, objectClazz, null);
+    }
+
 
     /**
      * @deprecated Use {@link #WriteTable(YPath path, WireRowSerializer<T> serializer)} instead.
@@ -222,6 +236,10 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     public WriteTable<T> setTransactionalOptions(TransactionalOptions to) {
         this.transactionalOptions = to;
         return this;
+    }
+
+    public Optional<TableSchema> getTableSchema() {
+        return Optional.ofNullable(tableSchema);
     }
 
     public Optional<GUID> getTransactionId() {

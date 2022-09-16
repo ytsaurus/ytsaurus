@@ -411,6 +411,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
+    public <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req) {
+        return client.writeTableV2(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
         return client.readFile(req.setTransactionalOptions(transactionalOptions));
     }

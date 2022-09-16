@@ -72,6 +72,15 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     }
 
     @Override
+    public <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req) {
+        if (req.getNeedRetries()) {
+            return CompletableFuture.completedFuture(
+                    new AsyncRetryingTableWriterImpl<>(this, executorService, req, rpcOptions));
+        }
+        return super.writeTableV2(req);
+    }
+
+    @Override
     public CompletableFuture<Void> mountTableAndWaitTablets(MountTable req) {
         return mountTable(req).thenCompose(res -> waitTabletState(req.getPath(), "mounted"));
     }

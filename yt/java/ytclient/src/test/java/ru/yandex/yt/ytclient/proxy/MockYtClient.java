@@ -445,6 +445,11 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
+    public <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req) {
+        return (CompletableFuture<AsyncWriter<T>>) callMethod("writeTableV2");
+    }
+
+    @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
         return (CompletableFuture<FileReader>) callMethod("readFile");
     }
