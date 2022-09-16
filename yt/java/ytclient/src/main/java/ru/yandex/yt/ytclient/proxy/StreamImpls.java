@@ -58,6 +58,7 @@ import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.internal.SlidingWindow;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
@@ -506,20 +507,16 @@ class RawTableWriterImpl extends StreamWriterImpl<TRspWriteTable>
 @NonNullApi
 @NonNullFields
 class TableRowsWireSerializer<T> extends TableRowsSerializer<T> {
-    private final WireRowSerializer<T> rowSerializer;
+    private final WireRowSerializer<T> wireRowSerializer;
 
-    TableRowsWireSerializer(WireRowSerializer<T> rowSerializer) {
+    TableRowsWireSerializer(WireRowSerializer<T> wireRowSerializer) {
         super(ERowsetFormat.RF_YT_WIRE);
-        this.rowSerializer = Objects.requireNonNull(rowSerializer);
-    }
-
-    public WireRowSerializer<T> getRowSerializer() {
-        return rowSerializer;
+        this.wireRowSerializer = Objects.requireNonNull(wireRowSerializer);
     }
 
     @Override
     public TableSchema getSchema() {
-        return rowSerializer.getSchema();
+        return wireRowSerializer.getSchema();
     }
 
     @Override
@@ -530,8 +527,8 @@ class TableRowsWireSerializer<T> extends TableRowsSerializer<T> {
             int[] idMapping
     ) {
         WireProtocolWriter writer = new WireProtocolWriter();
-        rowSerializer.updateSchema(descriptor);
-        writer.writeUnversionedRowset(rows, rowSerializer, idMapping);
+        wireRowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowset(rows, wireRowSerializer, idMapping);
 
         for (byte[] bytes : writer.finish()) {
             buf.writeBytes(bytes);
@@ -542,8 +539,8 @@ class TableRowsWireSerializer<T> extends TableRowsSerializer<T> {
     protected void writeMergedRowWithoutCount(
             ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
         WireProtocolWriter writer = new WireProtocolWriter();
-        rowSerializer.updateSchema(descriptor);
-        writer.writeUnversionedRowsetWithoutCount(rows, rowSerializer, idMapping);
+        wireRowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowsetWithoutCount(rows, wireRowSerializer, idMapping);
 
         for (byte[] bytes : writer.finish()) {
             buf.writeBytes(bytes);
@@ -631,13 +628,13 @@ abstract class TableRowsSerializer<T> {
 
     TableRowsSerializer(ERowsetFormat rowsetFormat) {
         this.rowsetFormat = rowsetFormat;
-        rowsetDescriptor = TRowsetDescriptor.newBuilder().setRowsetFormat(rowsetFormat).build();
+        this.rowsetDescriptor = TRowsetDescriptor.newBuilder().setRowsetFormat(rowsetFormat).build();
     }
 
     public abstract TableSchema getSchema();
 
     @Nullable
-    public static <T> TableRowsSerializer<T> getRowsSerializer(WriteTable<T> req) {
+    public static <T> TableRowsSerializer<T> createTableRowsSerializer(WriteTable<T> req) {
         if (req.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
             Optional<WireRowSerializer<T>> reqSerializer = req.getSerializer();
             if (reqSerializer.isPresent()) {
@@ -894,14 +891,14 @@ interface Abortable<T> {
 
 @NonNullApi
 @NonNullFields
-class RetryingTableWriterImpl<T> implements TableWriter<T> {
+class RetryingTableWriterBaseImpl<T> {
     static final Logger logger = LoggerFactory.getLogger(RetryingTableWriterImpl.class);
 
     final ApiServiceClient apiServiceClient;
     final ScheduledExecutorService executor;
     final WriteTable<T> secondaryReq;
     final RpcOptions rpcOptions;
-    @Nullable TableRowsSerializer<T> rowsSerializer;
+    @Nullable TableRowsSerializer<T> tableRowsSerializer;
 
     final Queue<WriteTask<T>> writeTasks = new ConcurrentLinkedQueue<>();
     final Set<Abortable<?>> processing = new HashSet<>();
@@ -922,7 +919,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
 
     volatile CompletableFuture<Void> readyEvent = CompletableFuture.completedFuture(null);
 
-    RetryingTableWriterImpl(
+    RetryingTableWriterBaseImpl(
             ApiServiceClient apiServiceClient,
             ScheduledExecutorService executor,
             WriteTable<T> req,
@@ -939,7 +936,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         this.secondaryReq = new WriteTable<>(this.req);
         this.secondaryReq.setPath(this.secondaryReq.getYPath().append(true));
 
-        this.rowsSerializer = TableRowsSerializer.getRowsSerializer(this.req);
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req);
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -969,14 +966,22 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
                             .thenApply(node -> new InitResult(
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
-                                if (this.rowsSerializer == null) {
+                                if (this.tableRowsSerializer == null) {
                                     if (!this.req.getObjectClazz().isPresent()) {
                                         throw new IllegalStateException("No object clazz");
                                     }
                                     Class<T> objectClazz = this.req.getObjectClazz().get();
-                                    this.rowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
-                                            YTreeObjectSerializerFactory.forClass(objectClazz, result.schema)
-                                    ));
+                                    if (UnversionedRow.class.equals(objectClazz)) {
+                                        this.tableRowsSerializer =
+                                                (TableRowsSerializer<T>) new TableRowsWireSerializer<>(
+                                                        new UnversionedRowSerializer());
+                                    } else {
+                                        this.tableRowsSerializer = new TableRowsWireSerializer<>(
+                                                MappedRowSerializer.forClass(
+                                                        YTreeObjectSerializerFactory.forClass(
+                                                                objectClazz, result.schema)
+                                                ));
+                                    }
                                 }
                                 return result;
                             });
@@ -990,12 +995,11 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         });
     }
 
-    @Override
     public TableSchema getSchema() {
-        if (rowsSerializer == null) {
-            throw new RuntimeException("No rowsSerializer in TableWriter");
+        if (tableRowsSerializer == null) {
+            throw new RuntimeException("No tableRowsSerializer in TableWriter");
         }
-        return rowsSerializer.getSchema();
+        return tableRowsSerializer.getSchema();
     }
 
     private boolean addAbortable(Abortable<?> abortable) {
@@ -1154,7 +1158,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         }
 
         WriteTask<T> writeTask = new WriteTask<>(
-                currentBuffer, rowsSerializer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
+                currentBuffer, tableRowsSerializer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
         writeTasks.add(writeTask);
         handledEvents.add(currentBuffer.handled);
 
@@ -1168,7 +1172,6 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         tryStartProcessWriteTask();
     }
 
-    @Override
     public boolean write(List<T> rows, TableSchema schema) {
         if (!init.isDone() || result.isCompletedExceptionally()) {
             return false;
@@ -1183,7 +1186,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
             return false;
         }
 
-        ByteBuf serializedRows = rowsSerializer.serializeRows(rows, schema);
+        ByteBuf serializedRows = tableRowsSerializer.serializeRows(rows, schema);
         currentBuffer.write(serializedRows);
         currentBuffer.rowsCount += rows.size();
 
@@ -1194,7 +1197,6 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         return true;
     }
 
-    @Override
     public CompletableFuture<Void> readyEvent() {
         if (result.isCompletedExceptionally()) {
             return result;
@@ -1204,7 +1206,6 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
                 .thenCompose(unused -> CompletableFuture.completedFuture(null));
     }
 
-    @Override
     public CompletableFuture<?> close() {
         synchronized (this) {
             closed = true;
@@ -1222,12 +1223,10 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         });
     }
 
-    @Override
     public CompletableFuture<TableSchema> getTableSchema() {
         return init.thenApply(initResult -> initResult.schema);
     }
 
-    @Override
     public synchronized void cancel() {
         canceled = true;
         buffer = null;
@@ -1242,19 +1241,104 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
 }
 
 @NonNullApi
-class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, RpcStreamConsumer {
-    @Nullable private TableSchema schema;
-    private WriteTable<T> req;
-    @Nullable TableRowsSerializer<T> rowsSerializer = null;
-
-    TableWriterImpl(WriteTable<T> req) {
-        super(req.getWindowSize(), req.getPacketSize());
-        this.req = req;
-        this.rowsSerializer = TableRowsSerializer.getRowsSerializer(this.req);
+@NonNullFields
+class RetryingTableWriterImpl<T> extends RetryingTableWriterBaseImpl<T> implements TableWriter<T> {
+    RetryingTableWriterImpl(
+            ApiServiceClient apiServiceClient,
+            ScheduledExecutorService executor,
+            WriteTable<T> req,
+            RpcOptions rpcOptions
+    ) {
+        super(apiServiceClient, executor, req, rpcOptions);
     }
 
-    public CompletableFuture<TableWriter<T>> startUpload() {
-        TableWriterImpl<T> self = this;
+    @Override
+    public boolean write(List<T> rows, TableSchema schema) {
+        return super.write(rows, schema);
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return super.readyEvent();
+    }
+
+    @Override
+    public CompletableFuture<?> close() {
+        return super.close();
+    }
+
+    @Override
+    public CompletableFuture<TableSchema> getTableSchema() {
+        return super.getTableSchema();
+    }
+
+    @Override
+    public TableSchema getSchema() {
+        return super.getSchema();
+    }
+
+    @Override
+    public synchronized void cancel() {
+        super.cancel();
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class AsyncRetryingTableWriterImpl<T> extends RetryingTableWriterBaseImpl<T> implements AsyncWriter<T> {
+    AsyncRetryingTableWriterImpl(
+            ApiServiceClient apiServiceClient,
+            ScheduledExecutorService executor,
+            WriteTable<T> req,
+            RpcOptions rpcOptions
+    ) {
+        super(apiServiceClient, executor, req, rpcOptions);
+    }
+
+    @Override
+    public CompletableFuture<Void> write(List<T> rows) {
+        return init.thenCompose(initResult -> {
+            Objects.requireNonNull(tableRowsSerializer);
+            TableSchema schema;
+            if (req.getTableSchema().isPresent()) {
+                schema = req.getTableSchema().get();
+            } else if (tableRowsSerializer.getSchema().getColumnsCount() > 0) {
+                schema = tableRowsSerializer.getSchema();
+            } else {
+                schema = initResult.schema;
+            }
+
+            return writeImpl(rows, schema);
+        });
+    }
+
+    private CompletableFuture<Void> writeImpl(List<T> rows, TableSchema schema) {
+        if (write(rows, schema)) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return readyEvent().thenCompose(unused -> writeImpl(rows, schema));
+    }
+
+    @Override
+    public CompletableFuture<?> finish() {
+        return super.close();
+    }
+}
+
+@NonNullApi
+class TableWriterBaseImpl<T> extends RawTableWriterImpl {
+    protected @Nullable TableSchema schema;
+    protected final WriteTable<T> req;
+    protected @Nullable TableRowsSerializer<T> tableRowsSerializer;
+
+    TableWriterBaseImpl(WriteTable<T> req) {
+        super(req.getWindowSize(), req.getPacketSize());
+        this.req = req;
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req);
+    }
+
+    public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl() {
+        TableWriterBaseImpl<T> self = this;
 
         return startUpload.thenApply((attachments) -> {
             if (attachments.size() != 1) {
@@ -1273,34 +1357,96 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
             self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
             logger.debug("schema -> {}", schema.toYTree().toString());
 
-            if (this.rowsSerializer == null) {
+            if (this.tableRowsSerializer == null) {
                 if (!this.req.getObjectClazz().isPresent()) {
                     throw new IllegalStateException("No object clazz");
                 }
                 Class<T> objectClazz = self.req.getObjectClazz().get();
-                this.rowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
-                        YTreeObjectSerializerFactory.forClass(objectClazz, self.schema)
-                ));
+                if (UnversionedRow.class.equals(objectClazz)) {
+                    this.tableRowsSerializer =
+                            (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
+                } else {
+                    this.tableRowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
+                            YTreeObjectSerializerFactory.forClass(objectClazz, self.schema)
+                    ));
+                }
             }
 
             return self;
         });
     }
 
+    public boolean write(List<T> rows, TableSchema schema) throws IOException {
+        byte[] serializedRows = tableRowsSerializer.serialize(rows, schema);
+        return write(serializedRows);
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class TableWriterImpl<T> extends TableWriterBaseImpl<T> implements TableWriter<T> {
+    TableWriterImpl(WriteTable<T> req) {
+        super(req);
+    }
+
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<TableWriter<T>> startUpload() {
+        return startUploadImpl().thenApply(writer -> (TableWriter<T>) writer);
+    }
+
     @Override
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
-        byte[] serializedRows = rowsSerializer.serialize(rows, schema);
-        return write(serializedRows);
+        return super.write(rows, schema);
     }
 
     @Override
     public TableSchema getSchema() {
-        return rowsSerializer.getSchema();
+        return tableRowsSerializer.getSchema();
     }
 
     @Override
     public CompletableFuture<TableSchema> getTableSchema() {
         return CompletableFuture.completedFuture(schema);
+    }
+}
+
+
+@NonNullApi
+@NonNullFields
+class AsyncTableWriterImpl<T> extends TableWriterBaseImpl<T> implements AsyncWriter<T> {
+    AsyncTableWriterImpl(WriteTable<T> req) {
+        super(req);
+    }
+
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<AsyncWriter<T>> startUpload() {
+        return super.startUploadImpl().thenApply(writer -> (AsyncWriter<T>) writer);
+    }
+
+    @Override
+    public CompletableFuture<Void> write(List<T> rows) {
+        Objects.requireNonNull(tableRowsSerializer);
+        TableSchema schema;
+        if (req.getTableSchema().isPresent()) {
+            schema = req.getTableSchema().get();
+        } else if (tableRowsSerializer.getSchema().getColumnsCount() > 0) {
+            schema = tableRowsSerializer.getSchema();
+        } else {
+            schema = this.schema;
+        }
+
+        return writeImpl(rows, schema);
+    }
+
+    private CompletableFuture<Void> writeImpl(List<T> rows, TableSchema schema) {
+        try {
+            if (write(rows, schema)) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return readyEvent().thenCompose(unused -> writeImpl(rows, schema));
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }
 

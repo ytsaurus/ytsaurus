@@ -93,6 +93,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 
+    <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req);
+
     CompletableFuture<FileReader> readFile(ReadFile req);
 
     CompletableFuture<FileWriter> writeFile(WriteFile req);

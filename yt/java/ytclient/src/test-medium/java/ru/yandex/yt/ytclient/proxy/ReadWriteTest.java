@@ -17,6 +17,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -25,6 +26,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
+import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
@@ -334,6 +336,70 @@ public class ReadWriteTest {
     }
 
     @Test
+    public void testTableReadWriteV2() throws Exception {
+        RowsGenerator generator = new RowsGenerator();
+
+        String path = "//tmp/write-table-example-1";
+
+        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+
+        UnversionedRowset rowset = generator.nextRows();
+
+        AsyncWriter<UnversionedRow> writer = yt.writeTableV2(
+                new WriteTable<>(YPath.simple(path), UnversionedRow.class, rowset.getSchema())
+        ).join();
+
+        while (rowset != null) {
+            writer.write(rowset.getRows()).join();
+            rowset = generator.nextRows();
+        }
+
+        writer.finish().join();
+
+        TableReader<UnversionedRow> reader =
+                yt.readTable(new ReadTable<>(path, new UnversionedRowDeserializer())).join();
+
+        List<Boolean> rowsSeen = new ArrayList<>();
+
+        for (int i = 0; i < generator.rowsCount(); ++i) {
+            rowsSeen.add(false);
+        }
+
+        int currentRowNumber = 0;
+
+        List<UnversionedRow> rows;
+        while (reader.canRead()) {
+            while ((rows = reader.read()) != null) {
+                for (UnversionedRow row : rows) {
+                    List<UnversionedValue> values = row.getValues();
+                    Assert.assertEquals(row.toString(), values.size(), 3);
+
+                    Assert.assertEquals(row.toString(), values.get(0).getType(), ColumnValueType.STRING);
+                    Assert.assertEquals(row.toString(), values.get(1).getType(), ColumnValueType.STRING);
+                    Assert.assertEquals(row.toString(), values.get(2).getType(), ColumnValueType.INT64);
+
+                    long intValue = values.get(2).longValue();
+
+                    Assert.assertEquals(row.toString(), values.get(0).stringValue(), "key-" + intValue);
+                    Assert.assertEquals(row.toString(), values.get(1).stringValue(), "value-" + intValue);
+
+                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+                    rowsSeen.set(currentRowNumber, true);
+
+                    currentRowNumber += 1;
+                }
+            }
+            reader.readyEvent().join();
+        }
+
+        reader.close().join();
+
+        for (int i = 0; i < rowsSeen.size(); ++i) {
+            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
+        }
+    }
+
+    @Test
     public void testTableObjectReadWrite() throws Exception {
         ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
 
@@ -355,6 +421,66 @@ public class ReadWriteTest {
         }
 
         writer.close().join();
+
+        TableReader<Row> reader = yt.readTable(
+                new ReadTable<>(
+                        path,
+                        (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class))).join();
+
+        List<Boolean> rowsSeen = new ArrayList<>();
+
+        for (int i = 0; i < generator.rowsCount(); ++i) {
+            rowsSeen.add(false);
+        }
+
+        int currentRowNumber = 0;
+
+        while (reader.canRead()) {
+            List<Row> rowset;
+
+            while ((rowset = reader.read()) != null) {
+                for (Row row : rowset) {
+                    long intValue = row.intValue;
+
+                    Assert.assertEquals(row.toString(), row.key, "key-" + String.valueOf(intValue));
+                    Assert.assertEquals(row.toString(), row.value, "value-" + String.valueOf(intValue));
+
+                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+                    rowsSeen.set(currentRowNumber, true);
+
+                    currentRowNumber += 1;
+                }
+            }
+            reader.readyEvent().join();
+        }
+
+        reader.close().join();
+
+        for (int i = 0; i < rowsSeen.size(); ++i) {
+            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
+        }
+    }
+
+
+    @Test
+    public void testTableObjectReadWriteV2() throws Exception {
+        ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
+
+        String path = "//tmp/write-table-example-2";
+
+        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+
+        AsyncWriter<Row> writer = yt.writeTableV2(
+                new WriteTable<>(path, YTreeObjectSerializerFactory.forClass(Row.class))).join();
+
+        List<Row> rows = generator.nextRows();
+
+        while (rows != null) {
+            writer.write(rows).join();
+            rows = generator.nextRows();
+        }
+
+        writer.finish().join();
 
         TableReader<Row> reader = yt.readTable(
                 new ReadTable<>(
@@ -467,6 +593,66 @@ public class ReadWriteTest {
         }
 
         writer.close().join();
+
+        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(path, serializer)).join();
+
+        List<Boolean> rowsSeen = new ArrayList<>();
+
+        for (int i = 0; i < generator.rowsCount(); ++i) {
+            rowsSeen.add(false);
+        }
+
+        int currentRowNumber = 0;
+
+        while (reader.canRead()) {
+            List<YTreeMapNode> rowset;
+
+            while ((rowset = reader.read()) != null) {
+                for (YTreeMapNode row : rowset) {
+                    int intValue = row.getInt("intValue");
+                    String key = "key-" + intValue;
+                    String value = "value-" + intValue;
+
+                    Assert.assertEquals(row.toString(), row.getString("key"), key);
+                    Assert.assertEquals(row.toString(), row.getString("value"), value);
+
+                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+                    rowsSeen.set(currentRowNumber, true);
+
+                    currentRowNumber += 1;
+                }
+            }
+            reader.readyEvent().join();
+        }
+
+        reader.close().join();
+
+        for (int i = 0; i < rowsSeen.size(); ++i) {
+            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
+        }
+    }
+
+    @Test
+    public void testTableYTreeMapNodeReadWriteV2() throws Exception {
+        YTreeMapNodeRowsGenerator generator = new YTreeMapNodeRowsGenerator();
+
+        String path = "//tmp/write-table-example-3";
+
+        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+
+        YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
+
+        List<YTreeMapNode> rows = generator.nextRows();
+
+        AsyncWriter<YTreeMapNode> writer = yt.writeTableV2(new WriteTable<>(
+                YPath.simple(path), MappedRowSerializer.forClass(serializer), generator.getSchema())).join();
+
+        while (rows != null) {
+            writer.write(rows).join();
+            rows = generator.nextRows();
+        }
+
+        writer.finish().join();
 
         TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(path, serializer)).join();
 
