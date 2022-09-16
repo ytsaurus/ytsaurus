@@ -7,8 +7,6 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/memory_ops.h>
-
 #include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
 
 #include <Columns/ColumnNullable.h>
@@ -287,8 +285,7 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedC
     auto initCHCharsCursor = [&] {
         currentCHChar = chChars.data() + currentCHCharsPosition;
         remainingCHCharsCapacity = chChars.size()
-            - currentCHCharsPosition
-            - MemcpySmallUnsafePadding;
+            - currentCHCharsPosition;
     };
 
     auto resizeCHChars = [&] (i64 size) {
@@ -301,7 +298,7 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedC
     auto uncheckedConsumer = [&] (auto pair) {
         auto [str, length] = pair;
         *currentCHOffset++ = currentCHCharsPosition;
-        MemcpySmallUnsafe(currentCHChar, str, length);
+        memcpy(currentCHChar, str, length);
         currentCHChar += length;
         *currentCHChar++ = '\x0';
         currentCHCharsPosition += length + 1;
@@ -311,8 +308,7 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedC
         auto [str, length] = pair;
         if (Y_UNLIKELY(remainingCHCharsCapacity <= static_cast<size_t>(length))) {
             resizeCHChars(
-                std::max(chChars.size() * 2, chChars.size() + (static_cast<size_t>(length) + 1) +
-                MemcpySmallUnsafePadding));
+                std::max(chChars.size() * 2, chChars.size() + (static_cast<size_t>(length) + 1)));
         }
         uncheckedConsumer(pair);
         remainingCHCharsCapacity -= (length + 1);
@@ -360,8 +356,7 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedC
                         ytStringLengths,
                         ytColumn.StartIndex,
                         ytColumn.StartIndex + ytColumn.ValueCount) +
-                    ytColumn.ValueCount +
-                    MemcpySmallUnsafePadding);
+                    ytColumn.ValueCount);
 
                 DecodeRawVector<std::pair<const char*, i32>>(
                     ytColumn.StartIndex,
