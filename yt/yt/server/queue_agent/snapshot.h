@@ -45,6 +45,8 @@ struct TQueuePartitionSnapshot
     TInstant LastRowCommitTime;
     TDuration CommitIdleTime;
 
+    ui64 CumulativeDataWeight = 0;
+
     //! Write counters for the given partition.
     TPerformanceCounters WriteRate;
 };

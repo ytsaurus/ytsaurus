@@ -40,6 +40,67 @@ using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Collect cumulative row indices from rows with given (tablet_index, row_index) pairs and
+//! return them as a collection of (tablet_index, cumulative_data_weight) pairs.
+std::vector<std::pair<int, i64>> CollectCumulativeDataWeights(
+    const TYPath& path,
+    NApi::IClientPtr client,
+    const std::vector<std::pair<int, i64>>& tabletAndRowIndices,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    if (tabletAndRowIndices.empty()) {
+        return {};
+    }
+
+    TStringBuilder queryBuilder;
+    queryBuilder.AppendFormat("[$tablet_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
+        path);
+    bool isFirstTuple = true;
+    for (const auto& [partitionIndex, rowIndex] : tabletAndRowIndices) {
+        if (!isFirstTuple) {
+            queryBuilder.AppendString(", ");
+        }
+        queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, rowIndex);
+        isFirstTuple = false;
+    }
+
+    queryBuilder.AppendString(")");
+
+    YT_VERIFY(!isFirstTuple);
+
+    auto query = queryBuilder.Flush();
+    YT_LOG_TRACE("Executing query for cumulative data weights (Query: %Qv)", query);
+    auto selectResult = WaitFor(client->SelectRows(query))
+        .ValueOrThrow();
+
+    std::vector<std::pair<int, i64>> result;
+    result.reserve(selectResult.Rowset->GetRows().size());
+
+    for (const auto& row : selectResult.Rowset->GetRows()) {
+        YT_VERIFY(row.GetCount() == 2);
+        YT_VERIFY(row[0].Type == EValueType::Int64);
+        auto tabletIndex = row[0].Data.Int64;
+
+        YT_VERIFY(row[1].Type == EValueType::Int64);
+        auto cumulativeDataWeight = row[1].Data.Int64;
+        result.emplace_back(tabletIndex, cumulativeDataWeight);
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueSnapshotBuildSession final
 {
 public:
@@ -63,10 +124,10 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_DEBUG(error, "Error updating queue snapshot");
-            QueueSnapshot->Error = std::move(error);
+            QueueSnapshot_->Error = std::move(error);
         }
 
-        return QueueSnapshot;
+        return QueueSnapshot_;
     }
 
 private:
@@ -75,7 +136,7 @@ private:
     TLogger Logger;
     TClientDirectoryPtr ClientDirectory_;
 
-    TQueueSnapshotPtr QueueSnapshot = New<TQueueSnapshot>();
+    TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
     void DoBuild()
     {
@@ -83,11 +144,11 @@ private:
 
         YT_LOG_DEBUG("Building queue snapshot");
 
-        QueueSnapshot->Row = PreviousQueueSnapshot_->Row;
+        QueueSnapshot_->Row = PreviousQueueSnapshot_->Row;
 
-        auto queueRef = QueueSnapshot->Row.Queue;
+        auto queueRef = QueueSnapshot_->Row.Queue;
 
-        QueueSnapshot->Family = EQueueFamily::OrderedDynamicTable;
+        QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
         auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         const auto& tableMountCache = client->GetTableMountCache();
 
@@ -99,13 +160,13 @@ private:
         YT_LOG_DEBUG("Table info collected (TabletCount: %v)", tableInfo->Tablets.size());
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-        QueueSnapshot->HasTimestampColumn = schema->HasTimestampColumn();
-        QueueSnapshot->HasCumulativeDataWeightColumn = schema->FindColumn(CumulativeDataWeightColumnName);
+        QueueSnapshot_->HasTimestampColumn = schema->HasTimestampColumn();
+        QueueSnapshot_->HasCumulativeDataWeightColumn = schema->FindColumn(CumulativeDataWeightColumnName);
 
-        auto& partitionCount = QueueSnapshot->PartitionCount;
+        auto& partitionCount = QueueSnapshot_->PartitionCount;
         partitionCount = tableInfo->Tablets.size();
 
-        auto& partitionSnapshots = QueueSnapshot->PartitionSnapshots;
+        auto& partitionSnapshots = QueueSnapshot_->PartitionSnapshots;
         partitionSnapshots.resize(partitionCount);
         for (auto& partitionSnapshot : partitionSnapshots) {
             partitionSnapshot = New<TQueuePartitionSnapshot>();
@@ -149,10 +210,43 @@ private:
             }
 
             partitionSnapshot->WriteRate.RowCount.Update(tabletInfo.TotalRowCount);
-            QueueSnapshot->WriteRate += partitionSnapshot->WriteRate;
+        }
+
+        CollectCumulativeDataWeights();
+
+        for (int index = 0; index < std::ssize(tabletInfos); ++index) {
+            const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];
+            QueueSnapshot_->WriteRate += partitionSnapshot->WriteRate;
         }
 
         YT_LOG_DEBUG("Queue snapshot built");
+    }
+
+    void CollectCumulativeDataWeights()
+    {
+        YT_LOG_DEBUG("Collecting queue cumulative data weights");
+
+        auto queueRef = QueueSnapshot_->Row.Queue;
+
+        std::vector<std::pair<int, i64>> tabletAndRowIndices;
+
+        for (const auto& [partitionIndex, partitionSnapshot] : Enumerate(QueueSnapshot_->PartitionSnapshots)) {
+            // Partition should not be erroneous and contain at least one row.
+            if (partitionSnapshot->Error.IsOK() && partitionSnapshot->UpperRowIndex > 0) {
+                tabletAndRowIndices.emplace_back(partitionIndex, partitionSnapshot->UpperRowIndex - 1);
+            }
+        }
+
+        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
+        auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
+
+        for (const auto& [tabletIndex, cumulativeDataWeight] : result) {
+            auto& partitionSnapshot = QueueSnapshot_->PartitionSnapshots[tabletIndex];
+            partitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
+            partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->CumulativeDataWeight);
+        }
+
+        YT_LOG_DEBUG("Consumer cumulative data weights collected");
     }
 };
 
@@ -366,55 +460,33 @@ private:
 
     void CollectCumulativeDataWeights()
     {
-        YT_LOG_DEBUG("Collecting cumulative data weights");
+        YT_LOG_DEBUG("Collecting consumer cumulative data weights");
 
         auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
 
-        TStringBuilder queryBuilder;
-        queryBuilder.AppendFormat("[$tablet_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
-            QueueSnapshot_->Row.Queue.Path);
-        bool isFirstTuple = true;
+        std::vector<std::pair<int, i64>> tabletAndRowIndices;
 
         for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
             const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
+            // Partition should not be erroneous and previous row should exist.
             if (consumerPartitionSnapshot->Error.IsOK() &&
                 consumerPartitionSnapshot->NextRowIndex > queuePartitionSnapshot->LowerRowIndex &&
                 consumerPartitionSnapshot->NextRowIndex <= queuePartitionSnapshot->UpperRowIndex)
             {
-                if (!isFirstTuple) {
-                    queryBuilder.AppendString(", ");
-                }
-                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex - 1);
-                isFirstTuple = false;
+                tabletAndRowIndices.emplace_back(partitionIndex, consumerPartitionSnapshot->NextRowIndex - 1);
             }
         }
 
-        queryBuilder.AppendString(")");
-
-        if (isFirstTuple) {
-            return;
-        }
-
-        // Calculate next row commit times and processing lags.
         const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto query = queryBuilder.Flush();
-        YT_LOG_TRACE("Executing query for cumulative data weights (Query: %Qv)", query);
-        auto result = WaitFor(client->SelectRows(query))
-            .ValueOrThrow();
+        auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
 
-        for (const auto& row : result.Rowset->GetRows()) {
-            YT_VERIFY(row.GetCount() == 2);
-            YT_VERIFY(row[0].Type == EValueType::Int64);
-            auto tabletIndex = row[0].Data.Int64;
-
+        for (const auto& [tabletIndex, cumulativeDataWeight] : result) {
             auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
-
-            YT_VERIFY(row[1].Type == EValueType::Int64);
-            consumerPartitionSnapshot->CumulativeDataWeight = row[1].Data.Int64;
+            consumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
             consumerPartitionSnapshot->ReadRate.DataWeight.Update(consumerPartitionSnapshot->CumulativeDataWeight);
         }
 
-        YT_LOG_DEBUG("Cumulative data weights collected");
+        YT_LOG_DEBUG("Consumer cumulative data weights collected");
     }
 };
 
