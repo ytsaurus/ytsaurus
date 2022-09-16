@@ -169,7 +169,7 @@ void TDynamicResponseKeeperConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("max_response_count_per_eviction_pass", &TThis::MaxResponseCountPerEvictionPass)
-        .Default(1000);
+        .Default(50'000);
 
     registrar.Parameter("eviction_period", &TThis::EvictionPeriod)
         .Default(TDuration::Seconds(10));
