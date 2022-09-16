@@ -318,9 +318,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
-    registrar.Parameter("tvm_service", &TThis::TvmService)
-        .DefaultNew();
-
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 

@@ -7,6 +7,8 @@
 #include "transaction.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
@@ -141,14 +143,15 @@ public:
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
     {
-        if (Config_->TvmId && !Options_.TvmService) {
+        auto tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+        if (Config_->TvmId && !tvmService) {
             THROW_ERROR_EXCEPTION("Cluster connection requires TVM authentification, but TVM service is unset");
         }
         ChannelFactory_ = CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl);
-        if (Options_.TvmService && Config_->TvmId) {
-            auto ticketAuth = CreateServiceTicketAuth(Options_.TvmService, *Config_->TvmId);
+        if (tvmService && Config_->TvmId) {
+            auto ticketAuth = CreateServiceTicketAuth(tvmService, *Config_->TvmId);
             ChannelFactory_ = CreateServiceTicketInjectingChannelFactory(
                 std::move(ChannelFactory_),
                 std::move(ticketAuth));
@@ -437,11 +440,6 @@ public:
             THROW_ERROR_EXCEPTION("Queue agent stage %Qv is not found", stage);
         }
         return it->second;
-    }
-
-    const NAuth::IDynamicTvmServicePtr& GetTvmService() const override
-    {
-        return Options_.TvmService;
     }
 
     const IChannelFactoryPtr& GetChannelFactory() override
@@ -785,14 +783,15 @@ private:
 
     void SetupTvmIdSynchronization()
     {
-        if (!Options_.TvmService) {
+        auto tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+        if (!tvmService) {
             return;
         }
         if (Config_->TvmId) {
-            Options_.TvmService->AddDestinationServiceIds({*Config_->TvmId});
+            tvmService->AddDestinationServiceIds({*Config_->TvmId});
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([tvmService = Options_.TvmService] (const TString& name, INodePtr nativeConnectionConfig) {
+            BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
                 static const auto& Logger = TvmSynchronizerLogger;
 
                 NNative::TConnectionConfigPtr config;

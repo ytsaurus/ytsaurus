@@ -8,8 +8,6 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/library/auth_server/public.h>
-
 #include <yt/yt/core/bus/tcp/public.h>
 
 namespace NYT::NMasterCache {
@@ -25,8 +23,6 @@ public:
     NBus::TTcpBusConfigPtr BusClient;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
-    NAuth::TTvmServiceConfigPtr TvmService;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 

@@ -14,7 +14,6 @@
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -121,8 +120,6 @@ private:
     std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
     std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
 
-    NAuth::IDynamicTvmServicePtr TvmService_;
-
     void DoInitialize()
     {
         BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
@@ -139,8 +136,7 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        TvmService_ = NApi::NNative::CreateMainConnectionTvmService(Config_->TvmService, Config_->ClusterConnection);
-        Connection_ = NApi::NNative::CreateMainConnection(TvmService_, Config_->ClusterConnection);
+        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
         MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
         ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);

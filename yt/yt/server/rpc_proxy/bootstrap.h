@@ -82,7 +82,6 @@ private:
     NNodeTrackerClient::TAddressMap LocalAddresses_;
     IDynamicConfigManagerPtr DynamicConfigManager_;
     IAccessCheckerPtr AccessChecker_;
-    NAuth::IDynamicTvmServicePtr NativeTvmService_;
 
     void DoRun();
 

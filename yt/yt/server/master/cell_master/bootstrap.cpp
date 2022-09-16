@@ -120,7 +120,6 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
@@ -1023,8 +1022,7 @@ void TBootstrap::InitializeTimestampProvider()
 
 void TBootstrap::DoRun()
 {
-    TvmService_ = NNative::CreateMainConnectionTvmService(Config_->TvmService, Config_->ClusterConnection);
-    ClusterConnection_ = NNative::CreateMainConnection(TvmService_, Config_->ClusterConnection);
+    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
     ClusterConnection_->GetClusterDirectorySynchronizer()->Start();
 
     // Initialize periodic update of latest timestamp.

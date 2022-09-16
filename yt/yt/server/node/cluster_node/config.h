@@ -31,8 +31,6 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/yt/library/auth_server/config.h>
-
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -358,8 +356,6 @@ public:
 
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
-
-    NAuth::TTvmServiceConfigPtr TvmService;
 
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 

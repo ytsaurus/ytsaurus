@@ -49,8 +49,6 @@ struct IConnection
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
     virtual NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual const NAuth::IDynamicTvmServicePtr& GetTvmService() const = 0;
-
     virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
@@ -158,9 +156,6 @@ struct TConnectionOptions
 
     //! If non-null, provides an externally-controlled chunk meta cache.
     NChunkClient::IClientChunkMetaCachePtr ChunkMetaCache;
-
-    //! Must be non-null iff connection has TVM ID specified in config.
-    NAuth::IDynamicTvmServicePtr TvmService;
 
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;

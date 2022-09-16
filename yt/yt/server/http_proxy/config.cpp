@@ -200,9 +200,6 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 
-    registrar.Parameter("tvm_service", &TThis::TvmService)
-        .DefaultNew();
-
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {
             auto auth = New<TAuthenticationManagerConfig>();

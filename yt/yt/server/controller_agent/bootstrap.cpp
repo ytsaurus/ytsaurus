@@ -18,7 +18,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/initialize.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -123,12 +122,10 @@ void TBootstrap::DoRun()
 
     YT_LOG_INFO("Starting controller agent");
 
-    TvmService_ = NApi::NNative::CreateMainConnectionTvmService(Config_->TvmService, Config_->ClusterConnection);
-
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetConnectionInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = NApi::NNative::CreateMainConnection(TvmService_, Config_->ClusterConnection, std::move(connectionOptions));
+    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
