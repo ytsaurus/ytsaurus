@@ -2270,7 +2270,16 @@ private:
 
         try {
             const auto& rsp = rspOrError.Value();
-            auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
+
+            auto future =
+                BIND([nodeListYson = TYsonString(rsp->value())] {
+                    return ConvertToNode(nodeListYson)->AsList();
+                })
+                .AsyncVia(GetBackgroundInvoker())
+                .Run();
+            auto nodesList = WaitFor(future)
+                .ValueOrThrow();
+
             // TODO(gritukan): Use per-flavor node maps here.
             {
                 auto execNodesList = GetEphemeralNodeFactory()->CreateList();
