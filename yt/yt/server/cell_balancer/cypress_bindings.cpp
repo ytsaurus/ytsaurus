@@ -319,6 +319,10 @@ void TTabletSlot::Register(TRegistrar registrar)
         .Default();
 }
 
+void TMaintenanceRequest::Register(TRegistrar /*registrar*/)
+{
+}
+
 void TTabletNodeInfo::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "banned", &TThis::Banned)
@@ -338,6 +342,8 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
         .DefaultNew();
     RegisterAttribute(registrar, "tablet_slots", &TThis::TabletSlots)
+        .Default();
+    RegisterAttribute(registrar, "maintenance_requests", &TThis::MaintenanceRequests)
         .Default();
 }
 
@@ -362,6 +368,8 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
         .DefaultNew();
+    RegisterAttribute(registrar, "maintenance_requests", &TThis::MaintenanceRequests)
+        .Default();
 
     registrar.Parameter("alive", &TThis::Alive)
         .Default();

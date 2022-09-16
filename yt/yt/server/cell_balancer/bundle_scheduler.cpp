@@ -262,6 +262,17 @@ private:
                     ConvertToYsonString(targetResource, EYsonFormat::Text));
 
                 ++count;
+                continue;
+            }
+
+            if (!instanceInfo->MaintenanceRequests.empty()) {
+                YT_LOG_WARNING("Instance is requested for maintenance "
+                    "(InstanceName: %v, MaintenanceRequests: %v)",
+                    instanceName,
+                    ConvertToYsonString(instanceInfo->MaintenanceRequests, EYsonFormat::Text));
+
+                ++count;
+                continue;
             }
         }
 
@@ -528,7 +539,7 @@ private:
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
         YT_VERIFY(bundleInfo->EnableBundleController);
 
-        if (!adapter->IsNewDeallocationAllowed(bundleInfo)) {
+        if (!adapter->IsNewDeallocationAllowed(bundleInfo, input)) {
             return;
         }
 
@@ -764,14 +775,19 @@ int GetUsedSlotCount(const TTabletNodeInfoPtr& nodeInfo)
 
 struct TNodeRemoveOrder
 {
-    bool Actual = true;
+    bool MaintenanceIsNotRequested = true;
+    bool HasUpdatedResources = true;
     int UsedSlotCount = 0;
     TString NodeName;
 
+    auto AsTuple() const
+    {
+        return std::tie(MaintenanceIsNotRequested, HasUpdatedResources, UsedSlotCount, NodeName);
+    }
+
     bool operator<(const TNodeRemoveOrder& other) const
     {
-        return std::tie(Actual, UsedSlotCount, NodeName) <
-            std::tie(other.Actual, other.UsedSlotCount, other.NodeName);
+        return AsTuple() < other.AsTuple();
     }
 };
 
@@ -1269,7 +1285,7 @@ public:
         , AliveBundleNodes_(aliveBundleNodes)
     { }
 
-    bool IsNewDeallocationAllowed(const TBundleInfoPtr& bundleInfo)
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input)
     {
         if (!State_->NodeAllocations.empty() ||
             !State_->NodeDeallocations.empty() ||
@@ -1283,6 +1299,22 @@ public:
             if (GetTargetCellCount(bundleInfo) != std::ssize(bundleInfo->TabletCellIds)) {
                 // Wait for tablet cell management to complete.
                 return false;
+            }
+
+            // Check that all alive instancies have appropriate node_tag_filter and slots count
+            auto expectedSlotsCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
+
+            for (const auto& nodeName : AliveBundleNodes_) {
+                const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+                if (nodeInfo->UserTags.count(bundleInfo->NodeTagFilter) == 0 ||
+                    std::ssize(nodeInfo->TabletSlots) != expectedSlotsCount)
+                {
+                    // Wait while all alive nodes have updated settings.
+                    YT_LOG_DEBUG("Node is not ready "
+                        "(NodeName: %v, ExpectedSlotsCount: %v, NodeTagFilter: %v, SlotsCount: %v, UserTags: %v)",
+                        nodeName, expectedSlotsCount, bundleInfo->NodeTagFilter, std::ssize(nodeInfo->TabletSlots), nodeInfo->UserTags);
+                    return false;
+                }
             }
         }
 
@@ -1460,7 +1492,8 @@ public:
             const auto& instanceResource = nodeInfo->Annotations->Resource;
 
             nodesOrder.push_back(TNodeRemoveOrder{
-                .Actual = (*targetResource == *instanceResource),
+                .MaintenanceIsNotRequested = nodeInfo->MaintenanceRequests.empty(),
+                .HasUpdatedResources = (*targetResource == *instanceResource),
                 .UsedSlotCount = GetUsedSlotCount(nodeInfo),
                 .NodeName = nodeName,
             });
@@ -1491,13 +1524,18 @@ private:
 
 struct TProxyRemoveOrder
 {
-    bool Actual = true;
+    bool MaintenanceIsNotRequested = true;
+    bool HasUpdatedResources = true;
     TString ProxyName;
+
+    auto AsTuple() const
+    {
+        return std::tie(MaintenanceIsNotRequested, HasUpdatedResources, ProxyName);
+    }
 
     bool operator<(const TProxyRemoveOrder& other) const
     {
-        return std::tie(Actual, ProxyName) <
-            std::tie(other.Actual, other.ProxyName);
+        return AsTuple() < other.AsTuple();
     }
 };
 
@@ -1515,7 +1553,7 @@ public:
         , AliveProxies_(aliveProxies)
     { }
 
-    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/)
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/)
     {
         if (!State_->ProxyAllocations.empty() ||
             !State_->ProxyDeallocations.empty())
@@ -1677,7 +1715,8 @@ public:
             const auto& instanceResource = proxyInfo->Annotations->Resource;
 
             proxyOrder.push_back(TProxyRemoveOrder{
-                .Actual = (*targetResource == *instanceResource),
+                .MaintenanceIsNotRequested = proxyInfo->MaintenanceRequests.empty(),
+                .HasUpdatedResources = (*targetResource == *instanceResource),
                 .ProxyName = proxyName,
             });
         }

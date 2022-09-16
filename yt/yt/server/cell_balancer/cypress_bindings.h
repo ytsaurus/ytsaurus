@@ -36,6 +36,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
 DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyAlive)
+DECLARE_REFCOUNTED_STRUCT(TMaintenanceRequest)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
 DECLARE_REFCOUNTED_STRUCT(TAccountResources)
 DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
@@ -483,6 +484,18 @@ DEFINE_REFCOUNTED_TYPE(TTabletSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMaintenanceRequest
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TMaintenanceRequest);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMaintenanceRequest)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeInfo
     : public TYsonStructAttributes<TTabletNodeInfo>
 {
@@ -495,6 +508,7 @@ struct TTabletNodeInfo
     THashSet<TString> UserTags;
     TInstanceAnnotationsPtr Annotations;
     std::vector<TTabletSlotPtr> TabletSlots;
+    THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
@@ -523,6 +537,8 @@ struct TRpcProxyInfo
     bool Banned;
     TString Role;
     TInstanceAnnotationsPtr Annotations;
+    THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
+
     TRpcProxyAlivePtr Alive;
 
     REGISTER_YSON_STRUCT(TRpcProxyInfo);
