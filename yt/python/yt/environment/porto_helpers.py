@@ -1,4 +1,7 @@
-from yt.packages.six import iteritems
+try:
+    from yt.packages.six import iteritems
+except ImportError:
+    from six import iteritems
 
 from yt.wrapper.common import generate_uuid
 

@@ -9,7 +9,11 @@ from .http_helpers import get_retriable_errors
 from .retries import Retrier, default_chaos_monkey
 
 import yt.yson as yson
-from yt.packages.six.moves import zip as izip
+
+try:
+    from yt.packages.six.moves import zip as izip
+except ImportError:
+    from six.moves import zip as izip
 
 from copy import deepcopy
 

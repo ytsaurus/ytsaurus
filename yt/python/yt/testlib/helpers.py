@@ -7,8 +7,12 @@ try:
 except ImportError:
     yatest_common = None
 
-from yt.packages.six import iteritems, text_type
-from yt.packages.six.moves import map as imap
+try:
+    from yt.packages.six import iteritems, text_type
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import iteritems, text_type
+    from six.moves import map as imap
 
 import pytest
 from contextlib import contextmanager

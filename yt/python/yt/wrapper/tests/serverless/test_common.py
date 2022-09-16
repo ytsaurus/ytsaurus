@@ -8,7 +8,10 @@ from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
                                escape_c)
 
-from yt.packages.six.moves import xrange, cPickle as pickle
+try:
+    from yt.packages.six.moves import xrange, cPickle as pickle
+except ImportError:
+    from six.moves import xrange, cPickle as pickle
 
 import yt.wrapper as yt
 

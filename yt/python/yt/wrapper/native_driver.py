@@ -9,7 +9,10 @@ import yt.logger as logger
 import yt.logger_config as logger_config
 import yt.yson as yson
 
-from yt.packages.six import binary_type
+try:
+    from yt.packages.six import binary_type
+except ImportError:
+    from six import binary_type
 
 try:
     from cStringIO import StringIO as BytesIO

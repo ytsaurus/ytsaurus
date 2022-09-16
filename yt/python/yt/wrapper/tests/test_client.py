@@ -5,7 +5,10 @@ from yt.common import YtError
 
 import yt.wrapper.http_helpers as http
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import yt.wrapper as yt
 

@@ -2,7 +2,10 @@ from yt.testlib import authors
 
 from yt.wrapper.thread_pool import ThreadPool
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import pytest
 import threading

@@ -15,8 +15,12 @@ from . import yson
 import yt.logger as logger
 from yt.common import format_error, to_native_str, flatten, join_exceptions
 
-from yt.packages.six import iteritems, itervalues, iterkeys
-from yt.packages.six.moves import builtins, filter as ifilter, map as imap
+try:
+    from yt.packages.six import iteritems, itervalues, iterkeys
+    from yt.packages.six.moves import builtins, filter as ifilter, map as imap
+except ImportError:
+    from six import iteritems, itervalues, iterkeys
+    from six.moves import builtins, filter as ifilter, map as imap
 
 try:
     from yt.packages.decorator import decorator

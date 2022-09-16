@@ -17,7 +17,10 @@ from yt.wrapper.yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 from copy import deepcopy
 from tempfile import NamedTemporaryFile

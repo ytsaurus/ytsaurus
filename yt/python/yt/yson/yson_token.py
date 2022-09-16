@@ -2,8 +2,12 @@ from .common import YsonError
 
 from yt.common import flatten
 
-from yt.packages.six.moves import map as imap
-from yt.packages.six import PY3
+try:
+    from yt.packages.six.moves import map as imap
+    from yt.packages.six import PY3
+except ImportError:
+    from six.moves import map as imap
+    from six import PY3
 
 import string
 

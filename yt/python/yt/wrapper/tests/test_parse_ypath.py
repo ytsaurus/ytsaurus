@@ -10,7 +10,10 @@ from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
 from yt.wrapper import YtError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 from flaky import flaky
 

@@ -14,8 +14,12 @@ except (ImportError, OSError, EnvironmentError):
     fuse_file_info = None
     FuseOSError = None
 
-from yt.packages.six import iterkeys, PY3
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six import iterkeys, PY3
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import iterkeys, PY3
+    from six.moves import xrange
 
 import yt.wrapper as yt
 

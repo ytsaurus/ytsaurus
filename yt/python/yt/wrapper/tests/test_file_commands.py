@@ -3,9 +3,13 @@
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, set_config_options, failing_heavy_request
 
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
+
 from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
-from yt.packages.six import PY3
 from yt.wrapper import heavy_commands, parallel_writer
 
 import yt.wrapper as yt

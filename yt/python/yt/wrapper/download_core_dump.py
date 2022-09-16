@@ -9,8 +9,12 @@ from yt.common import YtError, YtResponseError
 
 import yt.logger as logger
 
-from yt.packages.six import b, PY3
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six import b, PY3
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six import b, PY3
+    from six.moves import xrange, map as imap
 
 import os.path
 

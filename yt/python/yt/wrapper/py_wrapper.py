@@ -18,8 +18,12 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import PY3, iteritems, text_type, binary_type
-from yt.packages.six.moves import map as imap
+try:
+    from yt.packages.six import PY3, iteritems, text_type, binary_type
+    from yt.packages.six.moves import map as imap
+except ImportError:
+    from six import PY3, iteritems, text_type, binary_type
+    from six.moves import map as imap
 
 import re
 import copy

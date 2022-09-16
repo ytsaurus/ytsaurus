@@ -1,7 +1,11 @@
 from .common import get_stream_size_or_none, YtError, chunk_iter_stream
 
-from yt.packages.six import text_type, binary_type, next, PY3
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six import text_type, binary_type, next, PY3
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six import text_type, binary_type, next, PY3
+    from six.moves import xrange
 
 import os
 import types

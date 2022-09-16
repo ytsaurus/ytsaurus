@@ -6,7 +6,11 @@ from yt.wrapper.common import load_certificate
 import yt.logger as logger
 
 import yt.packages.requests as requests
-from yt.packages.six import iteritems, string_types
+
+try:
+    from yt.packages.six import iteritems, string_types
+except ImportError:
+    from six import iteritems, string_types
 
 
 DEFAULT_BASE_ACL_SERVICE_URL = "https://idm.yt.yandex-team.ru"

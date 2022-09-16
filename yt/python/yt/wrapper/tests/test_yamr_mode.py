@@ -11,8 +11,12 @@ import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
-from yt.packages.six import b
-from yt.packages.six.moves import xrange, map as imap, zip as izip
+try:
+    from yt.packages.six import b
+    from yt.packages.six.moves import xrange, map as imap, zip as izip
+except ImportError:
+    from six import b
+    from six.moves import xrange, map as imap, zip as izip
 
 import yt.wrapper as yt
 

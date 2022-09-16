@@ -6,7 +6,10 @@ from yt.wrapper.common import YtError, require, update
 
 import yt.logger as logger
 
-from yt.packages.six import itervalues
+try:
+    from yt.packages.six import itervalues
+except ImportError:
+    from six import itervalues
 
 # NB: this method is used not only in CLI, but also in CHYT integration tests.
 # Keep that in mind when changing it and do not forget to run both Python API tests

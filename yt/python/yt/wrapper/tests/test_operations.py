@@ -29,8 +29,12 @@ import yt.subprocess_wrapper as subprocess
 
 from yt.local import start, stop
 
-from yt.packages.six import b, PY3
-from yt.packages.six.moves import xrange, zip as izip
+try:
+    from yt.packages.six import b, PY3
+    from yt.packages.six.moves import xrange, zip as izip
+except ImportError:
+    from six import b, PY3
+    from six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 

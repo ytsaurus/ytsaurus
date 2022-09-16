@@ -24,8 +24,13 @@ except ImportError:
 
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
-from yt.packages.six import itervalues, iteritems, iterkeys, PY3
-from yt.packages.six.moves import map as imap, zip as izip
+
+try:
+    from yt.packages.six import itervalues, iteritems, iterkeys, PY3
+    from yt.packages.six.moves import map as imap, zip as izip
+except ImportError:
+    from six import itervalues, iteritems, iterkeys, PY3
+    from six.moves import map as imap, zip as izip
 
 import stat
 import errno

@@ -6,7 +6,10 @@ from yt.common import update, update_inplace
 
 from yt.yson import to_yson_type
 
-from yt.packages.six.moves import xrange
+try:
+    from yt.packages.six.moves import xrange
+except ImportError:
+    from six.moves import xrange
 
 import random
 import os

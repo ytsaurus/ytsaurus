@@ -7,7 +7,10 @@ from .helpers import set_config_option
 
 import yt.wrapper as yt
 
-from yt.packages.six import PY3
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 from flaky import flaky
 

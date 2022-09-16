@@ -23,8 +23,12 @@ from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.json_wrapper as json
 
-from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
-from yt.packages.six.moves import xrange, filter as ifilter
+try:
+    from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
+    from yt.packages.six.moves import xrange, filter as ifilter
+except ImportError:
+    from six import iterkeys, itervalues, iteritems, PY3, Iterator, b
+    from six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 

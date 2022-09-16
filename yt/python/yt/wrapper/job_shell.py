@@ -7,7 +7,10 @@ from .config import get_backend_type
 from .driver import get_api_version
 from .http_helpers import get_proxy_url, get_token, make_request_with_retries
 
-from yt.packages.six import b, PY3
+try:
+    from yt.packages.six import b, PY3
+except ImportError:
+    from six import b, PY3
 
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter

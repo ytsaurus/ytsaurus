@@ -1,4 +1,7 @@
-from yt.packages.six import iteritems, text_type
+try:
+    from yt.packages.six import iteritems, text_type
+except ImportError:
+    from six import iteritems, text_type
 
 try:
     from simplejson import load, dump, loads, dumps, JSONDecodeError  # noqa

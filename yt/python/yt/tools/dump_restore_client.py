@@ -3,8 +3,6 @@ from datetime import datetime
 import yt.wrapper.common as yt_common
 import yt.tools.dynamic_tables as dt_module
 
-from yt.packages.six import iteritems
-
 try:
     from yt.wrapper.common import run_with_retries
 except ImportError:
@@ -30,7 +28,7 @@ def _drop_sort_order(schema):
 
 def save_attributes(dst, yt, **attributes):
     """ Save table properties to simple attributes """
-    for attr, value in iteritems(attributes):
+    for attr, value in attributes.items():
         yt.set(dst + "/@" + ATTRIBUTE_PREFIX + attr, value)
 
 

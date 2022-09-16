@@ -20,8 +20,12 @@ from .progress_bar import CustomTqdm
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import text_type, binary_type, string_types
-from yt.packages.six.moves import map as imap, zip as izip
+try:
+    from yt.packages.six import text_type, binary_type, string_types
+    from yt.packages.six.moves import map as imap, zip as izip
+except ImportError:
+    from six import text_type, binary_type, string_types
+    from six.moves import map as imap, zip as izip
 
 import os
 import time

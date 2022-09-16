@@ -6,8 +6,12 @@ try:
 except ImportError:
     import yt.json as json
 
-from yt.packages.six import iteritems
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six import iteritems
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six import iteritems
+    from six.moves import xrange, map as imap
 
 import yt.wrapper as yt
 

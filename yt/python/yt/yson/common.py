@@ -1,6 +1,9 @@
 from yt.common import YtError
 
-from yt.packages.six import int2byte, indexbytes
+try:
+    from yt.packages.six import int2byte, indexbytes
+except ImportError:
+    from six import int2byte, indexbytes
 
 
 class YsonError(YtError):

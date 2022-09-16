@@ -28,8 +28,12 @@ from .format import CppUninitializedFormat
 
 import yt.logger as logger
 
-from yt.packages.six import PY3, text_type
-from yt.packages.six.moves import zip as izip
+try:
+    from yt.packages.six import PY3, text_type
+    from yt.packages.six.moves import zip as izip
+except ImportError:
+    from six import PY3, text_type
+    from six.moves import zip as izip
 
 import functools
 import os

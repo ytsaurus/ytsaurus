@@ -8,11 +8,15 @@ from .helpers import TEST_DIR, set_config_option
 import yt.json_wrapper as json
 import yt.yson as yson
 
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
+
 from yt.common import datetime_to_string
 import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
-from yt.packages.six import PY3
 
 import yandex.type_info as typing
 

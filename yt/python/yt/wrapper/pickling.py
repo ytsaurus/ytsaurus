@@ -3,14 +3,17 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import PY3
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 import yt
 
 FRAMEWORKS = {
     "dill": ("yt.packages.dill",),
     "cloudpickle": ("yt.packages.cloudpickle", "cloudpickle"),
-    "pickle": ("yt.packages.six.moves.cPickle",),
+    "pickle": ("yt.packages.six.moves.cPickle", "six.moves.cPickle"),
 }
 
 

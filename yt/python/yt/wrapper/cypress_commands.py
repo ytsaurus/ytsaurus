@@ -15,8 +15,12 @@ import yt.logger as logger
 
 from yt.yson import is_unicode, get_bytes
 
-from yt.packages.six import iteritems, binary_type, text_type
-from yt.packages.six.moves import builtins, map as imap, filter as ifilter
+try:
+    from yt.packages.six import iteritems, binary_type, text_type
+    from yt.packages.six.moves import builtins, map as imap, filter as ifilter
+except ImportError:
+    from six import iteritems, binary_type, text_type
+    from six.moves import builtins, map as imap, filter as ifilter
 
 import string
 from copy import deepcopy, copy as shallowcopy

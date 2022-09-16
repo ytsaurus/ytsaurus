@@ -1,7 +1,10 @@
 from yt.wrapper.common import YtError, GB, chunk_iter_string, is_arcadia_python
 import yt.logger as logger
 
-from yt.packages.six import binary_type, PY3
+try:
+    from yt.packages.six import binary_type, PY3
+except ImportError:
+    from six import binary_type, PY3
 
 try:
     import zlib_fork_safe as zlib

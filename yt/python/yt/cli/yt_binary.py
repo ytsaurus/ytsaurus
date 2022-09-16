@@ -23,8 +23,12 @@ import yt.wrapper.completers as completers
 import yt.wrapper.idm_cli_helpers as idm
 import yt.json_wrapper as json
 
-from yt.packages.six import PY3, iteritems
-from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
+try:
+    from yt.packages.six import PY3, iteritems
+    from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
+except ImportError:
+    from six import PY3, iteritems
+    from six.moves import builtins, map as imap, zip_longest as izip_longest
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt

@@ -7,7 +7,10 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt.packages.six import PY3, iteritems, integer_types, binary_type, text_type
+try:
+    from yt.packages.six import PY3, iteritems, integer_types, binary_type, text_type
+except ImportError:
+    from six import PY3, iteritems, integer_types, binary_type, text_type
 
 import struct
 

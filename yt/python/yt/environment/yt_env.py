@@ -24,8 +24,13 @@ from yt.test_helpers import wait
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six import itervalues, iteritems
-from yt.packages.six.moves import xrange, map as imap
+try:
+    from yt.packages.six import itervalues, iteritems
+    from yt.packages.six.moves import xrange, map as imap
+except ImportError:
+    from six import itervalues, iteritems
+    from six.moves import xrange, map as imap
+
 import yt.packages.requests as requests
 
 import logging
