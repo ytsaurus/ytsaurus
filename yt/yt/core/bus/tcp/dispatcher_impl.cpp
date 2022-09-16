@@ -49,9 +49,11 @@ bool IsLocalBusTransportEnabled()
 TBusNetworkStatistics TBusNetworkCounters::ToStatistics() const
 {
     TBusNetworkStatistics result;
-#define XX(field) result.field = field.load();
-    FOR_EACH_BUS_NETWORK_STATISTICS_FIELD(XX)
+    for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+#define XX(camelCaseField, snakeCaseField) result.camelCaseField = PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed);
+        ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
 #undef XX
+    }
     return result;
 }
 
@@ -213,25 +215,15 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
 {
     NetworkStatistics_.IterateReadOnly([&] (const auto& name, const auto& statistics) {
-        auto counters = statistics.Counters->ToStatistics();
-        TWithTagGuard tagGuard(writer, "network", name);
-        writer->AddCounter("/in_bytes", counters.InBytes);
-        writer->AddCounter("/in_packets", counters.InPackets);
-        writer->AddCounter("/out_bytes", counters.OutBytes);
-        writer->AddCounter("/out_packets", counters.OutPackets);
-        writer->AddGauge("/pending_out_bytes", counters.PendingOutBytes);
-        writer->AddGauge("/pending_out_packets", counters.PendingOutPackets);
-        writer->AddGauge("/client_connections", counters.ClientConnections);
-        writer->AddGauge("/server_connections", counters.ServerConnections);
-        writer->AddCounter("/stalled_reads", counters.StalledReads);
-        writer->AddCounter("/stalled_writes", counters.StalledWrites);
-        writer->AddCounter("/read_errors", counters.ReadErrors);
-        writer->AddCounter("/write_errors", counters.WriteErrors);
-        writer->AddCounter("/tcp_retransmits", counters.Retransmits);
-        writer->AddCounter("/encoder_errors", counters.EncoderErrors);
-        writer->AddCounter("/decoder_errors", counters.DecoderErrors);
+        const auto& counters = statistics.Counters;
+        TWithTagGuard networkTagGuard(writer, "network", name);
+        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+            TWithTagGuard bandTagGuard(writer, "band", FormatEnum(band));
+            #define XX(camelCaseField, snakeCaseField) writer->AddCounter("/" #snakeCaseField, counters->PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed));
+            ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
+            #undef XX
+        }
     });
-
 
     TTcpDispatcherConfigPtr config;
     {

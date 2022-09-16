@@ -17,55 +17,36 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define ITERATE_BUS_NETWORK_STATISTICS_FIELD(func) \
+    func(InBytes, in_bytes) \
+    func(InPackets, in_packets) \
+    \
+    func(OutBytes, out_bytes) \
+    func(OutPackets, out_packets) \
+    \
+    func(PendingOutPackets, pending_out_packets) \
+    func(PendingOutBytes, pending_out_bytes) \
+    \
+    func(ClientConnections, client_connections) \
+    func(ServerConnections, server_connections) \
+    \
+    func(StalledReads, stalled_reads) \
+    func(StalledWrites, stalled_writes) \
+    \
+    func(ReadErrors, read_errors) \
+    func(WriteErrors, write_errors) \
+    \
+    func(Retransmits, retransmits) \
+    \
+    func(EncoderErrors, encoder_errors) \
+    func(DecoderErrors, decoder_errors)
+
 struct TBusNetworkStatistics
 {
-    i64 InBytes = 0;
-    i64 InPackets = 0;
-
-    i64 OutBytes = 0;
-    i64 OutPackets = 0;
-
-    i64 PendingOutBytes = 0;
-    i64 PendingOutPackets = 0;
-
-    int ClientConnections = 0;
-    int ServerConnections = 0;
-
-    i64 StalledReads = 0;
-    i64 StalledWrites = 0;
-
-    i64 ReadErrors = 0;
-    i64 WriteErrors = 0;
-
-    i64 Retransmits = 0;
-
-    i64 EncoderErrors = 0;
-    i64 DecoderErrors = 0;
+    #define XX(camelCaseField, snakeCaseField) i64 camelCaseField = 0;
+    ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
+    #undef XX
 };
-
-#define FOR_EACH_BUS_NETWORK_STATISTICS_FIELD(func) \
-    func(InBytes) \
-    func(InPackets) \
-    \
-    func(OutBytes) \
-    func(OutPackets) \
-    \
-    func(PendingOutPackets) \
-    func(PendingOutBytes) \
-    \
-    func(ClientConnections) \
-    func(ServerConnections) \
-    \
-    func(StalledReads) \
-    func(StalledWrites) \
-    \
-    func(ReadErrors) \
-    func(WriteErrors) \
-    \
-    func(Retransmits) \
-    \
-    func(EncoderErrors) \
-    func(DecoderErrors)
 
 ////////////////////////////////////////////////////////////////////////////////
 
