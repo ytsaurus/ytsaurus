@@ -2219,5 +2219,32 @@ TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TBundleSchedulerTest, CheckBundleShortName)
+{
+    auto input = GenerateSimpleInputContext(5);
+    auto bundleInfo = GetOrCrash(input.Bundles, "default-bundle");
+    bundleInfo->ShortName = "short-xyz";
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
+
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+
+    THashSet<TString> templates;
+    for (auto& [_, request] : mutations.NewAllocations) {
+        templates.insert(request->Spec->PodIdTemplate);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find("short-xyz") != std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find("default-bundle") == std::string::npos);
+    }
+
+    EXPECT_EQ(templates.size(), 5u);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // NYT::NCellBalancer

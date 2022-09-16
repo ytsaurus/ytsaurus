@@ -158,7 +158,6 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
         .Default(false);
-
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
@@ -169,28 +168,24 @@ void TBundleInfo::Register(TRegistrar registrar)
         .DefaultNew();
     RegisterAttribute(registrar, "resource_quota", &TThis::ResourceQuota)
         .Default();
+    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
+        .Optional();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "yp_cluster", &TThis::YPCluster)
         .Default();
-
     RegisterAttribute(registrar, "max_tablet_node_count", &TThis::MaxTabletNodeCount)
         .Default(10);
-
     RegisterAttribute(registrar, "max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
         .Default(10);
-
     RegisterAttribute(registrar, "tablet_node_nanny_service", &TThis::TabletNodeNannyService)
         .Default();
-
     RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::RpcProxyNannyService)
         .Default();
-
     RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
-
     RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);
