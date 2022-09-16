@@ -12,6 +12,7 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -53,31 +54,10 @@ TString ToString(const TChangeReplicaModeCommand& command)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TClusterKey
-{
-    NApi::IClientPtr Client;
-    TString ClusterName; // for diagnostics only
+using TClusterKey = TString;
 
-    bool operator == (const TClusterKey& other) const
-    {
-        return Client == other.Client;
-    }
-
-    operator size_t() const
-    {
-        return MultiHash(Client);
-    }
-};
-
-void FormatValue(TStringBuilderBase* builder, const TClusterKey& key, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("%v", key.ClusterName);
-}
-
-TString ToString(const TClusterKey& key)
-{
-    return ToStringViaBuilder(key);
-}
+using TClusterClientCache = TSyncExpiringCache<TString, TErrorOr<NApi::IClientPtr>>;
+using TClusterClientCachePtr = TIntrusivePtr<TClusterClientCache>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,10 +67,13 @@ class TClusterLivenessCheckCache
     : public TAsyncExpiringCache<TClusterKey, void>
 {
 public:
-    explicit TClusterLivenessCheckCache(TAsyncExpiringCacheConfigPtr config)
+    TClusterLivenessCheckCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
             Logger.WithTag("Cache: ClusterLivenessCheck"))
+        , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
 protected:
@@ -98,16 +81,24 @@ protected:
         const TClusterKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
+        auto clientOrError = ClusterClientCache_->Get(key);
+        if (!clientOrError.IsOK()) {
+            return MakeFuture(TError(clientOrError));
+        }
+
         NApi::TCheckClusterLivenessOptions options{
             .CheckCypressRoot = true,
             .CheckSecondaryMasterCells = true,
         };
-        return key.Client->CheckClusterLiveness(options)
-            .Apply(BIND([clusterName = key.ClusterName] (const TError& result) {
+        return clientOrError.Value()->CheckClusterLiveness(options)
+            .Apply(BIND([=] (const TError& result) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qv liveness",
-                    clusterName);
+                    key);
             }));
     }
+
+private:
+    const TClusterClientCachePtr ClusterClientCache_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterLivenessCheckCache)
@@ -120,10 +111,13 @@ class TClusterSafeModeCheckCache
     : public TAsyncExpiringCache<TClusterKey, void>
 {
 public:
-    explicit TClusterSafeModeCheckCache(TAsyncExpiringCacheConfigPtr config)
+    TClusterSafeModeCheckCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
             Logger.WithTag("Cache: ClusterSafeModeCheck"))
+        , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
 protected:
@@ -131,18 +125,26 @@ protected:
         const TClusterKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        return key.Client->GetNode("//sys/@config/enable_safe_mode")
-            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
+        auto clientOrError = ClusterClientCache_->Get(key);
+        if (!clientOrError.IsOK()) {
+            return MakeFuture(TError(clientOrError));
+        }
+
+        return clientOrError.Value()->GetNode("//sys/@config/enable_safe_mode")
+            .Apply(BIND([=] (const TErrorOr<TYsonString>& error) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     error,
                     "Error getting @enable_safe_mode attribute for cluster %Qv",
-                    clusterName);
+                    key);
                 if (ConvertTo<bool>(error.Value())) {
                     THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qv",
-                        clusterName);
+                        key);
                 }
             }));
     }
+
+private:
+    const TClusterClientCachePtr ClusterClientCache_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterSafeModeCheckCache)
@@ -155,10 +157,13 @@ class THydraReadOnlyCheckCache
     : public TAsyncExpiringCache<TClusterKey, void>
 {
 public:
-    explicit THydraReadOnlyCheckCache(TAsyncExpiringCacheConfigPtr config)
+    THydraReadOnlyCheckCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
             Logger.WithTag("Cache: HydraReadOnlyCheck"))
+        , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
 protected:
@@ -166,18 +171,26 @@ protected:
         const TClusterKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        return key.Client->GetNode("//sys/@hydra_read_only")
-            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
+        auto clientOrError = ClusterClientCache_->Get(key);
+        if (!clientOrError.IsOK()) {
+            return MakeFuture(TError(clientOrError));
+        }
+
+        return clientOrError.Value()->GetNode("//sys/@hydra_read_only")
+            .Apply(BIND([=] (const TErrorOr<TYsonString>& error) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     error,
                     "Error getting @hydra_read_only attribute for cluster %Qv",
-                    clusterName);
+                    key);
                 if (ConvertTo<bool>(error.Value())) {
                     THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qv",
-                        clusterName);
+                        key);
                 }
             }));
     }
+
+private:
+    const TClusterClientCachePtr ClusterClientCache_;
 };
 
 DEFINE_REFCOUNTED_TYPE(THydraReadOnlyCheckCache)
@@ -186,22 +199,19 @@ DEFINE_REFCOUNTED_TYPE(THydraReadOnlyCheckCache)
 
 struct TBundleHealthKey
 {
-    NApi::IClientPtr Client;
-    TString ClusterName; // for diagnostics only
+    TClusterKey ClusterKey;
     TString BundleName;
 
     bool operator == (const TBundleHealthKey& other) const
     {
-        return Client == other.Client &&
-            ClusterName == other.ClusterName &&
+        return ClusterKey == other.ClusterKey &&
             BundleName == other.BundleName;
     }
 
     operator size_t() const
     {
         return MultiHash(
-            Client,
-            ClusterName,
+            ClusterKey,
             BundleName);
     }
 };
@@ -210,7 +220,7 @@ void FormatValue(TStringBuilderBase* builder, const TBundleHealthKey& key, TStri
 {
     builder->AppendFormat("%v@%v",
         key.BundleName,
-        key.ClusterName);
+        key.ClusterKey);
 }
 
 TString ToString(const TBundleHealthKey& key)
@@ -220,16 +230,19 @@ TString ToString(const TBundleHealthKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TBundleHealthCache)
+DECLARE_REFCOUNTED_CLASS(TNewBundleHealthCache)
 
-class TBundleHealthCache
+class TNewBundleHealthCache
     : public TAsyncExpiringCache<TBundleHealthKey, ETabletCellHealth>
 {
 public:
-    explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
+    TNewBundleHealthCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
             Logger.WithTag("Cache: BundleHealth"))
+        , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
 protected:
@@ -237,16 +250,23 @@ protected:
         const TBundleHealthKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        return key.Client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health")
-            // TODO(akozhikhov): Get rid of ToUncancelable here?
-            .ToUncancelable()
+        auto clientOrError = ClusterClientCache_->Get(key.ClusterKey);
+        if (!clientOrError.IsOK()) {
+            return MakeFuture<ETabletCellHealth>(TError(clientOrError));
+        }
+
+        auto bundleHealthPath = "//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health";
+        return clientOrError.Value()->GetNode(bundleHealthPath)
             .Apply(BIND([=] (const TErrorOr<TYsonString>& error) {
                 return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
             }));
     }
+
+private:
+    const TClusterClientCachePtr ClusterClientCache_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TBundleHealthCache)
+DEFINE_REFCOUNTED_TYPE(TNewBundleHealthCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,10 +320,11 @@ public:
         , RttThread_(New<TActionQueue>("NewRTT"))
         , RttInvoker_(RttThread_->GetInvoker())
         , Config_(std::move(config))
-        , ClusterLivenessChecker_(Config_->ClusterStateCache)
-        , ClusterSafeModeChecker_(Config_->ClusterStateCache)
-        , HydraReadOnlyChecker_(Config_->ClusterStateCache)
-        , BundleHealthChecker_(Config_->BundleHealthCache)
+        , ClusterClientCache_(CreateClusterClientCache())
+        , ClusterLivenessChecker_(Config_->ClusterStateCache, ClusterClientCache_)
+        , ClusterSafeModeChecker_(Config_->ClusterStateCache, ClusterClientCache_)
+        , HydraReadOnlyChecker_(Config_->ClusterStateCache, ClusterClientCache_)
+        , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
@@ -379,29 +400,6 @@ public:
         return Config_;
     }
 
-    NApi::IClientPtr GetOrCreateClusterClient(const TString& clusterName)
-    {
-        auto now = NProfiling::GetInstant();
-
-        auto it = ClusterNameToClient_.find(clusterName);
-        if (it != ClusterNameToClient_.end() &&
-            now - it->second.CreationTime < Config_->ClientExpirationTime)
-        {
-            return it->second.Client;
-        } else {
-            YT_LOG_DEBUG("Creating client for cluster %Qv",
-                clusterName);
-
-            auto client = Host_->CreateClusterClient(clusterName);
-            ClusterNameToClient_[clusterName] = TClusterClientData{
-                .Client = client,
-                .CreationTime = now,
-            };
-
-            return client;
-        }
-    }
-
     class TReplicatedTable;
 
     class TReplica
@@ -427,18 +425,20 @@ public:
 
         void UpdateReplicaState()
         {
-            auto client = TableTracker_->GetOrCreateClusterClient(ClusterName_);
-            if (!client) {
-                OnCheckFailed(TError("No client is available"));
+            auto clientOrError = TableTracker_->ClusterClientCache_->Get(ClusterName_);
+            if (!clientOrError.IsOK()) {
+                OnCheckFailed(clientOrError);
                 return;
             }
+
+            const auto& client = clientOrError.Value();
 
             if (TableTracker_->IsReplicaClusterBanned(ClusterName_)) {
                 OnCheckFailed(TError("Replica cluster is banned"));
                 return;
             }
 
-            if (auto error = TableTracker_->CheckClusterState({client, ClusterName_});
+            if (auto error = TableTracker_->CheckClusterState(ClusterName_);
                 !error.IsOK() && !WarmingUp_)
             {
                 OnCheckFailed(error);
@@ -566,7 +566,7 @@ public:
                 return bundleNameOrError;
             }
 
-            auto bundleHealthOrError = TableTracker_->CheckBundleHealth({client, ClusterName_, bundleNameOrError.Value()});
+            auto bundleHealthOrError = TableTracker_->CheckBundleHealth({ClusterName_, bundleNameOrError.Value()});
             if (!bundleHealthOrError.IsOK()) {
                 return bundleHealthOrError;
             }
@@ -879,6 +879,8 @@ private:
     THashMap<TTableReplicaId, TReplica> IdToReplica_;
     THashMap<TTableCollocationId, TTableCollocation> IdToCollocation_;
 
+    const TClusterClientCachePtr ClusterClientCache_;
+
     template <typename TCache>
     class TCacheSynchronousAdapter
     {
@@ -886,8 +888,12 @@ private:
         using TKey = typename TCache::KeyType;
         using TValue = typename TCache::ValueType;
 
-        TCacheSynchronousAdapter(TAsyncExpiringCacheConfigPtr config)
-            : Cache_(New<TCache>(std::move(config)))
+        TCacheSynchronousAdapter(
+            TAsyncExpiringCacheConfigPtr config,
+            TClusterClientCachePtr clusterClientCache)
+            : Cache_(New<TCache>(
+                std::move(config),
+                std::move(clusterClientCache)))
         { }
 
         TErrorOr<TValue> Get(const TKey& key)
@@ -915,6 +921,7 @@ private:
         };
 
         const TIntrusivePtr<TCache> Cache_;
+
         THashMap<TKey, TState> States_;
     };
 
@@ -922,19 +929,32 @@ private:
     TCacheSynchronousAdapter<TClusterSafeModeCheckCache> ClusterSafeModeChecker_;
     TCacheSynchronousAdapter<THydraReadOnlyCheckCache> HydraReadOnlyChecker_;
 
-    TCacheSynchronousAdapter<TBundleHealthCache> BundleHealthChecker_;
-
-    struct TClusterClientData
-    {
-        NApi::IClientPtr Client;
-        TInstant CreationTime;
-    };
-
-    THashMap<TString, TClusterClientData> ClusterNameToClient_;
+    TCacheSynchronousAdapter<TNewBundleHealthCache> BundleHealthChecker_;
 
     TFuture<TReplicaLagTimes> ReplicaLagTimesFuture_ = MakeFuture<TReplicaLagTimes>(TError("No result yet"));
     TErrorOr<TReplicaLagTimes> ReplicaLagTimesOrError_;
 
+
+    TClusterClientCachePtr CreateClusterClientCache() const
+    {
+        return New<TClusterClientCache>(
+            BIND([weakThis_ = MakeWeak(this)] (TString clusterName) -> TErrorOr<NApi::IClientPtr> {
+                auto tracker = weakThis_.Lock();
+                if (!tracker) {
+                    return TError("Replicated table tracker was destroyed");
+                }
+
+                YT_LOG_DEBUG("Creating client for cluster %Qv",
+                    clusterName);
+
+                if (auto client = tracker->Host_->CreateClusterClient(clusterName)) {
+                    return client;
+                }
+                return TError("No client is available");
+            }),
+            Config_->ClientExpirationTime,
+            RttInvoker_);
+    }
 
     void ScheduleTrackerIteration()
     {
