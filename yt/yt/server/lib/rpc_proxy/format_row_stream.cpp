@@ -172,46 +172,19 @@ public:
             ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))
         , Output_(NFormats::CreateParserForFormat(Format_, &ValueConsumer_))
     {
-        Descriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
     }
 
     IUnversionedRowBatchPtr Decode(
         const TSharedRef& payloadRef,
         const NProto::TRowsetDescriptor& descriptorDelta) override
     {
+        Y_UNUSED(descriptorDelta);
+
+        TableWriter_->Clear();
         Output_.Write(payloadRef.Begin(), payloadRef.Size());
+        NConcurrency::WaitFor(ValueConsumer_.Flush()).ThrowOnError();
+
         auto rows = MakeSharedRange(TableWriter_->GetWrittenRows());
-        
-        auto oldNameTableSize = Descriptor_.name_table_entries_size();
-        YT_VERIFY(oldNameTableSize <= NameTable_->GetSize());
-
-        Descriptor_.MergeFrom(descriptorDelta);
-        auto newNameTableSize = Descriptor_.name_table_entries_size();
-
-        IdMapping_.resize(newNameTableSize);
-        for (int id = oldNameTableSize; id < newNameTableSize; ++id) {
-            const auto& name = Descriptor_.name_table_entries(id).name();
-            auto mappedId = NameTable_->GetIdOrRegisterName(name);
-            IdMapping_[id] = mappedId;
-            HasNontrivialIdMapping_ |= (id != mappedId);
-        }
-
-        if (HasNontrivialIdMapping_) {
-            for (auto row : rows) {
-                auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
-                for (auto& value : mutableRow) {
-                    auto newId = ApplyIdMapping(value, &IdMapping_);
-                    if (newId < 0 || newId >= NameTable_->GetSize()) {
-                        THROW_ERROR_EXCEPTION("Id mapping returned an invalid value %v for id %v: "
-                            "expected a value in [0, %v) range",
-                            newId,
-                            value.Id,
-                            NameTable_->GetSize());
-                    }
-                    value.Id = newId;
-                }
-            }
-        }
 
         return CreateBatchFromUnversionedRows(std::move(rows));
     }
@@ -225,10 +198,6 @@ private:
     IUnversionedWriterPtr SchemalessWriter_;
     TWritingValueConsumer ValueConsumer_;
     TTableOutput Output_;
-
-    NApi::NRpcProxy::NProto::TRowsetDescriptor Descriptor_;
-    TNameTableToSchemaIdMapping IdMapping_;
-    bool HasNontrivialIdMapping_ = false;
 };
 
 IRowStreamDecoderPtr CreateFormatRowStreamDecoder(TNameTablePtr nameTable, NFormats::TFormat format, NTableClient::TTableSchemaPtr tableSchema)
