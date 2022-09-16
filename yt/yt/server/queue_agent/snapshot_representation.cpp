@@ -61,8 +61,7 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
             .Item("has_timestamp_column").Value(snapshot->HasTimestampColumn)
             .Item("has_cumulative_data_weight_column").Value(snapshot->HasCumulativeDataWeightColumn)
             .Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1))
-            // TODO(max42): collect cumulative data weights per-tablet.
-            // .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
+            .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
         .EndMap();
 }
 
@@ -84,8 +83,7 @@ void BuildQueuePartitionYson(const TQueuePartitionSnapshotPtr& snapshot, TFluent
             .Item("last_row_commit_time").Value(snapshot->LastRowCommitTime)
             .Item("commit_idle_time").Value(snapshot->CommitIdleTime)
             .Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1))
-            // TODO(max42): collect cumulative data weights per-tablet.
-            // .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
+            .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
         .EndMap();
 }
 
