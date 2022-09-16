@@ -183,7 +183,6 @@ public:
     template <typename T>
     TYsonString ConvertToYsonStringNestingLimited(const T& value) const
     {
-
         return NYson::ConvertToYsonStringNestingLimited(value, GetYsonNestingLevelLimit());
     }
 
