@@ -70,8 +70,9 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
     clique_index_by_test_name = {}
+    alias = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
         discovery_patch = {
             "yt": {
                 "discovery": {
@@ -89,6 +90,11 @@ class Clique(object):
 
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = config["yt"]["discovery"]["server_addresses"]
+
+        Clique.alias = alias
+        if Clique.alias:
+            alias_without_asterisk = Clique.alias[1:]
+            config["yt"]["clique_alias"] = alias_without_asterisk
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -147,6 +153,8 @@ class Clique(object):
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
+        if Clique.alias:
+            self.spec["alias"] = Clique.alias
         self.instance_count = instance_count
 
     def get_active_instances_for_discovery_v1(self):
@@ -169,10 +177,14 @@ class Clique(object):
         else:
             return []
 
+    def get_group_id(self):
+        group_id = self.get_clique_id() if Clique.alias is None else Clique.alias
+        return group_id[1:] if group_id.startswith('*') else group_id
+
     def get_active_instances_for_discovery_v2(self):
         assert len(self.discovery_servers) > 0
         discovery_server = self.discovery_servers[0]
-        group_id = self.get_clique_id()
+        group_id = self.get_group_id()
         if exists("//sys/discovery_servers/{}/orchid/discovery_server/chyt".format(discovery_server)):
             instances = ls(
                 "//sys/discovery_servers/{}/orchid/discovery_server/chyt/{}/@members"
@@ -449,7 +461,7 @@ class Clique(object):
         assert self.proxy_address is not None
         url = self.proxy_address + "/query"
         if database is None:
-            database = self.op.id
+            database = self.op.id if Clique.alias is None else Clique.alias
         params = {"database": database}
         if settings is not None:
             update_inplace(params, settings)
@@ -553,6 +565,10 @@ class ClickHouseTestBase(YTEnvSetup):
                 "soft_age_threshold": 500,
                 "hard_age_threshold": 1500,
                 "master_cache_expire_time": 500,
+            },
+            "operation_cache": {
+                "expire_after_successful_update_time": 0,
+                "refresh_time": yson.YsonEntity(),
             },
         },
     }

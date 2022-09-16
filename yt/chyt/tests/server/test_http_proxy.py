@@ -66,7 +66,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov", "gudqeit")
     @pytest.mark.parametrize("discovery_version", [1, 2])
-    def test_http_proxy(self, discovery_version):
+    @pytest.mark.parametrize("has_alias", [True, False])
+    def test_http_proxy(self, discovery_version, has_alias):
         patch = {
             "yt": {
                 "discovery": {
@@ -74,7 +75,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 }
             }
         }
-        with Clique(1, config_patch=patch) as clique:
+        alias = "*ch_alias_{}".format(discovery_version) if has_alias else None
+
+        with Clique(1, config_patch=patch, alias=alias) as clique:
             proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
