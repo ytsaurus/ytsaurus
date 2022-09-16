@@ -229,7 +229,7 @@ private:
             spec->YPCluster = zoneInfo->YPCluster;
             spec->NannyService = adapter->GetNannyService(zoneInfo);
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
-            spec->PodIdTemplate = GetPodIdTemplate(bundleName, adapter, input, mutations);
+            spec->PodIdTemplate = GetPodIdTemplate(bundleName, bundleInfo, adapter, input, mutations);
             spec->InstanceRole = adapter->GetInstanceRole();
 
             auto request = New<TAllocationRequest>();
@@ -281,6 +281,7 @@ private:
 
     TString GetPodIdTemplate(
         const TString& bundleName,
+        const TBundleInfoPtr& bundleInfo,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -318,9 +319,14 @@ private:
             input.Config->Cluster,
             adapter->GetInstanceType());
 
+        TString bundleShortName = bundleName;
+        if (bundleInfo->ShortName && !bundleInfo->ShortName->empty()) {
+            bundleShortName = *bundleInfo->ShortName;
+        }
+
         return GetInstancePodIdTemplate(
             input.Config->Cluster,
-            bundleName,
+            bundleShortName,
             adapter->GetInstanceType(),
             instanceIndex);
     }

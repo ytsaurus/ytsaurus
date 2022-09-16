@@ -227,6 +227,7 @@ struct TBundleInfo
     NTabletClient::ETabletCellHealth Health;
     TString Zone;
     TString NodeTagFilter;
+    std::optional<TString> ShortName;
 
     bool EnableBundleController;
     bool EnableTabletCellManagement;
