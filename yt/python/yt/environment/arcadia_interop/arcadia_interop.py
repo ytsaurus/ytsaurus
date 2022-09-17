@@ -248,6 +248,8 @@ def collect_cores(pids, working_directory, binaries, logger=None):
         for binary in binaries:
             shutil.copy(binary, cores_path)
 
+    return has_core_files
+
 
 def save_sandbox(sandbox_path, output_subpath):
     if yatest_common is None:
