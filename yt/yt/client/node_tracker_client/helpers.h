@@ -10,6 +10,8 @@ namespace NYT::NNodeTrackerClient {
 
 NYPath::TYPath GetClusterNodesPath();
 
+NYPath::TYPath GetExecNodesPath();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

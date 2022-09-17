@@ -13,6 +13,11 @@ NYPath::TYPath GetClusterNodesPath()
     return "//sys/cluster_nodes";
 }
 
+NYPath::TYPath GetExecNodesPath()
+{
+    return "//sys/exec_nodes";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

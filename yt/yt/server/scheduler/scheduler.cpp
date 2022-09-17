@@ -2246,7 +2246,7 @@ private:
     {
         YT_LOG_INFO("Requesting exec nodes information");
 
-        auto req = TYPathProxy::List(GetClusterNodesPath());
+        auto req = TYPathProxy::List(GetExecNodesPath());
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "id",
             "tags",
@@ -2277,29 +2277,10 @@ private:
                 })
                 .AsyncVia(GetBackgroundInvoker())
                 .Run();
-            auto nodesList = WaitFor(future)
+            auto nodeList = WaitFor(future)
                 .ValueOrThrow();
 
-            // TODO(gritukan): Use per-flavor node maps here.
-            {
-                auto execNodesList = GetEphemeralNodeFactory()->CreateList();
-                for (const auto& node : nodesList->GetChildren()) {
-                    // COMPAT(gritukan)
-                    if (!node->Attributes().Contains("flavors")) {
-                        execNodesList->AddChild(CloneNode(node));
-                        continue;
-                    }
-
-                    const auto& flavors = node->Attributes().Get<std::vector<ENodeFlavor>>("flavors");
-                    if (std::find(flavors.begin(), flavors.end(), ENodeFlavor::Exec) != flavors.end()) {
-                        execNodesList->AddChild(CloneNode(node));
-                    }
-                }
-
-                nodesList = std::move(execNodesList);
-            }
-
-            auto error = NodeManager_->HandleNodesAttributes(nodesList);
+            auto error = NodeManager_->HandleNodesAttributes(nodeList);
             SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed, error);
 
             YT_LOG_INFO("Exec nodes information updated");
@@ -2496,7 +2477,7 @@ private:
         }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
 
-        auto future = 
+        auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
                 return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
             })

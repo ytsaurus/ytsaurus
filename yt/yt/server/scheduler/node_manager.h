@@ -69,7 +69,7 @@ public:
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
 
-    TError HandleNodesAttributes(const NYTree::IListNodePtr& nodesList);
+    TError HandleNodesAttributes(const NYTree::IListNodePtr& nodeList);
 
     void AbortOperationJobs(TOperationId operationId, const TError& error, bool terminated);
     void ResumeOperationJobs(TOperationId operationId);
