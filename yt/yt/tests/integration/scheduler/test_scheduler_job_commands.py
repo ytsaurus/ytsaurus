@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, create_user,
-    create_group, add_member, read_table, write_table, map, run_test_vanilla, abort_job, abandon_job,
+    create_group, add_member, read_table, write_table, map,
+    run_test_vanilla, abort_job, abandon_job, update_op_parameters,
     poll_job_shell, raises_yt_error)
 
 from yt_helpers import get_job_count_profiling
@@ -504,10 +505,6 @@ class TestJobShellInSubcontainer(TestJobProber):
 
     @authors("gritukan")
     def test_job_shell_in_subcontainer_invalid(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"key": "foo"})
-
         with pytest.raises(YtError):
             run_test_vanilla(
                 with_breakpoint("portoctl create N ; BREAKPOINT"),
@@ -529,6 +526,112 @@ class TestJobShellInSubcontainer(TestJobProber):
                 task_patch={"enable_porto": "isolate"},
             )
 
+    @authors("gritukan")
+    def test_job_shell_owners_update(self):
+        create_user("nirvana_dev")
+        create_group("nirvana_devs")
+
+        create_user("taxi_dev")
+        create_group("taxi_devs")
+
+        create_user("market_dev")
+        create_group("market_devs")
+
+        add_member("nirvana_dev", "nirvana_devs")
+        add_member("taxi_dev", "taxi_devs")
+        add_member("market_dev", "market_devs")
+
+        op = run_test_vanilla(
+            with_breakpoint("portoctl create N && BREAKPOINT"),
+            spec={
+                "enable_porto": "isolate",
+                "job_shells": [
+                    {
+                        "name": "default",
+                        "subcontainer": "",
+                        "owners": ["nirvana_devs"],
+                    },
+                    {
+                        "name": "nirvana",
+                        "subcontainer": "/N",
+                        "owners": [
+                            "taxi_devs",
+                            "nirvana_devs",
+                        ],
+                    },
+                ],
+            },
+            task_patch={"enable_porto": "isolate"},
+            authenticated_user="taxi_dev",
+        )
+        try:
+            job_id = wait_breakpoint()[0]
+        except:
+            op.track()
+            assert False
+
+        # Check that job shell starts in a proper container.
+        def get_subcontainer_name(shell_name):
+            r = poll_job_shell(
+                job_id,
+                shell_name=shell_name,
+                operation="spawn",
+                command="echo $PORTO_NAME",
+            )
+            output = self._poll_until_shell_exited(job_id, r["shell_id"])
+
+            # /path/to/uj/N/js-1234
+            uj = output.find("uj/")
+            js = output.find("/js")
+            return output[uj + 3: js]
+
+        assert get_subcontainer_name("default") == ""
+        assert get_subcontainer_name(None) == ""
+        assert get_subcontainer_name("nirvana") == "N"
+
+        # Check job shell permissions.
+        def check_job_shell_permission(shell_name, user, allowed):
+            if allowed:
+                r = poll_job_shell(
+                    job_id,
+                    shell_name=shell_name,
+                    authenticated_user=user,
+                    operation="spawn",
+                    command="echo hi",
+                )
+                output = self._poll_until_shell_exited(job_id, r["shell_id"])
+                assert output == "hi\r\n"
+            else:
+                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+                    poll_job_shell(
+                        job_id,
+                        shell_name=shell_name,
+                        authenticated_user=user,
+                        operation="spawn",
+                        command="echo hi",
+                    )
+
+        check_job_shell_permission("default", "nirvana_dev", allowed=True)
+        check_job_shell_permission("default", "taxi_dev", allowed=False)
+        check_job_shell_permission("nirvana", "nirvana_dev", allowed=True)
+        check_job_shell_permission("nirvana", "taxi_dev", allowed=True)
+        check_job_shell_permission("nirvana", "market_dev", allowed=False)
+
+        update_op_parameters(
+            op.id,
+            parameters={
+                "options_per_job_shell": {
+                    "nirvana": {
+                        "owners": ["nirvana_devs", "market_devs"],
+                    },
+                },
+            })
+
+        check_job_shell_permission("default", "nirvana_dev", allowed=True)
+        check_job_shell_permission("default", "taxi_dev", allowed=False)
+        check_job_shell_permission("nirvana", "nirvana_dev", allowed=True)
+        check_job_shell_permission("nirvana", "taxi_dev", allowed=False)
+        check_job_shell_permission("nirvana", "market_dev", allowed=True)
 
 ##################################################################
 

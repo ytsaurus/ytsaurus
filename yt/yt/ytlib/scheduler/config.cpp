@@ -2080,6 +2080,12 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOperationJobShellRuntimeParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("owners", &TThis::Owners)
+        .Default();
+}
+
 void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
@@ -2114,6 +2120,7 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
             .Item("owners").Value(parameters.Owners)
             .Item("acl").Value(parameters.Acl)
             .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
+            .Item("options_per_job_shell").Value(parameters.OptionsPerJobShell)
             .DoIf(serializeHeavy, [&] (auto fluent) {
                 SerializeHeavyRuntimeParameters(fluent, parameters);
             })
@@ -2142,6 +2149,9 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
+    if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
+        parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
+    }
     if (auto annotations = mapNode->FindChild("annotations")) {
         Deserialize(parameters.Annotations, annotations);
     }
@@ -2195,6 +2205,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
     registrar.Parameter("acl", &TThis::Acl)
         .Optional();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
+        .Default();
+    registrar.Parameter("options_per_job_shell", &TThis::OptionsPerJobShell)
         .Default();
     registrar.Parameter("annotations", &TThis::Annotations)
         .Optional();
