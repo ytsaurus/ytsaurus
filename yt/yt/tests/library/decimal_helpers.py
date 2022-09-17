@@ -105,7 +105,7 @@ def decode_decimal(yt_binary_value, precision, scale):
     if len(yt_binary_value) != _get_decimal_byte_size(precision):
         raise ValueError(
             "Binary value of Decimal<{},{}> has invalid length; expected length: {} actual length: {}"
-                .format(precision, scale, expected_size, len(yt_binary_value))
+            .format(precision, scale, expected_size, len(yt_binary_value))
         )
 
     if len(yt_binary_value) == 4:

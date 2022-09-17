@@ -57,8 +57,8 @@ def save(data, filename):
 
 
 def make_plot_struct(ts, cells):
-    return {fields.TS_FIELD : ts,
-            fields.CELLS_FIELD : cells}
+    return {fields.TS_FIELD: ts,
+            fields.CELLS_FIELD: cells}
 
 
 def calc_cells_metric(tablets_info, params, arrangement):
@@ -69,13 +69,13 @@ def calc_cells_metric(tablets_info, params, arrangement):
 def load_config(config_str):
     config = yson.loads(str.encode(config_str))
     for plot_config in config:
-        assert(plot_config['params'])
-        assert(plot_config['plot_dir'])
-        assert(os.path.isdir(plot_config['plot_dir']))
+        assert plot_config['params']
+        assert plot_config['plot_dir']
+        assert os.path.isdir(plot_config['plot_dir'])
         plot_config['legend'] = plot_config.setdefault("legend", False)
         plot_config['plot_label_name'] = plot_config.get('plot_label_name', None)
         plot_config['percentiles'] = plot_config.get('percentiles', None)
-        assert(len(plot_config) == 5)
+        assert len(plot_config) == 5
     return config
 
 
