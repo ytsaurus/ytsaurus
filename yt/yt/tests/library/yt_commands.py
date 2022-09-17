@@ -1765,8 +1765,10 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
         wait(
-            lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name))
-                and exists(yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name)))
+            lambda:
+                exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name))
+                and exists(yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name))
+        )
 
 
 def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
