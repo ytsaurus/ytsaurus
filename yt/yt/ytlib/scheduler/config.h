@@ -1731,6 +1731,23 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationJobShellRuntimeParameters
+    : public NYTree::TYsonStruct
+{
+public:
+    std::vector<TString> Owners;
+    
+    REGISTER_YSON_STRUCT(TOperationJobShellRuntimeParameters);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationJobShellRuntimeParameters)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationRuntimeParameters
     : public TRefCounted
 {
@@ -1742,13 +1759,15 @@ public:
     // to be able to revive old operations.
     std::vector<TString> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
+    THashMap<TString, TOperationJobShellRuntimeParametersPtr> OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
     TString ControllerAgentTag;
-
+    
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
 };
+
 void SerializeHeavyRuntimeParameters(NYTree::TFluentMap fluent, const TOperationRuntimeParameters& parameters);
 void Serialize(const TOperationRuntimeParameters& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
 void Serialize(const TOperationRuntimeParametersPtr& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
@@ -1776,6 +1795,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParametersUpdate)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
@@ -1784,8 +1805,10 @@ public:
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+    THashMap<TString, std::optional<TOperationJobShellRuntimeParametersPtr>> OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<TString> ControllerAgentTag;
+
 
     bool ContainsPool() const;
 

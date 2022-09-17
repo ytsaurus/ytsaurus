@@ -188,8 +188,15 @@ private:
                     shellName);
             }
 
+            auto owners = jobShell->Owners;
+            const auto& optionsPerJobShell = operation->GetRuntimeParameters()->OptionsPerJobShell;
+            if (auto it = optionsPerJobShell.find(*shellName); it != optionsPerJobShell.end()) {
+                const auto& options = it->second;
+                owners = options->Owners;
+            }
+
             auto user = context->GetAuthenticationIdentity().User;
-            WaitFor(scheduler->ValidateJobShellAccess(user, jobShell))
+            WaitFor(scheduler->ValidateJobShellAccess(user, jobShell->Name, owners))
                 .ThrowOnError();
 
             response->set_subcontainer(jobShell->Subcontainer);

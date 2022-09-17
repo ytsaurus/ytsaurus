@@ -158,7 +158,10 @@ public:
 
     TFuture<void> ValidateOperationAccess(const TString& user, TOperationId operationId, NYTree::EPermissionSet permissions);
 
-    TFuture<void> ValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell);
+    TFuture<void> ValidateJobShellAccess(
+        const TString& user,
+        const TString& jobShellName,
+        const std::vector<TString>& jobShellOwners);
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const;
 

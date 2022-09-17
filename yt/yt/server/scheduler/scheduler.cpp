@@ -557,9 +557,17 @@ public:
             .Run();
     }
 
-    void DoValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell)
+    void DoValidateJobShellAccess(
+        const TString& user,
+        const TString& jobShellName,
+        const std::vector<TString>& jobShellOwners)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        
+        YT_LOG_DEBUG("Validating job shell access (User: %v, Name: %v, Owners: %v)",
+            user,
+            jobShellName,
+            jobShellOwners);
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetClient()
@@ -577,10 +585,10 @@ public:
             connectionConfig,
             readOptions);
 
-        auto allowedSubjects = jobShell->Owners;
+        auto allowedSubjects = jobShellOwners;
         allowedSubjects.push_back(RootUserName);
         allowedSubjects.push_back(SuperusersGroupName);
-
+        
         for (const auto& allowedSubject : allowedSubjects) {
             if (allowedSubject == user || userClosure.contains(allowedSubject)) {
                 return;
@@ -591,18 +599,19 @@ public:
             NSecurityClient::EErrorCode::AuthorizationError,
             "User %Qv is not allowed to run job shell %Qv",
             user,
-            jobShell->Name);
+            jobShellName);
     }
 
     TFuture<void> ValidateJobShellAccess(
         const TString& user,
-        const TJobShellPtr& jobShell)
+        const TString& jobShellName,
+        const std::vector<TString>& jobShellOwners)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoValidateJobShellAccess, MakeStrong(this))
+        return BIND(&TImpl::DoValidateJobShellAccess, MakeStrong(this), user, jobShellName, jobShellOwners)
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
-            .Run(user, jobShell);
+            .Run();
     }
 
     TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
@@ -992,6 +1001,20 @@ public:
             for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
                 if (schedulingOptions->Pool) {
                     THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+                }
+            }
+        }
+
+        {
+            const auto& shells = operation->Spec()->JobShells;
+            THashSet<TString> jobShellNames;
+            for (const auto& shell : shells) {
+                jobShellNames.insert(shell->Name);
+            }
+            for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
+                if (!jobShellNames.contains(jobShellName)) {
+                    THROW_ERROR_EXCEPTION("Job shell is not specified in operation")
+                        << TErrorAttribute("job_shell", jobShellName);
                 }
             }
         }
@@ -1853,6 +1876,17 @@ private:
 
         if (update->Acl) {
             result->Acl = *update->Acl;
+        }
+
+        if (update->OptionsPerJobShell) {
+            result->OptionsPerJobShell = origin->OptionsPerJobShell;
+            for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
+                if (!options) {
+                    result->OptionsPerJobShell.erase(jobShellName);
+                } else {
+                    result->OptionsPerJobShell[jobShellName] = *options;
+                }
+            }
         }
 
         if (update->Annotations) {
@@ -4515,9 +4549,10 @@ TFuture<void> TScheduler::ValidateOperationAccess(
 
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const TString& user,
-    const TJobShellPtr& jobShell)
+    const TString& jobShellName,
+    const std::vector<TString>& jobShellOwners)
 {
-    return Impl_->ValidateJobShellAccess(user, jobShell);
+    return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }
 
 TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
