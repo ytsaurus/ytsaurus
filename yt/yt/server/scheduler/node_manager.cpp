@@ -228,12 +228,12 @@ TRefCountedExecNodeDescriptorMapPtr TNodeManager::GetExecNodeDescriptors()
     return result;
 }
 
-TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodesList)
+TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
 {
     std::vector<std::vector<std::pair<TString, INodePtr>>> nodesPerShard(NodeShards_.size());
     std::vector<std::vector<TString>> nodeAddressesPerShard(NodeShards_.size());
 
-    for (const auto& child : nodesList->GetChildren()) {
+    for (const auto& child : nodeList->GetChildren()) {
         auto address = child->GetValue<TString>();
         auto objectId = child->Attributes().Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
