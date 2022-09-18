@@ -707,21 +707,26 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(amount >= 0);
 
-        if (DoTryAcquire(amount)) {
-            return VoidFuture;
-        }
-
-        auto promise = NewPromise<void>();
+        TPromise<void> promise;
+        i64 incomingRequestId;
 
         {
             auto guard = Guard(Lock_);
+
+            if (DoTryAcquire(amount)) {
+                return VoidFuture;
+            }
+
+            promise = NewPromise<void>();
+
             Balance_ -= amount;
-            i64 incomingRequestId = ++IncomingRequestId_;
+            incomingRequestId = ++IncomingRequestId_;
             IncomingRequests_.emplace_back(TIncomingRequest{amount, promise, incomingRequestId});
-            YT_LOG_DEBUG("Enqueued a request to the prefetching throttler (Id: %v, Amount: %v)",
-                incomingRequestId,
-                amount);
         }
+
+        YT_LOG_DEBUG("Enqueued a request to the prefetching throttler (Id: %v, Amount: %v)",
+            incomingRequestId,
+            amount);
 
         RequestUnderlyingIfNeeded();
 
@@ -733,8 +738,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(amount >= 0);
 
-        if (DoTryAcquire(amount)) {
-            return true;
+        {
+            auto guard = Guard(Lock_);
+
+            if (DoTryAcquire(amount)) {
+                return true;
+            }
         }
 
         StockUp(amount);
@@ -886,8 +895,6 @@ private:
     //! If there are no pending incoming requests, tries to acquire #amount from the local #Available_.
     bool DoTryAcquire(i64 amount)
     {
-        auto guard = Guard(Lock_);
-
         ++IncomingRequestCountPastWindow_;
 
         if (IncomingRequests_.empty() && amount <= Available_) {
@@ -927,6 +934,8 @@ private:
         double incomingRps = 0.0;
         double underlyingRps = 0.0;
         auto now = TInstant::Now();
+        i64 balance;
+        i64 prefetchAmount;
 
         {
             auto guard = Guard(Lock_);
@@ -948,13 +957,16 @@ private:
             underlyingRequestId = ++UnderlyingRequestId_;
 
             YT_VERIFY(Available_ + Balance_ >= 0);
+
+            balance = Balance_;
+            prefetchAmount = PrefetchAmount_;
         }
 
         YT_LOG_DEBUG("Request to the underlying throttler (Id: %v, UnderlyingAmount: %v, Balance: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
             underlyingRequestId,
             underlyingAmount,
-            Balance_,
-            PrefetchAmount_,
+            balance,
+            prefetchAmount,
             incomingRps,
             underlyingRps);
 
@@ -1058,16 +1070,24 @@ private:
     //! Drops all incoming requests propagating an #error received from the underlying throttler.
     void DropAllIncomingRequests(const TError& error)
     {
-        auto guard = Guard(Lock_);
+        std::vector<TIncomingRequest> fullfilled;
 
-        while (!IncomingRequests_.empty()) {
-            auto& request = IncomingRequests_.front();
-            Balance_ += request.Amount;
+        {
+            auto guard = Guard(Lock_);
+
+            while (!IncomingRequests_.empty()) {
+                auto& request = IncomingRequests_.front();
+                Balance_ += request.Amount;
+                fullfilled.emplace_back(std::move(request));
+                IncomingRequests_.pop_front();
+            }
+        }
+
+        for (auto& request : fullfilled) {
             request.Promise.Set(error);
             YT_LOG_DEBUG("Dropped the incoming request (Id: %v, Amount: %v)",
                 request.Id,
                 request.Amount);
-            IncomingRequests_.pop_front();
         }
     }
 
