@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/ema_counter.h>
@@ -519,22 +521,22 @@ public:
         , ProfileManager_(CreateQueueProfileManager(
             Invoker_,
             QueueAgentProfiler
-                .WithPrefix("/controller")
                 .WithTag("queue_path", QueueRef_.Path)
                 .WithTag("queue_cluster", QueueRef_.Cluster)))
     {
-        QueueSnapshot_ = New<TQueueSnapshot>();
-        QueueSnapshot_->Row = std::move(queueRow);
-        QueueSnapshot_->Error = TError("Queue is not processed yet");
+        auto queueSnapshot = New<TQueueSnapshot>();
+        queueSnapshot->Row = std::move(queueRow);
+        queueSnapshot->Error = TError("Queue is not processed yet");
 
         for (auto& [ref, row] : consumerRowMap) {
-            auto snapshot = New<TConsumerSnapshot>();
-            snapshot->Row = std::move(row);
-            snapshot->Error = TError("Consumer is not processed yet");
-            ConsumerSnapshots_.emplace(std::move(ref), std::move(snapshot));
+            auto consumerSnapshot = New<TConsumerSnapshot>();
+            consumerSnapshot->Row = std::move(row);
+            consumerSnapshot->Error = TError("Consumer is not processed yet");
+            ConsumerSnapshots_.emplace(std::move(ref), std::move(consumerSnapshot));
         }
 
-        QueueSnapshot_->ConsumerSnapshots = ConsumerSnapshots_;
+        queueSnapshot->ConsumerSnapshots = ConsumerSnapshots_;
+        QueueSnapshot_.Exchange(std::move(queueSnapshot));
     }
 
     EQueueFamily GetQueueFamily() const override
@@ -548,12 +550,15 @@ public:
 
         YT_LOG_DEBUG("Building queue controller orchid (PassIndex: %v)", PassIndex_ - 1);
 
+        // Acquire a simple intrusive pointer for code simplicity;
+        auto queueSnapshot = QueueSnapshot_.Acquire();
+
         fluent
             .Item("pass_index").Value(PassIndex_)
             .Item("pass_instant").Value(PassInstant_)
-            .Item("row").Value(QueueSnapshot_->Row)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, QueueSnapshot_, _1))
-            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, QueueSnapshot_, _1));
+            .Item("row").Value(queueSnapshot->Row)
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, _1))
+            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1));
     }
 
     void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, TFluentMap fluent) const override
@@ -611,12 +616,20 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
+    TQueueSnapshotPtr GetLatestSnapshot() const override
+    {
+        return QueueSnapshot_.Acquire();
+    }
+
 private:
     TQueueControllerDynamicConfigPtr DynamicConfig_;
     const TClientDirectoryPtr ClientDirectory_;
     const TCrossClusterReference QueueRef_;
 
-    TQueueSnapshotPtr QueueSnapshot_;
+    using TQueueSnapshotAtomicPtr = TAtomicIntrusivePtr<TQueueSnapshot>;
+
+    // TODO(max42): remove mutable when TAtomicIntrusivePtr<T>::Acquire() is const-qualified.
+    mutable TQueueSnapshotAtomicPtr QueueSnapshot_;
     TConsumerSnapshotMap ConsumerSnapshots_;
 
     const IInvokerPtr Invoker_;
@@ -646,21 +659,28 @@ private:
             PassInstant_ = nextPassInstant;
         });
 
-        auto previousQueueSnapshot = UpdateSnapshots();
+        auto nextQueueSnapshot = BuildQueueSnapshot();
+        auto nextConsumerSnapshots = nextQueueSnapshot->ConsumerSnapshots;
 
-        ProfileManager_->Profile(previousQueueSnapshot, QueueSnapshot_);
+        // NB: these swaps must be performed without context switches in order to not expose the partially altered state.
+        ConsumerSnapshots_.swap(nextConsumerSnapshots);
+        auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
+
+        YT_LOG_INFO("Controller snapshots updated");
+
+        ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
     }
 
-    //! Builds new queue/consumer snapshots and returns the old queue snapshot.
-    TQueueSnapshotPtr UpdateSnapshots()
+    //! Builds new queue/consumer snapshots.
+    TQueueSnapshotPtr BuildQueueSnapshot() const
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_INFO("Updating controller snapshots");
+        YT_LOG_INFO("Building controller snapshot");
 
         // First, update queue snapshot.
         auto nextQueueSnapshot = TQueueSnapshotBuildSession(
-            QueueSnapshot_,
+            QueueSnapshot_.Acquire(),
             Invoker_,
             Logger,
             ClientDirectory_)
@@ -700,13 +720,8 @@ private:
         // Connect queue snapshot to consumer snapshots with pointers.
         nextQueueSnapshot->ConsumerSnapshots = nextConsumerSnapshots;
 
-        // NB: these swaps must be performed without context switches in order to not expose the partially altered state.
-        ConsumerSnapshots_.swap(nextConsumerSnapshots);
-        QueueSnapshot_.Swap(nextQueueSnapshot);
+        YT_LOG_INFO("Controller snapshot built");
 
-        YT_LOG_INFO("Controller snapshots updated");
-
-        // nextQueueSnapshot is actually a previous queue snapshot now.
         return nextQueueSnapshot;
     }
 };

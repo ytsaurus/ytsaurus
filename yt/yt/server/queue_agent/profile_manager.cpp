@@ -16,11 +16,17 @@ struct TQueueProfilingCounters
     TGauge Partitions;
     TGauge NonVitalConsumers;
     TGauge VitalConsumers;
+    TCounter RowsWritten;
+    TCounter RowsTrimmed;
+    TCounter DataWeightWritten;
 
-    TQueueProfilingCounters(const TProfiler& profiler)
+    explicit TQueueProfilingCounters(const TProfiler& profiler)
         : Partitions(profiler.Gauge("/partitions"))
         , NonVitalConsumers(profiler.WithTag("vital", "false").Gauge("/consumers"))
         , VitalConsumers(profiler.WithTag("vital", "true").Gauge("/consumers"))
+        , RowsWritten(profiler.Counter("/rows_written"))
+        , RowsTrimmed(profiler.Counter("/rows_trimmed"))
+        , DataWeightWritten(profiler.Counter("/data_weight_written"))
     { }
 };
 
@@ -29,10 +35,23 @@ struct TQueuePartitionProfilingCounters
 {
     TCounter RowsWritten;
     TCounter RowsTrimmed;
+    TCounter DataWeightWritten;
 
-    TQueuePartitionProfilingCounters(const TProfiler& profiler)
+    explicit TQueuePartitionProfilingCounters(const TProfiler& profiler)
         : RowsWritten(profiler.Counter("/rows_written"))
         , RowsTrimmed(profiler.Counter("/rows_trimmed"))
+        , DataWeightWritten(profiler.Counter("/data_weight_written"))
+    { }
+};
+
+struct TConsumerProfilingCounters
+{
+    TCounter RowsConsumed;
+    TCounter DataWeightConsumed;
+
+    explicit TConsumerProfilingCounters(const TProfiler& profiler)
+        : RowsConsumed(profiler.Counter("/rows_consumed"))
+        , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
     { }
 };
 
@@ -40,11 +59,13 @@ struct TQueuePartitionProfilingCounters
 struct TConsumerPartitionProfilingCounters
 {
     TCounter RowsConsumed;
+    TCounter DataWeightConsumed;
     TGauge LagRows;
     TTimeGauge LagTime;
 
     TConsumerPartitionProfilingCounters(const TProfiler& profiler)
         : RowsConsumed(profiler.Counter("/rows_consumed"))
+        , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
         , LagRows(profiler.GaugeSummary("/lag_rows"))
         , LagTime(profiler.TimeGaugeSummary("/lag_time"))
     { }
@@ -60,8 +81,12 @@ public:
         : Invoker_(std::move(invoker))
         , QueueProfiler_(profiler
             .WithPrefix("/queue"))
+        , QueuePartitionProfiler_(profiler
+            .WithPrefix("/queue_partition"))
         , ConsumerProfiler_(profiler
             .WithPrefix("/consumer"))
+        , ConsumerPartitionProfiler_(profiler
+            .WithPrefix("/consumer_partition"))
     { }
 
     void Profile(
@@ -94,42 +119,72 @@ public:
 
         // Mind the clamp. We do not want process to crash if some delta turns out to be negative due to some manual action.
 
+        i64 totalRowsWritten = 0;
+        i64 totalRowsTrimmed = 0;
+        i64 totalDataWeightWritten = 0;
+
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
             const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
             auto& profilingCounters = QueuePartitionProfilingCounters_[partitionIndex];
-            SafeIncrement(
-                profilingCounters.RowsWritten,
-                currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex);
-            SafeIncrement(
-                profilingCounters.RowsTrimmed,
-                currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex);
+
+            auto rowsWritten = currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex;
+            SafeIncrement(profilingCounters.RowsWritten, rowsWritten);
+            totalRowsWritten += rowsWritten;
+
+            auto rowsTrimmed = currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex;
+            SafeIncrement(profilingCounters.RowsTrimmed, rowsTrimmed);
+            totalRowsTrimmed += rowsTrimmed;
+
+            auto dataWeightWriten = currentQueuePartitionSnapshot->CumulativeDataWeight - previousQueuePartitionSnapshot->CumulativeDataWeight;
+            SafeIncrement(profilingCounters.DataWeightWritten, dataWeightWriten);
+            totalDataWeightWritten += dataWeightWriten;
         }
+
+        SafeIncrement(QueueProfilingCounters_->RowsWritten, totalRowsWritten);
+        SafeIncrement(QueueProfilingCounters_->RowsTrimmed, totalRowsTrimmed);
+        SafeIncrement(QueueProfilingCounters_->DataWeightWritten, totalDataWeightWritten);
 
         for (const auto& consumerRef : GetKeys(currentQueueSnapshot->ConsumerSnapshots)) {
             const auto& previousConsumerPartitionSnapshots = previousQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
             const auto& currentConsumerPartitionSnapshots = currentQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
+            auto& consumerProfilingCounters = *ConsumerProfilingCounters_[consumerRef];
             auto& consumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[consumerRef];
+
+            i64 totalRowsConsumed = 0;
+            i64 totalDataWeightConsumed = 0;
+
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
                 const auto& previousConsumerPartitionSnapshot = previousConsumerPartitionSnapshots[partitionIndex];
                 const auto& currentConsumerPartitionSnapshot = currentConsumerPartitionSnapshots[partitionIndex];
                 auto& profilingCounters = consumerPartitionProfilingCounters[partitionIndex];
 
-                SafeIncrement(
-                    profilingCounters.RowsConsumed,
-                    currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex);
+                auto rowsConsumed = currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex;
+                SafeIncrement(profilingCounters.RowsConsumed, rowsConsumed);
+                totalRowsConsumed += rowsConsumed;
+
+                auto dataWeightConsumed = currentConsumerPartitionSnapshot->CumulativeDataWeight - previousConsumerPartitionSnapshot->CumulativeDataWeight;
+                SafeIncrement(profilingCounters.DataWeightConsumed, dataWeightConsumed);
+                totalDataWeightConsumed += dataWeightConsumed;
+
                 profilingCounters.LagRows.Update(currentConsumerPartitionSnapshot->UnreadRowCount);
                 profilingCounters.LagTime.Update(currentConsumerPartitionSnapshot->ProcessingLag);
             }
+
+            SafeIncrement(consumerProfilingCounters.RowsConsumed, totalRowsConsumed);
+            SafeIncrement(consumerProfilingCounters.DataWeightConsumed, totalDataWeightConsumed);
         }
     }
 
 private:
     IInvokerPtr Invoker_;
     TProfiler QueueProfiler_;
+    TProfiler QueuePartitionProfiler_;
     TProfiler ConsumerProfiler_;
-    std::optional<TQueueProfilingCounters> QueueProfilingCounters_;
+    TProfiler ConsumerPartitionProfiler_;
+    std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
     std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
+    THashMap<TCrossClusterReference, std::unique_ptr<TConsumerProfilingCounters>> ConsumerProfilingCounters_;
     THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> ConsumerPartitionProfilingCounters_;
 
     //! Helper for incrementing a counter only if delta is non-negative.
@@ -167,10 +222,10 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         if (!QueueProfilingCounters_) {
-            QueueProfilingCounters_.emplace(QueueProfiler_);
+            QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(QueueProfiler_);
         }
 
-        auto resizeCounters = [&] (auto& counters, const TProfiler& profiler) {
+        auto resizePartitionCounters = [&] (auto& counters, const TProfiler& profiler) {
             if (counters.size() > static_cast<size_t>(partitionCount)) {
                 counters.erase(counters.begin() + partitionCount, counters.end());
             } else {
@@ -181,22 +236,29 @@ private:
             }
         };
 
-        resizeCounters(QueuePartitionProfilingCounters_, QueueProfiler_);
+        resizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_);
 
-        // Steal old counter vectors for the current list of consumer references.
+        // Steal old counters and counter vectors for the current list of consumer references.
         {
+            THashMap<TCrossClusterReference, std::unique_ptr<TConsumerProfilingCounters>> oldConsumerProfilingCounters;
             THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> oldConsumerPartitionProfilingCounters;
+            oldConsumerProfilingCounters.swap(ConsumerProfilingCounters_);
             oldConsumerPartitionProfilingCounters.swap(ConsumerPartitionProfilingCounters_);
             for (const auto& consumerRef : consumerRefs) {
+                if (auto it = oldConsumerProfilingCounters.find(consumerRef); it != oldConsumerProfilingCounters.end()) {
+                    ConsumerProfilingCounters_[consumerRef] = std::move(it->second);
+                } else {
+                    ConsumerProfilingCounters_[consumerRef] = std::make_unique<TConsumerProfilingCounters>(ConsumerProfiler_);
+                }
                 ConsumerPartitionProfilingCounters_[consumerRef].swap(oldConsumerPartitionProfilingCounters[consumerRef]);
             }
         }
 
         for (auto& [consumerRef, consumerPartitionProfilingCounters] : ConsumerPartitionProfilingCounters_) {
-            auto consumerProfiler = ConsumerProfiler_
+            auto consumerPartitionProfiler = ConsumerPartitionProfiler_
                 .WithTag("consumer_path", consumerRef.Path)
                 .WithTag("consumer_cluster", consumerRef.Cluster);
-            resizeCounters(consumerPartitionProfilingCounters, consumerProfiler);
+            resizePartitionCounters(consumerPartitionProfilingCounters, consumerPartitionProfiler);
         }
     }
 };
