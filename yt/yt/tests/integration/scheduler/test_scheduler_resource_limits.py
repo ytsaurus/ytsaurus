@@ -171,7 +171,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
             },
             task_patch={
-                "memory_limit": 300 * 10 ** 6,
+                "memory_limit": 350 * 10 ** 6,
                 "file_paths": ["//tmp/mapper.py"],
             })
 
@@ -187,7 +187,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 )
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert last_memory_reserve is not None
-        assert 1.5e8 <= last_memory_reserve <= 2.5e8
+        assert 2e8 <= last_memory_reserve <= 3e8
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
