@@ -2,7 +2,12 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NHydra {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +78,53 @@ void DeserializeMutationRecord(
     size_t dataEndOffset = dataStartOffset + recordHeader->DataSize;
     YT_VERIFY(recordData.size() >= dataEndOffset);
     *mutationData = recordData.Slice(dataStartOffset, dataEndOffset);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ITERATE_SNAPSHOT_META_FIELDS(XX) \
+    XX(sequence_number, i64) \
+    XX(random_seed, ui64) \
+    XX(state_hash, ui64) \
+    XX(timestamp, ui64) \
+    XX(last_segment_id, i32) \
+    XX(last_record_id, i32) \
+    XX(last_mutation_term, i32)
+
+void Serialize(
+    const NProto::TSnapshotMeta& meta,
+    IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+#define XX(name, type) \
+            .DoIf(meta.has_ ## name(), [&] (auto fluent) { \
+                fluent.Item(#name).Value(meta.name()); \
+            })
+            ITERATE_SNAPSHOT_META_FIELDS(XX)
+#undef XX
+        .EndMap();
+}
+
+void Deserialize(
+    NProto::TSnapshotMeta& meta,
+    INodePtr node)
+{
+    if (node->GetType() != ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Cannot parse snapshot meta from %Qlv",
+            node->GetType());
+    }
+
+    auto mapNode = node->AsMap();
+
+#define XX(name, type) \
+    if (auto child = mapNode->FindChild(#name)) { \
+        meta.set_ ## name(ConvertTo<type>(child)); \
+    } else { \
+        meta.clear_ ## name(); \
+    }
+    ITERATE_SNAPSHOT_META_FIELDS(XX)
+#undef XX
 }
 
 ////////////////////////////////////////////////////////////////////////////////
