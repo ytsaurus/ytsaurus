@@ -15,6 +15,15 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TClusterProfilingCounters
+{
+    NProfiling::TGauge Queues;
+    NProfiling::TGauge Consumers;
+    NProfiling::TGauge Partitions;
+
+    explicit TClusterProfilingCounters(NProfiling::TProfiler profiler);
+};
+
 //! Object responsible for tracking the list of queues assigned to this particular controller.
 class TQueueAgent
     : public TRefCounted
@@ -50,6 +59,7 @@ private:
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     TString AgentId_;
+    THashMap<TString, TClusterProfilingCounters> ClusterProfilingCounters_;
 
     std::atomic<bool> Active_ = false;
 
@@ -118,6 +128,10 @@ private:
     void DoStop();
 
     void DoPopulateAlerts(std::vector<TError>* alerts) const;
+
+    TClusterProfilingCounters& GetOrCreateClusterProfilingCounters(TString cluster);
+
+    void Profile();
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgent)

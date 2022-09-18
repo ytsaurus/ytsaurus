@@ -46,6 +46,12 @@ public:
     virtual void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
         const TQueueControllerDynamicConfigPtr& newConfig) = 0;
+
+    //! Return latest queue snapshot.
+    /*!
+     *  \note Thread affinity: any.
+     */
+    virtual TQueueSnapshotPtr GetLatestSnapshot() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueController)

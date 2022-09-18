@@ -3,6 +3,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "queue_controller.h"
+#include "snapshot.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -33,6 +34,7 @@ using namespace NHiveClient;
 using namespace NCypressElection;
 using namespace NYPath;
 using namespace NRpc::NBus;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,6 +130,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+TClusterProfilingCounters::TClusterProfilingCounters(TProfiler profiler)
+    : Queues(profiler.Gauge("/queues"))
+    , Consumers(profiler.Gauge("/consumers"))
+    , Partitions(profiler.Gauge("/partitions"))
+{ }
 
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
@@ -487,6 +495,36 @@ void TQueueAgent::Poll()
 
     PollError_ = TError();
     Alerts_.clear();
+
+    Profile();
+}
+
+void TQueueAgent::Profile()
+{
+    struct TClusterCounters {
+        int QueueCount;
+        int ConsumerCount;
+        int PartitionCount;
+    };
+
+    THashMap<TString, TClusterCounters> clusterToCounters;
+    for (const auto& [queueRef, queue] : Queues_) {
+        auto& clusterCounters = clusterToCounters[queueRef.Cluster];
+        ++clusterCounters.QueueCount;
+        if (queue.Error.IsOK()) {
+            const auto& snapshot = queue.Controller->GetLatestSnapshot();
+            clusterCounters.PartitionCount += snapshot->PartitionCount;
+        }
+    }
+    for (const auto& consumerRef : GetKeys(Consumers_)) {
+        ++clusterToCounters[consumerRef.Cluster].ConsumerCount;
+    }
+    for (const auto& [cluster, clusterCounters] : clusterToCounters) {
+        auto& profilingCounters = GetOrCreateClusterProfilingCounters(cluster);
+        profilingCounters.Queues.Update(clusterCounters.QueueCount);
+        profilingCounters.Consumers.Update(clusterCounters.ConsumerCount);
+        profilingCounters.Partitions.Update(clusterCounters.PartitionCount);
+    }
 }
 
 NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key)
@@ -565,6 +603,16 @@ void TQueueAgent::BuildConsumerYson(const TCrossClusterReference& consumerRef, c
             YT_VERIFY(error.IsOK());
         })
         .EndMap();
+}
+
+TClusterProfilingCounters& TQueueAgent::GetOrCreateClusterProfilingCounters(TString cluster)
+{
+    auto it = ClusterProfilingCounters_.find(cluster);
+    if (it == ClusterProfilingCounters_.end()) {
+        it = ClusterProfilingCounters_.insert(
+            {cluster, TClusterProfilingCounters(QueueAgentProfiler.WithTag("yt_cluster", cluster))}).first;
+    }
+    return it->second;
 }
 
 void TQueueAgent::TQueue::Reset()
