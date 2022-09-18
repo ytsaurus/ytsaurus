@@ -207,8 +207,12 @@ private:
     TCounter CacheHitArtifactsSizeCounter_;
     TCounter CacheMissArtifactsSizeCounter_;
     TCounter CacheBypassedArtifactsSizeCounter_;
+
     TGauge TmpfsSizeGauge_;
     TGauge TmpfsUsageGauge_;
+
+    TGauge JobProxyMaxMemoryGauge_;
+    TGauge UserJobMaxMemoryGauge_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -298,7 +302,7 @@ private:
     void OnJobResourcesUpdated(
         const TWeakPtr<IJob>& weakJob,
         const TNodeResources& resourceDelta);
-    
+
     void OnResourceReleased();
 
     void OnJobPrepared(const TWeakPtr<IJob>& weakJob);
@@ -347,6 +351,8 @@ TJobController::TImpl::TImpl(
     , CacheBypassedArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_bypassed_artifacts_size"))
     , TmpfsSizeGauge_(Profiler_.Gauge("/tmpfs/size"))
     , TmpfsUsageGauge_(Profiler_.Gauge("/tmpfs/usage"))
+    , JobProxyMaxMemoryGauge_(Profiler_.Gauge("/job_proxy_max_memory"))
+    , UserJobMaxMemoryGauge_(Profiler_.Gauge("/user_job_max_memory"))
 {
     Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
     Profiler_.AddProducer("", ActiveJobCountBuffer_);
@@ -456,14 +462,14 @@ const THashMap<TJobId, IJobPtr>& TJobController::TImpl::GetJobMap(TJobId jobId) 
         "Invalid object type in job id (JobId: %v, ObjectType: %v)",
         jobId,
         objectType);
-    
+
     return objectType == EObjectType::SchedulerJob ? SchedulerJobMap_ : MasterJobMap_;
 }
 
 IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     auto& jobMap = GetJobMap(jobId);
 
     auto guard = ReaderGuard(JobMapLock_);
@@ -807,7 +813,7 @@ void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPt
 
     job->SubscribeResourcesUpdated(
         BIND_NO_PROPAGATE(&TImpl::OnJobResourcesUpdated, MakeWeak(this), MakeWeak(job)));
-    
+
     job->SubscribeJobPrepared(
         BIND_NO_PROPAGATE(&TImpl::OnJobPrepared, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
@@ -894,7 +900,7 @@ void TJobController::TImpl::RemoveJob(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
     YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
-    
+
     {
         auto oneUserSlotResources = ZeroNodeResources();
         oneUserSlotResources.set_user_slots(1);
@@ -1072,7 +1078,7 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
     const TReqHeartbeatPtr& request)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     GetJobHeartbeatProcessor(jobObjectType)->PrepareRequest(cellTag, jobTrackerAddress, request);
 }
 
@@ -1481,6 +1487,10 @@ void TJobController::TImpl::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    static const TString tmpfsSizeSensorName = "/user_job/tmpfs_size/sum";
+    static const TString jobProxyMaxMemorySensorName = "/job_proxy/max_memory";
+    static const TString userJobMaxMemorySensorName = "/user_job/max_memory";
+
     ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
         auto jobs = GetJobsByOrigin();
 
@@ -1502,6 +1512,8 @@ void TJobController::TImpl::OnProfiling()
         });
     }
 
+    i64 totalJobProxyMaxMemory = 0;
+    i64 totalUserJobMaxMemory = 0;
     i64 tmpfsSize = 0;
     i64 tmpfsUsage = 0;
     for (const auto& job : GetSchedulerJobs()) {
@@ -1529,18 +1541,24 @@ void TJobController::TImpl::OnProfiling()
             continue;
         }
 
-        static const TString sensorName = "/user_job/tmpfs_size/sum";
-
-        auto tmpfsSizeSum = TryGetInt64(statisticsYson.AsStringBuf(), sensorName);
-        if (!tmpfsSizeSum) {
-            continue;
+        if (auto jobProxyMaxMemory = TryGetInt64(statisticsYson.AsStringBuf(), jobProxyMaxMemorySensorName)) {
+            totalJobProxyMaxMemory += *jobProxyMaxMemory;
         }
 
-        tmpfsUsage += *tmpfsSizeSum;
+        if (auto tmpfsSizeSum = TryGetInt64(statisticsYson.AsStringBuf(), tmpfsSizeSensorName)) {
+            tmpfsUsage += *tmpfsSizeSum;
+        }
+
+        if (auto userJobMaxMemory = TryGetInt64(statisticsYson.AsStringBuf(), userJobMaxMemorySensorName)) {
+            totalUserJobMaxMemory += *userJobMaxMemory;
+        }
     }
 
     TmpfsSizeGauge_.Update(tmpfsSize);
     TmpfsUsageGauge_.Update(tmpfsUsage);
+
+    JobProxyMaxMemoryGauge_.Update(totalJobProxyMaxMemory);
+    UserJobMaxMemoryGauge_.Update(totalUserJobMaxMemory);
 }
 
 TCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
