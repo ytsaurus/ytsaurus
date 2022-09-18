@@ -16,6 +16,7 @@
 #include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/streams/lz/lz4/lz4.h>
+
 #include <library/cpp/streams/lz/snappy/snappy.h>
 
 #include <util/stream/file.h>
@@ -44,10 +45,10 @@ class TLocalSnapshotReaderBase
 {
 public:
     TLocalSnapshotReaderBase(
-        const TString& fileName,
+        TString fileName,
         int snapshotId,
         NLogging::TLogger logger)
-        : FileName_(fileName)
+        : FileName_(std::move(fileName))
         , SnapshotId_(snapshotId)
         , Logger(std::move(logger))
     { }
@@ -172,7 +173,7 @@ class TRawLocalSnapshotReader
 {
 public:
     TRawLocalSnapshotReader(
-        const TString& fileName,
+        TString fileName,
         int snapshotId,
         i64 offset)
         : TLocalSnapshotReaderBase(
@@ -205,7 +206,7 @@ class TLocalSnapshotReader
 {
 public:
     TLocalSnapshotReader(
-        const TString& fileName,
+        TString fileName,
         int snapshotId)
         : TLocalSnapshotReaderBase(
             fileName,
@@ -240,9 +241,13 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotReaderPtr CreateLocalSnapshotReader(const TString& fileName, int snapshotId)
+ISnapshotReaderPtr CreateLocalSnapshotReader(
+    TString fileName,
+    int snapshotId)
 {
-    return New<TLocalSnapshotReader>(fileName, snapshotId);
+    return New<TLocalSnapshotReader>(
+        std::move(fileName),
+        snapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,19 +257,19 @@ class TLocalSnapshotWriter
 {
 public:
     TLocalSnapshotWriter(
-        const TString& fileName,
+        TString fileName,
         ECodec codec,
         int snapshotId,
-        const TSnapshotMeta& meta,
+        TSnapshotMeta meta,
         bool raw)
-        : FileName_(fileName)
+        : FileName_(std::move(fileName))
         , Codec_(codec)
         , SnapshotId_(snapshotId)
-        , Meta_(meta)
+        , Meta_(std::move(meta))
         , IsRaw_(raw)
+        , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     {
         SerializedMeta_ = SerializeProtoToRef(Meta_);
-        Logger.AddTag("Path: %v", FileName_);
     }
 
     ~TLocalSnapshotWriter()
@@ -272,8 +277,9 @@ public:
         // TODO(babenko): consider moving this code into HydraIO queue
         if (!IsClosed_) {
             try {
-                DoFinish();
-                File_->Close();
+                if (File_) {
+                    File_->Close();
+                }
                 NFS::Remove(FileName_ + TempFileSuffix);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
@@ -318,6 +324,8 @@ private:
     const TSnapshotMeta Meta_;
     const bool IsRaw_;
 
+    const NLogging::TLogger Logger;
+
     TSharedRef SerializedMeta_;
 
     bool IsOpened_ = false;
@@ -330,8 +338,6 @@ private:
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasuringOutputStream> LengthMeasureOutput_;
     IOutputStream* FacadeOutput_ = nullptr;
-
-    NLogging::TLogger Logger = HydraLogger;
 
 
     void DoWrite(const TSharedRef& buffer)
@@ -652,7 +658,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ILegacySnapshotStorePtr CreateLocalSnapshotStore(TLocalSnapshotStoreConfigPtr config)
+ILegacySnapshotStorePtr CreateLocalSnapshotStore(
+    TLocalSnapshotStoreConfigPtr config)
 {
     return New<TLocalSystemSnapshotStore>(std::move(config));
 }
@@ -663,8 +670,11 @@ class TUncompressedHeaderlessLocalSnapshotReader
     : public ISnapshotReader
 {
 public:
-    TUncompressedHeaderlessLocalSnapshotReader(const TString& fileName)
-        : FileName_(fileName)
+    TUncompressedHeaderlessLocalSnapshotReader(
+        TString fileName,
+        NProto::TSnapshotMeta meta)
+        : FileName_(std::move(fileName))
+        , Meta_(std::move(meta))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     { }
 
@@ -684,11 +694,12 @@ public:
 
     TSnapshotParams GetParams() const override
     {
-        YT_UNIMPLEMENTED();
+        return {.Meta = Meta_};
     }
 
 private:
     const TString FileName_;
+    const NProto::TSnapshotMeta Meta_;
     const NLogging::TLogger Logger;
 
     std::unique_ptr<TFile> File_;
@@ -727,13 +738,145 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TUncompressedHeaderlessLocalSnapshotReader)
+////////////////////////////////////////////////////////////////////////////////
+
+ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
+    TString fileName,
+    NProto::TSnapshotMeta meta)
+{
+    return New<TUncompressedHeaderlessLocalSnapshotReader>(
+        std::move(fileName),
+        std::move(meta));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(const TString& fileName)
+class TUncompressedHeaderlessLocalSnapshotWriter
+    : public ISnapshotWriter
 {
-    return New<TUncompressedHeaderlessLocalSnapshotReader>(fileName);
+public:
+    explicit TUncompressedHeaderlessLocalSnapshotWriter(TString fileName)
+        : FileName_(std::move(fileName))
+        , Logger(HydraLogger.WithTag("Path: %v", FileName_))
+    { }
+
+    ~TUncompressedHeaderlessLocalSnapshotWriter()
+    {
+        // TODO(babenko): consider moving this code into HydraIO queue
+        if (!IsClosed_) {
+            try {
+                if (File_) {
+                    File_->Close();
+                }
+                NFS::Remove(FileName_ + TempFileSuffix);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
+                    FileName_ + TempFileSuffix);
+            }
+        }
+    }
+
+    TFuture<void> Open() override
+    {
+        return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoOpen, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
+    }
+
+    TFuture<void> Write(const TSharedRef& buffer) override
+    {
+        return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoWrite, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(buffer);
+    }
+
+    TFuture<void> Close() override
+    {
+        return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoClose, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
+    }
+
+    TSnapshotParams GetParams() const override
+    {
+        YT_VERIFY(IsClosed_);
+        return {};
+    }
+
+    DEFINE_SIGNAL(void(), Closed);
+
+private:
+    const TString FileName_;
+    const NLogging::TLogger Logger;
+
+    bool IsOpened_ = false;
+    bool IsClosed_ = false;
+
+    std::unique_ptr<TFile> File_;
+    std::unique_ptr<TUnbufferedFileOutput> FileOutput_;
+
+
+    void DoWrite(const TSharedRef& buffer)
+    {
+        YT_VERIFY(IsOpened_ && !IsClosed_);
+        FileOutput_->Write(buffer.Begin(), buffer.Size());
+    }
+
+    void DoOpen()
+    {
+        YT_VERIFY(!IsOpened_);
+
+        YT_LOG_DEBUG("Opening uncompressed headerless local snapshot writer");
+
+        try {
+            File_.reset(new TFile(FileName_ + TempFileSuffix, CreateAlways | CloseOnExec));
+            FileOutput_.reset(new TUnbufferedFileOutput(*File_));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
+                FileName_)
+                << ex;
+        }
+
+        IsOpened_ = true;
+
+        YT_LOG_DEBUG("Local uncompressed headerless snapshot writer opened");
+    }
+
+    void DoFinish()
+    {
+        if (FileOutput_) {
+            FileOutput_->Finish();
+        }
+    }
+
+    void DoClose()
+    {
+        YT_VERIFY(IsOpened_ && !IsClosed_);
+
+        YT_LOG_DEBUG("Closing local uncompressed headerless snapshot writer");
+
+        DoFinish();
+
+        File_->Flush();
+        File_->Close();
+
+        NFS::Rename(FileName_ + TempFileSuffix, FileName_);
+
+        Closed_.Fire();
+
+        IsClosed_ = true;
+
+        YT_LOG_DEBUG("Local uncompressed headerless snapshot writer closed");
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
+    TString fileName)
+{
+    return New<TUncompressedHeaderlessLocalSnapshotWriter>(
+        std::move(fileName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

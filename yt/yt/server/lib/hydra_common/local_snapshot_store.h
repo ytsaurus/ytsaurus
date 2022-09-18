@@ -23,8 +23,15 @@ ILegacySnapshotStorePtr CreateLocalSnapshotStore(TLocalSnapshotStoreConfigPtr co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(const TString& fileName);
-ISnapshotReaderPtr CreateLocalSnapshotReader(const TString& fileName, int snapshotId);
+ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
+    TString fileName,
+    NProto::TSnapshotMeta meta);
+ISnapshotReaderPtr CreateLocalSnapshotReader(
+    TString fileName,
+    int snapshotId);
+
+ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
+    TString fileName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
