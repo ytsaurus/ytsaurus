@@ -15,9 +15,6 @@ import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.proxy.request.AbortJob;
-import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
-import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
@@ -29,13 +26,8 @@ import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
-import ru.yandex.yt.ytclient.proxy.request.GetJobStderr;
-import ru.yandex.yt.ytclient.proxy.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
-import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
-import ru.yandex.yt.ytclient.proxy.request.ListJobs;
-import ru.yandex.yt.ytclient.proxy.request.ListJobsResult;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
@@ -50,6 +42,14 @@ import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
+import ru.yandex.yt.ytclient.request.AbortJob;
+import ru.yandex.yt.ytclient.request.AbortOperation;
+import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.GetJobStderr;
+import ru.yandex.yt.ytclient.request.GetJobStderrResult;
+import ru.yandex.yt.ytclient.request.GetTabletInfos;
+import ru.yandex.yt.ytclient.request.ListJobs;
+import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
@@ -189,9 +189,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<List<TabletInfo>> getTabletInfos(GetTabletInfos req);
 
     default CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices) {
-        GetTabletInfos req = new GetTabletInfos(path);
-        req.setTabletIndexes(tabletIndices);
-        return getTabletInfos(req);
+        return getTabletInfos(GetTabletInfos.builder().setPath(path).setTabletIndexes(tabletIndices).build());
     }
 
     CompletableFuture<YtTimestamp> generateTimestamps(GenerateTimestamps req);
@@ -237,6 +235,10 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<YTreeNode> getJob(GetJob req);
 
     CompletableFuture<Void> abortJob(AbortJob req);
+
+    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?> req) {
+        return abortJob(req.build());
+    }
 
     CompletableFuture<ListJobsResult> listJobs(ListJobs req);
 

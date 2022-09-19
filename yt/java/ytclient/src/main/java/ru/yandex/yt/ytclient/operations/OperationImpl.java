@@ -21,12 +21,12 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
-import ru.yandex.yt.ytclient.proxy.request.AbortOperation;
-import ru.yandex.yt.ytclient.proxy.request.GetJobStderr;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
-import ru.yandex.yt.ytclient.proxy.request.JobResult;
-import ru.yandex.yt.ytclient.proxy.request.JobState;
-import ru.yandex.yt.ytclient.proxy.request.ListJobs;
+import ru.yandex.yt.ytclient.request.AbortOperation;
+import ru.yandex.yt.ytclient.request.GetJobStderr;
+import ru.yandex.yt.ytclient.request.JobResult;
+import ru.yandex.yt.ytclient.request.JobState;
+import ru.yandex.yt.ytclient.request.ListJobs;
 
 @NonNullApi
 @NonNullFields
@@ -165,7 +165,10 @@ public class OperationImpl implements Operation {
     }
 
     private CompletableFuture<Void> getAndLogFailedJobs(GUID operationId) {
-        return client.listJobs(new ListJobs(operationId, JobState.Failed, 5L))
+        return client.listJobs(ListJobs.builder()
+                        .setOperationId(operationId)
+                        .setState(JobState.Failed)
+                        .setLimit(5L).build())
                 .thenCompose(listJobsResult -> CompletableFuture.allOf(listJobsResult
                             .getJobs()
                             .stream()

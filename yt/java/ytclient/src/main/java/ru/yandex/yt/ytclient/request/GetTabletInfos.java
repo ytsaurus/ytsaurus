@@ -1,0 +1,98 @@
+package ru.yandex.yt.ytclient.request;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
+import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+
+@NonNullFields
+@NonNullApi
+public class GetTabletInfos
+        extends RequestBase
+        implements HighLevelRequest<TReqGetTabletInfos.Builder> {
+    private final String path;
+    private final List<Integer> tabletIndexes;
+
+    GetTabletInfos(Builder builder) {
+        super(builder);
+        this.path = builder.path;
+        this.tabletIndexes = builder.tabletIndexes;
+    }
+
+    public GetTabletInfos(String path) {
+        this(builder().setPath(path));
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqGetTabletInfos.Builder, ?> builder) {
+        builder.body().setPath(path);
+        builder.body().addAllTabletIndexes(tabletIndexes);
+    }
+
+    @Override
+    protected void writeArgumentsLogString(StringBuilder sb) {
+        sb.append("Path: ").append(path).append("; TabletIndexes: ").append(tabletIndexes).append("; ");
+        super.writeArgumentsLogString(sb);
+    }
+
+    public Builder toBuilder() {
+        return builder()
+                .setPath(path)
+                .setTabletIndexes(tabletIndexes)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
+    }
+
+    public static class Builder extends RequestBase.Builder<Builder> {
+        @Nullable
+        private String path;
+        private List<Integer> tabletIndexes = new ArrayList<>();
+
+        Builder() {
+        }
+
+        Builder(Builder builder) {
+            super(builder);
+            this.path = builder.path;
+            this.tabletIndexes = new ArrayList<>(builder.tabletIndexes);
+        }
+
+        public Builder setPath(String path) {
+            this.path = path;
+            return self();
+        }
+
+        public Builder addTabletIndex(int idx) {
+            tabletIndexes.add(idx);
+            return self();
+        }
+
+        public Builder setTabletIndexes(List<Integer> tabletIndexes) {
+            this.tabletIndexes.clear();
+            this.tabletIndexes.addAll(tabletIndexes);
+            return self();
+        }
+
+        public GetTabletInfos build() {
+            return new GetTabletInfos(this);
+        }
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+    }
+}
