@@ -499,6 +499,10 @@ public:
     //! Probability (in percents) that newly created chunk will be Sequoia.
     int SequoiaChunkProbability;
 
+    //! When set of active chunk replicator shards is changed, no removal jobs
+    //! will be scheduled within this period.
+    TDuration RemovalJobScheduleDelay;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

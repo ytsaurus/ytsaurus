@@ -222,6 +222,8 @@ private:
     std::bitset<ChunkShardCount> RefreshRunning_;
     bool RequisitionUpdateRunning_ = false;
 
+    TInstant LastActiveShardSetUpdateTime_ = TInstant::Zero();
+
     void ScheduleReplicationJobs(IJobSchedulingContext* context);
     void ScheduleRemovalJobs(IJobSchedulingContext* context);
     void ScheduleRepairJobs(IJobSchedulingContext* context);
