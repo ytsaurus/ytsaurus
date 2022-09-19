@@ -22,6 +22,7 @@ import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -335,6 +336,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
         return client.selectRows(request.setTimestamp(startTimestamp), serializer);
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+                                                  ConsumerSource<T> consumer) {
+        return client.selectRows(request.setTimestamp(startTimestamp), serializer, consumer);
     }
 
     public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?> request) {
