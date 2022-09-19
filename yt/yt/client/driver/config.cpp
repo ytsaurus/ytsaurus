@@ -56,7 +56,7 @@ void TDriverConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("use_ws_hack_for_get_columnar_statistics", &TThis::UseWsHackForGetColumnarStatistics)
-        .Default(true);
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClientCache->Capacity = 1024_KB;
