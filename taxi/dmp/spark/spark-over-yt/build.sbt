@@ -108,7 +108,7 @@ lazy val `submit-client` = (project in file("submit-client"))
 lazy val `data-source` = (project in file("data-source"))
   .enablePlugins(PythonPlugin)
   .configs(IntegrationTest)
-  .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
+  .dependsOn(`yt-wrapper` % "compile->compile;test->test", `file-system` % "compile->compile;test->test")
   .settings(
     version := (ThisBuild / spytClientVersion).value,
     Defaults.itSettings,
@@ -140,7 +140,7 @@ lazy val `data-source` = (project in file("data-source"))
 
 lazy val `file-system` = (project in file("file-system"))
   .enablePlugins(CommonPlugin)
-  .dependsOn(`yt-wrapper`, `yt-wrapper` % "test->test")
+  .dependsOn(`yt-wrapper` % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= commonDependencies.value,
     libraryDependencies += "net.logstash.log4j" % "jsonevent-layout" % "1.7"

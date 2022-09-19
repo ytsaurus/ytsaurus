@@ -1,8 +1,8 @@
 package ru.yandex.spark.yt.wrapper.client
 
-import com.google.common.net.HostAndPort
 import io.circe._
 import io.circe.parser._
+import ru.yandex.spark.HostAndPort
 import sttp.client._
 
 import scala.util.{Failure, Try}
@@ -11,7 +11,7 @@ class MasterWrapperClient(val endpoint: HostAndPort) {
 
   import MasterWrapperClient._
 
-  implicit private val backend = HttpURLConnectionBackend()
+  implicit private val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
 
   def byopEnabled: Try[Boolean] = {
     // выносим url в отдельную переменную, потому что uri"http://$endpoint"

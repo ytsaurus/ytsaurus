@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.submit
 
-import com.google.common.net.HostAndPort
 import org.apache.spark.deploy.rest.RestSubmissionClientWrapper
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService

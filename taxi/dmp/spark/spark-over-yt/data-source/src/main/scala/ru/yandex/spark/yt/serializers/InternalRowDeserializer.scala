@@ -1,24 +1,20 @@
 package ru.yandex.spark.yt.serializers
 
-import java.io.ByteArrayOutputStream
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
-import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
+import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.common.Decimal.binaryToText
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
-import java.math.BigInteger
-import java.sql.{Date, Timestamp}
-import java.util.concurrent.TimeUnit
+import java.io.ByteArrayOutputStream
 import scala.collection.mutable
-import scala.concurrent.duration.Duration
 
 class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[InternalRow] with WireValueDeserializer[Any] {
   private var _values: Array[Any] = _
@@ -150,7 +146,7 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
   }
 
   def throwValueTypeViolation(ysonType: String): Unit = {
-    throw new IllegalArgumentException(s"Value of YSON type ${ysonType} does not match value type ${_currentType}")
+    throw new IllegalArgumentException(s"Value of YSON type $ysonType does not match value type ${_currentType}")
   }
 }
 

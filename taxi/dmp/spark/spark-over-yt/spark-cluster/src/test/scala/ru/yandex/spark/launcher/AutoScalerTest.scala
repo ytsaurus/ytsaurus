@@ -1,7 +1,8 @@
 package ru.yandex.spark.launcher
 
-import com.google.common.net.HostAndPort
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.AutoScaler._
 import ru.yandex.spark.launcher.ClusterStateService.State
 import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, WorkerInfo, WorkerStats}
@@ -9,8 +10,7 @@ import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, Worker
 import scala.concurrent.duration.DurationInt
 import scala.util.Success
 
-//noinspection UnstableApiUsage
-class AutoScalerTest extends FlatSpec with Matchers  {
+class AutoScalerTest extends AnyFlatSpec with Matchers  {
   behavior of "AutoScaler"
 
   val simpleConf: Conf = AutoScaler.Conf(1.minute, 0, 1, 1, 1, 1)

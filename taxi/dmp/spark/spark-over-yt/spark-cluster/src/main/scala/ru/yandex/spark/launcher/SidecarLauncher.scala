@@ -1,8 +1,8 @@
 package ru.yandex.spark.launcher
 
-import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.Service.BasicService
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
@@ -20,8 +20,8 @@ trait SidecarLauncher {
   private val log = LoggerFactory.getLogger(getClass)
 
   private def waitForServiceStart(config: SidecarConfig, process: Thread, timeout: Duration): Unit = {
-    val address = HostAndPort.fromParts(config.host, config.port)
-    val monitoringAddress = HostAndPort.fromParts(config.host, config.monitoringPort)
+    val address = HostAndPort(config.host, config.port)
+    val monitoringAddress = HostAndPort(config.host, config.monitoringPort)
     DiscoveryService.waitFor(DiscoveryService.isAlive(address, 0) || !process.isAlive, timeout,
       s"${config.serviceName} on port ${config.port}")
     DiscoveryService.waitFor(DiscoveryService.isAlive(monitoringAddress, 0) || !process.isAlive, timeout,

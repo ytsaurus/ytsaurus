@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.wrapper.client
 
 
-import com.google.common.net.HostAndPort
 import io.netty.channel.nio.NioEventLoopGroup
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.system.SystemUtils
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
@@ -79,7 +79,7 @@ trait YtClientUtils {
       for {
         host <- SystemUtils.envGet("byop_host")
         port <- SystemUtils.envGet("byop_port").map(_.toInt)
-      } yield HostAndPort.fromParts(host, port)
+      } yield HostAndPort(host, port)
     } else None
   }
 
@@ -162,8 +162,8 @@ trait YtClientUtils {
                                             byopDiscoveryEndpoint: HostAndPort): YtClient = {
     val cluster = new YtCluster(
       s"${config.shortProxy}-byop",
-      byopDiscoveryEndpoint.getHostText,
-      byopDiscoveryEndpoint.getPort
+      byopDiscoveryEndpoint.host,
+      byopDiscoveryEndpoint.port
     )
 
     rpcOptions.setPreferableDiscoveryMethod(DiscoveryMethod.HTTP)

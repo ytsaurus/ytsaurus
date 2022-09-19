@@ -3,7 +3,8 @@ package ru.yandex.spark.yt.format.types
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.{DataFrameReader, Row}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.spark.yt._
@@ -17,7 +18,7 @@ import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
 
-class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
+class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   import spark.implicits._
 
   override def beforeAll(): Unit = {

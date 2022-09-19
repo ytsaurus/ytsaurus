@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.wrapper.discovery
 
-import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.yt.ytclient.proxy.CompoundClient

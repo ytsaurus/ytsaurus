@@ -1,7 +1,6 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
-import ru.yandex.yson.YsonError
+import ru.yandex.yson.{YsonError, YsonTags}
 
 import scala.annotation.tailrec
 

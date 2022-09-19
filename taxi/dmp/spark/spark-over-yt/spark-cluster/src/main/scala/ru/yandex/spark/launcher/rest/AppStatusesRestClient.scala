@@ -1,9 +1,9 @@
 package ru.yandex.spark.launcher.rest
 
-import com.google.common.net.HostAndPort
 import io.circe.{Decoder, parser}
 import io.circe.generic.semiauto.deriveDecoder
 import org.slf4j.{Logger, LoggerFactory}
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.rest.AppStatusesRestClient.{AppStatus, SubmissionStatus}
 import sttp.client.{HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext, basicRequest}
 
@@ -50,7 +50,7 @@ object AppStatusesRestClient {
     log.info(s"Creating AppStatusesRestClient for master $rest")
     new AppStatusesRestClient {
       override def getAppStatuses: Try[Seq[AppStatus]] = {
-        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/getAppStatus"
+        val uri = uri"http://${rest.host}:${rest.port}/v1/submissions/getAppStatus"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
@@ -63,7 +63,7 @@ object AppStatusesRestClient {
       }
 
       override def getSubmissionStatuses: Try[Seq[SubmissionStatus]] = {
-        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/status/"
+        val uri = uri"http://${rest.host}:${rest.port}/v1/submissions/status/"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
