@@ -28,7 +28,9 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                     "min_data_weight_per_thread": 0,
                 },
                 "settings": {
-                    "dynamic_table": dict(),
+                    "dynamic_table": {
+                        "max_rows_per_write": 5000,
+                    },
                 },
             },
         }
@@ -256,9 +258,9 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(10)]
 
             clique.make_query(
-                "insert into `//tmp/t` select number as key, toString(number) as value from numbers(500000)"
+                "insert into `//tmp/t` select number as key, toString(number) as value from numbers(25000)"
             )
-            rows = [{"key": i, "value": str(i)} for i in range(500000)]
+            rows = [{"key": i, "value": str(i)} for i in range(25000)]
             # Somehow select * from ... works faster than read_table.
             written_rows = sorted(clique.make_query("select * from `//tmp/t`", verbose=False))
             # "assert rows == written_rows" is a bad idea. In case of error printing diff will take too long.
