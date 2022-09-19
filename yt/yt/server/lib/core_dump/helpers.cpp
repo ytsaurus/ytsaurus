@@ -123,7 +123,7 @@ void TStreamSparseCoreDumpWriter::OnZeroBlock(i64 length)
 
     WaitFor(OutputStream_->Write(ZeroBlockHeader).WithTimeout(WriteTimeout_))
         .ThrowOnError();
-    WaitFor(OutputStream_->Write(TSharedRef(page.data(), page.size(), MakeStrong(this))).WithTimeout(WriteTimeout_))
+    WaitFor(OutputStream_->Write(TSharedRef(page.data(), page.size(), MakeSharedRangeHolder(MakeStrong(this)))).WithTimeout(WriteTimeout_))
         .ThrowOnError();
 }
 

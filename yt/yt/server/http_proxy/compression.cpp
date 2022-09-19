@@ -16,7 +16,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStreamHolder
-    : public TRefCounted
+    : public ISharedRangeHolder
 {
     explicit TStreamHolder(IAsyncOutputStreamPtr output)
         : Output(std::move(output))

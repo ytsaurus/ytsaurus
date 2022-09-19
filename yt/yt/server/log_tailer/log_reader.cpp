@@ -333,7 +333,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
         transaction->WriteRows(
             tableConfig->Path,
             LogTableNameTable_,
-            TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
+            MakeSharedRange<NTableClient::TUnversionedRow>(rows, MakeStrong(this)));
     }
 
     auto commitResultOrError = WaitFor(transaction->Commit());

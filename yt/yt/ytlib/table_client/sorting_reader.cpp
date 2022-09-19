@@ -70,7 +70,7 @@ public:
         ReadDataWeight_ += dataWeight;
         ReadRowCount_ = endRowCount;
 
-        return CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(
+        return CreateBatchFromUnversionedRows(MakeSharedRange<TUnversionedRow>(
             TRange<TUnversionedRow>(Rows_.data() + startRowCount, Rows_.data() + endRowCount),
             MakeStrong(this)));
     }

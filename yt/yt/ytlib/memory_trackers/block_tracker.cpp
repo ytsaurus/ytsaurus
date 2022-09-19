@@ -35,7 +35,7 @@ namespace NDetail {
 
 //! Calls IBlockTracker::OnUnregisterBlock on destruction
 class TBlockHolder
-    : public TRefCounted
+    : public ISharedRangeHolder
 {
 public:
     TBlockHolder(IBlockTrackerPtr tracker, TRef block)
@@ -164,7 +164,7 @@ public:
 private:
     struct TBlockState
     {
-        TWeakPtr<TRefCounted> Holder;
+        TWeakPtr<ISharedRangeHolder> Holder;
         TSharedRef Data;
         THashMap<EMemoryCategory, i64> CategoryToUsage;
         TMemoryUsageTrackerGuard MemoryGuard;

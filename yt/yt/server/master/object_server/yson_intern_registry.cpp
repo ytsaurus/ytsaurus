@@ -69,7 +69,7 @@ private:
 };
 
 class TInternedYsonStringData
-    : public TRefCounted
+    : public ISharedRangeHolder
     , public TWithExtraSpace<TInternedYsonStringData>
 {
 public:

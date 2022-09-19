@@ -266,7 +266,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
 
-            cachedBlock = TBlock(TSharedRef(ref, std::move(windowSlot.MemoryUsageGuard)));
+            cachedBlock = TBlock(TSharedRef(ref, MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
             DoStartBlock(BlockInfos_[windowIndex]);
             DoSetBlock(BlockInfos_[windowIndex], windowSlot, std::move(cachedBlock));
@@ -370,7 +370,7 @@ void TBlockFetcher::DecompressBlocks(
 
         uncompressedBlock = TSharedRef(
             ref,
-            std::move(windowSlot.MemoryUsageGuard));
+            MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard)));
 
         DoSetBlock(blockInfo, windowSlot, TBlock(std::move(uncompressedBlock)));
         if (windowSlot.RemainingFetches == 0) {
@@ -447,7 +447,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
                 cachedBlock = TBlock(TSharedRef(
                     ref,
-                    std::move(windowSlot.MemoryUsageGuard)));
+                    MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
                 DoStartBlock(blockInfo);
                 DoSetBlock(blockInfo, windowSlot, std::move(cachedBlock));
