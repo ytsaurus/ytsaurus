@@ -94,7 +94,21 @@ def _get_yt_versions(custom_paths):
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer"]
 
-    binary_paths = [(binary, _get_yt_binary_path(binary, custom_paths=custom_paths)) for binary in binaries]
+    binary_paths = [(name, _get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
+
+    path_dir_to_binaries = defaultdict(list)
+    missing_binaries = []
+    for name, path in binary_paths:
+        if path is None:
+            missing_binaries.append(name)
+        else:
+            path_dir = os.path.dirname(path)
+            path_dir_to_binaries[path_dir].append(name)
+
+    if missing_binaries:
+        logger.info("Binaries %s are not found", missing_binaries)
+    for path_dir, binaries in iteritems(path_dir_to_binaries):
+        logger.debug("Binaries %s found at directory %s", binaries, path_dir)
 
     # It is important to run processes simultaneously to reduce delay when reading output.
     processes = [(name, subprocess.Popen([path, "--version"], stdout=subprocess.PIPE)) for
@@ -194,8 +208,6 @@ class YTInstance(object):
         else:
             self.custom_paths = None
 
-        logger.info("Getting versions of binaries")
-
         with push_front_env_path(self.bin_path):
             self._binary_to_version = _get_yt_versions(custom_paths=self.custom_paths)
 
@@ -206,7 +218,6 @@ class YTInstance(object):
 
         abi_versions = set(imap(lambda v: v.abi, self._binary_to_version.values()))
         self.abi_version = abi_versions.pop()
-        logger.info("Abi version is {}".format(self.abi_version))
 
         self._lock = RLock()
 
@@ -307,7 +318,7 @@ class YTInstance(object):
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count)
         ]
 
-        logger.info("Preparing cluster instance as follows:")
+        logger.info("Start preparing cluster instance as follows:")
         for binary, name, count in service_infos:
             if isinstance(count, int) and count == 0:
                 continue
@@ -331,10 +342,9 @@ class YTInstance(object):
         logger.info("Preparing directories")
         dirs = self._prepare_directories()
 
-        logger.info("Building configs")
+        logger.info("Preparing configs")
         cluster_configuration = build_configs(self.yt_config, ports_generator, dirs, self.logs_path)
 
-        logger.info("Modifying configs")
         modify_cluster_configuration(self.yt_config, cluster_configuration)
 
         if modify_configs_func:
@@ -342,7 +352,6 @@ class YTInstance(object):
 
         self._cluster_configuration = cluster_configuration
 
-        logger.info("Preparing server configs")
         if self.yt_config.master_count + self.yt_config.secondary_cell_count > 0:
             self._prepare_masters(cluster_configuration["master"])
         if self.yt_config.clock_count > 0:
@@ -372,13 +381,13 @@ class YTInstance(object):
         if self.yt_config.tablet_balancer_count > 0:
             self._prepare_tablet_balancers(cluster_configuration["tablet_balancer"])
 
-        logger.info("Preparing driver configs")
         self._prepare_drivers(
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
             cluster_configuration["clock"])
-        logger.info("Finished preparing driver configs")
+
+        logger.info("Finished preparing cluster instance")
 
     def _make_service_dirs(self, service_name, count, in_tmpfs=False):
         if in_tmpfs:
