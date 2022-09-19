@@ -12,6 +12,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeDoubleNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl;
@@ -21,7 +22,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;

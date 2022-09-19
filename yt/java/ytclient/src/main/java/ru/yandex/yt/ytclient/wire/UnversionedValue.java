@@ -7,10 +7,10 @@ import java.util.Objects;
 
 import com.google.protobuf.Message;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeBooleanNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeDoubleNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
