@@ -153,7 +153,7 @@ private:
         auto maybeYqlOperationId = request.get("X-YQL-Operation-Id", "");
         if (!maybeYqlOperationId.empty()) {
             YT_LOG_INFO("Request contains YQL operation id (OperationId: %v)", maybeYqlOperationId);
-            YqlOperationId_ = TString(maybeYqlOperationId);
+            YqlOperationId_ = TString(maybeYqlOperationId.substr(0, YqlOperationIdLength));
         }
 
         TSpanContext parentSpan;
