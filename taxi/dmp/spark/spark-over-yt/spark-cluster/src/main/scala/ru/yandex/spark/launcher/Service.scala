@@ -1,7 +1,7 @@
 package ru.yandex.spark.launcher
 
-import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.Utils.ytHostnameOrIpAddress
 import ru.yandex.spark.yt.wrapper.discovery.{Address, DiscoveryService}
 
@@ -58,11 +58,11 @@ sealed trait ServiceWithAddress extends Service {
 
   override def waitAlive(timeout: Duration): Boolean = {
     DiscoveryService.waitFor(isAddressAvailable() || !thread.isAlive, timeout,
-      s"$name on port ${address.getPort}")
+      s"$name on port ${address.port}")
     thread.isAlive
   }
 
-  override protected def successMessage: String = s"$name started at port ${address.getPort}"
+  override protected def successMessage: String = s"$name started at port ${address.port}"
 }
 
 object Service {
@@ -72,7 +72,7 @@ object Service {
 
   object BasicService {
     def apply(name: String, port: Int, thread: Thread): BasicService = {
-      BasicService(name, HostAndPort.fromParts(ytHostnameOrIpAddress, port), thread)
+      BasicService(name, HostAndPort(ytHostnameOrIpAddress, port), thread)
     }
   }
 

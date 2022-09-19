@@ -1,12 +1,13 @@
 package ru.yandex.spark.launcher.rest
 
-import com.google.common.net.HostAndPort
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.rest.AppStatusesRestClient.{AppState, AppStatus, SubmissionStatus}
 
 import scala.util.Success
 
-class AppStatusesRestClientTest extends FlatSpec with Matchers {
+class AppStatusesRestClientTest extends AnyFlatSpec with Matchers {
   val appStatusMsg = """{
     "action" : "AppStatusesRestResponse",
     "serverSparkVersion" : "3.0.1",

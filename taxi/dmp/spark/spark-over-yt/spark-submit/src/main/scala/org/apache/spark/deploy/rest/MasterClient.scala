@@ -1,9 +1,9 @@
 package org.apache.spark.deploy.rest
 
-import com.google.common.net.HostAndPort
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.parse
 import io.circe.{Decoder, Error, Json}
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.Utils.flatten
 import sttp.client._
 import sttp.model.Uri

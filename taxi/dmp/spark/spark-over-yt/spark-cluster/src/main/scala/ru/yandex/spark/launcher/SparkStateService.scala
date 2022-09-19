@@ -1,18 +1,18 @@
 package ru.yandex.spark.launcher
 
-import com.google.common.net.HostAndPort
 import io.circe.{Decoder, Error}
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.parse
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.AutoScaler.SparkState
 import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, WorkerInfo, WorkerStats}
 import ru.yandex.spark.launcher.rest.AppStatusesRestClient
 import ru.yandex.spark.launcher.rest.AppStatusesRestClient.AppState
-import sttp.client.{basicRequest, HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext}
+import sttp.client.{HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext, basicRequest}
 import sttp.model.Uri
 
-import java.util.concurrent.{Executors, ExecutorService}
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{Duration, DurationLong}
 import scala.util.{Failure, Try}
@@ -106,7 +106,7 @@ object SparkStateService {
       }
 
         override def masterStats: Try[MasterStats] = {
-        val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/master/prometheus"
+        val uri = uri"http://${webUi.asString}/metrics/master/prometheus"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
@@ -119,7 +119,7 @@ object SparkStateService {
       }
 
       override def appStats: Try[Seq[AppStats]] = {
-        val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/applications/prometheus"
+        val uri = uri"http://${webUi.asString}/metrics/applications/prometheus"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
@@ -132,7 +132,7 @@ object SparkStateService {
       }
 
       override def activeWorkers: Try[Seq[WorkerInfo]] = {
-        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/master"
+        val uri = uri"http://${rest.asString}/v1/submissions/master"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)

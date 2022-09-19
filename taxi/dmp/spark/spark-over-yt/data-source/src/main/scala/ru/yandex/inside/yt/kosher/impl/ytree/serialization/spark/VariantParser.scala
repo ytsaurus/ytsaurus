@@ -3,7 +3,7 @@ package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.types.IntegerType
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
+import ru.yandex.yson.YsonTags
 
 trait VariantParser {
   self: YsonBaseReader =>

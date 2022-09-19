@@ -28,7 +28,7 @@ object MasterLauncher extends App
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
-        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) {
+        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.port)) {
           solomonAgent =>
 
             master.waitAndThrowIfNotAlive(5 minutes)

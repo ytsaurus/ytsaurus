@@ -1,7 +1,7 @@
 package ru.yandex.spark.launcher.rest
 
-import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.launcher.VanillaLauncher

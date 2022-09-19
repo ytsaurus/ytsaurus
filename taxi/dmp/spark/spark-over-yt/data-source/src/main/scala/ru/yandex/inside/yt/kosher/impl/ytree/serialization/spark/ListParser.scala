@@ -4,8 +4,8 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData}
 import org.apache.spark.sql.types.{StructField, StructType}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
+import ru.yandex.yson.YsonTags
 
 trait ListParser {
   self: YsonBaseReader =>
@@ -65,7 +65,7 @@ trait ListParser {
       StructField("_2", schema.valueType.sparkDataType)
     ))
     val pairType = IndexedDataType.TupleType(Seq(schema.keyType, schema.valueType), structSchema)
-    readList(endToken, allowEof) { (_, token) =>
+    readList(endToken, allowEof) { (_, _) =>
       val keyValue = parseYsonListAsArray(allowEof, pairType)
       val key = keyValue(0)
       if (key == null) unexpectedToken(YsonTags.ENTITY, "NODE")

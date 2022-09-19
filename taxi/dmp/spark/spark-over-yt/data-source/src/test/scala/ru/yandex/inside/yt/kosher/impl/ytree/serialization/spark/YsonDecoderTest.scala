@@ -1,21 +1,21 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import java.io.ByteArrayInputStream
-
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.GenericArrayData
 import org.apache.spark.sql.types.{StringType, _}
 import org.apache.spark.unsafe.types.UTF8String
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.{ScalaCheckDrivenPropertyChecks, ScalaCheckPropertyChecks}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags._
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
+import ru.yandex.yson.YsonTags._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.spark.yt.serializers.SchemaConverter
 
 import scala.io.Source
 
-class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChecks with ScalaCheckDrivenPropertyChecks {
+class YsonDecoderTest extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks with ScalaCheckDrivenPropertyChecks {
   private def decoder(bytes: Array[Byte]): YsonDecoder = {
     new YsonDecoder(bytes, IndexedDataType.NoneType)
   }
@@ -133,7 +133,7 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
 
     val result = YsonDecoder.decode(bytes,
       IndexedDataType.StructType(
-        Map("moderator_completed_at" -> StructFieldMeta(0, IndexedDataType.NoneType, true)),
+        Map("moderator_completed_at" -> StructFieldMeta(0, IndexedDataType.NoneType, isNull = true)),
         StructType(Nil)
       )
     ).asInstanceOf[InternalRow]

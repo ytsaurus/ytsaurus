@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.wrapper.client
 
-import com.google.common.net.HostAndPort
+import ru.yandex.spark.HostAndPort
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -11,7 +11,7 @@ case class ByopConfiguration(enabled: Boolean,
                              remote: ByopRemoteConfiguration)
 
 object ByopConfiguration {
-  val DISABLED = ByopConfiguration(enabled = false,
+  val DISABLED: ByopConfiguration = ByopConfiguration(enabled = false,
     ByopRemoteConfiguration(enabled = false, emptyWorkersListStrategy = EmptyWorkersListStrategy.Default))
 }
 
@@ -61,7 +61,7 @@ object EmptyWorkersListStrategy {
     }
   }
 
-  val Default = EmptyWorkersListStrategy.WaitAndFallback(3 minutes)
+  val Default: WaitAndFallback = EmptyWorkersListStrategy.WaitAndFallback(3 minutes)
 
   def fromString(name: String, timeout: Duration): EmptyWorkersListStrategy = {
     Seq(Fallback, WaitAndFallback(timeout), Fail, WaitAndFail(timeout))

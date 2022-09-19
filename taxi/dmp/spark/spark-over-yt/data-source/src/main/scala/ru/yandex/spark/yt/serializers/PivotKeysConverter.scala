@@ -1,13 +1,13 @@
 package ru.yandex.spark.yt.serializers
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import org.apache.spark.sql.types.{DataType, StructType}
 import ru.yandex.bolts.collection.Cf
 import ru.yandex.inside.yt.kosher.cypress.RangeLimit
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, TuplePoint}
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 object PivotKeysConverter {
   def toMap(pivotKey: Array[Byte]): Map[String, YTreeNode] = {

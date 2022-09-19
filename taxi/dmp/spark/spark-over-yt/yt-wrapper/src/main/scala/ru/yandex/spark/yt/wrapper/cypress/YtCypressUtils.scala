@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
-import com.google.common.collect.ImmutableMap
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.{CypressNodeType, YPath}
@@ -12,6 +11,7 @@ import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request._
 
+import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 trait YtCypressUtils {
@@ -69,7 +69,7 @@ trait YtCypressUtils {
     log.debug(s"Creating link $sourcePath -> $destPath, transaction $transaction")
     yt.createNode(new CreateNode(formatPath(destPath), ObjectType.Link)
       .optionalTransaction(transaction)
-      .setAttributes(ImmutableMap.of("target_path", YTree.stringNode(sourcePath)))
+      .setAttributes(Map[String, YTreeNode]("target_path" -> YTree.stringNode(sourcePath)).asJava)
       .setIgnoreExisting(ignoreExisting)
       .setRecursive(true)
     ).join()

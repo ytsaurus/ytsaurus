@@ -7,15 +7,15 @@ import org.apache.spark.sql.catalyst.util.MapData
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.bolts.collection.impl.EmptyMap
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl
+import ru.yandex.inside.yt.kosher.impl.ytree.{YTreeBinarySerializer, YTreeEntityNodeImpl}
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer, YsonTags}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
 import ru.yandex.spark.yt.serializers.SchemaConverter.Unordered
 import ru.yandex.spark.yt.serializers.YsonRowConverter.{isNull, serializeValue}
 import ru.yandex.type_info.TiType
-import ru.yandex.yson.YsonConsumer
+import ru.yandex.yson.{YsonConsumer, YsonTags}
 import ru.yandex.yt.ytclient.proxy.TableWriter
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}

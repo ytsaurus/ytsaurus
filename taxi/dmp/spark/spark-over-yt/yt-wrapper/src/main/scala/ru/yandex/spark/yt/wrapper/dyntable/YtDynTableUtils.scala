@@ -1,10 +1,9 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper.createTable
@@ -18,7 +17,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset
 
 import java.io.ByteArrayOutputStream
 import java.time.{Duration => JDuration}
-import java.util.concurrent.{CompletableFuture, Executors}
+import java.util.concurrent.{CompletableFuture, Executors, ThreadFactory}
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.TimeoutException
@@ -33,7 +32,13 @@ trait YtDynTableUtils {
 
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
-  private val executor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).build())
+  private val executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+    override def newThread(runnable: Runnable): Thread = {
+      val thread: Thread = Executors.defaultThreadFactory().newThread(runnable)
+      thread.setDaemon(true)
+      thread
+    }
+  })
 
   def serialiseYson(node: YTreeNode): Array[Byte] = {
     val baos = new ByteArrayOutputStream

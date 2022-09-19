@@ -1,11 +1,11 @@
 package ru.yandex.spark.launcher.rest
 
-import com.google.common.net.HostAndPort
 import org.eclipse.jetty.server.{Connector, Server, ServerConnector}
 import org.eclipse.jetty.servlet.DefaultServlet
 import org.eclipse.jetty.util.thread.QueuedThreadPool
 import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
+import ru.yandex.spark.HostAndPort
 
 class MasterWrapperServer(server: Server) {
   def joinThread(): Thread = {

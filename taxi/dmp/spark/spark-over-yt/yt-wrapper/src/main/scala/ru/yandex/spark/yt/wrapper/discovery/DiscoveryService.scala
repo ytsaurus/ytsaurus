@@ -1,11 +1,11 @@
 package ru.yandex.spark.yt.wrapper.discovery
 
-import java.net.{InetSocketAddress, Socket}
-import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 
+import java.net.Socket
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -72,7 +72,7 @@ object DiscoveryService {
   def isAlive(hostPort: HostAndPort, retry: Int): Boolean = {
     val socket = new Socket()
     val res = Try(
-      socket.connect(new InetSocketAddress(hostPort.getHostText, hostPort.getPort), (5 seconds).toMillis.toInt)
+      socket.connect(hostPort.toAddress, (5 seconds).toMillis.toInt)
     )
     socket.close()
     res match {

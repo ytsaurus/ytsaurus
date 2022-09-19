@@ -1,15 +1,17 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
-import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.test.{DynTableTestUtils, LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.YtWrapper.{countRows, createDynTable, createDynTableAndMount, insertRows, isDynTablePrepared, selectRows}
+import ru.yandex.spark.yt.wrapper.YtWrapper.{countRows, createDynTable, createDynTableAndMount, insertRows, isDynTablePrepared}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import java.io.ByteArrayInputStream
 
-class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with DynTableTestUtils with TmpDir {
+//noinspection ZeppelinScalaResUsageFilter
+class YtDynTableUtilsTest extends AnyFlatSpec with Matchers with LocalYtClient with DynTableTestUtils with TmpDir {
 
   behavior of "YtDynTableUtilsTest"
 
@@ -38,7 +40,7 @@ class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with
     createDynTableAndMount(tmpPath, schema)
     isDynTablePrepared(tmpPath) shouldEqual true
 
-    createDynTableAndMount(tmpPath, schema, ignoreExisting = true)
+    createDynTableAndMount(tmpPath, schema)
     isDynTablePrepared(tmpPath) shouldEqual true
 
     a[RuntimeException] shouldBe thrownBy {
@@ -65,7 +67,7 @@ class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with
   }
 
   private def str(bytes: Array[Byte]): String = {
+    import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
     YTreeTextSerializer.serialize(YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytes)))
   }
-
 }

@@ -13,8 +13,6 @@ import ru.yandex.spark.yt.serializers.SchemaConverter.{SortOption, Sorted, Unord
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor
-import ru.yandex.yt.ytclient.`object`.WireRowSerializer
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, TableWriter}
 import ru.yandex.yt.ytclient.tables.TableSchema
 
@@ -112,11 +110,9 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
       val writer = super.initializeWriter()
 
       new TableWriter[InternalRow] {
-        override def getRowSerializer: WireRowSerializer[InternalRow] = writer.getRowSerializer
+        override def getSchema: TableSchema = writer.getSchema
 
-        override def write(rows: util.List[InternalRow], schema: TableSchema): Boolean = {
-          writer.write(rows, schema)
-        }
+        override def write(rows: util.List[InternalRow], schema: TableSchema): Boolean = writer.write(rows, schema)
 
         override def readyEvent(): CompletableFuture[Void] = writer.readyEvent()
 
@@ -124,8 +120,6 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
           Thread.sleep((5 seconds).toMillis) // to prevent instant closing that shades some bugs
           writer.close()
         }
-
-        override def getRowsetDescriptor: TRowsetDescriptor = writer.getRowsetDescriptor
 
         override def getTableSchema: CompletableFuture[TableSchema] = writer.getTableSchema
 
