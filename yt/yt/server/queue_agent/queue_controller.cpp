@@ -363,7 +363,10 @@ private:
             const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
             if (queuePartitionSnapshot->Error.IsOK()) {
                 // NB: may be negative if the consumer is ahead of the partition.
-                consumerPartitionSnapshot->UnreadRowCount = queuePartitionSnapshot->UpperRowIndex - consumerPartitionSnapshot->NextRowIndex;
+                consumerPartitionSnapshot->UnreadRowCount =
+                    queuePartitionSnapshot->UpperRowIndex - consumerPartitionSnapshot->NextRowIndex;
+                consumerPartitionSnapshot->UnreadDataWeight =
+                    queuePartitionSnapshot->CumulativeDataWeight - consumerPartitionSnapshot->CumulativeDataWeight;
 
                 if (consumerPartitionSnapshot->UnreadRowCount < 0) {
                     consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::Ahead;
@@ -521,8 +524,8 @@ public:
         , ProfileManager_(CreateQueueProfileManager(
             Invoker_,
             QueueAgentProfiler
-                .WithTag("queue_path", QueueRef_.Path)
-                .WithTag("queue_cluster", QueueRef_.Cluster)))
+                .WithRequiredTag("queue_path", QueueRef_.Path)
+                .WithRequiredTag("queue_cluster", QueueRef_.Cluster)))
     {
         auto queueSnapshot = New<TQueueSnapshot>();
         queueSnapshot->Row = std::move(queueRow);
