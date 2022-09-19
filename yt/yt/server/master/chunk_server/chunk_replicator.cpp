@@ -1804,6 +1804,10 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
 void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
 {
+    if (TInstant::Now() < LastActiveShardSetUpdateTime_ + GetDynamicConfig()->RemovalJobScheduleDelay) {
+        return;
+    }
+
     auto* node = context->GetNode();
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
@@ -3329,6 +3333,8 @@ void TChunkReplicator::StartRefresh(int shardIndex)
     jobEpoch = JobRegistry_->StartEpoch();
     SetRefreshEpoch(shardIndex, jobEpoch);
 
+    LastActiveShardSetUpdateTime_ = TInstant::Now();
+
     YT_LOG_INFO("Chunk refresh started (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
         jobEpoch);
@@ -3381,12 +3387,14 @@ void TChunkReplicator::StopRefresh(int shardIndex)
     auto& jobEpoch = JobEpochs_[shardIndex];
     YT_VERIFY(jobEpoch != InvalidJobEpoch);
     JobRegistry_->OnEpochFinished(jobEpoch);
-    jobEpoch = InvalidJobEpoch;
+    auto previousJobEpoch = std::exchange(jobEpoch, InvalidJobEpoch);
     SetRefreshEpoch(shardIndex, jobEpoch);
+
+    LastActiveShardSetUpdateTime_ = TInstant::Now();
 
     YT_LOG_INFO("Chunk refresh stopped (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
-        jobEpoch);
+        previousJobEpoch);
 }
 
 void TChunkReplicator::StartRequisitionUpdate()

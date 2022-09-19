@@ -485,6 +485,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .InRange(0, 100);
 
+    registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
+        .Default(TDuration::Minutes(3))
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {
