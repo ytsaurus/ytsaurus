@@ -22,6 +22,8 @@ public:
     //! Splay for directory updates period.
     TDuration SyncPeriodSplay;
 
+    bool SyncAllChaosCells;
+
     REGISTER_YSON_STRUCT(TChaosCellDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);

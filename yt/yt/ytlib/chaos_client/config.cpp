@@ -10,6 +10,8 @@ void TChaosCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("sync_period_splay", &TThis::SyncPeriodSplay)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("sync_all_chaos_cells", &TThis::SyncAllChaosCells)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
