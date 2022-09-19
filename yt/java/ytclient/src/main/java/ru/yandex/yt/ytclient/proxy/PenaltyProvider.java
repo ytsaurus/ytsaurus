@@ -26,11 +26,11 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
-import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadKind;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
+import ru.yandex.yt.ytclient.request.GetTabletInfos;
 
 @NonNullApi
 @NonNullFields
@@ -210,8 +210,9 @@ public abstract class PenaltyProvider implements Closeable {
             ).thenCompose(tabletsCountNode -> {
                 int tabletsCount = tabletsCountNode.getAttributeOrThrow("tablet_count").intValue();
                 return client.getTabletInfos(
-                        new GetTabletInfos(tablePath.toString())
+                        GetTabletInfos.builder().setPath(tablePath.toString())
                                 .setTabletIndexes(IntStream.range(0, tabletsCount).boxed().collect(Collectors.toList()))
+                                .build()
                 ).thenApply(tabletInfos -> {
                     Map<GUID, Long> tabletsWithLag = new HashMap<>();
                     Instant now = Instant.now();

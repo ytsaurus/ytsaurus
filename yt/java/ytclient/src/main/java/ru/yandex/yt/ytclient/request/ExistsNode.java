@@ -64,7 +64,8 @@ public class ExistsNode extends GetLikeReq implements HighLevelRequest<TReqExist
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
-                .setTraceId(traceId, traceSampled);
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
     }
 
     public static class Builder extends BuilderBase<Builder> {
