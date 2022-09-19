@@ -37,6 +37,8 @@ constexpr int InterruptionTimedOutExitCode = 43;
 
 constexpr int SentinelMaxStringLength = 50;
 
+constexpr int YqlOperationIdLength = 24;
+
 extern const TString CacheUserName;
 extern const TString InternalRemoteUserName;
 

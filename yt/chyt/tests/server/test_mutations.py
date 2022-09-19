@@ -360,6 +360,39 @@ class TestMutations(ClickHouseTestBase):
             )
             assert get("//tmp/t/@_yql_op_id") == "6151ee26d2b70ca7f86498ef"
 
+    @authors("gudqeit")
+    def test_create_table_with_yql_operation_id_and_trash(self):
+        with Clique(1) as clique:
+            headers = {
+                "X-YQL-Operation-Id": "6151ee26d2b70ca7f86498ef5"
+            }
+            clique.make_query(
+                'create table "//tmp/t1"(i64 Int64) engine YtTable()',
+                headers=headers
+            )
+            assert get("//tmp/t1/@_yql_op_id") == "6151ee26d2b70ca7f86498ef"
+            assert len(get("//tmp/t1/@_yql_op_id")) == 24
+
+            headers = {
+                "X-YQL-Operation-Id": "6151ee26d2b70ca7f86498ef56"
+            }
+            clique.make_query(
+                'create table "//tmp/t2"(i64 Int64) engine YtTable()',
+                headers=headers
+            )
+            assert get("//tmp/t2/@_yql_op_id") == "6151ee26d2b70ca7f86498ef"
+            assert len(get("//tmp/t2/@_yql_op_id")) == 24
+
+            headers = {
+                "X-YQL-Operation-Id": "6151ee26d2b"
+            }
+            clique.make_query(
+                'create table "//tmp/t3"(i64 Int64) engine YtTable()',
+                headers=headers
+            )
+            assert get("//tmp/t3/@_yql_op_id") == "6151ee26d2b"
+            assert len(get("//tmp/t3/@_yql_op_id")) == 11
+
     @authors("max42")
     def test_create_table_as_select(self):
         create(
