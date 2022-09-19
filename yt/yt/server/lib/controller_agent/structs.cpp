@@ -112,10 +112,6 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, FinishTime);
     Persist(context, Statistics);
     Persist(context, StatisticsYson);
-    if (context.GetVersion() < ESnapshotVersion::DropLogAndProfile) {
-        bool logAndProfile{};
-        Persist(context, logAndProfile);
-    }
     Persist(context, ReleaseFlags);
     Persist(context, Phase);
     Persist(context, TimeStatistics);

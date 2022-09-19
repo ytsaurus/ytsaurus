@@ -242,9 +242,7 @@ void TCompetitiveJobManagerBase::Persist(const TPersistenceContext& context)
     Persist(context, MaxCompetitiveJobCount_);
     Persist(context, CompetitionType_);
     Persist(context, Logger);
-    if (context.GetVersion() >= ESnapshotVersion::ProbingJobsFix) {
-        Persist(context, BannedCookies_);
-    }
+    Persist(context, BannedCookies_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

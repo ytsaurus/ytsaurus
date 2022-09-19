@@ -118,10 +118,8 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobProxyMemoryReserveFactor);
     Persist(context, UserJobMemoryReserveFactor);
     Persist(context, UserJobMemoryReserve);
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobId) {
-        Persist(context, PredecessorType);
-        Persist(context, PredecessorJobId);
-    }
+    Persist(context, PredecessorType);
+    Persist(context, PredecessorJobId);
     Persist(context, ResourceLimits);
     Persist(context, ChunkListIds);
     Persist(context, StderrTableChunkListId);
@@ -150,11 +148,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::IsStartedFlag) {
-        Persist(context, IsStarted);
-    } else {
-        IsStarted = true;
-    }
+    Persist(context, IsStarted);
     Persist(context, DebugArtifactsAccount);
     Persist(context, Suspicious);
     Persist(context, LastActivityTime);
