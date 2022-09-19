@@ -23,6 +23,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr static const char* OriginalTabletStateAttributeName = "original_tablet_state";
+constexpr static const char* OriginalEnabledReplicaIdsAttributeName  = "original_enabled_replica_ids";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +89,7 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
             "commit_ordering",
             "tablet_state",
             OriginalTabletStateAttributeName,
+            OriginalEnabledReplicaIdsAttributeName,
         });
 
     auto dynamic = tableInfo.Attributes->Get<bool>("dynamic");
@@ -121,6 +123,9 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
         if (type == EObjectType::ReplicatedTable) {
             auto replicas = tableInfo.Attributes->Get<
                 THashMap<TTableReplicaId, INodePtr>>("replicas");
+            auto enabledReplicaIds = tableInfo.Attributes->Get<THashSet<TTableReplicaId>>(
+                OriginalEnabledReplicaIdsAttributeName,
+                {});
             for (const auto& [replicaId, attributesString] : replicas) {
                 auto attributes = ConvertToAttributes(attributesString);
                 TTableReplicaInfo replicaInfo{
@@ -129,6 +134,15 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                     .Mode = attributes->Get<ETableReplicaMode>("mode"),
                     .ReplicaPath = attributes->Get<TString>("replica_path"),
                 };
+
+                if (Direction_ == EBackupDirection::Backup) {
+                    replicaInfo.State = attributes->Get<ETableReplicaState>("state");
+                } else {
+                    replicaInfo.State = enabledReplicaIds.contains(replicaId)
+                        ? ETableReplicaState::Enabled
+                        : ETableReplicaState::Disabled;
+                }
+
                 tableInfo.Replicas[replicaId] = replicaInfo;
 
                 if (replicaInfo.Mode != ETableReplicaMode::Sync &&
@@ -603,13 +617,18 @@ void TClusterBackupSession::UpdateUpstreamReplicaIds()
         batchReq->AddRequest(req);
     }
 
-    auto rsp = WaitFor(batchReq->Invoke());
-    ThrowWithClusterNameIfFailed(rsp);
+    auto rspOrError = WaitFor(batchReq->Invoke());
+    ThrowWithClusterNameIfFailed(GetCumulativeError(rspOrError));
 }
 
 void TClusterBackupSession::RememberTabletStates()
 {
-    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
+    // Set-attribute requests should go to native cell. Backups do not support portals yet,
+    // so we use primary instead.
+    auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+    auto batchReq = proxy->ExecuteBatch();
+
+    for (const auto& table : Tables_) {
         auto req = TObjectYPathProxy::Set(FromObjectId(
             table.DestinationTableId) + "/@" +
                 OriginalTabletStateAttributeName);
@@ -617,16 +636,31 @@ void TClusterBackupSession::RememberTabletStates()
             req->mutable_value(),
             Format("%lv", table.TabletState));
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req, ToString(table.DestinationTableId));
-    };
+        batchReq->AddRequest(req, ToString(table.DestinationTableId) + ":tablet_state");
+    }
 
-    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
-        const auto& rsp = batchRsp->template GetResponse<TObjectYPathProxy::TRspSet>(
-            ToString(table->DestinationTableId));
-        ThrowWithClusterNameIfFailed(rsp);
-    };
+    for (const auto& table : Tables_) {
+        std::vector<TTableReplicaId> enabledReplicaIds;
+        for (const auto& [id, replicaInfo] : table.Replicas) {
+            if (replicaInfo.State == ETableReplicaState::Enabled) {
+                enabledReplicaIds.push_back(replicaInfo.ClonedReplicaId);
+            }
+        }
 
-    ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+        if (!enabledReplicaIds.empty()) {
+            auto req = TObjectYPathProxy::Set(FromObjectId(
+                table.DestinationTableId) + "/@" +
+                    OriginalEnabledReplicaIdsAttributeName);
+            ToProto(
+                req->mutable_value(),
+                ConvertToYsonString(enabledReplicaIds).ToString());
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req, ToString(table.DestinationTableId) + ":enabled_replica_ids");
+        }
+    }
+
+    auto rspOrError = WaitFor(batchReq->Invoke());
+    ThrowWithClusterNameIfFailed(GetCumulativeError(rspOrError));
 }
 
 void TClusterBackupSession::CommitTransaction()
@@ -652,9 +686,40 @@ void TClusterBackupSession::MountRestoredTables()
             YT_VERIFY(table.TabletState == ETabletState::Mounted);
         }
 
+        YT_LOG_DEBUG("Mounting restored table (TableId: %v, TablePath: %v)",
+            table.DestinationTableId,
+            table.DestinationPath);
+
         asyncRsps.push_back(Client_->MountTable(
             FromObjectId(table.DestinationTableId),
             options));
+    }
+
+    auto rsp = WaitFor(AllSucceeded(asyncRsps));
+    ThrowWithClusterNameIfFailed(rsp);
+}
+
+void TClusterBackupSession::EnableRestoredReplicas()
+{
+    std::vector<TFuture<void>> asyncRsps;
+
+    for (const auto& table : Tables_) {
+        for (const auto& [replicaId, replicaInfo] : table.Replicas) {
+            if (replicaInfo.State == ETableReplicaState::Enabled) {
+                YT_LOG_DEBUG("Enabling restored table replica (TableId: %v, TablePath: %v, "
+                    "ReplicaId: %v, ReplicaCluster: %v)",
+                    table.DestinationTableId,
+                    table.DestinationPath,
+                    replicaId,
+                    replicaInfo.ClusterName);
+
+                asyncRsps.push_back(Client_->AlterTableReplica(
+                    replicaInfo.ClonedReplicaId,
+                    TAlterTableReplicaOptions{
+                        .Enabled = true,
+                    }));
+            }
+        }
     }
 
     auto rsp = WaitFor(AllSucceeded(asyncRsps));
@@ -724,7 +789,6 @@ void TClusterBackupSession::ExecuteForAllTables(
         ThrowWithClusterNameIfFailed(rspOrError);
 
         const auto& rsp = rspOrError.ValueOrThrow();
-        YT_VERIFY(rsp->GetResponseCount() <= ssize(tableIndexes));
         for (int tableIndex : tableIndexes) {
             onResponse(rsp, &Tables_[tableIndex]);
         }
@@ -849,6 +913,13 @@ void TBackupSession::RunRestore()
         YT_LOG_DEBUG("Mounting restored tables");
         for (const auto& [name, session] : ClusterSessions_) {
             session->MountRestoredTables();
+        }
+    }
+
+    if (options.EnableReplicas) {
+        YT_LOG_DEBUG("Enabling restored replicas");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->EnableRestoredReplicas();
         }
     }
 }

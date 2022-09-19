@@ -1309,6 +1309,8 @@ TRestoreTableBackupCommand::TRestoreTableBackupCommand()
         .Default(false);
     RegisterParameter("mount", Options.Mount)
         .Default(false);
+    RegisterParameter("enable_replicas", Options.EnableReplicas)
+        .Default(false);
 }
 
 void TRestoreTableBackupCommand::DoExecute(ICommandContextPtr context)

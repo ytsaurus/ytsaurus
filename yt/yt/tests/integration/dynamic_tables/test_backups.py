@@ -1125,6 +1125,31 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         with raises_yt_error():
             create_table_backup(self._make_backup_manifest(1))
 
+    def test_enable_restored_replicas(self):
+        self._create_cells()
+        self._create_tables(["sync", "async"])
+
+        for r, attrs in get("//tmp/t/@replicas").items():
+            if attrs["mode"] == "async":
+                sync_disable_table_replica(r)
+
+        create_table_backup(
+            self._make_backup_manifest(2),
+            checkpoint_timestamp_delay=3000)
+        restore_table_backup(
+            self._make_restore_manifest(2),
+            mount=True,
+            enable_replicas=True)
+
+        wait(lambda: get("//tmp/t/@tablet_state") == "mounted")
+
+        for r, attrs in get("//tmp/res/@replicas").items():
+            if attrs["mode"] == "sync":
+                wait(lambda: get(f"#{r}/@state") == "enabled")
+            else:
+                assert get(f"#{r}/@state") == "disabled"
+
+
 ##################################################################
 
 
