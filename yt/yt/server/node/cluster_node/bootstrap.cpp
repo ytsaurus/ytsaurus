@@ -25,7 +25,6 @@
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
 #include <yt/yt/server/node/data_node/job.h>
-#include <yt/yt/server/node/data_node/job_heartbeat_processor.h>
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
@@ -41,7 +40,6 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_environment.h>
 #include <yt/yt/server/node/exec_node/job.h>
-#include <yt/yt/server/node/exec_node/job_heartbeat_processor.h>
 #include <yt/yt/server/node/exec_node/job_prober_service.h>
 #include <yt/yt/server/node/exec_node/master_connector.h>
 #include <yt/yt/server/node/exec_node/private.h>
@@ -49,7 +47,7 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/orchid_service_provider.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
@@ -564,11 +562,6 @@ public:
         return BlobReaderCache_;
     }
 
-    const TJobControllerPtr& GetJobController() const override
-    {
-        return JobController_;
-    }
-
     const IJobResourceManagerPtr& GetJobResourceManager() const override
     {
         return JobResourceManager_;
@@ -707,7 +700,7 @@ private:
     NApi::NNative::IClientPtr Client_;
     NApi::NNative::IConnectionPtr Connection_;
 
-    TJobControllerPtr JobController_;
+    IOrchidServiceProviderPtr JobsOrchidServiceProvider_;
     IJobResourceManagerPtr JobResourceManager_;
 
     IMasterConnectorPtr MasterConnector_;
@@ -922,7 +915,8 @@ private:
 
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-        JobController_ = New<TJobController>(Config_->ExecNode->JobController, this);
+        JobsOrchidServiceProvider_ = CreateOrchidServiceProvider(this);
+        
         JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
@@ -1055,16 +1049,7 @@ private:
         }
 
         JobResourceManager_->Initialize();
-
-        // We must ensure we know actual status of job proxy binary before Run phase.
-        // Otherwise we may erroneously receive some job which we fail to run due to missing
-        // ytserver-job-proxy. This requires slot manager to be initialized before job controller
-        // in order for the first out-of-band job proxy build info update to reach job controller
-        // via signal.
-        //
-        // Swapping two lines below does not break anything, but introduces additional latency
-        // of Config_->JobController->JobProxyBuildInfoUpdatePeriod.
-        JobController_->Initialize();
+        JobsOrchidServiceProvider_->Initialize();
     }
 
     void DoRun()
@@ -1081,6 +1066,8 @@ private:
         DynamicConfigManager_->Start();
 
         NodeResourceManager_->Start();
+
+        JobResourceManager_->Start();
 
         // Force start node directory synchronizer.
         Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -1102,7 +1089,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/job_controller",
-            CreateVirtualNode(JobController_->GetOrchidService()));
+            CreateVirtualNode(JobsOrchidServiceProvider_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/cluster_connection",
@@ -1587,11 +1574,6 @@ const IChunkRegistryPtr& TBootstrapBase::GetChunkRegistry() const
 const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
 {
     return Bootstrap_->GetBlobReaderCache();
-}
-
-const TJobControllerPtr& TBootstrapBase::GetJobController() const
-{
-    return Bootstrap_->GetJobController();
 }
 
 const NJobAgent::IJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const

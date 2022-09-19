@@ -10,7 +10,6 @@
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
-#include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
@@ -30,6 +29,15 @@
 
 namespace NYT::NExecNode
 {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJobFactory = TCallback<TJobPtr(
+    NJobTrackerClient::TJobId jobid,
+    NJobTrackerClient::TOperationId operationId,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

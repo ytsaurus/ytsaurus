@@ -1,5 +1,7 @@
 #include "controller_agent_connector.h"
+
 #include "bootstrap.h"
+#include "job_controller.h"
 #include "job_detail.h"
 #include "private.h"
 
@@ -12,6 +14,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
+
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NExecNode {
 
@@ -116,21 +120,18 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     }
 
     std::vector<TJobPtr> jobs;
-    for (auto& job : ControllerAgentConnectorPool_->Bootstrap_->GetJobController()->GetSchedulerJobs()) {
-        YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
-
+    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
+    for (auto& job : jobController->GetJobs()) {
         if (job->GetState() != EJobState::Running) {
             continue;
         }
 
-        auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
-
-        const auto& controllerAgentDescriptor = schedulerJob->GetControllerAgentDescriptor();
+        const auto& controllerAgentDescriptor = job->GetControllerAgentDescriptor();
 
         if (!controllerAgentDescriptor) {
             YT_LOG_DEBUG(
                 "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
-                schedulerJob->GetId());
+                job->GetId());
             continue;
         }
 
@@ -138,7 +139,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
             continue;
         }
 
-        jobs.push_back(std::move(schedulerJob));
+        jobs.push_back(std::move(job));
     }
 
     std::vector<TJobPtr> sentEnqueuedJobs;

@@ -1,9 +1,10 @@
 #include "scheduler_connector.h"
 
 #include "bootstrap.h"
-#include "private.h"
 #include "job.h"
+#include "job_controller.h"
 #include "master_connector.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -14,7 +15,6 @@
 
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -119,12 +119,7 @@ void TSchedulerConnector::SendHeartbeat() noexcept
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     const auto& jobController = Bootstrap_->GetJobController();
-    const auto& connection = client->GetNativeConnection();
-    YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
-        connection->GetPrimaryMasterCellTag(),
-        /*jobTrackerAddress*/ "",
-        EObjectType::SchedulerJob,
-        req))
+    YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(req))
         .IsOK());
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
@@ -177,10 +172,7 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(
-        /*jobTrackerAddress*/ "",
-        rsp,
-        EObjectType::SchedulerJob));
+    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp));
     YT_LOG_FATAL_IF(!result.IsOK(), result, "Error while processing scheduler heartbeat response");
 }
 

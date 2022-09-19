@@ -16,6 +16,11 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EResourcesConsumptionPriority,
+    ((Primary)      (0))
+    ((Secondary)    (1))
+)
+
 class IJobResourceManager
     : public TRefCounted
 {
@@ -25,6 +30,8 @@ protected:
 
 public:
     virtual void Initialize() = 0;
+
+    virtual void Start() = 0;
     
     //! Returns the maximum allowed resource usage.
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const = 0;
@@ -44,6 +51,8 @@ public:
 
     virtual TResourceAcquiringProxy GetResourceAcquiringProxy() = 0;
 
+    virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumptionPriority consumptionPriority) = 0;
+
     static IJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesUpdated);
@@ -51,8 +60,6 @@ public:
         void(i64 mapped),
         ReservedMemoryOvercommited);
     
-    DECLARE_INTERFACE_SIGNAL(void(), ResourcesReleased);
-
 protected:
     friend TResourceHolder;
 

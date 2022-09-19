@@ -36,6 +36,8 @@ struct IBootstrap
 
     virtual bool IsSimpleEnvironment() const = 0;
 
+    virtual const IJobControllerPtr& GetJobController() const = 0;
+
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const = 0;

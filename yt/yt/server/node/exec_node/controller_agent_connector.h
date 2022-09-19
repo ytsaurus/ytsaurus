@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
-
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>

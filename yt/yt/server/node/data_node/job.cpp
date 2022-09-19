@@ -2501,7 +2501,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobPtr CreateMasterJob(
+TMasterJobBasePtr CreateMasterJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
     TString jobTrackerAddress,

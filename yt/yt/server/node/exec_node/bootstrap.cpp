@@ -5,7 +5,8 @@
 #include "exec_node_admin_service.h"
 #include "gpu_manager.h"
 #include "job.h"
-#include "job_heartbeat_processor.h"
+#include "job_detail.h"
+#include "job_controller.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
 #include "private.h"
@@ -20,11 +21,11 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/ytree_integration.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
-
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
+
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -77,6 +78,13 @@ public:
 
         SchedulerConnector_ = New<TSchedulerConnector>(GetConfig()->ExecNode->SchedulerConnector, this);
 
+        // We must ensure we know actual status of job proxy binary before Run phase.
+        // Otherwise we may erroneously receive some job which we fail to run due to missing
+        // ytserver-job-proxy. This requires slot manager to be initialized before job controller
+        // in order for the first out-of-band job proxy build info update to reach job controller
+        // via signal.
+        JobController_ = CreateJobController(this);
+
         ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode->ControllerAgentConnector, this);
 
         BuildJobProxyConfigTemplate();
@@ -121,7 +129,7 @@ public:
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec,
             const TControllerAgentDescriptor& agentDescriptor) ->
-            NJobAgent::IJobPtr
+            TJobPtr
         {
             return CreateSchedulerJob(
                 jobId,
@@ -132,25 +140,23 @@ public:
                 agentDescriptor);
         });
 
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::PartitionMap, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SortedMerge, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::OrderedMerge, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::UnorderedMerge, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Partition, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SimpleSort, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::IntermediateSort, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::FinalSort, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SortedReduce, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::PartitionReduce, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::ReduceCombiner, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::RemoteCopy, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::OrderedMap, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::JoinReduce, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Vanilla, createSchedulerJob);
-        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::ShallowMerge, createSchedulerJob);
-
-        GetJobController()->AddHeartbeatProcessor<TSchedulerJobHeartbeatProcessor>(EObjectType::SchedulerJob, ClusterNodeBootstrap_);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionMap, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedMerge, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMerge, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::UnorderedMerge, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Partition, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SimpleSort, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::IntermediateSort, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::FinalSort, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedReduce, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionReduce, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReduceCombiner, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoteCopy, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMap, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::JoinReduce, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Vanilla, createSchedulerJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ShallowMerge, createSchedulerJob);
 
         GetRpcServer()->RegisterService(CreateJobProberService(this));
 
@@ -160,6 +166,7 @@ public:
 
         SlotManager_->Initialize();
         ChunkCache_->Initialize();
+        JobController_->Initialize();
     }
 
     void Run() override
@@ -212,6 +219,11 @@ public:
         return GetJobEnvironmentType() == EJobEnvironmentType::Simple;
     }
 
+    const IJobControllerPtr& GetJobController() const override
+    {
+        return JobController_;
+    }
+
     const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
@@ -253,6 +265,8 @@ private:
     IMasterConnectorPtr MasterConnector_;
 
     TSchedulerConnectorPtr SchedulerConnector_;
+
+    IJobControllerPtr JobController_;
 
     TSolomonExporterPtr JobProxySolomonExporter_;
 

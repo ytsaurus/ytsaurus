@@ -1,6 +1,7 @@
 #include "master_connector.h"
 
 #include "bootstrap.h"
+#include "job_controller.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -9,8 +10,6 @@
 
 #include <yt/yt/server/node/exec_node/slot_location.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
-
-#include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 

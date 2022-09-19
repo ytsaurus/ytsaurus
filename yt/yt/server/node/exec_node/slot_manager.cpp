@@ -2,6 +2,8 @@
 
 #include "bootstrap.h"
 #include "chunk_cache.h"
+#include "job_controller.h"
+#include "job_detail.h"
 #include "private.h"
 #include "slot.h"
 #include "job_environment.h"
@@ -14,8 +16,6 @@
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/config.h>
-
-#include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
@@ -374,7 +374,7 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
     Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
 }
 
-void TSlotManager::OnJobFinished(const IJobPtr& job)
+void TSlotManager::OnJobFinished(const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

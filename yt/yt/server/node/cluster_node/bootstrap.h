@@ -146,9 +146,6 @@ struct IBootstrapBase
 
     virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const = 0;
 
-    // Job controller.
-    virtual const NJobAgent::TJobControllerPtr& GetJobController() const = 0;
-
     // Job resource manager.
     virtual const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const = 0;
 
@@ -282,7 +279,6 @@ public:
 
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
-    const NJobAgent::TJobControllerPtr& GetJobController() const override;
     const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const override;
 
     NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;

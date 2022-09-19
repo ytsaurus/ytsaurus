@@ -21,7 +21,7 @@ struct TMasterJobSensors
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NJobAgent::IJobPtr CreateMasterJob(
+TMasterJobBasePtr CreateMasterJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
