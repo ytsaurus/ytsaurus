@@ -227,7 +227,10 @@ public:
             CellDirectory_,
             this,
             Logger);
-        ChaosCellDirectorySynchronizer_->Start();
+
+        if (Config_->ReplicationCardCache || Config_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
+            ChaosCellDirectorySynchronizer_->Start();
+        }
 
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
             CellDirectory_,
