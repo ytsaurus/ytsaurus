@@ -1,0 +1,60 @@
+package ru.yandex.yt.ytclient.proxy;
+
+import java.util.concurrent.CompletableFuture;
+
+import com.google.protobuf.Parser;
+
+import ru.yandex.yt.rpcproxy.TReadFileMeta;
+import ru.yandex.yt.rpcproxy.TRspReadFile;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
+
+class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
+    private long revision = -1;
+
+    FileReaderImpl() {
+    }
+
+    @Override
+    protected Parser<TRspReadFile> responseParser() {
+        return TRspReadFile.parser();
+    }
+
+    @Override
+    public long revision() {
+        return this.revision;
+    }
+
+    public CompletableFuture<FileReader> waitMetadata() {
+        FileReaderImpl self = this;
+        return readHead().thenApply((data) -> {
+            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(
+                    data,
+                    TReadFileMeta.parser(),
+                    Compression.None
+            );
+            self.revision = meta.getRevision();
+            return self;
+        });
+    }
+
+    @Override
+    public boolean canRead() {
+        return doCanRead();
+    }
+
+    @Override
+    public byte[] read() throws Exception {
+        return doRead();
+    }
+
+    @Override
+    public CompletableFuture<Void> close() {
+        return doClose();
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return getReadyEvent();
+    }
+}
