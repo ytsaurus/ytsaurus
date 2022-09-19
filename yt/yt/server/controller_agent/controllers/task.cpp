@@ -583,7 +583,7 @@ void TTask::ScheduleJob(
     joblet->DebugArtifactsAccount = TaskHost_->GetSpec()->DebugArtifactsAccount;
 
     AddJobTypeToJoblet(joblet);
-    
+
     joblet->JobInterruptible = IsJobInterruptible();
 
     scheduleJobResult->StartDescriptor.emplace(
@@ -2065,13 +2065,9 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Status);
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobId) {
-        Persist(context, LastJobId);
-    }
+    Persist(context, LastJobId);
     Persist(context, DedicatedUserJobMemoryReserveFactor);
-    if (context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobProxy) {
-        Persist(context, DedicatedJobProxyMemoryReserveFactor);
-    }
+    Persist(context, DedicatedJobProxyMemoryReserveFactor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
