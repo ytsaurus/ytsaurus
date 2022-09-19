@@ -36,6 +36,11 @@ bool TReleaseJobFlags::IsNonTrivial() const
     return ArchiveJobSpec || ArchiveStderr || ArchiveFailContext || ArchiveProfile;
 }
 
+bool TReleaseJobFlags::IsTrivial() const
+{
+    return !IsNonTrivial();
+}
+
 void TReleaseJobFlags::Persist(const TStreamPersistenceContext& context)
 {
     using namespace NYT::NControllerAgent;

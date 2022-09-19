@@ -1,6 +1,5 @@
 #include "job_resource_manager.h"
 
-#include "job_controller.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -9,6 +8,7 @@
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
@@ -77,8 +77,6 @@ public:
         void(i64 mapped),
         ReservedMemoryOvercommited);
     
-    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesReleased);
-
 public:
     explicit TImpl(IBootstrapBase* bootstrap)
         : Config_(bootstrap->GetConfig()->ExecNode->JobController)
@@ -110,7 +108,6 @@ public:
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingPeriod);
-        ProfilingExecutor_->Start();
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
             dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
@@ -120,6 +117,13 @@ public:
                 Bootstrap_->GetJobInvoker(),
                 BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
                 Config_->MappedMemoryController->CheckPeriod);
+        }
+    }
+
+    void Start() override
+    {
+        ProfilingExecutor_->Start();
+        if (ReservedMappedMemoryChecker_) {
             ReservedMappedMemoryChecker_->Start();
         }
     }
@@ -164,9 +168,13 @@ public:
             const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
             chunkCacheEnabled = chunkCache->IsEnabled();
 
-            auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+            auto slotManager = execNodeBootstrap->GetSlotManager();
             result.set_user_slots(
-                chunkCacheEnabled && !Bootstrap_->GetJobController()->AreSchedulerJobsDisabled() && !Bootstrap_->IsReadOnly() && slotManager->IsEnabled()
+                chunkCacheEnabled &&
+                !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
+                !Bootstrap_->IsReadOnly() &&
+                slotManager->IsEnabled()
                 ? slotManager->GetSlotCount()
                 : 0);
         } else {
@@ -352,7 +360,7 @@ public:
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
         
-        ResourcesReleased_.Fire();
+        NotifyResourcesReleased();
     }
 
     void OnResourcesUpdated(const TLogger& Logger, const TNodeResources& resourceDelta)
@@ -367,7 +375,7 @@ public:
             FormatResources(WaitingResources_));
         
         if (!Dominates(resourceDelta, ZeroNodeResources())) {
-            ResourcesReleased_.Fire();
+            NotifyResourcesReleased();
         }
     }
 
@@ -524,6 +532,11 @@ public:
         return TResourceAcquiringProxy{this};
     }
 
+    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumptionPriority consumptionPriority) override
+    {
+        ResourcesConsumerCallbacks_[consumptionPriority].Subscribe(std::move(onResourcesReleased));
+    }
+
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
@@ -536,6 +549,8 @@ private:
     const ITypedNodeMemoryTrackerPtr SystemMemoryUsageTracker_;
     const ITypedNodeMemoryTrackerPtr UserMemoryUsageTracker_;
     THashSet<int> FreePorts_;
+
+    TEnumIndexedVector<EResourcesConsumptionPriority, TCallbackList<void()>> ResourcesConsumerCallbacks_;
 
     TProfiler Profiler_;
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -552,6 +567,13 @@ private:
     bool HasActiveResourceAcquiring_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void NotifyResourcesReleased()
+    {
+        for (const auto& callbacks : ResourcesConsumerCallbacks_) {
+            callbacks.Fire();
+        }
+    }
 
     void CheckReservedMappedMemory()
     {

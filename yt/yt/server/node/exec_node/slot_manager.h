@@ -187,7 +187,7 @@ private:
      *  \note
      *  Thread affinity: any
      */
-    void OnJobFinished(const NJobAgent::IJobPtr& job);
+    void OnJobFinished(const TJobPtr& job);
 
     /*!
      *  \note

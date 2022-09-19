@@ -18,7 +18,6 @@
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -166,9 +165,15 @@ public:
 
         ToProto(heartbeat.mutable_alerts(), GetAlerts());
 
-        const auto& jobController = Bootstrap_->GetJobController();
-        WaitFor(jobController->PrepareHeartbeatRequest(&heartbeat))
-            .ThrowOnError();
+        WaitFor(BIND(
+            [this, &heartbeat, this_ = MakeStrong(this)] {
+                const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+                *heartbeat.mutable_resource_limits() = jobResourceManager->GetResourceLimits();
+                *heartbeat.mutable_resource_usage() = jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
+            })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run())
+        .ThrowOnError();
 
         return heartbeat;
     }

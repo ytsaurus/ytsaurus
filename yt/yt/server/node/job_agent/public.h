@@ -8,6 +8,13 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJobOrigin,
+    ((Master)    (0))
+    ((Scheduler) (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
@@ -17,10 +24,11 @@ using NJobTrackerClient::EJobPhase;
 DECLARE_REFCOUNTED_STRUCT(IJob)
 
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
-DECLARE_REFCOUNTED_CLASS(TJobController)
-DECLARE_REFCOUNTED_CLASS(IJobResourceManager)
 
 class TResourceHolder;
+
+DECLARE_REFCOUNTED_CLASS(IJobResourceManager)
+DECLARE_REFCOUNTED_CLASS(IOrchidServiceProvider)
 
 struct TChunkCacheStatistics
 {

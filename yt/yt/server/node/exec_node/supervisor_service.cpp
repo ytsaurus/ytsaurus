@@ -1,9 +1,10 @@
 #include "supervisor_service.h"
 
 #include "bootstrap.h"
-#include "private.h"
 #include "job.h"
+#include "job_controller.h"
 #include "job_detail.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
@@ -11,7 +12,6 @@
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 #include <yt/yt/server/node/job_agent/public.h>
 

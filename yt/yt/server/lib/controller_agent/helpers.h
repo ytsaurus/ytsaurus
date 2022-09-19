@@ -24,6 +24,7 @@ struct TReleaseJobFlags
     bool ArchiveProfile = false;
 
     bool IsNonTrivial() const;
+    bool IsTrivial() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

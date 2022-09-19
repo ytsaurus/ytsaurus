@@ -40,6 +40,9 @@ struct TUserSandboxOptions
 
 extern const TString ProxyConfigFileName;
 
+DECLARE_REFCOUNTED_CLASS(TJob)
+DECLARE_REFCOUNTED_CLASS(IJobController)
+
 DECLARE_REFCOUNTED_CLASS(TChunkCache)
 DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
 DECLARE_REFCOUNTED_CLASS(IVolumeChunkCache)

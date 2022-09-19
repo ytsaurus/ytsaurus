@@ -136,20 +136,6 @@ struct IJob
 
 DEFINE_REFCOUNTED_TYPE(IJob)
 
-using TMasterJobFactory = TCallback<IJobPtr(
-    TJobId jobId,
-    TOperationId operationId,
-    const TString& jobTrackerAddress,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
-
-using TSchedulerJobFactory = TCallback<IJobPtr(
-    TJobId jobid,
-    TOperationId operationId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const IJobPtr& job);

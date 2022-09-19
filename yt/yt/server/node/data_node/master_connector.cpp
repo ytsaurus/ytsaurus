@@ -7,6 +7,7 @@
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
 #include "config.h"
+#include "job_controller.h"
 #include "location.h"
 #include "network_statistics.h"
 #include "session_manager.h"
@@ -24,8 +25,6 @@
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
-
-#include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -698,12 +697,15 @@ private:
             req->set_reports_heartbeats_to_all_peers(true);
 
             const auto& jobController = Bootstrap_->GetJobController();
-            YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
-                cellTag,
-                jobTrackerAddress,
-                EObjectType::MasterJob,
-                req))
-                .IsOK());
+            {
+                auto error = WaitFor(
+                    jobController->PrepareHeartbeatRequest(cellTag, jobTrackerAddress, req));
+                YT_LOG_FATAL_UNLESS(
+                    error.IsOK(),
+                    error,
+                    "Failed to prepare heartbeat request to master (JobTrackerAddress: %v)",
+                    jobTrackerAddress);
+            }
 
             YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, JobTrackerAddress: %v)",
                 FormatResourceUsage(req->resource_usage(), req->resource_limits()),
@@ -718,8 +720,7 @@ private:
                 const auto& rsp = rspOrError.Value();
                 auto error = WaitFor(jobController->ProcessHeartbeatResponse(
                     jobTrackerAddress,
-                    rsp,
-                    EObjectType::MasterJob));
+                    rsp));
                 YT_LOG_FATAL_IF(
                     !error.IsOK(),
                     error,

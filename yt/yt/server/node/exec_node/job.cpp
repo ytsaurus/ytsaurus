@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
+#include "job_controller.h"
 #include "job_detail.h"
 #include "gpu_manager.h"
 #include "private.h"
@@ -19,7 +20,6 @@
 #include <yt/yt/server/node/data_node/location.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
-#include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
@@ -2900,7 +2900,7 @@ TFuture<TSharedRef> TJob::DumpSensors()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NJobAgent::IJobPtr CreateSchedulerJob(
+TJobPtr CreateSchedulerJob(
     TJobId jobId,
     TOperationId operationId,
     const TNodeResources& resourceUsage,
@@ -2924,25 +2924,6 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
     FillJobStatus(jobStatus, schedulerJob);
     jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
     jobStatus->set_interruption_reason(static_cast<int>(schedulerJob->GetInterruptionReason()));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void InterruptSchedulerJobs(std::vector<NJobAgent::IJobPtr> jobs, TError error)
-{
-    for (const auto& job : jobs) {
-        auto jobId = job->GetId();
-        if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() <= EJobState::Running) {
-            auto& schedulerJob = static_cast<TJob&>(*job);
-            const auto& Logger = schedulerJob.GetLogger();
-            try {
-                YT_LOG_DEBUG(error, "Trying to interrupt job");
-                schedulerJob.Interrupt(/*timeout*/ {}, EInterruptReason::Unknown, /*preemptionReason*/ {});
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to interrupt job");
-            }
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,6 +21,9 @@ struct IBootstrap
     // Session stuff.
     virtual const TSessionManagerPtr& GetSessionManager() const = 0;
 
+    // Job controller.
+    virtual const IJobControllerPtr& GetJobController() const = 0;
+
     // Master connection.
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 

@@ -9,7 +9,7 @@
 #include "io_throughput_meter.h"
 #include "medium_directory_manager.h"
 #include "job.h"
-#include "job_heartbeat_processor.h"
+#include "job_controller.h"
 #include "journal_dispatcher.h"
 #include "master_connector.h"
 #include "medium_updater.h"
@@ -25,7 +25,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/tablet_client/row_comparer_generator.h>
 
@@ -92,6 +91,8 @@ public:
             CreateChunkStoreHost(this));
 
         SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
+
+        JobController_ = CreateJobController(this);
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -234,7 +235,7 @@ public:
             NJobAgent::TOperationId /*operationId*/,
             const TString& jobTrackerAddress,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-            NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> NJobAgent::IJobPtr
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> TMasterJobBasePtr
         {
             return CreateMasterJob(
                 jobId,
@@ -245,19 +246,18 @@ public:
                 this,
                 MasterJobSensors_);
         });
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
-        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
-
-        GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
 
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
             DataNodeLogger.WithTag("IOMeter"));
+        JobController_->Initialize();
     }
 
     void Run() override
@@ -300,6 +300,11 @@ public:
     const TSessionManagerPtr& GetSessionManager() const override
     {
         return SessionManager_;
+    }
+
+    const IJobControllerPtr& GetJobController() const override
+    {
+        return JobController_;
     }
 
     const IMasterConnectorPtr& GetMasterConnector() const override
@@ -406,6 +411,8 @@ private:
     IAllyReplicaManagerPtr AllyReplicaManager_;
 
     TSessionManagerPtr SessionManager_;
+
+    IJobControllerPtr JobController_;
 
     IMasterConnectorPtr MasterConnector_;
     TMediumDirectoryManagerPtr MediumDirectoryManager_;

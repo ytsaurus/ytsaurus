@@ -31,7 +31,7 @@ struct TControllerAgentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NJobAgent::IJobPtr CreateSchedulerJob(
+TJobPtr CreateSchedulerJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
@@ -42,10 +42,6 @@ NJobAgent::IJobPtr CreateSchedulerJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void InterruptSchedulerJobs(std::vector<NJobAgent::IJobPtr> jobs, TError error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

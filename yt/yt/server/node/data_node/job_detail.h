@@ -14,6 +14,15 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TJobFactory = TCallback<TMasterJobBasePtr(
+    NJobTrackerClient::TJobId jobId,
+    NJobTrackerClient::TOperationId operationId,
+    const TString& jobTrackerAddress,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterJobBase
     : public NJobAgent::IJob
     , public NJobAgent::TResourceHolder
@@ -182,6 +191,8 @@ private:
 
     void OnResourcesAcquired() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TMasterJobBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
