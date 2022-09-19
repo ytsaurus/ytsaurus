@@ -119,9 +119,6 @@ public interface ApiServiceClient extends TransactionalClient {
         return selectRows(SelectRowsRequest.of(query).setTimeout(requestTimeout));
     }
 
-    <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
-                                           ConsumerSource<T> consumer);
-
     CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request);
 
     CompletableFuture<Long> buildSnapshot(BuildSnapshot req);

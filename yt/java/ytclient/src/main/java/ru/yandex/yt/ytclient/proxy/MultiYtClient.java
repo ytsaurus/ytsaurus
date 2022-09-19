@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -116,6 +117,12 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
             YTreeObjectSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.selectRows(request, serializer));
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+                                                  ConsumerSource<T> consumer) {
+        return executor.execute((client) -> client.selectRows(request, serializer, consumer));
     }
 
     /**
