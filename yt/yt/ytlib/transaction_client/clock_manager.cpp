@@ -81,7 +81,10 @@ public:
 
     void Reconfigure(TClockManagerConfigPtr newConfig) override
     {
-        ClockClusterTag_ = newConfig->ClockClusterTag;
+        auto clockClusterTag = newConfig->ClockClusterTag;
+        ClockClusterTag_ = clockClusterTag;
+
+        YT_LOG_DEBUG("Clock manager reconfigured (ClockClusterTag: %v)", clockClusterTag);
     }
 
 private:
