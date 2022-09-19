@@ -1548,6 +1548,7 @@ struct TRestoreTableBackupOptions
 {
     bool Force = false;
     bool Mount = false;
+    bool EnableReplicas = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

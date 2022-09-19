@@ -32,6 +32,7 @@ public:
         NTabletClient::TTableReplicaId Id;
         TString ClusterName;
         NTabletClient::ETableReplicaMode Mode;
+        NTabletClient::ETableReplicaState State;
         TString ReplicaPath;
         // Path to the corresponding backed up or restored table.
         TString ClonedReplicaPath;
@@ -107,6 +108,8 @@ public:
     void CommitTransaction();
 
     void MountRestoredTables();
+
+    void EnableRestoredReplicas();
 
     std::vector<TTableInfo*> GetTables();
 
