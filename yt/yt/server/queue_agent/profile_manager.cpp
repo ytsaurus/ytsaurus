@@ -1,7 +1,9 @@
 #include "profile_manager.h"
 
 #include "snapshot.h"
+
 #include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/solomon/sensor.h>
 
 namespace NYT::NQueueAgent {
 
@@ -16,17 +18,11 @@ struct TQueueProfilingCounters
     TGauge Partitions;
     TGauge NonVitalConsumers;
     TGauge VitalConsumers;
-    TCounter RowsWritten;
-    TCounter RowsTrimmed;
-    TCounter DataWeightWritten;
 
     explicit TQueueProfilingCounters(const TProfiler& profiler)
         : Partitions(profiler.Gauge("/partitions"))
         , NonVitalConsumers(profiler.WithTag("vital", "false").Gauge("/consumers"))
         , VitalConsumers(profiler.WithTag("vital", "true").Gauge("/consumers"))
-        , RowsWritten(profiler.Counter("/rows_written"))
-        , RowsTrimmed(profiler.Counter("/rows_trimmed"))
-        , DataWeightWritten(profiler.Counter("/data_weight_written"))
     { }
 };
 
@@ -37,22 +33,23 @@ struct TQueuePartitionProfilingCounters
     TCounter RowsTrimmed;
     TCounter DataWeightWritten;
 
-    explicit TQueuePartitionProfilingCounters(const TProfiler& profiler)
+    TQueuePartitionProfilingCounters(const TProfiler& profiler, const TProfiler& aggregationProfiler)
         : RowsWritten(profiler.Counter("/rows_written"))
         , RowsTrimmed(profiler.Counter("/rows_trimmed"))
         , DataWeightWritten(profiler.Counter("/data_weight_written"))
-    { }
+    {
+        Y_UNUSED(aggregationProfiler);
+    }
 };
 
 struct TConsumerProfilingCounters
 {
-    TCounter RowsConsumed;
-    TCounter DataWeightConsumed;
+    // This class may be extended in the future.
 
     explicit TConsumerProfilingCounters(const TProfiler& profiler)
-        : RowsConsumed(profiler.Counter("/rows_consumed"))
-        , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
-    { }
+    {
+        Y_UNUSED(profiler);
+    }
 };
 
 //! Consumer-related per-partition profiling counters.
@@ -61,13 +58,17 @@ struct TConsumerPartitionProfilingCounters
     TCounter RowsConsumed;
     TCounter DataWeightConsumed;
     TGauge LagRows;
+    TGauge LagDataWeight;
     TTimeGauge LagTime;
+    TGaugeHistogram LagTimeHistogram;
 
-    TConsumerPartitionProfilingCounters(const TProfiler& profiler)
+    TConsumerPartitionProfilingCounters(const TProfiler& profiler, const TProfiler& aggregationProfiler)
         : RowsConsumed(profiler.Counter("/rows_consumed"))
         , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
         , LagRows(profiler.GaugeSummary("/lag_rows"))
+        , LagDataWeight(profiler.GaugeSummary("/lag_data_weight"))
         , LagTime(profiler.TimeGaugeSummary("/lag_time"))
+        , LagTimeHistogram(aggregationProfiler.GaugeHistogram("/lag_time_histogram", GenerateGenericBucketBounds()))
     { }
 };
 
@@ -119,10 +120,6 @@ public:
 
         // Mind the clamp. We do not want process to crash if some delta turns out to be negative due to some manual action.
 
-        i64 totalRowsWritten = 0;
-        i64 totalRowsTrimmed = 0;
-        i64 totalDataWeightWritten = 0;
-
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
             const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
@@ -130,29 +127,21 @@ public:
 
             auto rowsWritten = currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex;
             SafeIncrement(profilingCounters.RowsWritten, rowsWritten);
-            totalRowsWritten += rowsWritten;
 
             auto rowsTrimmed = currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex;
             SafeIncrement(profilingCounters.RowsTrimmed, rowsTrimmed);
-            totalRowsTrimmed += rowsTrimmed;
 
             auto dataWeightWriten = currentQueuePartitionSnapshot->CumulativeDataWeight - previousQueuePartitionSnapshot->CumulativeDataWeight;
             SafeIncrement(profilingCounters.DataWeightWritten, dataWeightWriten);
-            totalDataWeightWritten += dataWeightWriten;
         }
-
-        SafeIncrement(QueueProfilingCounters_->RowsWritten, totalRowsWritten);
-        SafeIncrement(QueueProfilingCounters_->RowsTrimmed, totalRowsTrimmed);
-        SafeIncrement(QueueProfilingCounters_->DataWeightWritten, totalDataWeightWritten);
 
         for (const auto& consumerRef : GetKeys(currentQueueSnapshot->ConsumerSnapshots)) {
             const auto& previousConsumerPartitionSnapshots = previousQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
+            Y_UNUSED(previousConsumerPartitionSnapshots);
             const auto& currentConsumerPartitionSnapshots = currentQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
             auto& consumerProfilingCounters = *ConsumerProfilingCounters_[consumerRef];
+            Y_UNUSED(consumerProfilingCounters);
             auto& consumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[consumerRef];
-
-            i64 totalRowsConsumed = 0;
-            i64 totalDataWeightConsumed = 0;
 
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
                 const auto& previousConsumerPartitionSnapshot = previousConsumerPartitionSnapshots[partitionIndex];
@@ -161,18 +150,16 @@ public:
 
                 auto rowsConsumed = currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex;
                 SafeIncrement(profilingCounters.RowsConsumed, rowsConsumed);
-                totalRowsConsumed += rowsConsumed;
 
                 auto dataWeightConsumed = currentConsumerPartitionSnapshot->CumulativeDataWeight - previousConsumerPartitionSnapshot->CumulativeDataWeight;
                 SafeIncrement(profilingCounters.DataWeightConsumed, dataWeightConsumed);
-                totalDataWeightConsumed += dataWeightConsumed;
 
                 profilingCounters.LagRows.Update(currentConsumerPartitionSnapshot->UnreadRowCount);
+                profilingCounters.LagDataWeight.Update(currentConsumerPartitionSnapshot->UnreadDataWeight);
                 profilingCounters.LagTime.Update(currentConsumerPartitionSnapshot->ProcessingLag);
+                profilingCounters.LagTimeHistogram.Reset();
+                profilingCounters.LagTimeHistogram.Add(currentConsumerPartitionSnapshot->ProcessingLag.MillisecondsFloat());
             }
-
-            SafeIncrement(consumerProfilingCounters.RowsConsumed, totalRowsConsumed);
-            SafeIncrement(consumerProfilingCounters.DataWeightConsumed, totalDataWeightConsumed);
         }
     }
 
@@ -230,8 +217,11 @@ private:
                 counters.erase(counters.begin() + partitionCount, counters.end());
             } else {
                 for (int partitionIndex = counters.size(); partitionIndex < partitionCount; ++partitionIndex) {
-                    counters.emplace_back(profiler
-                        .WithTag("partition_index", ToString(partitionIndex)));
+                    const auto& partitionProfiler = profiler
+                        .WithTag("partition_index", ToString(partitionIndex));
+                    const auto& partitionAggregationProfiler = profiler
+                        .WithExcludedTag("partition_index", ToString(partitionIndex));
+                    counters.emplace_back(partitionProfiler, partitionAggregationProfiler);
                 }
             }
         };
@@ -256,8 +246,8 @@ private:
 
         for (auto& [consumerRef, consumerPartitionProfilingCounters] : ConsumerPartitionProfilingCounters_) {
             auto consumerPartitionProfiler = ConsumerPartitionProfiler_
-                .WithTag("consumer_path", consumerRef.Path)
-                .WithTag("consumer_cluster", consumerRef.Cluster);
+                .WithRequiredTag("consumer_path", consumerRef.Path)
+                .WithRequiredTag("consumer_cluster", consumerRef.Cluster);
             resizePartitionCounters(consumerPartitionProfilingCounters, consumerPartitionProfiler);
         }
     }
