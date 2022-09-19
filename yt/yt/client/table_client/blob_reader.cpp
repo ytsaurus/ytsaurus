@@ -107,7 +107,7 @@ private:
         auto row = Batch_->MaterializeRows()[Index_++];
         auto value = GetDataAndValidateRow(row);
 
-        auto holder = MakeCompositeHolder(Reader_);
+        auto holder = MakeSharedRangeHolder(Reader_);
         auto result = TSharedRef(value.Data.String, value.Length, std::move(holder));
         if (Offset_ > 0) {
             if (Offset_ > std::ssize(result)) {

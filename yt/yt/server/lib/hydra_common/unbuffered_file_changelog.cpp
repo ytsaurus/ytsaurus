@@ -711,7 +711,7 @@ private:
             }
 
             // Write blob to file.
-            TSharedRef buffer(AppendOutput_.Begin(), AppendOutput_.Size(), MakeStrong(this));
+            TSharedRef buffer(AppendOutput_.Begin(), AppendOutput_.Size(), MakeSharedRangeHolder(MakeStrong(this)));
             WaitFor(IOEngine_->Write({.Handle = DataFileHandle_, .Offset = CurrentFileOffset_.load(), .Buffers = {std::move(buffer)}}))
                 .ThrowOnError();
 

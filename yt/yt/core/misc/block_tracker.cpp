@@ -7,7 +7,7 @@ namespace NYT {
 namespace NDetail {
 
 class TCategoryUsageGuard
-    : public TRefCounted
+    : public ISharedRangeHolder
     , public TNonCopyable
 {
 public:
@@ -76,7 +76,7 @@ TSharedRef AttachCategory(
     TRef ref = block;
     return TSharedRef(
         ref,
-        MakeCompositeHolder(
+        MakeSharedRangeHolder(
             std::move(block),
             std::move(blockWithCategory)));
 }
