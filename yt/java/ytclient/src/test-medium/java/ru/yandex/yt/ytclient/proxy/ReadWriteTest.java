@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -91,7 +92,7 @@ public class ReadWriteTest {
         byte[] digest = md.digest();
         StringBuilder sb = new StringBuilder();
         for (byte b : digest) {
-            sb.append(Integer.toHexString((b & 0xFF) | 0x100).substring(1, 3));
+            sb.append(Integer.toHexString((b & 0xFF) | 0x100), 1, 3);
         }
 
         return sb.toString();
@@ -109,7 +110,7 @@ public class ReadWriteTest {
 
         int currentCounter = counter.getAndIncrement();
 
-        String testDataFile = "test-" + String.valueOf(currentCounter) + ".bin";
+        String testDataFile = "test-" + currentCounter + ".bin";
 
         Base64.Encoder base64Encoder = Base64.getEncoder();
 
@@ -185,7 +186,7 @@ public class ReadWriteTest {
     static class RowsGenerator {
         private long currentRowNumber = 0;
 
-        private TableSchema schema = createSchema();
+        private final TableSchema schema = createSchema();
 
         static TableSchema createSchema() {
             TableSchema.Builder builder = new TableSchema.Builder();
@@ -197,15 +198,15 @@ public class ReadWriteTest {
         }
 
         UnversionedRowset nextRows() {
-            if (currentRowNumber >= 100000) {
+            if (currentRowNumber >= 10000) {
                 return null;
             }
 
             List<UnversionedRow> rows = new ArrayList<>();
 
             for (int i = 0; i < 10; ++i) {
-                String key = "key-" + String.valueOf(currentRowNumber);
-                String value = "value-" + String.valueOf(currentRowNumber);
+                String key = "key-" + currentRowNumber;
+                String value = "value-" + currentRowNumber;
                 Long integer = currentRowNumber;
 
                 List<?> values = List.of(key, value, integer);
@@ -222,10 +223,6 @@ public class ReadWriteTest {
 
         long rowsCount() {
             return currentRowNumber;
-        }
-
-        void reset() {
-            currentRowNumber = 0;
         }
     }
 
@@ -246,7 +243,7 @@ public class ReadWriteTest {
         private long currentRowNumber = 0;
 
         List<Row> nextRows() {
-            if (currentRowNumber >= 1000000) {
+            if (currentRowNumber >= 10000) {
                 return null;
             }
 
@@ -273,7 +270,7 @@ public class ReadWriteTest {
     public void testTableReadWrite() throws Exception {
         RowsGenerator generator = new RowsGenerator();
 
-        String path = "//tmp/write-table-example-1";
+        YPath path = YPath.simple("//tmp/write-table-example-1");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
@@ -336,17 +333,17 @@ public class ReadWriteTest {
     }
 
     @Test
-    public void testTableReadWriteV2() throws Exception {
+    public void testTableReadWriteV2() {
         RowsGenerator generator = new RowsGenerator();
 
-        String path = "//tmp/write-table-example-1";
+        YPath path = YPath.simple("//tmp/write-table-example-1");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
         UnversionedRowset rowset = generator.nextRows();
 
         AsyncWriter<UnversionedRow> writer = yt.writeTableV2(
-                new WriteTable<>(YPath.simple(path), UnversionedRow.class, rowset.getSchema())
+                new WriteTable<>(path, UnversionedRow.class, rowset.getSchema())
         ).join();
 
         while (rowset != null) {
@@ -356,8 +353,8 @@ public class ReadWriteTest {
 
         writer.finish().join();
 
-        TableReader<UnversionedRow> reader =
-                yt.readTable(new ReadTable<>(path, new UnversionedRowDeserializer())).join();
+        AsyncReader<UnversionedRow> reader =
+                yt.readTableV2(new ReadTable<>(path, new UnversionedRowDeserializer())).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -368,31 +365,26 @@ public class ReadWriteTest {
         int currentRowNumber = 0;
 
         List<UnversionedRow> rows;
-        while (reader.canRead()) {
-            while ((rows = reader.read()) != null) {
-                for (UnversionedRow row : rows) {
-                    List<UnversionedValue> values = row.getValues();
-                    Assert.assertEquals(row.toString(), values.size(), 3);
+        while ((rows = reader.next().join()) != null) {
+            for (UnversionedRow row : rows) {
+                List<UnversionedValue> values = row.getValues();
+                Assert.assertEquals(row.toString(), values.size(), 3);
 
-                    Assert.assertEquals(row.toString(), values.get(0).getType(), ColumnValueType.STRING);
-                    Assert.assertEquals(row.toString(), values.get(1).getType(), ColumnValueType.STRING);
-                    Assert.assertEquals(row.toString(), values.get(2).getType(), ColumnValueType.INT64);
+                Assert.assertEquals(row.toString(), values.get(0).getType(), ColumnValueType.STRING);
+                Assert.assertEquals(row.toString(), values.get(1).getType(), ColumnValueType.STRING);
+                Assert.assertEquals(row.toString(), values.get(2).getType(), ColumnValueType.INT64);
 
-                    long intValue = values.get(2).longValue();
+                long intValue = values.get(2).longValue();
 
-                    Assert.assertEquals(row.toString(), values.get(0).stringValue(), "key-" + intValue);
-                    Assert.assertEquals(row.toString(), values.get(1).stringValue(), "value-" + intValue);
+                Assert.assertEquals(row.toString(), values.get(0).stringValue(), "key-" + intValue);
+                Assert.assertEquals(row.toString(), values.get(1).stringValue(), "value-" + intValue);
 
-                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                    rowsSeen.set(currentRowNumber, true);
+                Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+                rowsSeen.set(currentRowNumber, true);
 
-                    currentRowNumber += 1;
-                }
+                currentRowNumber += 1;
             }
-            reader.readyEvent().join();
         }
-
-        reader.close().join();
 
         for (int i = 0; i < rowsSeen.size(); ++i) {
             Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
@@ -403,7 +395,7 @@ public class ReadWriteTest {
     public void testTableObjectReadWrite() throws Exception {
         ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
 
-        String path = "//tmp/write-table-example-2";
+        YPath path = YPath.simple("//tmp/write-table-example-2");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
@@ -442,8 +434,8 @@ public class ReadWriteTest {
                 for (Row row : rowset) {
                     long intValue = row.intValue;
 
-                    Assert.assertEquals(row.toString(), row.key, "key-" + String.valueOf(intValue));
-                    Assert.assertEquals(row.toString(), row.value, "value-" + String.valueOf(intValue));
+                    Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
+                    Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
 
                     Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
                     rowsSeen.set(currentRowNumber, true);
@@ -463,10 +455,10 @@ public class ReadWriteTest {
 
 
     @Test
-    public void testTableObjectReadWriteV2() throws Exception {
+    public void testTableObjectReadWriteV2() {
         ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
 
-        String path = "//tmp/write-table-example-2";
+        YPath path = YPath.simple("//tmp/write-table-example-2");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
@@ -482,7 +474,7 @@ public class ReadWriteTest {
 
         writer.finish().join();
 
-        TableReader<Row> reader = yt.readTable(
+        AsyncReader<Row> reader = yt.readTableV2(
                 new ReadTable<>(
                         path,
                         (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class))).join();
@@ -495,26 +487,21 @@ public class ReadWriteTest {
 
         int currentRowNumber = 0;
 
-        while (reader.canRead()) {
-            List<Row> rowset;
+        final List<Row> rowset = new ArrayList<>();
+        var executor = Executors.newSingleThreadExecutor();
+        reader.acceptAllAsync(rowset::add, executor).join();
 
-            while ((rowset = reader.read()) != null) {
-                for (Row row : rowset) {
-                    long intValue = row.intValue;
+        for (Row row : rowset) {
+            long intValue = row.intValue;
 
-                    Assert.assertEquals(row.toString(), row.key, "key-" + String.valueOf(intValue));
-                    Assert.assertEquals(row.toString(), row.value, "value-" + String.valueOf(intValue));
+            Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
+            Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
 
-                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                    rowsSeen.set(currentRowNumber, true);
+            Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+            rowsSeen.set(currentRowNumber, true);
 
-                    currentRowNumber += 1;
-                }
-            }
-            reader.readyEvent().join();
+            currentRowNumber += 1;
         }
-
-        reader.close().join();
 
         for (int i = 0; i < rowsSeen.size(); ++i) {
             Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
@@ -540,15 +527,15 @@ public class ReadWriteTest {
         }
 
         List<YTreeMapNode> nextRows() {
-            if (currentRowNumber >= 1000000) {
+            if (currentRowNumber >= 10000) {
                 return null;
             }
 
             List<YTreeMapNode> rows = new ArrayList<>();
 
             for (int i = 0; i < 10; ++i) {
-                String key = "key-" + String.valueOf(currentRowNumber);
-                String value = "value-" + String.valueOf(currentRowNumber);
+                String key = "key-" + currentRowNumber;
+                String value = "value-" + currentRowNumber;
 
                 rows.add(
                         YTree.builder()
@@ -574,7 +561,7 @@ public class ReadWriteTest {
     public void testTableYTreeMapNodeReadWrite() throws Exception {
         YTreeMapNodeRowsGenerator generator = new YTreeMapNodeRowsGenerator();
 
-        String path = "//tmp/write-table-example-3";
+        YPath path = YPath.simple("//tmp/write-table-example-3");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
@@ -633,10 +620,10 @@ public class ReadWriteTest {
     }
 
     @Test
-    public void testTableYTreeMapNodeReadWriteV2() throws Exception {
+    public void testTableYTreeMapNodeReadWriteV2() {
         YTreeMapNodeRowsGenerator generator = new YTreeMapNodeRowsGenerator();
 
-        String path = "//tmp/write-table-example-3";
+        YPath path = YPath.simple("//tmp/write-table-example-3");
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
@@ -645,7 +632,7 @@ public class ReadWriteTest {
         List<YTreeMapNode> rows = generator.nextRows();
 
         AsyncWriter<YTreeMapNode> writer = yt.writeTableV2(new WriteTable<>(
-                YPath.simple(path), MappedRowSerializer.forClass(serializer), generator.getSchema())).join();
+                path, MappedRowSerializer.forClass(serializer), generator.getSchema())).join();
 
         while (rows != null) {
             writer.write(rows).join();
@@ -654,7 +641,7 @@ public class ReadWriteTest {
 
         writer.finish().join();
 
-        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(path, serializer)).join();
+        AsyncReader<YTreeMapNode> reader = yt.readTableV2(new ReadTable<>(path, serializer)).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -664,28 +651,23 @@ public class ReadWriteTest {
 
         int currentRowNumber = 0;
 
-        while (reader.canRead()) {
-            List<YTreeMapNode> rowset;
+        List<YTreeMapNode> rowset;
 
-            while ((rowset = reader.read()) != null) {
-                for (YTreeMapNode row : rowset) {
-                    int intValue = row.getInt("intValue");
-                    String key = "key-" + intValue;
-                    String value = "value-" + intValue;
+        while ((rowset = reader.next().join()) != null) {
+            for (YTreeMapNode row : rowset) {
+                int intValue = row.getInt("intValue");
+                String key = "key-" + intValue;
+                String value = "value-" + intValue;
 
-                    Assert.assertEquals(row.toString(), row.getString("key"), key);
-                    Assert.assertEquals(row.toString(), row.getString("value"), value);
+                Assert.assertEquals(row.toString(), row.getString("key"), key);
+                Assert.assertEquals(row.toString(), row.getString("value"), value);
 
-                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                    rowsSeen.set(currentRowNumber, true);
+                Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
+                rowsSeen.set(currentRowNumber, true);
 
-                    currentRowNumber += 1;
-                }
+                currentRowNumber += 1;
             }
-            reader.readyEvent().join();
         }
-
-        reader.close().join();
 
         for (int i = 0; i < rowsSeen.size(); ++i) {
             Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));

@@ -249,6 +249,9 @@ public interface ApiServiceClient extends TransactionalClient {
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                     @Nullable TableAttachmentReader<T> reader);
 
+    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
+                                                      @Nullable TableAttachmentReader<T> reader);
+
     default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
         return readTable(req, TableAttachmentReader.BYPASS);
     }
@@ -258,6 +261,14 @@ public interface ApiServiceClient extends TransactionalClient {
             return readTable(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
         } else {
             return readTable(req, null);
+        }
+    }
+
+    default <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
+        if (req.getDeserializer() != null) {
+            return readTableV2(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
+        } else {
+            return readTableV2(req, null);
         }
     }
 }
