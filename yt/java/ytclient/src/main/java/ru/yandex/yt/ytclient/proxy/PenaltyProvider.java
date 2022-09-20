@@ -28,6 +28,7 @@ import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadKind;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
+import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
@@ -220,7 +221,8 @@ public abstract class PenaltyProvider implements Closeable {
                         for (TabletInfoReplica tabletInfoReplica : tabletInfo.getTabletInfoReplicas()) {
                             Instant lastReplicationTimestamp = YtTimestamp.valueOf(
                                     tabletInfoReplica.getLastReplicationTimestamp()).getInstant();
-                            if (now.minus(maxTabletLag).compareTo(lastReplicationTimestamp) > 0) {
+                            if (TableReplicaMode.Async.equals(tabletInfoReplica.getMode()) &&
+                                    now.minus(maxTabletLag).compareTo(lastReplicationTimestamp) > 0) {
                                 tabletsWithLag.merge(tabletInfoReplica.getReplicaId(), 1L, Long::sum);
                             }
                         }

@@ -14,6 +14,19 @@ public enum TableReplicaMode {
         this.stringValue = stringValue;
     }
 
+    public static TableReplicaMode fromProtoValue(ETableReplicaMode protoValue) {
+        switch (protoValue) {
+            case TRM_SYNC:
+            case TRM_SYNC_TO_SYNC:
+                return Sync;
+            case TRM_ASYNC:
+            case TRM_ASYNC_TO_SYNC:
+                return Async;
+            default:
+                throw new IllegalArgumentException("Illegal replication mode value " + protoValue);
+        }
+    }
+
     @Override
     public String toString() {
         return stringValue;
