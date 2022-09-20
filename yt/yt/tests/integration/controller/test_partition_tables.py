@@ -179,6 +179,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 4000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
                 ],
             },
             {
@@ -189,6 +190,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             },
             {
                 "table_ranges": [
+                    to_yson_type(table1, attributes={"ranges": []}),
                     to_yson_type(table2, attributes={"ranges": [{"lower_limit": {"row_index": 2000}, "upper_limit": {"row_index": 6000}}]}),
                 ],
             },
@@ -212,16 +214,56 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 3000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
                 ],
             },
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 3000}, "upper_limit": {"row_index": 5000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
                 ],
             },
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 5000}, "upper_limit": {"row_index": 6000}}]}),
+                    to_yson_type(table2, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 6000}}]}),
+                ],
+            },
+        ]
+
+    @authors("galtsev")
+    def test_empty_range_does_not_break_output_order(self):
+        table = "//tmp/sorted-static"
+        table1 = table + '-1'
+        table2 = table + '-2'
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight1 = 1000
+        row_weight2 = 100
+        data_weight1 = self._create_table(table1, chunk_count, rows_per_chunk, row_weight1)
+        data_weight2 = self._create_table(table2, chunk_count, rows_per_chunk, row_weight2)
+        data_weight = data_weight1 + data_weight2
+
+        partitions = partition_tables([table1, f"{table2}[#3141:#3141]", table2], data_weight_per_partition=data_weight // 3)
+        assert partitions == [
+            {
+                "table_ranges": [
+                    to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 3000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
+                    to_yson_type(table2, attributes={"ranges": []}),
+                ],
+            },
+            {
+                "table_ranges": [
+                    to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 3000}, "upper_limit": {"row_index": 5000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
+                    to_yson_type(table2, attributes={"ranges": []}),
+                ],
+            },
+            {
+                "table_ranges": [
+                    to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 5000}, "upper_limit": {"row_index": 6000}}]}),
+                    to_yson_type(table2, attributes={"ranges": []}),
                     to_yson_type(table2, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 6000}}]}),
                 ],
             },
