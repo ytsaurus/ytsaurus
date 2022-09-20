@@ -583,3 +583,23 @@ class TestLocalMode(object):
             client = environment.create_client()
             client.get("/")
             wait(lambda: os.path.exists(os.path.join(environment.logs_path, "http-proxy-0.json.log")))
+
+    def test_one_node_configuration(self):
+        row_count = 100
+
+        def mapper(row):
+            yield {"key": row["key"] + 1}
+
+        with local_yt(id=_get_id("one_node_configuration"), node_count=1) as environment:
+            client = environment.create_client()
+            client.get("/")
+
+            rows = [{"key": index} for index in range(row_count)]
+            client.write_table("//tmp/test_table", rows)
+            assert list(client.read_table("//tmp/test_table")) == rows
+
+            client.run_map(mapper, "//tmp/test_table", "//tmp/output_table", job_count=5)
+            client.run_sort("//tmp/output_table", sort_by=["key"])
+
+            result_rows = [{"key": index + 1} for index in range(row_count)]
+            assert list(client.read_table("//tmp/output_table")) == result_rows
