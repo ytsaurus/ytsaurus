@@ -79,6 +79,8 @@ void PopulateInstancies(
 
 TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerMutations& mutations)
 {
+    auto mergedBundlesState = MergeBundleStates(state, mutations);
+
     TBundlesInfo result;
     for (const auto& [bundleName, bundleInfo] : state.Bundles) {
         if (!bundleInfo->EnableBundleController) {
@@ -122,13 +124,13 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
             bundleOrchidInfo->ResourceAllocated = CloneYsonSerializable(it->second);
         }
 
-        if (auto it = mutations.ChangedStates.find(bundleName); it != mutations.ChangedStates.end()) {
-            const auto& state = it->second;
-            bundleOrchidInfo->RemovingCellCount = state->RemovingCells.size();
-            bundleOrchidInfo->AllocatingTabletNodeCount = state->NodeAllocations.size();
-            bundleOrchidInfo->DeallocatingTabletNodeCount = state->NodeDeallocations.size();
-            bundleOrchidInfo->AllocatingRpcProxyCount = state->ProxyAllocations.size();
-            bundleOrchidInfo->DeallocatingRpcProxyCount = state->ProxyDeallocations.size();
+        if (auto it = mergedBundlesState.find(bundleName); it != mergedBundlesState.end()) {
+            const auto& bundleState = it->second;
+            bundleOrchidInfo->RemovingCellCount = bundleState->RemovingCells.size();
+            bundleOrchidInfo->AllocatingTabletNodeCount = bundleState->NodeAllocations.size();
+            bundleOrchidInfo->DeallocatingTabletNodeCount = bundleState->NodeDeallocations.size();
+            bundleOrchidInfo->AllocatingRpcProxyCount = bundleState->ProxyAllocations.size();
+            bundleOrchidInfo->DeallocatingRpcProxyCount = bundleState->ProxyDeallocations.size();
         }
 
         result[bundleName] = bundleOrchidInfo;
