@@ -118,6 +118,11 @@ private:
 
                     if (address) {
                         response.Addresses.push_back(*address);
+                    } else {
+                        // COMPAT(verytable): Drop it after all rpc proxies migrate to 22.3.
+                        if (!proxyNode->Attributes().Contains(AddressesAttributeName)) {
+                            response.Addresses.push_back(proxyAddress);
+                        }
                     }
                 }
                 return response;
