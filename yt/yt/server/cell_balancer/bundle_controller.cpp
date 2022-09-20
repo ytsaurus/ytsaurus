@@ -274,6 +274,7 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
+        ReportInflightMetrics(inputState, mutations);
         ReportResourceUsage(inputState);
 
         // Update input state for serving orchid requests.
@@ -332,61 +333,6 @@ private:
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
-
-        int nodeAllocationCount = 0;
-        int nodeDeallocationCount = 0;
-        int proxyAllocationCount = 0;
-        int proxyDeallocationCount = 0;
-        int removingCellCount = 0;
-        auto now = TInstant::Now();
-
-        TDuration nodeAllocationRequestAge;
-        TDuration nodeDeallocationRequestAge;
-        TDuration removingCellsAge;
-        TDuration proxyAllocationRequestAge;
-        TDuration proxyDeallocationRequestAge;
-
-        // TODO(capone212): think about per-bundle sensors.
-        for (const auto& [_, state] : mutations.ChangedStates) {
-            nodeAllocationCount += state->NodeAllocations.size();
-            nodeDeallocationCount += state->NodeDeallocations.size();
-            removingCellCount += state->RemovingCells.size();
-
-            proxyAllocationCount += state->ProxyAllocations.size();
-            proxyDeallocationCount += state->ProxyDeallocations.size();
-
-            for (const auto& [_, allocation] : state->NodeAllocations) {
-                nodeAllocationRequestAge = std::max(nodeAllocationRequestAge, now - allocation->CreationTime);
-            }
-
-            for (const auto& [_, deallocation] : state->NodeDeallocations) {
-                nodeDeallocationRequestAge = std::max(nodeDeallocationRequestAge, now - deallocation->CreationTime);
-            }
-
-            for (const auto& [_, removingCell] : state->RemovingCells) {
-                removingCellsAge = std::max(removingCellsAge, now - removingCell->RemovedTime);
-            }
-
-            for (const auto& [_, allocation] : state->ProxyAllocations) {
-                proxyAllocationRequestAge = std::max(proxyAllocationRequestAge, now - allocation->CreationTime);
-            }
-
-            for (const auto& [_, deallocation] : state->ProxyDeallocations) {
-                proxyDeallocationRequestAge = std::max(proxyDeallocationRequestAge, now - deallocation->CreationTime);
-            }
-        }
-
-        InflightNodeAllocationCount_.Update(nodeAllocationCount);
-        InflightNodeDeallocationCount_.Update(nodeDeallocationCount);
-        InflightCellRemovalCount_.Update(removingCellCount);
-        InflightProxyAllocationCounter_.Update(proxyAllocationCount);
-        InflightProxyDeallocationCounter_.Update(proxyDeallocationCount);
-
-        NodeAllocationRequestAge_.Update(nodeAllocationRequestAge);
-        NodeDeallocationRequestAge_.Update(nodeDeallocationRequestAge);
-        RemovingCellsAge_.Update(removingCellsAge);
-        ProxyAllocationRequestAge_.Update(proxyAllocationRequestAge);
-        ProxyDeallocationRequestAge_.Update(proxyAllocationRequestAge);
     }
 
     void ReportInstanceCountBySize(
@@ -434,6 +380,67 @@ private:
                 gauge.Update(0);
             }
         }
+    }
+
+    void ReportInflightMetrics(const TSchedulerInputState& input, const TSchedulerMutations& mutations) const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        int nodeAllocationCount = 0;
+        int nodeDeallocationCount = 0;
+        int proxyAllocationCount = 0;
+        int proxyDeallocationCount = 0;
+        int removingCellCount = 0;
+
+        auto now = TInstant::Now();
+        TDuration nodeAllocationRequestAge;
+        TDuration nodeDeallocationRequestAge;
+        TDuration removingCellsAge;
+        TDuration proxyAllocationRequestAge;
+        TDuration proxyDeallocationRequestAge;
+
+        auto mergedBundlesState = MergeBundleStates(input, mutations);
+        // TODO(capone212): think about per-bundle sensors.
+        for (const auto& [_, state] : mergedBundlesState) {
+            nodeAllocationCount += state->NodeAllocations.size();
+            nodeDeallocationCount += state->NodeDeallocations.size();
+            removingCellCount += state->RemovingCells.size();
+
+            proxyAllocationCount += state->ProxyAllocations.size();
+            proxyDeallocationCount += state->ProxyDeallocations.size();
+
+            for (const auto& [_, allocation] : state->NodeAllocations) {
+                nodeAllocationRequestAge = std::max(nodeAllocationRequestAge, now - allocation->CreationTime);
+            }
+
+            for (const auto& [_, deallocation] : state->NodeDeallocations) {
+                nodeDeallocationRequestAge = std::max(nodeDeallocationRequestAge, now - deallocation->CreationTime);
+            }
+
+            for (const auto& [_, removingCell] : state->RemovingCells) {
+                removingCellsAge = std::max(removingCellsAge, now - removingCell->RemovedTime);
+            }
+
+            for (const auto& [_, allocation] : state->ProxyAllocations) {
+                proxyAllocationRequestAge = std::max(proxyAllocationRequestAge, now - allocation->CreationTime);
+            }
+
+            for (const auto& [_, deallocation] : state->ProxyDeallocations) {
+                proxyDeallocationRequestAge = std::max(proxyDeallocationRequestAge, now - deallocation->CreationTime);
+            }
+        }
+
+        InflightNodeAllocationCount_.Update(nodeAllocationCount);
+        InflightNodeDeallocationCount_.Update(nodeDeallocationCount);
+        InflightCellRemovalCount_.Update(removingCellCount);
+        InflightProxyAllocationCounter_.Update(proxyAllocationCount);
+        InflightProxyDeallocationCounter_.Update(proxyDeallocationCount);
+
+        NodeAllocationRequestAge_.Update(nodeAllocationRequestAge);
+        NodeDeallocationRequestAge_.Update(nodeDeallocationRequestAge);
+        RemovingCellsAge_.Update(removingCellsAge);
+        ProxyAllocationRequestAge_.Update(proxyAllocationRequestAge);
+        ProxyDeallocationRequestAge_.Update(proxyAllocationRequestAge);
     }
 
     void ReportResourceUsage(TSchedulerInputState& input) const

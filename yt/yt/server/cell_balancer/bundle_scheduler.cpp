@@ -1882,6 +1882,34 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
+    const TSchedulerInputState& input,
+    const TSchedulerMutations& mutations)
+{
+    const auto inputStates = input.BundleStates;
+    std::vector<TString> unchangedBundleStates;
+
+    for (auto [bundleName, possiblyChangedState] : mutations.ChangedStates) {
+        auto it = inputStates.find(bundleName);
+        if (it == inputStates.end()) {
+            continue;
+        }
+
+        if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
+            unchangedBundleStates.push_back(bundleName);
+        }
+    }
+
+    auto result = mutations.ChangedStates;
+    for (const auto& unchanged : unchangedBundleStates) {
+        result.erase(unchanged);
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     input.ZoneNodes = MapZonesToInstancies(input, input.TabletNodes);
@@ -1896,6 +1924,23 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageSystemAccountLimit(input, mutations);
     ManageNodeTagFilters(input, mutations);
     ManageRpcProxyRoles(input, mutations);
+
+    mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIndexedEntries<TBundleControllerState> MergeBundleStates(
+    const TSchedulerInputState& schedulerState,
+    const TSchedulerMutations& mutations)
+{
+    TIndexedEntries<TBundleControllerState> results = schedulerState.BundleStates;
+
+    for (const auto& [bundleName, state] : mutations.ChangedStates) {
+        results[bundleName] = NYTree::CloneYsonSerializable(state);
+    }
+
+    return results;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

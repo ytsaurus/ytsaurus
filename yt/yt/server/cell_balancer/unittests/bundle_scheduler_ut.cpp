@@ -32,6 +32,15 @@ TString GetPodIdForInstance(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ApplyChangedStates(TSchedulerInputState* schedulerState, const TSchedulerMutations& mutations)
+{
+    for (const auto& [bundleName, state] : mutations.ChangedStates) {
+        schedulerState->BundleStates[bundleName] = NYTree::CloneYsonSerializable(state);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBundleInfoPtr SetBundleInfo(
     TSchedulerInputState& input,
     const TString& bundleName,
@@ -531,11 +540,12 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(mutations.ChangedStates.count("default-bundle"), 0u);
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
 
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 
     // Allocation request is removed from state only after timeout
     {
@@ -601,7 +611,8 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
@@ -613,16 +624,16 @@ TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
     auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, DefaultCellCount);
     GenerateNodeDeallocationsForBundle(input, "default-bundle", { *nodes.begin()});
 
+    EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->NodeDeallocations));
     TSchedulerMutations mutations;
-
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
 
-    auto& bundleState = mutations.ChangedStates["default-bundle"];
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
-    VerifyNodeDeallocationRequests(mutations, bundleState, 0);
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 }
 
 TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
@@ -679,7 +690,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         EXPECT_FALSE(state->HulkRequestCreated);
     }
 
-    input.BundleStates = mutations.ChangedStates;
+    ApplyChangedStates(&input, mutations);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
@@ -695,7 +706,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         SetTabletSlotsState(input, nodeName, PeerStateLeading);
     }
 
-    input.BundleStates = mutations.ChangedStates;
+    ApplyChangedStates(&input, mutations);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
@@ -707,7 +718,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
         SetTabletSlotsState(input, nodeName, TabletSlotStateEmpty);
     }
 
-    input.BundleStates = mutations.ChangedStates;
+    ApplyChangedStates(&input, mutations);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
@@ -715,6 +726,7 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     auto& bundleState = mutations.ChangedStates["default-bundle"];
     VerifyNodeDeallocationRequests(mutations, bundleState, 3);
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+
     for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
     }
@@ -738,7 +750,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
@@ -1297,7 +1309,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
@@ -1371,7 +1384,9 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
+
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
 }
 
 TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
@@ -1395,7 +1410,7 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
         EXPECT_FALSE(state->HulkRequestCreated);
     }
 
-    input.BundleStates = mutations.ChangedStates;
+    ApplyChangedStates(&input, mutations);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
@@ -1425,8 +1440,8 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
-
+    // BundleController state did not change
+    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
 

@@ -144,6 +144,10 @@ int FindNextInstanceId(
     const TString& cluster,
     const TString& instanceType);
 
+TIndexedEntries<TBundleControllerState> MergeBundleStates(
+    const TSchedulerInputState& schedulerState,
+    const TSchedulerMutations& mutations);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer
