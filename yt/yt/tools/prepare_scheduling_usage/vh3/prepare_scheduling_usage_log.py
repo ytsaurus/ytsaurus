@@ -7,6 +7,9 @@ from typing import Literal
     version="https://nirvana.yandex-team.ru/alias/operation/prepare-scheduling-usage-log/1.15",
     ya_make_folder_path="yt/yt/tools/prepare_scheduling_usage/vh3",
 )
+@vh3.decorator.update_defaults(
+    max_ram=2 * 1024 ** 3,
+)
 @vh3.decorator.resources(vh3.YaMakeResource("yt/yt/tools/prepare_scheduling_usage", name="prepare_scheduling_usage_binary"))
 @vh3.decorator.job_command_from_str(
     """bash -c 'export YT_TOKEN=${param["yt_token"]}; ${resource["prepare_scheduling_usage_binary"]} --cluster ${param["yt_cluster"]} """
