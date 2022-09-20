@@ -31,7 +31,7 @@ struct TControllerAgentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobPtr CreateSchedulerJob(
+TJobPtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
@@ -42,6 +42,15 @@ TJobPtr CreateSchedulerJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJobFactory = TCallback<TJobPtr(
+    NJobTrackerClient::TJobId jobid,
+    NJobTrackerClient::TOperationId operationId,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

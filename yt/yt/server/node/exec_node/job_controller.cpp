@@ -769,8 +769,6 @@ private:
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
             if (auto job = FindJob(jobId)) {
-                auto& schedulerJob = static_cast<TJob&>(*job);
-
                 std::optional<TString> preemptionReason;
                 if (jobToInterrupt.has_preemption_reason()) {
                     preemptionReason = jobToInterrupt.preemption_reason();
@@ -781,7 +779,7 @@ private:
                     interruptionReason = CheckedEnumCast<EInterruptReason>(jobToInterrupt.interruption_reason());
                 }
 
-                schedulerJob.Interrupt(timeout, interruptionReason, preemptionReason);
+                job->Interrupt(timeout, interruptionReason, preemptionReason);
             } else {
                 YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                     jobId);

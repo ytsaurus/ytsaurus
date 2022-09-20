@@ -12,6 +12,8 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
+#include <yt/yt/server/node/job_agent/job.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
@@ -27,6 +29,7 @@ namespace NYT::NDataNode {
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NYson;
 using namespace NClusterNode;
 using namespace NJobAgent;
 using namespace NJobTrackerClient;
@@ -164,12 +167,12 @@ public:
                         .Item("job_state").Value(job->GetState())
                         .Item("job_phase").Value(job->GetPhase())
                         .Item("job_type").Value(job->GetType())
-                        .Item("slot_index").Value(job->GetSlotIndex())
+                        .Item("slot_index").Value(-1)
                         .Item("job_tracker_address").Value(job->GetJobTrackerAddress())
                         .Item("start_time").Value(job->GetStartTime())
                         .Item("duration").Value(TInstant::Now() - job->GetStartTime())
-                        .OptionalItem("statistics", job->GetStatistics())
-                        .OptionalItem("operation_id", job->GetOperationId())
+                        .OptionalItem("statistics", TYsonString())
+                        .OptionalItem("operation_id", TOperationId{})
                         .Item("resource_usage").Value(job->GetResourceUsage())
                         .Do(std::bind(&TMasterJobBase::BuildOrchid, job, std::placeholders::_1))
                     .EndMap();
@@ -248,7 +251,6 @@ private:
 
     TMasterJobBasePtr CreateJob(
         TJobId jobId,
-        TOperationId operationId,
         const TString& jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec)
@@ -260,7 +262,6 @@ private:
 
         auto job = factory.Run(
             jobId,
-            operationId,
             jobTrackerAddress,
             resourceLimits,
             std::move(jobSpec));
@@ -405,6 +406,11 @@ private:
             YT_VERIFY(CellTagFromId(jobId) == cellTag);
 
             auto* jobStatus = request->add_jobs();
+
+            // COMPAT(pogorelov)
+            jobStatus->mutable_time_statistics();
+            ToProto(jobStatus->mutable_operation_id(), TOperationId{});
+
             FillJobStatus(jobStatus, job);
             switch (job->GetState()) {
                 case EJobState::Running:
@@ -415,11 +421,6 @@ private:
                 case EJobState::Aborted:
                 case EJobState::Failed:
                     *jobStatus->mutable_result() = job->GetResult();
-                    if (auto statistics = job->GetStatistics()) {
-                        auto statisticsString = statistics.ToString();
-                        job->ResetStatisticsLastSendTime();
-                        jobStatus->set_statistics(statisticsString);
-                    }
                     break;
 
                 default:
@@ -465,7 +466,6 @@ private:
         YT_VERIFY(std::ssize(response->Attachments()) == response->jobs_to_start_size());
         int attachmentIndex = 0;
         for (const auto& startInfo : response->jobs_to_start()) {
-            auto operationId = FromProto<TOperationId>(startInfo.operation_id());
             auto jobId = FromProto<TJobId>(startInfo.job_id());
             YT_LOG_DEBUG("Job spec received (JobId: %v, JobTrackerAddress: %v)",
                 jobId,
@@ -480,7 +480,6 @@ private:
 
             CreateJob(
                 jobId,
-                operationId,
                 jobTrackerAddress,
                 resourceLimits,
                 std::move(spec));

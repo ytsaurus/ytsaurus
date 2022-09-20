@@ -3,34 +3,28 @@
 #include "job.h"
 #include "public.h"
 
-#include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/core_dump/helpers.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TJobFactory = TCallback<TMasterJobBasePtr(
-    NJobTrackerClient::TJobId jobId,
-    NJobTrackerClient::TOperationId operationId,
-    const TString& jobTrackerAddress,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterJobBase
-    : public NJobAgent::IJob
-    , public NJobAgent::TResourceHolder
+    : public NJobAgent::TResourceHolder
+    , public TRefCounted
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), ResourcesUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
+    DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), ResourcesUpdated);
+    DEFINE_SIGNAL(void(), JobPrepared);
+    DEFINE_SIGNAL(void(), JobFinished);
 
 public:
     TMasterJobBase(
@@ -41,111 +35,33 @@ public:
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap);
     
-    void Start() override;
-    bool IsStarted() const override;
+    void Start();
 
-    NJobAgent::TResourceHolder* AsResourceHolder() override;
+    bool IsStarted() const noexcept;
 
-    void Abort(const TError& error) override;
+    TResourceHolder* AsResourceHolder() noexcept;
 
-    NJobTrackerClient::TJobId GetId() const override;
+    void Abort(const TError& error);
 
-    NJobTrackerClient::TOperationId GetOperationId() const override;
+    NJobTrackerClient::TJobId GetId() const;
 
-    NJobAgent::EJobType GetType() const override;
+    NJobAgent::EJobType GetType() const;
 
-    bool IsUrgent() const override;
+    bool IsUrgent() const;
 
-    const NJobTrackerClient::NProto::TJobSpec& GetSpec() const override;
+    const TString& GetJobTrackerAddress() const;
 
-    const TString& GetJobTrackerAddress() const override;
+    NJobAgent::EJobState GetState() const;
 
-    NJobAgent::EJobState GetState() const override;
+    NJobAgent::EJobPhase GetPhase() const;
 
-    NJobAgent::EJobPhase GetPhase() const override;
+    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
 
-    int GetSlotIndex() const override;
+    NJobTrackerClient::NProto::TJobResult GetResult() const;
 
-    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
+    void BuildOrchid(NYTree::TFluentMap /*fluent*/) const;
 
-    bool IsGpuRequested() const override;
-
-    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& /*newUsage*/) override;
-
-    bool ResourceUsageOverdrafted() const override;
-
-    NJobTrackerClient::NProto::TJobResult GetResult() const override;
-
-    void SetResult(const NJobTrackerClient::NProto::TJobResult& /*result*/) override;
-
-    double GetProgress() const override;
-
-    void SetProgress(double value) override;
-
-    i64 GetStderrSize() const override;
-
-    void SetStderrSize(i64 value) override;
-
-    void SetStderr(const TString& /*value*/) override;
-
-    void SetFailContext(const TString& /*value*/) override;
-
-    void SetProfile(const NJobAgent::TJobProfile& /*value*/) override;
-
-    void SetCoreInfos(NCoreDump::TCoreInfos /*value*/) override;
-
-    const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const override;
-
-    NYson::TYsonString GetStatistics() const override;
-
-    void SetStatistics(const NYson::TYsonString& /*statistics*/) override;
-
-    void BuildOrchid(NYTree::TFluentMap /*fluent*/) const override;
-
-    TInstant GetStartTime() const override;
-
-    NJobAgent::TTimeStatistics GetTimeStatistics() const override;
-
-    TInstant GetStatisticsLastSendTime() const override;
-
-    void ResetStatisticsLastSendTime() override;
-
-    std::vector<TChunkId> DumpInputContext() override;
-
-    std::optional<TString> GetStderr() override;
-
-    std::optional<TString> GetFailContext() override;
-
-    NApi::TPollJobShellResponse PollJobShell(
-        const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
-        const NYson::TYsonString& /*parameters*/) override;
-
-    void OnJobProxySpawned() override;
-
-    void PrepareArtifact(
-        const TString& /*artifactName*/,
-        const TString& /*pipePath*/) override;
-
-    void OnArtifactPreparationFailed(
-        const TString& /*artifactName*/,
-        const TString& /*artifactPath*/,
-        const TError& /*error*/) override;
-
-    void OnArtifactsPrepared() override;
-
-    void OnJobPrepared() override;
-
-    void HandleJobReport(NJobAgent::TNodeJobReport&&) override;
-
-    void ReportSpec() override;
-
-    void ReportStderr() override;
-
-    void ReportFailContext() override;
-
-    void ReportProfile() override;
-
-    bool GetStored() const override;
+    TInstant GetStartTime() const;
 
 protected:
     const NJobTrackerClient::TJobId JobId_;
@@ -160,9 +76,6 @@ protected:
 
     NJobAgent::EJobState JobState_ = NJobAgent::EJobState::Waiting;
     NJobAgent::EJobPhase JobPhase_ = NJobAgent::EJobPhase::Created;
-
-    double Progress_ = 0.0;
-    ui64 JobStderrSize_ = 0;
 
     TString Stderr_;
 

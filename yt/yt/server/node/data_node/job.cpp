@@ -19,8 +19,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
-
 #include <yt/yt/server/lib/hydra_common/file_changelog.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -167,7 +165,7 @@ void TMasterJobBase::Start()
     YT_VERIFY(GetPorts().empty());
 }
 
-bool TMasterJobBase::IsStarted() const
+bool TMasterJobBase::IsStarted() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -179,7 +177,7 @@ void TMasterJobBase::OnResourcesAcquired()
     Start();
 }
 
-TResourceHolder* TMasterJobBase::AsResourceHolder()
+TResourceHolder* TMasterJobBase::AsResourceHolder() noexcept
 {
     return this;
 }
@@ -210,13 +208,6 @@ TJobId TMasterJobBase::GetId() const
     return JobId_;
 }
 
-TOperationId TMasterJobBase::GetOperationId() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return {};
-}
-
 EJobType TMasterJobBase::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -228,14 +219,7 @@ bool TMasterJobBase::IsUrgent() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetSpec().urgent();
-}
-
-const TJobSpec& TMasterJobBase::GetSpec() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return JobSpec_;
+    return JobSpec_.urgent();
 }
 
 const TString& TMasterJobBase::GetJobTrackerAddress() const
@@ -259,13 +243,6 @@ EJobPhase TMasterJobBase::GetPhase() const
     return JobPhase_;
 }
 
-int TMasterJobBase::GetSlotIndex() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return -1;
-}
-
 const TNodeResources& TMasterJobBase::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -273,95 +250,11 @@ const TNodeResources& TMasterJobBase::GetResourceUsage() const
     return TResourceHolder::GetResourceUsage();
 }
 
-bool TMasterJobBase::IsGpuRequested() const
-{
-    return false;
-}
-
-void TMasterJobBase::SetResourceUsage(const TNodeResources& /*newUsage*/)
-{
-    YT_ABORT();
-}
-
-bool TMasterJobBase::ResourceUsageOverdrafted() const
-{
-    YT_ABORT();
-}
-
 TJobResult TMasterJobBase::GetResult() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return Result_;
-}
-
-void TMasterJobBase::SetResult(const TJobResult& /*result*/)
-{
-    YT_ABORT();
-}
-
-double TMasterJobBase::GetProgress() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return Progress_;
-}
-
-void TMasterJobBase::SetProgress(double value)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    Progress_ = value;
-}
-
-i64 TMasterJobBase::GetStderrSize() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return JobStderrSize_;
-}
-
-void TMasterJobBase::SetStderrSize(i64 value)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    JobStderrSize_ = value;
-}
-
-void TMasterJobBase::SetStderr(const TString& /*value*/)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::SetFailContext(const TString& /*value*/)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::SetProfile(const TJobProfile& /*value*/)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::SetCoreInfos(TCoreInfos /*value*/)
-{
-    YT_ABORT();
-}
-
-const TChunkCacheStatistics& TMasterJobBase::GetChunkCacheStatistics() const
-{
-    const static TChunkCacheStatistics EmptyChunkCacheStatistics;
-    return EmptyChunkCacheStatistics;
-}
-
-TYsonString TMasterJobBase::GetStatistics() const
-{
-    return TYsonString();
-}
-
-void TMasterJobBase::SetStatistics(const TYsonString& /*statistics*/)
-{
-    YT_ABORT();
 }
 
 void TMasterJobBase::BuildOrchid(NYTree::TFluentMap /*fluent*/) const
@@ -372,103 +265,6 @@ TInstant TMasterJobBase::GetStartTime() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return StartTime_;
-}
-
-NJobAgent::TTimeStatistics TMasterJobBase::GetTimeStatistics() const
-{
-    return NJobAgent::TTimeStatistics{};
-}
-
-TInstant TMasterJobBase::GetStatisticsLastSendTime() const
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::ResetStatisticsLastSendTime()
-{
-    YT_ABORT();
-}
-
-std::vector<TChunkId> TMasterJobBase::DumpInputContext()
-{
-    THROW_ERROR_EXCEPTION("Input context dumping is not supported");
-}
-
-std::optional<TString> TMasterJobBase::GetStderr()
-{
-    THROW_ERROR_EXCEPTION("Getting stderr is not supported");
-}
-
-std::optional<TString> TMasterJobBase::GetFailContext()
-{
-    THROW_ERROR_EXCEPTION("Getting fail context is not supported");
-}
-
-TPollJobShellResponse TMasterJobBase::PollJobShell(
-    const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
-    const TYsonString& /*parameters*/)
-{
-    THROW_ERROR_EXCEPTION("Job shell is not supported");
-}
-
-void TMasterJobBase::OnJobProxySpawned()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::PrepareArtifact(
-    const TString& /*artifactName*/,
-    const TString& /*pipePath*/)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::OnArtifactPreparationFailed(
-    const TString& /*artifactName*/,
-    const TString& /*artifactPath*/,
-    const TError& /*error*/)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::OnArtifactsPrepared()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::OnJobPrepared()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::HandleJobReport(TNodeJobReport&&)
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::ReportSpec()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::ReportStderr()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::ReportFailContext()
-{
-    YT_ABORT();
-}
-
-void TMasterJobBase::ReportProfile()
-{
-    YT_ABORT();
-}
-
-bool TMasterJobBase::GetStored() const
-{
-    return false;
 }
 
 void TMasterJobBase::GuardedRun()
@@ -500,7 +296,6 @@ void TMasterJobBase::SetCompleted()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO("Job completed");
-    Progress_ = 1.0;
     DoSetFinished(EJobState::Completed, TError());
 }
 
@@ -2501,7 +2296,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterJobBasePtr CreateMasterJob(
+TMasterJobBasePtr CreateJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
     TString jobTrackerAddress,

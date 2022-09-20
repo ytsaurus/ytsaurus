@@ -5,8 +5,11 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/public.h>
+
+#include <yt/yt/core/actions/signal.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDataNode {
 

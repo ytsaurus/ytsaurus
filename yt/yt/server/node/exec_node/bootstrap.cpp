@@ -131,7 +131,7 @@ public:
             const TControllerAgentDescriptor& agentDescriptor) ->
             TJobPtr
         {
-            return CreateSchedulerJob(
+            return CreateJob(
                 jobId,
                 operationId,
                 resourceLimits,

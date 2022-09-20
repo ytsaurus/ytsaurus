@@ -7,8 +7,6 @@
 #include <yt/yt/server/node/data_node/disk_location.h>
 #include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
-
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/core/misc/public.h>

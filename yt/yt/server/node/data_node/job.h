@@ -21,7 +21,7 @@ struct TMasterJobSensors
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterJobBasePtr CreateMasterJob(
+TMasterJobBasePtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
@@ -29,6 +29,14 @@ TMasterJobBasePtr CreateMasterJob(
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJobFactory = TCallback<TMasterJobBasePtr(
+    NJobTrackerClient::TJobId jobId,
+    const TString& jobTrackerAddress,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

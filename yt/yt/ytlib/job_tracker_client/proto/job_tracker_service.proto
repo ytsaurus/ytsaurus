@@ -18,7 +18,7 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
     repeated NYT.NProto.TGuid unconfirmed_jobs = 6;
-    required int64 confirmed_job_count = 7;
+    optional int64 confirmed_job_count = 7 [default = 0];
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;

@@ -9,7 +9,6 @@
 
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
@@ -20,6 +19,10 @@
 #include <yt/yt/server/lib/job_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
+
+#include <yt/yt/client/api/client.h>
+
+#include <yt/yt/ytlib/job_prober_client/public.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
@@ -49,13 +52,13 @@ DEFINE_ENUM(EGpuCheckType,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public NJobAgent::IJob
-    , public NJobAgent::TResourceHolder
+    : public NJobAgent::TResourceHolder
+    , public TRefCounted
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
-    DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
+    DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
+    DEFINE_SIGNAL(void(), JobPrepared);
+    DEFINE_SIGNAL(void(), JobFinished);
 
 public:
     TJob(
@@ -66,104 +69,102 @@ public:
         IBootstrap* bootstrap,
         TControllerAgentDescriptor agentDescriptor);
 
-    ~TJob() override;
+    ~TJob();
 
-    void Start() override;
-    bool IsStarted() const override;
+    void Start();
+    bool IsStarted() const;
 
-    NJobAgent::TResourceHolder* AsResourceHolder() override;
+    NJobAgent::TResourceHolder* AsResourceHolder();
 
-    void Abort(const TError& error) override;
+    void Abort(const TError& error);
 
-    void OnJobProxySpawned() override;
+    void OnJobProxySpawned();
 
     void PrepareArtifact(
         const TString& artifactName,
-        const TString& pipePath) override;
+        const TString& pipePath);
 
     void OnArtifactPreparationFailed(
         const TString& artifactName,
         const TString& artifactPath,
-        const TError& error) override;
+        const TError& error);
 
-    void OnArtifactsPrepared() override;
+    void OnArtifactsPrepared();
 
-    void OnJobPrepared() override;
+    void OnJobPrepared();
 
-    void SetResult(const NJobTrackerClient::NProto::TJobResult& jobResult) override;
+    void SetResult(const NJobTrackerClient::NProto::TJobResult& jobResult);
 
-    TJobId GetId() const override;
+    TJobId GetId() const;
 
-    TOperationId GetOperationId() const override;
+    TOperationId GetOperationId() const;
 
     const TControllerAgentDescriptor& GetControllerAgentDescriptor() const;
 
     void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentInfo);
 
-    EJobType GetType() const override;
+    EJobType GetType() const;
 
-    const NJobTrackerClient::NProto::TJobSpec& GetSpec() const override;
+    const NJobTrackerClient::NProto::TJobSpec& GetSpec() const;
 
-    bool IsUrgent() const override;
+    bool IsUrgent() const;
 
     const std::vector<int>& GetPorts() const;
 
-    EJobState GetState() const override;
+    EJobState GetState() const;
 
-    TInstant GetStartTime() const override;
+    TInstant GetStartTime() const;
 
-    NJobAgent::TTimeStatistics GetTimeStatistics() const override;
+    NJobAgent::TTimeStatistics GetTimeStatistics() const;
 
-    EJobPhase GetPhase() const override;
+    EJobPhase GetPhase() const;
 
-    int GetSlotIndex() const override;
+    int GetSlotIndex() const;
 
-    const TString& GetJobTrackerAddress() const override;
-
-    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
-    bool IsGpuRequested() const override;
+    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
+    bool IsGpuRequested() const;
 
     NJobTrackerClient::NProto::TJobResult GetResultWithoutExtension() const;
     const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& GetResultExtension() const noexcept;
-    NJobTrackerClient::NProto::TJobResult GetResult() const override;
+    NJobTrackerClient::NProto::TJobResult GetResult() const;
 
-    double GetProgress() const override;
+    double GetProgress() const;
 
-    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) override;
+    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage);
+    
+    bool ResourceUsageOverdrafted() const;
 
-    bool ResourceUsageOverdrafted() const override;
+    void SetProgress(double progress);
 
-    void SetProgress(double progress) override;
+    i64 GetStderrSize() const;
 
-    i64 GetStderrSize() const override;
+    void SetStderrSize(i64 value);
 
-    void SetStderrSize(i64 value) override;
+    void SetStderr(const TString& value);
 
-    void SetStderr(const TString& value) override;
+    void SetFailContext(const TString& value);
 
-    void SetFailContext(const TString& value) override;
+    void SetProfile(const NJobAgent::TJobProfile& value);
 
-    void SetProfile(const NJobAgent::TJobProfile& value) override;
+    void SetCoreInfos(NCoreDump::TCoreInfos value);
 
-    void SetCoreInfos(NCoreDump::TCoreInfos value) override;
+    const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const;
 
-    const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const override;
+    NYson::TYsonString GetStatistics() const;
 
-    NYson::TYsonString GetStatistics() const override;
+    TInstant GetStatisticsLastSendTime() const;
 
-    TInstant GetStatisticsLastSendTime() const override;
+    void ResetStatisticsLastSendTime();
 
-    void ResetStatisticsLastSendTime() override;
+    void SetStatistics(const NYson::TYsonString& statisticsYson);
 
-    void SetStatistics(const NYson::TYsonString& statisticsYson) override;
+    void BuildOrchid(NYTree::TFluentMap fluent) const;
 
-    void BuildOrchid(NYTree::TFluentMap fluent) const override;
+    std::vector<NChunkClient::TChunkId> DumpInputContext();
 
-    std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    std::optional<TString> GetStderr();
 
-    std::optional<TString> GetStderr() override;
-
-    std::optional<TString> GetFailContext() override;
+    std::optional<TString> GetFailContext();
 
     std::optional<NJobAgent::TJobProfile> GetProfile();
 
@@ -171,17 +172,17 @@ public:
 
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
-        const NYson::TYsonString& parameters) override;
+        const NYson::TYsonString& parameters);
 
-    void HandleJobReport(NJobAgent::TNodeJobReport&& jobReport) override;
+    void HandleJobReport(NJobAgent::TNodeJobReport&& jobReport);
 
-    void ReportSpec() override;
+    void ReportSpec();
 
-    void ReportStderr() override;
+    void ReportStderr();
 
-    void ReportFailContext() override;
+    void ReportFailContext();
 
-    void ReportProfile() override;
+    void ReportProfile();
 
     void GuardedInterrupt(
         TDuration timeout,
@@ -190,7 +191,7 @@ public:
 
     void GuardedFail();
 
-    bool GetStored() const override;
+    bool GetStored() const;
 
     void SetStored(bool value);
 
