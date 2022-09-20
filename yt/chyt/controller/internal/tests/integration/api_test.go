@@ -21,7 +21,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	env, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("create", api.RequestParams{
+	r := c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -41,15 +41,15 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 		speclet)
 
 	// Alias already exists.
-	r = c.MakeRequest("create", api.RequestParams{
+	r = c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
 	// Wrong arguments.
-	r = c.MakeRequest("create", api.RequestParams{})
+	r = c.MakePostRequest("create", api.RequestParams{})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
-	r = c.MakeRequest("create", api.RequestParams{
+	r = c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{
 			"alias": helpers.GenerateAlias(),
 			"xxx":   "yyy",
@@ -57,7 +57,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
-	r = c.MakeRequest("remove", api.RequestParams{
+	r = c.MakePostRequest("remove", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -67,7 +67,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	require.False(t, ok)
 
 	// Alias does not exist anymore.
-	r = c.MakeRequest("remove", api.RequestParams{
+	r = c.MakePostRequest("remove", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
@@ -79,7 +79,7 @@ func TestHTTPAPIExists(t *testing.T) {
 	_, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
+	r := c.MakePostRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var result any
@@ -88,12 +88,12 @@ func TestHTTPAPIExists(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[string]any{"result": false}, result)
 
-	r = c.MakeRequest("create", api.RequestParams{
+	r = c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
+	r = c.MakePostRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	err = yson.Unmarshal(r.Body, &result)
@@ -107,10 +107,10 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	env, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
+	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("set_option", api.RequestParams{
+	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_option",
@@ -130,7 +130,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("set_option", api.RequestParams{
+	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_dict/option",
@@ -152,7 +152,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("remove_option", api.RequestParams{
+	r = c.MakePostRequest("remove_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_option",
@@ -160,7 +160,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("remove_option", api.RequestParams{
+	r = c.MakePostRequest("remove_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_dict",
@@ -177,7 +177,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 		},
 		speclet)
 
-	r = c.MakeRequest("remove_option", api.RequestParams{
+	r = c.MakePostRequest("remove_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_option",
@@ -192,12 +192,12 @@ func TestHTTPAPIParseParams(t *testing.T) {
 	env, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("create", api.RequestParams{
+	r := c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("set_option", api.RequestParams{
+	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "test_dict/option",
@@ -222,7 +222,7 @@ func TestHTTPAPIParseParams(t *testing.T) {
 
 	badAliases := []string{"9alias", "ali*s", "@alias"}
 	for _, badAlias := range badAliases {
-		r = c.MakeRequest("create", api.RequestParams{
+		r = c.MakePostRequest("create", api.RequestParams{
 			Params: map[string]any{"alias": badAlias},
 		})
 		require.Equal(t, http.StatusBadRequest, r.StatusCode)
@@ -230,7 +230,7 @@ func TestHTTPAPIParseParams(t *testing.T) {
 
 	badOptions := []string{"@option", "op*tion", "very/@option"}
 	for _, badOption := range badOptions {
-		r = c.MakeRequest("set_option", api.RequestParams{
+		r = c.MakePostRequest("set_option", api.RequestParams{
 			Params: map[string]any{
 				"alias": alias,
 				"key":   badOption,
@@ -248,7 +248,7 @@ func TestHTTPAPISetPool(t *testing.T) {
 	env, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("create", api.RequestParams{
+	r := c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -274,7 +274,7 @@ func TestHTTPAPISetPool(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r = c.MakeRequest("set_option", api.RequestParams{
+	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "pool",
@@ -283,7 +283,7 @@ func TestHTTPAPISetPool(t *testing.T) {
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 
-	r = c.MakeRequest("set_option", api.RequestParams{
+	r = c.MakePostRequest("set_option", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"key":   "pool",
@@ -349,12 +349,12 @@ func TestHTTPAPIList(t *testing.T) {
 	_, c := helpers.PrepareAPI(t)
 	alias := helpers.GenerateAlias()
 
-	r := c.MakeRequest("create", api.RequestParams{
+	r := c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	r = c.MakeRequest("list", api.RequestParams{})
+	r = c.MakePostRequest("list", api.RequestParams{})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var result map[string][]string

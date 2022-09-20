@@ -18,10 +18,5 @@ type HTTPAPIConfig struct {
 	Clusters    []string
 	Token       string
 	DisableAuth bool
-}
-
-type HTTPServerConfig struct {
-	HTTPAPIConfig
-
-	Endpoint string
+	Endpoint    string
 }
