@@ -15,7 +15,7 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("period", &TThis::Period)
-        .Default(TDuration::Minutes(5));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(3);
     registrar.Parameter("tablet_action_expiration_time", &TThis::TabletActionExpirationTime)
