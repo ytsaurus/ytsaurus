@@ -13,7 +13,7 @@ namespace NYT::NQueueAgent {
 inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
 inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
-inline const NProfiling::TProfiler QueueAgentProfiler("/queue_agent");
+inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent").WithGlobal();
 
 ////////////////////////////////////////////////////////////////////////////////
 
