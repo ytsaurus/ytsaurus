@@ -49,6 +49,9 @@ struct TQueuePartitionSnapshot
 
     //! Write counters for the given partition.
     TPerformanceCounters WriteRate;
+
+    //! Meta-information specific to given queue family.
+    NYson::TYsonString Meta;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot);

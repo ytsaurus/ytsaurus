@@ -84,6 +84,7 @@ void BuildQueuePartitionYson(const TQueuePartitionSnapshotPtr& snapshot, TFluent
             .Item("commit_idle_time").Value(snapshot->CommitIdleTime)
             .Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1))
             .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
+            .Item("meta").Value(snapshot->Meta)
         .EndMap();
 }
 
