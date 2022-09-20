@@ -7,6 +7,7 @@
 #include "profile_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -153,6 +154,7 @@ private:
         QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
         auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         const auto& tableMountCache = client->GetTableMountCache();
+        const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
 
         // Fetch partition count (which is equal to tablet count).
 
@@ -185,6 +187,21 @@ private:
                     << TErrorAttribute("state", tabletInfo->State);
             } else {
                 tabletIndexes.push_back(index);
+                const auto& cellId = tabletInfo->CellId;
+                std::optional<TString> host;
+                if (const auto& cellDescriptor = cellDirectory->FindDescriptor(cellId)) {
+                    for (const auto& peer : cellDescriptor->Peers) {
+                        if (peer.GetVoting()) {
+                            host = peer.GetDefaultAddress();
+                            break;
+                        }
+                    }
+                }
+                partitionSnapshots[index]->Meta = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("cell_id").Value(cellId)
+                        .Item("host").Value(host)
+                    .EndMap();
             }
         }
 
