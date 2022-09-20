@@ -231,7 +231,9 @@ private:
             partitionSnapshot->WriteRate.RowCount.Update(tabletInfo.TotalRowCount);
         }
 
-        CollectCumulativeDataWeights();
+        if (QueueSnapshot_->HasCumulativeDataWeightColumn) {
+            CollectCumulativeDataWeights();
+        }
 
         for (int index = 0; index < std::ssize(tabletInfos); ++index) {
             const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];
