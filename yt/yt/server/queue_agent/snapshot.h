@@ -62,6 +62,7 @@ DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot);
 struct TConsumerSnapshot
     : public TRefCounted
 {
+    // This field is always set.
     TConsumerTableRow Row;
 
     TError Error;

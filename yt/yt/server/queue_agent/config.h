@@ -100,6 +100,9 @@ public:
     //! trimming and the maximum age of cached Orchid state.
     TDuration PassPeriod;
 
+    //! Flag for disabling automatic trimming entirely.
+    bool EnableAutomaticTrimming;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig)
 
     static void Register(TRegistrar registrar);

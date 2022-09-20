@@ -227,10 +227,19 @@ class TestQueueAgentBase(YTEnvSetup):
             "dynamic": True,
             "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
             "target_queue": target_queue,
+            "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
         create("table", path, attributes=attributes)
         sync_mount_table(path)
+
+    def _advance_bigrt_consumer(self, path, tablet_index, next_row_index):
+        # Keep in mind that in BigRT offset points to the last read row rather than first unread row.
+        # Initial status is represented as a missing row.
+        if next_row_index == 0:
+            delete_rows(path, [{"ShardId": tablet_index}])
+        else:
+            insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
 
 
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
@@ -455,9 +464,14 @@ class TestQueueController(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+            },
         },
         "cypress_synchronizer": {
             "poll_period": 100,
+            "policy": "watching",
+            "clusters": ["primary"],
         },
     }
 
@@ -466,24 +480,15 @@ class TestQueueController(TestQueueAgentBase):
         dt = datetime.datetime.fromtimestamp(unix_ts, tz=pytz.UTC)
         return dt.isoformat().replace("+00:00", ".000000Z")
 
-    def _advance_bigrt_consumer(self, path, tablet_index, next_row_index):
-        # Keep in mind that in BigRT offset points to the last read row rather than first unread row.
-        # Initial status is represented as a missing row.
-        if next_row_index == 0:
-            delete_rows(path, [{"ShardId": tablet_index}])
-        else:
-            insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
-
     @authors("max42")
     def test_queue_status(self):
         orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
         self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
 
-        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
-        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
-
+        cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
         orchid.wait_fresh_queue_pass("primary://tmp/q")
 
@@ -524,13 +529,12 @@ class TestQueueController(TestQueueAgentBase):
     @authors("max42")
     def test_consumer_status(self):
         orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
         self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
 
-        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
-        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
-
+        cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
 
         insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
@@ -579,13 +583,12 @@ class TestQueueController(TestQueueAgentBase):
     @authors("max42")
     def test_consumer_partition_disposition(self):
         orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
         self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
 
-        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
-        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
-
+        cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
 
         insert_rows("//tmp/q", [{"data": "foo"}] * 3)
@@ -603,21 +606,20 @@ class TestQueueController(TestQueueAgentBase):
     @authors("max42")
     def test_inconsistent_partitions_in_consumer_table(self):
         orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
         self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
 
-        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
-        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
-
+        cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
 
         insert_rows("//tmp/q", [{"data": "foo"}] * 2)
         orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         self._advance_bigrt_consumer("//tmp/c", 1, 1)
-        self._advance_bigrt_consumer("//tmp/c", 2**63 - 1, 1)
-        self._advance_bigrt_consumer("//tmp/c", 2**64 - 1, 1)
+        self._advance_bigrt_consumer("//tmp/c", 2 ** 63 - 1, 1)
+        self._advance_bigrt_consumer("//tmp/c", 2 ** 64 - 1, 1)
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
 
@@ -711,6 +713,257 @@ class TestQueueController(TestQueueAgentBase):
         status, partitions = orchid.get_consumer("primary://tmp/c")
         assert abs(status["read_row_count_rate"]["1m"] - 3 * partitions[1]["read_row_count_rate"]["1m"]) < eps
         assert abs(status["read_data_weight_rate"]["1m"] - 3 * partitions[1]["read_data_weight_rate"]["1m"]) < eps
+
+
+class TestAutomaticTrimming(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+                "enable_automatic_trimming": True,
+            },
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            "policy": "watching",
+            "clusters": ["primary"],
+        },
+    }
+
+    @staticmethod
+    def _wait_for_row_count(path, tablet_index, count):
+        wait(lambda: len(select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")) == count)
+
+    @authors("achulkov2")
+    def test_basic(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
+
+        set("//tmp/c1/@vital_queue_consumer", True)
+        # c2 is not vital.
+        set("//tmp/c3/@vital_queue_consumer", True)
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "bar"}] * 7)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        self._advance_bigrt_consumer("//tmp/c1", 0, 3)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 5)
+        # Vital consumer c3 was not advanced, so nothing should be trimmed.
+
+        self._advance_bigrt_consumer("//tmp/c1", 1, 3)
+        self._advance_bigrt_consumer("//tmp/c2", 1, 1)
+        self._advance_bigrt_consumer("//tmp/c3", 1, 2)
+        # Consumer c2 is non-vital, only c1 and c3 should be considered.
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        self._wait_for_row_count("//tmp/q", 1, 5)
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        # Consumer c3 is the farthest behind.
+        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_row_count("//tmp/q", 0, 3)
+
+        # Now c1 is the farthest behind.
+        self._advance_bigrt_consumer("//tmp/c3", 0, 4)
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_row_count("//tmp/q", 0, 2)
+
+        # Both vital consumers are at the same offset.
+        self._advance_bigrt_consumer("//tmp/c1", 1, 6)
+        self._advance_bigrt_consumer("//tmp/c3", 1, 6)
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_row_count("//tmp/q", 1, 1)
+        # Nothing should have changed here.
+        self._wait_for_row_count("//tmp/q", 0, 2)
+
+    @authors("achulkov2")
+    def test_vitality_changes(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
+
+        set("//tmp/c1/@vital_queue_consumer", True)
+        # c2 is not vital.
+        set("//tmp/c3/@vital_queue_consumer", True)
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        # Only c1 and c3 are vital, so we should trim up to row 1.
+        self._advance_bigrt_consumer("//tmp/c1", 0, 1)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 3)
+        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+
+        self._wait_for_row_count("//tmp/q", 0, 6)
+
+        # Now we should only consider c3 and trim more rows.
+        set("//tmp/c1/@vital_queue_consumer", False)
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        # Now c2 and c3 are vital. Nothing should be trimmed though.
+        set("//tmp/c2/@vital_queue_consumer", True)
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        time.sleep(1)
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        # Now only c2 is vital, so we should trim more rows.
+        set("//tmp/c3/@vital_queue_consumer", False)
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        self._wait_for_row_count("//tmp/q", 0, 4)
+
+    @authors("achulkov2")
+    def test_erroneous_vital_consumer(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
+
+        set("//tmp/c1/@vital_queue_consumer", True)
+        # c2 is not vital.
+        set("//tmp/c3/@vital_queue_consumer", True)
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        # Consumer c3 is vital, so nothing should be trimmed.
+        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 1)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        time.sleep(1)
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        # This should set an error in c1.
+        sync_unmount_table("//tmp/c1")
+
+        # Consumers c1 and c3 are vital, but c1 is in an erroneous state, so nothing should be trimmed.
+        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        time.sleep(1)
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        # Now c1 should be back and the first 2 rows should be trimmed.
+        sync_mount_table("//tmp/c1")
+
+        self._wait_for_row_count("//tmp/q", 0, 3)
+
+    @authors("achulkov2")
+    def test_erroneous_partition(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
+        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
+
+        set("//tmp/c1/@vital_queue_consumer", True)
+        # c2 is not vital.
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "bar"}] * 7)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        sync_unmount_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
+
+        # Nothing should be trimmed from the first partition, since it is unmounted.
+        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 1)
+
+        # Yet the second partition should be trimmed based on c1.
+        self._advance_bigrt_consumer("//tmp/c1", 1, 3)
+        self._advance_bigrt_consumer("//tmp/c2", 1, 2)
+
+        self._wait_for_row_count("//tmp/q", 1, 4)
+
+        sync_mount_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
+        # Now the first partition should be trimmed based on c1 as well.
+
+        self._wait_for_row_count("//tmp/q", 0, 3)
+
+    @authors("achulkov2")
+    def test_erroneous_queue(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q1")
+        self._create_queue("//tmp/q2")
+        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q1")
+        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q2")
+
+        set("//tmp/c1/@vital_queue_consumer", True)
+        set("//tmp/c2/@vital_queue_consumer", True)
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q1", [{"data": "foo"}] * 5)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q1")
+
+        insert_rows("//tmp/q2", [{"data": "bar"}] * 7)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q2")
+
+        # Both queues should be trimmed since their sole consumers are vital.
+        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 3)
+
+        self._wait_for_row_count("//tmp/q1", 0, 3)
+        self._wait_for_row_count("//tmp/q2", 0, 4)
+
+        sync_unmount_table("//tmp/q2")
+
+        self._advance_bigrt_consumer("//tmp/c1", 0, 3)
+        self._advance_bigrt_consumer("//tmp/c2", 0, 4)
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q1")
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q2")
+
+        self._wait_for_row_count("//tmp/q1", 0, 2)
+        # The second queue should not be trimmed yet.
+
+        sync_mount_table("//tmp/q2")
+
+        self._wait_for_row_count("//tmp/q2", 0, 3)
 
 
 class TestMultipleAgents(TestQueueAgentBase):

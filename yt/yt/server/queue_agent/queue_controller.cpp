@@ -689,6 +689,10 @@ private:
         YT_LOG_INFO("Controller snapshots updated");
 
         ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
+
+        if (DynamicConfig_->EnableAutomaticTrimming) {
+            Trim();
+        }
     }
 
     //! Builds new queue/consumer snapshots.
@@ -743,6 +747,142 @@ private:
         YT_LOG_INFO("Controller snapshot built");
 
         return nextQueueSnapshot;
+    }
+
+    //! Only EAutoTrimPolicy::VitalConsumers is supported right now.
+    //!
+    //! Trimming is only performed if the queue has at least one vital consumer.
+    //! The queue is trimmed up to the smallest NextRowIndex over all vital consumers.
+    void Trim()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        try {
+            GuardedTrim();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error while trimming queue %v", QueueRef_);
+        }
+    }
+
+    void GuardedTrim()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        YT_LOG_DEBUG("Performing trimming iteration");
+
+        // Guard against context switches, just to be on the safe side.
+        auto queueSnapshot = GetLatestSnapshot();
+
+        if (!queueSnapshot->Error.IsOK()) {
+            THROW_ERROR_EXCEPTION(
+                "Trimming iteration skipped due to queue error")
+                << queueSnapshot->Error;
+        }
+
+        bool hasVitalConsumers = false;
+
+        for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
+            if (!consumerSnapshot->Error.IsOK()) {
+                // We cannot trim anything safely without knowing whether this consumer is vital.
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to erroneous consumer %Qv",
+                    consumerSnapshot->Row.Consumer)
+                        << consumerSnapshot->Error;
+            } else if (consumerSnapshot->Vital) {
+                hasVitalConsumers = true;
+            }
+        }
+
+        if (!hasVitalConsumers) {
+            // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
+            YT_LOG_DEBUG(
+                "Attempted trimming iteration on queue with no vital consumers",
+                queueSnapshot->Row.Queue);
+            return;
+        }
+
+        // NB: At this point the queue and all consumers are non-erroneous.
+
+        // We will be collecting partitions for which no error is set in the queue snapshot, nor in any of the consumer snapshots.
+        THashSet<int> partitionsToTrim;
+        for (int partitionIndex = 0; partitionIndex < queueSnapshot->PartitionCount; ++partitionIndex) {
+            const auto& partitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
+
+            TError partitionError;
+
+            if (!partitionSnapshot->Error.IsOK()) {
+                partitionError = partitionSnapshot->Error;
+            } else {
+                for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
+                    const auto& consumerPartitionSnapshot = consumerSnapshot->PartitionSnapshots[partitionIndex];
+                    if (!consumerPartitionSnapshot->Error.IsOK()) {
+                        partitionError = consumerPartitionSnapshot->Error;
+                        break;
+                    }
+                }
+            }
+
+            if (partitionError.IsOK()) {
+                partitionsToTrim.insert(partitionIndex);
+            } else {
+                YT_LOG_DEBUG(
+                    partitionError,
+                    "Not trimming partition %v due to partition error",
+                    partitionIndex);
+            }
+        }
+
+        THashMap<int, i64> updatedTrimmedRowCounts;
+
+        for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
+            if (consumerSnapshot->Vital) {
+                for (const auto& partitionIndex : partitionsToTrim) {
+                    const auto& partitionSnapshot = consumerSnapshot->PartitionSnapshots[partitionIndex];
+
+                    // NextRowIndex should always be present in the snapshot.
+                    YT_LOG_DEBUG(
+                        "Updating trimmed row count (Partition: %v, NextRowIndex: %v, Consumer: %v)",
+                        partitionIndex,
+                        partitionSnapshot->NextRowIndex,
+                        consumerSnapshot->Row.Consumer);
+                    auto it = updatedTrimmedRowCounts.find(partitionIndex);
+                    if (it != updatedTrimmedRowCounts.end()) {
+                        it->second = std::min(it->second, partitionSnapshot->NextRowIndex);
+                    } else {
+                        updatedTrimmedRowCounts[partitionIndex] = partitionSnapshot->NextRowIndex;
+                    }
+                }
+            }
+        }
+        
+        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
+
+        std::vector<TFuture<void>> asyncTrims;
+        asyncTrims.reserve(updatedTrimmedRowCounts.size());
+        std::vector<int> trimmedPartitions;
+        trimmedPartitions.reserve(updatedTrimmedRowCounts.size());
+        for (const auto& [partitionIndex, updatedTrimmedRowCount] : updatedTrimmedRowCounts) {
+            auto currentTrimmedRowCount = queueSnapshot->PartitionSnapshots[partitionIndex]->LowerRowIndex;
+
+            if (updatedTrimmedRowCount > currentTrimmedRowCount) {
+                YT_LOG_DEBUG(
+                    "Trimming partition (Partition: %v, TrimmedRowCount: %v -> %v)",
+                    partitionIndex,
+                    currentTrimmedRowCount,
+                    updatedTrimmedRowCount);
+                asyncTrims.push_back(client->TrimTable(QueueRef_.Path, partitionIndex, updatedTrimmedRowCount));
+                trimmedPartitions.push_back(partitionIndex);
+            }
+        }
+
+        auto trimmingResults = WaitFor(AllSet(asyncTrims))
+            .ValueOrThrow();
+        for (int trimmedPartitionIndex = 0; trimmedPartitionIndex < std::ssize(trimmingResults); ++trimmedPartitionIndex) {
+            const auto& trimmingResult = trimmingResults[trimmedPartitionIndex];
+            if (!trimmingResult.IsOK()) {
+                YT_LOG_DEBUG(trimmingResult, "Error trimming partition %v", trimmedPartitions[trimmedPartitionIndex]);
+            }
+        }
     }
 };
 
