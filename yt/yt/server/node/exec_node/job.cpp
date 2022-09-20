@@ -676,12 +676,6 @@ int TJob::GetSlotIndex() const
     return Slot_->GetSlotIndex();
 }
 
-const TString& TJob::GetJobTrackerAddress() const
-{
-    const static TString EmptyJobTrackerAddress;
-    return EmptyJobTrackerAddress;
-}
-
 const TNodeResources& TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -2900,7 +2894,7 @@ TFuture<TSharedRef> TJob::DumpSensors()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobPtr CreateSchedulerJob(
+TJobPtr CreateJob(
     TJobId jobId,
     TOperationId operationId,
     const TNodeResources& resourceUsage,
@@ -2919,11 +2913,19 @@ TJobPtr CreateSchedulerJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob)
+void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& job)
 {
-    FillJobStatus(jobStatus, schedulerJob);
-    jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
-    jobStatus->set_interruption_reason(static_cast<int>(schedulerJob->GetInterruptionReason()));
+    FillJobStatus(jobStatus, job);
+    jobStatus->set_phase(static_cast<int>(job->GetPhase()));
+    jobStatus->set_job_execution_completed(job->IsJobProxyCompleted());
+    ToProto(jobStatus->mutable_operation_id(), job->GetOperationId());
+    ToProto(jobStatus->mutable_time_statistics(), job->GetTimeStatistics());
+    jobStatus->set_progress(job->GetProgress());
+    auto stderrSize = job->GetStderrSize();
+    if (stderrSize > 0) {
+        jobStatus->set_stderr_size(stderrSize);
+    }
+    jobStatus->set_interruption_reason(static_cast<int>(job->GetInterruptionReason()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

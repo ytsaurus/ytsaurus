@@ -7,11 +7,11 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
-
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NExecNode {
 

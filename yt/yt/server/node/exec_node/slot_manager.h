@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
-
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/actions/public.h>

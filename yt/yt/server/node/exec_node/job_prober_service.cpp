@@ -154,17 +154,15 @@ private:
 
         context->SetRequestInfo("JobId: %v, InterruptionTimeout: %v",
             jobId, timeout);
-
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-
+        
         if (NObjectClient::TypeFromId(jobId) != NCypressClient::EObjectType::SchedulerJob) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v because it is not a scheduler job",
                 jobId);
         }
 
-        auto& schedulerJob = static_cast<TJob&>(*job);
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
 
-        if (!schedulerJob.IsInterruptible()) {
+        if (!job->IsInterruptible()) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
                 "because it does not support interruption or \"interruption_signal\" is not set",
                 jobId,
@@ -176,7 +174,7 @@ private:
             interruptionReason = CheckedEnumCast<EInterruptReason>(request->interruption_reason());
         }
 
-        schedulerJob.Interrupt(timeout, interruptionReason, /*preemptionReason*/ {});
+        job->Interrupt(timeout, interruptionReason, /*preemptionReason*/ {});
 
         context->Reply();
     }

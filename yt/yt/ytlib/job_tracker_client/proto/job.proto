@@ -48,7 +48,7 @@ message TTimeStatistics
 message TJobStatus
 {
     required NYT.NProto.TGuid job_id = 1;
-    required NYT.NProto.TGuid operation_id = 2;
+    optional NYT.NProto.TGuid operation_id = 2;
     optional int32 job_type = 3;
     optional int32 state = 4;
     optional int32 phase = 5;
@@ -60,7 +60,7 @@ message TJobStatus
 
     optional int32 interruption_reason = 18;
 
-    required TTimeStatistics time_statistics = 15;
+    optional TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
     optional bool job_execution_completed = 17 [default = false];
 }

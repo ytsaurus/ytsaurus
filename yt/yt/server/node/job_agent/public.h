@@ -21,8 +21,6 @@ using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
-DECLARE_REFCOUNTED_STRUCT(IJob)
-
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 
 class TResourceHolder;
