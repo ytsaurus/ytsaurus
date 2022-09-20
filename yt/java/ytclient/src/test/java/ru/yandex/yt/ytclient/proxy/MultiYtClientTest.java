@@ -14,6 +14,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -194,8 +195,8 @@ public class MultiYtClientTest {
                         List.of(
                                 new TabletInfo(1, 1, 1,
                                         List.of(
-                                                new TabletInfoReplica(replicaIdHahn, now.getValue()),
-                                                new TabletInfoReplica(replicaIdFreud, 100) // very old ts
+                                                new TabletInfoReplica(replicaIdHahn, now.getValue(), ETableReplicaMode.TRM_SYNC),
+                                                new TabletInfoReplica(replicaIdFreud, 100, ETableReplicaMode.TRM_ASYNC) // very old ts
                                         )
                                 )
                         ))

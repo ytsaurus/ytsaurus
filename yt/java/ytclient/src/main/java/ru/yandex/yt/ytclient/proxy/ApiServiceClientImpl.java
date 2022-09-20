@@ -676,8 +676,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                 .stream()
                                 .map(x -> {
                                     List<TabletInfoReplica> replicas = x.getReplicasList().stream()
-                                            .map(o -> new TabletInfoReplica(RpcUtil.fromProto(o.getReplicaId()),
-                                                    o.getLastReplicationTimestamp()))
+                                            .map(o -> new TabletInfoReplica(
+                                                    RpcUtil.fromProto(o.getReplicaId()),
+                                                    o.getLastReplicationTimestamp(),
+                                                    ETableReplicaMode.forNumber(o.getMode()))
+                                            )
                                             .collect(Collectors.toList());
                                     return new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount(),
                                             x.getLastWriteTimestamp(), replicas);
