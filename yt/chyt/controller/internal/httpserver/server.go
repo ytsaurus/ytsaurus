@@ -1,14 +1,10 @@
-package api
+package httpserver
 
 import (
 	"context"
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/go-chi/chi/v5"
-
-	"a.yandex-team.ru/library/go/core/log"
 )
 
 type HTTPServer struct {
@@ -20,11 +16,9 @@ type HTTPServer struct {
 	realAddress string
 }
 
-func NewHTTPServer(c HTTPServerConfig, l log.Logger) *HTTPServer {
-	r := chi.NewRouter()
-	RegisterHTTPAPI(r, c.HTTPAPIConfig, l)
+func New(endpoint string, handler http.Handler) *HTTPServer {
 	return &HTTPServer{
-		Server: http.Server{Addr: c.Endpoint, Handler: r},
+		Server: http.Server{Addr: endpoint, Handler: handler},
 		ready:  make(chan struct{}),
 	}
 }

@@ -5,10 +5,14 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/chyt/controller/internal/agent"
 	"a.yandex-team.ru/yt/chyt/controller/internal/api"
+	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
+	"a.yandex-team.ru/yt/chyt/controller/internal/monitoring"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
@@ -39,8 +43,9 @@ type Config struct {
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
 
-	HTTPAPIEndpoint string   `yson:"http_api_endpoint"`
-	BaseACL         []yt.ACE `yson:"base_acl"`
+	HTTPAPIEndpoint        string   `yson:"http_api_endpoint"`
+	HTTPMonitoringEndpoint string   `yson:"http_monitoring_endpoint"`
+	BaseACL                []yt.ACE `yson:"base_acl"`
 }
 
 // Location defines an operating cluster.
@@ -64,7 +69,10 @@ type App struct {
 
 	locations []*Location
 
-	HTTPAPIServer *api.HTTPServer
+	HTTPAPIServer        *httpserver.HTTPServer
+	HTTPMonitoringServer *httpserver.HTTPServer
+
+	isLeader *atomic.Bool
 }
 
 func (app App) acquireLock() (lost <-chan struct{}, err error) {
@@ -113,6 +121,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 	app.locations = make([]*Location, 0)
 
+	healthers := make(map[string]monitoring.Healther)
 	for _, proxy := range config.LocationProxies {
 		l.Debug("initializing location", log.String("location_proxy", proxy))
 		var err error
@@ -132,25 +141,31 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 		loc.c = cf(withName(loc.l, "c"), loc.ytc, config.Strawberry.Root, proxy, config.Controller)
 		loc.a = agent.NewAgent(proxy, loc.ytc, withName(loc.l, "a"), loc.c, config.Strawberry)
+		healthers[proxy] = loc.a
 
 		app.locations = append(app.locations, loc)
 		l.Debug("location ready")
 	}
 
-	var apiConfig = api.HTTPServerConfig{
-		HTTPAPIConfig: api.HTTPAPIConfig{
-			APIConfig: api.APIConfig{
-				Stage:   config.Strawberry.Stage,
-				Family:  app.locations[0].c.Family(),
-				Root:    config.Strawberry.Root,
-				BaseACL: config.BaseACL,
-			},
-			Token:    config.Token,
-			Clusters: config.LocationProxies,
+	var apiConfig = api.HTTPAPIConfig{
+		APIConfig: api.APIConfig{
+			Stage:  config.Strawberry.Stage,
+			Family: app.locations[0].c.Family(),
+			Root:   config.Strawberry.Root,
 		},
+		Token:    config.Token,
+		Clusters: config.LocationProxies,
 		Endpoint: config.HTTPAPIEndpoint,
 	}
-	app.HTTPAPIServer = api.NewHTTPServer(apiConfig, newLogger("api", options.LogToStderr))
+	app.HTTPAPIServer = api.NewServer(apiConfig, l)
+
+	var monitoringConfig = monitoring.HTTPMonitoringConfig{
+		Clusters: config.LocationProxies,
+		Endpoint: config.HTTPMonitoringEndpoint,
+	}
+	app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)
+
+	app.isLeader = atomic.NewBool(false)
 
 	l.Info("app is ready to serve locations", log.Strings("location_proxies", config.LocationProxies))
 
@@ -160,6 +175,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 // Run starts the infinite loop consisting of lock acquisition and agent operation.
 func (app App) Run() {
 	go app.HTTPAPIServer.Run()
+	go app.HTTPMonitoringServer.Run()
 	for {
 		app.l.Debug("trying to acquire lock")
 		lost, err := app.acquireLock()
@@ -169,6 +185,7 @@ func (app App) Run() {
 			continue
 		}
 		app.l.Info("lock acquired")
+		app.isLeader.Store(true)
 
 		for _, loc := range app.locations {
 			loc.a.Start()
@@ -176,9 +193,14 @@ func (app App) Run() {
 
 		<-lost
 		app.l.Info("lock lost")
+		app.isLeader.Store(false)
 
 		for _, loc := range app.locations {
 			loc.a.Stop()
 		}
 	}
+}
+
+func (app *App) IsLeader() bool {
+	return app.isLeader.Load()
 }

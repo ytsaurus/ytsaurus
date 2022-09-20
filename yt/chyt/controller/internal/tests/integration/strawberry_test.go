@@ -10,75 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/chyt/controller/internal/agent"
-	"a.yandex-team.ru/yt/chyt/controller/internal/sleep"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
-
-func abortAll(t *testing.T, env *yttest.Env) {
-	// TODO(max42): introduce some unique annotation and abort only such operations. This would allow
-	// running this testsuite on real cluster.
-	ops, err := yt.ListAllOperations(env.Ctx, env.YT, &yt.ListOperationsOptions{State: &yt.StateRunning})
-	require.NoError(t, err)
-	for _, op := range ops {
-		err := env.YT.AbortOperation(env.Ctx, op.ID, &yt.AbortOperationOptions{})
-		require.NoError(t, err)
-	}
-}
-
-func createAgent(env *yttest.Env, stage string) *agent.Agent {
-	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
-
-	config := &agent.Config{
-		Root:                  helpers.StrawberryRoot,
-		PassPeriod:            yson.Duration(time.Millisecond * 500),
-		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
-		Stage:                 stage,
-	}
-
-	agent := agent.NewAgent(
-		"test",
-		env.YT,
-		l,
-		sleep.NewController(l.WithName("strawberry"),
-			env.YT,
-			helpers.StrawberryRoot,
-			"test",
-			nil),
-		config)
-
-	return agent
-}
-
-func prepare(t *testing.T) (*yttest.Env, *agent.Agent) {
-	env, cancel := yttest.NewEnv(t)
-	t.Cleanup(cancel)
-
-	err := env.YT.RemoveNode(env.Ctx, helpers.StrawberryRoot, &yt.RemoveNodeOptions{Force: true, Recursive: true})
-	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, helpers.StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
-	require.NoError(t, err)
-
-	nsPath := strawberry.AccessControlNamespacesPath.Child("sleep")
-	err = env.YT.RemoveNode(env.Ctx, nsPath, &yt.RemoveNodeOptions{Force: true, Recursive: true})
-	require.NoError(t, err)
-	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
-		Attributes: map[string]any{
-			"name": "sleep",
-		},
-	})
-	require.NoError(t, err)
-
-	abortAll(t, env)
-
-	agent := createAgent(env, "default")
-
-	return env, agent
-}
 
 func createStrawberryOp(t *testing.T, env *yttest.Env, alias string) {
 	env.L.Debug("creating node", log.String("alias", alias))
@@ -305,7 +242,7 @@ func waitIncarnation(t *testing.T, env *yttest.Env, alias string, expected int64
 }
 
 func TestOperationBeforeStart(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	t.Cleanup(agent.Stop)
 
 	createStrawberryOp(t, env, "test1")
@@ -316,7 +253,7 @@ func TestOperationBeforeStart(t *testing.T) {
 }
 
 func TestOperationAfterStart(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
@@ -329,7 +266,7 @@ func TestOperationAfterStart(t *testing.T) {
 }
 
 func TestAbortDangling(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
@@ -346,7 +283,7 @@ func TestAbortDangling(t *testing.T) {
 }
 
 func TestReincarnations(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
@@ -368,11 +305,11 @@ func TestReincarnations(t *testing.T) {
 }
 
 func TestControllerStage(t *testing.T) {
-	env, defaultAgent := prepare(t)
+	env, defaultAgent := helpers.PrepareAgent(t)
 	defaultAgent.Start()
 	defer defaultAgent.Stop()
 
-	anotherAgent := createAgent(env, "another")
+	anotherAgent := helpers.CreateAgent(env, "another")
 	anotherAgent.Start()
 	defer anotherAgent.Stop()
 
@@ -410,7 +347,7 @@ func TestControllerStage(t *testing.T) {
 }
 
 func TestACLUpdate(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	agent.Start()
 	defer agent.Stop()
 
@@ -453,7 +390,7 @@ func TestACLUpdate(t *testing.T) {
 }
 
 func TestForceRestart(t *testing.T) {
-	env, agent := prepare(t)
+	env, agent := helpers.PrepareAgent(t)
 	agent.Start()
 	defer agent.Stop()
 

@@ -8,6 +8,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/yandex/blackbox"
 	"a.yandex-team.ru/library/go/yandex/blackbox/httpbb"
+	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/internal/go/ythttputil"
@@ -181,7 +182,7 @@ func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, struct{}{})
 }
 
-func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
+func RegisterHTTPAPI(c HTTPAPIConfig, l log.Logger) chi.Router {
 	var bb blackbox.Client
 
 	if !c.DisableAuth {
@@ -194,6 +195,7 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 		}
 	}
 
+	r := chi.NewRouter()
 	r.Get("/ping", HandlePing)
 	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
 		HandleDescribe(w, r, c.Clusters)
@@ -222,4 +224,10 @@ func RegisterHTTPAPI(r chi.Router, c HTTPAPIConfig, l log.Logger) {
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 		})
 	}
+	return r
+}
+
+func NewServer(c HTTPAPIConfig, l log.Logger) *httpserver.HTTPServer {
+	handler := RegisterHTTPAPI(c, l)
+	return httpserver.New(c.Endpoint, handler)
 }

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -32,6 +34,7 @@ type Agent struct {
 	cancelCtx context.CancelFunc
 
 	backgroundStopCh chan struct{}
+	isHealthy        *atomic.Bool
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
@@ -48,6 +51,7 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		hostname:         hostname,
 		proxy:            proxy,
 		backgroundStopCh: make(chan struct{}),
+		isHealthy:        atomic.NewBool(false),
 	}
 }
 
@@ -167,7 +171,7 @@ func (a *Agent) pass() {
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 
 	if err := a.updateACLs(); err != nil {
-		// TODO(dakovalkov): report controller unavailable.
+		a.isHealthy.Store(false)
 		return
 	}
 
@@ -182,7 +186,7 @@ func (a *Agent) pass() {
 	// and filtering those which are not listed in our idToOp.
 
 	if err := a.abortDangling(); err != nil {
-		// TODO(dakovalkov): report controller unavailable.
+		a.isHealthy.Store(false)
 		return
 	}
 
@@ -194,6 +198,7 @@ func (a *Agent) pass() {
 	}
 
 	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
+	a.isHealthy.Store(true)
 }
 
 func (a *Agent) background(period time.Duration) {
@@ -320,4 +325,8 @@ func (a *Agent) Stop() {
 // which allows to mark and effectively filter its operations.
 func (a *Agent) OperationNamespace() string {
 	return a.controller.Family() + ":" + a.config.Stage
+}
+
+func (a *Agent) IsHealthy() bool {
+	return a.isHealthy.Load()
 }
