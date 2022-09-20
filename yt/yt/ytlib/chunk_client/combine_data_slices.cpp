@@ -68,6 +68,7 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
     };
 
     std::vector<NYPath::TRichYPath> paths;
+    paths.reserve(slicesByTable.size());
 
     YT_VERIFY(dataSourceDirectory->DataSources().size() == slicesByTable.size());
 
@@ -110,17 +111,16 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
             firstSlice = lastSlice;
         }
 
-        // TODO(galtsev): do not check that the ranges is empty; see also https://a.yandex-team.ru/review/2538526/files/2#comment-3497405
-        if (!ranges.empty()) {
-            auto& path = paths.emplace_back();
-            path.SetRanges(ranges);
-            if (dataSource.GetForeign()) {
-                path.SetForeign(true);
-            }
-            YT_VERIFY(dataSource.GetPath());
-            path.SetPath(*dataSource.GetPath());
+        auto& path = paths.emplace_back();
+        path.SetRanges(ranges);
+        if (dataSource.GetForeign()) {
+            path.SetForeign(true);
         }
+        YT_VERIFY(dataSource.GetPath());
+        path.SetPath(*dataSource.GetPath());
     }
+
+    YT_VERIFY(paths.size() == slicesByTable.size());
 
     return paths;
 }
