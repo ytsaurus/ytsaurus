@@ -3,6 +3,9 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
@@ -21,19 +24,19 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
+class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     private static final Parser<TRspReadTableMeta> META_PARSER = TRspReadTableMeta.parser();
 
-    @Nullable private TableAttachmentReader<T> reader;
+    @Nullable protected TableAttachmentReader<T> reader;
     // Need for creating TableAttachmentReader later
     @Nullable private final Class<T> objectClazz;
-    private TRspReadTableMeta metadata = null;
+    protected TRspReadTableMeta metadata = null;
 
-    TableReaderImpl(Class<T> objectClazz) {
+    TableReaderBaseImpl(Class<T> objectClazz) {
         this.objectClazz = objectClazz;
     }
 
-    TableReaderImpl(TableAttachmentReader<T> reader) {
+    TableReaderBaseImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
         this.objectClazz = null;
     }
@@ -41,6 +44,47 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
     @Override
     protected Parser<TRspReadTable> responseParser() {
         return TRspReadTable.parser();
+    }
+
+    public CompletableFuture<TableReaderBaseImpl<T>> waitMetadataImpl() {
+        TableReaderBaseImpl<T> self = this;
+        return readHead().thenApply((data) -> {
+            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
+            if (self.reader == null) {
+                Objects.requireNonNull(self.objectClazz);
+                YTreeSerializer<T> serializer = YTreeObjectSerializerFactory.forClass(
+                        self.objectClazz, ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
+                if (!(serializer instanceof YTreeObjectSerializer)) {
+                    throw new RuntimeException("Got not a YTreeObjectSerializer");
+                }
+                self.reader = new TableAttachmentWireProtocolReader<>(
+                        MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer));
+            }
+
+            return self;
+        });
+    }
+
+    public boolean canRead() {
+        return doCanRead();
+    }
+
+    public List<T> read() throws Exception {
+        return reader.parse(doRead());
+    }
+
+    public CompletableFuture<Void> readyEvent() {
+        return getReadyEvent();
+    }
+}
+
+class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T> {
+    TableReaderImpl(Class<T> objectClazz) {
+        super(objectClazz);
+    }
+
+    TableReaderImpl(TableAttachmentReader<T> reader) {
+        super(reader);
     }
 
     @Override
@@ -75,41 +119,81 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
     }
 
     public CompletableFuture<TableReader<T>> waitMetadata() {
-        TableReaderImpl<T> self = this;
-        return readHead().thenApply((data) -> {
-            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
-            if (self.reader == null) {
-                Objects.requireNonNull(self.objectClazz);
-                YTreeSerializer<T> serializer = YTreeObjectSerializerFactory.forClass(
-                        self.objectClazz, ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
-                if (!(serializer instanceof YTreeObjectSerializer)) {
-                    throw new RuntimeException("Got not a YTreeObjectSerializer");
-                }
-                self.reader = new TableAttachmentWireProtocolReader<>(
-                        MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer));
-            }
-
-            return self;
-        });
+        return waitMetadataImpl().thenApply(reader -> (TableReader<T>) reader);
     }
 
     @Override
     public boolean canRead() {
-        return doCanRead();
+        return super.canRead();
     }
 
     @Override
     public List<T> read() throws Exception {
-        return reader.parse(doRead());
+        return super.read();
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return super.readyEvent();
     }
 
     @Override
     public CompletableFuture<Void> close() {
         return doClose();
     }
+}
+
+class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncReader<T> {
+    private final ScheduledExecutorService executorService;
+
+    AsyncTableReaderImpl(Class<T> objectClazz, ScheduledExecutorService executorService) {
+        super(objectClazz);
+        this.executorService = executorService;
+    }
+
+    AsyncTableReaderImpl(TableAttachmentReader<T> reader, ScheduledExecutorService executorService) {
+        super(reader);
+        this.executorService = executorService;
+    }
+
+    public CompletableFuture<AsyncReader<T>> waitMetadata() {
+        return super.waitMetadataImpl().thenApply(reader -> (AsyncReader<T>) reader);
+    }
 
     @Override
-    public CompletableFuture<Void> readyEvent() {
-        return getReadyEvent();
+    public CompletableFuture<Void> acceptAllAsync(Consumer<T> consumer, Executor executor) {
+        return next().thenComposeAsync(rows -> {
+            if (rows == null) {
+                return CompletableFuture.completedFuture(null);
+            }
+            for (T row : rows) {
+                consumer.accept(row);
+            }
+            return acceptAllAsync(consumer, executor);
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<List<T>> next() {
+        try {
+            List<T> rows = read();
+            if (rows != null) {
+                return CompletableFuture.completedFuture(rows);
+            }
+            return readyEvent().thenCompose(unused -> {
+                if (canRead()) {
+                    return next();
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
+            });
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    @Override
+    public void close() {
+        control.cancel();
     }
 }

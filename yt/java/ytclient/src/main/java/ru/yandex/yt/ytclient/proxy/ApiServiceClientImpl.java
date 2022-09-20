@@ -997,6 +997,30 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
+                                                             @Nullable TableAttachmentReader<T> reader) {
+        RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
+                builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
+
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder.body());
+
+        AsyncTableReaderImpl<T> tableReader;
+        if (reader != null) {
+            tableReader = new AsyncTableReaderImpl<>(reader, executorService);
+        } else {
+            Objects.requireNonNull(req.getObjectClazz());
+            tableReader = new AsyncTableReaderImpl<>(req.getObjectClazz(), executorService);
+        }
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
+        CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
+                control -> tableReader.waitMetadata());
+        RpcUtil.relayCancel(result, streamControlFuture);
+        return result;
+
+    }
+
+    @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         if (req.getNeedRetries()) {
             throw new IllegalStateException("Cannot write table with retries in ApiServiceClient");

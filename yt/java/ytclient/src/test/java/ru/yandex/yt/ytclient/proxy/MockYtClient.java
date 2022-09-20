@@ -430,13 +430,15 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req, @Nullable TableAttachmentReader<T> reader) {
-        return null;
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
+                                                           @Nullable TableAttachmentReader<T> reader) {
+        return (CompletableFuture<TableReader<T>>) callMethod("readTable");
     }
 
     @Override
-    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        return (CompletableFuture<TableReader<T>>) callMethod("readTable");
+    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
+                                                             @Nullable TableAttachmentReader<T> reader) {
+        return (CompletableFuture<AsyncReader<T>>) callMethod("readTableV2");
     }
 
     @Override
