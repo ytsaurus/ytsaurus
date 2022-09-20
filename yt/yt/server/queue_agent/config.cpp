@@ -51,6 +51,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("enable_automatic_trimming", &TThis::EnableAutomaticTrimming)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
