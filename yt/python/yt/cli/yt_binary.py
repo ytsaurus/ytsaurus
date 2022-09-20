@@ -2087,7 +2087,7 @@ def clickhouse_ctl_handler(**kwards):
 
 def add_clickhouse_ctl_parser(add_parser):
     address_parser = ArgumentParser(add_help=False)
-    address_parser.add_argument("--address", help="сontroller service address")
+    address_parser.add_argument("--address", help="controller service address")
     # "help" option should not be handled before we fetch and register all available commands.
     # We will add it manually later.
     parser = add_parser("ctl", add_help=False, pythonic_help="CHYT clique controller", parents=[address_parser])
