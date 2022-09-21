@@ -246,7 +246,7 @@ public:
 
     // A set of chunk ids with an ongoing replication to this node as a destination.
     // Used for CRP-enabled chunks only.
-    using TChunkPullReplicationSet = THashMap<TChunkId, TMediumSet>;
+    using TChunkPullReplicationSet = THashMap<TChunkId, TMediumMap<int>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
 
     //! Key:
@@ -353,8 +353,8 @@ public:
 
     void AddToChunkPushReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
     void AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
-    void AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
-    void RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex);
+    void RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
+    void UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
 
     void AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node);
     void RemoveTargetReplicationNodeId(TChunkId chunkId);

@@ -359,8 +359,8 @@ private:
     void RemoveFromChunkReplicationQueues(
         TNode* node,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
-    void RemoveChunkFromPullReplicationQueue(const TJobPtr& job);
-    void MaybeRemoveFromPullReplicationSet(
+    void RemoveChunkFromPullReplicationSet(const TJobPtr& job);
+    void MaybeUnrefChunkBeingPulled(
         TNodeId nodeId,
         TChunkId chunkId,
         int mediumIndex);
