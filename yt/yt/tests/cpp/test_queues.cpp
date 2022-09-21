@@ -421,14 +421,13 @@ TEST_W(TQueueTestBase, BatchSizesAreReasonable)
     auto queueNameTable = TNameTable::FromSchema(*queue.GetSchema());
 
     std::unique_ptr<TUnversionedRowsBuilder> rowsBuilder = std::make_unique<TUnversionedRowsBuilder>();
-    int rowCount = 100'000;
+    int rowCount = 100'00;
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         TUnversionedRowBuilder rowBuilder;
 
         rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
 
-        TString value;
-        value.assign("a", 1_KB + RandomNumber(24u));
+        TString value('a', 1_KB + RandomNumber(24u));
         rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
 
         rowsBuilder->AddRow(rowBuilder.GetRow());
@@ -443,10 +442,12 @@ TEST_W(TQueueTestBase, BatchSizesAreReasonable)
         }
     }
 
+    auto approximateBatchSize = static_cast<ui64>(rowCount) * 1_KB / 100;
+
     auto partitionReaderConfig = New<TPartitionReaderConfig>();
     partitionReaderConfig->MaxRowCount = 5000;
     // We expect to fetch only one row.
-    partitionReaderConfig->MaxDataWeight = 1_MB;
+    partitionReaderConfig->MaxDataWeight = approximateBatchSize;
     auto partitionReader = CreatePartitionReader(partitionReaderConfig, Client_, consumer.GetPath(), /*partitionIndex*/ 0);
 
     WaitFor(partitionReader->Open())
@@ -468,7 +469,7 @@ TEST_W(TQueueTestBase, BatchSizesAreReasonable)
         EXPECT_EQ(queueRowset->GetRows()[0][aColumnIndex].Data.Uint64, static_cast<ui64>(rowsRead));
         ASSERT_EQ(queueRowset->GetStartOffset(), rowsRead);
         auto batchDataWeight = GetDataWeight(queueRowset->GetRows());
-        if (batchDataWeight < 1_MB / 2 || batchDataWeight > 3_MB / 2) {
+        if (batchDataWeight < approximateBatchSize / 2 || batchDataWeight > 3 * approximateBatchSize / 2) {
             ++badBatches;
         }
 
