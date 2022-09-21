@@ -720,10 +720,11 @@ void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex re
     ChunkPullReplicationQueues_[priority][ToChunkIdWithIndexes(replica)].set(targetMediumIndex);
 }
 
-void TNode::AddToPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
+void TNode::RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunksBeingPulled_[chunkId].set(targetMediumIndex);
+    YT_VERIFY(targetMediumIndex != AllMediaIndex);
+    ++ChunksBeingPulled_[chunkId][targetMediumIndex];
 }
 
 void TNode::AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, TNode* node)
@@ -769,19 +770,31 @@ void TNode::RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumInde
     }
 }
 
-void TNode::RemoveFromPullReplicationSet(TChunkId chunkId, int targetMediumIndex)
+void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
 {
-    auto it = ChunksBeingPulled_.find(chunkId);
-    if (it == ChunksBeingPulled_.end()) {
+    auto chunkIt = ChunksBeingPulled_.find(chunkId);
+    if (chunkIt == ChunksBeingPulled_.end()) {
+        YT_LOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed (ChunkId: %v, NodeId: %v)",
+            chunkId,
+            GetId());
         return;
     }
 
-    if (targetMediumIndex == AllMediaIndex) {
-        ChunksBeingPulled_.erase(it);
-    } else {
-        it->second.reset(targetMediumIndex);
-        if (it->second.none()) {
-            ChunksBeingPulled_.erase(it);
+    YT_VERIFY(targetMediumIndex != AllMediaIndex);
+
+    auto mediumIt = chunkIt->second.find(targetMediumIndex);
+    if (mediumIt == chunkIt->second.end()) {
+        YT_LOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed for that medium (ChunkId: %v, NodeId: %v, Medium: %v)",
+            chunkId,
+            GetId(),
+            targetMediumIndex);
+        return;
+    }
+
+    if (--mediumIt->second == 0) {
+        chunkIt->second.erase(mediumIt);
+        if (chunkIt->second.empty()) {
+            ChunksBeingPulled_.erase(chunkIt);
         }
     }
 }
@@ -801,8 +814,6 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaAndMediumIndex 
     }
 
     auto chunkId = replica.GetPtr()->GetId();
-    RemoveFromPullReplicationSet(chunkId, AllMediaIndex);
-
     if (auto it = PushReplicationTargetNodeIds_.find(chunkId); it != PushReplicationTargetNodeIds_.end()) {
         PushReplicationTargetNodeIds_.erase(it);
     }
