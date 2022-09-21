@@ -2708,25 +2708,22 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
 
     auto now = NProfiling::GetInstant();
     if (now - LastPerNodeProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
-        i64 pullReplicationQueueSize = 0;
-        i64 chunksBeingPulledCount = 0;
-        i64 pushReplicationTargetNodeCount = 0;
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            TWithTagGuard tagGuard(buffer, "node_address", node->GetDefaultAddress());
+
+            i64 pullReplicationQueueSize = 0;
             for (const auto& queue : node->ChunkPullReplicationQueues()) {
                 pullReplicationQueueSize += std::ssize(queue);
             }
-            chunksBeingPulledCount += std::ssize(node->ChunksBeingPulled());
-            pushReplicationTargetNodeCount += std::ssize(node->PushReplicationTargetNodeIds());
+            buffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
+            buffer->AddGauge("/crp_chunks_being_pulled_count", node->ChunksBeingPulled().size());
+            buffer->AddGauge("/crp_push_replication_target_node_id_count", node->PushReplicationTargetNodeIds().size());
 
-            TWithTagGuard tagGuard(buffer, "node_address", node->GetDefaultAddress());
             size_t destroyedReplicasCount = node->ComputeTotalDestroyedReplicaCount();
             size_t removalQueueSize = node->ComputeTotalChunkRemovalQueuesSize();
             buffer->AddGauge("/destroyed_replicas_size", destroyedReplicasCount);
             buffer->AddGauge("/removal_queue_size", removalQueueSize);
         }
-        buffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
-        buffer->AddGauge("/crp_chunks_being_pulled_count", chunksBeingPulledCount);
-        buffer->AddGauge("/crp_push_replication_target_node_count", pushReplicationTargetNodeCount);
 
         LastPerNodeProfilingTime_ = now;
     }
