@@ -22,8 +22,6 @@ from flaky import flaky
 import time
 from collections import defaultdict
 
-import builtins
-
 ##################################################################
 
 
@@ -232,6 +230,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
     @authors("ignat")
     @flaky(max_runs=3)
+    @pytest.mark.timeout(120)
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
@@ -256,20 +255,32 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage", verbose=False) > 0)
             ops.append(op)
 
-        address_to_operation = defaultdict(list)
+        address_to_operations = defaultdict(list)
+        operation_to_address = {}
+        operation_to_memory_usage = {}
         for op in ops:
-            address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
+            address = get(op.get_path() + "/@controller_agent_address")
+            memory_usage = get(op.get_path() + "/controller_orchid/memory_usage", verbose=False)
+            address_to_operations[address].append(op.id)
+            operation_to_address[op.id] = address
+            operation_to_memory_usage[op.id] = memory_usage
+            print_debug(op.id, address, memory_usage)
 
-        operation_balance = sorted(builtins.map(lambda value: len(value), address_to_operation.values()))
-        balance_ratio = float(operation_balance[0]) / operation_balance[1]
+        address_to_memory_usage = {
+            address: sum(operation_to_memory_usage[op_id] for op_id in op_ids)
+            for address, op_ids in address_to_operations.items()
+        }
+
+        balance_ratio = min(address_to_memory_usage.values()) / sum(address_to_memory_usage.values())
+
         print_debug("BALANCE_RATIO", balance_ratio)
         for op in ops:
             print_debug(
                 op.id,
-                address_to_operation[op.id],
+                operation_to_address[op.id],
                 get(op.get_path() + "/controller_orchid/memory_usage", verbose=False),
             )
-        assert 0.5 <= balance_ratio <= 0.8
+        assert 0.3 <= balance_ratio <= 0.5
 
 
 ##################################################################
