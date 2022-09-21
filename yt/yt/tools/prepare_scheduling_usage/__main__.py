@@ -128,7 +128,7 @@ class OperationInfo:
 class PoolsMapping:
     cluster: typing.Optional[str]
     pool_tree: typing.Optional[str]
-    pools_mapping: typing.Optional[typing.Dict[str, typing.Optional[YsonBytes]]]
+    pool_mapping: typing.Optional[typing.Dict[str, typing.Optional[YsonBytes]]]
 
 
 def merge_info(info_base, info_update):
@@ -170,11 +170,11 @@ def build_pool_mapping(pools_info):
     return mapping_output
 
 
-def convert_pools_mapping_to_pool_paths_info(cluster_and_tree_to_pools_mapping):
+def convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping):
     result = collections.defaultdict(lambda: collections.defaultdict(dict))
-    for cluster_and_tree, pools_mapping in cluster_and_tree_to_pools_mapping.items():
+    for cluster_and_tree, pool_mapping in cluster_and_tree_to_pool_mapping.items():
         cluster, pool_tree = cluster_and_tree
-        for pool_info in pools_mapping.values():
+        for pool_info in pool_mapping.values():
             result[cluster][pool_tree][build_pool_path(pool_info["ancestor_pools"])] = pool_info
     for cluster in result:
         for pool_tree in result[cluster]:
@@ -188,36 +188,37 @@ class ExtractPoolsMapping(TypedJob):
         preparer.input(0, type=InputRow).output(0, type=PoolsMapping)
 
     def __call__(self, rows):
-        cluster_and_tree_to_pools_mapping = {}
+        cluster_and_tree_to_pool_mapping = {}
         for row in rows:
             if row.other["event_type"] == "accumulated_usage_info":
                 key = (row.other["cluster"], row.other["tree_id"])
                 # TODO(ignat): how is it possible?
                 if "pools" in row.other:
-                    cluster_and_tree_to_pools_mapping[key] = yson.dumps(build_pool_mapping(row.other["pools"]))
+                    pool_mapping = build_pool_mapping(row.other["pools"])
+                    cluster_and_tree_to_pool_mapping[key] = {key: yson.dumps(value) for key, value in pool_mapping.items()}
                 else:
                     print("XXX", row.other, file=sys.stderr)
 
-        for key in cluster_and_tree_to_pools_mapping:
+        for key in cluster_and_tree_to_pool_mapping:
             cluster, pool_tree = key
             yield PoolsMapping(
                 cluster=cluster,
                 pool_tree=pool_tree,
-                pools_mapping=cluster_and_tree_to_pools_mapping[key])
+                pool_mapping=cluster_and_tree_to_pool_mapping[key])
 
 
 class FilterAndNormalizeEvents(TypedJob):
-    def __init__(self, cluster_and_tree_to_pools_mapping):
+    def __init__(self, cluster_and_tree_to_pool_mapping):
         self._known_events = ("operation_completed", "operation_aborted", "operation_failed", "accumulated_usage_info")
-        self._cluster_and_tree_to_pools_mapping = cluster_and_tree_to_pools_mapping
+        self._cluster_and_tree_to_pool_mapping = cluster_and_tree_to_pool_mapping
 
     def prepare_operation(self, context, preparer):
         preparer.input(0, type=InputRow).output(0, type=OperationInfo, infer_strict_schema=False)
 
     def _process_accumulated_usage_info(self, input_row):
-        pools_mapping = build_pool_mapping(input_row["pools"])
+        pool_mapping = build_pool_mapping(input_row["pools"])
         for operation_id, info in input_row["operations"].items():
-            pools = pools_mapping[info["pool"]]["ancestor_pools"]
+            pools = pool_mapping[info["pool"]]["ancestor_pools"]
             yield OperationInfo(
                 timestamp=date_string_to_timestamp(input_row["timestamp"]),
                 cluster=input_row["cluster"],
@@ -262,7 +263,7 @@ class FilterAndNormalizeEvents(TypedJob):
             else:
                 # COMPAT(ignat)
                 pool = runtime_parameters["scheduling_options_per_pool_tree"][pool_tree]["pool"]
-                pool_info = self._cluster_and_tree_to_pools_mapping[(input_row["cluster"], pool_tree)].get(pool)
+                pool_info = self._cluster_and_tree_to_pool_mapping[(input_row["cluster"], pool_tree)].get(pool)
                 pools = pool_info["ancestor_pools"] if pool_info else [pool]
 
             job_statistics = None \
@@ -343,14 +344,14 @@ def process_scheduler_log_locally(input_path, output_path):
     input_rows = list(map(lambda row: InputRow(other=OtherColumns(yson.dumps(row))), rows))
 
     # TODO: Temporary hack, do not forget to remove list() above
-    cluster_and_tree_to_pools_mapping = {}
+    cluster_and_tree_to_pool_mapping = {}
     for row in input_rows:
         if row.other["event_type"] == "accumulated_usage_info":
             key = (row.other["cluster"], row.other["tree_id"])
-            cluster_and_tree_to_pools_mapping[key] = build_pool_mapping(row.other["pools"])
-    pool_paths_info = convert_pools_mapping_to_pool_paths_info(cluster_and_tree_to_pools_mapping)
+            cluster_and_tree_to_pool_mapping[key] = build_pool_mapping(row.other["pools"])
+    pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
 
-    mapper = FilterAndNormalizeEvents(cluster_and_tree_to_pools_mapping)
+    mapper = FilterAndNormalizeEvents(cluster_and_tree_to_pool_mapping)
     mapper.start()
     mapped_rows = itertools.chain.from_iterable(map(mapper, input_rows))
 
@@ -365,7 +366,7 @@ def process_scheduler_log_locally(input_path, output_path):
     yson.dump(pool_paths_info, output_pools_file)
 
 
-def extract_pools_mapping(client, input_table):
+def extract_pool_mapping(client, input_table):
     temp_table = client.create_temp_table()
     client.alter_table(temp_table, schema=TableSchema.from_row_type(PoolsMapping))
 
@@ -379,16 +380,16 @@ def extract_pools_mapping(client, input_table):
         .spec({"max_failed_job_count": 1})  # noqa
     client.run_operation(spec)
 
-    cluster_and_tree_to_pools_mapping = {}
+    cluster_and_tree_to_pool_mapping = {}
     for row in client.read_table_structured(temp_table, PoolsMapping):
-        if (row.cluster, row.pool_tree) not in cluster_and_tree_to_pools_mapping:
-            cluster_and_tree_to_pools_mapping[(row.cluster, row.pool_tree)] = row.pools_mapping
+        pool_mapping = {key: yson.loads(value) for key, value in row.pool_mapping.items()}
+        if (row.cluster, row.pool_tree) not in cluster_and_tree_to_pool_mapping:
+            cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)] = pool_mapping
         else:
-            for pool in row.pools_mapping:
-                if pool not in cluster_and_tree_to_pools_mapping[(row.cluster, row.pool_tree)]:
-                    cluster_and_tree_to_pools_mapping[(row.cluster, row.pool_tree)][pool] = row.pools_mapping[pool]
-
-    return cluster_and_tree_to_pools_mapping
+            for pool in row.pool_mapping:
+                if pool not in cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)]:
+                    cluster_and_tree_to_pool_mapping[(row.cluster, row.pool_tree)][pool] = pool_mapping[pool]
+    return cluster_and_tree_to_pool_mapping
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table):
@@ -405,12 +406,11 @@ def process_scheduler_log_on_yt(client, input_table, output_table):
         })
 
     # TODO: Temporary hack
-    cluster_and_tree_to_pools_mapping = extract_pools_mapping(client, input_table)
-    pool_paths_info = convert_pools_mapping_to_pool_paths_info(cluster_and_tree_to_pools_mapping)
+    cluster_and_tree_to_pool_mapping = extract_pool_mapping(client, input_table)
 
     spec = yt.MapReduceSpecBuilder()\
         .begin_mapper()\
-            .command(FilterAndNormalizeEvents(cluster_and_tree_to_pools_mapping))\
+            .command(FilterAndNormalizeEvents(cluster_and_tree_to_pool_mapping))\
             .memory_limit(4 * 1024 ** 3)\
         .end_mapper()\
         .begin_reducer()\
@@ -438,7 +438,9 @@ def process_scheduler_log_on_yt(client, input_table, output_table):
         pools_output_table,
         recursive=True,
         attributes={"schema": [{"name": "pools", "type": "string"}]})
-    client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info)}])
+
+    pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
+    client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}])
 
 
 def main():

@@ -25,7 +25,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
     USE_PORTO = True
 
-    LOG_WRITE_WAIT_TIME = 0.2
+    LOG_WRITE_WAIT_TIME = 0.5
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -91,13 +91,23 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             row["cluster"] = "local_cluster"
 
         operation_event_indexes = []
+        accumulated_usage_event_indexes = []
         for index, row in enumerate(structured_log):
             if row["event_type"].startswith("operation_"):
                 operation_event_indexes.append(index)
+            if row["event_type"] == "accumulated_usage_info":
+                accumulated_usage_event_indexes.append(index)
 
         assert len(operation_event_indexes) >= 2
         min_operation_event_index = operation_event_indexes[0]
         max_operation_event_index = operation_event_indexes[-1]
+
+        accumulated_usage_event_indexes = [
+            index
+            for index in accumulated_usage_event_indexes
+            if index >= min_operation_event_index and index <= max_operation_event_index
+        ]
+        assert len(accumulated_usage_event_indexes) >= 5
 
         mid_index = (min_operation_event_index + max_operation_event_index) // 2
         structured_log_part1 = structured_log[min_operation_event_index:mid_index]
