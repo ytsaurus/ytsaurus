@@ -81,12 +81,12 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     const auto& cluster = it->second;
     auto clusterTag = GetClusterTag(cluster);
     cluster.Connection->Terminate();
-    NameToCluster_.erase(it);
     if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
         auto iter = ClusterTvmIds_.find(*tvmId);
         YT_VERIFY(iter != ClusterTvmIds_.end());
         ClusterTvmIds_.erase(iter);
     }
+    NameToCluster_.erase(it);
     YT_VERIFY(ClusterTagToCluster_.erase(clusterTag) == 1);
     YT_LOG_DEBUG("Remote cluster unregistered (Name: %v, ClusterTag: %v)",
         name,
