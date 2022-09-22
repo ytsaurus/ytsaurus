@@ -157,7 +157,6 @@ void TMasterJobBase::Start()
     YT_VERIFY(!std::exchange(Started_, true));
 
     JobState_ = EJobState::Running;
-    JobPhase_ = EJobPhase::Running;
     JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();
@@ -234,13 +233,6 @@ EJobState TMasterJobBase::GetState() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return JobState_;
-}
-
-EJobPhase TMasterJobBase::GetPhase() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return JobPhase_;
 }
 
 const TNodeResources& TMasterJobBase::GetResourceUsage() const
@@ -339,7 +331,6 @@ void TMasterJobBase::DoSetFinished(EJobState finalState, const TError& error)
         return;
     }
 
-    JobPhase_ = EJobPhase::Finished;
     JobState_ = finalState;
     ToProto(Result_.mutable_error(), error);
     ReleaseResources();

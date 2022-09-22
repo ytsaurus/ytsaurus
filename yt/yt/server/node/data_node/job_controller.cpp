@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/client/job_tracker_client/helpers.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NDataNode {
@@ -154,21 +156,16 @@ public:
 
         auto jobs = GetJobs();
 
-        // TODO(pogorelov): Delete useless fields.
         fluent.DoMapFor(
             jobs,
             [&] (TFluentMap fluent, const TMasterJobBasePtr& job) {
                 fluent.Item(ToString(job->GetId()))
                     .BeginMap()
                         .Item("job_state").Value(job->GetState())
-                        .Item("job_phase").Value(job->GetPhase())
                         .Item("job_type").Value(job->GetType())
-                        .Item("slot_index").Value(-1)
                         .Item("job_tracker_address").Value(job->GetJobTrackerAddress())
                         .Item("start_time").Value(job->GetStartTime())
                         .Item("duration").Value(TInstant::Now() - job->GetStartTime())
-                        .OptionalItem("statistics", TYsonString())
-                        .OptionalItem("operation_id", TOperationId{})
                         .Item("resource_usage").Value(job->GetResourceUsage())
                         .Do(std::bind(&TMasterJobBase::BuildOrchid, job, std::placeholders::_1))
                     .EndMap();
@@ -500,7 +497,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
+        YT_LOG_FATAL_UNLESS(
+            IsJobFinished(job->GetState()),
+            "Removing job in unexpected state (State: %v)",
+            job->GetState());
         YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
         auto jobId = job->GetId();
