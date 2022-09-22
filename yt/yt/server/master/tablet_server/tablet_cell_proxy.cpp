@@ -119,6 +119,8 @@ private:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -155,6 +157,15 @@ private:
                 if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
                         .Value(cell->Tablets().size());
+                    return true;
+                }
+                break;
+
+            case EInternedAttributeKey::Tablets:
+                if (multicellManager->IsSecondaryMaster()) {
+                    consumer->OnBeginMap();
+                    BuildTabletsMapFragment(consumer);
+                    consumer->OnEndMap();
                     return true;
                 }
                 break;
@@ -241,6 +252,45 @@ private:
                     .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
             }
 
+            case EInternedAttributeKey::Tablets: {
+                YT_VERIFY(IsPrimaryMaster());
+
+                auto* factory = GetEphemeralNodeFactory();
+                auto builder = CreateBuilderFromFactory(factory);
+
+                builder->OnBeginMap();
+                BuildTabletsMapFragment(builder.get());
+                builder->OnEndMap();
+                auto node = builder->EndTree()->AsMap();
+
+                return FetchFromSwarm<IMapNodePtr>(key)
+                    .Apply(BIND([mapNode = std::move(node)] (
+                        const std::vector<IMapNodePtr>& remoteTablets)
+                    {
+                        TStringStream output;
+                        TYsonWriter writer(&output, EYsonFormat::Pretty, EYsonType::Node);
+
+                        writer.OnBeginMap();
+
+                        BuildYsonMapFragmentFluently(&writer)
+                            .DoFor(mapNode->GetChildren(), [] (auto fluent, const auto& pair) {
+                                    fluent.Item(pair.first).Value(pair.second);
+                        });
+
+                        for (const auto& tabletsNode : remoteTablets) {
+                            BuildYsonMapFragmentFluently(&writer)
+                                .DoFor(tabletsNode->GetChildren(), [] (auto fluent, const auto& pair) {
+                                    fluent.Item(pair.first).Value(pair.second);
+                            });
+                        }
+                        writer.OnEndMap();
+                        writer.Flush();
+
+                        return TYsonString(output.Str());
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
             default:
                 break;
         }
@@ -279,6 +329,25 @@ private:
             default:
                 return TBase::RemoveBuiltinAttribute(key);
         }
+    }
+
+    void BuildTabletsMapFragment(IYsonConsumer* consumer)
+    {
+        const auto* cell = GetThisImpl<TTabletCell>();
+        BuildYsonMapFragmentFluently(consumer)
+            .DoFor(cell->Tablets(), [] (TFluentMap fluent, const TTabletBase* tabletBase) {
+                if (!IsObjectAlive(tabletBase) || tabletBase->GetType() != EObjectType::Tablet) {
+                    return;
+                }
+
+                auto* tablet = tabletBase->As<TTablet>();
+                auto* table = tablet->GetTable();
+                fluent
+                    .Item(ToString(tablet->GetId()))
+                        .BeginMap()
+                            .Item("table_id").Value(table->GetId())
+                        .EndMap();
+        });
     }
 };
 
