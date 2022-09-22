@@ -383,7 +383,7 @@ TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
 
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);
-    // Check that we some small IOPS before overload.
+    // Check that we have some small IOPS before overload.
     auto lastResult = results.back();
     EXPECT_LE(lastResult, 10);
 }
@@ -452,7 +452,6 @@ void ExecuteReadSkipProbabilityTest(const std::vector<TSkipTestStep>& steps)
 
         EXPECT_NEAR(readSkipProb, step.SkipProbability, 0.01);
 
-        // Sleep.
         Sleep(TDuration::MilliSeconds(1));
     }
 }

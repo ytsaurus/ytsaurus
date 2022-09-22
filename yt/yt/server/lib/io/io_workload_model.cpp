@@ -11,12 +11,14 @@
 #include <library/cpp/histogram/hdr/histogram.h>
 
 #include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/tscp.h>
 
 #include <numeric>
 
 namespace NYT::NIO {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,12 +35,13 @@ static const std::vector<i64> RequestLatencyBins = {
 void TFixedBinsHistogramBase::RecordValue(i64 value, i64 count)
 {
     const int binsCount = std::ssize(BinValues_);
-    auto it = std::lower_bound(BinValues_.begin(), BinValues_.end(), value);
-    int index = std::distance(BinValues_.begin(), it);
-    if (index == binsCount) {
-        index = binsCount - 1;
+    for (int index = 0; index < binsCount; ++index) {
+        if (BinValues_[index] >= value) {
+            Counters_[index] += count;
+            return;
+        }
     }
-    Counters_[index] += count;
+    Counters_.back() += count;
 }
 
 TFixedBinsHistogramBase::TFixedBinsHistogramBase(TBins bins)
@@ -63,6 +66,8 @@ TRequestSizeHistogram::TRequestSizeHistogram()
 TRequestLatencyHistogram::TRequestLatencyHistogram()
     : TFixedBinsHistogramBase(RequestLatencyBins)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
 {
@@ -127,6 +132,126 @@ static constexpr auto RequestLatenciesModelingPeriod = TDuration::Seconds(5);
 
 DECLARE_REFCOUNTED_CLASS(TWorkloadModelManager)
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename THistogram>
+void MergeHistograms(const THistogram& input, THistogram& output)
+{
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        for (int binIndex = 0; binIndex < std::ssize(input[category].GetBins()); ++binIndex) {
+            output[category].RecordValue(binIndex, input[category].GetCounters()[binIndex]);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TModel>
+void MergeModels(const TModel& input, TModel& output)
+{
+    MergeHistograms(input.Reads, output.Reads);
+    MergeHistograms(input.Writes, output.Writes);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TThreadSafeWorkloadModel
+{
+public:
+    void RegisterRead(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
+    {
+        auto guard = Guard(ModelLock_);
+
+        RequestSizes_.Reads[category].RecordValue(requestSize);
+        RequestLatencies_.Reads[category].RecordValue(requestTime.MilliSeconds());
+    }
+
+    void RegisterWrite(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
+    {
+        auto guard = Guard(ModelLock_);
+
+        RequestSizes_.Writes[category].RecordValue(requestSize);
+        RequestLatencies_.Writes[category].RecordValue(requestTime.MilliSeconds());
+    }
+
+    TRequestSizes ReleaseSizes()
+    {
+        TRequestSizes result;
+        {
+            auto guard = Guard(ModelLock_);
+            std::swap(RequestSizes_, result);
+        }
+
+        return result;
+    }
+
+    TRequestLatencies ReleaseLatencies()
+    {
+        TRequestLatencies result;
+        {
+            auto guard = Guard(ModelLock_);
+            std::swap(RequestLatencies_, result);
+        }
+
+        return result;
+    }
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModelLock_);
+    TRequestSizes RequestSizes_;
+    TRequestLatencies RequestLatencies_;
+};
+
+class TPerCpuWorkloadModel
+{
+public:
+    void RegisterRead(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
+    {
+        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        shard.RegisterRead(requestSize, category, requestTime);
+    }
+
+    void RegisterWrite(i64 requestSize, EWorkloadCategory category, TDuration requestTime)
+    {
+        auto& shard = Shards_[TTscp::Get().ProcessorId].Holder;
+        shard.RegisterWrite(requestSize, category, requestTime);
+    }
+
+    TRequestSizes ReleaseSizes()
+    {
+        TRequestSizes combinedModel;
+
+        for (auto& shard : Shards_) {
+            auto shardModel = shard.Holder.ReleaseSizes();
+            MergeModels(shardModel, combinedModel);
+        }
+
+        return combinedModel;
+    }
+
+    TRequestLatencies ReleaseLatencies()
+    {
+        TRequestLatencies combinedModel;
+
+        for (auto& shard : Shards_) {
+            auto shardModel = shard.Holder.ReleaseLatencies();
+            MergeModels(shardModel, combinedModel);
+        }
+
+        return combinedModel;
+    }
+
+private:
+    struct alignas(2 * NThreading::CacheLineSize) TShard
+    {
+        TThreadSafeWorkloadModel Holder;
+    };
+
+    std::array<TShard, TTscp::MaxProcessorId> Shards_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TWorkloadModelManager
     : public virtual TRefCounted
 {
@@ -134,7 +259,7 @@ public:
     TWorkloadModelManager(TString locationId, NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
         , Logger(std::move(logger))
-        , ActionQueue_(New<TActionQueue>("WorkloadModelManager"))
+        , ActionQueue_(New<TActionQueue>(Format("IOWM:%v", LocationId_)))
         , Invoker_(ActionQueue_->GetInvoker())
         , ModelCreationRoundExecutor_(New<TPeriodicExecutor>(
             Invoker_,
@@ -159,20 +284,12 @@ public:
 
     void RegisterRead(IIOEngine::TReadRequest request, EWorkloadCategory category, TDuration requestTime)
     {
-        Invoker_->Invoke(BIND(&TWorkloadModelManager::DoRegisterRead,
-            MakeStrong(this),
-            std::move(request),
-            category,
-            requestTime));
+        Model_.RegisterRead(request.Size, category, requestTime);
     }
 
     void RegisterWrite(IIOEngine::TWriteRequest request, EWorkloadCategory category, TDuration requestTime)
     {
-        Invoker_->Invoke(BIND(&TWorkloadModelManager::DoRegisterWrite,
-            MakeStrong(this),
-            std::move(request),
-            category,
-            requestTime));
+        Model_.RegisterWrite(GetByteSize(request.Buffers), category, requestTime);
     }
 
     DEFINE_SIGNAL(void(const TRequestSizes&), RequestSizesSignal);
@@ -188,51 +305,28 @@ private:
     const TPeriodicExecutorPtr ModelCreationRoundExecutor_;
     const TPeriodicExecutorPtr LatenciesMeasuringExecutor_;
 
-    TRequestSizes RequestSizes_;
-    TRequestLatencies RequestLatencies_;
-
-    void DoRegisterRead(
-        const IIOEngine::TReadRequest& request,
-        EWorkloadCategory category, TDuration requestTime)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        RequestSizes_.Reads[category].RecordValue(request.Size);
-        RequestLatencies_.Reads[category].RecordValue(requestTime.MilliSeconds());
-    }
-
-    void DoRegisterWrite(
-        const IIOEngine::TWriteRequest& request,
-        EWorkloadCategory category, TDuration requestTime)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        RequestSizes_.Writes[category].RecordValue(GetByteSize(request.Buffers));
-        RequestLatencies_.Writes[category].RecordValue(requestTime.MilliSeconds());
-    }
+    TPerCpuWorkloadModel Model_;
 
     void OnModelCreationRound()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        TRequestSizes model;
-        std::swap(RequestSizes_, model);
+        auto model = Model_.ReleaseSizes();
 
         YT_LOG_DEBUG("Observed IO request sizes (Reads: %v, Writes: %v)",
             model.Reads,
             model.Writes);
 
-        RequestSizesSignal_.Fire(std::move(model));
+        RequestSizesSignal_.Fire(model);
     }
 
     void OnLatenciesReportingRound()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        TRequestLatencies latencies;
-        std::swap(latencies, RequestLatencies_);
+        auto latencies = Model_.ReleaseLatencies();
 
-        RequestLatenciesSignal_.Fire(std::move(latencies));
+        RequestLatenciesSignal_.Fire(latencies);
     }
 };
 
@@ -269,8 +363,9 @@ public:
             useDedicatedAllocations);
 
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const NYT::TErrorOr<TReadResponse>&) {
+            auto duration = requestTimer.GetElapsedTime();
             for (const auto& request : requests) {
-                ModelManager_->RegisterRead(request, category, requestTimer.GetElapsedTime());
+                ModelManager_->RegisterRead(request, category, duration);
             }
         }));
 
