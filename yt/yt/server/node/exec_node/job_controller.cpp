@@ -948,7 +948,8 @@ private:
                     const auto& controllerAgentConnector = schedulerJob->GetControllerAgentConnector();
                     YT_VERIFY(controllerAgentConnector);
 
-                    *jobStatus->mutable_result() = schedulerJob->GetResultWithoutExtension();
+                    ToProto(jobStatus->mutable_result()->mutable_error(), schedulerJob->GetJobError());
+
                     if (!sendConfirmedJobToControllerAgent) {
                         controllerAgentConnector->EnqueueFinishedJob(schedulerJob);
                         shouldSendControllerAgentHeartbeatsOutOfBand = true;
