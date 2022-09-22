@@ -93,15 +93,12 @@ public:
 
     std::vector<TMasterJobBasePtr> GetJobs() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = ReaderGuard(JobMapLock_);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TMasterJobBasePtr> result;
         result.reserve(JobMap_.size());
         for (const auto& [id, job] : JobMap_) {
             result.push_back(job);
-
         }
         return result;
     }
@@ -132,9 +129,8 @@ public:
 
     TMasterJobBasePtr FindJob(TJobId jobId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
         
-        auto guard = ReaderGuard(JobMapLock_);
         auto it = JobMap_.find(jobId);
         return it == JobMap_.end() ? nullptr : it->second;
     }
@@ -154,7 +150,7 @@ public:
 
     void BuildJobsInfo(TFluentAny fluent) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobs = GetJobs();
 
@@ -196,7 +192,6 @@ private:
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TMasterJobBasePtr> JobMap_;
 
     bool StartJobsScheduled_ = false;
@@ -282,10 +277,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        {
-            auto guard = WriterGuard(JobMapLock_);
-            EmplaceOrCrash(JobMap_, jobId, job);
-        }
+        EmplaceOrCrash(JobMap_, jobId, job);
 
         job->SubscribeJobFinished(
             BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeWeak(this), MakeWeak(job))
@@ -513,10 +505,7 @@ private:
 
         auto jobId = job->GetId();
 
-        {
-            auto guard = WriterGuard(JobMapLock_);
-            EraseOrCrash(JobMap_, jobId);
-        }
+        EraseOrCrash(JobMap_, jobId);
 
         YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
     }
