@@ -124,8 +124,7 @@ public:
     const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
     bool IsGpuRequested() const;
 
-    NJobTrackerClient::NProto::TJobResult GetResultWithoutExtension() const;
-    const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& GetResultExtension() const noexcept;
+    const TError& GetJobError() const;
     NJobTrackerClient::NProto::TJobResult GetResult() const;
 
     double GetProgress() const;
@@ -260,7 +259,7 @@ private:
 
     NJobAgent::TExecAttributes ExecAttributes_;
 
-    std::optional<NJobTrackerClient::NProto::TJobResult> JobResultWithoutExtension_;
+    std::optional<TError> Error_;
     std::optional<NScheduler::NProto::TSchedulerJobResultExt> JobResultExtension_;
 
     std::optional<TInstant> PrepareTime_;

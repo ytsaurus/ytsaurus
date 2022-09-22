@@ -695,29 +695,24 @@ const std::vector<int>& TJob::GetPorts() const
     return TResourceHolder::GetPorts();
 }
 
-TJobResult TJob::GetResultWithoutExtension() const
+const TError& TJob::GetJobError() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(JobResultWithoutExtension_);
+    YT_VERIFY(Error_);
 
-    return *JobResultWithoutExtension_;
-}
-
-const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& TJob::GetResultExtension() const noexcept
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return JobResultExtension_;
+    return *Error_;
 }
 
 TJobResult TJob::GetResult() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(JobResultWithoutExtension_);
+    YT_VERIFY(Error_);
 
-    auto result = *JobResultWithoutExtension_;
+    TJobResult result;
+    ToProto(result.mutable_error(), *Error_);
+
     if (JobResultExtension_) {
         *result.MutableExtension(
             NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext) = *JobResultExtension_;
@@ -918,9 +913,9 @@ std::optional<TString> TJob::GetStderr()
 
     // Cleanup is not atomic, so in case of job proxy failure we might see job in cleanup phase and running state.
     if (JobPhase_ == EJobPhase::Cleanup) {
-        if (auto error = FromProto<TError>(JobResultWithoutExtension_->error());
-            error.FindMatching(NExecNode::EErrorCode::JobProxyFailed) ||
-            error.FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout))
+        YT_VERIFY(Error_);
+        if (Error_->FindMatching(NExecNode::EErrorCode::JobProxyFailed) ||
+            Error_->FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout))
         {
             return nullptr;
         }
@@ -1262,12 +1257,9 @@ void TJob::DoSetResult(TJobResult jobResult)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobResultWithoutExtension_) {
-        auto error = FromProto<TError>(JobResultWithoutExtension_->error());
-        if (!error.IsOK()) {
-            // Job result with error is already set.
-            return;
-        }
+    if (Error_ && !Error_->IsOK()) {
+        // Job result with error is already set.
+        return;
     }
 
     if (Config_->TestJobErrorTruncation) {
@@ -1281,11 +1273,6 @@ void TJob::DoSetResult(TJobResult jobResult)
         }
     }
 
-    {
-        auto error = FromProto<TError>(jobResult.error());
-        ToProto(jobResult.mutable_error(), error.Truncate());
-    }
-
     JobResultExtension_ = std::nullopt;
     if (jobResult.HasExtension(
         NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext))
@@ -1293,7 +1280,12 @@ void TJob::DoSetResult(TJobResult jobResult)
         JobResultExtension_ = std::optional<NScheduler::NProto::TSchedulerJobResultExt>(std::move(*jobResult.ReleaseExtension(
             NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext)));
     }
-    JobResultWithoutExtension_ = std::move(jobResult);
+
+    {
+        auto error = FromProto<TError>(jobResult.error());
+        Error_ = error.Truncate();
+    }
+
     FinishTime_ = TInstant::Now();
 }
 
@@ -1590,15 +1582,18 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
     if (!error.IsOK()) {
-        auto initialJobError = FromProto<TError>(JobResultWithoutExtension_->error());
-        YT_VERIFY(!initialJobError.IsOK());
-        // Reset JobResultWithoutExtension_ to set it with checkError
-        JobResultWithoutExtension_ = TJobResult();
+        YT_LOG_FATAL_IF(
+            !Error_ || Error_->IsOK(),
+            "Job error is not set (Error: %v)", Error_);
+        
+        auto initialError = std::move(*Error_);
+        // Reset Error_ to set it with checkError
+        Error_ = TError{};
         JobResultExtension_.reset();
 
         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             << error
-            << initialJobError;
+            << initialError;
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
         DoSetResult(checkError);
@@ -1686,8 +1681,8 @@ void TJob::OnJobProxyFinished(const TError& error)
 
     YT_LOG_INFO("Job proxy finished");
 
-    auto currentError = JobResultWithoutExtension_
-        ? FromProto<TError>(JobResultWithoutExtension_->error())
+    const auto& currentError = Error_
+        ? *Error_
         : TError();
     if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
@@ -1768,26 +1763,24 @@ void TJob::Cleanup()
         }));
     }
 
-    YT_VERIFY(JobResultWithoutExtension_);
+    YT_VERIFY(Error_);
 
     // Copy info from traffic meter to statistics.
     auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    auto error = FromProto<TError>(JobResultWithoutExtension_->error());
+    auto& error = *Error_;
 
     if (error.IsOK()) {
         SetJobState(EJobState::Completed);
     } else if (IsFatalError(error)) {
         error.MutableAttributes()->Set("fatal", true);
-        ToProto(JobResultWithoutExtension_->mutable_error(), error);
         SetJobState(EJobState::Failed);
     } else {
         auto abortReason = GetAbortReason();
         if (abortReason) {
             error.MutableAttributes()->Set("abort_reason", abortReason);
-            ToProto(JobResultWithoutExtension_->mutable_error(), error);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
@@ -2315,9 +2308,9 @@ std::optional<EAbortReason> TJob::GetAbortReason()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(JobResultWithoutExtension_);
+    YT_VERIFY(Error_);
 
-    auto resultError = FromProto<TError>(JobResultWithoutExtension_->error());
+    const auto& resultError = *Error_;
 
     if (JobResultExtension_) {
         const auto& schedulerResultExt = *JobResultExtension_;
