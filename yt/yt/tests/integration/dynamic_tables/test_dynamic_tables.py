@@ -3026,6 +3026,9 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]]
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]]
 
+        assert get("//sys/tablet_cells/{0}/@tablets".format(cells[0]), driver=driver) == {tablet["tablet_id"]: {"table_id": table_id}}
+        assert get("//sys/tablet_cells/{0}/@tablets".format(cells[0])) == {tablet["tablet_id"]: {"table_id": table_id}}
+
         wait(
             lambda: get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))[str(cell_tag)]["tablet_count"]
             == 1

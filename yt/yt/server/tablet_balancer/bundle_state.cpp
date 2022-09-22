@@ -25,6 +25,21 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePtr& mapNode)
+{
+    THashMap<TTabletId, TTableId> tabletToTable;
+    for (const auto& [key, value] : mapNode->GetChildren()) {
+        auto mapChildNode = value->AsMap();
+        EmplaceOrCrash(
+            tabletToTable,
+            ConvertTo<TTabletId>(key),
+            ConvertTo<TTableId>(mapChildNode->FindChild("table_id")));
+    }
+    return tabletToTable;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBundleState::TBundleState(
     TString name,
     NApi::NNative::IClientPtr client,
@@ -64,39 +79,27 @@ void TBundleState::DoUpdateState()
     YT_LOG_DEBUG("Finished fetching tablet cells");
 
     THashSet<TTabletId> tabletIds;
+    THashSet<TTableId> newTableIds;
+    THashMap<TTableId, std::vector<TTabletId>> newTableIdToTablets;
+
     for (const auto& [id, info] : tabletCells) {
-        for (auto tabletId : info.TabletIds) {
-            if (TypeFromId(tabletId) == EObjectType::Tablet) {
-                InsertOrCrash(tabletIds, tabletId);
+        for (const auto& [tabletId, tableId] : info.TabletToTableId) {
+            InsertOrCrash(tabletIds, tabletId);
+
+            if (!Tablets_.contains(tabletId)) {
+                if (auto tableIt = Bundle_->Tables.find(tableId); tableIt != Bundle_->Tables.end()) {
+                    EmplaceOrCrash(Tablets_, tabletId, New<TTablet>(tabletId, tableIt->second.Get()));
+                } else {
+                    // A new table has been found.
+                    newTableIds.insert(tableId);
+                    auto it = newTableIdToTablets.emplace(tableId, std::vector<TTabletId>{}).first;
+                    it->second.emplace_back(tabletId);
+                }
             }
         }
     }
 
     DropMissingKeys(&Tablets_, tabletIds);
-
-    THashSet<TTabletId> newTabletIds;
-    for (auto tabletId : tabletIds) {
-        if (!Tablets_.contains(tabletId)) {
-            InsertOrCrash(newTabletIds, tabletId);
-        }
-    }
-
-    YT_LOG_DEBUG("Started fetching tablet table ids (NewTabletCount: %v)", newTabletIds.size());
-    auto tabletInfos = FetchTabletTableIds(newTabletIds);
-    YT_LOG_DEBUG("Finished fetching tablet table ids (NewTabletCount: %v)", tabletInfos.size());
-
-    THashSet<TTableId> newTableIds;
-    THashMap<TTableId, std::vector<TTabletId>> newTableIdToTablets;
-    for (const auto& [tabletId, tableId] : tabletInfos) {
-        if (auto tableIt = Bundle_->Tables.find(tableId); tableIt != Bundle_->Tables.end()) {
-            EmplaceOrCrash(Tablets_, tabletId, New<TTablet>(tabletId, tableIt->second.Get()));
-        } else {
-            // A new table has been found.
-            newTableIds.insert(tableId);
-            auto it = newTableIdToTablets.emplace(tableId, std::vector<TTabletId>{}).first;
-            it->second.emplace_back(tabletId);
-        }
-    }
 
     YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
     auto tableInfos = FetchBasicTableAttributes(newTableIds);
@@ -106,7 +109,7 @@ void TBundleState::DoUpdateState()
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
         InitializeProfilingCounters(it->second);
 
-        auto tablets = GetOrCrash(newTableIdToTablets, tableId);
+        const auto& tablets = GetOrCrash(newTableIdToTablets, tableId);
         for (auto tabletId : tablets) {
             auto tablet = New<TTablet>(tabletId, it->second.Get());
             EmplaceOrCrash(Tablets_, tabletId, tablet);
@@ -117,16 +120,15 @@ void TBundleState::DoUpdateState()
     for (const auto& [cellId, tabletCellInfo] : tabletCells) {
         EmplaceOrCrash(Bundle_->TabletCells, cellId, tabletCellInfo.TabletCell);
 
-        for (auto tabletId : tabletCellInfo.TabletIds) {
+        for (const auto& [tabletId, tableId] : tabletCellInfo.TabletToTableId) {
             if (!Tablets_.contains(tabletId)) {
                 // Tablet was created (and found in FetchCells).
-                // After that it was quickly removed before we fetched TabletTableIds
-                // or it was quickly removed before we fetched BasicTableAttributes.
+                // After that it was quickly removed before we fetched BasicTableAttributes.
                 // Therefore a TTablet object was not created.
-                // Skip this tablet and verify that this tabletInfo was never fetched
-                // in the first case and tableInfo was never fetched in the second.
+                // Skip this tablet and verify that this tabletId was fetched in FetchCells
+                // and tableInfo was never fetched in BasicTableAttributes.
 
-                YT_VERIFY(!tabletInfos.contains(tabletId) || !tableInfos.contains(tabletInfos[tabletId]));
+                YT_VERIFY(tabletIds.contains(tabletId) && !tableInfos.contains(tableId));
             }
         }
     }
@@ -252,7 +254,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
     TObjectServiceProxy proxy(
         Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
-    static const std::vector<TString> attributeKeys{"tablet_ids", "status", "total_statistics"};
+    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics"};
 
     for (auto cellId : CellIds_) {
         auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
@@ -269,33 +271,18 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGet>(ToString(cellId));
         auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
 
-        auto tabletIds = attributes->Get<std::vector<TTabletId>>("tablet_ids");
+        auto tablets = attributes->Get<IMapNodePtr>("tablets");
         auto status = attributes->Get<TTabletCellStatus>("status");
         auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
         auto tabletCell = New<TTabletCell>(cellId, statistics, status);
 
         tabletCells.emplace(cellId, TTabletCellInfo{
             .TabletCell = std::move(tabletCell),
-            .TabletIds = tabletIds
+            .TabletToTableId = ParseTabletToTableMapping(tablets)
         });
     }
 
     return tabletCells;
-}
-
-THashMap<TTabletId, TTableId> TBundleState::FetchTabletTableIds(
-    const THashSet<TTabletId>& tabletIds) const
-{
-    static const std::vector<TString> attributeKeys{"table_id"};
-    auto tableToAttributes = FetchAttributes(Client_, tabletIds, attributeKeys);
-
-    THashMap<TTableId, TTableId> tabletInfos;
-    for (const auto& [tabletId, attributes] : tableToAttributes) {
-        auto tableId = attributes->Get<TTableId>("table_id");
-        EmplaceOrCrash(tabletInfos, tabletId, tableId);
-    }
-
-    return tabletInfos;
 }
 
 THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(

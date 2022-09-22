@@ -53,7 +53,7 @@ private:
     struct TTabletCellInfo
     {
         TTabletCellPtr TabletCell;
-        std::vector<TTabletId> TabletIds;
+        THashMap<TTabletId, TTableId> TabletToTableId;
     };
 
     struct TTableSettings
@@ -93,8 +93,6 @@ private:
     void DoUpdateState();
 
     THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells() const;
-    THashMap<TTabletId, TTableId> FetchTabletTableIds(
-        const THashSet<TTabletId>& tabletIds) const;
     THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
 
