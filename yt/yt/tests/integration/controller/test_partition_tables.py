@@ -300,3 +300,32 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
                 "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {"row_index": 5000}, "upper_limit": {"row_index": 5888}}]})],
             },
         ]
+
+    @authors("galtsev")
+    def test_unordered_one_table_with_columns(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        partitions = partition_tables([table + '{key_1,value_1}'], data_weight_per_partition=data_weight // 3)
+        assert partitions == [
+            {
+                "table_ranges": [
+                    to_yson_type(
+                        table,
+                        attributes={
+                            "columns": ["key_1", "value_1"],
+                            "ranges": [
+                                {
+                                    "lower_limit": {"row_index": lower_limit},
+                                    "upper_limit": {"row_index": lower_limit + 3000},
+                                },
+                            ],
+                        },
+                    ),
+                ],
+            }
+            for lower_limit in range(0, 6000, 3000)
+        ]

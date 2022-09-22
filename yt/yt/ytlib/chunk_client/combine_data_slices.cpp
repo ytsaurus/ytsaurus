@@ -115,6 +115,9 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         path.SetRanges(ranges);
         if (dataSource.GetForeign()) {
             path.SetForeign(true);
+            if (dataSource.Columns()) {
+                path.SetColumns(*dataSource.Columns());
+            }
         }
         YT_VERIFY(dataSource.GetPath());
         path.SetPath(*dataSource.GetPath());
