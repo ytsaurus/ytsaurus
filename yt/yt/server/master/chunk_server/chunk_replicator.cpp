@@ -1226,7 +1226,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
     for (const auto& [chunkId, mediumToNode] : node->PushReplicationTargetNodeIds()) {
         for (auto [mediumIndex, nodeId] : mediumToNode) {
-            MaybeUnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
+            UnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
         }
     }
 
@@ -1260,7 +1260,7 @@ void TChunkReplicator::RemoveFromChunkReplicationQueues(
     const auto& pullReplicationNodeIds = node->PushReplicationTargetNodeIds();
     if (auto it = pullReplicationNodeIds.find(chunkId); it != pullReplicationNodeIds.end()) {
         for (auto [mediumIndex, nodeId] : it->second) {
-            MaybeUnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
+            UnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
         }
     }
     node->RemoveFromChunkReplicationQueues(chunkWithIndexes);
@@ -1294,22 +1294,15 @@ void TChunkReplicator::OnReplicaRemoved(
     }
 }
 
-void TChunkReplicator::MaybeUnrefChunkBeingPulled(
+void TChunkReplicator::UnrefChunkBeingPulled(
     TNodeId nodeId,
     TChunkId chunkId,
     int mediumIndex)
 {
-    if (!nodeId) {
-        return;
-    }
-
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    auto* node = nodeTracker->FindNode(nodeId);
-    if (!node) {
-        return;
+    if (auto* node = nodeTracker->FindNode(nodeId)) {
+        node->UnrefChunkBeingPulled(chunkId, mediumIndex);
     }
-
-    node->UnrefChunkBeingPulled(chunkId, mediumIndex);
 }
 
 bool TChunkReplicator::TryScheduleReplicationJob(
@@ -1323,6 +1316,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto chunkId = chunk->GetId();
     auto mediumIndex = targetMedium->GetIndex();
+    TJobPtr job;
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     auto* targetNode = nodeTracker->FindNode(targetNodeId);
@@ -1331,10 +1325,13 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     }
 
     auto finallyGuard = Finally([&] {
-        if (!targetNode) {
+        if (job) {
             return;
         }
-        targetNode->UnrefChunkBeingPulled(chunkId, mediumIndex);
+
+        if (targetNode) {
+            targetNode->UnrefChunkBeingPulled(chunkId, mediumIndex);
+        }
     });
 
     if (!IsObjectAlive(chunk)) {
@@ -1405,7 +1402,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         return false;
     }
 
-    auto job = New<TReplicationJob>(
+    job = New<TReplicationJob>(
         context->GenerateJobId(),
         GetJobEpoch(chunk),
         sourceNode,
@@ -1413,8 +1410,6 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         targetReplicas,
         targetNodeId);
     context->ScheduleJob(job);
-
-    finallyGuard.Release();
 
     YT_LOG_DEBUG("Replication job scheduled "
         "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
@@ -1748,14 +1743,9 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto chunkId = chunk->GetId();
 
             if (!chunk->IsRefreshActual()) {
+                RemoveFromChunkReplicationQueues(node, chunkWithIndexes);
+
                 queue.erase(jt);
-                const auto& pullReplicationNodeIds = node->PushReplicationTargetNodeIds();
-                if (auto it = pullReplicationNodeIds.find(chunkId); it != pullReplicationNodeIds.end()) {
-                    for (auto [mediumIndex, nodeId] : it->second) {
-                        MaybeUnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
-                    }
-                }
-                node->RemoveTargetReplicationNodeId(chunkId);
                 ++misscheduledReplicationJobs;
                 continue;
             }
@@ -2780,11 +2770,15 @@ void TChunkReplicator::RemoveChunkFromPullReplicationSet(const TJobPtr& job)
     if (job->GetType() != EJobType::ReplicateChunk) {
         return;
     }
+    auto replicationJob = StaticPointerCast<TReplicationJob>(job);
 
     const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
     auto chunkId = chunkIdWithIndexes.Id;
-    auto replicationJob = StaticPointerCast<TReplicationJob>(job);
-    MaybeUnrefChunkBeingPulled(replicationJob->GetTargetNodeId(), chunkId, chunkIdWithIndexes.MediumIndex);
+
+    const auto& targetReplicas = replicationJob->TargetReplicas();
+    auto targetMediumIndex = targetReplicas[0].GetMediumIndex();
+
+    UnrefChunkBeingPulled(replicationJob->GetTargetNodeId(), chunkId, targetMediumIndex);
 }
 
 void TChunkReplicator::OnJobCompleted(const TJobPtr& job)
