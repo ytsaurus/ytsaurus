@@ -38,7 +38,8 @@ from .table_helpers import _are_default_empty_table, _remove_tables
 from .common import is_prefix, forbidden_inside_job
 from .retries import Retrier
 from .config import get_config, get_command_param
-from .cypress_commands import get, remove, _make_formatted_transactional_request
+from .cypress_commands import get, remove
+from .driver import make_formatted_request
 from .errors import YtError, YtConcurrentOperationsLimitExceeded, YtMasterDisconnectedError
 from .exceptions_catcher import KeyboardInterruptsCatcher
 from .operation_commands import Operation
@@ -429,7 +430,7 @@ class OperationRequestRetrier(Retrier):
                                                       exceptions=exceptions)
 
     def action(self):
-        result = _make_formatted_transactional_request(
+        result = make_formatted_request(
             "start_operation" if get_api_version(self.client) == "v4" else "start_op",
             {"operation_type": self.operation_type, "spec": self.spec},
             format=None,

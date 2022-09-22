@@ -2,13 +2,13 @@ from .config import get_option, get_config, get_command_param
 from .common import YtError, MB
 from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
+from .driver import make_request
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
 from .ypath import YPathSupportingAppend, YPath
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
 from .transaction import Transaction, add_transaction_to_abort
-from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
 from .response_stream import ResponseStreamWithReadRow
 from .lock_commands import lock
@@ -185,7 +185,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 if chunk_size is None:
                     chunk_size = DEFAULT_WRITE_CHUNK_SIZE
 
-                write_action = lambda chunk, params: _make_transactional_request(
+                write_action = lambda chunk, params: make_request(
                     command_name,
                     params,
                     data=progress_reporter.wrap_stream(chunk),
@@ -215,7 +215,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if attr in params["path"].attributes:
                             del params["path"].attributes[attr]
             else:
-                _make_transactional_request(
+                make_request(
                     command_name,
                     params,
                     data=progress_reporter.wrap_stream(stream.into_chunks(2 * MB)),
@@ -225,7 +225,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
 
 def _get_read_response(command_name, params, transaction_id, client=None):
-    make_request = lambda: _make_transactional_request(
+    make_read_request = lambda: make_request(
         command_name,
         params,
         return_content=False,
@@ -236,9 +236,9 @@ def _get_read_response(command_name, params, transaction_id, client=None):
     response = None
     if transaction_id:
         with Transaction(transaction_id=transaction_id, client=client):
-            response = make_request()
+            response = make_read_request()
     else:
-        response = make_request()
+        response = make_read_request()
     return response
 
 

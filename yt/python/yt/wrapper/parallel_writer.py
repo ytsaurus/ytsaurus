@@ -3,11 +3,11 @@ from .config import get_config
 from .common import MB
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
+from .driver import make_request
 from .ypath import YPath, YPathSupportingAppend, ypath_join
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
 from .transaction import Transaction
-from .transaction_commands import _make_transactional_request
 from .thread_pool import ThreadPool
 from .heavy_commands import WriteRequestRetrier
 
@@ -193,7 +193,7 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
         # without a risk of triggering timeout.
         stream = stream.split_chunks(2 * MB)
 
-        write_action = lambda chunk, params, client: _make_transactional_request(
+        write_action = lambda chunk, params, client: make_request(
             command_name,
             params,
             data=iter(chunk),

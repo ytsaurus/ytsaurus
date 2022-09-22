@@ -1,8 +1,7 @@
 """Permissions commands"""
 
 from .common import set_param, YtError
-from .driver import make_request, set_master_read_params
-from .transaction_commands import _make_formatted_transactional_request
+from .driver import make_request, make_formatted_request, set_master_read_params
 
 
 class AclBuilder(object):
@@ -56,7 +55,7 @@ def check_permission(user, permission, path,
     }
     set_master_read_params(params, read_from, cache_sticky_group_size)
     set_param(params, "columns", columns)
-    return _make_formatted_transactional_request(
+    return make_formatted_request(
         "check_permission",
         params,
         format=format,
