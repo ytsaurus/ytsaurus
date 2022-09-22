@@ -182,7 +182,7 @@ private:
                 auto latestTimestamp = timestampProvider->GetLatestTimestamp();
 
                 return GetReplicationCard(options)
-                    .Apply(BIND([&] (const TReplicationCardPtr& card) {
+                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
                         return BuildYsonStringFluently()
                             .DoMapFor(card->Replicas, [&] (TFluentMap fluent, const auto& pair) {
                                 const auto& [replicaId, replica] = pair;
