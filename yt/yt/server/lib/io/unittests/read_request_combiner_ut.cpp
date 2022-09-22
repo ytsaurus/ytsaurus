@@ -35,7 +35,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<bool Dummy>
+template <bool Dummy>
 class TReadRequestCombinerTestBase
     : public ::testing::Test
 {
