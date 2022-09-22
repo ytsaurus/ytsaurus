@@ -360,7 +360,7 @@ private:
         TNode* node,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
     void RemoveChunkFromPullReplicationSet(const TJobPtr& job);
-    void MaybeUnrefChunkBeingPulled(
+    void UnrefChunkBeingPulled(
         TNodeId nodeId,
         TChunkId chunkId,
         int mediumIndex);
