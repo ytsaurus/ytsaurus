@@ -258,11 +258,11 @@ def create_job_events():
 
 @contextmanager
 def failing_heavy_request(module, n_fails, assert_exhausted=True):
-    make_transactional_request = module._make_transactional_request
+    make_request = module.make_request
     fail_state = dict(fails_left=n_fails, exhausted=False)
     lock = threading.Lock()
 
-    def failing_make_transactional_request(*args, **kwargs):
+    def failing_make_request(*args, **kwargs):
         with lock:
             if fail_state["fails_left"] > 0:
                 if "data" in kwargs:
@@ -271,13 +271,13 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
                 raise YtRetriableError
             else:
                 fail_state["exhausted"] = True
-        return make_transactional_request(*args, **kwargs)
+        return make_request(*args, **kwargs)
 
-    module._make_transactional_request = failing_make_transactional_request
+    module.make_request = failing_make_request
     try:
         yield
     finally:
-        module._make_transactional_request = make_transactional_request
+        module.make_request = make_request
 
     if assert_exhausted:
         assert fail_state["exhausted"]

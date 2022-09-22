@@ -2,7 +2,7 @@ import yt.logger as logger
 from .config import get_config, get_option
 from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream, update
 from .compression import try_enable_parallel_write_gzip
-from .driver import get_command_list
+from .driver import get_command_list, make_formatted_request
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
@@ -13,7 +13,6 @@ from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
 from .ypath import FilePath, TablePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
-from .transaction_commands import _make_formatted_transactional_request
 from .stream import RawStream
 
 from yt.common import to_native_str
@@ -330,7 +329,7 @@ class PutFileToCacheRetrier(Retrier):
         self._client = client
 
     def action(self):
-        return _make_formatted_transactional_request(
+        return make_formatted_request(
             "put_file_to_cache",
             self._params,
             format=None,
@@ -369,7 +368,7 @@ def get_file_from_cache(md5, cache_path=None, client=None):
         "md5": md5,
         "cache_path": cache_path}
 
-    return _make_formatted_transactional_request("get_file_from_cache", params, format=None, client=client)
+    return make_formatted_request("get_file_from_cache", params, format=None, client=client)
 
 
 def is_executable(filename, client=None):

@@ -2,8 +2,7 @@ from .common import get_value, YtError, set_param
 from .ypath import YPath
 from .cypress_commands import get
 from .batch_response import apply_function_to_result
-from .transaction_commands import _make_transactional_request, _make_formatted_transactional_request
-from .driver import get_api_version
+from .driver import get_api_version, make_request, make_formatted_request
 
 import time
 from datetime import timedelta, datetime
@@ -44,7 +43,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     set_param(params, "child_key", child_key)
     set_param(params, "attribute_key", attribute_key)
 
-    lock_response = _make_formatted_transactional_request("lock", params, format=None, client=client)
+    lock_response = make_formatted_request("lock", params, format=None, client=client)
     lock_id = apply_function_to_result(
         lambda rsp: rsp["lock_id"] if get_api_version(client) == "v4" else rsp,
         lock_response)
@@ -78,4 +77,4 @@ def unlock(path, client=None):
     .. seealso:: `unlock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#lock_operations>`_
     """
     params = {"path": YPath(path, client=client)}
-    _make_transactional_request("unlock", params, client=client)
+    make_request("unlock", params, client=client)

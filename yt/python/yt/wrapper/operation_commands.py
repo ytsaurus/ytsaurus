@@ -117,7 +117,7 @@ def complete_operation(operation, client=None):
     return make_request(command_name, {"operation_id": operation}, client=client)
 
 
-def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
+def get_operation(operation_id=None, operation_alias=None, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
     """
     params = {"operation_id": operation_id}

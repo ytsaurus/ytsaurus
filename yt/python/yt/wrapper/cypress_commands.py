@@ -2,9 +2,7 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param, deprecated
 from .errors import YtResponseError
-from .driver import set_master_read_params, get_api_version, get_structured_format
-from .transaction_commands import (_make_transactional_request,
-                                   _make_formatted_transactional_request)
+from .driver import make_request, make_formatted_request, set_master_read_params, get_api_version, get_structured_format
 from .transaction import Transaction
 from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .batch_response import apply_function_to_result
@@ -88,7 +86,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
     set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
-    result = _make_formatted_transactional_request(
+    result = make_formatted_request(
         "get",
         params=params,
         format=format,
@@ -121,7 +119,7 @@ def set(path, value, format=None, recursive=False, force=None, suppress_transact
     set_param(params, "force", force)
     set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
 
-    return _make_transactional_request(
+    return make_request(
         "set",
         params,
         data=value,
@@ -171,7 +169,7 @@ def copy(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
-    return _make_formatted_transactional_request("copy", params, format=None, client=client)
+    return make_formatted_request("copy", params, format=None, client=client)
 
 
 def move(source_path, destination_path,
@@ -211,7 +209,7 @@ def move(source_path, destination_path,
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
-    return _make_formatted_transactional_request("move", params, format=None, client=client)
+    return make_formatted_request("move", params, format=None, client=client)
 
 
 class _ConcatenateRetrier(Retrier):
@@ -234,7 +232,7 @@ class _ConcatenateRetrier(Retrier):
             create(self.type, self.destination_path, ignore_existing=True, client=self.client)
             params = {"source_paths": self.source_paths,
                       "destination_path": self.destination_path}
-            _make_transactional_request("concatenate", params, client=self.client)
+            make_request("concatenate", params, client=self.client)
 
     def except_action(self, error, attempt):
         logger.warning("Concatenate failed with error %s", repr(error))
@@ -284,7 +282,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
     set_param(params, "lock_existing", lock_existing)
     set_param(params, "force", force)
     set_param(params, "attributes", attributes)
-    return _make_formatted_transactional_request(
+    return make_formatted_request(
         "link",
         params,
         format=None,
@@ -340,7 +338,7 @@ def list(path,
     set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
-    result = _make_formatted_transactional_request(
+    result = make_formatted_request(
         "list",
         params=params,
         format=format,
@@ -361,7 +359,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transact
     params = {"path": YPath(path, client=client)}
     set_master_read_params(params, read_from, cache_sticky_group_size)
     set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
-    result = _make_formatted_transactional_request(
+    result = make_formatted_request(
         "exists",
         params,
         format=None,
@@ -384,7 +382,7 @@ def remove(path, recursive=False, force=False, client=None):
     }
     set_param(params, "recursive", recursive)
     set_param(params, "force", force)
-    return _make_transactional_request("remove", params, client=client)
+    return make_request("remove", params, client=client)
 
 
 def create(type, path=None, recursive=False, ignore_existing=False, lock_existing=None,
@@ -421,7 +419,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
         else:
             return result
 
-    result = _make_formatted_transactional_request("create", params, format=None, client=client)
+    result = make_formatted_request("create", params, format=None, client=client)
     return apply_function_to_result(_process_result, result)
 
 
@@ -436,7 +434,7 @@ def externalize(path, cell_tag, client=None):
         "path": YPath(path, client=client),
         "cell_tag": cell_tag,
     }
-    return _make_transactional_request("externalize", params, client=client)
+    return make_request("externalize", params, client=client)
 
 
 def internalize(path, client=None):
@@ -448,7 +446,7 @@ def internalize(path, client=None):
     params = {
         "path": YPath(path, client=client)
     }
-    return _make_transactional_request("internalize", params, client=client)
+    return make_request("internalize", params, client=client)
 
 
 def mkdir(path, recursive=None, client=None):

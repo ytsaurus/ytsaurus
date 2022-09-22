@@ -8,8 +8,7 @@ from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsucce
 from yt.wrapper.common import YtError, require, update, update_inplace
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.cypress_commands import get, exists, copy, create, list
-from yt.wrapper.transaction_commands import _make_transactional_request
-from yt.wrapper.operation_commands import get_operation_url, abort_operation
+from yt.wrapper.operation_commands import get_operation_url, abort_operation, get_operation
 from yt.wrapper.http_helpers import get_cluster_name
 from yt.wrapper.file_commands import smart_upload_file
 from yt.wrapper.config import get_config
@@ -34,11 +33,11 @@ def _resolve_alias(operation_alias, client=None):
     if operation_alias is None:
         return None
     try:
-        return json.loads(_make_transactional_request("get_operation", {
-            "operation_alias": operation_alias,
-            "include_runtime": True,
-            "attributes": ["id", "state"]
-        }, client=client))
+        return get_operation(
+            operation_alias=operation_alias,
+            include_scheduler=include_scheduler,
+            attributes=["id", "state"],
+            client=client)
     except:
         # TODO(max42): introduce error code.
         return None

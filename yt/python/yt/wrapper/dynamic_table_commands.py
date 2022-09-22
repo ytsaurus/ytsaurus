@@ -10,7 +10,6 @@ from .errors import (
     YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict,
     YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout,
     YtNoSuchCell)
-from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
@@ -155,7 +154,7 @@ class DynamicTableRequestRetrier(Retrier):
         if self.data is not None:
             kwargs["data"] = self.data
 
-        response = _make_transactional_request(
+        response = make_request(
             self.command,
             self.params,
             return_content=self.return_content,

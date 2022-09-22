@@ -1562,9 +1562,7 @@ def execute(**kwargs):
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
     data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in kwargs["execute_params"] else None
-    result = yt.transaction_commands._make_transactional_request(kwargs["command_name"],
-                                                                 kwargs["execute_params"],
-                                                                 data=data)
+    result = yt.driver.make_request(kwargs["command_name"], kwargs["execute_params"], data=data)
     if result is not None:
         print_to_output(result, eoln=False)
 
