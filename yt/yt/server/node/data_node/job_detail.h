@@ -53,8 +53,6 @@ public:
 
     NJobAgent::EJobState GetState() const;
 
-    NJobAgent::EJobPhase GetPhase() const;
-
     const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
 
     NJobTrackerClient::NProto::TJobResult GetResult() const;
@@ -75,9 +73,6 @@ protected:
     bool Started_ = false;
 
     NJobAgent::EJobState JobState_ = NJobAgent::EJobState::Waiting;
-    NJobAgent::EJobPhase JobPhase_ = NJobAgent::EJobPhase::Created;
-
-    TString Stderr_;
 
     TFuture<void> JobFuture_;
 
