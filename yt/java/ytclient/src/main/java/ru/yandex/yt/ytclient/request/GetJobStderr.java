@@ -14,7 +14,8 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class GetJobStderr extends RequestBase implements HighLevelRequest<TReqGetJobStderr.Builder> {
+public class GetJobStderr extends RequestBase<GetJobStderr.Builder>
+        implements HighLevelRequest<TReqGetJobStderr.Builder> {
     private final GUID operationId;
     private final GUID jobId;
 
@@ -32,8 +33,9 @@ public class GetJobStderr extends RequestBase implements HighLevelRequest<TReqGe
         return new Builder();
     }
 
+    @Override
     public Builder toBuilder() {
-        Builder builder = builder()
+        return builder()
                 .setOperationId(operationId)
                 .setJobId(jobId)
                 .setTimeout(timeout)
@@ -41,7 +43,6 @@ public class GetJobStderr extends RequestBase implements HighLevelRequest<TReqGe
                 .setUserAgent(userAgent)
                 .setTraceId(traceId, traceSampled)
                 .setAdditionalData(additionalData);
-        return builder;
     }
 
     @Override
@@ -77,6 +78,10 @@ public class GetJobStderr extends RequestBase implements HighLevelRequest<TReqGe
         Builder setJobId(GUID jobId) {
             this.jobId = jobId;
             return self();
+        }
+
+        public GetJobStderr build() {
+            return new GetJobStderr(this);
         }
 
         @Override

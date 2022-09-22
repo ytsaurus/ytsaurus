@@ -12,7 +12,7 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public abstract class RequestBase {
+public abstract class RequestBase<T extends RequestBase.Builder<T>> {
     protected @Nullable Duration timeout;
     protected @Nullable GUID requestId;
     protected @Nullable GUID traceId;
@@ -92,7 +92,7 @@ public abstract class RequestBase {
     protected void writeArgumentsLogString(StringBuilder sb) {
     }
 
-    public abstract <TBuilder extends Builder<TBuilder>> TBuilder toBuilder();
+    public abstract T toBuilder();
 
     public abstract static class Builder<T extends Builder<T>> {
         protected @Nullable Duration timeout;

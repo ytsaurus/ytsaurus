@@ -8,29 +8,30 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
- * Request for aborting transaction.
+ * Request for committing transaction.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_tx">
- *     abort_tx documentation
+ * @see <a href="https://docs.yandex-team.ru/yt/api/commands#commit_tx">
+ *     commit_tx documentation
  *     </a>
  */
-public class AbortTransaction
-        extends RequestBase<AbortTransaction.Builder>
-        implements HighLevelRequest<TReqAbortTransaction.Builder> {
-    final GUID transactionId;
+@NonNullFields
+@NonNullApi
+public class CommitTransaction extends RequestBase<CommitTransaction.Builder>
+        implements HighLevelRequest<TReqCommitTransaction.Builder> {
+    private final GUID transactionId;
 
-    AbortTransaction(Builder builder) {
+    CommitTransaction(Builder builder) {
         super(builder);
-        this.transactionId = Objects.requireNonNull(builder.transactionId);
+        transactionId = Objects.requireNonNull(builder.transactionId);
     }
 
-    public AbortTransaction(GUID transactionId) {
+    public CommitTransaction(GUID transactionId) {
         this(builder().setTransactionId(transactionId));
     }
 
@@ -39,7 +40,7 @@ public class AbortTransaction
     }
 
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqAbortTransaction.Builder, ?> builder) {
+    public void writeTo(RpcClientRequestBuilder<TReqCommitTransaction.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
     }
 
@@ -51,7 +52,8 @@ public class AbortTransaction
 
     @Override
     public Builder toBuilder() {
-        return builder().setTransactionId(transactionId)
+        return builder()
+                .setTransactionId(transactionId)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -63,23 +65,23 @@ public class AbortTransaction
     @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder> {
         @Nullable
-        GUID transactionId;
+        private GUID transactionId;
 
         Builder() {
         }
 
         Builder(Builder builder) {
             super(builder);
-            this.transactionId = builder.transactionId;
+            transactionId = builder.transactionId;
         }
 
-        Builder setTransactionId(GUID transactionId) {
+        public Builder setTransactionId(GUID transactionId) {
             this.transactionId = transactionId;
-            return self();
+            return this;
         }
 
-        public AbortTransaction build() {
-            return new AbortTransaction(this);
+        public CommitTransaction build() {
+            return new CommitTransaction(this);
         }
 
         @Override

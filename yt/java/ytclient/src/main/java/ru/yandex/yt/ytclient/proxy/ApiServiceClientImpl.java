@@ -63,26 +63,19 @@ import ru.yandex.yt.ytclient.operations.Spec;
 import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
-import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.BaseOperation;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
-import ru.yandex.yt.ytclient.proxy.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
-import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
-import ru.yandex.yt.ytclient.proxy.request.GcCollect;
-import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
 import ru.yandex.yt.ytclient.proxy.request.GetOperation;
-import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
@@ -94,7 +87,6 @@ import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutateNode;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
@@ -108,14 +100,12 @@ import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
-import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TableReq;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
-import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
@@ -125,14 +115,24 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AlterTableReplica;
+import ru.yandex.yt.ytclient.request.CheckClusterLiveness;
+import ru.yandex.yt.ytclient.request.CommitTransaction;
+import ru.yandex.yt.ytclient.request.CreateObject;
 import ru.yandex.yt.ytclient.request.ExistsNode;
+import ru.yandex.yt.ytclient.request.GcCollect;
+import ru.yandex.yt.ytclient.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.request.GetJobStderr;
 import ru.yandex.yt.ytclient.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.request.GetNode;
+import ru.yandex.yt.ytclient.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.ListJobs;
 import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.PingTransaction;
+import ru.yandex.yt.ytclient.request.StartOperation;
+import ru.yandex.yt.ytclient.request.TrimTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -750,11 +750,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         }
 
         return alterTableReplica(
-                new AlterTableReplica(replicaId)
+                AlterTableReplica.builder()
+                        .setReplicaId(replicaId)
                         .setEnabled(enabled)
                         .setMode(convertedMode)
                         .setPreserveTimestamps(preserveTimestamp)
                         .setAtomicity(convertedAtomicity)
+                        .build()
         );
     }
 
@@ -831,9 +833,12 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     ) {
         return prepareSpec(req.getSpec()).thenCompose(
                 preparedSpec -> startOperation(
-                        new StartOperation(type, preparedSpec)
-                                .setTransactionOptions(req.getTransactionalOptions().orElse(null))
+                        StartOperation.builder()
+                                .setType(type)
+                                .setSpec(preparedSpec)
+                                .setTransactionalOptions(req.getTransactionalOptions().orElse(null))
                                 .setMutatingOptions(req.getMutatingOptions())
+                                .build()
                 ).thenApply(operationId ->
                         new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
         );

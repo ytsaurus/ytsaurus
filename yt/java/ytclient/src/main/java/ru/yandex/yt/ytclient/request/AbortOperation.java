@@ -14,7 +14,8 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class AbortOperation extends RequestBase implements HighLevelRequest<TReqAbortOperation.Builder> {
+public class AbortOperation extends RequestBase<AbortOperation.Builder>
+        implements HighLevelRequest<TReqAbortOperation.Builder> {
     private final GUID id;
     @Nullable
     private final String message;
@@ -50,6 +51,7 @@ public class AbortOperation extends RequestBase implements HighLevelRequest<TReq
         super.writeArgumentsLogString(sb);
     }
 
+    @Override
     public Builder toBuilder() {
         Builder builder = builder().setId(id)
                 .setTimeout(timeout)
@@ -88,6 +90,10 @@ public class AbortOperation extends RequestBase implements HighLevelRequest<TReq
         public Builder setMessage(String message) {
             this.message = message;
             return self();
+        }
+
+        public AbortOperation build() {
+            return new AbortOperation(this);
         }
 
         @Override

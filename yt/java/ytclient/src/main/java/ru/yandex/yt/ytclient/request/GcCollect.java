@@ -8,30 +8,23 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-/**
- * Request for aborting transaction.
- *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_tx">
- *     abort_tx documentation
- *     </a>
- */
-public class AbortTransaction
-        extends RequestBase<AbortTransaction.Builder>
-        implements HighLevelRequest<TReqAbortTransaction.Builder> {
-    final GUID transactionId;
+@NonNullFields
+@NonNullApi
+public class GcCollect extends RequestBase<GcCollect.Builder> implements HighLevelRequest<TReqGCCollect.Builder> {
+    private final GUID cellId;
 
-    AbortTransaction(Builder builder) {
+    GcCollect(Builder builder) {
         super(builder);
-        this.transactionId = Objects.requireNonNull(builder.transactionId);
+        cellId = Objects.requireNonNull(builder.cellId);
     }
 
-    public AbortTransaction(GUID transactionId) {
-        this(builder().setTransactionId(transactionId));
+    public GcCollect(GUID cellId) {
+        this(builder().setCellId(cellId));
     }
 
     public static Builder builder() {
@@ -39,19 +32,19 @@ public class AbortTransaction
     }
 
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqAbortTransaction.Builder, ?> builder) {
-        builder.body().setTransactionId(RpcUtil.toProto(transactionId));
+    public void writeTo(RpcClientRequestBuilder<TReqGCCollect.Builder, ?> builder) {
+        builder.body().setCellId(RpcUtil.toProto(cellId));
     }
 
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        sb.append("CellId: ").append(cellId).append("; ");
         super.writeArgumentsLogString(sb);
-        sb.append("TransactionId: ").append(transactionId).append(";");
     }
 
-    @Override
     public Builder toBuilder() {
-        return builder().setTransactionId(transactionId)
+        return builder()
+                .setCellId(cellId)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -63,23 +56,23 @@ public class AbortTransaction
     @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder> {
         @Nullable
-        GUID transactionId;
+        private GUID cellId;
 
         Builder() {
         }
 
         Builder(Builder builder) {
             super(builder);
-            this.transactionId = builder.transactionId;
+            cellId = builder.cellId;
         }
 
-        Builder setTransactionId(GUID transactionId) {
-            this.transactionId = transactionId;
+        public Builder setCellId(GUID cellId) {
+            this.cellId = cellId;
             return self();
         }
 
-        public AbortTransaction build() {
-            return new AbortTransaction(this);
+        public GcCollect build() {
+            return new GcCollect(this);
         }
 
         @Override
