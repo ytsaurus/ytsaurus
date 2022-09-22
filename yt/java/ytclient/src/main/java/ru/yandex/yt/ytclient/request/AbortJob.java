@@ -12,7 +12,7 @@ import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public class AbortJob extends RequestBase implements HighLevelRequest<TReqAbortJob.Builder> {
+public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevelRequest<TReqAbortJob.Builder> {
     private final GUID jobId;
     @Nullable
     private final Long interruptTimeout;

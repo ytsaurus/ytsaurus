@@ -35,13 +35,13 @@ import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
-import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.StartOperation;
 
 /**
  * Interface of transactional YT client.
@@ -102,6 +102,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<FileWriter> writeFile(WriteFile req);
 
     CompletableFuture<GUID> startOperation(StartOperation req);
+
+    default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?> req) {
+        return startOperation(req.build());
+    }
 
     CompletableFuture<Operation> startMap(MapOperation req);
 

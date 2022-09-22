@@ -1,32 +1,27 @@
 package ru.yandex.yt.ytclient.request;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
+import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi
-public class GetTabletInfos
-        extends RequestBase<GetTabletInfos.Builder>
-        implements HighLevelRequest<TReqGetTabletInfos.Builder> {
+public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder>
+        implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
     private final String path;
-    private final List<Integer> tabletIndexes;
 
-    GetTabletInfos(Builder builder) {
+    GetTablePivotKeys(Builder builder) {
         super(builder);
-        this.path = Objects.requireNonNull(builder.path);
-        this.tabletIndexes = builder.tabletIndexes;
+        path = Objects.requireNonNull(builder.path);
     }
 
-    public GetTabletInfos(String path) {
+    public GetTablePivotKeys(String path) {
         this(builder().setPath(path));
     }
 
@@ -35,21 +30,20 @@ public class GetTabletInfos
     }
 
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqGetTabletInfos.Builder, ?> builder) {
+    public void writeTo(RpcClientRequestBuilder<TReqGetTablePivotKeys.Builder, ?> builder) {
         builder.body().setPath(path);
-        builder.body().addAllTabletIndexes(tabletIndexes);
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        sb.append("Path: ").append(path).append("; TabletIndexes: ").append(tabletIndexes).append("; ");
         super.writeArgumentsLogString(sb);
+        sb.append("Path: ").append(path).append("; ");
     }
 
+    @Override
     public Builder toBuilder() {
         return builder()
                 .setPath(path)
-                .setTabletIndexes(tabletIndexes)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -57,18 +51,18 @@ public class GetTabletInfos
                 .setAdditionalData(additionalData);
     }
 
+    @NonNullApi
+    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder> {
         @Nullable
         private String path;
-        private List<Integer> tabletIndexes = new ArrayList<>();
 
         Builder() {
         }
 
         Builder(Builder builder) {
             super(builder);
-            this.path = builder.path;
-            this.tabletIndexes = new ArrayList<>(builder.tabletIndexes);
+            path = builder.path;
         }
 
         public Builder setPath(String path) {
@@ -76,19 +70,8 @@ public class GetTabletInfos
             return self();
         }
 
-        public Builder addTabletIndex(int idx) {
-            tabletIndexes.add(idx);
-            return self();
-        }
-
-        public Builder setTabletIndexes(List<Integer> tabletIndexes) {
-            this.tabletIndexes.clear();
-            this.tabletIndexes.addAll(tabletIndexes);
-            return self();
-        }
-
-        public GetTabletInfos build() {
-            return new GetTabletInfos(this);
+        public GetTablePivotKeys build() {
+            return new GetTablePivotKeys(this);
         }
 
         @Override

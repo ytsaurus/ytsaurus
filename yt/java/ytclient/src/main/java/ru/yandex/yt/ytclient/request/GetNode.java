@@ -72,7 +72,8 @@ public class GetNode extends GetLikeReq implements HighLevelRequest<TReqGetNode.
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
-                .setTraceId(traceId, traceSampled);
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
     }
 
     public static class Builder extends BuilderBase<Builder> {

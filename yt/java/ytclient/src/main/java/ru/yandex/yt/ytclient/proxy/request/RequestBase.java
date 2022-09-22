@@ -10,7 +10,7 @@ public abstract class RequestBase<T extends RequestBase<T>>
     public RequestBase() {
     }
 
-    RequestBase(RequestBase<?> req) {
+    protected RequestBase(RequestBase<?> req) {
         super(req);
     }
 }

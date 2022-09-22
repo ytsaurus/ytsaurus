@@ -1,78 +1,13 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.google.protobuf.ByteString;
-
-import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EOperationType;
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TReqStartOperation;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-@NonNullApi
-@NonNullFields
-public class StartOperation
-        extends RequestBase<StartOperation>
-        implements HighLevelRequest<TReqStartOperation.Builder> {
-    private final EOperationType type;
-    private final YTreeNode spec;
-
-    @Nullable
-    private TransactionalOptions transactionalOptions;
-    private MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
-
+public class StartOperation extends ru.yandex.yt.ytclient.request.StartOperation.BuilderBase<StartOperation> {
     public StartOperation(EOperationType type, YTreeNode spec) {
-        this.type = type;
-        this.spec = spec;
+        setType(type).setSpec(spec);
     }
 
-    public StartOperation setTransactionOptions(@Nullable TransactionalOptions transactionalOptions) {
-        this.transactionalOptions = transactionalOptions;
-        return this;
-    }
-
-    public StartOperation setMutatingOptions(@Nonnull MutatingOptions mutatingOptions) {
-        this.mutatingOptions = mutatingOptions;
-        return this;
-    }
-
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqStartOperation.Builder, ?> requestBuilder) {
-        TReqStartOperation.Builder builder = requestBuilder.body();
-        ByteString.Output output = ByteString.newOutput();
-        YTreeBinarySerializer.serialize(spec, output);
-
-        builder
-                .setType(type)
-                .setSpec(output.toByteString());
-
-        if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-        }
-
-        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-    }
-
-    @Override
-    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
-        sb.append("OperationType: ").append(type).append("; ");
-        super.writeArgumentsLogString(sb);
-    }
-
-    @Override
-    public void writeHeaderTo(TRequestHeader.Builder header) {
-        super.writeHeaderTo(header);
-    }
-
-    @Nonnull
     @Override
     protected StartOperation self() {
         return this;
