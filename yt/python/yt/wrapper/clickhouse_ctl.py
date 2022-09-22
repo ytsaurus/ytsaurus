@@ -4,9 +4,9 @@ from .http_helpers import get_token, format_logging_params
 
 import yt.logger as logger
 import yt.wrapper.yson as yson
+import yt.packages.requests as requests
 
 import os
-import requests
 
 
 def get_full_ctl_address(address):
