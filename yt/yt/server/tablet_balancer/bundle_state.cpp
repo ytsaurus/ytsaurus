@@ -38,6 +38,13 @@ THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePt
     return tabletToTable;
 }
 
+TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& profiler)
+    : TabletCellTabletsRequestCount(profiler.WithSparse().Counter("/master_requests/tablet_cell_tablets_count"))
+    , BasicTableAttributesRequestCount(profiler.WithSparse().Counter("/master_requests/basic_table_attributes_count"))
+    , ActualTableSettingsRequestCount(profiler.WithSparse().Counter("/master_requests/actual_table_settings_count"))
+    , TableStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/table_statistics_count"))
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBundleState::TBundleState(
@@ -49,6 +56,7 @@ TBundleState::TBundleState(
     , Profiler_(TabletBalancerProfiler.WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , Invoker_(invoker)
+    , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
 void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes)
@@ -75,6 +83,7 @@ TFuture<void> TBundleState::FetchStatistics()
 void TBundleState::DoUpdateState()
 {
     YT_LOG_DEBUG("Started fetching tablet cells (CellCount: %v)", CellIds_.size());
+    Counters_->TabletCellTabletsRequestCount.Increment(CellIds_.size());
     auto tabletCells = FetchTabletCells();
     YT_LOG_DEBUG("Finished fetching tablet cells");
 
@@ -102,6 +111,7 @@ void TBundleState::DoUpdateState()
     DropMissingKeys(&Tablets_, tabletIds);
 
     YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
+    Counters_->BasicTableAttributesRequestCount.Increment(newTableIds.size());
     auto tableInfos = FetchBasicTableAttributes(newTableIds);
     YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
 
@@ -143,6 +153,7 @@ bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
 void TBundleState::DoFetchStatistics()
 {
     YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", Bundle_->Tables.size());
+    Counters_->ActualTableSettingsRequestCount.Increment(Bundle_->Tables.size());
     auto tableSettings = FetchActualTableSettings();
     YT_LOG_DEBUG("Finished fetching actual table settings (TableCount: %v)", tableSettings.size());
 
@@ -171,6 +182,7 @@ void TBundleState::DoFetchStatistics()
     }
 
     YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
+    Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetch.size());
     auto tableIdToStatistics = FetchTableStatistics(tableIdsToFetch);
     YT_LOG_DEBUG("Finished fetching table statistics (TableCount: %v)", tableIdToStatistics.size());
 
