@@ -1,8 +1,10 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -11,8 +13,6 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
-import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
@@ -36,6 +36,8 @@ import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.CheckPermission;
+import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.ListNode;
@@ -88,6 +90,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
+
+    default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?> req) {
+        return concatenateNodes(req.build());
+    }
 
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
 
@@ -263,6 +269,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<Void> concatenateNodes(String[] from, String to, @Nullable Duration requestTimeout) {
-        return concatenateNodes(new ConcatenateNodes(from, to).setTimeout(requestTimeout));
+        return concatenateNodes(ConcatenateNodes.builder()
+                .setSourcePaths(Arrays.stream(from).map(YPath::simple).collect(Collectors.toList()))
+                .setDestinationPath(YPath.simple(to))
+                .setTimeout(requestTimeout)
+                .build());
     }
 }

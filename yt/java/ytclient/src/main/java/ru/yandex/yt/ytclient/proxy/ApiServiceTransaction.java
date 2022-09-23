@@ -24,8 +24,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
-import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
@@ -48,6 +46,8 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.CheckPermission;
+import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.ListNode;
@@ -405,7 +405,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
-        return client.concatenateNodes(req.setTransactionalOptions(transactionalOptions));
+        return client.concatenateNodes(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
@@ -485,7 +485,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
-        return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
+        return client.checkPermission(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
