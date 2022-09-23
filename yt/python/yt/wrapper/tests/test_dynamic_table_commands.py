@@ -13,6 +13,7 @@ except ImportError:
 from yt.local import start, stop
 
 import yt.wrapper as yt
+from yt.wrapper.dynamic_table_commands import BackupManifest, ClusterBackupManifest
 
 import os
 import pytest
@@ -452,3 +453,30 @@ class TestDynamicTableCommands(object):
         assert len(errors_with_limit["replication_errors"]) == 0
         assert "incomplete" not in errors
         assert "incomplete" not in errors_with_limit
+
+    @authors("ifsmirnov")
+    def test_backup_restore(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        cluster_connection = yt.get("//sys/@cluster_connection")
+        yt.set("//sys/clusters", {"self": cluster_connection})
+        yt.set("//sys/@config/tablet_manager/enable_backups", True)
+
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/table_to_backup"
+        self._create_dynamic_table(table, enable_dynamic_store_read=True)
+        yt.mount_table(table, sync=True)
+
+        manifest = (BackupManifest() # noqa
+            .add_cluster("self", ClusterBackupManifest() # noqa
+                .add_table(table, table + ".bak"))) # noqa
+        yt.create_table_backup(manifest)
+        assert yt.exists(table + ".bak")
+
+        manifest = (BackupManifest() # noqa
+            .add_cluster("self", ClusterBackupManifest() # noqa
+                .add_table(table + ".bak", table + ".res"))) # noqa
+        yt.restore_table_backup(manifest, mount=True)
+        assert yt.exists(table + ".res")
+        wait(lambda: yt.get(table + ".res" + "/@tablet_state") == "mounted")

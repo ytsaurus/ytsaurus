@@ -418,6 +418,23 @@ class YtClient(ClientState):
             client=self,
             **kwargs)
 
+    def create_table_backup(
+            self,
+            manifest,
+            force=None):
+        """
+        Creates a consistent backup copy of a collection of tables.
+
+        :param manifest: description of tables to be backed up.
+        :type manifest: dict or :class:`BackupManifest`
+        :param bool force: overwrite destination tables.
+
+        """
+        return client_api.create_table_backup(
+            manifest,
+            client=self,
+            force=force)
+
     def create_temp_table(
             self,
             path=None, prefix=None, attributes=None, expiration_timeout=None):
@@ -1425,6 +1442,25 @@ class YtClient(ClientState):
             path,
             client=self,
             sync=sync)
+
+    def restore_table_backup(
+            self,
+            manifest,
+            force=None, mount=None, enable_replicas=None):
+        """
+        Restores a collection of tables from its backup copy.
+
+        :param manifest: description of tables to be restored.
+        :type manifest: dict or :class:`BackupManifest`
+        :param bool force: overwrite destination tables.
+        :param bool mount: mount restored tables which were mounted before backup.
+        :param bool enable_replicas: enable restored table replicas which were enabled before backup.
+
+        """
+        return client_api.restore_table_backup(
+            manifest,
+            client=self,
+            force=force, mount=mount, enable_replicas=enable_replicas)
 
     def resume_operation(
             self,

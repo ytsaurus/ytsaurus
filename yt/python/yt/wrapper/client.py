@@ -10,7 +10,7 @@ try:
 
     for name in client_api.all_names:
         assert are_signatures_equal(getattr(YtClient, name), create_class_method(getattr(client_api, name)))
-except AssertionError:
+except (AssertionError, AttributeError):
     YtClient = None
 
 

@@ -21,6 +21,11 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+try:
+    from yt.packages.six import iteritems
+except ImportError:
+    from six import iteritems
+
 import yt.logger as logger
 
 from copy import deepcopy
@@ -706,3 +711,84 @@ def get_tablet_errors(path, limit=None, format=None, client=None):
     set_param(params, "limit", limit)
 
     return make_formatted_request("get_tablet_errors", params, format=format, client=client)
+
+
+class TableBackupManifest(object):
+    def __init__(self, source_path, destination_path, ordered_mode=None):
+        self.source_path = source_path
+        self.destination_path = destination_path
+        self.ordered_mode = ordered_mode
+
+    def _serialize(self):
+        result = {
+            "source_path": self.source_path,
+            "destination_path": self.destination_path,
+        }
+        if self.ordered_mode is not None:
+            result["ordered_mode"] = self.ordered_mode
+        return result
+
+
+class ClusterBackupManifest(object):
+    def __init__(self):
+        self.tables = []
+
+    def add_table(self, source_path, destination_path, ordered_mode=None):
+        self.tables.append(TableBackupManifest(source_path, destination_path, ordered_mode))
+        return self
+
+    def _serialize(self):
+        return [table._serialize() for table in self.tables]
+
+
+class BackupManifest(object):
+    def __init__(self):
+        self.clusters = {}
+
+    def add_cluster(self, cluster_name, cluster_manifest):
+        self.clusters[cluster_name] = cluster_manifest
+        return self
+
+    def _serialize(self):
+        clusters = {
+            name: cluster._serialize()
+            for name, cluster
+            in iteritems(self.clusters)
+        }
+        return {"clusters": clusters}
+
+
+def create_table_backup(manifest, force=None, client=None):
+    """Creates a consistent backup copy of a collection of tables.
+
+    :param manifest: description of tables to be backed up.
+    :type manifest: dict or :class:`BackupManifest`
+    :param bool force: overwrite destination tables.
+    """
+    if type(manifest) is BackupManifest:
+        manifest = manifest._serialize()
+
+    params = {"manifest": manifest}
+    set_param(params, "force", force)
+
+    return make_request("create_table_backup", params, client=client)
+
+
+def restore_table_backup(manifest, force=None, mount=None, enable_replicas=None, client=None):
+    """Restores a collection of tables from its backup copy.
+
+    :param manifest: description of tables to be restored.
+    :type manifest: dict or :class:`BackupManifest`
+    :param bool force: overwrite destination tables.
+    :param bool mount: mount restored tables which were mounted before backup.
+    :param bool enable_replicas: enable restored table replicas which were enabled before backup.
+    """
+    if type(manifest) is BackupManifest:
+        manifest = manifest._serialize()
+
+    params = {"manifest": manifest}
+    set_param(params, "force", force)
+    set_param(params, "mount", mount)
+    set_param(params, "enable_replicas", enable_replicas)
+
+    return make_request("restore_table_backup", params, client=client)
