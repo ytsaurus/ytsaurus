@@ -76,6 +76,7 @@ def make_request(command_name,
                  allow_retries=None,
                  retry_config=None,
                  batch_yson_dumps=True,
+                 mutation_id=None,
                  client=None):
     backend = get_backend_type(client)
 
@@ -121,6 +122,7 @@ def make_request(command_name,
             timeout=timeout,
             allow_retries=allow_retries,
             retry_config=retry_config,
+            mutation_id=mutation_id,
             client=client)
     else:
         raise YtError("Incorrect backend type: " + backend)

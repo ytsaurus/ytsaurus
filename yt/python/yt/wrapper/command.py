@@ -3,7 +3,8 @@
 
 class Command(object):
     """Properties of YT command."""
-    def __init__(self, input_type, output_type, is_volatile, is_heavy):
+    def __init__(self, name, input_type, output_type, is_volatile, is_heavy):
+        self.name = name
         self.input_type = input_type
         self.output_type = output_type
         self.is_volatile = is_volatile
@@ -29,5 +30,5 @@ def parse_commands(description):
             if elem[key] == "null":
                 elem[key] = None
 
-        commands[name] = Command(**elem)
+        commands[name] = Command(name, **elem)
     return commands

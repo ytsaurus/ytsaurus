@@ -17,7 +17,7 @@ from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import (
     add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
 from yt.wrapper.schema import TableSchema
-from yt.wrapper.spec_builders import MapReduceSpecBuilder, VanillaSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
@@ -40,11 +40,12 @@ import yt.wrapper as yt
 
 import yandex.type_info as typing
 
+import pytest
+
 import io
 import json
 import logging
 import os
-import pytest
 import signal
 import sys
 import tempfile
@@ -965,6 +966,35 @@ class TestOperationCommands(object):
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
                 op.abort()
+
+    @authors("ignat")
+    def test_mutation_id(self):
+        if yt.config["backend"] in ("native", "rpc"):
+            pytest.skip()
+
+        def mapper(row):
+            yield {"x": row["x"] + 1}
+            time.sleep(5.0)
+
+        mutation_id = yt.common.generate_uuid()
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}])
+
+        spec_builder = MapSpecBuilder() \
+            .input_table_paths(table) \
+            .output_table_paths(table) \
+            .begin_mapper() \
+                .command(mapper) \
+            .end_mapper()  # noqa
+
+        op1 = yt.run_operation(spec_builder, sync=False, run_operation_mutation_id=mutation_id)
+        wait(lambda: op1.get_state() == "running")
+
+        op2 = yt.run_operation(spec_builder, sync=False, run_operation_mutation_id=mutation_id)
+        assert op2.id == op1.id
+
+        op1.complete()
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")

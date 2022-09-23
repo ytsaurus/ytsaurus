@@ -1658,7 +1658,7 @@ class YtClient(ClientState):
     def run_operation(
             self,
             spec_builder,
-            sync=True, enable_optimizations=False):
+            sync=True, run_operation_mutation_id=None, enable_optimizations=False):
         """
         Runs operation.
 
@@ -1671,7 +1671,7 @@ class YtClient(ClientState):
         return client_api.run_operation(
             spec_builder,
             client=self,
-            sync=sync, enable_optimizations=enable_optimizations)
+            sync=sync, run_operation_mutation_id=run_operation_mutation_id, enable_optimizations=enable_optimizations)
 
     def run_reduce(
             self,
