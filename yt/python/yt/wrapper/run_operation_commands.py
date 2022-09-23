@@ -412,10 +412,11 @@ def run_remote_copy(source_table, destination_table,
 
 
 class OperationRequestRetrier(Retrier):
-    def __init__(self, operation_type, spec, retry_actions, client=None):
+    def __init__(self, operation_type, spec, retry_actions, mutation_id, client=None):
         self.operation_type = operation_type
         self.spec = spec
         self.retry_actions = retry_actions
+        self.mutation_id = mutation_id
         self.client = client
 
         retry_config = get_config(client)["start_operation_retries"]
@@ -434,6 +435,7 @@ class OperationRequestRetrier(Retrier):
             "start_operation" if get_api_version(self.client) == "v4" else "start_op",
             {"operation_type": self.operation_type, "spec": self.spec},
             format=None,
+            mutation_id=self.mutation_id,
             client=self.client)
         return result["operation_id"] if get_api_version(self.client) == "v4" else result
 
@@ -452,13 +454,17 @@ class OperationRequestRetrier(Retrier):
         time.sleep(sleep_backoff)
 
 
-def _make_operation_request(operation_type, spec, sync,
+def _make_operation_request(operation_type, spec, sync, mutation_id,
                             finalization_actions=None,
                             retry_actions=None,
                             client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(operation_type=operation_type, spec=spec,
-                                          retry_actions=retry_actions, client=client)
+        retrier = OperationRequestRetrier(
+            operation_type=operation_type,
+            spec=spec,
+            retry_actions=retry_actions,
+            mutation_id=mutation_id,
+            client=client)
         operation_id = retrier.run()
         operation = Operation(
             operation_id,
@@ -575,7 +581,7 @@ def _run_reduce_optimizer(spec, client=None):
 
 
 @forbidden_inside_job
-def run_operation(spec_builder, sync=True, enable_optimizations=False, client=None):
+def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enable_optimizations=False, client=None):
     """Runs operation.
 
     :param spec_builder: spec builder with parameters of the operation.
@@ -622,6 +628,7 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
                                              finalization_actions=finalization_actions,
                                              retry_actions=retry_actions,
                                              sync=sync,
+                                             mutation_id=run_operation_mutation_id,
                                              client=client)
 
         return result

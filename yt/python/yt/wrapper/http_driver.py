@@ -145,6 +145,7 @@ def make_request(command_name,
                  timeout=None,
                  allow_retries=None,
                  retry_config=None,
+                 mutation_id=None,
                  client=None):
     """Makes request to yt proxy. Command name is the name of command in YT API."""
 
@@ -173,15 +174,21 @@ def make_request(command_name,
 
         timeout = (connect_timeout, request_timeout)
 
-    generate_mutation_id = get_option("_generate_mutation_id", client)
-    if generate_mutation_id is None:
-        generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))
+    if mutation_id is None:
+        generate_mutation_id = get_option("_generate_mutation_id", client)
+        if generate_mutation_id is None:
+            generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))
+    else:
+        generate_mutation_id = lambda command_descriptor: mutation_id
 
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:
             params["mutation_id"] = generate_mutation_id(command)
-        if "retry" not in params:
-            params["retry"] = False
+        if mutation_id is not None:
+            params["retry"] = True
+        else:
+            if "retry" not in params:
+                params["retry"] = False
 
     if command.is_volatile and allow_retries:
         def set_retry(error, command, params, arguments):
