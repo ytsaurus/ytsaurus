@@ -3,9 +3,9 @@ package ru.yandex.yt.ytclient.examples;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
+import ru.yandex.yt.ytclient.request.GetOperation;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;

@@ -37,8 +37,6 @@ import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
-import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
-import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
@@ -53,6 +51,9 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.PutFileToCache;
+import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.SelectRowsRequest;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
@@ -325,23 +326,23 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
-        return client.selectRowsV2(request.setTimestamp(startTimestamp));
+        return client.selectRowsV2(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
     @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
-        return client.selectRows(request.setTimestamp(startTimestamp));
+        return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
     @Override
     public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
-        return client.selectRows(request.setTimestamp(startTimestamp), serializer);
+        return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
 
     @Override
     public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
-        return client.selectRows(request.setTimestamp(startTimestamp), serializer, consumer);
+        return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer, consumer);
     }
 
     public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?> request) {
@@ -494,7 +495,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
-        return client.putFileToCache(req.setTransactionalOptions(transactionalOptions));
+        return client.putFileToCache(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     /**

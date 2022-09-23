@@ -26,8 +26,6 @@ import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
-import ru.yandex.yt.ytclient.proxy.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
@@ -41,6 +39,8 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.PutFileToCache;
+import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.request.StartOperation;
 
 /**

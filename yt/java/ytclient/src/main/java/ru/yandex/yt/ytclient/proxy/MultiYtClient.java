@@ -22,6 +22,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
+import ru.yandex.yt.ytclient.request.SelectRowsRequest;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 

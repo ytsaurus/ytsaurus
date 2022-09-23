@@ -21,9 +21,9 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
-import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.GetJobStderr;
+import ru.yandex.yt.ytclient.request.GetOperation;
 import ru.yandex.yt.ytclient.request.JobResult;
 import ru.yandex.yt.ytclient.request.JobState;
 import ru.yandex.yt.ytclient.request.ListJobs;
@@ -83,16 +83,18 @@ public class OperationImpl implements Operation {
     }
 
     private CompletableFuture<YTreeNode> getOperation(String attribute) {
-        return client.getOperation(new GetOperation(id).addAttribute(attribute));
+        return client.getOperation(GetOperation.builder().setId(id).addAttribute(attribute).build());
     }
 
     private void watchImpl() {
         logger.debug("Operation's watch iteration was started (OperationId: {})", id);
-        client.getOperation(new GetOperation(id)
+        client.getOperation(GetOperation.builder()
+                        .setId(id)
                         .addAttribute("state")
                         .addAttribute("brief_progress")
                         .addAttribute("type")
-                        .addAttribute("operation_type"))
+                        .addAttribute("operation_type")
+                        .build())
                 .thenApply(this::getAndLogStatus)
                 .thenCompose(status -> {
                     if (status.isFinished()) {

@@ -9,19 +9,19 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
-public abstract class TransactionalRequest extends RequestBase {
+public abstract class TransactionalRequest<T extends RequestBase.Builder<T>> extends RequestBase<T> {
     @Nullable
     protected TransactionalOptions transactionalOptions;
     @Nullable
     protected PrerequisiteOptions prerequisiteOptions;
 
-    TransactionalRequest(Builder builder) {
+    TransactionalRequest(Builder<?> builder) {
         super(builder);
         this.transactionalOptions = builder.transactionalOptions;
         this.prerequisiteOptions = builder.prerequisiteOptions;
     }
 
-    protected TransactionalRequest(TransactionalRequest other) {
+    protected TransactionalRequest(TransactionalRequest<?> other) {
         super(other);
         if (other.transactionalOptions != null) {
             transactionalOptions = new TransactionalOptions(other.transactionalOptions);
