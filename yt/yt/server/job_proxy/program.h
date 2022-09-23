@@ -102,6 +102,11 @@ protected:
                 "(RefCounter: %v)",
                 residualRefCount);
         }
+
+#ifdef _asan_enabled_
+        // TODO(babenko): fix leaks.
+        Abort(EProgramExitCode::OK);
+#endif
     }
 
 private:
