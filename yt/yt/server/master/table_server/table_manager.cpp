@@ -230,6 +230,16 @@ public:
         return object->As<TTableNode>();
     }
 
+    TTableNode* FindTableNode(TTableId id) override
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->FindObject(id);
+        if (object && IsObjectAlive(object) && IsTableType(object->GetType())) {
+            return object->As<TTableNode>();
+        }
+        return nullptr;
+    }
+
     TMasterTableSchema* GetEmptyMasterTableSchema() override
     {
         YT_VERIFY(EmptyMasterTableSchema_);

@@ -99,6 +99,7 @@
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
+#include <yt/yt/server/master/tablet_server/tablet_hydra_service.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
 
@@ -927,6 +928,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateCellTrackerService(this));
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
     RpcServer_->RegisterService(CreateIncumbentService(this));
+    RpcServer_->RegisterService(CreateTabletHydraService(this));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));
