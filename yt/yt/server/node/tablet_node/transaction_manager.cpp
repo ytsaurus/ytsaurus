@@ -139,7 +139,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         // COMPAT(babenko)
-        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)), {"NTabletNode::NProto::TReqRegisterTransactionActions"});
+        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
         RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
