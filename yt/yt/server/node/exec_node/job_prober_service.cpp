@@ -1,8 +1,8 @@
 #include "job_prober_service.h"
 
 #include "bootstrap.h"
+#include "job.h"
 #include "job_controller.h"
-#include "job_detail.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>

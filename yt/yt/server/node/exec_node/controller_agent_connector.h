@@ -1,6 +1,6 @@
 #pragma once
 
-#include "job.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
@@ -9,11 +9,6 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJob;
-DECLARE_REFCOUNTED_CLASS(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,6 @@
 #include "exec_node_admin_service.h"
 #include "gpu_manager.h"
 #include "job.h"
-#include "job_detail.h"
 #include "job_controller.h"
 #include "job_prober_service.h"
 #include "master_connector.h"

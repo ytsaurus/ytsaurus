@@ -4,7 +4,6 @@
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
-#include "job_detail.h"
 #include "gpu_manager.h"
 #include "private.h"
 #include "slot.h"

@@ -2,8 +2,8 @@
 
 #include "bootstrap.h"
 #include "chunk_cache.h"
+#include "job.h"
 #include "job_controller.h"
-#include "job_detail.h"
 #include "private.h"
 #include "slot.h"
 #include "job_environment.h"

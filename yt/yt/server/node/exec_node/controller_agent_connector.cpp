@@ -1,8 +1,8 @@
 #include "controller_agent_connector.h"
 
 #include "bootstrap.h"
+#include "job.h"
 #include "job_controller.h"
-#include "job_detail.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>

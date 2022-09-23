@@ -5,7 +5,6 @@
 #include "chunk.h"
 #include "chunk_store.h"
 #include "config.h"
-#include "job_detail.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "location.h"
