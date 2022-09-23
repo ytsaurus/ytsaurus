@@ -98,10 +98,35 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TMasterJobBasePtr> result;
-        result.reserve(JobMap_.size());
-        for (const auto& [id, job] : JobMap_) {
+        result.reserve(GetActiveJobCount());
+
+        for (const auto& [jobTrackerAddress, jobMap] : JobMaps_) {
+            for (const auto& [id, job] : jobMap) {
+                result.push_back(job);
+            }
+        }
+
+        return result;
+    }
+
+    std::vector<TMasterJobBasePtr> GetJobs(const TString& jobTrackerAddress) const
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto jobMapIterator = JobMaps_.find(jobTrackerAddress);
+        if (jobMapIterator == JobMaps_.end()) {
+            return {};
+        }
+
+        const auto& jobMap = jobMapIterator->second;
+
+        std::vector<TMasterJobBasePtr> result;
+        result.reserve(jobMap.size());
+
+        for (const auto& [id, job] : jobMap) {
             result.push_back(job);
         }
+
         return result;
     }
 
@@ -129,12 +154,19 @@ public:
             .Run(jobTrackerAddress, response);
     }
 
-    TMasterJobBasePtr FindJob(TJobId jobId) const
+    TMasterJobBasePtr FindJob(const TString& jobTrackerAddress, TJobId jobId) const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto jobMapIt = JobMaps_.find(jobTrackerAddress);
+        if (jobMapIt == JobMaps_.end()) {
+            return nullptr;
+        }
+
+        auto& jobMap = jobMapIt->second;
         
-        auto it = JobMap_.find(jobId);
-        return it == JobMap_.end() ? nullptr : it->second;
+        auto it = jobMap.find(jobId);
+        return it == jobMap.end() ? nullptr : it->second;
     }
 
     void ScheduleStartJobs() override
@@ -176,7 +208,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return std::ssize(JobMap_);
+        int totalJobCount = 0;
+        for (const auto& [jobTrackerAddress, jobMap] : JobMaps_) {
+            totalJobCount += std::ssize(jobMap);
+        }
+
+        return totalJobCount;
     }
 
 private:
@@ -189,7 +226,7 @@ private:
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
 
-    THashMap<TJobId, TMasterJobBasePtr> JobMap_;
+    THashMap<TString, THashMap<TJobId, TMasterJobBasePtr>> JobMaps_;
 
     bool StartJobsScheduled_ = false;
 
@@ -265,16 +302,20 @@ private:
 
         auto waitingJobTimeout = Config_->WaitingJobsTimeout;
 
-        RegisterJob(jobId, job, waitingJobTimeout);
+        RegisterJob(jobId, jobTrackerAddress, job, waitingJobTimeout);
 
         return job;
     }
 
-    void RegisterJob(const TJobId jobId, const TMasterJobBasePtr& job, const TDuration waitingJobTimeout)
+    void RegisterJob(
+        const TJobId jobId,
+        const TString& jobTrackerAddress,
+        const TMasterJobBasePtr& job,
+        const TDuration waitingJobTimeout)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        EmplaceOrCrash(JobMap_, jobId, job);
+        EmplaceOrCrash(JobMaps_[jobTrackerAddress], jobId, job);
 
         job->SubscribeJobFinished(
             BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeWeak(this), MakeWeak(job))
@@ -384,13 +425,11 @@ private:
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
-        for (const auto& job : GetJobs()) {
+        for (const auto& job : GetJobs(jobTrackerAddress)) {
             auto jobId = job->GetId();
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
-            if (job->GetJobTrackerAddress() != jobTrackerAddress) {
-                continue;
-            }
+            YT_VERIFY(job->GetJobTrackerAddress() == jobTrackerAddress);
 
             YT_VERIFY(CellTagFromId(jobId) == cellTag);
 
@@ -431,8 +470,8 @@ private:
             auto jobId = jobToRemove.JobId;
             YT_VERIFY(jobToRemove.ReleaseFlags.IsTrivial());
 
-            if (auto job = FindJob(jobId)) {
-                RemoveJob(job);
+            if (auto job = FindJob(jobTrackerAddress, jobId)) {
+                RemoveJob(std::move(job));
             } else {
                 YT_LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                     jobId);
@@ -443,7 +482,7 @@ private:
             auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
             YT_VERIFY(!jobToAbort.PreemptionReason);
 
-            if (auto job = FindJob(jobToAbort.JobId)) {
+            if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
                 AbortJob(job, std::move(jobToAbort));
             } else {
                 YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
@@ -493,7 +532,7 @@ private:
         job->Abort(error);
     }
 
-    void RemoveJob(const TMasterJobBasePtr& job)
+    void RemoveJob(TMasterJobBasePtr job)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -503,9 +542,15 @@ private:
             job->GetState());
         YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
+        auto& jobMap = JobMaps_[job->GetJobTrackerAddress()];
+
         auto jobId = job->GetId();
 
-        EraseOrCrash(JobMap_, jobId);
+        EraseOrCrash(jobMap, jobId);
+        
+        if (jobMap.empty()) {
+            EraseOrCrash(JobMaps_, job->GetJobTrackerAddress());
+        }
 
         YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
     }
