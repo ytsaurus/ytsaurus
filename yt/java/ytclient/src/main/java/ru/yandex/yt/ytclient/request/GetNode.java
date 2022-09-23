@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class GetNode extends GetLikeReq implements HighLevelRequest<TReqGetNode.Builder> {
+public class GetNode extends GetLikeReq<GetNode.Builder> implements HighLevelRequest<TReqGetNode.Builder> {
     GetNode(BuilderBase<?> builder) {
         super(builder);
     }

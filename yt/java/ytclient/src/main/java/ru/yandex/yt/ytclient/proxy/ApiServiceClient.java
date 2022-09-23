@@ -16,11 +16,8 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
-import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
-import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
-import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
@@ -37,13 +34,16 @@ import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
+import ru.yandex.yt.ytclient.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.request.CommitTransaction;
 import ru.yandex.yt.ytclient.request.CreateObject;
 import ru.yandex.yt.ytclient.request.GcCollect;
 import ru.yandex.yt.ytclient.request.GenerateTimestamps;
+import ru.yandex.yt.ytclient.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.request.GetJobStderr;
 import ru.yandex.yt.ytclient.request.GetJobStderrResult;
+import ru.yandex.yt.ytclient.request.GetOperation;
 import ru.yandex.yt.ytclient.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.ListJobs;
@@ -225,6 +225,10 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
+
+    default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?> req) {
+        return getOperation(req.build());
+    }
 
     CompletableFuture<Void> abortOperation(AbortOperation req);
 

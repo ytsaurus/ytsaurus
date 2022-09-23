@@ -57,9 +57,9 @@ import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.PutFileToCache;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.request.PutFileToCache;
 
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 

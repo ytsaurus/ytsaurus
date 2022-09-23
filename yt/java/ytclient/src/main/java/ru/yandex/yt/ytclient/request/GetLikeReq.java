@@ -15,7 +15,7 @@ import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 
 @NonNullApi
 @NonNullFields
-public abstract class GetLikeReq extends TransactionalRequest {
+public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends TransactionalRequest<T> {
     protected YPath path;
     @Nullable
     protected ColumnFilter attributes;
@@ -36,7 +36,7 @@ public abstract class GetLikeReq extends TransactionalRequest {
         this.suppressableAccessTrackingOptions = builder.suppressableAccessTrackingOptions;
     }
 
-    protected GetLikeReq(GetLikeReq getLikeReq) {
+    protected GetLikeReq(GetLikeReq<?> getLikeReq) {
         super(getLikeReq);
         Objects.requireNonNull(getLikeReq.path);
         path = getLikeReq.path;
