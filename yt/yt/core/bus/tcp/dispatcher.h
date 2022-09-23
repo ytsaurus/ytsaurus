@@ -19,7 +19,7 @@ namespace NYT::NBus {
 struct TBusNetworkBandCounters
 {
     #define XX(camelCaseField, snakeCaseField) std::atomic<i64> camelCaseField = 0;
-    ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
+    ITERATE_BUS_NETWORK_STATISTICS_FIELDS(XX)
     #undef XX
 };
 

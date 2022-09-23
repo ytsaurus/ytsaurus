@@ -17,18 +17,12 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ITERATE_BUS_NETWORK_STATISTICS_FIELD(func) \
+#define ITERATE_BUS_NETWORK_STATISTICS_COUNTER_FIELDS(func) \
     func(InBytes, in_bytes) \
     func(InPackets, in_packets) \
     \
     func(OutBytes, out_bytes) \
     func(OutPackets, out_packets) \
-    \
-    func(PendingOutPackets, pending_out_packets) \
-    func(PendingOutBytes, pending_out_bytes) \
-    \
-    func(ClientConnections, client_connections) \
-    func(ServerConnections, server_connections) \
     \
     func(StalledReads, stalled_reads) \
     func(StalledWrites, stalled_writes) \
@@ -41,10 +35,21 @@ namespace NYT::NBus {
     func(EncoderErrors, encoder_errors) \
     func(DecoderErrors, decoder_errors)
 
+#define ITERATE_BUS_NETWORK_STATISTICS_GAUGE_FIELDS(func) \
+    func(PendingOutPackets, pending_out_packets) \
+    func(PendingOutBytes, pending_out_bytes) \
+    \
+    func(ClientConnections, client_connections) \
+    func(ServerConnections, server_connections)
+
+#define ITERATE_BUS_NETWORK_STATISTICS_FIELDS(func) \
+    ITERATE_BUS_NETWORK_STATISTICS_COUNTER_FIELDS(func) \
+    ITERATE_BUS_NETWORK_STATISTICS_GAUGE_FIELDS(func)
+
 struct TBusNetworkStatistics
 {
     #define XX(camelCaseField, snakeCaseField) i64 camelCaseField = 0;
-    ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
+    ITERATE_BUS_NETWORK_STATISTICS_FIELDS(XX)
     #undef XX
 };
 

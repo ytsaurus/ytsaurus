@@ -340,8 +340,6 @@ std::optional<NProto::THandshake> TTcpConnection::TryParseHandshakeMessage(const
 
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
-    VERIFY_SPINLOCK_AFFINITY(Lock_);
-
     switch (ConnectionType_) {
         case EConnectionType::Client:
             IncrementBusCounter(&TBusNetworkBandCounters::ClientConnections, delta);
@@ -1058,7 +1056,10 @@ bool TTcpConnection::OnHandshakePacketReceived()
         optionalMultiplexingBand);
 
     if (ConnectionType_ == EConnectionType::Server && optionalMultiplexingBand) {
+        auto guard = Guard(Lock_);
+        UpdateConnectionCount(-1);
         MultiplexingBand_.store(*optionalMultiplexingBand);
+        UpdateConnectionCount(+1);
     }
 
     return true;
@@ -1576,7 +1577,7 @@ void TTcpConnection::FlushBusStatistics()
 
     for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
 #define XX(camelCaseField, snakeCaseField) networkCounters->PerBandCounters[band].camelCaseField.fetch_add(BusCountersDelta_.PerBandCounters[band].camelCaseField.exchange(0));
-        ITERATE_BUS_NETWORK_STATISTICS_FIELD(XX)
+        ITERATE_BUS_NETWORK_STATISTICS_FIELDS(XX)
 #undef XX
     }
 }
