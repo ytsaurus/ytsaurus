@@ -9,6 +9,8 @@ export SPARK_HOME=/app/spark-over-yt/.tox/py27/lib/python2.7/site-packages/pyspa
 mkdir $HOME/.yt
 echo $YT_TOKEN > $HOME/.yt/token
 
+sbt --version
+
 export SBT_CREDENTIALS=$HOME/.sbt/.credentials
 
 # generate XML credentials
