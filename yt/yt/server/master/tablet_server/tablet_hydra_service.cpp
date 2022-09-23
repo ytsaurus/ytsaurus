@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/core/misc/ema_counter.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
