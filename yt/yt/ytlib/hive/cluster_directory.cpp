@@ -74,19 +74,19 @@ std::vector<TString> TClusterDirectory::GetClusterNames() const
 void TClusterDirectory::RemoveCluster(const TString& name)
 {
     auto guard = Guard(Lock_);
-    auto it = NameToCluster_.find(name);
-    if (it == NameToCluster_.end()) {
+    auto nameIt = NameToCluster_.find(name);
+    if (nameIt == NameToCluster_.end()) {
         return;
     }
-    const auto& cluster = it->second;
+    const auto& cluster = nameIt->second;
     auto clusterTag = GetClusterTag(cluster);
     cluster.Connection->Terminate();
     if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
-        auto iter = ClusterTvmIds_.find(*tvmId);
-        YT_VERIFY(iter != ClusterTvmIds_.end());
-        ClusterTvmIds_.erase(iter);
+        auto tvmIdsIt = ClusterTvmIds_.find(*tvmId);
+        YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
+        ClusterTvmIds_.erase(tvmIdsIt);
     }
-    NameToCluster_.erase(it);
+    NameToCluster_.erase(nameIt);
     YT_VERIFY(ClusterTagToCluster_.erase(clusterTag) == 1);
     YT_LOG_DEBUG("Remote cluster unregistered (Name: %v, ClusterTag: %v)",
         name,
@@ -115,24 +115,24 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
         }
     };
 
-    auto it = NameToCluster_.find(name);
-    if (it == NameToCluster_.end()) {
+    auto nameIt = NameToCluster_.find(name);
+    if (nameIt == NameToCluster_.end()) {
         auto cluster = CreateCluster(name, nativeConnectionConfig);
         auto guard = Guard(Lock_);
         addNewCluster(cluster);
         YT_LOG_DEBUG("Remote cluster registered (Name: %v, ClusterTag: %v)",
             name,
             cluster.Connection->GetClusterTag());
-    } else if (!AreNodesEqual(it->second.NativeConnectionConfig, nativeConnectionConfig)) {
+    } else if (!AreNodesEqual(nameIt->second.NativeConnectionConfig, nativeConnectionConfig)) {
         auto cluster = CreateCluster(name, nativeConnectionConfig);
         auto guard = Guard(Lock_);
-        it->second.Connection->Terminate();
-        ClusterTagToCluster_.erase(GetClusterTag(it->second));
-        NameToCluster_.erase(it);
+        nameIt->second.Connection->Terminate();
+        ClusterTagToCluster_.erase(GetClusterTag(nameIt->second));
+        NameToCluster_.erase(nameIt);
         if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
-            auto iter = ClusterTvmIds_.find(*tvmId);
-            YT_VERIFY(iter != ClusterTvmIds_.end());
-            ClusterTvmIds_.erase(iter);
+            auto tvmIdsIt = ClusterTvmIds_.find(*tvmId);
+            YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
+            ClusterTvmIds_.erase(tvmIdsIt);
         }
         addNewCluster(cluster);
         YT_LOG_DEBUG("Remote cluster updated (Name: %v, ClusterTag: %v)",
