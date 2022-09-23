@@ -1,7 +1,7 @@
 #include "job_controller.h"
 
 #include "bootstrap.h"
-#include "job_detail.h"
+#include "job.h"
 #include "master_connector.h"
 #include "private.h"
 

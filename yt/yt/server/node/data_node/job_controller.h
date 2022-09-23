@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "job_detail.h"
+#include "job.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 

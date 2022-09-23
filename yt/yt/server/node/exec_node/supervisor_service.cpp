@@ -3,7 +3,6 @@
 #include "bootstrap.h"
 #include "job.h"
 #include "job_controller.h"
-#include "job_detail.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>

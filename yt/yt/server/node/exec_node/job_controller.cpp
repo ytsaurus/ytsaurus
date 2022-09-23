@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "job.h"
-#include "job_detail.h"
 #include "private.h"
 #include "slot_manager.h"
 

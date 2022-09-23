@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-#include "job_detail.h"
+#include "job.h"
 
 #include <yt/yt/server/job_proxy/public.h>
 
