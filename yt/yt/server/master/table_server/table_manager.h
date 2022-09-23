@@ -39,6 +39,9 @@ public:
     //! Looks up a table by id. Throws if no such table exists.
     virtual TTableNode* GetTableNodeOrThrow(TTableId id) = 0;
 
+    //! Looks up a table by id. Returns null if no such table exists.
+    virtual TTableNode* FindTableNode(TTableId id) = 0;
+
     //! Looks up a master table schema by id. Throws if no such schema exists.
     virtual TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id) = 0;
 

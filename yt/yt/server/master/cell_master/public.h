@@ -120,6 +120,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (EphemeralPtrUnref)
     (ChunkAutotomizer)
     (IncumbentManager)
+    (TabletService)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,
