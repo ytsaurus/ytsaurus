@@ -24,6 +24,19 @@ struct TTableProfilingCounters
     NProfiling::TCounter NonTrivialReshards;
 };
 
+struct TBundleProfilingCounters
+    : public TRefCounted
+{
+    NProfiling::TCounter TabletCellTabletsRequestCount;
+    NProfiling::TCounter BasicTableAttributesRequestCount;
+    NProfiling::TCounter ActualTableSettingsRequestCount;
+    NProfiling::TCounter TableStatisticsRequestCount;
+
+    TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBundleState
@@ -87,6 +100,7 @@ private:
     const IInvokerPtr Invoker_;
 
     std::vector<TTabletCellId> CellIds_;
+    TBundleProfilingCountersPtr Counters_;
 
     friend void Deserialize(TTableStatisticsResponse::TTabletResponse& value, const NYTree::INodePtr& node);
 
