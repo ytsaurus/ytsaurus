@@ -123,7 +123,7 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
     THashSet<TTabletId> tabletIds;
     auto registerTablet = [&] (const TTabletInfoPtr& tabletInfo) {
         if (tabletIds.insert(tabletInfo->TabletId).second) {
-            ValidateTabletMountedOrFrozen(tabletInfo);
+            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
             cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
     };

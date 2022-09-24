@@ -478,7 +478,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
         const auto& cellDirectory = connection->GetCellDirectory();
         const auto& networks = connection->GetNetworks();
 
-        ValidateTabletMountedOrFrozen(tabletInfo);
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
 
         auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptor());
         auto& descriptor = insertResult.first->second;
