@@ -2431,6 +2431,7 @@ private:
 
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
+        ReadOnly_ = false;
         GraceDelayStatus_ = EGraceDelayStatus::None;
 
         SystemLockGuard_.Release();
