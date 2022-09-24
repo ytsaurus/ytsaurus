@@ -2,7 +2,6 @@ from .config import get_config
 from .http_helpers import get_token
 
 from yt.common import YtError
-from yt.wrapper.common import load_certificate
 import yt.logger as logger
 
 import yt.packages.requests as requests
@@ -130,7 +129,6 @@ class YtIdmClient(object):
             self._base_url = DEFAULT_BASE_ACL_SERVICE_URL
         else:
             self._base_url = base_url
-        self._certificate = load_certificate(certificate_path)
 
     def _make_request(self, method, name, params=None, body=None, extra_headers=None, v2=False):
         # NB: `extra_headers` is only used to supply additional headers in integration tests.
@@ -148,8 +146,7 @@ class YtIdmClient(object):
         body = body or {}
 
         logger.debug("Sending %s %s (params: %s, body: %s)", method.upper(), url, params, body)
-        response = requests.request(method, url, headers=headers, params=_flatten_dict(params),
-                                    json=body, verify=self._certificate)
+        response = requests.request(method, url, headers=headers, params=_flatten_dict(params), json=body)
         logger.debug("Got response %s (body: %s)", response.status_code, response.text)
 
         if response.status_code == 400:

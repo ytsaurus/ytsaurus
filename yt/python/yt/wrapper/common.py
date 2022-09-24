@@ -616,19 +616,6 @@ def is_of_iterable_type(obj):
     return isinstance(obj, iterable_types)
 
 
-def load_certificate(path=None):
-    # NB: Underlying libraries can distinguish file paths from loaded certificates.
-    if path is not None:
-        return path
-
-    if is_arcadia_python():
-        import library.python.resource
-
-        return library.python.resource.find("/yt/YandexInternalRootCA.crt")
-
-    return os.path.join(os.path.dirname(__file__), "YandexInternalRootCA.crt")
-
-
 def get_arg_spec(func):
     if PY3:
         return inspect.getfullargspec(func)
