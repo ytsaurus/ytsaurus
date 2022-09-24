@@ -494,7 +494,7 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
         {
             if (errorCount < limit) {
                 tabletIdsToRequest.push_back(tabletId);
-            } else { 
+            } else {
                 incomplete = true;
             }
             ++errorCount;
@@ -942,7 +942,7 @@ TRowset TClient::DoLookupRowsOnce(
                     return CompareRows(item.first, pivot) < 0;
                 });
 
-            ValidateTabletMountedOrFrozen(startShard);
+            ValidateTabletMountedOrFrozen(tableInfo, startShard);
 
             auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
             if (emplaced.second) {

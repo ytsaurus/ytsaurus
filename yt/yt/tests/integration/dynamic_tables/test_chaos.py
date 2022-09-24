@@ -2119,7 +2119,7 @@ class TestChaos(ChaosTestBase):
         ])
         sync_mount_table("//tmp/t")
 
-        with raises_yt_error("Invalid input row for chaos ordered table: \"$tablet_index\" column is not provided"):
+        with raises_yt_error("Invalid input row for chaos ordered table //tmp/t: \"$tablet_index\" column is not provided"):
             insert_rows("//tmp/t", [{"key": 0, "value": str(0)}])
 
         sync_unmount_table("//tmp/t")

@@ -56,7 +56,8 @@ bool TTableMountInfo::IsChaosReplica() const
 TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 {
     if (tabletIndex < 0 || tabletIndex >= std::ssize(Tablets)) {
-        THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
+        THROW_ERROR_EXCEPTION("Invalid tablet index for table %v: expected in range [0,%v], got %v",
+            Path,
             Tablets.size() - 1,
             tabletIndex);
     }
