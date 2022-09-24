@@ -19,7 +19,6 @@ import glob
 
 
 YT_PYTHON_PACKAGE_LIST = [
-    "certifi",
     "dill",
     "requests",
     "distro",
@@ -153,7 +152,7 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
             cp_r(path, packages_dir)
 
     # Replace certificate.
-    cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "certifi"))
+    cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "requests"))
 
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
