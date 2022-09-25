@@ -148,6 +148,8 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
+TString GetPodIdForInstance(const TString& name);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer
