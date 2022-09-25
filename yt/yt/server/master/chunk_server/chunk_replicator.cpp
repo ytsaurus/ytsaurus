@@ -413,7 +413,7 @@ void TChunkReplicator::OnEpochFinished()
             for (auto chunkWithIndexes : queue) {
                 chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
                     chunkWithIndexes.GetMediumIndex(),
-                    EChunkRepairQueue::Missing,
+                    queueKind,
                     TChunkRepairQueueIterator());
             }
             queue.clear();
