@@ -195,6 +195,7 @@ def get_scheduler_config():
 
         operations_cleaner = {
             parse_operation_attributes_batch_size = 2;
+            tablet_transaction_timeout = 5000;
         };
         controller_agent_tracker = {
             heartbeat_timeout = 10000;

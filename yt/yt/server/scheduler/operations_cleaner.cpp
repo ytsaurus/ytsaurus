@@ -498,7 +498,8 @@ std::vector<TOperationAlertEvent> ConvertToAlertEvents(const TAlertEventsMap& ma
 void DoSendOperationAlerts(
     NNative::IClientPtr client,
     std::deque<TOperationAlertEvent> eventsToSend,
-    int maxAlertEventCountPerAlertType)
+    int maxAlertEventCountPerAlertType,
+    TDuration transactionTimeout)
 {
     YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", eventsToSend.size());
 
@@ -559,7 +560,10 @@ void DoSendOperationAlerts(
         rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
     }
 
-    auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+    TTransactionStartOptions options;
+    options.Timeout = transactionTimeout;
+
+    auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, options))
         .ValueOrThrow();
     transaction->WriteRows(
         GetOperationsArchiveOrderedByIdPath(),
@@ -1062,8 +1066,10 @@ private:
             THROW_ERROR_EXCEPTION("Unknown operations archive version");
         }
 
-        auto asyncTransaction = Client_->StartTransaction(
-            ETransactionType::Tablet, TTransactionStartOptions{});
+        TTransactionStartOptions options;
+        options.Timeout = Config_->TabletTransactionTimeout;
+
+        auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, options);
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
@@ -1588,8 +1594,13 @@ private:
             WaitFor(BIND([
                     client = Client_,
                     eventsToSend,
-                    maxAlertEventCountPerAlertType = Config_->MaxAlertEventCountPerAlertType] () mutable {
-                    NDetail::DoSendOperationAlerts(std::move(client), std::move(eventsToSend), maxAlertEventCountPerAlertType);
+                    maxAlertEventCountPerAlertType = Config_->MaxAlertEventCountPerAlertType,
+                    tabletTransaction = Config_->TabletTransactionTimeout] () mutable {
+                    NDetail::DoSendOperationAlerts(
+                        std::move(client),
+                        std::move(eventsToSend),
+                        maxAlertEventCountPerAlertType,
+                        tabletTransaction);
                 })
                 .AsyncVia(Host_->GetBackgroundInvoker())
                 .Run())
