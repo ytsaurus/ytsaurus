@@ -871,6 +871,11 @@ void TContext::LogAndProfile()
 
 void TContext::Finalize()
 {
+    if (SendKeepAliveExecutor_) {
+        YT_LOG_DEBUG("Stopping periodic executor that sends keep_alive frames");
+        SendKeepAliveExecutor_->Stop();
+    }
+
     if (EnableRequestBodyWorkaround(Request_)) {
         try {
             while (true) {
