@@ -32,12 +32,12 @@ class TResponseKeeperManager
     , public TMasterAutomatonPart
 {
 public:
-    TResponseKeeperManager(TBootstrap* bootstrap)
+    TResponseKeeperManager(TBootstrap* bootstrap, IPersistentResponseKeeperPtr responseKeeper)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ResponseKeeper)
         , ResponseKeeperEvictionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ResponseKeeper),
             BIND(&TResponseKeeperManager::OnEvict, MakeWeak(this))))
-        , ResponseKeeper_(Bootstrap_->GetHydraFacade()->GetResponseKeeper())
+        , ResponseKeeper_(std::move(responseKeeper))
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
@@ -124,9 +124,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResponseKeeperManagerPtr CreateResponseKeeperManager(TBootstrap* bootstrap)
+IResponseKeeperManagerPtr CreateResponseKeeperManager(
+    TBootstrap* bootstrap,
+    IPersistentResponseKeeperPtr responseKeeper)
 {
-    return New<TResponseKeeperManager>(bootstrap);
+    return New<TResponseKeeperManager>(bootstrap, std::move(responseKeeper));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

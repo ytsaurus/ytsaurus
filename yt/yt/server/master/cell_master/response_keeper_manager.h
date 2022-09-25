@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/hydra_common/public.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +16,9 @@ DEFINE_REFCOUNTED_TYPE(IResponseKeeperManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResponseKeeperManagerPtr CreateResponseKeeperManager(TBootstrap* bootstrap);
+IResponseKeeperManagerPtr CreateResponseKeeperManager(
+    TBootstrap* bootstrap,
+    NHydra::IPersistentResponseKeeperPtr responseKeeper);
 
 ////////////////////////////////////////////////////////////////////////////////
 

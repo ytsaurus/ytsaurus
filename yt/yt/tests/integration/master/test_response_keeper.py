@@ -24,6 +24,15 @@ class TestResponseKeeper(YTEnvSetup):
         }
     }
 
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "response_keeper": {
+                "expiration_time": 200,
+                "enable_warmup": False
+            }
+        }
+    }
+
     @authors("shakurov")
     def test_excessively_long_retries(self):
         mutation_id = generate_uuid()
@@ -55,5 +64,11 @@ class TestResponseKeeper(YTEnvSetup):
 
 class TestResponseKeeperOldHydra(TestResponseKeeper):
     DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "response_keeper": {
+                "expiration_time": 200,
+                "enable_warmup": False
+            }
+        },
         "use_new_hydra": False
     }
