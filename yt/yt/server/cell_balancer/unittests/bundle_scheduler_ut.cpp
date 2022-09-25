@@ -418,9 +418,16 @@ TEST(TBundleSchedulerTest, AllocationCreated)
 
     EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
 
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+
     THashSet<TString> templates;
-    for (auto& [_, request] : mutations.NewAllocations) {
+    for (auto& [allocId, request] : mutations.NewAllocations) {
         templates.insert(request->Spec->PodIdTemplate);
+
+        auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingTabletNodes, allocId);
+        EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
+        EXPECT_EQ(orchidAllocatingInfo->HulkRequestState, "REQUEST_CREATED");
+        EXPECT_FALSE(orchidAllocatingInfo->InstanceInfo);
     }
 
     EXPECT_EQ(templates.size(), 3u);
@@ -503,6 +510,18 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(88_GB));
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
+
+        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+        for (auto& [allocId, allocState] : input.BundleStates["default-bundle"]->NodeAllocations) {
+            auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingTabletNodes, allocId);
+            EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
+            EXPECT_EQ(orchidAllocatingInfo->HulkRequestState, "COMPLETED");
+            EXPECT_TRUE(orchidAllocatingInfo->InstanceInfo);
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->YPCluster, "pre-pre");
+            EXPECT_FALSE(orchidAllocatingInfo->InstanceInfo->PodId.empty());
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Vcpu, 9999);
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Memory, static_cast<i64>(88_GB));
+        }
 
         input.TabletNodes[nodeId]->Annotations = annotations;
     }
@@ -686,8 +705,12 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+
+    for (auto& [nodeName, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
+        auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedTabletNodes, state->InstanceName);
+        EXPECT_TRUE(*orchidInstanceInfo->Removing);
     }
 
     ApplyChangedStates(&input, mutations);
@@ -1274,6 +1297,18 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
+        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+        for (auto& [allocId, allocState] : input.BundleStates["default-bundle"]->ProxyAllocations) {
+            auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingRpcProxies, allocId);
+            EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
+            EXPECT_EQ(orchidAllocatingInfo->HulkRequestState, "COMPLETED");
+            EXPECT_TRUE(orchidAllocatingInfo->InstanceInfo);
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->YPCluster, "pre-pre");
+            EXPECT_FALSE(orchidAllocatingInfo->InstanceInfo->PodId.empty());
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Vcpu, 1111);
+            EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Memory, static_cast<i64>(18_GB));
+        }
+
         input.RpcProxies[proxyName]->Annotations = annotations;
     }
 
@@ -1406,8 +1441,13 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
 
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+
     for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
+
+        auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
+        EXPECT_TRUE(*orchidInstanceInfo->Removing);
     }
 
     ApplyChangedStates(&input, mutations);
@@ -1417,8 +1457,13 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     // Hulk deallocation requests are created.
     auto& bundleState = mutations.ChangedStates["default-bundle"];
     VerifyProxyDeallocationRequests(mutations, bundleState, 3);
+    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+
     for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
+
+        auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
+        EXPECT_TRUE(*orchidInstanceInfo->Removing);
     }
 }
 
