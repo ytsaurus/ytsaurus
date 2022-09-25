@@ -604,6 +604,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(100);
     registrar.Parameter("archive_batch_timeout", &TThis::ArchiveBatchTimeout)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("tablet_transaction_timeout", &TThis::TabletTransactionTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("max_operation_age", &TThis::MaxOperationAge)
         .Default(TDuration::Hours(6));
     registrar.Parameter("max_operation_count_per_user", &TThis::MaxOperationCountPerUser)

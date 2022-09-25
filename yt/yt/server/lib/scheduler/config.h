@@ -548,6 +548,9 @@ public:
     //! archivation of smaller batch will be performed.
     TDuration ArchiveBatchTimeout;
 
+    //! Timeout for write transaction.
+    TDuration TabletTransactionTimeout;
+
     //! Leave no more than this amount of operation per each user.
     int MaxOperationCountPerUser;
 
