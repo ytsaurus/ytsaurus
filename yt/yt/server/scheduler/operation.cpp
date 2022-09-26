@@ -35,7 +35,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int MaxAnnotationValueLength = 32;
+constexpr int MaxAnnotationValueLength = 128;
 
 static const auto& Logger = SchedulerLogger;
 
