@@ -628,7 +628,7 @@ class TestQueueController(TestQueueAgentBase):
         assert partitions[0]["next_row_index"] == 0
 
     @authors("max42")
-    def test_rates(self):
+    def DISABLED_test_rates(self):
         eps = 1e-2
         zero = {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
 
