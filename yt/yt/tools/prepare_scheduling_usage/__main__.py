@@ -392,11 +392,10 @@ def extract_pool_mapping(client, input_table):
     return cluster_and_tree_to_pool_mapping
 
 
-def process_scheduler_log_on_yt(client, input_table, output_table):
+def do_process_scheduler_log_on_yt(client, input_table, output_table):
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]
 
-    client.remove(output_table, force=True)
     client.create(
         "table",
         output_table,
@@ -441,6 +440,12 @@ def process_scheduler_log_on_yt(client, input_table, output_table):
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}])
+
+
+def process_scheduler_log_on_yt(client, input_table, output_table):
+    client.remove(output_table, force=True)
+    with client.Transaction():
+        do_process_scheduler_log_on_yt(client, input_table, output_table)
 
 
 def main():
