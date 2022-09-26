@@ -150,14 +150,11 @@ class TInMemoryService
     : public TServiceBase
 {
 public:
-    TInMemoryService(
-        TInMemoryManagerConfigPtr config,
-        IBootstrap* bootstrap)
+    explicit TInMemoryService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
             TabletNodeLogger)
-        , Config_(config)
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartSession));
@@ -167,7 +164,6 @@ public:
     }
 
 private:
-    const TInMemoryManagerConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
@@ -181,8 +177,11 @@ private:
 
         auto sessionId = TInMemorySessionId::Create();
 
+        const auto& inMemoryManager = Bootstrap_->GetInMemoryManager();
+        auto config = inMemoryManager->GetConfig();
+
         auto lease = TLeaseManager::CreateLease(
-            Config_->InterceptedDataRetentionTime,
+            config->InterceptedDataRetentionTime,
             BIND(&TInMemoryService::OnSessionLeaseExpired, MakeStrong(this), sessionId)
                 .Via(Bootstrap_->GetStorageLightInvoker()));
 
@@ -350,7 +349,6 @@ private:
         context->Reply();
     }
 
-
     void OnSessionLeaseExpired(TInMemorySessionId sessionId)
     {
         auto guard = WriterGuard(SessionMapLock_);
@@ -389,11 +387,9 @@ private:
     }
 };
 
-IServicePtr CreateInMemoryService(
-    TInMemoryManagerConfigPtr config,
-    IBootstrap* bootstrap)
+IServicePtr CreateInMemoryService(IBootstrap* bootstrap)
 {
-    return New<TInMemoryService>(config, bootstrap);
+    return New<TInMemoryService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

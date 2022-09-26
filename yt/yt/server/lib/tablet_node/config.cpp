@@ -16,6 +16,8 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletHydraManagerConfig::Register(TRegistrar registrar)
@@ -564,6 +566,18 @@ void THunkChunkSweeperDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TInMemoryManagerConfigPtr TInMemoryManagerConfig::ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig)
+{
+    auto config = CloneYsonSerializable(TInMemoryManagerConfigPtr(this));
+    UpdateYsonStructField(config->MaxConcurrentPreloads, dynamicConfig->MaxConcurrentPreloads);
+    UpdateYsonStructField(config->InterceptedDataRetentionTime, dynamicConfig->InterceptedDataRetentionTime);
+    UpdateYsonStructField(config->PingPeriod, dynamicConfig->PingPeriod);
+    UpdateYsonStructField(config->ControlRpcTimeout, dynamicConfig->ControlRpcTimeout);
+    UpdateYsonStructField(config->HeavyRpcTimeout, dynamicConfig->HeavyRpcTimeout);
+    UpdateYsonStructField(config->RemoteSendBatchSize, dynamicConfig->RemoteSendBatchSize);
+    return config;
+}
+
 void TInMemoryManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
@@ -577,7 +591,7 @@ void TInMemoryManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("heavy_rpc_timeout", &TThis::HeavyRpcTimeout)
         .Default(TDuration::Seconds(20));
-    registrar.Parameter("batch_size", &TThis::BatchSize)
+    registrar.Parameter("remote_send_batch_size", &TThis::RemoteSendBatchSize)
         .Default(16_MB);
     registrar.Parameter("workload_descriptor", &TThis::WorkloadDescriptor)
         .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -591,6 +605,16 @@ void TInMemoryManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
         .GreaterThan(0)
+        .Optional();
+    registrar.Parameter("intercepted_data_retention_time", &TThis::InterceptedDataRetentionTime)
+        .Optional();
+    registrar.Parameter("ping_period", &TThis::PingPeriod)
+        .Optional();
+    registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
+        .Optional();
+    registrar.Parameter("heavy_rpc_timeout", &TThis::HeavyRpcTimeout)
+        .Optional();
+    registrar.Parameter("remote_send_batch_size", &TThis::RemoteSendBatchSize)
         .Optional();
 }
 

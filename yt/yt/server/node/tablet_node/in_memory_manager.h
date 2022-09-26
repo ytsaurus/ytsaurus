@@ -79,16 +79,14 @@ struct IInMemoryManager
 
     virtual void FinalizeChunk(NChunkClient::TChunkId chunkId, TInMemoryChunkDataPtr chunkData) = 0;
 
-    virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;
+    virtual TInMemoryManagerConfigPtr GetConfig() const = 0;
 
     virtual void Start() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInMemoryManager)
 
-IInMemoryManagerPtr CreateInMemoryManager(
-    TInMemoryManagerConfigPtr config,
-    IBootstrap* bootstrap);
+IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
