@@ -227,6 +227,9 @@ def collect_cores(pids, working_directory, binaries, logger=None):
             # Process working directory.
             working_directory,
             pid)
+        if core_file is not None and not any(os.path.basename(binary) in core_file for binary in binaries):
+            core_file = None
+
         if core_file is not None:
             if logger is not None:
                 logger.info("Core file found: " + core_file)
