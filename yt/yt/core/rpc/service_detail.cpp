@@ -263,9 +263,10 @@ public:
         , RuntimeInfo_(acceptedRequest.RuntimeInfo)
         , TraceContext_(std::move(acceptedRequest.TraceContext))
         , RequestQueue_(acceptedRequest.RequestQueue)
-        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(
+        , MethodPerformanceCounters_(Service_->GetMethodPerformanceCounters(
             RuntimeInfo_,
             {GetAuthenticationIdentity().UserTag, RequestQueue_}))
+        , PerformanceCounters_(Service_->GetPerformanceCounters())
         , ArriveInstant_(NProfiling::GetInstant())
 
     {
@@ -397,7 +398,7 @@ public:
 
         CancelInstant_ = NProfiling::GetInstant();
 
-        PerformanceCounters_->CanceledRequestCounter.Increment();
+        MethodPerformanceCounters_->CanceledRequestCounter.Increment();
     }
 
     void SetComplete() override
@@ -420,7 +421,7 @@ public:
         }
 
         CanceledList_.Fire();
-        PerformanceCounters_->TimedOutRequestCounter.Increment();
+        MethodPerformanceCounters_->TimedOutRequestCounter.Increment();
 
         // Guards from race with DoGuardedRun.
         // We can only mark as complete those requests that will not be run
@@ -546,7 +547,8 @@ private:
     TRuntimeMethodInfo* const RuntimeInfo_;
     const TTraceContextPtr TraceContext_;
     TRequestQueue* const RequestQueue_;
-    TMethodPerformanceCounters* const PerformanceCounters_;
+    TMethodPerformanceCounters* const MethodPerformanceCounters_;
+    TPerformanceCounters* const PerformanceCounters_;
 
     EMemoryZone ResponseMemoryZone_;
 
@@ -594,16 +596,21 @@ private:
 
     void Initialize()
     {
-        PerformanceCounters_->RequestCounter.Increment();
-        PerformanceCounters_->RequestMessageBodySizeCounter.Increment(
+        TStringBuf userAgent = RequestHeader_->has_user_agent()
+            ? RequestHeader_->user_agent()
+            : "unknown";
+        PerformanceCounters_->IncrementRequestsPerUserAgent(userAgent);
+
+        MethodPerformanceCounters_->RequestCounter.Increment();
+        MethodPerformanceCounters_->RequestMessageBodySizeCounter.Increment(
             GetMessageBodySize(RequestMessage_));
-        PerformanceCounters_->RequestMessageAttachmentSizeCounter.Increment(
+        MethodPerformanceCounters_->RequestMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(RequestMessage_));
 
         if (RequestHeader_->has_start_time()) {
             auto retryStart = FromProto<TInstant>(RequestHeader_->start_time());
             auto now = NProfiling::GetInstant();
-            PerformanceCounters_->RemoteWaitTimeCounter.Record(now - retryStart);
+            MethodPerformanceCounters_->RemoteWaitTimeCounter.Record(now - retryStart);
         }
 
         {
@@ -768,7 +775,7 @@ private:
     {
         RunInstant_ = NProfiling::GetInstant();
         LocalWaitTime_ = *RunInstant_ - ArriveInstant_;
-        PerformanceCounters_->LocalWaitTimeCounter.Record(*LocalWaitTime_);
+        MethodPerformanceCounters_->LocalWaitTimeCounter.Record(*LocalWaitTime_);
 
         try {
             TCurrentTraceContextGuard guard(TraceContext_);
@@ -795,7 +802,7 @@ private:
             if (remainingTimeout == TDuration::Zero()) {
                 if (!TimedOutLatch_.exchange(true)) {
                     Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
-                    PerformanceCounters_->TimedOutRequestCounter.Increment();
+                    MethodPerformanceCounters_->TimedOutRequestCounter.Increment();
                 }
                 return;
             }
@@ -877,27 +884,27 @@ private:
         }
 
         if (auto traceContextTime = GetTraceContextTime()) {
-            PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
+            MethodPerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
         }
 
         ReplyInstant_ = NProfiling::GetInstant();
         ExecutionTime_ = RunInstant_ ? *ReplyInstant_ - *RunInstant_ : TDuration();
         TotalTime_ = *ReplyInstant_ - ArriveInstant_;
 
-        PerformanceCounters_->ExecutionTimeCounter.Record(*ExecutionTime_);
-        PerformanceCounters_->TotalTimeCounter.Record(*TotalTime_);
+        MethodPerformanceCounters_->ExecutionTimeCounter.Record(*ExecutionTime_);
+        MethodPerformanceCounters_->TotalTimeCounter.Record(*TotalTime_);
         if (!Error_.IsOK()) {
             if (Service_->EnableErrorCodeCounting.load()) {
-                PerformanceCounters_->ErrorCodes.RegisterCode(Error_.GetNonTrivialCode());
+                MethodPerformanceCounters_->ErrorCodes.RegisterCode(Error_.GetNonTrivialCode());
             } else {
-                PerformanceCounters_->FailedRequestCounter.Increment();
+                MethodPerformanceCounters_->FailedRequestCounter.Increment();
             }
         }
         HandleLoggingSuppression();
 
-        PerformanceCounters_->ResponseMessageBodySizeCounter.Increment(
+        MethodPerformanceCounters_->ResponseMessageBodySizeCounter.Increment(
             GetMessageBodySize(responseMessage));
-        PerformanceCounters_->ResponseMessageAttachmentSizeCounter.Increment(
+        MethodPerformanceCounters_->ResponseMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(responseMessage));
 
         if (!Error_.IsOK() && TraceContext_ && TraceContext_->IsRecorded()) {
@@ -1447,6 +1454,7 @@ TServiceBase::TServiceBase(
         DefaultInvoker_,
         BIND(&TServiceBase::OnServiceLivenessCheck, MakeWeak(this)),
         ServiceLivenessCheckPeriod))
+    , PerformanceCounters_(New<TServiceBase::TPerformanceCounters>(Profiler_))
 {
     YT_VERIFY(DefaultInvoker_);
 
@@ -2073,6 +2081,11 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
     return runtimeInfo->PerformanceCountersMap.FindOrInsert(actualKey, [&] {
         return CreateMethodPerformanceCounters(runtimeInfo, actualKey);
     }).first->Get();
+}
+
+TServiceBase::TPerformanceCounters* TServiceBase::GetPerformanceCounters()
+{
+    return PerformanceCounters_.Get();
 }
 
 void TServiceBase::SetActive()

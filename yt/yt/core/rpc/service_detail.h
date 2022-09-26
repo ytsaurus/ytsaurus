@@ -676,6 +676,31 @@ protected:
 
     using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;
 
+    //! Service-level performance counters.
+    class TPerformanceCounters
+        : public TRefCounted
+    {
+    public:
+        explicit TPerformanceCounters(const NProfiling::TProfiler& profiler)
+            : Profiler_(profiler)
+        { }
+
+        void IncrementRequestsPerUserAgent(TStringBuf userAgent)
+        {
+            RequestsPerUserAgent_.FindOrInsert(userAgent, [&] {
+                return Profiler_.WithSparse().WithRequiredTag("user_agent", TString(userAgent)).Counter("/user_agent");
+            }).first->Increment();
+        }
+       
+    private: 
+        const NProfiling::TProfiler& Profiler_;
+
+        //! Number of requests per user agent.
+        NConcurrency::TSyncMap<TString, NProfiling::TCounter> RequestsPerUserAgent_;
+    };
+
+    using TPerformanceCountersPtr = TIntrusivePtr<TPerformanceCounters>;
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 
@@ -831,6 +856,8 @@ private:
     THashMap<TString, TDiscoverRequestSet> DiscoverRequestsByPayload_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
 
+    TPerformanceCountersPtr PerformanceCounters_;
+
     struct TAcceptedRequest
     {
         TRequestId RequestId;
@@ -892,6 +919,8 @@ private:
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         TRuntimeMethodInfo* runtimeInfo,
         const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key);
+
+    TPerformanceCounters* GetPerformanceCounters();
 
     void SetActive();
     void ValidateInactive();
