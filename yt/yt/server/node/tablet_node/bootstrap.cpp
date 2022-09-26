@@ -83,8 +83,8 @@ public:
 
         SlotManager_ = CreateSlotManager(this);
 
-        InMemoryManager_ = CreateInMemoryManager(GetConfig()->TabletNode->InMemoryManager, this);
-        GetRpcServer()->RegisterService(CreateInMemoryService(GetConfig()->TabletNode->InMemoryManager, this));
+        InMemoryManager_ = CreateInMemoryManager(this);
+        GetRpcServer()->RegisterService(CreateInMemoryService(this));
 
         StructuredLogger_ = CreateStructuredLogger(this);
 

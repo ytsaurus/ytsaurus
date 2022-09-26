@@ -170,17 +170,14 @@ class TInMemoryManager
     : public IInMemoryManager
 {
 public:
-    TInMemoryManager(
-        TInMemoryManagerConfigPtr config,
-        IBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TInMemoryManager(IBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
             NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-            Config_->WorkloadDescriptor.GetPriority()))
-        , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
+            GetConfig()->WorkloadDescriptor.GetPriority()))
+        , PreloadSemaphore_(New<TAsyncSemaphore>(GetConfig()->MaxConcurrentPreloads))
     {
-        auto slotManager = Bootstrap_->GetSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
@@ -223,18 +220,18 @@ public:
         // Schedule eviction.
         TDelayedExecutor::Submit(
             BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), MakeStrong(this), chunkId),
-            Config_->InterceptedDataRetentionTime);
+            GetConfig()->InterceptedDataRetentionTime);
     }
 
-    const TInMemoryManagerConfigPtr& GetConfig() const override
+    TInMemoryManagerConfigPtr GetConfig() const override
     {
-        return Config_;
+        return Config_.Load();
     }
 
 private:
-    const TInMemoryManagerConfigPtr Config_;
-    IBootstrap* const Bootstrap_;
+    TAtomicObject<TInMemoryManagerConfigPtr> Config_{New<TInMemoryManagerConfig>()};
 
+    IBootstrap* const Bootstrap_;
     const IInvokerPtr CompressionInvoker_;
 
     const TAsyncSemaphorePtr PreloadSemaphore_;
@@ -247,8 +244,11 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& config = newNodeConfig->TabletNode->InMemoryManager;
-        PreloadSemaphore_->SetTotal(config->MaxConcurrentPreloads.value_or(Config_->MaxConcurrentPreloads));
+        const auto& staticConfig = Bootstrap_->GetConfig()->TabletNode->InMemoryManager;
+        auto config = staticConfig->ApplyDynamic(newNodeConfig->TabletNode->InMemoryManager);
+        Config_.Store(config);
+
+        PreloadSemaphore_->SetTotal(config->MaxConcurrentPreloads);
     }
 
     void ScanSlot(const ITabletSlotPtr& slot)
@@ -395,11 +395,9 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 
-IInMemoryManagerPtr CreateInMemoryManager(
-    TInMemoryManagerConfigPtr config,
-    IBootstrap* bootstrap)
+IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap)
 {
-    return New<TInMemoryManager>(config, bootstrap);
+    return New<TInMemoryManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,12 +713,12 @@ public:
     TRemoteInMemoryBlockCache(
         std::vector<TNodePtr> nodes,
         EInMemoryMode inMemoryMode,
-        size_t batchSize,
+        i64 remoteSendBatchSize,
         const TDuration controlRpcTimeout,
         const TDuration heavyRpcTimeout)
         : Nodes_(std::move(nodes))
         , InMemoryMode_(inMemoryMode)
-        , BatchSize_(batchSize)
+        , RemoteSendBatchSize_(remoteSendBatchSize)
         , ControlRpcTimeout_(controlRpcTimeout)
         , HeavyRpcTimeout_(heavyRpcTimeout)
     { }
@@ -743,7 +741,7 @@ public:
             auto guard = Guard(SpinLock_);
             Blocks_.emplace_back(id, data.Data);
             CurrentSize_ += data.Data.Size();
-            batchIsReady = CurrentSize_ > BatchSize_;
+            batchIsReady = CurrentSize_ > RemoteSendBatchSize_;
         }
 
         if (batchIsReady) {
@@ -806,8 +804,8 @@ private:
         }
 
         std::vector<std::pair<TBlockId, TSharedRef>> blocks;
-        size_t groupSize = 0;
-        while (!Blocks_.empty() && groupSize < BatchSize_) {
+        i64 groupSize = 0;
+        while (!Blocks_.empty() && groupSize < RemoteSendBatchSize_) {
             auto block = std::move(Blocks_.front());
             groupSize += block.second.Size();
             blocks.push_back(std::move(block));
@@ -906,18 +904,17 @@ private:
 private:
     std::vector<TNodePtr> Nodes_;
     const EInMemoryMode InMemoryMode_;
-    const size_t BatchSize_;
+    const i64 RemoteSendBatchSize_;
     const TDuration ControlRpcTimeout_;
     const TDuration HeavyRpcTimeout_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
-    std::atomic<bool> Sending_ = {false};
-    std::atomic<bool> Dropped_ = {false};
+    std::atomic<bool> Sending_ = false;
+    std::atomic<bool> Dropped_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
-    size_t CurrentSize_ = 0;
-
+    i64 CurrentSize_ = 0;
 };
 
 class TDummyInMemoryBlockCache
@@ -1008,7 +1005,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     return New<TRemoteInMemoryBlockCache>(
         std::move(nodes),
         inMemoryMode,
-        config->BatchSize,
+        config->RemoteSendBatchSize,
         config->ControlRpcTimeout,
         config->HeavyRpcTimeout);
 }

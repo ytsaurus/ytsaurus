@@ -516,10 +516,12 @@ public:
     TDuration PingPeriod;
     TDuration ControlRpcTimeout;
     TDuration HeavyRpcTimeout;
-    size_t BatchSize;
+    i64 RemoteSendBatchSize;
     TWorkloadDescriptor WorkloadDescriptor;
     // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
     NConcurrency::TRelativeThroughputThrottlerConfigPtr PreloadThrottler;
+
+    TInMemoryManagerConfigPtr ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TInMemoryManagerConfig);
 
@@ -535,6 +537,11 @@ class TInMemoryManagerDynamicConfig
 {
 public:
     std::optional<int> MaxConcurrentPreloads;
+    std::optional<TDuration> InterceptedDataRetentionTime;
+    std::optional<TDuration> PingPeriod;
+    std::optional<TDuration> ControlRpcTimeout;
+    std::optional<TDuration> HeavyRpcTimeout;
+    std::optional<i64> RemoteSendBatchSize;
 
     REGISTER_YSON_STRUCT(TInMemoryManagerDynamicConfig);
 
