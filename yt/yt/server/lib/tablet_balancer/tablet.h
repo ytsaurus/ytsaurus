@@ -15,9 +15,9 @@ struct TTabletStatistics
     i64 MemorySize;
 
     int PartitionCount;
-};
 
-void Deserialize(TTabletStatistics& value, NYTree::INodePtr node);
+    NYTree::INodePtr OriginalNode;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +30,7 @@ struct TTablet final
     TTabletCell* Cell = nullptr;
 
     TTabletStatistics Statistics;
+    NYTree::INodePtr PerformanceCounters;
     ETabletState State;
 
     TTablet(

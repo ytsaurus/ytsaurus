@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+
 #include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
@@ -39,39 +41,6 @@
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NTabletServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
-    XX(dynamic_row_read,                        DynamicRowRead) \
-    XX(dynamic_row_read_data_weight,            DynamicRowReadDataWeight) \
-    XX(dynamic_row_lookup,                      DynamicRowLookup) \
-    XX(dynamic_row_lookup_data_weight,          DynamicRowLookupDataWeight) \
-    XX(dynamic_row_write,                       DynamicRowWrite) \
-    XX(dynamic_row_write_data_weight,           DynamicRowWriteDataWeight) \
-    XX(dynamic_row_delete,                      DynamicRowDelete) \
-    XX(static_chunk_row_read,                   StaticChunkRowRead) \
-    XX(static_chunk_row_read_data_weight,       StaticChunkRowReadDataWeight) \
-    XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \
-    XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
-    XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
-    XX(static_chunk_row_lookup_data_weight,     StaticChunkRowLookupDataWeight) \
-    XX(unmerged_row_read,                       UnmergedRowRead) \
-    XX(merged_row_read,                         MergedRowRead) \
-    XX(compaction_data_weight,                  CompactionDataWeight) \
-    XX(partitioning_data_weight,                PartitioningDataWeight) \
-    XX(lookup_error,                            LookupErrorCount) \
-    XX(write_error,                             WriteErrorCount)
-
-struct TTabletPerformanceCounters
-{
-    static const TEmaCounter::TWindowDurations TabletPerformanceWindowDurations;
-    #define XX(name, Name) TEmaCounter Name = TEmaCounter(TabletPerformanceWindowDurations);
-    ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
-    #undef XX
-};
-
-void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
