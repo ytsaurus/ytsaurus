@@ -4,6 +4,9 @@
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -54,6 +57,17 @@ TJob::TJob(IJobHostPtr host)
     ChunkReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
     ChunkReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
+}
+
+void TJob::Initialize()
+{
+    PopulateInputNodeDirectory();
+}
+
+void TJob::PopulateInputNodeDirectory() const
+{
+    Host_->GetClient()->GetNativeConnection()->GetNodeDirectory()->MergeFrom(
+        Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().input_node_directory());
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -130,6 +144,8 @@ TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
 
 void TSimpleJobBase::Initialize()
 {
+    TJob::Initialize();
+
     // Initialize parallel reader memory manager.
     {
         auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();

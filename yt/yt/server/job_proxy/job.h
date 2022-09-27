@@ -77,8 +77,6 @@ struct IJobHost
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
-
     virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
@@ -108,6 +106,8 @@ struct IJob
     : public NJobProberClient::IJobProbe
 {
     virtual void Initialize() = 0;
+    virtual void PopulateInputNodeDirectory() const = 0;
+
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
 
     //! Tries to clean up (e.g. user processes), best effort guarantees.

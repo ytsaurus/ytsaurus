@@ -80,9 +80,9 @@ class TRemoteCopyJob
 {
 public:
     explicit TRemoteCopyJob(IJobHostPtr host)
-        : TJob(host)
-        , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
-        , RemoteCopyJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
+        : TJob(std::move(host))
+        , SchedulerJobSpecExt_(Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt())
+        , RemoteCopyJobSpecExt_(Host_->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
         , WriterConfig_(CloneYsonSerializable(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
@@ -109,10 +109,21 @@ public:
         ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
+
+        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
+        RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
+    }
+
+    void PopulateInputNodeDirectory() const override
+    {
+        RemoteConnection_->GetNodeDirectory()->MergeFrom(
+            Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().input_node_directory());
     }
 
     void Initialize() override
     {
+        TJob::Initialize();
+
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         YT_VERIFY(std::ssize(dataSourceDirectory->DataSources()) == 1);
@@ -133,9 +144,6 @@ public:
         WriterConfig_->UploadReplicationFactor = std::min(
             WriterConfig_->UploadReplicationFactor,
             WriterOptionsTemplate_->ReplicationFactor);
-
-        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
-        RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions::FromUser(Host_->GetAuthenticatedUser()));
 

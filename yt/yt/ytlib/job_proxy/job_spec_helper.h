@@ -20,7 +20,6 @@ struct IJobSpecHelper
     virtual NJobTrackerClient::EJobType GetJobType() const = 0;
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
     virtual NScheduler::TJobIOConfigPtr GetJobIOConfig() const = 0;
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
     virtual const NScheduler::NProto::TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const = 0;
     virtual const NChunkClient::TDataSourceDirectoryPtr& GetDataSourceDirectory() const = 0;
     virtual int GetKeySwitchColumnCount() const = 0;
@@ -32,9 +31,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+IJobSpecHelperPtr CreateJobSpecHelper(const NJobTrackerClient::NProto::TJobSpec& jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

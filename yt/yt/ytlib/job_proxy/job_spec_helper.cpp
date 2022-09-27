@@ -45,20 +45,16 @@ class TJobSpecHelper
     : public IJobSpecHelper
 {
 public:
-    TJobSpecHelper(
-        const TJobSpec& jobSpec,
-        TNodeDirectoryPtr nodeDirectory)
+    TJobSpecHelper(const TJobSpec& jobSpec)
         : JobSpec_(jobSpec)
-        , NodeDirectory_(std::move(nodeDirectory))
     {
-        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(schedulerJobSpecExt.io_config()));
         if (schedulerJobSpecExt.has_testing_options()) {
             JobTestingOptions_ = ConvertTo<TJobTestingOptionsPtr>(TYsonString(schedulerJobSpecExt.testing_options()));
         } else {
             JobTestingOptions_ = New<TJobTestingOptions>();
         }
-        NodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
         if (dataSourceDirectoryExt) {
             YT_LOG_DEBUG("Data source directory extension received\n%v", dataSourceDirectoryExt->DebugString());
@@ -84,11 +80,6 @@ public:
     TJobTestingOptionsPtr GetJobTestingOptions() const override
     {
         return JobTestingOptions_;
-    }
-
-    TNodeDirectoryPtr GetInputNodeDirectory() const override
-    {
-        return NodeDirectory_;
     }
 
     const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
@@ -152,7 +143,6 @@ public:
 
 private:
     const TJobSpec JobSpec_;
-    const TNodeDirectoryPtr NodeDirectory_;
 
     TJobIOConfigPtr JobIOConfig_;
     TDataSourceDirectoryPtr DataSourceDirectory_;
@@ -161,13 +151,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-    TNodeDirectoryPtr nodeDirectory)
+IJobSpecHelperPtr CreateJobSpecHelper(const TJobSpec& jobSpec)
 {
-    return New<TJobSpecHelper>(
-        jobSpec,
-        std::move(nodeDirectory));
+    return New<TJobSpecHelper>(jobSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
