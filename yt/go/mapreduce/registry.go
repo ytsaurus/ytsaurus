@@ -14,11 +14,11 @@ var registry = map[string]reflect.Type{}
 //
 // User must register all job types during initialisation.
 //
-//     type MyJob struct{}
+//	type MyJob struct{}
 //
-//     func init() {
-//         mapreduce.Register(&MyJob{})
-//     }
+//	func init() {
+//	    mapreduce.Register(&MyJob{})
+//	}
 func Register(job Job) {
 	gob.Register(job)
 	t := reflect.TypeOf(job)

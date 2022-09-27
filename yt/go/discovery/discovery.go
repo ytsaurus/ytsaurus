@@ -7,33 +7,33 @@
 //
 // Example usage:
 //
-//   type MemberMeta struct {
-//       Version string
-//       Shard   int
-//   }
+//	type MemberMeta struct {
+//	    Version string
+//	    Shard   int
+//	}
 //
-//   func Example(yc yt.Client, logger log.Logger) err {
-//       g := discovery.NewGroup(yc, logger, discovery.Options{Root: ypath.Path("//home/prime/group")})
+//	func Example(yc yt.Client, logger log.Logger) err {
+//	    g := discovery.NewGroup(yc, logger, discovery.Options{Root: ypath.Path("//home/prime/group")})
 //
-//       // Start updater goroutine.
-//       go g.Update(context.Background())
+//	    // Start updater goroutine.
+//	    go g.Update(context.Background())
 //
-//       // Join the group.
-//       member, err := g.Join(context.Background(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
-//       if err != nil {
-//           return err
-//       }
-//       defer member.Leave()
+//	    // Join the group.
+//	    member, err := g.Join(context.Background(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
+//	    if err != nil {
+//	        return err
+//	    }
+//	    defer member.Leave()
 //
-//       // See other alive members.
-//       members := map[string]MemberMeta{}
-//       if err := g.List(context.Background(), &members); err != nil {
-//           return err
-//       }
+//	    // See other alive members.
+//	    members := map[string]MemberMeta{}
+//	    if err := g.List(context.Background(), &members); err != nil {
+//	        return err
+//	    }
 //
-//       fmt.Println(members)
-//       return nil
-//   }
+//	    fmt.Println(members)
+//	    return nil
+//	}
 package discovery
 
 import (
@@ -88,7 +88,7 @@ func NewGroup(yc yt.Client, logger log.Logger, options Options) *Group {
 
 // Update runs loop, updating list of group members.
 //
-//     go g.Update(context.Background())
+//	go g.Update(context.Background())
 func (g *Group) Update(ctx context.Context) {
 	started := false
 	for {

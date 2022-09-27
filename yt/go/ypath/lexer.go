@@ -386,8 +386,8 @@ func SplitTokens(path string) (tokens []string, err error) {
 
 // Split splits path into parent and a child component.
 //
-//     //home/prime/table -> //home/prime /table
-//     #a-b-c-d/@attr     -> #a-b-c-d     /@attr
+//	//home/prime/table -> //home/prime /table
+//	#a-b-c-d/@attr     -> #a-b-c-d     /@attr
 //
 // If path refers to cypress root or object id, Split sets parent to path and child to an empty string.
 //

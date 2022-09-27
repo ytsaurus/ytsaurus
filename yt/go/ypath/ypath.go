@@ -3,7 +3,6 @@
 // YPath has two forms, simple and rich.
 //
 // For more information about ypath see https://docs.yandex-team.ru/yt/description/common/ypath
-//
 package ypath
 
 import (
@@ -16,12 +15,12 @@ import (
 //
 // Create Path by casting from string.
 //
-//     path := ypath.Path("//home/prime")
+//	path := ypath.Path("//home/prime")
 //
 // Edit Path using helper methods.
 //
-//     myHome = ypath.Root.Child("home").Child("prime")
-//     myHome = ypath.Root.JoinChild("home", "prime")
+//	myHome = ypath.Root.Child("home").Child("prime")
+//	myHome = ypath.Root.JoinChild("home", "prime")
 //
 // For complex manipulations, use Rich.
 type Path string
@@ -58,8 +57,8 @@ func (p Path) MarshalYSON(w *yson.Writer) error {
 
 // JoinChild returns path referencing grandchild of p.
 //
-//     root := ypath.Root
-//     myHome := root.JoinChild("home", "prime")
+//	root := ypath.Root
+//	myHome := root.JoinChild("home", "prime")
 func (p Path) JoinChild(names ...string) Path {
 	for _, child := range names {
 		p = p.Child(child)
@@ -141,8 +140,8 @@ func (p Path) Rich() *Rich {
 //
 // Typical usage would be:
 //
-//     var linkName ypath.Path
-//     linkTarget := linkName.SuppressSymlink().Attr("target_path")
+//	var linkName ypath.Path
+//	linkTarget := linkName.SuppressSymlink().Attr("target_path")
 func (p Path) SuppressSymlink() Path {
 	p += "&"
 	return p

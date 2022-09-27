@@ -56,19 +56,19 @@ func (s StreamKind) String() string {
 //
 // Example usage:
 //
-//     var buf bytes.Buffer
-//     w := yson.NewWriter(&buf)
+//	var buf bytes.Buffer
+//	w := yson.NewWriter(&buf)
 //
-//     w.BeginMap()
-//     w.MapKeyString("a")
-//     w.Bool(false)
-//     w.EndMap()
+//	w.BeginMap()
+//	w.MapKeyString("a")
+//	w.Bool(false)
+//	w.EndMap()
 //
-//     if err := w.Flush(); err != nil {
-//         return err
-//     }
+//	if err := w.Flush(); err != nil {
+//	    return err
+//	}
 //
-//     yson := buf.Bytes()
+//	yson := buf.Bytes()
 //
 // Most users should not use Writer directly. Use higher level Marshal() function instead.
 //

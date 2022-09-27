@@ -12,9 +12,9 @@ import (
 // Each row starts with uint64 specifying number of values. Special value -1 encodes nil row.
 // Single value header is packed into 8 bytes with layout of TUnversionedValue structure.
 // Encoding of the value depends of the value type.
-//    - Null is omitted from the stream.
-//    - Basic types are encoded into 8 bytes.
-//    - String is encoded using variable number of bytes.
+//   - Null is omitted from the stream.
+//   - Basic types are encoded into 8 bytes.
+//   - String is encoded using variable number of bytes.
 //
 // All atomic elements of the stream are padded by 8 bytes alignment.
 type writer struct {
