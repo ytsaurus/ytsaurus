@@ -108,8 +108,6 @@ DECLARE_MASTER_OBJECT_TYPE(TTabletCellBundle)
 DECLARE_MASTER_OBJECT_TYPE(THunkStorageNode)
 
 struct TTabletStatistics;
-struct TTabletPerformanceCounter;
-struct TTabletPerformanceCounters;
 
 extern const TString DefaultTabletCellBundleName;
 extern const TString SequoiaTabletCellBundleName;

@@ -76,21 +76,15 @@ private:
         bool Dynamic;
     };
 
-    struct TTableStatisticsResponse
+    struct TTabletStatisticsResponse
     {
-        struct TTabletResponse
-        {
-            i64 Index;
-            TTabletId TabletId;
+        i64 Index;
+        TTabletId TabletId;
 
-            ETabletState State;
-            TTabletStatistics Statistics;
-            std::optional<TTabletCellId> CellId;
-        };
-
-        std::vector<TTabletResponse> Tablets;
-        i64 CompressedDataSize;
-        i64 UncompressedDataSize;
+        ETabletState State;
+        TTabletStatistics Statistics;
+        NYTree::INodePtr PerformanceCounters;
+        TTabletCellId CellId;
     };
 
     const NLogging::TLogger Logger;
@@ -102,8 +96,6 @@ private:
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;
 
-    friend void Deserialize(TTableStatisticsResponse::TTabletResponse& value, const NYTree::INodePtr& node);
-
     void DoUpdateState();
 
     THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells() const;
@@ -113,12 +105,15 @@ private:
     void DoFetchStatistics();
 
     THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
-    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
+    THashMap<TTableId, std::vector<TTabletStatisticsResponse>> FetchTableStatistics(
         const THashSet<TTableId>& tableIds) const;
 
     bool IsTableBalancingAllowed(const TTableSettings& table) const;
 
     void InitializeProfilingCounters(const TTablePtr& table);
+    static void SetTableStatistics(
+        const TTablePtr& table,
+        const std::vector<TTabletStatisticsResponse>& tablets);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleState)

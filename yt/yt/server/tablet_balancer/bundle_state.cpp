@@ -6,11 +6,17 @@
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
 
+#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/ytlib/tablet_client/master_tablet_service_proxy.h>
+
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -19,11 +25,14 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePtr& mapNode)
 {
@@ -37,6 +46,60 @@ THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePt
     }
     return tabletToTable;
 }
+
+INodePtr BuildTabletPerformanceCountersNode(
+    const NProtoBuf::RepeatedPtrField<TRspGetTableBalancingAttributes::TTablet::TEmaCounterSnapshot>& emaCounters,
+    const std::vector<TString>& performanceCountersKeys)
+{
+    if (false) {
+        // TODO(alexelex): only for parameterized balancing.
+        return BuildYsonNodeFluently()
+            .DoMap([&] (TFluentMap fluent) {
+            for (int i = 0; i < std::ssize(performanceCountersKeys); ++i) {
+                const auto& counter = emaCounters.at(i);
+                fluent
+                    .Item(performanceCountersKeys[i] + "_count").Value(counter.count())
+                    .Item(performanceCountersKeys[i] + "_rate").Value(counter.rate())
+                    .Item(performanceCountersKeys[i] + "_rate_10m").Value(counter.rate_10m())
+                    .Item(performanceCountersKeys[i] + "_rate_1h").Value(counter.rate_1h());
+            }
+        });
+    }
+    return nullptr;
+}
+
+TTabletStatistics BuildTabletStatistics(
+    const TRspGetTableBalancingAttributes::TTablet::TCompressedStatistics& protoStatistics,
+    const std::vector<TString>& keys)
+{
+    // TODO(alexelex): save node to OriginNode. Needs only for parameterized balancing.
+    auto node = BuildYsonNodeFluently()
+        .DoMap([&] (TFluentMap fluent) {
+            auto iter = keys.begin();
+            for (const auto& value : protoStatistics.i64_fields()) {
+                fluent.Item(*iter).Value(value);
+                ++iter;
+            }
+            for (const auto& value : protoStatistics.i32_fields()) {
+                fluent.Item(*iter).Value(value);
+                ++iter;
+            }
+    });
+
+    TTabletStatistics statistics;
+
+    auto mapNode = node->AsMap();
+    statistics.CompressedDataSize = ConvertTo<i64>(mapNode->FindChild("compressed_data_size"));
+    statistics.UncompressedDataSize = ConvertTo<i64>(mapNode->FindChild("uncompressed_data_size"));
+    statistics.MemorySize = ConvertTo<i64>(mapNode->FindChild("memory_size"));
+    statistics.PartitionCount = ConvertTo<int>(mapNode->FindChild("partition_count"));
+
+    return statistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& profiler)
     : TabletCellTabletsRequestCount(profiler.WithSparse().Counter("/master_requests/tablet_cell_tablets_count"))
@@ -198,10 +261,9 @@ void TBundleState::DoFetchStatistics()
 
     for (auto& [tableId, statistics] : tableIdToStatistics) {
         auto& table = GetOrCrash(Bundle_->Tables, tableId);
-        table->CompressedDataSize = statistics.CompressedDataSize;
-        table->UncompressedDataSize = statistics.UncompressedDataSize;
+        SetTableStatistics(table, statistics);
 
-        for (auto& tabletResponse : statistics.Tablets) {
+        for (const auto& tabletResponse : statistics) {
             TTabletPtr tablet;
 
             if (auto it = Tablets_.find(tabletResponse.TabletId); it != Tablets_.end()) {
@@ -218,11 +280,11 @@ void TBundleState::DoFetchStatistics()
                 // Or if the table has been moved from one bundle to another.
                 // In this case, it's okay to skip one iteration.
 
-                auto cellIt = Bundle_->TabletCells.find(*tabletResponse.CellId);
+                auto cellIt = Bundle_->TabletCells.find(tabletResponse.CellId);
                 if (cellIt == Bundle_->TabletCells.end()) {
                     THROW_ERROR_EXCEPTION(
                         "Tablet %v of table %v belongs to an unknown cell %v",
-                        *tabletResponse.CellId,
+                        tabletResponse.CellId,
                         table->Id,
                         tabletResponse.TabletId);
                 }
@@ -235,6 +297,7 @@ void TBundleState::DoFetchStatistics()
 
             tablet->Index = tabletResponse.Index;
             tablet->Statistics = tabletResponse.Statistics;
+            tablet->PerformanceCounters = tabletResponse.PerformanceCounters;
             tablet->State = tabletResponse.State;
 
             YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
@@ -333,60 +396,102 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
         InsertOrCrash(tableIds, id);
     }
 
-    static const std::vector<TString> attributeKeys{
-        "tablet_balancer_config",
-        "dynamic",
-        "in_memory_mode",
-    };
-    auto tableToAttributes = FetchTableAttributes(
+    auto cellTagToBatch = FetchTableAttributes(
         Client_,
         tableIds,
-        attributeKeys,
-        Bundle_->Tables);
+        Bundle_->Tables,
+        [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
+            request->set_fetch_balancing_attributes(true);
+    });
 
     THashMap<TTableId, TTableSettings> tableConfigs;
-    for (const auto& [tableId, attributes] : tableToAttributes) {
-        auto tabletBalancerConfig = attributes->Get<TTableTabletBalancerConfigPtr>("tablet_balancer_config");
-        auto dynamic = attributes->Get<bool>("dynamic");
-        auto inMemoryMode = attributes->Get<EInMemoryMode>("in_memory_mode");
+    for (const auto& [cellTag, batch] : cellTagToBatch) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            batch.Response.Get(),
+            "Failed to fetch actual table settings from cell %v",
+            cellTag);
+        auto responseBatch = batch.Response.Get().Value();
 
-        EmplaceOrCrash(tableConfigs, tableId, TTableSettings{
-            .Config = tabletBalancerConfig,
-            .InMemoryMode = inMemoryMode,
-            .Dynamic = dynamic,
-        });
+        for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
+            auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);
+
+            const auto& response = responseBatch->tables()[index];
+            if (!response.has_balancing_attributes()) {
+                // The table has already been deleted.
+                continue;
+            }
+
+            const auto& attributes = response.balancing_attributes();
+            EmplaceOrCrash(tableConfigs, tableId, TTableSettings{
+                .Config = ConvertTo<TTableTabletBalancerConfigPtr>(
+                    TYsonStringBuf(attributes.tablet_balancer_config())),
+                .InMemoryMode = FromProto<EInMemoryMode>(attributes.in_memory_mode()),
+                .Dynamic = attributes.dynamic(),
+            });
+        }
     }
 
     return tableConfigs;
 }
 
-THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTableStatistics(
+THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundleState::FetchTableStatistics(
     const THashSet<TTableId>& tableIds) const
 {
-    static const std::vector<TString> attributeKeys{
-        "tablets",
-        "compressed_data_size",
-        "uncompressed_data_size",
+    static const std::vector<TString> performanceCountersKeys{
+        #define XX(name, Name) #name,
+        ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        #undef XX
     };
-    auto tableToAttributes = FetchTableAttributes(
+
+    auto cellTagToBatch = FetchTableAttributes(
         Client_,
         tableIds,
-        attributeKeys,
-        Bundle_->Tables);
+        Bundle_->Tables,
+        [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
+            request->set_fetch_statistics(true);
+            ToProto(request->mutable_requested_performance_counters(), performanceCountersKeys);
+    });
 
-    THashMap<TTableId, TTableStatisticsResponse> tableStatistics;
-    for (const auto& [tableId, attributes] : tableToAttributes) {
-        // What if between fetch dynamic and this request the table becomes dynamic?
-        // TODO(alexelex): Check the error code and skip this request as well.
+    THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;
+    for (const auto& [cellTag, batch] : cellTagToBatch) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            batch.Response.Get(),
+            "Failed to fetch tablets from cell %v",
+            cellTag);
 
-        auto tablets = attributes->Get<std::vector<TTableStatisticsResponse::TTabletResponse>>("tablets");
-        auto compressedSize = attributes->Get<i64>("compressed_data_size");
-        auto uncompressedSize = attributes->Get<i64>("uncompressed_data_size");
-        EmplaceOrCrash(tableStatistics, tableId, TTableStatisticsResponse{
-            .Tablets = std::move(tablets),
-            .CompressedDataSize = compressedSize,
-            .UncompressedDataSize = uncompressedSize,
-        });
+        auto responseBatch = batch.Response.Get().ValueOrThrow();
+        auto statisticsFieldNames = FromProto<std::vector<TString>>(responseBatch->statistics_field_names());
+
+        for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
+            auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);
+
+            const auto& response = responseBatch->tables()[index];
+            if (response.tablets_size() == 0) {
+                // The table has already been deleted.
+                continue;
+            }
+
+            std::vector<TTabletStatisticsResponse> tablets;
+            for (const auto& tablet : response.tablets()) {
+                tablets.push_back(TTabletStatisticsResponse{
+                    .Index = tablet.index(),
+                    .TabletId = FromProto<TTabletId>(tablet.tablet_id()),
+                    .State = FromProto<ETabletState>(tablet.state()),
+                    .Statistics = BuildTabletStatistics(
+                        tablet.statistics(),
+                        statisticsFieldNames),
+                    .PerformanceCounters = BuildTabletPerformanceCountersNode(
+                        tablet.performance_counters(),
+                        performanceCountersKeys),
+                });
+
+                if (tablet.has_cell_id()) {
+                    tablets.back().CellId = FromProto<TTabletCellId>(tablet.cell_id());
+                }
+            }
+
+            EmplaceOrCrash(tableStatistics, tableId, std::move(tablets));
+        }
     }
 
     return tableStatistics;
@@ -409,20 +514,16 @@ void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
     EmplaceOrCrash(ProfilingCounters_, table->Id, std::move(profilingCounters));
 }
 
-void Deserialize(
-    TBundleState::TTableStatisticsResponse::TTabletResponse& value,
-    const NYTree::INodePtr& node)
+void TBundleState::SetTableStatistics(
+    const TTablePtr& table,
+    const std::vector<TTabletStatisticsResponse>& tablets)
 {
-    auto mapNode = node->AsMap();
+    table->CompressedDataSize = 0;
+    table->UncompressedDataSize = 0;
 
-    value.Index = ConvertTo<i64>(mapNode->FindChild("index"));
-    value.TabletId = ConvertTo<TTabletId>(mapNode->FindChild("tablet_id"));
-
-    value.Statistics = ConvertTo<TTabletStatistics>(mapNode->FindChild("statistics"));
-    value.State = ConvertTo<ETabletState>(mapNode->FindChild("state"));
-
-    if (auto cellId = mapNode->FindChild("cell_id")) {
-        value.CellId = ConvertTo<TTabletCellId>(cellId);
+    for (const auto& tablet : tablets) {
+        table->CompressedDataSize += tablet.Statistics.CompressedDataSize;
+        table->UncompressedDataSize += tablet.Statistics.UncompressedDataSize;
     }
 }
 

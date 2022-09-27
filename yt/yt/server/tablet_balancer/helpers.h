@@ -6,11 +6,28 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/tablet_client/master_tablet_service_proxy.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TCellTagRequest
+{
+    NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr Request;
+    TFuture<NTabletClient::TMasterTabletServiceProxy::TRspGetTableBalancingAttributesPtr> Response;
+};
+
+template <typename TRequest>
+void ExecuteRequestsToCellTags(THashMap<NObjectClient::TCellTag, TRequest>* batchRequest);
+
+THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
+    const NApi::NNative::IClientPtr& client,
+    const THashSet<TTableId>& tableIds,
+    const THashMap<TTableId, TTablePtr>& Tables,
+    std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
 //! Fetch attributes using CellTag from ObjectId.
 THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttributes(
@@ -18,14 +35,12 @@ THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttribu
     const THashSet<NObjectClient::TObjectId>& objectIds,
     const std::vector<TString>& attributeKeys);
 
-THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchTableAttributes(
-    const NApi::NNative::IClientPtr& client,
-    const THashSet<TTableId>& tableIds,
-    const std::vector<TString>& attributeKeys,
-    const THashMap<TTableId, TTablePtr>& Tables);
-
 TInstant TruncatedNow();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

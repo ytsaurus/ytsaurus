@@ -1,3 +1,4 @@
+#include "helpers.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/tablet_balancer/table.h>
@@ -20,10 +21,13 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 struct TCellTagBatch
 {
@@ -31,17 +35,7 @@ struct TCellTagBatch
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> Response;
 };
 
-void ExecuteBatchRequests(THashMap<TCellTag, TCellTagBatch>* batchRequest)
-{
-    std::vector<TFuture<void>> futures;
-    for (auto& [cellTag, batchRequest] : *batchRequest) {
-        batchRequest.Response = batchRequest.Request->Invoke();
-        futures.push_back(batchRequest.Response.AsVoid());
-    }
-
-    WaitFor(AllSucceeded(std::move(futures)))
-        .ThrowOnError();
-}
+////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
@@ -50,21 +44,21 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
 {
     // TODO(alexelex): Receive list of error codes to skip them.
 
-    THashMap<TCellTag, TCellTagBatch> batchRequest;
+    THashMap<TCellTag, TCellTagBatch> batchRequests;
     for (const auto& [objectId, cellTag] : objectIdsWithCellTags) {
         auto req = TTableYPathProxy::Get(FromObjectId(objectId) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
-        auto it = batchRequest.emplace(cellTag, TCellTagBatch{proxy.ExecuteBatch(), {}}).first;
+        auto it = batchRequests.emplace(cellTag, TCellTagBatch{proxy.ExecuteBatch(), {}}).first;
         it->second.Request->AddRequest(req, ToString(objectId));
     }
 
-    ExecuteBatchRequests(&batchRequest);
+    ExecuteRequestsToCellTags(&batchRequests);
 
     THashMap<TObjectId, IAttributeDictionaryPtr> responses;
     for (const auto& [objectId, cellTag] : objectIdsWithCellTags) {
-        const auto& batchReq = batchRequest[cellTag].Response.Get().Value();
+        const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
         auto rspOrError = batchReq->GetResponse<TTableYPathProxy::TRspGet>(ToString(objectId));
         if (!rspOrError.IsOK() && rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
             continue;
@@ -77,6 +71,17 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
 
     return responses;
 }
+
+TInstant TruncateToMinutes(TInstant t)
+{
+    auto timeval = t.TimeVal();
+    timeval.tv_usec = 0;
+    timeval.tv_sec /= 60;
+    timeval.tv_sec *= 60;
+    return TInstant(timeval);
+}
+
+} // namespace
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
     const NApi::NNative::IClientPtr& client,
@@ -91,33 +96,26 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
     return FetchAttributesByCellTags(client, objectIdsWithCellTags, attributeKeys);
 }
 
-THashMap<TObjectId, IAttributeDictionaryPtr> FetchTableAttributes(
+THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
-    const std::vector<TString>& attributeKeys,
-    const THashMap<TTableId, TTablePtr>& Tables)
+    const THashMap<TTableId, TTablePtr>& Tables,
+    std::function<void(const TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto)
 {
-    std::vector<std::pair<TObjectId, TCellTag>> objectIdsWithCellTags;
-    objectIdsWithCellTags.reserve(std::ssize(tableIds));
+    THashMap<TCellTag, TCellTagRequest> batchRequests;
     for (auto tableId : tableIds) {
-        YT_VERIFY(IsTableType(TypeFromId(tableId)));
-        objectIdsWithCellTags.emplace_back(tableId, GetOrCrash(Tables, tableId)->ExternalCellTag);
+        auto cellTag = GetOrCrash(Tables, tableId)->ExternalCellTag;
+        TMasterTabletServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
+        auto [it, isNew] = batchRequests.emplace(cellTag, TCellTagRequest{proxy.GetTableBalancingAttributes(), {}});
+        if (isNew) {
+            prepareRequestProto(it->second.Request);
+        }
+        ToProto(it->second.Request->add_table_ids(), tableId);
     }
-    return FetchAttributesByCellTags(client, objectIdsWithCellTags, attributeKeys);
+
+    ExecuteRequestsToCellTags(&batchRequests);
+    return batchRequests;
 }
-
-namespace {
-
-TInstant TruncateToMinutes(TInstant t)
-{
-    auto timeval = t.TimeVal();
-    timeval.tv_usec = 0;
-    timeval.tv_sec /= 60;
-    timeval.tv_sec *= 60;
-    return TInstant(timeval);
-}
-
-} // namespace
 
 TInstant TruncatedNow()
 {
