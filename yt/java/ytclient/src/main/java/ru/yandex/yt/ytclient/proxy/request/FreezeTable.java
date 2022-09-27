@@ -28,6 +28,11 @@ public class FreezeTable extends TableReq<FreezeTable> implements HighLevelReque
     protected FreezeTable self() {
         return this;
     }
+
+    @Override
+    public FreezeTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }
 
 

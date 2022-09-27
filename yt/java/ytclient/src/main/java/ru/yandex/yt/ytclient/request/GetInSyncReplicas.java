@@ -17,7 +17,7 @@ import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
 @NonNullApi
 @NonNullFields
-public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder> {
+public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, GetInSyncReplicas> {
     private final String path;
     private final TableSchema schema;
 
@@ -75,7 +75,7 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GetInSyncReplicas> {
         @Nullable
         private String path;
         @Nullable

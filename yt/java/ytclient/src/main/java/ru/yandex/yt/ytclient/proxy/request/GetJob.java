@@ -44,4 +44,9 @@ public class GetJob extends OperationReq<GetJob> implements HighLevelRequest<TRe
         super.writeArgumentsLogString(sb);
         sb.append("jobId: ").append(jobId).append(";");
     }
+
+    @Override
+    public GetJob build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

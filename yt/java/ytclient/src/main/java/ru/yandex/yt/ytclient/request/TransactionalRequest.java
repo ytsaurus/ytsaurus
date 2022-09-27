@@ -9,19 +9,21 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
-public abstract class TransactionalRequest<T extends RequestBase.Builder<T>> extends RequestBase<T> {
+public abstract class TransactionalRequest<
+        TBuilder extends RequestBase.Builder<TBuilder, TRequest>,
+        TRequest extends RequestBase<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {
     @Nullable
     protected TransactionalOptions transactionalOptions;
     @Nullable
     protected PrerequisiteOptions prerequisiteOptions;
 
-    TransactionalRequest(Builder<?> builder) {
+    TransactionalRequest(Builder<?, ?> builder) {
         super(builder);
         this.transactionalOptions = builder.transactionalOptions;
         this.prerequisiteOptions = builder.prerequisiteOptions;
     }
 
-    protected TransactionalRequest(TransactionalRequest<?> other) {
+    protected TransactionalRequest(TransactionalRequest<?, ?> other) {
         super(other);
         if (other.transactionalOptions != null) {
             transactionalOptions = new TransactionalOptions(other.transactionalOptions);
@@ -56,7 +58,10 @@ public abstract class TransactionalRequest<T extends RequestBase.Builder<T>> ext
         return builder;
     }
 
-    public abstract static class Builder<T extends Builder<T>> extends RequestBase.Builder<T> {
+    public abstract static class Builder<
+            TBuilder extends Builder<TBuilder, TRequest>,
+            TRequest extends TransactionalRequest<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest> {
         @Nullable
         protected TransactionalOptions transactionalOptions;
         @Nullable
@@ -65,7 +70,7 @@ public abstract class TransactionalRequest<T extends RequestBase.Builder<T>> ext
         public Builder() {
         }
 
-        protected Builder(Builder<?> other) {
+        protected Builder(Builder<?, ?> other) {
             super(other);
             if (other.transactionalOptions != null) {
                 transactionalOptions = new TransactionalOptions(other.transactionalOptions);
@@ -75,17 +80,17 @@ public abstract class TransactionalRequest<T extends RequestBase.Builder<T>> ext
             }
         }
 
-        public T setTransactionalOptionsOfTransactionId(GUID transactionId) {
+        public TBuilder setTransactionalOptionsOfTransactionId(GUID transactionId) {
             this.transactionalOptions = new TransactionalOptions(transactionId);
             return self();
         }
 
-        public T setTransactionalOptions(@Nullable TransactionalOptions to) {
+        public TBuilder setTransactionalOptions(@Nullable TransactionalOptions to) {
             this.transactionalOptions = to;
             return self();
         }
 
-        public T setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
+        public TBuilder setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
             this.prerequisiteOptions = prerequisiteOptions;
             return self();
         }

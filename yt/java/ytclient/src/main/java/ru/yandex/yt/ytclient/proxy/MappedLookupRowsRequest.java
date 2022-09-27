@@ -71,4 +71,9 @@ public class MappedLookupRowsRequest<T> extends AbstractLookupRowsRequest<Mapped
     protected MappedLookupRowsRequest<T> self() {
         return this;
     }
+
+    @Override
+    public MappedLookupRowsRequest<T> build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

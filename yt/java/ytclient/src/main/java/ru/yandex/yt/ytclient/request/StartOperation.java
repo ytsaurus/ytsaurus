@@ -25,7 +25,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields
-public class StartOperation extends RequestBase<StartOperation.Builder>
+public class StartOperation extends RequestBase<StartOperation.Builder, StartOperation>
         implements HighLevelRequest<TReqStartOperation.Builder> {
     private final EOperationType type;
     private final YTreeNode spec;
@@ -34,7 +34,7 @@ public class StartOperation extends RequestBase<StartOperation.Builder>
     private final TransactionalOptions transactionalOptions;
     private final MutatingOptions mutatingOptions;
 
-    StartOperation(BuilderBase<?> builder) {
+    public StartOperation(BuilderBase<?, ?> builder) {
         super(builder);
         this.type = Objects.requireNonNull(builder.type);
         this.spec = Objects.requireNonNull(builder.spec);
@@ -92,17 +92,24 @@ public class StartOperation extends RequestBase<StartOperation.Builder>
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, StartOperation> {
         @Override
         protected Builder self() {
             return this;
+        }
+
+        @Override
+        public StartOperation build() {
+            return new StartOperation(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends ru.yandex.yt.ytclient.proxy.request.RequestBase<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends RequestBase<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqStartOperation.Builder> {
         @Nullable
         private EOperationType type;
@@ -115,7 +122,7 @@ public class StartOperation extends RequestBase<StartOperation.Builder>
         protected BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?> builder) {
+        BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
             type = builder.type;
             spec = YTree.deepCopy(spec);
@@ -125,28 +132,24 @@ public class StartOperation extends RequestBase<StartOperation.Builder>
             mutatingOptions = new MutatingOptions(mutatingOptions);
         }
 
-        public T setType(EOperationType type) {
+        public TBuilder setType(EOperationType type) {
             this.type = type;
             return self();
         }
 
-        public T setSpec(YTreeNode spec) {
+        public TBuilder setSpec(YTreeNode spec) {
             this.spec = spec;
             return self();
         }
 
-        public T setTransactionalOptions(@Nullable TransactionalOptions transactionalOptions) {
+        public TBuilder setTransactionalOptions(@Nullable TransactionalOptions transactionalOptions) {
             this.transactionalOptions = transactionalOptions;
             return self();
         }
 
-        public T setMutatingOptions(MutatingOptions mutatingOptions) {
+        public TBuilder setMutatingOptions(MutatingOptions mutatingOptions) {
             this.mutatingOptions = mutatingOptions;
             return self();
-        }
-
-        public StartOperation build() {
-            return new StartOperation(this);
         }
 
         @Override

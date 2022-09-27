@@ -106,4 +106,9 @@ public class WriteFile extends RequestBase<WriteFile> {
     protected WriteFile self() {
         return this;
     }
+
+    @Override
+    public WriteFile build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

@@ -288,4 +288,9 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     protected WriteTable<T> self() {
         return this;
     }
+
+    @Override
+    public WriteTable<T> build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

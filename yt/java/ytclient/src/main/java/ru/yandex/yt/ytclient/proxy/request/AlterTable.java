@@ -120,4 +120,9 @@ public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest
                         x -> x.key("upstream_replica_id").value(upstreamReplicaId.toString())
                 );
     }
+
+    @Override
+    public AlterTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

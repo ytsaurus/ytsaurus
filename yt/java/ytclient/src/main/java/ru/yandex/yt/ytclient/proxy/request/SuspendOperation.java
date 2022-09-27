@@ -75,4 +75,9 @@ public class SuspendOperation extends OperationReq<SuspendOperation>
     protected SuspendOperation self() {
         return this;
     }
+
+    @Override
+    public SuspendOperation build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

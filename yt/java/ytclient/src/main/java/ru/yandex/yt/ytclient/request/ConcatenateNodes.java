@@ -24,12 +24,12 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields
-public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder>
+public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, ConcatenateNodes>
         implements HighLevelRequest<TReqConcatenateNodes.Builder> {
     private final List<YPath> sourcePaths;
     private final YPath destinationPath;
 
-    ConcatenateNodes(BuilderBase<?> builder) {
+    public ConcatenateNodes(BuilderBase<?, ?> builder) {
         super(builder);
         this.sourcePaths = Objects.requireNonNull(builder.sourcePaths);
         this.destinationPath = Objects.requireNonNull(builder.destinationPath);
@@ -116,14 +116,22 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder>
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, ConcatenateNodes> {
         @Override
         protected Builder self() {
             return this;
         }
+
+        @Override
+        public ConcatenateNodes build() {
+            return new ConcatenateNodes(this);
+        }
     }
 
-    public abstract static class BuilderBase<T extends BuilderBase<T>> extends MutateNode.Builder<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends MutateNode<?, TRequest>>
+            extends MutateNode.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqConcatenateNodes.Builder> {
         @Nullable
         private List<YPath> sourcePaths;
@@ -133,7 +141,7 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder>
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?> builder) {
+        protected BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
             if (builder.sourcePaths != null) {
                 this.sourcePaths = new ArrayList<>(builder.sourcePaths);
@@ -141,18 +149,14 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder>
             this.destinationPath = builder.destinationPath;
         }
 
-        public T setSourcePaths(List<YPath> sourcePaths) {
+        public TBuilder setSourcePaths(List<YPath> sourcePaths) {
             this.sourcePaths = sourcePaths;
             return self();
         }
 
-        public T setDestinationPath(YPath destinationPath) {
+        public TBuilder setDestinationPath(YPath destinationPath) {
             this.destinationPath = destinationPath;
             return self();
-        }
-
-        public ConcatenateNodes build() {
-            return new ConcatenateNodes(this);
         }
 
         public List<YPath> getSourcePaths() {

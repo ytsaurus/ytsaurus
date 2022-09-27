@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -240,22 +239,6 @@ public class YtClientCypressTest extends YtClientTestBase {
     public void testMutationId() {
         var fixture = createYtFixture();
         var yt = fixture.yt;
-        {
-            var testPath = fixture.testDirectory.child("some-path");
-            var request = new CreateNode(testPath, ObjectType.Table);
-
-            yt.createNode(request).join();
-
-            GUID firstMutationId = request.getMutatingOptions().get().getMutationId();
-
-            try {
-                yt.createNode(request).join();
-            } catch (Throwable ignored) {
-            }
-
-            GUID secondMutationId = request.getMutatingOptions().get().getMutationId();
-            assertThat("Different mutation ids", !firstMutationId.equals(secondMutationId));
-        }
         {
             var testPath = fixture.testDirectory.child("some-list");
 

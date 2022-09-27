@@ -15,7 +15,9 @@ import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 
 @NonNullApi
 @NonNullFields
-public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends TransactionalRequest<T> {
+public abstract class GetLikeReq<
+        TBuilder extends RequestBase.Builder<TBuilder, TRequest>,
+        TRequest extends RequestBase<TBuilder, TRequest>> extends TransactionalRequest<TBuilder, TRequest> {
     protected YPath path;
     @Nullable
     protected ColumnFilter attributes;
@@ -26,7 +28,7 @@ public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends Trans
     @Nullable
     protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
-    GetLikeReq(Builder<?> builder) {
+    GetLikeReq(Builder<?, ?> builder) {
         super(builder);
         Objects.requireNonNull(builder.path);
         this.path = builder.path;
@@ -36,7 +38,7 @@ public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends Trans
         this.suppressableAccessTrackingOptions = builder.suppressableAccessTrackingOptions;
     }
 
-    protected GetLikeReq(GetLikeReq<?> getLikeReq) {
+    protected GetLikeReq(GetLikeReq<?, ?> getLikeReq) {
         super(getLikeReq);
         Objects.requireNonNull(getLikeReq.path);
         path = getLikeReq.path;
@@ -90,7 +92,10 @@ public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends Trans
 
     @NonNullApi
     @NonNullFields
-    public abstract static class Builder<T extends Builder<T>> extends TransactionalRequest.Builder<T> {
+    public abstract static class Builder<
+            TBuilder extends Builder<TBuilder, TRequest>,
+            TRequest extends TransactionalRequest<?, TRequest>>
+            extends TransactionalRequest.Builder<TBuilder, TRequest> {
         @Nullable
         protected YPath path;
         @Nullable
@@ -105,7 +110,7 @@ public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends Trans
         public Builder() {
         }
 
-        protected Builder(Builder<?> builder) {
+        protected Builder(Builder<?, ?> builder) {
             super(builder);
             path = builder.path;
             attributes = builder.attributes;
@@ -118,27 +123,27 @@ public abstract class GetLikeReq<T extends RequestBase.Builder<T>> extends Trans
                     : null;
         }
 
-        public T setPath(YPath path) {
+        public TBuilder setPath(YPath path) {
             this.path = path.justPath();
             return self();
         }
 
-        public T setAttributes(@Nullable ColumnFilter cf) {
+        public TBuilder setAttributes(@Nullable ColumnFilter cf) {
             this.attributes = cf;
             return self();
         }
 
-        public T setMaxSize(@Nullable Integer maxSize) {
+        public TBuilder setMaxSize(@Nullable Integer maxSize) {
             this.maxSize = maxSize;
             return self();
         }
 
-        public T setMasterReadOptions(@Nullable MasterReadOptions mo) {
+        public TBuilder setMasterReadOptions(@Nullable MasterReadOptions mo) {
             this.masterReadOptions = mo;
             return self();
         }
 
-        public T setSuppressableAccessTrackingOptions(@Nullable SuppressableAccessTrackingOptions s) {
+        public TBuilder setSuppressableAccessTrackingOptions(@Nullable SuppressableAccessTrackingOptions s) {
             this.suppressableAccessTrackingOptions = s;
             return self();
         }

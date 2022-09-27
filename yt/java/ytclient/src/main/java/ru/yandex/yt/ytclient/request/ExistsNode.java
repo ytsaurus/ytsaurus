@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.request;
 
+import java.util.Objects;
+
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
@@ -12,8 +14,10 @@ import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class ExistsNode extends GetLikeReq<ExistsNode.Builder> implements HighLevelRequest<TReqExistsNode.Builder> {
-    ExistsNode(BuilderBase<?> builder) {
+public class ExistsNode
+        extends GetLikeReq<ExistsNode.Builder, ExistsNode>
+        implements HighLevelRequest<TReqExistsNode.Builder> {
+    public ExistsNode(BuilderBase<?, ?> builder) {
         super(builder);
     }
 
@@ -68,26 +72,33 @@ public class ExistsNode extends GetLikeReq<ExistsNode.Builder> implements HighLe
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, ExistsNode> {
         @Override
         protected Builder self() {
             return this;
         }
+
+        @Override
+        public ExistsNode build() {
+            return new ExistsNode(this);
+        }
     }
 
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends GetLikeReq.Builder<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends GetLikeReq<?, TRequest>>
+            extends GetLikeReq.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqExistsNode.Builder> {
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?> builder) {
+        public BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
         }
 
         @Override
         public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
-            builder.body().setPath(path.toString());
+            builder.body().setPath(Objects.requireNonNull(path).toString());
             if (transactionalOptions != null) {
                 builder.body().setTransactionalOptions(
                         transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
@@ -106,10 +117,6 @@ public class ExistsNode extends GetLikeReq<ExistsNode.Builder> implements HighLe
             if (additionalData != null) {
                 builder.body().mergeFrom(additionalData);
             }
-        }
-
-        public ExistsNode build() {
-            return new ExistsNode(this);
         }
     }
 }

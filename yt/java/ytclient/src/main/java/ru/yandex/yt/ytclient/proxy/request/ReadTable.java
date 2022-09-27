@@ -182,4 +182,9 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     protected ReadTable<T> self() {
         return this;
     }
+
+    @Override
+    public ReadTable<T> build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

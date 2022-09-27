@@ -1,53 +1,28 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import javax.annotation.Nonnull;
-
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqCopyNode;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class CopyNode extends CopyLikeReq<CopyNode> implements HighLevelRequest<TReqCopyNode.Builder> {
+public class CopyNode extends ru.yandex.yt.ytclient.request.CopyNode.BuilderBase<
+        CopyNode, ru.yandex.yt.ytclient.request.CopyNode> {
     public CopyNode(String from, String to) {
-        super(from, to);
+        setSource(from).setDestination(to);
     }
 
     public CopyNode(YPath from, YPath to) {
         this(from.justPath().toString(), to.justPath().toString());
     }
 
-    public CopyNode(CopyNode copyNode) {
+    public CopyNode(ru.yandex.yt.ytclient.request.CopyNode.BuilderBase<?, ?> copyNode) {
         super(copyNode);
     }
 
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
-        TReqCopyNode.Builder builder = requestBuilder.body();
-        builder.setSrcPath(source)
-                .setDstPath(destination)
-                .setRecursive(recursive)
-                .setForce(force)
-                .setPreserveAccount(preserveAccount)
-                .setPreserveExpirationTime(preserveExpirationTime)
-                .setPreserveCreationTime(preserveCreationTime);
-
-        if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-        }
-        if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-        }
-        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        if (additionalData != null) {
-            builder.mergeFrom(additionalData);
-        }
-    }
-
-    @Nonnull
-    @Override
     protected CopyNode self() {
         return this;
+    }
+
+    @Override
+    public ru.yandex.yt.ytclient.request.CopyNode build() {
+        return new ru.yandex.yt.ytclient.request.CopyNode(this);
     }
 }

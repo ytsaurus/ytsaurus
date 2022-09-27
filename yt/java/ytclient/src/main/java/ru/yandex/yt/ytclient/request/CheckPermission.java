@@ -24,7 +24,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 @NonNullApi
 @NonNullFields
 public class CheckPermission
-        extends MutateNode<CheckPermission.Builder>
+        extends MutateNode<CheckPermission.Builder, CheckPermission>
         implements HighLevelRequest<TReqCheckPermission.Builder> {
     private final String user;
     private final String path;
@@ -111,7 +111,7 @@ public class CheckPermission
         return builder;
     }
 
-    public static class Builder extends MutateNode.Builder<Builder> {
+    public static class Builder extends MutateNode.Builder<Builder, CheckPermission> {
         @Nullable
         private String user;
         @Nullable

@@ -141,4 +141,9 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
     protected ModifyRowsRequest self() {
         return this;
     }
+
+    @Override
+    public ModifyRowsRequest build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

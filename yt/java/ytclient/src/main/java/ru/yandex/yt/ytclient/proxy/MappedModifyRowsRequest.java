@@ -121,4 +121,9 @@ public class MappedModifyRowsRequest<T> extends PreparableModifyRowsRequest<Mapp
     protected MappedModifyRowsRequest<T> self() {
         return this;
     }
+
+    @Override
+    public MappedModifyRowsRequest<T> build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

@@ -366,4 +366,9 @@ public class StartTransaction
         }
         sb.append(";");
     }
+
+    @Override
+    public StartTransaction build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

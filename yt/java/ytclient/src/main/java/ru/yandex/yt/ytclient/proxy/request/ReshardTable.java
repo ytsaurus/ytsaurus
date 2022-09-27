@@ -100,4 +100,8 @@ public class ReshardTable
         writer.finish();
     }
 
+    @Override
+    public ReshardTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

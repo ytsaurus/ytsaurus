@@ -16,7 +16,7 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class PutFileToCache
-        extends MutateNode<PutFileToCache.Builder>
+        extends MutateNode<PutFileToCache.Builder, PutFileToCache>
         implements HighLevelRequest<TReqPutFileToCache.Builder> {
     private final YPath filePath;
     private final YPath cachePath;
@@ -118,7 +118,7 @@ public class PutFileToCache
         return builder;
     }
 
-    public static class Builder extends MutateNode.Builder<Builder> {
+    public static class Builder extends MutateNode.Builder<Builder, PutFileToCache> {
         @Nullable
         private YPath filePath;
         @Nullable

@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;

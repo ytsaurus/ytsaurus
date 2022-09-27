@@ -226,7 +226,7 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
 
-    default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?> req) {
+    default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?, GetOperation> req) {
         return getOperation(req.build());
     }
 
@@ -240,7 +240,7 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> abortJob(AbortJob req);
 
-    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?> req) {
+    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?, AbortJob> req) {
         return abortJob(req.build());
     }
 

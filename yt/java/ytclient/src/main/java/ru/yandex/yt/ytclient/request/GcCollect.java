@@ -15,7 +15,9 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullFields
 @NonNullApi
-public class GcCollect extends RequestBase<GcCollect.Builder> implements HighLevelRequest<TReqGCCollect.Builder> {
+public class GcCollect
+        extends RequestBase<GcCollect.Builder, GcCollect>
+        implements HighLevelRequest<TReqGCCollect.Builder> {
     private final GUID cellId;
 
     GcCollect(Builder builder) {
@@ -54,7 +56,7 @@ public class GcCollect extends RequestBase<GcCollect.Builder> implements HighLev
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GcCollect> {
         @Nullable
         private GUID cellId;
 

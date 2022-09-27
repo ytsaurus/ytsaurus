@@ -49,4 +49,9 @@ public class UnmountTable extends TableReq<UnmountTable> implements HighLevelReq
         return this;
     }
 
+    @Override
+    public UnmountTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
+
 }

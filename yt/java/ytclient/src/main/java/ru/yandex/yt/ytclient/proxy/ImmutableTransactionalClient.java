@@ -37,26 +37,28 @@ public interface ImmutableTransactionalClient {
     CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request);
 
 
-    default CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest.BuilderBase<?> request) {
+    default CompletableFuture<UnversionedRowset> selectRows(
+            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request) {
         return selectRows(request.build());
     }
 
     default <T> CompletableFuture<List<T>> selectRows(
-            SelectRowsRequest.BuilderBase<?> request,
+            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request,
             YTreeObjectSerializer<T> serializer
     ) {
         return selectRows(request.build(), serializer);
     }
 
     default <T> CompletableFuture<Void> selectRows(
-            SelectRowsRequest.BuilderBase<?> request,
+            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request,
             YTreeObjectSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
         return selectRows(request.build(), serializer, consumer);
     }
 
-    default CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest.BuilderBase<?> request) {
+    default CompletableFuture<SelectRowsResult> selectRowsV2(
+            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request) {
         return selectRowsV2(request.build());
     }
 }

@@ -12,7 +12,8 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public abstract class RequestBase<T extends RequestBase.Builder<T>> {
+public abstract class RequestBase<
+        TBuilder extends RequestBase.Builder<TBuilder, TRequest>, TRequest extends RequestBase<TBuilder, TRequest>> {
     protected @Nullable Duration timeout;
     protected @Nullable GUID requestId;
     protected @Nullable GUID traceId;
@@ -20,7 +21,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
     protected String userAgent;
     protected @Nullable Message additionalData;
 
-    RequestBase(Builder builder) {
+    RequestBase(Builder<?, ?> builder) {
         this.timeout = builder.timeout;
         this.requestId = builder.requestId;
         this.traceId = builder.traceId;
@@ -29,7 +30,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
         this.additionalData = builder.additionalData;
     }
 
-    protected RequestBase(RequestBase other) {
+    protected RequestBase(RequestBase<?, ?> other) {
         timeout = other.timeout;
         requestId = other.requestId;
         traceId = other.traceId;
@@ -92,9 +93,10 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
     protected void writeArgumentsLogString(StringBuilder sb) {
     }
 
-    public abstract T toBuilder();
+    public abstract TBuilder toBuilder();
 
-    public abstract static class Builder<T extends Builder<T>> {
+    public abstract static class Builder<
+            TBuilder extends Builder<TBuilder, TRequest>, TRequest> {
         protected @Nullable Duration timeout;
         protected @Nullable GUID requestId;
         protected @Nullable GUID traceId;
@@ -106,7 +108,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
         public Builder() {
         }
 
-        protected Builder(Builder<?> other) {
+        protected Builder(Builder<?, ?> other) {
             timeout = other.timeout;
             requestId = other.requestId;
             traceId = other.traceId;
@@ -116,14 +118,16 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
         }
 
         @SuppressWarnings({"unused"})
-        public T setAdditionalData(@Nullable Message additionalData) {
+        public TBuilder setAdditionalData(@Nullable Message additionalData) {
             this.additionalData = additionalData;
             return self();
         }
 
-        protected abstract T self();
+        protected abstract TBuilder self();
 
-        public T setTimeout(@Nullable Duration timeout) {
+        public abstract TRequest build();
+
+        public TBuilder setTimeout(@Nullable Duration timeout) {
             this.timeout = timeout;
             return self();
         }
@@ -131,7 +135,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
         /**
          * Set User-Agent header value
          */
-        public T setUserAgent(String userAgent) {
+        public TBuilder setUserAgent(String userAgent) {
             this.userAgent = userAgent;
             return self();
         }
@@ -146,7 +150,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
          *
          * @see ru.yandex.inside.yt.kosher.common.GUID#create()
          */
-        public T setRequestId(@Nullable GUID requestId) {
+        public TBuilder setRequestId(@Nullable GUID requestId) {
             this.requestId = requestId;
             return self();
         }
@@ -155,7 +159,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
          * Set trace id of the request.
          * Sampling is not enabled.
          */
-        public T setTraceId(@Nullable GUID traceId) {
+        public TBuilder setTraceId(@Nullable GUID traceId) {
             this.traceId = traceId;
             return self();
         }
@@ -167,7 +171,7 @@ public abstract class RequestBase<T extends RequestBase.Builder<T>> {
          * @param sampled whether or not this request will be sent to jaeger.
          *                <b>Warning:</b> enabling sampling creates additional load on server, please be careful.
          */
-        public T setTraceId(@Nullable GUID traceId, boolean sampled) {
+        public TBuilder setTraceId(@Nullable GUID traceId, boolean sampled) {
             if (sampled && traceId == null) {
                 throw new IllegalArgumentException("traceId cannot be null if sampled == true");
             }
