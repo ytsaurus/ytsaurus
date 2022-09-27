@@ -596,9 +596,10 @@ private:
 
     void Initialize()
     {
-        TStringBuf userAgent = RequestHeader_->has_user_agent()
-            ? RequestHeader_->user_agent()
-            : "unknown";
+        constexpr TStringBuf UnknownUserAgent = "unknown";
+        auto userAgent = RequestHeader_->has_user_agent()
+            ? TStringBuf(RequestHeader_->user_agent())
+            : UnknownUserAgent;
         PerformanceCounters_->IncrementRequestsPerUserAgent(userAgent);
 
         MethodPerformanceCounters_->RequestCounter.Increment();
