@@ -813,6 +813,29 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 }
             )
 
+    @authors("akozhikhov")
+    def test_seed_replicas(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "job_io": {
+                    "table_reader": {
+                        # Forbid reader from locating seeds and populating node directory.
+                        "retry_count": 1,
+                    }
+                },
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
 
 ##################################################################
 

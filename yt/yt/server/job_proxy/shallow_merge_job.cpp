@@ -70,6 +70,8 @@ public:
 
     void Initialize() override
     {
+        TJob::Initialize();
+
         YT_LOG_INFO("Shallow merge job initializing");
 
         ChunkReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;

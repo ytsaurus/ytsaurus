@@ -160,7 +160,7 @@ private:
     void OnHeartbeatResponse(const TError& error);
 
     void LogJobSpec(NJobTrackerClient::NProto::TJobSpec jobSpec);
-    void RetrieveJobSpec(const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory);
+    void RetrieveJobSpec();
     void ReportResult(
         const NJobTrackerClient::NProto::TJobResult& result,
         const NYson::TYsonString& statistics,
@@ -205,8 +205,6 @@ private:
 
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;
-
-    NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
 
     const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const override;
 

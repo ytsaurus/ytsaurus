@@ -34,6 +34,9 @@ class TJob
 public:
     explicit TJob(IJobHostPtr host);
 
+    void Initialize() override;
+    void PopulateInputNodeDirectory() const override;
+
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     TString GetStderr() override;
     std::optional<TString> GetFailContext() override;

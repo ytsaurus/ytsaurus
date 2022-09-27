@@ -319,13 +319,12 @@ static NTableClient::TTableSchemaPtr SetStableNames(
 //    according to rename descriptors.
 // This function is to be removed after both CA and nodes are updated. See YT-16507
 static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
-    const NJobTrackerClient::NProto::TJobSpec& jobSpecProto,
-    const TNodeDirectoryPtr& nodeDirectory)
+    const NJobTrackerClient::NProto::TJobSpec& jobSpecProto)
 {
     auto schedulerJobSpecExt = jobSpecProto.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions())) {
-        return CreateJobSpecHelper(jobSpecProto, nodeDirectory);
+        return CreateJobSpecHelper(jobSpecProto);
     }
     const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
         schedulerJobSpecExt.extensions());
@@ -334,7 +333,7 @@ static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
 
     for (auto& dataSource : dataSourceDirectory->DataSources()) {
         if (dataSource.Schema() && dataSource.Schema()->HasRenamedColumns()) {
-            return CreateJobSpecHelper(jobSpecProto, nodeDirectory);
+            return CreateJobSpecHelper(jobSpecProto);
         }
     }
 
@@ -357,10 +356,10 @@ static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
     auto jobSpecProtoCopy = jobSpecProto;
     auto* mutableExt = jobSpecProtoCopy.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     *mutableExt = std::move(schedulerJobSpecExt);
-    return CreateJobSpecHelper(jobSpecProtoCopy, nodeDirectory);
+    return CreateJobSpecHelper(jobSpecProtoCopy);
 }
 
-void TJobProxy::RetrieveJobSpec(const TNodeDirectoryPtr& nodeDirectory)
+void TJobProxy::RetrieveJobSpec()
 {
     YT_LOG_INFO("Requesting job spec");
 
@@ -382,7 +381,7 @@ void TJobProxy::RetrieveJobSpec(const TNodeDirectoryPtr& nodeDirectory)
         Abort(EJobProxyExitCode::InvalidSpecVersion);
     }
 
-    JobSpecHelper_ = MaybePatchDataSourceDirectory(rsp->job_spec(), nodeDirectory);
+    JobSpecHelper_ = MaybePatchDataSourceDirectory(rsp->job_spec());
 
     const auto& resourceUsage = rsp->resource_usage();
 
@@ -626,10 +625,9 @@ TJobResult TJobProxy::RunJob()
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
+        RetrieveJobSpec();
+
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-
-        RetrieveJobSpec(clusterConnection->GetNodeDirectory());
-
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
@@ -1070,11 +1068,6 @@ IBlockCachePtr TJobProxy::GetReaderBlockCache() const
 IBlockCachePtr TJobProxy::GetWriterBlockCache() const
 {
     return GetNullBlockCache();
-}
-
-TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
-{
-    return GetJobSpecHelper()->GetInputNodeDirectory();
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const

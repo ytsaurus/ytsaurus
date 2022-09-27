@@ -253,9 +253,6 @@ public:
         }
     }
 
-    void Initialize() override
-    { }
-
     TJobResult Run() override
     {
         YT_LOG_INFO("Starting job process");
