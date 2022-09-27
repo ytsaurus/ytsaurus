@@ -6,7 +6,7 @@ import ru.yandex.lang.NonNullFields;
 @NonNullApi
 @NonNullFields
 public abstract class RequestBase<T extends RequestBase<T>>
-        extends ru.yandex.yt.ytclient.request.RequestBase.Builder<T> {
+        extends ru.yandex.yt.ytclient.request.RequestBase.Builder<T, T> {
     public RequestBase() {
     }
 

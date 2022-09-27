@@ -24,23 +24,14 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.proxy.request.CopyNode;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.LinkNode;
-import ru.yandex.yt.ytclient.proxy.request.LockNode;
-import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
-import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
-import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
-import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
@@ -48,12 +39,21 @@ import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
+import ru.yandex.yt.ytclient.request.CopyNode;
+import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.ExistsNode;
+import ru.yandex.yt.ytclient.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.request.GetNode;
+import ru.yandex.yt.ytclient.request.LinkNode;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.LockNode;
+import ru.yandex.yt.ytclient.request.LockNodeResult;
+import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.RemoveNode;
 import ru.yandex.yt.ytclient.request.SelectRowsRequest;
+import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
@@ -356,7 +356,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
-        return client.createNode(req.setTransactionalOptions(transactionalOptions));
+        return client.createNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
@@ -376,31 +376,31 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
-        return client.removeNode(req.setTransactionalOptions(transactionalOptions));
+        return client.removeNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
-        return client.setNode(req.setTransactionalOptions(transactionalOptions));
+        return client.setNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
-        return client.lockNode(req.setTransactionalOptions(transactionalOptions));
+        return client.lockNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
-        return client.copyNode(req.setTransactionalOptions(transactionalOptions));
+        return client.copyNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
-        return client.moveNode(req.setTransactionalOptions(transactionalOptions));
+        return client.moveNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
-        return client.linkNode(req.setTransactionalOptions(transactionalOptions));
+        return client.linkNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
@@ -490,7 +490,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
-        return client.getFileFromCache(req.setTransactionalOptions(transactionalOptions));
+        return client.getFileFromCache(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

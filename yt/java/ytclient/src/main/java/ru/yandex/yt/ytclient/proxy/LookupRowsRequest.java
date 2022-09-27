@@ -5,8 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import javax.annotation.Nonnull;
-
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -55,9 +53,13 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
         writer.finish();
     }
 
-    @Nonnull
     @Override
     protected LookupRowsRequest self() {
         return this;
+    }
+
+    @Override
+    public LookupRowsRequest build() {
+        throw new RuntimeException("unimplemented build() method");
     }
 }

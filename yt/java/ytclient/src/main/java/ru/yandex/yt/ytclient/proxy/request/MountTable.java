@@ -56,4 +56,9 @@ public class MountTable extends TableReq<MountTable> implements HighLevelRequest
     protected MountTable self() {
         return this;
     }
+
+    @Override
+    public MountTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

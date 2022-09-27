@@ -1,52 +1,32 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import javax.annotation.Nonnull;
-
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqMoveNode;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
-public class MoveNode extends CopyLikeReq<MoveNode> implements HighLevelRequest<TReqMoveNode.Builder> {
+@NonNullApi
+@NonNullFields
+public class MoveNode extends ru.yandex.yt.ytclient.request.MoveNode.BuilderBase<
+        MoveNode, ru.yandex.yt.ytclient.request.MoveNode> {
     public MoveNode(String src, String dst) {
-        super(src, dst);
+        setSource(src).setDestination(dst);
     }
 
     public MoveNode(YPath src, YPath dst) {
         this(src.justPath().toString(), dst.justPath().toString());
     }
 
-    public MoveNode(MoveNode moveNode) {
-        super(moveNode);
+    public MoveNode(ru.yandex.yt.ytclient.request.MoveNode.BuilderBase<?, ?> builder) {
+        super(builder);
     }
 
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqMoveNode.Builder, ?> requestBuilder) {
-        TReqMoveNode.Builder builder = requestBuilder.body();
-        builder.setSrcPath(source)
-                .setDstPath(destination)
-                .setRecursive(recursive)
-                .setForce(force)
-                .setPreserveAccount(preserveAccount)
-                .setPreserveExpirationTime(preserveExpirationTime);
-
-        if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-        }
-        if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-        }
-        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        if (additionalData != null) {
-            builder.mergeFrom(additionalData);
-        }
-    }
-
-    @Nonnull
     @Override
     protected MoveNode self() {
         return this;
+    }
+
+    @Override
+    public ru.yandex.yt.ytclient.request.MoveNode build() {
+        return new ru.yandex.yt.ytclient.request.MoveNode(this);
     }
 }

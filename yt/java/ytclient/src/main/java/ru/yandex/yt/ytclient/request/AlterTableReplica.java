@@ -18,7 +18,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 @NonNullFields
 @NonNullApi
 public class AlterTableReplica
-        extends RequestBase<AlterTableReplica.Builder>
+        extends RequestBase<AlterTableReplica.Builder, AlterTableReplica>
         implements HighLevelRequest<TReqAlterTableReplica.Builder> {
     private final GUID replicaId;
     @Nullable private final Boolean enabled;
@@ -96,7 +96,7 @@ public class AlterTableReplica
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, AlterTableReplica> {
         @Nullable GUID replicaId;
         @Nullable Boolean enabled;
         @Nullable TableReplicaMode mode;

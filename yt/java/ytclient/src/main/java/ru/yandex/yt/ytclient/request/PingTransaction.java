@@ -22,7 +22,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  */
 @NonNullApi
 @NonNullFields
-public class PingTransaction extends RequestBase<PingTransaction.Builder>
+public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTransaction>
         implements HighLevelRequest<TReqPingTransaction.Builder> {
     private final GUID transactionId;
     private final boolean pingAncestors;
@@ -76,7 +76,7 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, PingTransaction> {
         @Nullable
         private GUID transactionId;
         private boolean pingAncestors = TReqPingTransaction.getDefaultInstance().getPingAncestors();

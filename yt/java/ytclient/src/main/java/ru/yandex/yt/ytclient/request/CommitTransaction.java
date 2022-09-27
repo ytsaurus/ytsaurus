@@ -22,7 +22,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  */
 @NonNullFields
 @NonNullApi
-public class CommitTransaction extends RequestBase<CommitTransaction.Builder>
+public class CommitTransaction extends RequestBase<CommitTransaction.Builder, CommitTransaction>
         implements HighLevelRequest<TReqCommitTransaction.Builder> {
     private final GUID transactionId;
 
@@ -63,7 +63,7 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, CommitTransaction> {
         @Nullable
         private GUID transactionId;
 

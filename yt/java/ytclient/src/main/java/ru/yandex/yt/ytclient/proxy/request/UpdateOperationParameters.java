@@ -143,6 +143,11 @@ public class UpdateOperationParameters extends OperationReq<UpdateOperationParam
         return sb.toString();
     }
 
+    @Override
+    public UpdateOperationParameters build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
+
     @NonNullFields
     @NonNullApi
     public static class SchedulingOptions {

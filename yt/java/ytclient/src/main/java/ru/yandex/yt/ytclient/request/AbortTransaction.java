@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  *     </a>
  */
 public class AbortTransaction
-        extends RequestBase<AbortTransaction.Builder>
+        extends RequestBase<AbortTransaction.Builder, AbortTransaction>
         implements HighLevelRequest<TReqAbortTransaction.Builder> {
     final GUID transactionId;
 
@@ -61,7 +61,7 @@ public class AbortTransaction
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, AbortTransaction> {
         @Nullable
         GUID transactionId;
 

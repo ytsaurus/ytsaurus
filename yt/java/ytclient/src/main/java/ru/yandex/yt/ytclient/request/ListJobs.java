@@ -13,7 +13,9 @@ import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public class ListJobs extends RequestBase<ListJobs.Builder> implements HighLevelRequest<TReqListJobs.Builder> {
+public class ListJobs
+        extends RequestBase<ListJobs.Builder, ListJobs>
+        implements HighLevelRequest<TReqListJobs.Builder> {
     private final GUID operationId;
     @Nullable
     private final JobState state;
@@ -73,7 +75,7 @@ public class ListJobs extends RequestBase<ListJobs.Builder> implements HighLevel
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, ListJobs> {
         @Nullable
         private GUID operationId;
         @Nullable

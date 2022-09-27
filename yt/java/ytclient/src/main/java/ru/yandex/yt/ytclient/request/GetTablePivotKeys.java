@@ -12,7 +12,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi
-public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder>
+public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, GetTablePivotKeys>
         implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
     private final String path;
 
@@ -53,7 +53,7 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GetTablePivotKeys> {
         @Nullable
         private String path;
 
@@ -70,6 +70,7 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder>
             return self();
         }
 
+        @Override
         public GetTablePivotKeys build() {
             return new GetTablePivotKeys(this);
         }

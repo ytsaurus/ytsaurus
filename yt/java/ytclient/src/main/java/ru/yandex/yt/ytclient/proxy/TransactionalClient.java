@@ -13,36 +13,36 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.proxy.request.CopyNode;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.LinkNode;
-import ru.yandex.yt.ytclient.proxy.request.LockMode;
-import ru.yandex.yt.ytclient.proxy.request.LockNode;
-import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
-import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
-import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
-import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
+import ru.yandex.yt.ytclient.request.CopyNode;
+import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.ExistsNode;
+import ru.yandex.yt.ytclient.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.request.GetNode;
+import ru.yandex.yt.ytclient.request.LinkNode;
 import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.LockMode;
+import ru.yandex.yt.ytclient.request.LockNode;
+import ru.yandex.yt.ytclient.request.LockNodeResult;
+import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.RemoveNode;
+import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.StartOperation;
 
 /**
@@ -59,39 +59,67 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<GUID> createNode(CreateNode req);
 
+    default CompletableFuture<GUID> createNode(CreateNode.BuilderBase<?, CreateNode> req) {
+        return createNode(req.build());
+    }
+
     CompletableFuture<Void> removeNode(RemoveNode req);
+
+    default CompletableFuture<Void> removeNode(RemoveNode.BuilderBase<?, RemoveNode> req) {
+        return removeNode(req.build());
+    }
 
     CompletableFuture<Void> setNode(SetNode req);
 
+    default CompletableFuture<Void> setNode(SetNode.BuilderBase<?, SetNode> req) {
+        return setNode(req.build());
+    }
+
     CompletableFuture<YTreeNode> getNode(GetNode req);
 
-    default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?> getNode) {
+    default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?, GetNode> getNode) {
         return getNode(getNode.build());
     }
 
     CompletableFuture<YTreeNode> listNode(ListNode req);
 
-    default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?> listNode) {
+    default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?, ListNode> listNode) {
         return listNode(listNode.build());
     }
 
     CompletableFuture<LockNodeResult> lockNode(LockNode req);
 
+    default CompletableFuture<LockNodeResult> lockNode(LockNode.BuilderBase<?, LockNode> req) {
+        return lockNode(req.build());
+    }
+
     CompletableFuture<GUID> copyNode(CopyNode req);
+
+    default CompletableFuture<GUID> copyNode(CopyNode.BuilderBase<?, CopyNode> req) {
+        return copyNode(req.build());
+    }
 
     CompletableFuture<GUID> linkNode(LinkNode req);
 
+    default CompletableFuture<GUID> linkNode(LinkNode.BuilderBase<?, LinkNode> req) {
+        return linkNode(req.build());
+    }
+
     CompletableFuture<GUID> moveNode(MoveNode req);
+
+    default CompletableFuture<GUID> moveNode(MoveNode.BuilderBase<?, MoveNode> req) {
+        return moveNode(req.build());
+    }
 
     CompletableFuture<Boolean> existsNode(ExistsNode req);
 
-    default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?> req) {
+    default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?, ExistsNode> req) {
         return existsNode(req.build());
     }
 
     CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
 
-    default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?> req) {
+    default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?, ConcatenateNodes> req) {
         return concatenateNodes(req.build());
     }
 
@@ -109,7 +137,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<GUID> startOperation(StartOperation req);
 
-    default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?> req) {
+    default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?, StartOperation> req) {
         return startOperation(req.build());
     }
 
@@ -192,7 +220,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<Void> setNode(String path, byte[] data, @Nullable Duration requestTimeout) {
-        return setNode(new SetNode(path, data).setTimeout(requestTimeout));
+        return setNode(SetNode.builder().setPath(YPath.simple(path)).setValue(data).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<Void> setNode(String path, YTreeNode data) {
@@ -212,11 +240,15 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<GUID> createNode(String path, ObjectType type) {
-        return createNode(new CreateNode(path, type));
+        return createNode(new CreateNode(YPath.simple(path), type));
     }
 
     default CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
-        return createNode(new CreateNode(path, type).setTimeout(requestTimeout));
+        return createNode(CreateNode.builder()
+                .setPath(YPath.simple(path))
+                .setType(type)
+                .setTimeout(requestTimeout)
+                .build());
     }
 
     default CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
@@ -229,11 +261,16 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
             Map<String, YTreeNode> attributes,
             @Nullable Duration requestTimeout
     ) {
-        return createNode(new CreateNode(path, type, attributes).setTimeout(requestTimeout));
+        return createNode(CreateNode.builder()
+                .setPath(YPath.simple(path))
+                .setType(type)
+                .setAttributes(attributes)
+                .setTimeout(requestTimeout)
+                .build());
     }
 
     default CompletableFuture<Void> removeNode(String path) {
-        return removeNode(new RemoveNode(path));
+        return removeNode(new RemoveNode(YPath.simple(path)));
     }
 
     default CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
@@ -241,7 +278,11 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode, @Nullable Duration requestTimeout) {
-        return lockNode(new LockNode(path, mode).setTimeout(requestTimeout));
+        return lockNode(LockNode.builder()
+                .setPath(YPath.simple(path))
+                .setMode(mode)
+                .setTimeout(requestTimeout)
+                .build());
     }
 
     default CompletableFuture<GUID> copyNode(String src, String dst) {
@@ -249,7 +290,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<GUID> copyNode(String src, String dst, @Nullable Duration requestTimeout) {
-        return copyNode(new CopyNode(src, dst).setTimeout(requestTimeout));
+        return copyNode(CopyNode.builder().setSource(src).setDestination(dst).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<GUID> moveNode(String from, String to) {
@@ -257,7 +298,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     default CompletableFuture<GUID> moveNode(String from, String to, @Nullable Duration requestTimeout) {
-        return moveNode(new MoveNode(from, to).setTimeout(requestTimeout));
+        return moveNode(MoveNode.builder().setSource(from).setDestination(to).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<GUID> linkNode(String src, String dst) {

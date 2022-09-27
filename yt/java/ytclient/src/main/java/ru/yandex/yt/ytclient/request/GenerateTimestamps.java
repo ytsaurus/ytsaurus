@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi
-public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder>
+public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder, GenerateTimestamps>
         implements HighLevelRequest<TReqGenerateTimestamps.Builder> {
     private final int count;
 
@@ -53,7 +53,7 @@ public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GenerateTimestamps> {
         @Nullable
         private Integer count;
 

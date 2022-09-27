@@ -8,7 +8,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields
-public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Builder>
+public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Builder, CheckClusterLiveness>
         implements HighLevelRequest<TReqCheckClusterLiveness.Builder> {
     private final boolean checkCypressRoot;
     private final boolean checkSecondaryMasterCells;
@@ -47,7 +47,7 @@ public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Build
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, CheckClusterLiveness> {
         private boolean checkCypressRoot = false;
         private boolean checkSecondaryMasterCells = false;
 

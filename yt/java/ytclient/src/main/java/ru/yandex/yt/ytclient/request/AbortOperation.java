@@ -14,7 +14,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class AbortOperation extends RequestBase<AbortOperation.Builder>
+public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOperation>
         implements HighLevelRequest<TReqAbortOperation.Builder> {
     private final GUID id;
     @Nullable
@@ -67,7 +67,7 @@ public class AbortOperation extends RequestBase<AbortOperation.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, AbortOperation> {
         @Nullable
         private GUID id;
         @Nullable

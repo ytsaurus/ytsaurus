@@ -84,4 +84,9 @@ public class ReadFile extends RequestBase<ReadFile> {
     protected ReadFile self() {
         return this;
     }
+
+    @Override
+    public ReadFile build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

@@ -14,7 +14,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class GetJobStderr extends RequestBase<GetJobStderr.Builder>
+public class GetJobStderr extends RequestBase<GetJobStderr.Builder, GetJobStderr>
         implements HighLevelRequest<TReqGetJobStderr.Builder> {
     private final GUID operationId;
     private final GUID jobId;
@@ -61,7 +61,7 @@ public class GetJobStderr extends RequestBase<GetJobStderr.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GetJobStderr> {
         @Nullable
         private GUID operationId;
         @Nullable

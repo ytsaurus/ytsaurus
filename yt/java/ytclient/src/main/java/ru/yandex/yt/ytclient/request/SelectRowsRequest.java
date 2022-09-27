@@ -14,7 +14,9 @@ import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
-public class SelectRowsRequest extends RequestBase implements HighLevelRequest<TReqSelectRows.Builder> {
+public class SelectRowsRequest
+        extends RequestBase<SelectRowsRequest.Builder, SelectRowsRequest>
+        implements HighLevelRequest<TReqSelectRows.Builder> {
     private final String query;
     @Nullable private final YtTimestamp timestamp;
     @Nullable private final YtTimestamp retentionTimestamp;
@@ -27,7 +29,7 @@ public class SelectRowsRequest extends RequestBase implements HighLevelRequest<T
     @Nullable private final String executionPool;
     @Nullable private final Boolean allowFullScan;
 
-    SelectRowsRequest(BuilderBase<?> builder) {
+    public SelectRowsRequest(BuilderBase<?, ?> builder) {
         super(builder);
         this.query = builder.query;
         this.timestamp = builder.timestamp;
@@ -181,15 +183,22 @@ public class SelectRowsRequest extends RequestBase implements HighLevelRequest<T
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, SelectRowsRequest> {
         @Override
         protected Builder self() {
             return this;
         }
+
+        @Override
+        public SelectRowsRequest build() {
+            return new SelectRowsRequest(this);
+        }
     }
 
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends ru.yandex.yt.ytclient.proxy.request.RequestBase<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends RequestBase<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqSelectRows.Builder> {
         @Nullable private String query;
         @Nullable private YtTimestamp timestamp;
@@ -206,7 +215,7 @@ public class SelectRowsRequest extends RequestBase implements HighLevelRequest<T
         public BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?> builder) {
+        BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
             query = builder.query;
             timestamp = builder.timestamp;
@@ -221,63 +230,59 @@ public class SelectRowsRequest extends RequestBase implements HighLevelRequest<T
             allowFullScan = builder.allowFullScan;
         }
 
-        public T setQuery(String query) {
+        public TBuilder setQuery(String query) {
             this.query = query;
             return self();
         }
 
-        public T setTimestamp(YtTimestamp timestamp) {
+        public TBuilder setTimestamp(YtTimestamp timestamp) {
             this.timestamp = timestamp;
             return self();
         }
 
-        public T setRetentionTimestamp(YtTimestamp retentionTimestamp) {
+        public TBuilder setRetentionTimestamp(YtTimestamp retentionTimestamp) {
             this.retentionTimestamp = retentionTimestamp;
             return self();
         }
 
-        public T setInputRowsLimit(long inputRowsLimit) {
+        public TBuilder setInputRowsLimit(long inputRowsLimit) {
             this.inputRowsLimit = inputRowsLimit;
             return self();
         }
 
-        public T setOutputRowsLimit(long outputRowsLimit) {
+        public TBuilder setOutputRowsLimit(long outputRowsLimit) {
             this.outputRowsLimit = outputRowsLimit;
             return self();
         }
 
-        public T setFailOnIncompleteResult(boolean failOnIncompleteResult) {
+        public TBuilder setFailOnIncompleteResult(boolean failOnIncompleteResult) {
             this.failOnIncompleteResult = failOnIncompleteResult;
             return self();
         }
 
-        public T setMaxSubqueries(int maxSubqueries) {
+        public TBuilder setMaxSubqueries(int maxSubqueries) {
             this.maxSubqueries = maxSubqueries;
             return self();
         }
 
-        public T setAllowJoinWithoutIndex(boolean allowJoinWithoutIndex) {
+        public TBuilder setAllowJoinWithoutIndex(boolean allowJoinWithoutIndex) {
             this.allowJoinWithoutIndex = allowJoinWithoutIndex;
             return self();
         }
 
-        public T setUdfRegistryPath(String udfRegistryPath) {
+        public TBuilder setUdfRegistryPath(String udfRegistryPath) {
             this.udfRegistryPath = udfRegistryPath;
             return self();
         }
 
-        public T setExecutionPool(String executionPool) {
+        public TBuilder setExecutionPool(String executionPool) {
             this.executionPool = executionPool;
             return self();
         }
 
-        public T setAllowFullScan(boolean allowFullScan) {
+        public TBuilder setAllowFullScan(boolean allowFullScan) {
             this.allowFullScan = allowFullScan;
             return self();
-        }
-
-        public SelectRowsRequest build() {
-            return new SelectRowsRequest(this);
         }
 
         public String getQuery() {

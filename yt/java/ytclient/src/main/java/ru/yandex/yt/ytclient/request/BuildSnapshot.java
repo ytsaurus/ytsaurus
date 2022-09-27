@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder>
+public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder, BuildSnapshot>
         implements HighLevelRequest<TReqBuildSnapshot.Builder> {
     private final GUID cellId;
     private final boolean setReadOnly;
@@ -57,7 +57,7 @@ public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder>
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, BuildSnapshot> {
         @Nullable
         private GUID cellId;
         private boolean setReadOnly = TReqBuildSnapshot.getDefaultInstance().getSetReadOnly();

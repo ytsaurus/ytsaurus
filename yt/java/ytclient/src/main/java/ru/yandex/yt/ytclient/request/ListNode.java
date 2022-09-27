@@ -13,8 +13,8 @@ import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class ListNode extends GetLikeReq<ListNode.Builder> implements HighLevelRequest<TReqListNode.Builder> {
-    ListNode(BuilderBase<?> builder) {
+public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements HighLevelRequest<TReqListNode.Builder> {
+    public ListNode(BuilderBase<?, ?> builder) {
         super(builder);
     }
 
@@ -80,20 +80,27 @@ public class ListNode extends GetLikeReq<ListNode.Builder> implements HighLevelR
                 .setTraceId(traceId, traceSampled);
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, ListNode> {
         @Override
         protected Builder self() {
             return this;
         }
+
+        @Override
+        public ListNode build() {
+            return new ListNode(this);
+        }
     }
 
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends GetLikeReq.Builder<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends GetLikeReq<?, TRequest>>
+            extends GetLikeReq.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqListNode.Builder> {
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?> builder) {
+        public BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
         }
 
@@ -130,10 +137,6 @@ public class ListNode extends GetLikeReq<ListNode.Builder> implements HighLevelR
             if (additionalData != null) {
                 builder.body().mergeFrom(additionalData);
             }
-        }
-
-        public ListNode build() {
-            return new ListNode(this);
         }
     }
 }

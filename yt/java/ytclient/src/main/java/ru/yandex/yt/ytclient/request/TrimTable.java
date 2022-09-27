@@ -13,7 +13,9 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields
-public class TrimTable extends RequestBase<TrimTable.Builder> implements HighLevelRequest<TReqTrimTable.Builder> {
+public class TrimTable
+        extends RequestBase<TrimTable.Builder, TrimTable>
+        implements HighLevelRequest<TReqTrimTable.Builder> {
     private final String path;
     private final int tabletIndex;
     private final long trimmedRowCount;
@@ -63,7 +65,7 @@ public class TrimTable extends RequestBase<TrimTable.Builder> implements HighLev
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, TrimTable> {
         @Nullable
         private String path;
         @Nullable

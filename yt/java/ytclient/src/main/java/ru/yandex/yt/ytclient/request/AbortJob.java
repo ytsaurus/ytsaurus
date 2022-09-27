@@ -12,7 +12,9 @@ import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevelRequest<TReqAbortJob.Builder> {
+public class AbortJob
+        extends RequestBase<AbortJob.Builder, AbortJob>
+        implements HighLevelRequest<TReqAbortJob.Builder> {
     private final GUID jobId;
     @Nullable
     private final Long interruptTimeout;
@@ -21,7 +23,7 @@ public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevel
         this(builder().setJobId(jobId));
     }
 
-    AbortJob(BuilderBase<?> builder) {
+    public AbortJob(BuilderBase<?, ?> builder) {
         super(builder);
         this.jobId = Objects.requireNonNull(builder.jobId);
         this.interruptTimeout = builder.interruptTimeout;
@@ -61,17 +63,24 @@ public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevel
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, AbortJob> {
         @Override
         protected Builder self() {
             return this;
+        }
+
+        @Override
+        public AbortJob build() {
+            return new AbortJob(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends RequestBase.Builder<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends RequestBase<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqAbortJob.Builder> {
         @Nullable
         private GUID jobId;
@@ -81,18 +90,18 @@ public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevel
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?> builder) {
+        public BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
             jobId = builder.jobId;
             interruptTimeout = builder.interruptTimeout;
         }
 
-        public T setJobId(GUID jobId) {
+        public TBuilder setJobId(GUID jobId) {
             this.jobId = jobId;
             return self();
         }
 
-        public T setInterruptTimeout(Long interruptTimeout) {
+        public TBuilder setInterruptTimeout(Long interruptTimeout) {
             this.interruptTimeout = interruptTimeout;
             return self();
         }
@@ -111,10 +120,6 @@ public class AbortJob extends RequestBase<AbortJob.Builder> implements HighLevel
             super.writeArgumentsLogString(sb);
             sb.append("jobId: ").append(jobId).append(";");
             sb.append("interruptTimeout: ").append(interruptTimeout).append(";");
-        }
-
-        public AbortJob build() {
-            return new AbortJob(this);
         }
     }
 }

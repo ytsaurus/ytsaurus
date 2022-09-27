@@ -28,4 +28,9 @@ public class UnfreezeTable extends TableReq<UnfreezeTable> implements HighLevelR
     protected UnfreezeTable self() {
         return this;
     }
+
+    @Override
+    public UnfreezeTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

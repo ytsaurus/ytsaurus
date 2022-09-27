@@ -28,4 +28,9 @@ public class RemountTable extends TableReq<RemountTable> implements HighLevelReq
     protected RemountTable self() {
         return this;
     }
+
+    @Override
+    public RemountTable build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

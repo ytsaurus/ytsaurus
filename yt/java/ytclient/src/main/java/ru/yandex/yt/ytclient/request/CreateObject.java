@@ -20,7 +20,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 
 @NonNullApi
 @NonNullFields
-public class CreateObject extends RequestBase<CreateObject.Builder>
+public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject>
         implements HighLevelRequest<TReqCreateObject.Builder> {
     private final ObjectType type;
     private final Map<String, YTreeNode> attributes;
@@ -75,7 +75,7 @@ public class CreateObject extends RequestBase<CreateObject.Builder>
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, CreateObject> {
         @Nullable
         private ObjectType type;
         private Map<String, YTreeNode> attributes = new HashMap<>();

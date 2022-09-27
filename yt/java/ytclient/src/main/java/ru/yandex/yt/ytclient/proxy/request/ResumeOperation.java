@@ -46,4 +46,9 @@ public class ResumeOperation extends OperationReq<ResumeOperation>
     protected ResumeOperation self() {
         return this;
     }
+
+    @Override
+    public ResumeOperation build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

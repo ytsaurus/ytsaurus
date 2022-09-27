@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 @NonNullApi
 @NonNullFields
 public class GetOperation
-          extends RequestBase<GetOperation.Builder>
+          extends RequestBase<GetOperation.Builder, GetOperation>
           implements HighLevelRequest<TReqGetOperation.Builder> {
     private final GUID guid;
     private final List<String> attributes;
@@ -30,7 +30,7 @@ public class GetOperation
     private final MasterReadOptions masterReadOptions;
     private final boolean includeRuntime;
 
-    GetOperation(BuilderBase<?> builder) {
+    public GetOperation(BuilderBase<?, ?> builder) {
         super(builder);
         this.guid = Objects.requireNonNull(builder.guid);
         this.attributes = new ArrayList<>(builder.attributes);
@@ -89,17 +89,24 @@ public class GetOperation
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder> {
+    public static class Builder extends BuilderBase<Builder, GetOperation> {
         @Override
         protected Builder self() {
             return this;
+        }
+
+        @Override
+        public GetOperation build() {
+            return new GetOperation(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
-    public abstract static class BuilderBase<T extends BuilderBase<T>>
-            extends ru.yandex.yt.ytclient.proxy.request.RequestBase<T>
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder, TRequest>,
+            TRequest extends RequestBase<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest>
             implements HighLevelRequest<TReqGetOperation.Builder> {
         @Nullable
         private GUID guid;
@@ -112,7 +119,7 @@ public class GetOperation
         protected BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?> builder) {
+        BuilderBase(BuilderBase<?, ?> builder) {
             super(builder);
             this.guid = builder.guid;
             this.attributes = new ArrayList<>(builder.attributes);
@@ -122,34 +129,30 @@ public class GetOperation
             this.includeRuntime = builder.includeRuntime;
         }
 
-        public T setId(GUID id) {
+        public TBuilder setId(GUID id) {
             this.guid = id;
             return self();
         }
 
-        public T setMasterReadOptions(MasterReadOptions masterReadOptions) {
+        public TBuilder setMasterReadOptions(MasterReadOptions masterReadOptions) {
             this.masterReadOptions = masterReadOptions;
             return self();
         }
 
-        public T includeRuntime(boolean includeRuntime) {
+        public TBuilder includeRuntime(boolean includeRuntime) {
             this.includeRuntime = includeRuntime;
             return self();
         }
 
-        public T addAttribute(String attribute) {
+        public TBuilder addAttribute(String attribute) {
             this.attributes.add(attribute);
             return self();
         }
 
-        public T setAttributes(Collection<String> attributes) {
+        public TBuilder setAttributes(Collection<String> attributes) {
             this.attributes.clear();
             this.attributes.addAll(attributes);
             return self();
-        }
-
-        public GetOperation build() {
-            return new GetOperation(this);
         }
 
         @Override

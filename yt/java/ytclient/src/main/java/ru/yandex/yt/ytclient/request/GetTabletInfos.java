@@ -15,7 +15,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 @NonNullFields
 @NonNullApi
 public class GetTabletInfos
-        extends RequestBase<GetTabletInfos.Builder>
+        extends RequestBase<GetTabletInfos.Builder, GetTabletInfos>
         implements HighLevelRequest<TReqGetTabletInfos.Builder> {
     private final String path;
     private final List<Integer> tabletIndexes;
@@ -57,7 +57,7 @@ public class GetTabletInfos
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends RequestBase.Builder<Builder> {
+    public static class Builder extends RequestBase.Builder<Builder, GetTabletInfos> {
         @Nullable
         private String path;
         private List<Integer> tabletIndexes = new ArrayList<>();

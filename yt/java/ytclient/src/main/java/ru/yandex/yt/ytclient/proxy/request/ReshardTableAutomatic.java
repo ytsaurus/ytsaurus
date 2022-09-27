@@ -38,4 +38,9 @@ public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
     protected ReshardTableAutomatic self() {
         return this;
     }
+
+    @Override
+    public ReshardTableAutomatic build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }

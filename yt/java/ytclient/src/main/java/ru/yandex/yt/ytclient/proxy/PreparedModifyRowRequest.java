@@ -51,6 +51,11 @@ public class PreparedModifyRowRequest extends AbstractModifyRowsRequest<Prepared
     protected PreparedModifyRowRequest self() {
         return this;
     }
+
+    @Override
+    public PreparedModifyRowRequest build() {
+        throw new RuntimeException("unimplemented build() method");
+    }
 }
 
 abstract class PreparableModifyRowsRequest<R extends PreparableModifyRowsRequest<R>>
