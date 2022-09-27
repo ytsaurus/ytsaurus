@@ -964,9 +964,12 @@ private:
     const TSharedRange<TUnversionedRow> LookupKeys_;
     const TSharedRange<TUnversionedRow> ChunkLookupKeys_;
 
-    int ActiveStoreIndex_ = -1;
+    // TODO(akozhikhov): Support cancellation in underlying chunk readers.
+    const TPromise<TSharedRef> RowsetPromise_ = NewPromise<TSharedRef>();
 
     const NLogging::TLogger Logger;
+
+    int ActiveStoreIndex_ = -1;
 
     TStoreSessionList DynamicEdenSessions_;
     TStoreSessionList ChunkEdenSessions_;
@@ -997,16 +1000,16 @@ private:
 
     std::vector<TFuture<void>> OpenStoreSessions(const TStoreSessionList& sessions);
 
-    TFuture<TSharedRef> DoRun();
-    TFuture<std::vector<TSharedRef>> LookupInPartitions();
+    void LookupInPartitions(const TError& error);
 
-    TFuture<void> LookupInCurrentPartition();
-    TFuture<void> DoLookupInCurrentPartition();
+    //! These return |true| if caller should stop due to error or scheduled asynchronous execution.
+    bool LookupInCurrentPartition();
+    bool DoLookupInCurrentPartition();
 
     void OnStoreSessionsPrepared();
     void LookupFromStoreSessions(TStoreSessionList* sessions, int activeStoreIndex);
 
-    TSharedRef FinishSession(std::vector<TSharedRef>&& rowset);
+    void FinishSession(const TErrorOr<std::vector<TSharedRef>>& rowsetOrError);
 
     void UpdateUnmergedStatistics(const TStoreSessionList& sessions);
 };
@@ -1488,8 +1491,7 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::Run()
     std::vector<ISortedStorePtr> dynamicEdenStores;
     std::vector<ISortedStorePtr> chunkEdenStores;
 
-    auto edenStores = TabletSnapshot_->GetEdenStores();
-    for (const auto& store : edenStores) {
+    for (auto store : TabletSnapshot_->GetEdenStores()) {
         if (store->IsDynamic()) {
             // Can not check store state via GetStoreState.
             if (TabletSnapshot_->ActiveStore == store) {
@@ -1497,9 +1499,9 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::Run()
                 ActiveStoreIndex_ = dynamicEdenStores.size();
             }
 
-            dynamicEdenStores.push_back(store);
+            dynamicEdenStores.push_back(std::move(store));
         } else {
-            chunkEdenStores.push_back(store);
+            chunkEdenStores.push_back(std::move(store));
         }
     }
 
@@ -1543,13 +1545,15 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::Run()
     openStoreSessions(PartitionSessions_[0].StoreSessions);
 
     if (openFutures.empty()) {
-        return DoRun();
+        LookupInPartitions(TError{});
     } else {
-        return AllSucceeded(std::move(openFutures)).Apply(BIND(
-            &TTabletLookupSession::DoRun,
+        AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+            &TTabletLookupSession::LookupInPartitions,
             MakeStrong(this))
-            .AsyncVia(GetInvoker()));
+            .Via(GetInvoker()));
     }
+
+    return RowsetPromise_;
 }
 
 template <class TPipeline>
@@ -1594,6 +1598,7 @@ std::vector<TFuture<void>> TTabletLookupSession<TPipeline>::OpenStoreSessions(
             futures.push_back(std::move(future));
         }
     }
+
     return futures;
 }
 
@@ -1636,42 +1641,18 @@ TPartitionSession TTabletLookupSession<TPipeline>::CreatePartitionSession(
 }
 
 template <class TPipeline>
-TFuture<TSharedRef> TTabletLookupSession<TPipeline>::DoRun()
+void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto future = LookupInPartitions();
-
-    if (auto maybeError = future.TryGetUnique()) {
-        if (!maybeError->IsOK()) {
-            return MakeFuture<TSharedRef>(TError(*maybeError));
-        }
-        return MakeFuture(FinishSession(std::move(maybeError->Value())));
+    if (!error.IsOK()) {
+        RowsetPromise_.TrySet(error);
+        return;
     }
 
-    return future.ApplyUnique(BIND(
-        &TTabletLookupSession::FinishSession,
-        MakeStrong(this))
-        .AsyncVia(GetInvoker()));
-}
-
-template <class TPipeline>
-TFuture<std::vector<TSharedRef>> TTabletLookupSession<TPipeline>::LookupInPartitions()
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
     while (CurrentPartitionSessionIndex_ < std::ssize(PartitionSessions_)) {
-        auto future = LookupInCurrentPartition();
-
-        if (auto maybeError = future.TryGet()) {
-            if (!maybeError->IsOK()) {
-                return MakeFuture<std::vector<TSharedRef>>(TError(*maybeError));
-            }
-        } else {
-            return future.Apply(BIND(
-                &TTabletLookupSession::LookupInPartitions,
-                MakeStrong(this))
-                .AsyncVia(GetInvoker()));
+        if (LookupInCurrentPartition()) {
+            return;
         }
     }
 
@@ -1681,11 +1662,20 @@ TFuture<std::vector<TSharedRef>> TTabletLookupSession<TPipeline>::LookupInPartit
     PartitionsLookupDuration_ = Timer_.GetElapsedTime();
     Timer_.Restart();
 
-    return TPipeline::PostprocessTabletLookup(this);
+    auto rowsetFuture = TPipeline::PostprocessTabletLookup(this);
+    if (const auto& rowsetOrError = rowsetFuture.TryGet()) {
+        FinishSession(*rowsetOrError);
+        return;
+    }
+
+    rowsetFuture.SubscribeUnique(BIND(
+        &TTabletLookupSession::FinishSession,
+        MakeStrong(this))
+        .Via(GetInvoker()));
 }
 
 template <class TPipeline>
-TFuture<void> TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
+bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1697,10 +1687,24 @@ TFuture<void> TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
             partitionSession.ChunkLookupKeys);
         auto openFutures = OpenStoreSessions(partitionSession.StoreSessions);
         if (!openFutures.empty()) {
-            return AllSucceeded(std::move(openFutures)).Apply(BIND(
-                &TTabletLookupSession::DoLookupInCurrentPartition,
-                MakeStrong(this))
-                .AsyncVia(GetInvoker()));
+            AllSucceeded(std::move(openFutures)).Subscribe(BIND([
+                =,
+                this_ = MakeStrong(this)
+            ] (const TError& error) {
+                if (!error.IsOK()) {
+                    RowsetPromise_.TrySet(error);
+                    return;
+                }
+
+                if (DoLookupInCurrentPartition()) {
+                    return;
+                }
+
+                LookupInPartitions(TError{});
+            })
+                .Via(GetInvoker()));
+
+            return true;
         }
     }
 
@@ -1708,7 +1712,7 @@ TFuture<void> TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
 }
 
 template <class TPipeline>
-TFuture<void> TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
+bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1745,31 +1749,21 @@ TFuture<void> TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                 // NB: When sessions become prepared we read row in OnStoreSessionsPrepared
                 // and move to the next key with call to DoLookupInCurrentPartition.
 
-                static constexpr int RecursionDepthLimit = 100;
-                bool breakRecursion = ++RecursionDepth_ > RecursionDepthLimit;
-                if (breakRecursion) {
-                    RecursionDepth_ = 0;
-                }
-
-                auto future = AllSucceeded(std::move(futures)).Apply(BIND([
+                AllSucceeded(std::move(futures)).Subscribe(BIND([
                     =,
                     this_ = MakeStrong(this)
-                ] {
+                ] (const TError& error) {
+                    if (!error.IsOK()) {
+                        RowsetPromise_.TrySet(error);
+                        return;
+                    }
+
                     OnStoreSessionsPrepared();
-                    return DoLookupInCurrentPartition();
+                    LookupInPartitions(TError{});
                 })
-                    .AsyncVia(GetInvoker()));
+                    .Via(GetInvoker()));
 
-                if (!breakRecursion) {
-                    return future;
-                }
-
-                // This helps to break chain of recursive promise setters.
-                return future.Apply(BIND([this_ = MakeStrong(this)] (const TError& error) {
-                    error.ThrowOnError();
-                    return;
-                })
-                    .AsyncVia(GetInvoker()));
+                return true;
             }
         } else {
             TPipeline::FinishRow();
@@ -1780,7 +1774,7 @@ TFuture<void> TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
 
     ++CurrentPartitionSessionIndex_;
 
-    return VoidFuture;
+    return false;
 }
 
 template <class TPipeline>
@@ -1816,13 +1810,18 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
 }
 
 template <class TPipeline>
-TSharedRef TTabletLookupSession<TPipeline>::FinishSession(std::vector<TSharedRef>&& rowset)
+void TTabletLookupSession<TPipeline>::FinishSession(const TErrorOr<std::vector<TSharedRef>>& rowsetOrError)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    if (!rowsetOrError.IsOK()) {
+        RowsetPromise_.TrySet(rowsetOrError);
+        return;
+    }
+
     auto hunksDecodingDuration = Timer_.GetElapsedTime();
     Timer_.Restart();
-    auto compressedResult = LookupSession_->ResponseCodec_->Compress(rowset);
+    auto compressedResult = LookupSession_->ResponseCodec_->Compress(rowsetOrError.Value());
 
     if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
         throttler->Acquire(GetFoundDataWeight());
@@ -1844,7 +1843,7 @@ TSharedRef TTabletLookupSession<TPipeline>::FinishSession(std::vector<TSharedRef
         hunksDecodingDuration,
         Timer_.GetElapsedTime());
 
-    return compressedResult;
+    RowsetPromise_.TrySet(compressedResult);
 }
 
 template <class TPipeline>
