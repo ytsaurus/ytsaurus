@@ -63,9 +63,9 @@ func Exact(r ReadLimit) Range {
 //
 // Note that unlike Path, all methods of Rich mutate receiver.
 //
-//     p := ypath.NewRich("//home/foo/bar").
-//         AddRange(ypath.Interval(ypath.RowIndex(0), ypath.RowIndex(1000))).
-//         SetColumns([]string{"time", "message"})
+//	p := ypath.NewRich("//home/foo/bar").
+//	    AddRange(ypath.Interval(ypath.RowIndex(0), ypath.RowIndex(1000))).
+//	    SetColumns([]string{"time", "message"})
 type Rich struct {
 	Path Path `yson:",value"`
 

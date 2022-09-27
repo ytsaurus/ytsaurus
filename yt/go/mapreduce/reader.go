@@ -9,11 +9,10 @@ import (
 
 // Reader represents input of the job.
 //
-//     var row MyRow
-//     for r.Next() {
-//         r.MustScan(&row)
-//     }
-//
+//	var row MyRow
+//	for r.Next() {
+//	    r.MustScan(&row)
+//	}
 type Reader interface {
 	// TableIndex returns table index of the current row.
 	TableIndex() int

@@ -73,25 +73,25 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 // Struct values are encoded as YSON maps by default. Encoding of each struct field can be customized by format string
 // stored under the "yson" key in the field's tag.
 //
-//     // Field appears in YSON under key "my_field".
-//     Field int `yson:"my_field"`
+//	// Field appears in YSON under key "my_field".
+//	Field int `yson:"my_field"`
 //
-//     // Field appears as attribute with name "my_attr".
-//     Field int `yson:"my_attr,attr"`
+//	// Field appears as attribute with name "my_attr".
+//	Field int `yson:"my_attr,attr"`
 //
-//     // Field encoding completely replaces encoding of the whole struct.
-//     // Other fields annotated as ",attr" are encoded as attributes preceding the value.
-//     // All other fields are ignored.
-//     Field int `yson:",value"`
+//	// Field encoding completely replaces encoding of the whole struct.
+//	// Other fields annotated as ",attr" are encoded as attributes preceding the value.
+//	// All other fields are ignored.
+//	Field int `yson:",value"`
 //
-//     // Field is skipped if empty.
-//     Field int `yson:",omitempty"'
+//	// Field is skipped if empty.
+//	Field int `yson:",omitempty"'
 //
-//     // Field is ignored by this package
-//     Field int `yson:"-"`
+//	// Field is ignored by this package
+//	Field int `yson:"-"`
 //
-//     // Field appears in YSON under key "-"
-//     Field int `yson:"-,"`
+//	// Field appears in YSON under key "-"
+//	Field int `yson:"-,"`
 //
 // Map values are encoded as YSON maps. The map's key type must either be a
 // string, implement encoding.TextMarshaler, or implement encoding.BinaryMarshaler.

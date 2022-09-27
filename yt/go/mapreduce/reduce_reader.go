@@ -29,14 +29,14 @@ func (r *reduceReader) Next() bool {
 //
 // onKey invoked once for every distinct value of the key.
 //
-//     func (*myJob) Do(ctx JobContext, in Reader, out []Writer) error {
-//         return GroupKeys(in, func(in Reader) error {
-//             for in.Next() {
-//                 // do stuff
-//             }
-//             return nil
-//         })
-//     }
+//	func (*myJob) Do(ctx JobContext, in Reader, out []Writer) error {
+//	    return GroupKeys(in, func(in Reader) error {
+//	        for in.Next() {
+//	            // do stuff
+//	        }
+//	        return nil
+//	    })
+//	}
 func GroupKeys(r Reader, onKey func(r Reader) error) error {
 	rr := reduceReader{Reader: r}
 

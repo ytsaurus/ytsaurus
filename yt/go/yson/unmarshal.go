@@ -4,25 +4,25 @@
 //
 // Package provides interface similar to encoding/json package.
 //
-//     type myValue struct {
-//          A int    `yson:"a"`
-//          B string `yson:"b"`
-//     }
+//	type myValue struct {
+//	     A int    `yson:"a"`
+//	     B string `yson:"b"`
+//	}
 //
-//     func Example() error {
-//         var v myValue
-//         b := []byte("{a=1;b=c;}")
+//	func Example() error {
+//	    var v myValue
+//	    b := []byte("{a=1;b=c;}")
 //
-//         if err := yson.Unmarshal(b, &v); err != nil {
-//             return err
-//         }
+//	    if err := yson.Unmarshal(b, &v); err != nil {
+//	        return err
+//	    }
 //
-//         if err, b = yson.Marshal(v); err != nil {
-//             return err
-//         }
+//	    if err, b = yson.Marshal(v); err != nil {
+//	        return err
+//	    }
 //
-//         return nil
-//     }
+//	    return nil
+//	}
 package yson
 
 import (

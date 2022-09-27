@@ -9,13 +9,13 @@
 //
 // You may pass nil as the last argument.
 //
-//   var ctx context.Context
-//   var y yt.Client
-//   p := ypath.Path("//foo/bar/@zog")
+//	var ctx context.Context
+//	var y yt.Client
+//	p := ypath.Path("//foo/bar/@zog")
 //
-//   // These two calls do the same thing.
-//   y.SetNode(ctx, p, 1, nil)
-//   y.SetNode(ctx, p, 1, &yt.SetNodeOptions{})
+//	// These two calls do the same thing.
+//	y.SetNode(ctx, p, 1, nil)
+//	y.SetNode(ctx, p, 1, &yt.SetNodeOptions{})
 //
 // By default, client retries all transient errors 5 times. Use context.WithTimeout to provide timeout for api call.
 //
