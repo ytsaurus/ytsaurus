@@ -76,7 +76,7 @@ public:
     }
 
 private:
-    const TNativeAuthenticationManagerPtr AuthenticationManager_;
+    TNativeAuthenticationManager* AuthenticationManager_;
     const ITvmServicePtr TvmService_;
     const std::function<bool(TTvmId)> SourceValidator_;
 
