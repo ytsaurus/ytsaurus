@@ -2355,7 +2355,7 @@ class TestEventLog(YTEnvSetup):
             if event["event_type"] == "operation_completed":
                 assert event["operation_id"] == op.id
                 assert event["trimmed_annotations"]["tag"] == "my_value"
-                assert len(event["trimmed_annotations"]["long_key"]) < 100
+                assert len(event["trimmed_annotations"]["long_key"]) < 150
                 assert "nested_tag" not in event["trimmed_annotations"]
 
 ##################################################################
