@@ -600,7 +600,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        wait(lambda: get(agent_path + "/@alerts", None) == [])
+        wait(lambda: get(agent_path + "/@alerts", default=None) == [])
 
         remove("//sys/controller_agents/config")
         set("//sys/controller_agents/config", [])
