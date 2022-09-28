@@ -7,6 +7,7 @@ from yt_helpers import read_structured_log, write_log_barrier
 import yt.yson as yson
 from yt.environment import arcadia_interop
 
+import json
 import os
 import sys
 import subprocess
@@ -61,7 +62,10 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         with open(output_filepath + ".pools", "rb") as fin:
             pools = yson.load(fin)
 
-        return output, pools
+        with open(output_filepath + ".tags", "rb") as fin:
+            tags = list(yson.load(fin, yson_type="list_fragment"))
+
+        return output, pools, tags
 
     def test_simple(self):
         create_pool("parent_pool", pool_tree="default", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
@@ -113,10 +117,10 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         structured_log_part1 = structured_log[min_operation_event_index:mid_index]
         structured_log_part2 = structured_log[mid_index:max_operation_event_index + 1]
 
-        rows1, pools1 = self._run_script(structured_log_part1)
+        rows1, pools1, tags1 = self._run_script(structured_log_part1)
         assert len(rows1) >= 1
 
-        rows2, pools2 = self._run_script(structured_log_part2)
+        rows2, pools2, tags2 = self._run_script(structured_log_part2)
         assert len(rows2) >= 1
 
         assert pools1 == pools2
@@ -126,6 +130,15 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             if pool_path == "/parent_pool"
         ]
         assert len(parent_pool_info_list) == 1
+
+        def check_tags_content(rows):
+            assert rows
+            assert all(json.loads(row["tags_json"]) == ["my_key"] for row in rows)
+            assert "/parent_pool" in (row["pool_path"] for row in rows)
+            assert "/parent_pool/test_pool" in (row["pool_path"] for row in rows)
+
+        check_tags_content(tags1)
+        check_tags_content(tags2)
 
         parent_pool_info = parent_pool_info_list[0]
         assert parent_pool_info["strong_guarantee_resources"]["cpu"] == 1.0

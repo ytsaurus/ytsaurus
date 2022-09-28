@@ -27,6 +27,8 @@ import tracemalloc
 
 
 ROOT_POOL_NAME = "<Root>"
+NUM_TABLES_TO_GET_TAGS = 5
+TAGS_REDUCE_KEY = ["cluster", "pool_tree", "pool_path"]
 
 
 def build_pool_path(pools):
@@ -129,6 +131,97 @@ class PoolsMapping:
     cluster: typing.Optional[str]
     pool_tree: typing.Optional[str]
     pool_mapping: typing.Optional[typing.Dict[str, typing.Optional[YsonBytes]]]
+
+
+@yt_dataclass
+class TempTagsRow:
+    cluster: str
+    pool_tree: str
+    pool_path: str
+    tags: typing.List[str]
+
+
+@yt_dataclass
+class TagsRow:
+    cluster: str
+    pool_tree: str
+    pool_path: str
+    tags_json: str
+
+
+class AggregateTags(TypedJob):
+    def prepare_operation(self, context, preparer):
+        for index in range(NUM_TABLES_TO_GET_TAGS):
+            preparer.input(index, type=OperationInfo)
+        preparer.output(0, type=TempTagsRow, infer_strict_schema=False)
+
+    def extract_tags(self, annotations_yson):
+        return annotations_yson.keys() if annotations_yson else ()
+
+    def __call__(self, rows):
+        tags_to_keep = 100
+
+        first_row = None
+        counter = collections.Counter()
+        for row in rows:
+            first_row = first_row or row
+            if row.annotations:
+                counter.update(self.extract_tags(yson.loads(row.annotations)))
+
+        if counter:
+            yield TempTagsRow(
+                tags=[key for key, _ in counter.most_common(tags_to_keep)],
+                cluster=first_row.cluster,
+                pool_tree=first_row.pool_tree,
+                pool_path=first_row.pool_path
+            )
+
+
+def collect_tags_on_yt(input_directory, destination_table, client):
+    spec = yt.ReduceSpecBuilder()\
+        .input_table_paths(
+            [str(node) for node in client.list(input_directory, attributes=["type"], absolute=True)
+             if node.attributes["type"] == "table"][-NUM_TABLES_TO_GET_TAGS:]
+        ) \
+        .output_table_paths([destination_table]) \
+        .begin_reducer() \
+            .command(AggregateTags()) \
+        .end_reducer() \
+        .reduce_by(TAGS_REDUCE_KEY)\
+        .spec({"max_failed_job_count": 1})  # noqa
+    client.run_operation(spec)
+
+
+def reduce_key(item):
+    return tuple(getattr(item, field) for field in TAGS_REDUCE_KEY)
+
+
+def collect_tags_locally(rows):
+    sorted_rows = sorted(rows, key=reduce_key)
+    grouped_rows = (items for group, items in itertools.groupby(sorted_rows, key=reduce_key))
+    return list(itertools.chain.from_iterable(map(AggregateTags(), grouped_rows)))
+
+
+def aggregate_tags_for_ancestor_pools(rows):
+    pool_key_to_tags = collections.defaultdict(set)
+
+    for row in rows:
+        intermediate_pools = row.pool_path.split("/")
+        for i in range(1, len(intermediate_pools)):
+            pool_path = "/".join(intermediate_pools[:i + 1])
+            pool_key_to_tags[(row.cluster, row.pool_tree, pool_path)] |= set(row.tags)
+
+    return (
+        dataclasses.asdict(
+            TagsRow(
+                cluster=cluster,
+                pool_tree=pool_tree,
+                pool_path=pool_path,
+                tags_json=json.dumps(list(tag_set))
+            )
+        )
+        for (cluster, pool_tree, pool_path), tag_set in pool_key_to_tags.items()
+    )
 
 
 def merge_info(info_base, info_update):
@@ -339,6 +432,7 @@ def process_scheduler_log_locally(input_path, output_path):
     input_file = open(input_path, "rb")
     output_file = open(output_path, "wb")
     output_pools_file = open(output_path + ".pools", "wb")
+    output_tags_file = open(output_path + ".tags", "wb")
 
     rows = yson.load(input_file, yson_type="list_fragment")
     input_rows = list(map(lambda row: InputRow(other=OtherColumns(yson.dumps(row))), rows))
@@ -359,11 +453,14 @@ def process_scheduler_log_locally(input_path, output_path):
     grouped_rows = (items for key, items in itertools.groupby(sorted_rows, key=reduce_key))
 
     reducer = AggregateEvents()
-    reduced_rows = itertools.chain.from_iterable(map(reducer, grouped_rows))
+    reduced_rows = list(itertools.chain.from_iterable(map(reducer, grouped_rows)))
 
     yson.dump(map(dataclasses.asdict, reduced_rows), output_file, yson_type="list_fragment")
 
     yson.dump(pool_paths_info, output_pools_file)
+
+    list_pool_tags = collect_tags_locally(reduced_rows)
+    yson.dump(aggregate_tags_for_ancestor_pools(list_pool_tags), output_tags_file, yson_type="list_fragment")
 
 
 def extract_pool_mapping(client, input_table):
@@ -440,6 +537,26 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}])
+
+    tags_output_table = yt.ypath_join(dir_name, "tags", table_name)
+    client.remove(tags_output_table, force=True)
+    client.create(
+        "table",
+        tags_output_table,
+        attributes={
+            "schema": TableSchema.from_row_type(TagsRow),
+            "optimize_for": "scan",
+        }
+    )
+
+    with client.TempTable() as temp_table:
+        collect_tags_on_yt(
+            input_directory=dir_name,
+            destination_table=temp_table,
+            client=client
+        )
+
+        client.write_table(tags_output_table, aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)))
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table):
