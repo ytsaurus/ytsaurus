@@ -312,6 +312,7 @@ struct ITabletContext
     virtual NObjectClient::TCellId GetCellId() = 0;
     virtual const TString& GetTabletCellBundleName() = 0;
     virtual NHydra::EPeerState GetAutomatonState() = 0;
+    virtual IInvokerPtr GetControlInvoker() = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;

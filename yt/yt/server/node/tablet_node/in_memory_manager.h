@@ -104,17 +104,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
 struct TChunkInfo
 {
-    TChunkInfo(
-        NChunkClient::TChunkId chunkId,
-        NChunkClient::TRefCountedChunkMetaPtr chunkMeta,
-        TTabletId tabletId,
-        NHydra::TRevision mountRevision)
-        : ChunkId(chunkId)
-        , ChunkMeta(std::move(chunkMeta))
-        , TabletId(tabletId)
-        , MountRevision(mountRevision)
-    { }
-
     NChunkClient::TChunkId ChunkId;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta;
     TTabletId TabletId;
@@ -130,12 +119,13 @@ struct IRemoteInMemoryBlockCache
 DEFINE_REFCOUNTED_TYPE(IRemoteInMemoryBlockCache)
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
-    NApi::NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
+    const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     NTabletClient::EInMemoryMode inMemoryMode,
-    TInMemoryManagerConfigPtr config);
+    const TInMemoryManagerConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

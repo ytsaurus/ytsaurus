@@ -649,6 +649,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,
+            TabletContext_->GetControlInvoker(),
             TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
             Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
@@ -838,12 +839,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 .ThrowOnError();
         }
 
-        std::vector<TChunkInfo> chunkInfos;
-        chunkInfos.emplace_back(
-            storeWriter->GetChunkId(),
-            storeWriter->GetMeta(),
-            tabletSnapshot->TabletId,
-            tabletSnapshot->MountRevision);
+        std::vector<TChunkInfo> chunkInfos{
+            TChunkInfo{
+                .ChunkId = storeWriter->GetChunkId(),
+                .ChunkMeta = storeWriter->GetMeta(),
+                .TabletId = tabletSnapshot->TabletId,
+                .MountRevision = tabletSnapshot->MountRevision
+            }
+        };
 
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();

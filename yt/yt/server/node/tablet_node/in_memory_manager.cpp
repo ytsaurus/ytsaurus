@@ -953,12 +953,13 @@ public:
 };
 
 IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
+    const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
-    TInMemoryManagerConfigPtr config)
+    const TInMemoryManagerConfigPtr& config)
 {
     std::vector<TNodePtr> nodes;
     for (const auto& target : cellDescriptor.Peers) {
@@ -997,7 +998,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
             config->ControlRpcTimeout);
 
         node->PingExecutor = New<TPeriodicExecutor>(
-            NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
+            controlInvoker,
             BIND(&TNode::SendPing, MakeWeak(node)),
             config->PingPeriod);
         node->PingExecutor->Start();
@@ -1014,20 +1015,28 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 }
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
-    NNative::IClientPtr client,
+    const NNative::IClientPtr& client,
+    const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
-    TInMemoryManagerConfigPtr config)
+    const TInMemoryManagerConfigPtr& config)
 {
     if (inMemoryMode == EInMemoryMode::None) {
         return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
     }
 
     return BIND(&DoCreateRemoteInMemoryBlockCache)
-        .AsyncVia(GetCurrentInvoker())
-        .Run(client, localDescriptor, localRpcServer, cellDescriptor, inMemoryMode, config);
+        .AsyncVia(controlInvoker)
+        .Run(
+            client,
+            controlInvoker,
+            localDescriptor,
+            localRpcServer,
+            cellDescriptor,
+            inMemoryMode,
+            config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
