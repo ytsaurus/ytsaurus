@@ -60,7 +60,7 @@ public class MoveNode
 
     @Override
     public Builder toBuilder() {
-        Builder builder = builder()
+        return builder()
                 .setSource(source)
                 .setDestination(destination)
                 .setRecursive(recursive)
@@ -79,10 +79,8 @@ public class MoveNode
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
                 .setTraceId(traceId, traceSampled)
-                .setAdditionalData(additionalData);
-
-        builder.setMutatingOptions(new MutatingOptions(mutatingOptions));
-        return builder();
+                .setAdditionalData(additionalData)
+                .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
     @NonNullApi
