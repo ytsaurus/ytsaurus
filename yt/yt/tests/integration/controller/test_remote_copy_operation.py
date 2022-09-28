@@ -1008,6 +1008,8 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
         sync_create_cells(1)
         sync_create_cells(1, driver=self.remote_driver)
         self._create_sorted_table("//tmp/t2", optimize_for=optimize_for)
+        update_controller_agent_config("enable_bulk_insert_for_everyone", False)
+        assert not exists("//sys/users/root/@enable_bulk_insert")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
 
