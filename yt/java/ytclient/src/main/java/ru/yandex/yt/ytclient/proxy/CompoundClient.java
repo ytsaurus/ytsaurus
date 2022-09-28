@@ -9,8 +9,8 @@ import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.yt.ytclient.proxy.request.MountTable;
-import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
+import ru.yandex.yt.ytclient.request.MountTable;
+import ru.yandex.yt.ytclient.request.UnmountTable;
 
 public interface CompoundClient extends ApiServiceClient, Closeable {
     /**
@@ -38,6 +38,10 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
     );
 
     CompletableFuture<Void> mountTableAndWaitTablets(MountTable req);
+
+    default CompletableFuture<Void> mountTableAndWaitTablets(MountTable.BuilderBase<?, MountTable> req) {
+        return mountTableAndWaitTablets(req.build());
+    }
 
     /**
      * @param requestTimeout applies only to request itself and does NOT apply to waiting for tablets to be mounted
@@ -90,6 +94,9 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * @see UnmountTable
      */
     CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable req);
+    default CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable.BuilderBase<?, UnmountTable> req) {
+        return unmountTableAndWaitTablets(req.build());
+    }
 
     /**
      * Unmount table and wait until all tablets become unmounted.
@@ -98,7 +105,7 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * @see ApiServiceClient#unmountTable(UnmountTable)
      */
     default CompletableFuture<Void> unmountTableAndWaitTablets(String path) {
-        return unmountTableAndWaitTablets(new UnmountTable(path));
+        return unmountTableAndWaitTablets(UnmountTable.builder().setPath(path).build());
     }
 
     /**
@@ -112,6 +119,6 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * @see #unmountTableAndWaitTablets(String)
      */
     default CompletableFuture<Void> unmountTable(String path) {
-        return unmountTable(new UnmountTable(path));
+        return unmountTable(UnmountTable.builder().setPath(path).build());
     }
 }

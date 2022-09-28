@@ -41,7 +41,6 @@ import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -49,6 +48,7 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -212,14 +212,14 @@ public class YtClientTest {
         readWriteImpl(writePath, readPath, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
 
         // Такая же схема - ничего не изменилось
-        client.alterTable(new AlterTable(writePath).setSchema(schema())).join();
+        client.alterTable(AlterTable.builder().setPath(writePath).setSchema(schema()).build()).join();
 
         // Модифицируем - новый столбец
-        client.alterTable(new AlterTable(writePath).setSchema(schema(b ->
+        client.alterTable(AlterTable.builder().setPath(writePath).setSchema(schema(b ->
                 b.beginMap()
                         .key("name").value("v2")
                         .key("type").value("string")
-                        .endMap())))
+                        .endMap())).build())
                 .join();
     }
 

@@ -2,13 +2,14 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.rpcproxy.TReqFreezeTable;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
-public class FreezeTable extends TableReq<FreezeTable> implements HighLevelRequest<TReqFreezeTable.Builder> {
+@NonNullFields
+public class FreezeTable extends ru.yandex.yt.ytclient.request.FreezeTable.BuilderBase<
+        FreezeTable, ru.yandex.yt.ytclient.request.FreezeTable> {
     public FreezeTable(YPath path) {
-        super(path.justPath());
+        setPath(path.justPath());
     }
 
     /**
@@ -16,12 +17,7 @@ public class FreezeTable extends TableReq<FreezeTable> implements HighLevelReque
      */
     @Deprecated
     public FreezeTable(String path) {
-        super(path);
-    }
-
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqFreezeTable.Builder, ?> builder) {
-        super.writeTo(builder.body());
+        setPath(path);
     }
 
     @Override
@@ -30,8 +26,8 @@ public class FreezeTable extends TableReq<FreezeTable> implements HighLevelReque
     }
 
     @Override
-    public FreezeTable build() {
-        throw new RuntimeException("unimplemented build() method");
+    public ru.yandex.yt.ytclient.request.FreezeTable build() {
+        return new ru.yandex.yt.ytclient.request.FreezeTable(this);
     }
 }
 
