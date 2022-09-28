@@ -99,16 +99,16 @@ public:
             std::move(responseHandler),
             options.Timeout);
 
-        service->HandleRequest(
-            std::make_unique<NProto::TRequestHeader>(request->Header()),
-            std::move(serializedRequest),
-            std::move(session));
-
         YT_LOG_DEBUG("Local request sent (RequestId: %v, Method: %v.%v, Timeout: %v)",
             request->GetRequestId(),
             request->GetService(),
             request->GetMethod(),
             options.Timeout);
+
+        service->HandleRequest(
+            std::make_unique<NProto::TRequestHeader>(request->Header()),
+            std::move(serializedRequest),
+            std::move(session));
 
         return New<TClientRequestControl>(std::move(service), request->GetRequestId());
     }
@@ -232,14 +232,13 @@ private:
             NProto::TResponseHeader header;
             YT_VERIFY(TryParseResponseHeader(message, &header));
             if (AcquireLock()) {
-                TError error;
-                if (header.has_error()) {
-                    error = FromProto<TError>(header.error());
-                }
+                auto error = FromProto<TError>(header.error());
                 if (error.IsOK()) {
-                    Handler_->HandleResponse(std::move(message), /*address*/ TString());
+                    YT_LOG_DEBUG("Local response received (RequestId: %v)",
+                        RequestId_);
+                    Handler_->HandleResponse(std::move(message), /*address*/ {});
                 } else {
-                    Handler_->HandleError(error);
+                    ReportError(error);
                 }
             }
         }
@@ -258,6 +257,16 @@ private:
             int intCodec = header.codec();
             YT_VERIFY(TryEnumCast(intCodec, &codec));
 
+            YT_LOG_DEBUG("Response streaming payload received (RequestId: %v, SequenceNumber: %v, Sizes: %v, "
+                "Codec: %v, Closed: %v)",
+                RequestId_,
+                sequenceNumber,
+                MakeFormattableView(attachments, [] (auto* builder, const auto& attachment) {
+                    builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
+                }),
+                codec,
+                !attachments.back());
+
             TStreamingPayload payload{
                 codec,
                 sequenceNumber,
@@ -271,6 +280,10 @@ private:
             NProto::TStreamingFeedbackHeader header;
             YT_VERIFY(ParseStreamingFeedbackHeader(message, &header));
             auto readPosition = header.read_position();
+
+            YT_LOG_DEBUG("Response streaming feedback received (RequestId: %v, ReadPosition: %v)",
+                RequestId_,
+                readPosition);
 
             TStreamingFeedback feedback{
                 readPosition
@@ -299,6 +312,10 @@ private:
             auto detailedError = error
                 << TErrorAttribute("request_id", RequestId_)
                 << GetEndpointAttributes();
+
+            YT_LOG_DEBUG(detailedError, "Local request failed (RequestId: %v)",
+                RequestId_);
+
             Handler_->HandleError(detailedError);
         }
     };
