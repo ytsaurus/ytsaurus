@@ -15,29 +15,24 @@ import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.proxy.request.AlterTable;
-import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
-import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
-import ru.yandex.yt.ytclient.proxy.request.RemountTable;
-import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
-import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
-import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.request.CommitTransaction;
 import ru.yandex.yt.ytclient.request.CreateObject;
+import ru.yandex.yt.ytclient.request.FreezeTable;
 import ru.yandex.yt.ytclient.request.GcCollect;
 import ru.yandex.yt.ytclient.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.request.GetInSyncReplicas;
@@ -48,8 +43,13 @@ import ru.yandex.yt.ytclient.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.ListJobs;
 import ru.yandex.yt.ytclient.request.ListJobsResult;
+import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.PingTransaction;
+import ru.yandex.yt.ytclient.request.RemountTable;
+import ru.yandex.yt.ytclient.request.ReshardTable;
 import ru.yandex.yt.ytclient.request.TrimTable;
+import ru.yandex.yt.ytclient.request.UnfreezeTable;
+import ru.yandex.yt.ytclient.request.UnmountTable;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
@@ -131,6 +131,10 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> mountTable(MountTable req);
 
+    default CompletableFuture<Void> mountTable(MountTable.BuilderBase<?, MountTable> req) {
+        return mountTable(req.build());
+    }
+
     /**
      * Unmount table.
      *
@@ -141,39 +145,59 @@ public interface ApiServiceClient extends TransactionalClient {
      */
     CompletableFuture<Void> unmountTable(UnmountTable req);
 
+    default CompletableFuture<Void> unmountTable(UnmountTable.BuilderBase<?, UnmountTable> req) {
+        return unmountTable(req.build());
+    }
+
     default CompletableFuture<Void> remountTable(String path) {
-        return remountTable(new RemountTable(path));
+        return remountTable(RemountTable.builder().setPath(path).build());
     }
 
     CompletableFuture<Void> remountTable(RemountTable req);
+
+    default CompletableFuture<Void> remountTable(RemountTable.BuilderBase<?, RemountTable> req) {
+        return remountTable(req.build());
+    }
 
     default CompletableFuture<Void> freezeTable(String path) {
         return freezeTable(path, null);
     }
 
     default CompletableFuture<Void> freezeTable(String path, @Nullable Duration requestTimeout) {
-        return freezeTable(new FreezeTable(path).setTimeout(requestTimeout));
+        return freezeTable(FreezeTable.builder().setPath(path).setTimeout(requestTimeout).build());
     }
 
     CompletableFuture<Void> freezeTable(FreezeTable req);
+
+    default CompletableFuture<Void> freezeTable(FreezeTable.BuilderBase<?, FreezeTable> req) {
+        return freezeTable(req.build());
+    }
 
     default CompletableFuture<Void> unfreezeTable(String path) {
         return unfreezeTable(path, null);
     }
 
     default CompletableFuture<Void> unfreezeTable(String path, @Nullable Duration requestTimeout) {
-        return unfreezeTable(new UnfreezeTable(path).setTimeout(requestTimeout));
+        return unfreezeTable(UnfreezeTable.builder().setPath(path).setTimeout(requestTimeout).build());
     }
 
     default CompletableFuture<Void> unfreezeTable(FreezeTable req) {
-        UnfreezeTable unfreezeReq = new UnfreezeTable(req.getPath());
+        UnfreezeTable.Builder unfreezeReqBuilder = UnfreezeTable.builder().setPath(req.getPath());
         if (req.getTimeout().isPresent()) {
-            unfreezeReq.setTimeout(req.getTimeout().get());
+            unfreezeReqBuilder.setTimeout(req.getTimeout().get());
         }
-        return unfreezeTable(unfreezeReq);
+        return unfreezeTable(unfreezeReqBuilder.build());
+    }
+
+    default CompletableFuture<Void> unfreezeTable(FreezeTable.BuilderBase<?, FreezeTable> req) {
+        return unfreezeTable(req.build());
     }
 
     CompletableFuture<Void> unfreezeTable(UnfreezeTable req);
+
+    default CompletableFuture<Void> unfreezeTable(UnfreezeTable.BuilderBase<?, UnfreezeTable> req) {
+        return unfreezeTable(req.build());
+    }
 
     CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp);
 
@@ -205,6 +229,10 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> reshardTable(ReshardTable req);
 
+    default CompletableFuture<Void> reshardTable(ReshardTable.BuilderBase<?, ReshardTable> req) {
+        return reshardTable(req.build());
+    }
+
     default CompletableFuture<Void> trimTable(String path, int tableIndex, long trimmedRowCount) {
         TrimTable req = new TrimTable(path, tableIndex, trimmedRowCount);
         return trimTable(req);
@@ -213,6 +241,10 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> trimTable(TrimTable req);
 
     CompletableFuture<Void> alterTable(AlterTable req);
+
+    default CompletableFuture<Void> alterTable(AlterTable.BuilderBase<?, AlterTable> req) {
+        return alterTable(req.build());
+    }
 
     CompletableFuture<Void> alterTableReplica(
             GUID replicaId,

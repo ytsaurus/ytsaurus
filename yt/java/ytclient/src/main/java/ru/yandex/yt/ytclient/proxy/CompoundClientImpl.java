@@ -20,10 +20,10 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
-import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
-import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.MountTable;
+import ru.yandex.yt.ytclient.request.UnmountTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**
@@ -93,18 +93,18 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
             boolean waitMounted,
             @Nullable Duration requestTimeout
     ) {
-        MountTable req = new MountTable(path);
+        MountTable.Builder builder = MountTable.builder().setPath(path);
         if (cellId != null) {
-            req.setCellId(cellId);
+            builder.setCellId(cellId);
         }
-        req.setFreeze(freeze);
+        builder.setFreeze(freeze);
         if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
+            builder.setTimeout(requestTimeout);
         }
         if (waitMounted) {
-            return mountTableAndWaitTablets(req);
+            return mountTableAndWaitTablets(builder.build());
         } else {
-            return mountTable(req);
+            return mountTable(builder.build());
         }
     }
 

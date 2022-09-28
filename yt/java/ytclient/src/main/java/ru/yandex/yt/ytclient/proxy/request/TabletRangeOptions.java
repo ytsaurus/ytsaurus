@@ -20,7 +20,7 @@ public class TabletRangeOptions {
         this.lastTabletIndex = lastTabletIndex;
     }
 
-    TTabletRangeOptions toProto() {
+    public TTabletRangeOptions toProto() {
         TTabletRangeOptions.Builder builder = TTabletRangeOptions.newBuilder();
         if (firstTabletIndex != null) {
             builder.setFirstTabletIndex(firstTabletIndex);

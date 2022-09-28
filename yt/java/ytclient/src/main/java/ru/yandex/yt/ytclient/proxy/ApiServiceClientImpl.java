@@ -62,35 +62,27 @@ import ru.yandex.yt.ytclient.operations.OperationImpl;
 import ru.yandex.yt.ytclient.operations.Spec;
 import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
-import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.BaseOperation;
-import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MapOperation;
 import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
-import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
 import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
-import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
-import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.SortOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
-import ru.yandex.yt.ytclient.proxy.request.TableReq;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
-import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
-import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
@@ -98,6 +90,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.request.CheckClusterLiveness;
@@ -108,6 +101,7 @@ import ru.yandex.yt.ytclient.request.CopyNode;
 import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.CreateObject;
 import ru.yandex.yt.ytclient.request.ExistsNode;
+import ru.yandex.yt.ytclient.request.FreezeTable;
 import ru.yandex.yt.ytclient.request.GcCollect;
 import ru.yandex.yt.ytclient.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.request.GetFileFromCache;
@@ -124,16 +118,22 @@ import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.LockNodeResult;
+import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.MutateNode;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.RemountTable;
 import ru.yandex.yt.ytclient.request.RemoveNode;
+import ru.yandex.yt.ytclient.request.ReshardTable;
 import ru.yandex.yt.ytclient.request.SelectRowsRequest;
 import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.StartOperation;
+import ru.yandex.yt.ytclient.request.TableReq;
 import ru.yandex.yt.ytclient.request.TrimTable;
+import ru.yandex.yt.ytclient.request.UnfreezeTable;
+import ru.yandex.yt.ytclient.request.UnmountTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -1140,7 +1140,10 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
          * So we reset mutationId for every request.
          */
         if (req instanceof TableReq) {
-            ((TableReq<?>) req).setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()));
+            req = (RequestType) ((TableReq<?, ?>) req)
+                    .toBuilder()
+                    .setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()))
+                    .build();
         } else if (req instanceof MutateNode) {
             req = (RequestType) ((MutateNode<?, ?>) req)
                     .toBuilder()

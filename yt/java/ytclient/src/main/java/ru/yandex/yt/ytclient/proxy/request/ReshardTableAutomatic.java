@@ -3,14 +3,11 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 
-public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
-    private boolean keepActions = false;
-
+public class ReshardTableAutomatic extends ru.yandex.yt.ytclient.request.ReshardTableAutomatic.BuilderBase<
+        ReshardTableAutomatic, ru.yandex.yt.ytclient.request.ReshardTableAutomatic> {
     public ReshardTableAutomatic(YPath path, boolean keepActions) {
-        super(path.justPath());
-        this.keepActions = keepActions;
+        setPath(path.justPath()).setKeepActions(keepActions);
     }
 
     /**
@@ -18,19 +15,7 @@ public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
      */
     @Deprecated
     public ReshardTableAutomatic(String path, boolean keepActions) {
-        super(path);
-        this.keepActions = keepActions;
-    }
-
-    public ReshardTableAutomatic setKeepActions(boolean keepActions) {
-        this.keepActions = keepActions;
-        return this;
-    }
-
-    public TReqReshardTableAutomatic.Builder writeTo(TReqReshardTableAutomatic.Builder builder) {
-        super.writeTo(builder);
-        builder.setKeepActions(keepActions);
-        return builder;
+        setPath(path).setKeepActions(keepActions);
     }
 
     @Nonnull
@@ -40,7 +25,7 @@ public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
     }
 
     @Override
-    public ReshardTableAutomatic build() {
-        throw new RuntimeException("unimplemented build() method");
+    public ru.yandex.yt.ytclient.request.ReshardTableAutomatic build() {
+        return new ru.yandex.yt.ytclient.request.ReshardTableAutomatic(this);
     }
 }
