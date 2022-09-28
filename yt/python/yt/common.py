@@ -85,6 +85,13 @@ def deprecated(alternative):
     return function_decorator
 
 
+def get_fqdn():
+    fqdn = socket.getfqdn()
+    if fqdn == "localhost.localdomain":
+        fqdn = "localhost"
+    return fqdn
+
+
 class YtError(Exception):
     """Base class for all YT errors."""
     def __init__(self, message="", code=1, inner_errors=None, attributes=None):
@@ -196,7 +203,7 @@ class YtError(Exception):
     @staticmethod
     def _get_fqdn():
         if not hasattr(YtError, "_cached_fqdn"):
-            YtError._cached_fqdn = socket.getfqdn()
+            YtError._cached_fqdn = get_fqdn()
         return YtError._cached_fqdn
 
     # Error differentiation methods.

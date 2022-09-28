@@ -4,6 +4,8 @@ from .helpers import yatest_common
 
 import yt.test_helpers.cleanup as test_cleanup
 
+from yt.common import get_fqdn
+
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
@@ -24,7 +26,6 @@ import sys
 import uuid
 import shutil
 import logging
-import socket
 import warnings
 
 # Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning:
@@ -243,7 +244,7 @@ class YtTestEnvironment(object):
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
 
-        self.env._create_cluster_client().set("//sys/@local_mode_fqdn", socket.getfqdn())
+        self.env._create_cluster_client().set("//sys/@local_mode_fqdn", get_fqdn())
         self.env._create_cluster_client().set("//sys/@cluster_connection", self.config["driver_config"])
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.

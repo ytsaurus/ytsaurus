@@ -2,7 +2,7 @@ from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead, yatest_common
 from yt.wrapper.common import generate_uuid, GB, MB
-from yt.common import YtError, require, is_process_alive
+from yt.common import YtError, require, is_process_alive, get_fqdn
 
 
 import yt.yson as yson
@@ -20,7 +20,6 @@ import signal
 import errno
 import logging
 import shutil
-import socket
 import time
 import codecs
 
@@ -211,7 +210,7 @@ def start(master_count=1,
         port_range_start=port_range_start,
         jobs_resource_limits=jobs_resource_limits,
         listen_port_pool=listen_port_pool,
-        fqdn=fqdn or socket.getfqdn(),
+        fqdn=fqdn or get_fqdn(),
         optimize_config=True,
         node_memory_limit_addition=500*MB + 200*MB + 500*MB,
         primary_cell_tag=cell_tag,
