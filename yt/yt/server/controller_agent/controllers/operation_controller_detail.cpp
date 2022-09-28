@@ -6032,7 +6032,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             }
 
             // Check if bulk insert is enabled for a certain user.
-            if (!Config->EnableBulkInsertForEveryone) {
+            if (!Config->EnableBulkInsertForEveryone && OperationType != EOperationType::RemoteCopy) {
                 TGetNodeOptions options;
                 options.ReadFrom = EMasterChannelKind::Cache;
                 options.Attributes = {"enable_bulk_insert"};
