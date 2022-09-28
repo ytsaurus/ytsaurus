@@ -48,6 +48,11 @@ EPeerState TTabletContextMock::GetAutomatonState()
     return EPeerState::Leading;
 }
 
+IInvokerPtr TTabletContextMock::GetControlInvoker()
+{
+    YT_ABORT();
+}
+
 IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache()
 {
     return ColumnEvaluatorCache_;

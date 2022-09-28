@@ -623,6 +623,11 @@ private:
             return Owner_->Slot_->GetAutomatonState();
         }
 
+        IInvokerPtr GetControlInvoker() override
+        {
+            return Owner_->Bootstrap_->GetControlInvoker();
+        }
+
         IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();

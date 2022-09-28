@@ -22,6 +22,7 @@ public:
     TCellId GetCellId() override;
     const TString& GetTabletCellBundleName() override;
     NHydra::EPeerState GetAutomatonState() override;
+    IInvokerPtr GetControlInvoker() override;
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override;
     NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() override;
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) override;

@@ -251,6 +251,7 @@ private:
 
         auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetClient(),
+            Bootstrap_->GetControlInvoker(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
@@ -277,11 +278,12 @@ private:
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& writer : Writers_) {
             for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
-                chunkInfos.emplace_back(
-                    FromProto<TChunkId>(chunkSpec.chunk_id()),
-                    New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
-                    TabletSnapshot_->TabletId,
-                    TabletSnapshot_->MountRevision);
+                chunkInfos.push_back({
+                    .ChunkId = FromProto<TChunkId>(chunkSpec.chunk_id()),
+                    .ChunkMeta = New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
+                    .TabletId = TabletSnapshot_->TabletId,
+                    .MountRevision = TabletSnapshot_->MountRevision
+                });
             }
         }
 
