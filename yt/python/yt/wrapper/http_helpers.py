@@ -11,7 +11,7 @@ from .format import JsonFormat, YsonFormat
 import yt.logger as logger
 import yt.yson as yson
 import yt.json_wrapper as json
-from yt.common import _pretty_format_for_logging
+from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 
 try:
     from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
@@ -509,7 +509,7 @@ def get_fqdn(client=None):
     if get_option("_fqdn", client):
         return get_option("_fqdn", client)
 
-    fqdn = socket.getfqdn()
+    fqdn = _get_fqdn()
     set_option("_fqdn", fqdn, client)
 
     return fqdn

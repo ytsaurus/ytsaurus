@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
+from yt.common import get_fqdn
+
 import yt.wrapper as yt
 import yt.logger as logger
 from yt.common import get_value, wait
 
 import string
-import socket
 import time
 import argparse
 
@@ -411,7 +412,7 @@ def _initialize_world(client, environment, yt_config):
         yt_env_init_operation_archive.create_tables_latest_version(client)
 
     # Used to automatically determine local mode from python wrapper.
-    client.set("//sys/@local_mode_fqdn", socket.getfqdn())
+    client.set("//sys/@local_mode_fqdn", get_fqdn())
 
     # Cluster connection and clusters.
     client.set("//sys/@cluster_connection", cluster_connection)

@@ -3,12 +3,11 @@ from .cypress_commands import create, set
 from .transaction import Transaction
 from .lock_commands import lock
 
-from yt.common import YT_NULL_TRANSACTION_ID
+from yt.common import YT_NULL_TRANSACTION_ID, get_fqdn
 
 import yt.logger as logger
 
 import signal
-import socket
 import subprocess
 import time
 
@@ -48,9 +47,9 @@ def run_command_with_lock(
             if set_address:
                 if address_path is not None:
                     with Transaction(transaction_id=YT_NULL_TRANSACTION_ID, client=client):
-                        set(address_path, socket.getfqdn(), client=client)
+                        set(address_path, get_fqdn(), client=client)
                 else:
-                    set(path + "/@address", socket.getfqdn(), client=client)
+                    set(path + "/@address", get_fqdn(), client=client)
 
             logger.info("Running command %s", command)
             if "env" not in popen_kwargs:
