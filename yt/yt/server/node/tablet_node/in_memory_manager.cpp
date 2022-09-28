@@ -962,25 +962,33 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 {
     std::vector<TNodePtr> nodes;
     for (const auto& target : cellDescriptor.Peers) {
-        auto channel = target.GetDefaultAddress() == localDescriptor.GetDefaultAddress()
+        const auto& address = target.GetDefaultAddress();
+        auto channel = address == localDescriptor.GetDefaultAddress()
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
+
+        YT_LOG_DEBUG("Starting in-memory session (Address: %v)",
+            address);
 
         TInMemoryServiceProxy proxy(channel);
 
         auto req = proxy.StartSession();
         req->SetTimeout(config->ControlRpcTimeout);
-        req->set_in_memory_mode(static_cast<int>(inMemoryMode));
+        req->set_in_memory_mode(ToProto<int>(inMemoryMode));
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error starting in-memory session at node %v",
-                target.GetDefaultAddress())
+                address)
                 << rspOrError;
         }
 
         const auto& rsp = rspOrError.Value();
         auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
+
+        YT_LOG_DEBUG("In-memory session started (Address: %v, SessionId: %v)",
+            address,
+            sessionId);
 
         auto node = New<TNode>(
             target,
@@ -996,11 +1004,6 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 
         nodes.push_back(node);
     }
-
-    YT_LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
-        MakeFormattableView(nodes, [] (TStringBuilderBase* builder, const TNodePtr& node) {
-            FormatValue(builder, node->SessionId, TStringBuf());
-        }));
 
     return New<TRemoteInMemoryBlockCache>(
         std::move(nodes),
