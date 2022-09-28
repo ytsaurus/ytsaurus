@@ -1,11 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TReqResumeOperation;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 /**
  * Request for resuming suspended operation
@@ -17,29 +14,19 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
  */
 @NonNullApi
 @NonNullFields
-public class ResumeOperation extends OperationReq<ResumeOperation>
-        implements HighLevelRequest<TReqResumeOperation.Builder> {
+public class ResumeOperation extends ru.yandex.yt.ytclient.request.ResumeOperation.BuilderBase<
+        ResumeOperation, ru.yandex.yt.ytclient.request.ResumeOperation> {
 
     public ResumeOperation(GUID operationId) {
-        super(operationId, null);
+        setOperationId(operationId);
     }
 
     ResumeOperation(String operationAlias) {
-        super(null, operationAlias);
+        setOperationAlias(operationAlias);
     }
 
     public static ResumeOperation fromAlias(String alias) {
         return new ResumeOperation(alias);
-    }
-
-    public YTreeBuilder toTree(YTreeBuilder builder) {
-        return super.toTree(builder);
-    }
-
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqResumeOperation.Builder, ?> builder) {
-        TReqResumeOperation.Builder messageBuilder = builder.body();
-        writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
     }
 
     @Override
@@ -48,7 +35,7 @@ public class ResumeOperation extends OperationReq<ResumeOperation>
     }
 
     @Override
-    public ResumeOperation build() {
-        throw new RuntimeException("unimplemented build() method");
+    public ru.yandex.yt.ytclient.request.ResumeOperation build() {
+        return new ru.yandex.yt.ytclient.request.ResumeOperation(this);
     }
 }

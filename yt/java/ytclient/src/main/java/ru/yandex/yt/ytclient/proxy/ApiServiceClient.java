@@ -15,14 +15,10 @@ import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.proxy.request.GetJob;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
-import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
-import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
-import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
@@ -36,6 +32,7 @@ import ru.yandex.yt.ytclient.request.FreezeTable;
 import ru.yandex.yt.ytclient.request.GcCollect;
 import ru.yandex.yt.ytclient.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.request.GetInSyncReplicas;
+import ru.yandex.yt.ytclient.request.GetJob;
 import ru.yandex.yt.ytclient.request.GetJobStderr;
 import ru.yandex.yt.ytclient.request.GetJobStderrResult;
 import ru.yandex.yt.ytclient.request.GetOperation;
@@ -47,9 +44,12 @@ import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.RemountTable;
 import ru.yandex.yt.ytclient.request.ReshardTable;
+import ru.yandex.yt.ytclient.request.ResumeOperation;
+import ru.yandex.yt.ytclient.request.SuspendOperation;
 import ru.yandex.yt.ytclient.request.TrimTable;
 import ru.yandex.yt.ytclient.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.request.UnmountTable;
+import ru.yandex.yt.ytclient.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
@@ -266,9 +266,21 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 
+    default CompletableFuture<Void> suspendOperation(SuspendOperation.BuilderBase<?, SuspendOperation> req) {
+        return suspendOperation(req.build());
+    }
+
     CompletableFuture<Void> resumeOperation(ResumeOperation req);
 
+    default CompletableFuture<Void> resumeOperation(ResumeOperation.BuilderBase<?, ResumeOperation> req) {
+        return resumeOperation(req.build());
+    }
+
     CompletableFuture<YTreeNode> getJob(GetJob req);
+
+    default CompletableFuture<YTreeNode> getJob(GetJob.BuilderBase<?, GetJob> req) {
+        return getJob(req.build());
+    }
 
     CompletableFuture<Void> abortJob(AbortJob req);
 
@@ -281,6 +293,11 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req);
 
     CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
+
+    default CompletableFuture<Void> updateOperationParameters(
+            UpdateOperationParameters.BuilderBase<?, UpdateOperationParameters> req) {
+        return updateOperationParameters(req.build());
+    }
 
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                     @Nullable TableAttachmentReader<T> reader);
