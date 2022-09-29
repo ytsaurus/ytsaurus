@@ -183,6 +183,11 @@ void TResourceTracker::CollectSensors(ISensorWriter* writer)
     LastUpdateTime_ = TInstant::Now();
 }
 
+void TResourceTracker::SetCpuFactor(double factor)
+{
+    CpuFactor_ = factor;
+}
+
 bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo* info)
 {
     auto threadStatPath = NFS::CombinePaths(procPath, tid);
@@ -337,6 +342,8 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         profilingKeyToAggregatedTimings[newInfo.ProfilingKey] += newInfo.Timings - oldInfo.Timings;
     }
 
+    double cpuFactor = CpuFactor_;
+
     double maxUtilization = 0.0;
     for (const auto& [profilingKey, aggregatedTimings] : profilingKeyToAggregatedTimings) {
         // Multiplier 1e6 / timeDelta is for taking average over time (all values should be "per second").
@@ -352,13 +359,20 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         auto threadCount = profilingKeyToCount[profilingKey];
         double utilization = (userCpuTime + systemCpuTime) / (100 * threadCount);
 
+        double totalCpuTime = userCpuTime + systemCpuTime;
+
         TWithTagGuard tagGuard(writer, "thread", profilingKey);
         writer->AddGauge("/user_cpu", userCpuTime);
         writer->AddGauge("/system_cpu", systemCpuTime);
-        writer->AddGauge("/total_cpu", userCpuTime + systemCpuTime);
+        writer->AddGauge("/total_cpu", totalCpuTime);
         writer->AddGauge("/cpu_wait", waitTime);
         writer->AddGauge("/thread_count", threadCount);
         writer->AddGauge("/utilization", utilization);
+        if (cpuFactor != 0.0) {
+            writer->AddGauge("/corrected_user_cpu", userCpuTime * cpuFactor);
+            writer->AddGauge("/corrected_system_cpu", systemCpuTime * cpuFactor);
+            writer->AddGauge("/corrected_total_cpu", totalCpuTime * cpuFactor);
+        }
 
         maxUtilization = std::max(maxUtilization, utilization);
 
@@ -407,6 +421,11 @@ TResourceTrackerPtr GetResourceTracker()
 void EnableResourceTracker()
 {
     GetResourceTracker();
+}
+
+void SetCpuFactor(double factor)
+{
+    GetResourceTracker()->SetCpuFactor(factor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
