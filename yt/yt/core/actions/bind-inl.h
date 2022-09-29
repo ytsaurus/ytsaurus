@@ -489,6 +489,11 @@ public:
     {
         auto* state = static_cast<TBindState*>(base);
 
+        // Prevent variable optimization for gdb printer
+        // devtools/gdb/yt_fibers_printer.py: find_trace_context()
+        auto* volatile uninlined_state = state;
+        Y_UNUSED(uninlined_state);
+
         auto propagatingStorageGuard = state->GetPropagatingStorageGuard();
         Y_UNUSED(propagatingStorageGuard);
 

@@ -102,6 +102,8 @@ DECLARE_REFCOUNTED_STRUCT(IIPCBucket)
 DECLARE_REFCOUNTED_CLASS(TFairThrottler)
 DECLARE_REFCOUNTED_CLASS(TBucketThrottler)
 
+class TPropagatingStorage;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
