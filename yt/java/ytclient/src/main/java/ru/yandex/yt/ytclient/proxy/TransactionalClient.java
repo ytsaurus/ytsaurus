@@ -14,16 +14,9 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.MapOperation;
-import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
-import ru.yandex.yt.ytclient.proxy.request.MergeOperation;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
-import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
-import ru.yandex.yt.ytclient.proxy.request.RemoteCopyOperation;
-import ru.yandex.yt.ytclient.proxy.request.SortOperation;
-import ru.yandex.yt.ytclient.proxy.request.VanillaOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.CheckPermission;
@@ -38,12 +31,19 @@ import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.request.LockMode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.LockNodeResult;
+import ru.yandex.yt.ytclient.request.MapOperation;
+import ru.yandex.yt.ytclient.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.ReduceOperation;
+import ru.yandex.yt.ytclient.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.request.RemoveNode;
 import ru.yandex.yt.ytclient.request.SetNode;
+import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.request.StartOperation;
+import ru.yandex.yt.ytclient.request.VanillaOperation;
 
 /**
  * Interface of transactional YT client.

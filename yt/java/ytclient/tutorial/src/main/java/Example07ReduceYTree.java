@@ -11,8 +11,8 @@ import ru.yandex.yt.ytclient.operations.ReducerWithKey;
 import ru.yandex.yt.ytclient.operations.SortSpec;
 import ru.yandex.yt.ytclient.operations.Statistics;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
-import ru.yandex.yt.ytclient.proxy.request.SortOperation;
+import ru.yandex.yt.ytclient.request.ReduceOperation;
+import ru.yandex.yt.ytclient.request.SortOperation;
 
 public class Example07ReduceYTree {
     private Example07ReduceYTree() {

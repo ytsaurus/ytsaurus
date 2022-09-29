@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import java.util.Optional;
 
@@ -8,6 +8,8 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.Spec;
+import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
+import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class BaseOperation<TSpec extends Spec> {
     private final TSpec spec;

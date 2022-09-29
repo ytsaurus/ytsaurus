@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.operations.ReducerSpec;
 import ru.yandex.yt.ytclient.operations.ReducerWithKey;
 import ru.yandex.yt.ytclient.operations.Statistics;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.request.MapReduceOperation;
 
 public class Example08MapReduceYTree {
 

@@ -1,11 +1,13 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.SortSpec;
+import ru.yandex.yt.ytclient.operations.MergeSpec;
 
-public class SortOperation extends BaseOperation<SortSpec> {
-    SortOperation(Builder builder) {
+@NonNullApi
+@NonNullFields
+public class MergeOperation extends BaseOperation<MergeSpec> {
+    MergeOperation(Builder builder) {
         super(builder);
     }
 
@@ -22,9 +24,9 @@ public class SortOperation extends BaseOperation<SortSpec> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends BuilderBase<Builder, SortSpec> {
-        public SortOperation build() {
-            return new SortOperation(this);
+    public static class Builder extends BuilderBase<Builder, MergeSpec> {
+        public MergeOperation build() {
+            return new MergeOperation(this);
         }
 
         protected Builder self() {

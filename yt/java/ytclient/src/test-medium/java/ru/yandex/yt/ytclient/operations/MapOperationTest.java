@@ -10,7 +10,7 @@ import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.YtClientTestBase;
-import ru.yandex.yt.ytclient.proxy.request.MapOperation;
+import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

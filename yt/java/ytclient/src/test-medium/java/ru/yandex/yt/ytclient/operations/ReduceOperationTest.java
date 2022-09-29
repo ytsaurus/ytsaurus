@@ -10,8 +10,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.YtClientTestBase;
-import ru.yandex.yt.ytclient.proxy.request.ReduceOperation;
-import ru.yandex.yt.ytclient.proxy.request.SortOperation;
+import ru.yandex.yt.ytclient.request.ReduceOperation;
+import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

@@ -1,13 +1,13 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.MapSpec;
+import ru.yandex.yt.ytclient.operations.RemoteCopySpec;
 
 @NonNullApi
 @NonNullFields
-public class MapOperation extends BaseOperation<MapSpec> {
-    MapOperation(Builder builder) {
+public class RemoteCopyOperation extends BaseOperation<RemoteCopySpec> {
+    RemoteCopyOperation(Builder builder) {
         super(builder);
     }
 
@@ -24,9 +24,9 @@ public class MapOperation extends BaseOperation<MapSpec> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends BuilderBase<Builder, MapSpec> {
-        public MapOperation build() {
-            return new MapOperation(this);
+    public static class Builder extends BuilderBase<Builder, RemoteCopySpec> {
+        public RemoteCopyOperation build() {
+            return new RemoteCopyOperation(this);
         }
 
         protected Builder self() {
