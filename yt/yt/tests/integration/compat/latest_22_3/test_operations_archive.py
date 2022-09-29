@@ -14,6 +14,8 @@ class TestOperationsArchive(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
 
+    MIN_OPERATIONS_ARCHIVE_VERSION = 45
+
     USE_DYNAMIC_TABLES = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -52,7 +54,7 @@ class TestOperationsArchive(YTEnvSetup):
         sync_create_cells(1)
         init_operation_archive.create_tables(
             self.Env.create_native_client(),
-            target_version=45,
+            target_version=self.MIN_OPERATIONS_ARCHIVE_VERSION,
             override_tablet_cell_bundle="default",
             shard_count=1,
             archive_path=init_operation_archive.DEFAULT_ARCHIVE_PATH)
