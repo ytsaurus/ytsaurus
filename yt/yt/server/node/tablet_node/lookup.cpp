@@ -830,6 +830,7 @@ struct TPartitionSession
     bool SessionStarted = false;
 
     TStoreSessionList StoreSessions;
+    bool StoreSessionsPrepared = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1593,7 +1594,9 @@ std::vector<TFuture<void>> TTabletLookupSession<TPipeline>::OpenStoreSessions(
     for (const auto& session : sessions) {
         auto future = session.Open();
         if (auto maybeError = future.TryGet()) {
-            maybeError->ThrowOnError();
+            if (!maybeError->IsOK()) {
+                return {future};
+            }
         } else {
             futures.push_back(std::move(future));
         }
@@ -1645,15 +1648,24 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    if (RowsetPromise_.IsSet()) {
+        return;
+    }
+
     if (!error.IsOK()) {
         RowsetPromise_.TrySet(error);
         return;
     }
 
-    while (CurrentPartitionSessionIndex_ < std::ssize(PartitionSessions_)) {
-        if (LookupInCurrentPartition()) {
-            return;
+    try {
+        while (CurrentPartitionSessionIndex_ < std::ssize(PartitionSessions_)) {
+            if (LookupInCurrentPartition()) {
+                return;
+            }
         }
+    } catch (const std::exception& ex) {
+        RowsetPromise_.TrySet(TError(ex));
+        return;
     }
 
     UpdateUnmergedStatistics(DynamicEdenSessions_);
@@ -1687,23 +1699,10 @@ bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
             partitionSession.ChunkLookupKeys);
         auto openFutures = OpenStoreSessions(partitionSession.StoreSessions);
         if (!openFutures.empty()) {
-            AllSucceeded(std::move(openFutures)).Subscribe(BIND([
-                =,
-                this_ = MakeStrong(this)
-            ] (const TError& error) {
-                if (!error.IsOK()) {
-                    RowsetPromise_.TrySet(error);
-                    return;
-                }
-
-                if (DoLookupInCurrentPartition()) {
-                    return;
-                }
-
-                LookupInPartitions(TError{});
-            })
+            AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+                &TTabletLookupSession::LookupInPartitions,
+                MakeStrong(this))
                 .Via(GetInvoker()));
-
             return true;
         }
     }
@@ -1717,6 +1716,10 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto& partitionSession = PartitionSessions_[CurrentPartitionSessionIndex_];
+
+    if (partitionSession.StoreSessionsPrepared) {
+        OnStoreSessionsPrepared();
+    }
 
     while (partitionSession.CurrentKeyIndex < partitionSession.EndKeyIndex) {
         // Need to insert rows into cache even from active dynamic store.
@@ -1746,21 +1749,12 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
             if (futures.empty()) {
                 OnStoreSessionsPrepared();
             } else {
-                // NB: When sessions become prepared we read row in OnStoreSessionsPrepared
-                // and move to the next key with call to DoLookupInCurrentPartition.
-
-                AllSucceeded(std::move(futures)).Subscribe(BIND([
-                    =,
-                    this_ = MakeStrong(this)
-                ] (const TError& error) {
-                    if (!error.IsOK()) {
-                        RowsetPromise_.TrySet(error);
-                        return;
-                    }
-
-                    OnStoreSessionsPrepared();
-                    LookupInPartitions(TError{});
-                })
+                // NB: When sessions become prepared we check the StoreSessionsPrepared flag and
+                // read row in OnStoreSessionsPrepared. Then move to the next key with the while loop.
+                partitionSession.StoreSessionsPrepared = true;
+                AllSucceeded(std::move(futures)).Subscribe(BIND(
+                    &TTabletLookupSession::LookupInPartitions,
+                    MakeStrong(this))
                     .Via(GetInvoker()));
 
                 return true;
@@ -1788,6 +1782,8 @@ void TTabletLookupSession<TPipeline>::OnStoreSessionsPrepared()
     LookupFromStoreSessions(&ChunkEdenSessions_, -1);
 
     TPipeline::FinishRow();
+
+    partitionSession.StoreSessionsPrepared = false;
 }
 
 template <class TPipeline>

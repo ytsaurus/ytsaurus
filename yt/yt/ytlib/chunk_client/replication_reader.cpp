@@ -2952,7 +2952,7 @@ private:
         RequestRowsFromPeer(channel, reader, *chosenPeer, false);
     }
 
-     void RequestRowsFromPeer(
+    void RequestRowsFromPeer(
         const IChannelPtr& channel,
         const TReplicationReaderPtr& reader,
         const TPeer& chosenPeer,
