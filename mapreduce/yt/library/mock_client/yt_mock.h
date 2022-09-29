@@ -117,13 +117,16 @@ namespace NTesting {
         MOCK_METHOD(bool, Exists, (const TYPath&, const TExistsOptions&), (override));
         MOCK_METHOD(TNode, Get, (const TYPath&, const TGetOptions&), (override));
         MOCK_METHOD(void, Set, (const TYPath&, const TNode&, const TSetOptions&), (override));
+        MOCK_METHOD(void, MultisetAttributes, (const TYPath&, const TNode::TMapType&, const TMultisetAttributesOptions&), (override));
         MOCK_METHOD(TNode::TListType, List, (const TYPath&, const TListOptions&), (override));
         MOCK_METHOD(TNodeId, Copy, (const TYPath&, const TYPath&, const TCopyOptions&), (override));
         MOCK_METHOD(TNodeId, Move, (const TYPath&, const TYPath&, const TMoveOptions&), (override));
         MOCK_METHOD(TNodeId, Link, (const TYPath&, const TYPath&, const TLinkOptions&), (override));
+        MOCK_METHOD(void, Concatenate, (const TVector<TRichYPath>&, const TRichYPath&, const TConcatenateOptions&), (override));
         MOCK_METHOD(void, Concatenate, (const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&), (override));
         MOCK_METHOD(TRichYPath, CanonizeYPath, (const TRichYPath&), (override));
         MOCK_METHOD(TVector<TTableColumnarStatistics>, GetTableColumnarStatistics, (const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&), (override));
+        MOCK_METHOD(TMultiTablePartitions, GetTablePartitions, (const TVector<TRichYPath>&, const TGetTablePartitionsOptions&), (override));
         MOCK_METHOD(TBatchRequestPtr, CreateBatchRequest, (), (override));
 
         MOCK_METHOD(IFileReaderPtr, CreateFileReader, (const TRichYPath&, const TFileReaderOptions&), (override));
@@ -135,6 +138,7 @@ namespace NTesting {
         MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeReader, (const TRichYPath&, const TTableReaderOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IYaMRReaderImpl>, CreateYaMRReader, (const TRichYPath&, const TTableReaderOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoReader, (const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*), (override));
+        MOCK_METHOD(::TIntrusivePtr<ISkiffRowReaderImpl>, CreateSkiffRowReader, (const TRichYPath&, const TTableReaderOptions&, const ISkiffRowSkipperPtr&, const NSkiff::TSkiffSchemaPtr&), (override));
         MOCK_METHOD(::TIntrusivePtr<INodeWriterImpl>, CreateNodeWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
@@ -142,6 +146,7 @@ namespace NTesting {
         MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, Erase, (const TEraseOperationSpec&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, RemoteCopy, (const TRemoteCopyOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD(void, AbortOperation, (const TOperationId&), (override));
         MOCK_METHOD(void, CompleteOperation, (const TOperationId&), (override));
         MOCK_METHOD(void, WaitForOperation, (const TOperationId&), (override));
@@ -170,6 +175,9 @@ namespace NTesting {
         MOCK_METHOD(void, Ping, (), (override));
 
         MOCK_METHOD(IClientPtr, GetParentClient, (), (override));
+
+        MOCK_METHOD(TMaybe<TYPath>, GetFileFromCache, (const TString& md5Signature, const TYPath& cachePath, const TGetFileFromCacheOptions&), (override));
+        MOCK_METHOD(TYPath, PutFileToCache, (const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&), (override));
     };
 
     class TLockMock : public ILock {
