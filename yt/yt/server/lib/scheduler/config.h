@@ -898,6 +898,8 @@ public:
 
     bool CrashOnJobHeartbeatProcessingException;
 
+    int MinRequiredArchiveVersion;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
