@@ -91,13 +91,13 @@ func TestAppList(t *testing.T) {
 
 	rsp, err := client.R().
 		SetBody(request).
-		Post(a.URL() + "/ytprof/api/list")
+		Post(a.URL() + "/api/list")
 
 	require.NoError(t, err)
 	l.Debug("responce status",
 		log.Int("status code", rsp.StatusCode()),
 		log.String("status", rsp.Status()),
-		log.String("url", a.URL()+"/ytprof/api/list"),
+		log.String("url", a.URL()+"/api/list"),
 		log.String("response", string(rsp.Body())))
 
 	require.Equal(t, rsp.StatusCode(), 200, rsp.String())
@@ -128,13 +128,13 @@ func TestAppGet(t *testing.T) {
 
 	rsp, err := client.R().
 		SetQueryParam("profile_id", ytprof.GUIDFormProfID(resultIDs[0]).String()).
-		Get(a.URL() + "/ytprof/api/get")
+		Get(a.URL() + "/api/get")
 
 	require.NoError(t, err)
 	l.Debug("responce status",
 		log.Int("status code", rsp.StatusCode()),
 		log.String("status", rsp.Status()),
-		log.String("url", a.URL()+"/ytprof/api/get"),
+		log.String("url", a.URL()+"/api/get"),
 		log.String("response", string(rsp.Body())))
 
 	require.Equal(t, rsp.StatusCode(), 200, rsp.String())

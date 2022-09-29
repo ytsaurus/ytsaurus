@@ -69,39 +69,39 @@ message SuggestValuesResponse {
 service YTProfService {
     rpc List(ListRequest) returns (ListResponse) {
         option (google.api.http) = {
-            post: "/ytprof/api/list"
+            post: "/api/list"
             body: "*"
         };
     }
 
     rpc Get(GetRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
-            get: "/ytprof/api/get"
+            get: "/api/get"
         };
     }
 
     rpc Merge(MergeRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
-            get: "/ytprof/api/merge"
+            get: "/api/merge"
         };
     }
 
     rpc MergeAll(MergeAllRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
-            post: "/ytprof/api/merge_all"
+            post: "/api/merge_all"
             body: "*"
         };
     }
     
     rpc SuggestTags(google.protobuf.Empty) returns (SuggestTagsResponse) {
         option (google.api.http) = {
-            get: "/ytprof/api/suggest_tags"
+            get: "/api/suggest_tags"
         };
     }
     
     rpc SuggestValues(SuggestValuesRequest) returns (SuggestValuesResponse) {
         option (google.api.http) = {
-            get: "/ytprof/api/suggest_values"
+            get: "/api/suggest_values"
         };
     }
 }
