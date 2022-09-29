@@ -216,12 +216,12 @@ void TMultiTablePartitioner::AddDataSource(int tableIndex, const TTableSchemaPtr
     }
 }
 
-std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> TMultiTablePartitioner::ConvertChunkStripeListIntoDataSliceDescriptors(
+std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertChunkStripeListIntoDataSliceDescriptors(
     const TChunkStripeListPtr& chunkStripeList)
 {
     YT_VERIFY(IsDataSourcesReady());
 
-    std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> slicesByTable(DataSourceDirectory_->DataSources().size());
+    std::vector<std::vector<TDataSliceDescriptor>> slicesByTable(DataSourceDirectory_->DataSources().size());
 
     for (auto chunkStripe : chunkStripeList->Stripes) {
         for (auto dataSlice : chunkStripe->DataSlices) {
