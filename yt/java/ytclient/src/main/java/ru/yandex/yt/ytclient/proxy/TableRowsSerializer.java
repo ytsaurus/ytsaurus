@@ -24,7 +24,7 @@ import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.Format;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -162,24 +162,25 @@ abstract class TableRowsSerializer<T> {
     public abstract TableSchema getSchema();
 
     @Nullable
-    public static <T> TableRowsSerializer<T> createTableRowsSerializer(WriteTable<T> req) {
-        if (req.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
-            Optional<WireRowSerializer<T>> reqSerializer = req.getSerializer();
+    public static <T> TableRowsSerializer<T> createTableRowsSerializer(WriteTable.SerializationContext<T> context) {
+        if (context.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
+            Optional<WireRowSerializer<T>> reqSerializer = context.getSerializer();
             if (reqSerializer.isPresent()) {
                 return new TableRowsWireSerializer<>(reqSerializer.get());
             }
             return null;
-        } else if (req.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
-            if (!req.getFormat().isPresent()) {
+        } else if (context.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
+            if (!context.getFormat().isPresent()) {
                 throw new IllegalArgumentException("No format with RF_FORMAT");
             }
-            if (!req.getYsonSerializer().isPresent()) {
+            if (!context.getYsonSerializer().isPresent()) {
                 throw new IllegalArgumentException("No yson serializer for RF_FORMAT");
             }
-            if (!req.getFormat().get().getType().equals(YSON)) {
-                throw new IllegalArgumentException("Format " + req.getFormat().get().getType() + " isn't supported");
+            if (!context.getFormat().get().getType().equals(YSON)) {
+                throw new IllegalArgumentException(
+                        "Format " + context.getFormat().get().getType() + " isn't supported");
             }
-            return new TableRowsYsonSerializer<>(req.getFormat().get(), req.getYsonSerializer().get());
+            return new TableRowsYsonSerializer<>(context.getFormat().get(), context.getYsonSerializer().get());
         } else {
             throw new IllegalArgumentException("Unsupported rowset format");
         }

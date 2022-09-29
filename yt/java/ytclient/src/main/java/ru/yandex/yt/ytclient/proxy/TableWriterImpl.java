@@ -13,7 +13,7 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -28,7 +28,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     TableWriterBaseImpl(WriteTable<T> req) {
         super(req.getWindowSize(), req.getPacketSize());
         this.req = req;
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req);
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req.getSerializationContext());
     }
 
     public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl() {
@@ -52,10 +52,10 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
             logger.debug("schema -> {}", schema.toYTree().toString());
 
             if (this.tableRowsSerializer == null) {
-                if (!this.req.getObjectClazz().isPresent()) {
+                if (!this.req.getSerializationContext().getObjectClazz().isPresent()) {
                     throw new IllegalStateException("No object clazz");
                 }
-                Class<T> objectClazz = self.req.getObjectClazz().get();
+                Class<T> objectClazz = self.req.getSerializationContext().getObjectClazz().get();
                 if (UnversionedRow.class.equals(objectClazz)) {
                     this.tableRowsSerializer =
                             (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());

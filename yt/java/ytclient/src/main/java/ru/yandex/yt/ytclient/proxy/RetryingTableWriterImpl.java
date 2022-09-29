@@ -35,8 +35,8 @@ import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.LockMode;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -144,12 +144,10 @@ class RetryingTableWriterBaseImpl<T> {
         this.executor = executor;
         this.rpcOptions = rpcOptions;
 
-        this.req = new WriteTable<>(req);
-        this.req.setNeedRetries(false);
-        this.secondaryReq = new WriteTable<>(this.req);
-        this.secondaryReq.setPath(this.secondaryReq.getYPath().append(true));
+        this.req = req.toBuilder().setNeedRetries(false).build();
+        this.secondaryReq = this.req.toBuilder().setPath(req.getYPath().append(true)).build();
 
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req);
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req.getSerializationContext());
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -180,10 +178,10 @@ class RetryingTableWriterBaseImpl<T> {
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
                                 if (this.tableRowsSerializer == null) {
-                                    if (!this.req.getObjectClazz().isPresent()) {
+                                    if (!this.req.getSerializationContext().getObjectClazz().isPresent()) {
                                         throw new IllegalStateException("No object clazz");
                                     }
-                                    Class<T> objectClazz = this.req.getObjectClazz().get();
+                                    Class<T> objectClazz = this.req.getSerializationContext().getObjectClazz().get();
                                     if (UnversionedRow.class.equals(objectClazz)) {
                                         this.tableRowsSerializer =
                                                 (TableRowsSerializer<T>) new TableRowsWireSerializer<>(
