@@ -48,26 +48,20 @@ def gdb(*commands):
     try:
         out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env)
     except subprocess.CalledProcessError as exc:
-        root_logger.exception("gdb exited with code {}".format(exc.returncode))
+        root_logger.exception("gdb exited with code {}\n{}".format(exc.returncode, exc.output.decode("UTF-8")))
         copy_exe()
         raise
     return out
 
 
-def print_fibers():
-    return gdb("b StopHere", "run", "print_yt_fibers")
-
-
-@authors("shishmak")
-def test_fibers_printer():
-    if arcadia_interop.yatest_common is None:
-        pytest.skip()
-
-    actual_output = print_fibers().decode("UTF-8")
-    with open(os.path.join(arcadia_interop.yatest_common.output_path(), "actual_output.txt"), "w") as output:
-        output.write(actual_output)
-
+def print_fibers(command):
+    actual_output = gdb("b StopHere", "r", command).decode("UTF-8")
+    root_logger.info("Actual output\n{}\n".format(actual_output))
     assert len(actual_output) > 0
+    return actual_output
+
+
+def check_backtraces(actual_output):
     fibers_count = 0
     foo_count = 0
     bar_count = 0
@@ -85,3 +79,36 @@ def test_fibers_printer():
     assert foo_count == 6
     assert bar_count == 5
     assert async_stop_count == 1
+
+
+def check_tags(actual_output):
+    tags = None
+    logging_tag = None
+    for line in actual_output.split("\n"):
+        if line.find("tags: ") != -1:
+            assert tags is None
+            tags = line
+        if line.find("logging tag") != -1:
+            assert logging_tag is None
+            logging_tag = line
+    assert tags == "tags: tag = value, tag0 = value0"
+    assert logging_tag == "logging tag: LoggingTag"
+
+
+@authors("shishmak")
+def test_print_yt_fibers():
+    if arcadia_interop.yatest_common is None:
+        pytest.skip()
+
+    actual_output = print_fibers("print_yt_fibers")
+    check_backtraces(actual_output)
+
+
+@authors("shishmak")
+def test_print_yt_fibers_with_tags():
+    if arcadia_interop.yatest_common is None:
+        pytest.skip()
+
+    actual_output = print_fibers("print_yt_fibers_with_tags")
+    check_backtraces(actual_output)
+    check_tags(actual_output)
