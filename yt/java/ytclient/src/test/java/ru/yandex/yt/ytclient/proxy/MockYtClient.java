@@ -29,7 +29,6 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
@@ -86,6 +85,7 @@ import ru.yandex.yt.ytclient.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.request.UnmountTable;
 import ru.yandex.yt.ytclient.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 

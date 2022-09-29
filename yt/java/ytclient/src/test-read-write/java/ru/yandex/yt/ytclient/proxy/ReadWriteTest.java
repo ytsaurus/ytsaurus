@@ -35,7 +35,7 @@ import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -275,7 +275,9 @@ public class ReadWriteTest {
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
         TableWriter<UnversionedRow> writer =
-                yt.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
+                yt.writeTable(new WriteTable<>(
+                        path,
+                        new WriteTable.SerializationContext<>(new UnversionedRowSerializer()))).join();
 
         UnversionedRowset rowset = generator.nextRows();
 
@@ -343,7 +345,7 @@ public class ReadWriteTest {
         UnversionedRowset rowset = generator.nextRows();
 
         AsyncWriter<UnversionedRow> writer = yt.writeTableV2(
-                new WriteTable<>(path, UnversionedRow.class, rowset.getSchema())
+                new WriteTable<>(path, new WriteTable.SerializationContext<>(UnversionedRow.class), rowset.getSchema())
         ).join();
 
         while (rowset != null) {
@@ -400,7 +402,7 @@ public class ReadWriteTest {
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
         TableWriter<Row> writer = yt.writeTable(new WriteTable<>(path,
-                (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class))).join();
+                new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Row> rows = generator.nextRows();
 
@@ -462,8 +464,8 @@ public class ReadWriteTest {
 
         yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
 
-        AsyncWriter<Row> writer = yt.writeTableV2(
-                new WriteTable<>(path, YTreeObjectSerializerFactory.forClass(Row.class))).join();
+        AsyncWriter<Row> writer = yt.writeTableV2(new WriteTable<>(
+                path, new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Row> rows = generator.nextRows();
 
@@ -567,7 +569,8 @@ public class ReadWriteTest {
 
         YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
 
-        TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(path, serializer)).join();
+        TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(
+                path, new WriteTable.SerializationContext<>(serializer))).join();
 
         List<YTreeMapNode> rows = generator.nextRows();
 
@@ -632,7 +635,10 @@ public class ReadWriteTest {
         List<YTreeMapNode> rows = generator.nextRows();
 
         AsyncWriter<YTreeMapNode> writer = yt.writeTableV2(new WriteTable<>(
-                path, MappedRowSerializer.forClass(serializer), generator.getSchema())).join();
+                path,
+                new WriteTable.SerializationContext<>(MappedRowSerializer.forClass(serializer)),
+                generator.getSchema())
+        ).join();
 
         while (rows != null) {
             writer.write(rows).join();

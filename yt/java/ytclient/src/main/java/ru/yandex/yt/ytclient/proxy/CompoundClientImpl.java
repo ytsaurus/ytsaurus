@@ -21,9 +21,9 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.UnmountTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**

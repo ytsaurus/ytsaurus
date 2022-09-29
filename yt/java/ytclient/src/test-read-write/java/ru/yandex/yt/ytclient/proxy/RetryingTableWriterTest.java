@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TransactionType;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequestsTestingController;
@@ -862,18 +862,24 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                                              YPath tablePath,
                                              int maxWritesInFlight,
                                              int chunkSize) throws Exception {
-        return yt.writeTable(
-                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                        .setNeedRetries(true)
-                        .setMaxWritesInFlight(maxWritesInFlight)
-                        .setChunkSize(chunkSize)
+        return yt.writeTable(WriteTable.<TableRow>builder()
+                .setPath(tablePath)
+                .setSerializationContext(new WriteTable.SerializationContext<>(
+                        YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setNeedRetries(true)
+                .setMaxWritesInFlight(maxWritesInFlight)
+                .setChunkSize(chunkSize)
+                .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
     }
 
     private TableWriter<TableRow> writeTable(YtClient yt, YPath tablePath) throws Exception {
-        return yt.writeTable(
-                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                        .setNeedRetries(true)
+        return yt.writeTable(WriteTable.<TableRow>builder()
+                .setPath(tablePath)
+                .setSerializationContext(new WriteTable.SerializationContext<>(
+                        YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setNeedRetries(true)
+                .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
     }
 
@@ -881,18 +887,22 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                                              YPath tablePath,
                                              int maxWritesInFlight,
                                              int chunkSize) throws Exception {
-        return yt.writeTableV2(
-                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                        .setNeedRetries(true)
-                        .setMaxWritesInFlight(maxWritesInFlight)
-                        .setChunkSize(chunkSize)
+        return yt.writeTableV2(WriteTable.<TableRow>builder()
+                .setPath(tablePath)
+                .setSerializationContext(new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setNeedRetries(true)
+                .setMaxWritesInFlight(maxWritesInFlight)
+                .setChunkSize(chunkSize)
+                .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
     }
 
     private AsyncWriter<TableRow> writeTableV2(YtClient yt, YPath tablePath) throws Exception {
-        return yt.writeTableV2(
-                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                        .setNeedRetries(true)
+        return yt.writeTableV2(WriteTable.<TableRow>builder()
+                .setPath(tablePath)
+                .setSerializationContext(new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setNeedRetries(true)
+                .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
     }
 

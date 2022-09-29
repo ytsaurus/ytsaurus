@@ -29,7 +29,6 @@ import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.CopyNode;
@@ -55,6 +54,7 @@ import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -420,12 +420,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
-        return client.writeTable(req.setTransactionalOptions(transactionalOptions));
+        return client.writeTable(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override
     public <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req) {
-        return client.writeTableV2(req.setTransactionalOptions(transactionalOptions));
+        return client.writeTableV2(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

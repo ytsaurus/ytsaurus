@@ -18,7 +18,6 @@ import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.CopyNode;
@@ -44,6 +43,7 @@ import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
+import ru.yandex.yt.ytclient.request.WriteTable;
 
 /**
  * Interface of transactional YT client.
@@ -128,6 +128,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req);
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
+
+    default <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable.BuilderBase<T, ?, WriteTable<T>> req) {
+        return writeTable(req.build());
+    }
 
     <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req);
 
