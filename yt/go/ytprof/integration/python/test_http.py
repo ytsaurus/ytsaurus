@@ -42,7 +42,7 @@ def running_app():
 
 
 def fetch_data(running_app, name, body):
-    rsp = requests.post(f"http://localhost:{running_app['port']}/ytprof/api/{name}", json=body)
+    rsp = requests.post(f"http://localhost:{running_app['port']}/api/{name}", json=body)
 
     if rsp.status_code == 200:
         return rsp.content

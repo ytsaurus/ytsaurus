@@ -25,7 +25,7 @@ import (
 )
 
 const DefaultQueryLimit = 1000000
-const UIRequestPrefix = "/ytprof/ui"
+const UIRequestPrefix = "/ui"
 
 type App struct {
 	l          *zap.Logger
@@ -116,7 +116,7 @@ func (a *App) Stop() error {
 func Register(r chi.Router, client *App) error {
 	mux := runtime.NewServeMux(runtime.WithProtoErrorHandler(client.grpcErrorHandler))
 	runtime.SetHTTPBodyMarshaler(mux)
-	r.Mount("/ytprof/api", mux)
+	r.Mount("/api", mux)
 	return api.RegisterYTProfServiceHandlerClient(context.Background(), mux, client)
 }
 
