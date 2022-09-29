@@ -352,13 +352,17 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
     TInstant deadline,
     const TGetOperationOptions& options)
 {
-    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
+    THashSet<TString> ignoredAttributes = {"suspended", "memory_usage"};
+
+    if (DoGetOperationsArchiveVersion() < 46) {
+        ignoredAttributes.insert("provided_spec");
+    }
 
     auto attributes = DeduceActualAttributes(
         options.Attributes,
         /* requiredAttributes */ {},
         /* defaultAttributes */ SupportedOperationAttributes,
-        IgnoredAttributes);
+        ignoredAttributes);
 
     THashMap<TOperationId, TOperation> operations;
 
