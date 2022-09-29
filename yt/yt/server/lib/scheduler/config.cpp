@@ -989,6 +989,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("crash_on_job_heartbeat_processing_exception", &TThis::CrashOnJobHeartbeatProcessingException)
         .Default(false);
+    
+    registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
+        .Default(45);
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

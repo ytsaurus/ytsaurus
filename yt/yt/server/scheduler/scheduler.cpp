@@ -2469,6 +2469,14 @@ private:
             OperationArchiveVersion_.store(version, std::memory_order_relaxed);
             OperationsCleaner_->SetArchiveVersion(version);
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
+
+            if (version < Config_->MinRequiredArchiveVersion) {
+                SetSchedulerAlert(
+                    ESchedulerAlertType::ArchiveIsOutdated,
+                    TError("Min required archive version is not met")
+                        << TErrorAttribute("version", version)
+                        << TErrorAttribute("min_required_version", Config_->MinRequiredArchiveVersion));
+            }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing operation archive version")
                 << ex;
