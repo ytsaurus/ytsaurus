@@ -1,11 +1,13 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.VanillaSpec;
+import ru.yandex.yt.ytclient.operations.MapSpec;
 
-public class VanillaOperation extends BaseOperation<VanillaSpec> {
-    VanillaOperation(Builder builder) {
+@NonNullApi
+@NonNullFields
+public class MapOperation extends BaseOperation<MapSpec> {
+    MapOperation(Builder builder) {
         super(builder);
     }
 
@@ -22,9 +24,9 @@ public class VanillaOperation extends BaseOperation<VanillaSpec> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends BuilderBase<Builder, VanillaSpec> {
-        public VanillaOperation build() {
-            return new VanillaOperation(this);
+    public static class Builder extends BuilderBase<Builder, MapSpec> {
+        public MapOperation build() {
+            return new MapOperation(this);
         }
 
         protected Builder self() {

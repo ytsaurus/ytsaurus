@@ -9,7 +9,7 @@ import ru.yandex.yt.ytclient.operations.MapperSpec;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.operations.Statistics;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.MapOperation;
+import ru.yandex.yt.ytclient.request.MapOperation;
 
 public class Example06MapYTree {
     private Example06MapYTree() {

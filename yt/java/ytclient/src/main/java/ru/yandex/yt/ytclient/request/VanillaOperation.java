@@ -1,13 +1,11 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.operations.RemoteCopySpec;
+import ru.yandex.yt.ytclient.operations.VanillaSpec;
 
-@NonNullApi
-@NonNullFields
-public class RemoteCopyOperation extends BaseOperation<RemoteCopySpec> {
-    RemoteCopyOperation(Builder builder) {
+public class VanillaOperation extends BaseOperation<VanillaSpec> {
+    VanillaOperation(Builder builder) {
         super(builder);
     }
 
@@ -24,9 +22,9 @@ public class RemoteCopyOperation extends BaseOperation<RemoteCopySpec> {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends BuilderBase<Builder, RemoteCopySpec> {
-        public RemoteCopyOperation build() {
-            return new RemoteCopyOperation(this);
+    public static class Builder extends BuilderBase<Builder, VanillaSpec> {
+        public VanillaOperation build() {
+            return new VanillaOperation(this);
         }
 
         protected Builder self() {
