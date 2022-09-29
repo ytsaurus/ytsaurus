@@ -10,6 +10,8 @@ DEFINE_ENUM(ESnapshotVersion,
     // 22.3 start here
     ((DropUnusedOperationId)                (301001))
     ((ChangeUnorderedMergeInheritance)      (301002))
+    // 22.4 starts here
+    ((BumpTo_22_4)                          (301100))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
