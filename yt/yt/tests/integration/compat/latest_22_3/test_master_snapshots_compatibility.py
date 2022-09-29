@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
-    ls, get, set, authors, print_debug, build_master_snapshots, create,
-    sync_create_cells, wait_for_cells,
-    write_table, read_table, get_singular_chunk_id)
+    authors, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -11,17 +9,6 @@ import yatest.common
 
 import os
 import pytest
-
-##################################################################
-
-
-def check_portal_synchronization_config():
-    path = "//sys/@config/cypress_manager/portal_synchronization_period"
-    set(path, 1111)
-
-    yield
-
-    assert get(path) == 1111
 
 ##################################################################
 
@@ -40,7 +27,7 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "22_2": ["master"],
+        "22_3": ["master"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
@@ -70,9 +57,7 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
-        CHECKER_LIST = [
-            check_portal_synchronization_config,
-        ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
+        CHECKER_LIST = MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:
@@ -87,7 +72,7 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     ARTIFACT_COMPONENTS = {
-        "22_2": ["master", "node"],
+        "22_3": ["master", "node"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec", "tools"],
     }
 
@@ -98,41 +83,3 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         self.restart_with_update(NODES_SERVICE, build_snapshots=False)
 
         wait_for_cells(cell_ids)
-
-
-class TestImaginaryChunkLocations(MasterSnapshotsCompatibilityBase):
-    NUM_NODES = 1
-
-    @authors("kvk1920")
-    def test(self):
-        create("table", "//tmp/t", attributes={
-            "chunk_writer": {"upload_replication_factor": 1},
-            "replication_factor": 1,
-        })
-        write_table("//tmp/t", {"a": 1}, upload_replication_factor=1)
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        stored_replicas = get(f"#{chunk_id}/@stored_replicas")
-
-        def check():
-            assert get(f"#{chunk_id}/@stored_replicas") == stored_replicas
-            assert read_table("//tmp/t") == [{"a": 1}]
-
-        self.restart_with_update(MASTERS_SERVICE)
-        assert not get("//sys/@config/node_tracker/enable_real_chunk_locations")
-
-        node = ls("//sys/data_nodes")[0]
-        assert get(f"//sys/data_nodes/{node}/@use_imaginary_chunk_locations")
-        check()
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        assert get(f"//sys/data_nodes/{node}/@use_imaginary_chunk_locations")
-        check()
-
-        with Restarter(self.Env, NODES_SERVICE):
-            set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
-
-        assert not get(f"//sys/data_nodes/{node}/@use_imaginary_chunk_locations")
-        check()
