@@ -124,10 +124,14 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
 
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
+inline static constexpr bool WaitOfflineGracePeriod = true;
+inline static constexpr bool MarkNodesOfflineImmediately = false;
+
 THashSet<TString> GetAliveNodes(
     const TString& bundleName,
     const std::vector<TString>& bundleNodes,
-    const TSchedulerInputState& input);
+    const TSchedulerInputState& input,
+    bool waitGracePeriod);
 
 THashSet<TString> GetAliveProxies(
     const std::vector<TString>& bundleProxies,

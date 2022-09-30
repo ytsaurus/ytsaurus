@@ -75,6 +75,7 @@ public:
     int ReallocateInstanceBudget;
 
     TDuration RemoveInstanceCypressNodeAfter;
+    TDuration OfflineInstanceGracePeriod;
 
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 

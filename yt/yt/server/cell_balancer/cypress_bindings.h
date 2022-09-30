@@ -510,6 +510,7 @@ struct TTabletNodeInfo
     TInstanceAnnotationsPtr Annotations;
     std::vector<TTabletSlotPtr> TabletSlots;
     THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
+    TInstant LastSeenTime;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 

@@ -79,6 +79,9 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("remove_instance_cypress_node_after", &TThis::RemoveInstanceCypressNodeAfter)
         .Default(TDuration::Days(7));
+
+    registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
+        .Default(TDuration::Minutes(20));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
