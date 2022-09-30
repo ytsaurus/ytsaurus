@@ -701,7 +701,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveResourceUsage = New<TInstanceResources>();
             aliveResourceUsage->Clear();
 
-            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input, WaitOfflineGracePeriod);
+            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input, EGracePeriodBehaviour::Wait);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
             auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input);
@@ -728,7 +728,7 @@ THashSet<TString> GetAliveNodes(
     const TString& bundleName,
     const std::vector<TString>& bundleNodes,
     const TSchedulerInputState& input,
-    bool waitGracePeriod)
+    EGracePeriodBehaviour gracePeriodBehaviour)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     THashSet<TString> aliveNodes;
@@ -746,7 +746,9 @@ THashSet<TString> GetAliveNodes(
         }
 
         if (nodeInfo->State != InstanceStateOnline) {
-            if (!waitGracePeriod || now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod) {
+            if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
+                now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod)
+            {
                 continue;
             }
         }
@@ -986,7 +988,7 @@ void CreateRemoveTabletCells(
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& bundleState = mutations->ChangedStates[bundleName];
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, WaitOfflineGracePeriod);
+    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, EGracePeriodBehaviour::Wait);
 
     if (!bundleInfo->EnableTabletCellManagement) {
         return;
@@ -1194,6 +1196,37 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController ||
+            !bundleInfo->EnableTabletCellManagement ||
+            !bundleInfo->EnableResourceLimitsManagement)
+        {
+            continue;
+        }
+
+        const auto& targetConfig = bundleInfo->TargetConfig;
+        if (!targetConfig->MemoryLimits->TabletStatic) {
+            continue;
+        }
+
+        auto availableTabletStatic = *targetConfig->MemoryLimits->TabletStatic * targetConfig->TabletNodeCount;
+
+        if (availableTabletStatic != bundleInfo->ResourceLimits->TabletStaticMemory) {
+            YT_LOG_INFO("Adjusting tablet static memory limit (BundleName: %v, NewValue: %v, OldValue: %v)",
+                bundleName,
+                availableTabletStatic,
+                bundleInfo->ResourceLimits->TabletStaticMemory);
+
+            mutations->ChangedTabletStaticMemory[bundleName] = availableTabletStatic;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 TString GetSpareBundleName(const TString& /*zoneName*/)
 {
@@ -1819,7 +1852,11 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
                 bundleInfo->Zone);
         } else {
             const auto& bundleNodes = input.BundleNodes[bundleName];
-            auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, WaitOfflineGracePeriod);
+            auto aliveNodes = GetAliveNodes(
+                bundleName,
+                bundleNodes,
+                input,
+                EGracePeriodBehaviour::Wait);
             TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
             nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
         }
@@ -1875,7 +1912,6 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         auto bundleConfig = New<TBundleDynamicConfig>();
         bundleConfig->CpuLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->CpuLimits);
         bundleConfig->MemoryLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->MemoryLimits);
-
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 
@@ -1931,6 +1967,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageInstancies(input, mutations);
     ManageCells(input, mutations);
     ManageSystemAccountLimit(input, mutations);
+    ManageResourceLimits(input, mutations);
     ManageNodeTagFilters(input, mutations);
     ManageRpcProxyRoles(input, mutations);
 

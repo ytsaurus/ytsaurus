@@ -50,6 +50,13 @@ void TResourceQuota::Register(TRegistrar registrar)
         .Default(0);
 }
 
+void TResourceLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tablet_static_memory", &TThis::TabletStaticMemory)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
 void TInstanceResources::Clear()
 {
     Vcpu = 0;
@@ -146,6 +153,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "node_tag_filter", &TThis::NodeTagFilter)
         .Default();
+    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
+        .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
     RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
@@ -158,6 +167,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
         .Default(false);
+    RegisterAttribute(registrar, "enable_resource_limits_management", &TThis::EnableResourceLimitsManagement)
+        .Default(true);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
@@ -168,8 +179,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .DefaultNew();
     RegisterAttribute(registrar, "resource_quota", &TThis::ResourceQuota)
         .Default();
-    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
-        .Optional();
+    RegisterAttribute(registrar, "resource_limits", &TThis::ResourceLimits)
+        .DefaultNew();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)

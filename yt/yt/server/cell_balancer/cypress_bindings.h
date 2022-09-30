@@ -15,6 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
+DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
@@ -154,6 +155,20 @@ DEFINE_REFCOUNTED_TYPE(TResourceQuota)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TResourceLimits
+    : public NYTree::TYsonStruct
+{
+    i64 TabletStaticMemory;
+
+    REGISTER_YSON_STRUCT(TResourceLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleConfig
     : public NYTree::TYsonStruct
 {
@@ -235,6 +250,7 @@ struct TBundleInfo
     bool EnableTabletNodeDynamicConfig;
     bool EnableRpcProxyManagement;
     bool EnableSystemAccountManagement;
+    bool EnableResourceLimitsManagement;
 
     TBundleConfigPtr TargetConfig;
     TBundleConfigPtr ActualConfig;
@@ -242,6 +258,7 @@ struct TBundleInfo
 
     TBundleSystemOptionsPtr Options;
     TResourceQuotaPtr ResourceQuota;
+    TResourceLimitsPtr ResourceLimits;
 
     REGISTER_YSON_STRUCT(TBundleInfo);
 
