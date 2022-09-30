@@ -701,7 +701,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveResourceUsage = New<TInstanceResources>();
             aliveResourceUsage->Clear();
 
-            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input);
+            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input, WaitOfflineGracePeriod);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
             auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input);
@@ -727,19 +727,28 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 THashSet<TString> GetAliveNodes(
     const TString& bundleName,
     const std::vector<TString>& bundleNodes,
-    const TSchedulerInputState& input)
+    const TSchedulerInputState& input,
+    bool waitGracePeriod)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     THashSet<TString> aliveNodes;
 
+    auto now = TInstant::Now();
+
     for (const auto& nodeName : bundleNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        if (!nodeInfo->Annotations->Allocated || nodeInfo->State != InstanceStateOnline) {
+        if (!nodeInfo->Annotations->Allocated || nodeInfo->Banned) {
             continue;
         }
 
         if (!bundleInfo->NodeTagFilter.empty() && nodeInfo->Decommissioned) {
             continue;
+        }
+
+        if (nodeInfo->State != InstanceStateOnline) {
+            if (!waitGracePeriod || now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod) {
+                continue;
+            }
         }
 
         aliveNodes.insert(nodeName);
@@ -977,7 +986,7 @@ void CreateRemoveTabletCells(
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& bundleState = mutations->ChangedStates[bundleName];
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
+    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, WaitOfflineGracePeriod);
 
     if (!bundleInfo->EnableTabletCellManagement) {
         return;
@@ -1810,7 +1819,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
                 bundleInfo->Zone);
         } else {
             const auto& bundleNodes = input.BundleNodes[bundleName];
-            auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input);
+            auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, WaitOfflineGracePeriod);
             TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
             nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
         }

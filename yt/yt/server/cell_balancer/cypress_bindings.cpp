@@ -340,6 +340,8 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "maintenance_requests", &TThis::MaintenanceRequests)
         .Default();
+    RegisterAttribute(registrar, "last_seen_time", &TThis::LastSeenTime)
+        .Default();
 }
 
 void TBundleDynamicConfig::Register(TRegistrar registrar)

@@ -1138,6 +1138,39 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
 }
 
+TEST(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
+{
+    const bool SetNodeFilterTag = true; 
+    const int SlotCount = 5;
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+
+    auto input = GenerateSimpleInputContext(2, SlotCount);
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+
+    auto nodes = GenerateNodesForBundle(input, "default-bundle", 2, SetNodeFilterTag, SlotCount);
+    GenerateTabletCellsForBundle(input, "default-bundle", 10);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+
+    for (const auto& nodeName : nodes) {
+        auto& tabletInfo = GetOrCrash(input.TabletNodes, nodeName);
+        tabletInfo->State = InstanceStateOffline;
+        tabletInfo->LastSeenTime = TInstant::Now() - OfflineInstanceGracePeriod / 2;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    // Checking that grace period does not affect spare nodes assignments
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TBundleSchedulerTest, CheckDisruptedState)
@@ -2302,6 +2335,53 @@ TEST(TBundleSchedulerTest, CheckBundleShortName)
     }
 
     EXPECT_EQ(templates.size(), 5u);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
+{
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+
+    for (const auto& nodeName : nodes) {
+        auto& tabletInfo = GetOrCrash(input.TabletNodes, nodeName);
+        tabletInfo->State = InstanceStateOffline;
+        tabletInfo->LastSeenTime = TInstant::Now() - OfflineInstanceGracePeriod / 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+
+    for (const auto& nodeName : nodes) {
+        auto& tabletInfo = GetOrCrash(input.TabletNodes, nodeName);
+        tabletInfo->State = InstanceStateOffline;
+        tabletInfo->LastSeenTime = TInstant::Now() - OfflineInstanceGracePeriod * 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
