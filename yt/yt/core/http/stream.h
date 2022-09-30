@@ -190,7 +190,7 @@ public:
     const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
     void SetHost(TStringBuf host, TStringBuf port);
-    bool IsHeadersFlushed() const override;
+    bool AreHeadersFlushed() const override;
 
     const THeadersPtr& GetTrailers() override;
 

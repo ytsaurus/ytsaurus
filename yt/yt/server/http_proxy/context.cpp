@@ -901,7 +901,7 @@ void TContext::Finalize()
         Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_))));
         Y_UNUSED(WaitFor(DriverRequest_.OutputStream->Close()));
         Y_UNUSED(WaitFor(Response_->Close()));
-    } else if (!Response_->IsHeadersFlushed()) {
+    } else if (!Response_->AreHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {

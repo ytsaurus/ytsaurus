@@ -130,7 +130,7 @@ public:
         try {
             DoHandleRequest(req, rsp);
         } catch (const std::exception& ex) {
-            if (rsp->IsHeadersFlushed()) {
+            if (rsp->AreHeadersFlushed()) {
                 throw;
             }
 

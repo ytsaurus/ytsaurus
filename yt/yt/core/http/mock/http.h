@@ -46,7 +46,7 @@ public:
 
     MOCK_METHOD(const THeadersPtr&, GetHeaders, (), (override));
     MOCK_METHOD(const THeadersPtr&, GetTrailers, (), (override));
-    MOCK_METHOD(bool, IsHeadersFlushed, (), (const, override));
+    MOCK_METHOD(bool, AreHeadersFlushed, (), (const, override));
     MOCK_METHOD(std::optional<EStatusCode>, GetStatus, (), (const, override));
     MOCK_METHOD(void, SetStatus, (EStatusCode), (override));
     MOCK_METHOD(void, AddConnectionCloseHeader, (), (override));

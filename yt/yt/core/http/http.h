@@ -253,7 +253,7 @@ struct IResponseWriter
 {
     virtual const THeadersPtr& GetHeaders() = 0;
     virtual const THeadersPtr& GetTrailers() = 0;
-    virtual bool IsHeadersFlushed() const = 0;
+    virtual bool AreHeadersFlushed() const = 0;
 
     virtual std::optional<EStatusCode> GetStatus() const = 0;
     virtual void SetStatus(EStatusCode status) = 0;

@@ -566,7 +566,7 @@ void THttpOutput::SetHeaders(const THeadersPtr& headers)
     Headers_ = headers;
 }
 
-bool THttpOutput::IsHeadersFlushed() const
+bool THttpOutput::AreHeadersFlushed() const
 {
     return HeadersFlushed_;
 }
