@@ -74,7 +74,7 @@ public:
             WaitFor(rsp->WriteBody(TSharedRef::FromString(profileBlob.Str())))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            if (rsp->IsHeadersFlushed()) {
+            if (rsp->AreHeadersFlushed()) {
                 throw;
             }
 
@@ -243,7 +243,7 @@ public:
             WaitFor(rsp->Close())
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            if (rsp->IsHeadersFlushed()) {
+            if (rsp->AreHeadersFlushed()) {
                 throw;
             }
 

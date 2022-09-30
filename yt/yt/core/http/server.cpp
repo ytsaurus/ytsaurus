@@ -235,7 +235,7 @@ private:
             YT_LOG_INFO(ex, "Error handling HTTP request (RequestId: %v)",
                 request->GetRequestId());
 
-            if (!response->IsHeadersFlushed()) {
+            if (!response->AreHeadersFlushed()) {
                 response->SetStatus(EStatusCode::InternalServerError);
             }
         }

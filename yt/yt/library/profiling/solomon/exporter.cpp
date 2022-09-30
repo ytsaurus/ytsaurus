@@ -799,7 +799,7 @@ void TSolomonExporter::DoHandleShard(
         YT_LOG_DEBUG(ex, "Failed to export sensors");
         responsePromise.TrySet(TError(ex));
 
-        if (!rsp->IsHeadersFlushed()) {
+        if (!rsp->AreHeadersFlushed()) {
             try {
                 rsp->SetStatus(EStatusCode::InternalServerError);
                 rsp->GetHeaders()->Remove("Content-Type");
