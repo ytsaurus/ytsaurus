@@ -308,6 +308,16 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
     return candidates;
 }
 
+String BuildStorageName(const std::vector<TTablePtr>& tables)
+{
+    TStringBuilder builder;
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder, ";");
+    for (const auto& table : tables) {
+        delimitedBuilder->AppendString(table->Path.GetPath());
+    }
+    return builder.Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class is extracted for better encapsulation of distributed query call context.
@@ -775,7 +785,7 @@ public:
         DB::ContextPtr context,
         std::vector<TTablePtr> tables,
         TTableSchemaPtr schema)
-        : TYtStorageBase({"YT", "distributor"})
+        : TYtStorageBase({"YT", BuildStorageName(tables)})
         , QueryContext_(GetQueryContext(context))
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
