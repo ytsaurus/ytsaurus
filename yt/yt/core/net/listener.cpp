@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <util/network/pollerimpl.h>
+
 namespace NYT::NNet {
 
 using namespace NConcurrency;
@@ -68,6 +70,11 @@ public:
         } catch (const TErrorException& ex) {
             auto error = ex << TErrorAttribute("listener", Name_);
             Abort(error);
+        }
+
+        auto guard = Guard(Lock_);
+        if (Error_.IsOK() && !Pending_) {
+            Acceptor_->Arm(ServerSocket_, this, EPollControl::Read | EPollControl::EdgeTriggered | EPollControl::BacklogEmpty);
         }
     }
 

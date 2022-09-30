@@ -16,10 +16,11 @@ DEFINE_BIT_ENUM(EPollControl,
     ((Retry)        (0x8))      // Retry requested (OnEvent)
     ((EdgeTriggered)(0x10))     // TODO(khlebnikov) make it default (Arm)
     ((ReadHup)      (0x20))
-    ((Offline)      (0x40))     // Cannot handle events  (for external use)
-    ((Terminate)    (0x80))     // Termination requested (for external use)
-    ((Running)      (0x100))     // Operation in progress (for external use)
-    ((Shutdown)     (0x200))     // Shutdown in progress  (for external use)
+    ((BacklogEmpty) (0x40))     // Socket is consumed for now (used for optimization purposes)
+    ((Offline)      (0x80))     // Cannot handle events  (for external use)
+    ((Terminate)    (0x100))    // Termination requested (for external use)
+    ((Running)      (0x200))    // Operation in progress (for external use)
+    ((Shutdown)     (0x400))    // Shutdown in progress  (for external use)
 );
 
 //! Poller may provide separate sets of threads for handling pollables of
