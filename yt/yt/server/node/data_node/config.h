@@ -111,6 +111,8 @@ public:
 
     i64 MaxWriteRateByDwpd;
 
+    double IOWeight;
+
     bool ResetUuid;
 
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);

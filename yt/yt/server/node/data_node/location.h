@@ -239,6 +239,9 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
+    //! Returns the IO weight of the location.
+    double GetIOWeight() const;
+
     //! Returns an invoker for various auxiliarly IO activities.
     const IInvokerPtr& GetAuxPoolInvoker();
 

@@ -873,7 +873,7 @@ private:
         i64 totalUsedSpace = 0;
         int totalStoredChunkCount = 0;
 
-        THashMap<int, int> mediumIndexToIOWeight;
+        THashMap<int, double> mediumIndexToIOWeight;
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         const auto& ioThroughputMeter = Bootstrap_->GetIOThroughputMeter();
@@ -915,11 +915,11 @@ private:
                 ioThroughputMeter->GetLocationIOCapacity(location->GetUuid()));
 
             if (IsLocationWriteable(location)) {
-                ++mediumIndexToIOWeight[mediumIndex];
+                mediumIndexToIOWeight[mediumIndex] += location->GetIOWeight();
             }
         }
 
-        for (const auto& [mediumIndex, ioWeight] : mediumIndexToIOWeight) {
+        for (auto [mediumIndex, ioWeight] : mediumIndexToIOWeight) {
             auto* protoStatistics = statistics->add_media();
             protoStatistics->set_medium_index(mediumIndex);
             protoStatistics->set_io_weight(ioWeight);

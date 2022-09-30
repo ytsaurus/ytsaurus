@@ -383,6 +383,13 @@ i64 TChunkLocation::GetQuota() const
     return StaticConfig_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
+double TChunkLocation::GetIOWeight() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_->IOWeight;
+}
+
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
