@@ -735,7 +735,13 @@ private:
             return;
         }
 
-        Poller_->Arm(FD_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered | EPollControl::ReadHup);
+        Arm();
+    }
+
+    void Arm(EPollControl additionalFlags = {})
+    {
+        auto control = EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered | EPollControl::ReadHup;
+        Poller_->Arm(FD_, this, control | additionalFlags);
     }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
@@ -804,6 +810,7 @@ private:
 
         bool needUnregister = false;
         bool needRetry = false;
+        bool needRearm = false;
         std::unique_ptr<IIOOperation> operation;
         {
             auto guard = Guard(Lock_);
@@ -828,7 +835,12 @@ private:
                 direction->StopBusyTimer();
             } else if (result.Value().Retry) {
                 // IO not completed. Retry if have pending backlog.
-                needRetry = direction->Pending;
+                // If dont have pending backlog, just subscribe for futher notifications.
+                if (direction->Pending) {
+                    needRetry = true;
+                } else {
+                    needRearm = true;
+                }
             } else {
                 // IO finished successfully.
                 operation = std::move(direction->Operation);
@@ -844,6 +856,11 @@ private:
             operation->SetResult();
         } else if (needRetry) {
             Poller_->Retry(this, false);
+        }
+
+        if (needRearm) {
+            YT_VERIFY(!needRetry && !needUnregister);
+            Arm(EPollControl::BacklogEmpty);
         }
 
         if (needUnregister) {
