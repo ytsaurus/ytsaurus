@@ -134,7 +134,7 @@ void TReplicaHistoryItem::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TReplicaInfo::FindHistoryItemIndex(TTimestamp timestamp)
+int TReplicaInfo::FindHistoryItemIndex(TTimestamp timestamp) const
 {
     auto it = std::upper_bound(
         History.begin(),

@@ -53,7 +53,7 @@ struct TReplicaInfo
     bool EnableReplicatedTableTracker = true;
 
     //! Returns index of history item corresponding to timestamp, -1 if none.
-    int FindHistoryItemIndex(NTransactionClient::TTimestamp timestamp);
+    int FindHistoryItemIndex(NTransactionClient::TTimestamp timestamp) const;
 };
 
 struct TReplicationCard

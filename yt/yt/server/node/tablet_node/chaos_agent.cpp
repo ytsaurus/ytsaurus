@@ -52,7 +52,6 @@ public:
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicationCardId_(replicationCardId)
         , Connection_(std::move(localConnection))
-        , LastReplicationProgressAdvance_(*Tablet_->RuntimeData()->ReplicationProgress.Load())
         , Logger(TabletNodeLogger
             .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
@@ -107,7 +106,6 @@ private:
     const NNative::IConnectionPtr Connection_;
 
     TReplicationCardPtr ReplicationCard_;
-    TReplicationProgress LastReplicationProgressAdvance_;
 
     const NLogging::TLogger Logger;
 
@@ -184,14 +182,6 @@ private:
         ETabletWriteMode writeMode = ETabletWriteMode::Pull;
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
 
-        if (!IsReplicationProgressGreaterOrEqual(*progress, LastReplicationProgressAdvance_)) {
-            YT_LOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet "
-                "(TabletReplicationProgress: %v, LastReplicationProgress: %v)",
-                static_cast<TReplicationProgress>(*progress),
-                LastReplicationProgressAdvance_);
-            return;
-        }
-
         YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %x, IsProgressGreaterThanTimestamp: %x)",
             static_cast<TReplicationProgress>(*progress),
             selfReplica->History.back().Timestamp,
@@ -214,93 +204,6 @@ private:
             return;
         }
 
-        auto initialReplicationProgressAdvance = [&] {
-            if (progress->Segments.size() != 1 || progress->Segments[0].Timestamp != MinTimestamp) {
-                return;
-            }
-
-            auto historyTimestamp = selfReplica->History[0].Timestamp;
-            auto progressTimestamp = GetReplicationProgressMinTimestamp(
-                selfReplica->ReplicationProgress,
-                Tablet_->GetPivotKey().Get(),
-                Tablet_->GetNextPivotKey().Get());
-
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %x, HistoryMinTimestamp: %x)",
-                progressTimestamp,
-                historyTimestamp);
-
-            if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
-                    static_cast<TReplicationProgress>(*progress),
-                    selfReplica,
-                    historyTimestamp);
-
-                auto newProgress = AdvanceReplicationProgress(
-                    *progress,
-                    historyTimestamp);
-                AdvanceTabletReplicationProgress(std::move(newProgress));
-                return;
-            }
-
-            YT_LOG_DEBUG("Checking that replication card contains further progress (ReplicationProgress: %v, Replica: %v)",
-                static_cast<TReplicationProgress>(*progress),
-                selfReplica);
-
-            if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
-                auto newProgress = ExtractReplicationProgress(
-                    selfReplica->ReplicationProgress,
-                    Tablet_->GetPivotKey().Get(),
-                    Tablet_->GetNextPivotKey().Get());
-                AdvanceTabletReplicationProgress(std::move(newProgress));
-
-                YT_LOG_DEBUG("Advanced replication progress to replica progress from replication card");
-            }
-        };
-
-        auto forwardReplicationProgress = [&] (int historyItemIndex) {
-            if (historyItemIndex >= std::ssize(selfReplica->History)) {
-                YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
-                    historyItemIndex,
-                    *selfReplica);
-                return;
-            }
-
-            auto newProgress = AdvanceReplicationProgress(
-                *progress,
-                selfReplica->History[historyItemIndex].Timestamp);
-            AdvanceTabletReplicationProgress(std::move(newProgress));
-
-            YT_LOG_DEBUG("Advanced replication progress to next era (Era: %v, Timestamp: %x)",
-                selfReplica->History[historyItemIndex].Era,
-                selfReplica->History[historyItemIndex].Timestamp);
-        };
-
-        // TODO(savrus): Update write mode after advancing replication progress.
-
-        if (writeMode == ETabletWriteMode::Pull) {
-            auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
-            auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
-
-            initialReplicationProgressAdvance();
-
-            YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %x, HistoryItemIndex: %v)",
-                ETabletWriteMode::Pull,
-                oldestTimestamp,
-                historyItemIndex);
-
-            if (historyItemIndex == -1) {
-                YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
-                    static_cast<TReplicationProgress>(*progress),
-                    *selfReplica,
-                    oldestTimestamp);
-            } else {
-                const auto& item = selfReplica->History[historyItemIndex];
-                if (IsReplicaReallySync(item.Mode, item.State)) {
-                    forwardReplicationProgress(historyItemIndex + 1);
-                }
-            }
-        }
-
         if (!MountConfig_->EnableReplicationProgressAdvanceToBarrier) {
             return;
         }
@@ -311,7 +214,12 @@ private:
                 auto newProgress = AdvanceReplicationProgress(
                     *progress,
                     currentTimestamp);
-                AdvanceTabletReplicationProgress(std::move(newProgress), /*validateStrictAdvance*/ false);
+                AdvanceTabletReplicationProgress(
+                    Connection_,
+                    Logger,
+                    Slot_->GetCellId(),
+                    Tablet_->GetId(),
+                    std::move(newProgress));
 
                 YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %x)",
                     currentTimestamp);
@@ -349,46 +257,6 @@ private:
             YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
         }
     }
-
-    void AdvanceTabletReplicationProgress(TReplicationProgress progress, bool validateStrictAdvance = true)
-    {
-        if (!IsReplicationProgressGreaterOrEqual(progress, LastReplicationProgressAdvance_)) {
-            YT_LOG_ALERT("Trying to advance replication progress behind last attempt (LastReplicationProgress: %v, NewReplicationProgress: %v)",
-                LastReplicationProgressAdvance_,
-                progress);
-        }
-
-        auto localClient = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-        auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
-            .ValueOrThrow();
-
-        {
-            NProto::TReqAdvanceReplicationProgress req;
-            ToProto(req.mutable_tablet_id(), Tablet_->GetId());
-            ToProto(req.mutable_new_replication_progress(), progress);
-            req.set_validate_strict_advance(validateStrictAdvance);
-            localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
-        }
-
-        YT_LOG_DEBUG("Commiting replication progress advance transaction (TransactionId: %v, ReplicationProgress: %v)",
-            localTransaction->GetId(),
-            progress);
-
-        // TODO(savrus) Discard 2PC.
-        TTransactionCommitOptions commitOptions;
-        commitOptions.CoordinatorCellId = Slot_->GetCellId();
-        commitOptions.Force2PC = true;
-        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        auto result = WaitFor(localTransaction->Commit(commitOptions));
-
-        YT_LOG_DEBUG(result, "Replication progress advance transaction finished (TransactionId: %v, ReplicationProgress: %v)",
-            localTransaction->GetId(),
-            progress);
-
-        if (result.IsOK() && validateStrictAdvance) {
-            LastReplicationProgressAdvance_ = std::move(progress);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -404,6 +272,51 @@ IChaosAgentPtr CreateChaosAgent(
         std::move(slot),
         replicationCardId,
         std::move(localConnection));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AdvanceTabletReplicationProgress(
+    NNative::IConnectionPtr connection,
+    const NLogging::TLogger& Logger,
+    TTabletCellId tabletCellId,
+    TTabletId tabletId,
+    const TReplicationProgress& progress,
+    bool validateStrictAdvance,
+    std::optional<ui64> replicationRound)
+{
+    auto localClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+    auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    {
+        NProto::TReqAdvanceReplicationProgress req;
+        ToProto(req.mutable_tablet_id(), tabletId);
+        ToProto(req.mutable_new_replication_progress(), progress);
+        req.set_validate_strict_advance(validateStrictAdvance);
+        if (replicationRound) {
+            req.set_replication_round(*replicationRound);
+        }
+        localTransaction->AddAction(tabletCellId, MakeTransactionActionData(req));
+    }
+
+    YT_LOG_DEBUG("Commiting replication progress advance transaction (TransactionId: %v, ReplicationProgress: %v, ReplicationRound: %v)",
+        localTransaction->GetId(),
+        progress,
+        replicationRound);
+
+    // TODO(savrus) Discard 2PC.
+    TTransactionCommitOptions commitOptions;
+    commitOptions.CoordinatorCellId = tabletCellId;
+    commitOptions.Force2PC = true;
+    commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+    auto result = WaitFor(localTransaction->Commit(commitOptions));
+
+    YT_LOG_DEBUG(result, "Replication progress advance transaction finished (TransactionId: %v, ReplicationProgress: %v)",
+        localTransaction->GetId(),
+        progress);
+
+    return result.IsOK();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

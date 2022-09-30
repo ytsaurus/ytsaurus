@@ -38,9 +38,11 @@ DEFINE_ENUM(ETabletReign,
     ((SavePreparedReplicatorTxs)          (100511)) // ifsmirnov
     ((DoNotWriteToUnmountedTablet)        (100512)) // gritukan
     ((SometimesWriteToUnmountedTablet)    (100513)) // gritukan
+    ((AdvanceReplicationRound222)         (100514)) // savrus
     // 22.3 starts here.
     ((TabletWriteManager)                 (100600)) // gritukan
     ((HunkTablets)                        (100601)) // gritukan
+    ((AdvanceReplicationRound)            (100602)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2303,8 +2303,21 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        // COMPAT(savrus)
+        auto round = request->has_replication_round()
+            ? std::make_optional(request->replication_round())
+            : std::nullopt;
         auto* tablet = GetTabletOrThrow(tabletId);
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+
+        const auto& chaosData = tablet->ChaosData();
+        auto replicationRound = chaosData->ReplicationRound.load();
+        // COMPAT(savrus)
+        if (round && replicationRound != *round) {
+            THROW_ERROR_EXCEPTION("Replication round mismatch: expected %v, got %v",
+                replicationRound,
+                round);
+        }
 
         auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
         if (!IsReplicationProgressGreaterOrEqual(newProgress, *progress)) {
@@ -2342,12 +2355,18 @@ private:
     void HydraSerializeAdvanceReplicationProgress(TTransaction* transaction, TReqAdvanceReplicationProgress* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        // COMPAT(savrus)
+        auto round = request->has_replication_round()
+            ? std::make_optional(request->replication_round())
+            : std::nullopt;
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
         const auto& chaosData = tablet->ChaosData();
+        auto replicationRound = chaosData->ReplicationRound.load();
+        YT_VERIFY(!round || replicationRound == *round);
 
         // COMPAT(gritukan)
         if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet) &&
@@ -2376,12 +2395,13 @@ private:
         bool isStrictlyAdvanced = IsReplicationProgressGreaterOrEqual(*progress, *tabletProgress);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serializing advance replication progress transaction "
-            "(TabletId: %v, TransactionId: %v, IsStrictlyAdvanced: %v, CurrentProgress: %v, NewProgress: %v)",
+            "(TabletId: %v, TransactionId: %v, IsStrictlyAdvanced: %v, CurrentProgress: %v, NewProgress: %v, ReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
             isStrictlyAdvanced,
             static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
-            static_cast<NChaosClient::TReplicationProgress>(*progress));
+            static_cast<NChaosClient::TReplicationProgress>(*progress),
+            round);
 
         if (isStrictlyAdvanced) {
             tablet->RuntimeData()->ReplicationProgress.Store(progress);
@@ -2396,6 +2416,11 @@ private:
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
+        }
+
+        // COMPAT(savrus)
+        if (round) {
+            chaosData->ReplicationRound = *round + 1;
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serialized replication progress advance transaction (TabletId: %v, TransactionId: %v)",
