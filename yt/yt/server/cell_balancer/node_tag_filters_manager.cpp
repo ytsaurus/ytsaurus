@@ -38,7 +38,7 @@ TSpareNodesInfo GetSpareNodesInfo(
     }
 
     const auto& spareNodes = spareNodesIt->second;
-    auto aliveNodes = GetAliveNodes(spareBundle, spareNodes, input, MarkNodesOfflineImmediately);
+    auto aliveNodes = GetAliveNodes(spareBundle, spareNodes, input, EGracePeriodBehaviour::Immediately);
 
     // NodeTagFilter To Bundle Name.
     THashMap<TString, TString> filterTagToBundleName;
@@ -152,7 +152,7 @@ void SetNodeTagFilter(
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, MarkNodesOfflineImmediately);
+    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, EGracePeriodBehaviour::Immediately);
     const TString& nodeTagFilter = bundleInfo->NodeTagFilter;
 
     if (nodeTagFilter.empty()) {

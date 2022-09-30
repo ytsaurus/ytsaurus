@@ -2386,5 +2386,40 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TBundleSchedulerTest, CheckResourceLimits)
+{
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    GenerateNodesForBundle(input, SpareBundleName, 3);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedTabletStaticMemory));
+
+    auto& bundleInfo = input.Bundles["default-bundle"];
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 10_GB;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedTabletStaticMemory));
+    EXPECT_EQ(static_cast<i64>(50_GB), mutations.ChangedTabletStaticMemory["default-bundle"]);
+
+    bundleInfo->ResourceLimits->TabletStaticMemory = 50_GB;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedTabletStaticMemory));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // NYT::NCellBalancer

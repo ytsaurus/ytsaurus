@@ -110,6 +110,8 @@ struct TSchedulerMutations
 
     THashSet<TString> NodesToCleanup;
     THashSet<TString> ProxiesToCleanup;
+
+    THashMap<TString, i64> ChangedTabletStaticMemory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,14 +126,16 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
 
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
-inline static constexpr bool WaitOfflineGracePeriod = true;
-inline static constexpr bool MarkNodesOfflineImmediately = false;
+DEFINE_ENUM(EGracePeriodBehaviour,
+    ((Wait)         (0))
+    ((Immediately)  (1))
+);
 
 THashSet<TString> GetAliveNodes(
     const TString& bundleName,
     const std::vector<TString>& bundleNodes,
     const TSchedulerInputState& input,
-    bool waitGracePeriod);
+    EGracePeriodBehaviour gracePeriodBehaviour);
 
 THashSet<TString> GetAliveProxies(
     const std::vector<TString>& bundleProxies,

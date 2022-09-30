@@ -104,6 +104,7 @@ public:
         , ProxyAllocationRequestAge_(Profiler.TimeGauge("/proxy_allocation_request_age"))
         , ProxyDeallocationRequestAge_(Profiler.TimeGauge("/proxy_deallocation_request_age"))
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
+        , ChangedResourceLimitsCounter_(Profiler.Counter("/changed_resource_limits_counter"))
     { }
 
     void Start() override
@@ -160,6 +161,7 @@ private:
     TTimeGauge ProxyAllocationRequestAge_;
     TTimeGauge ProxyDeallocationRequestAge_;
     TCounter ChangedSystemAccountLimitCounter_;
+    TCounter ChangedResourceLimitsCounter_;
 
     mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
@@ -286,6 +288,7 @@ private:
     inline static const TString  NodeAttributeDecommissioned = "decommissioned";
     inline static const TString  ProxyAttributeRole = "role";
     inline static const TString  AccountAttributeResourceLimits = "resource_limits";
+    inline static const TString  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
@@ -315,6 +318,8 @@ private:
             SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
         }
 
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
+
         // TODO(capone212): Fire alarms.
 
         AlarmCounter_.Increment(mutations.AlertsToFire.size());
@@ -330,6 +335,7 @@ private:
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
+        ChangedResourceLimitsCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
@@ -737,7 +743,7 @@ private:
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
-                NYPath::ToYPathLiteral(attributeName));
+                attributeName);
 
             TSetNodeOptions setOptions;
             WaitFor(transaction->SetNode(path, ConvertToYsonString(attribute), setOptions))
