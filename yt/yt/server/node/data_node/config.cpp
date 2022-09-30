@@ -114,19 +114,26 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
+
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
         .Default(0);
+
     registrar.Parameter("disk_family", &TThis::DiskFamily)
         .Default("UNKNOWN");
-
     registrar.Parameter("device_name", &TThis::DeviceName)
         .Default("UNKNOWN");
     registrar.Parameter("device_model", &TThis::DeviceModel)
         .Default("UNKNOWN");
+
+    registrar.Parameter("io_weight", &TThis::IOWeight)
+        .GreaterThanOrEqual(0)
+        .Default(1.0);
+
     registrar.Parameter("max_write_rate_by_dwpd", &TThis::MaxWriteRateByDwpd)
         .GreaterThanOrEqual(0)
         .Default(0);
+
     registrar.Parameter("reset_uuid", &TThis::ResetUuid)
         .Default(false);
 
