@@ -2399,7 +2399,8 @@ class TestChaos(ChaosTestBase):
 
         self._sync_replication_era(card_id, replicas)
 
-        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
+        for driver in self._get_drivers():
+            set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"], driver=driver)
 
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
@@ -2430,7 +2431,8 @@ class TestChaos(ChaosTestBase):
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids, ordered=True)
 
-        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
+        for driver in self._get_drivers():
+            set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")

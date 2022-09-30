@@ -1,5 +1,6 @@
 #include "table_puller.h"
 
+#include "chaos_agent.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
@@ -87,7 +88,7 @@ public:
             BannedReplicas_.size());
     }
 
-    void SyncReplicas(const TReplicationCardPtr replicationCard)
+    void SyncReplicas(const TReplicationCardPtr& replicationCard)
     {
         auto replicaIds = GetKeys(BannedReplicas_);
         for (auto replicaId : replicaIds) {
@@ -141,6 +142,7 @@ public:
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
+        , ChaosAgent_(tablet->GetChaosAgent())
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
@@ -150,6 +152,8 @@ public:
             : TNameTable::FromSchema(*TableSchema_->ToVersionedWrite()))
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicaId_(tablet->GetUpstreamReplicaId())
+        , PivotKey_(tablet->GetPivotKey())
+        , NextPivotKey_(tablet->GetNextPivotKey())
         , Logger(TabletNodeLogger
             .WithTag("%v, UpstreamReplicaId: %v",
                 tablet->GetLoggingTag(),
@@ -159,6 +163,7 @@ public:
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
         }))
         , BannedReplicaTracker_(Logger)
+        , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Load())
     { }
 
     void Enable() override
@@ -186,6 +191,7 @@ private:
     const NNative::IConnectionPtr LocalConnection_;
     const ITabletSlotPtr Slot_;
     const ITabletSnapshotStorePtr TabletSnapshotStore_;
+    const IChaosAgentPtr ChaosAgent_;
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
@@ -194,6 +200,8 @@ private:
     const TNameTablePtr NameTable_;
     const TTableMountConfigPtr MountConfig_;
     const TReplicaId ReplicaId_;
+    const TLegacyOwningKey PivotKey_;
+    const TLegacyOwningKey NextPivotKey_;
 
     const NLogging::TLogger Logger;
 
@@ -202,6 +210,7 @@ private:
 
     TBannedReplicaTracker BannedReplicaTracker_;
     ui64 ReplicationRound_ = 0;
+    TReplicationProgress LastReplicationProgressAdvance_;
 
     TFuture<void> FiberFuture_;
 
@@ -231,7 +240,18 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
-            BannedReplicaTracker_.SyncReplicas(replicationCard);
+            auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
+            if (!selfReplica) {
+                THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
+                    << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
+                    << HardErrorAttribute;
+            }
+
+            if (IsReplicaDisabled(selfReplica->State)) {
+                YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
+                    selfReplica->State);
+                return;
+            }
 
             // There can be unserialized sync transactions from previous era or pull rows write transaction from previous iteration.
             if (auto delayedLocklessRowCount = tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load();
@@ -257,202 +277,45 @@ private:
             }
 
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
-            auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
-            if (!queueReplicaInfo) {
-                THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from");
-            }
-            YT_VERIFY(queueReplicaId);
 
-            auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
-            if (!selfReplicaInfo) {
-                THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
-                    << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
-                    << HardErrorAttribute;
-            }
-
-            const auto& tableProfiler = tabletSnapshot->TableProfiler;
-            auto* counters = tableProfiler->GetTablePullerCounters();
-            auto finally = Finally([this, queueReplicaId=queueReplicaId, tableProfiler, counters] {
-                if (std::uncaught_exception()) {
-                    BannedReplicaTracker_.BanReplica(queueReplicaId);
-                    counters->ErrorCount.Increment();
-                }
-            });
-
-            const auto& clusterName = queueReplicaInfo->ClusterName;
-            const auto& replicaPath = queueReplicaInfo->ReplicaPath;
-            TPullRowsResult result;
-            {
-                TEventTimerGuard timerGuard(counters->PullRowsTime);
-
-                auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
-                if (!alienConnection) {
-                    THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
-                        << HardErrorAttribute;
-                }
-                auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-
-                TPullRowsOptions options;
-                options.TabletRowsPerRead = TabletRowsPerRead;
-                options.ReplicationProgress = *replicationProgress;
-                options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes.Load();
-                options.UpperTimestamp = upperTimestamp;
-                options.UpstreamReplicaId = queueReplicaId;
-                options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == ETableReplicaContentType::Queue;
-
-                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %x)",
-                    clusterName,
-                    replicaPath,
-                    options.ReplicationProgress,
-                    options.StartReplicationRowIndexes,
-                    upperTimestamp);
-
-                result = WaitFor(alienClient->PullRows(replicaPath, options))
-                    .ValueOrThrow();
-            }
-
-            if (result.Versioned != TableSchema_->IsSorted()) {
-                THROW_ERROR_EXCEPTION("Could not pull from queue since it has unexpected replication log format")
-                    << TErrorAttribute("queue_cluster", clusterName)
-                    << TErrorAttribute("queue_path", replicaPath)
-                    << TErrorAttribute("versioned_result", result.Versioned)
-                    << HardErrorAttribute;
-            }
-
-            auto rowCount = result.RowCount;
-            auto dataWeight = result.DataWeight;
-            const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
-            auto resultRows = result.Rowset->GetSharedRange();
-            const auto& progress = result.ReplicationProgress;
-
-            YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v)",
-                rowCount,
-                dataWeight,
-                progress,
-                endReplicationRowIndexes);
-
-            // TODO(savrus) Remove this sanity check when pull rows is mature enough.
-            if (result.Versioned) {
-                auto versionedRows = ReinterpretCastRange<TVersionedRow>(resultRows);
-                for (auto row : versionedRows) {
-                    YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
-                    auto rowTimestamp = row.GetWriteTimestampCount() > 0
-                        ? row.BeginWriteTimestamps()[0]
-                        : row.BeginDeleteTimestamps()[0];
-                    auto progressTimestamp = FindReplicationProgressTimestampForKey(
-                        *replicationProgress,
-                        row.BeginKeys(),
-                        row.EndKeys());
-                    if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
-                            rowTimestamp,
-                            progressTimestamp,
-                            row,
-                            static_cast<TReplicationProgress>(*replicationProgress));
-
-                        THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
-                            << TErrorAttribute("row_timestamp", rowTimestamp)
-                            << TErrorAttribute("progress_timestamp", progressTimestamp)
-                            << HardErrorAttribute;
-                    }
-                }
-            } else {
-                auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
-                auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
-
-                const auto* timestampColumn = TableSchema_->FindColumn(TimestampColumnName);
-                if (!timestampColumn) {
-                    THROW_ERROR_EXCEPTION("Invalid table schema: %Qv column is absent",
-                        TimestampColumnName)
-                        << HardErrorAttribute;
-                }
-                int timestampColumnIndex = TableSchema_->GetColumnIndex(*timestampColumn) + 1;
-
-                for (auto row : unversionedRows) {
-                    if (auto rowTimestamp = row[timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
-                            rowTimestamp,
-                            progressTimestamp,
-                            row,
-                            static_cast<TReplicationProgress>(*replicationProgress));
-
-                        THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
-                            << TErrorAttribute("row_timestamp", rowTimestamp)
-                            << TErrorAttribute("progress_timestamp", progressTimestamp)
-                            << HardErrorAttribute;
-                    }
-                }
-            }
-
-            // Update progress even if no rows pulled.
-            if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
-                YT_VERIFY(resultRows.empty());
-                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
+            if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, LastReplicationProgressAdvance_)) {
+                YT_LOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet "
+                    "(TabletReplicationProgress: %v, LastReplicationProgress: %v)",
+                    static_cast<TReplicationProgress>(*replicationProgress),
+                    LastReplicationProgressAdvance_);
                 return;
             }
 
-            {
-                TEventTimerGuard timerGuard(counters->WriteTime);
-
-                auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-                auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
-                    .ValueOrThrow();
-
-                // Set options to avoid nested writes to other replicas.
-                TModifyRowsOptions modifyOptions;
-                modifyOptions.ReplicationCard = replicationCard;
-                modifyOptions.UpstreamReplicaId = tabletSnapshot->UpstreamReplicaId;
-                modifyOptions.TopmostTransaction = false;
-
-                std::vector<TRowModification> rowModifications;
-                rowModifications.reserve(resultRows.size());
-                for (auto row : resultRows) {
-                    rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
+            if (auto newProgress = MaybeAdvanceReplicationProgress(selfReplica, replicationProgress)) {
+                if (!IsReplicationProgressGreaterOrEqual(*newProgress, LastReplicationProgressAdvance_)) {
+                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt (LastReplicationProgress: %v, NewReplicationProgress: %v)",
+                        LastReplicationProgressAdvance_,
+                        newProgress);
                 }
 
-                localTransaction->ModifyRows(
-                    tabletSnapshot->TablePath,
-                    NameTable_,
-                    MakeSharedRange(rowModifications),
-                    modifyOptions);
+                bool committed = AdvanceTabletReplicationProgress(
+                    LocalConnection_,
+                    Logger,
+                    Slot_->GetCellId(),
+                    TabletId_,
+                    std::move(*newProgress),
+                    /*validateStrictAdvance*/ true,
+                    ReplicationRound_);
 
-                {
-                    NProto::TReqWritePulledRows req;
-                    ToProto(req.mutable_tablet_id(), TabletId_);
-                    req.set_replication_round(ReplicationRound_);
-                    ToProto(req.mutable_new_replication_progress(), progress);
-                    for (const auto [tabletId, endReplicationRowIndex] : endReplicationRowIndexes) {
-                        auto protoEndReplicationRowIndex = req.add_new_replication_row_indexes();
-                        ToProto(protoEndReplicationRowIndex->mutable_tablet_id(), tabletId);
-                        protoEndReplicationRowIndex->set_replication_row_index(endReplicationRowIndex);
-                    }
-                    localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
+                if (committed) {
+                    ++ReplicationRound_;
+                    LastReplicationProgressAdvance_ = std::move(*newProgress);
                 }
-
-                YT_LOG_DEBUG("Commiting pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
-                    localTransaction->GetId(),
-                    ReplicationRound_);
-
-                // NB: 2PC is used here to correctly process transaction signatures (sent by both rows and actions).
-                // TODO(savrus) Discard 2PC.
-                TTransactionCommitOptions commitOptions;
-                commitOptions.CoordinatorCellId = Slot_->GetCellId();
-                commitOptions.Force2PC = true;
-                commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-                WaitFor(localTransaction->Commit(commitOptions))
-                    .ThrowOnError();
-
-                ++ReplicationRound_;
-
-                YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v, NewReplicationRound: %v)",
-                    localTransaction->GetId(),
-                    ReplicationRound_);
+            } else {
+                BannedReplicaTracker_.SyncReplicas(replicationCard);
+                DoPullRows(
+                    tabletSnapshot,
+                    replicationCard,
+                    selfReplica,
+                    replicationProgress);
             }
 
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
-
-            counters->RowCount.Increment(rowCount);
-            counters->DataWeight.Increment(dataWeight);
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", TabletId_)
@@ -479,37 +342,31 @@ private:
 
         YT_LOG_DEBUG("Pick replica to pull from");
 
-        auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
-        if (!selfReplicaInfo) {
+        auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
+        if (!selfReplica) {
             YT_LOG_DEBUG("Will not pull rows since replication card does not contain us");
             return {};
         }
 
-        if (!IsReplicaEnabled(selfReplicaInfo->State)) {
-            YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
-                selfReplicaInfo->State);
-            return {};
-        }
-
-        if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, selfReplicaInfo->ReplicationProgress)) {
+        if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, selfReplica->ReplicationProgress)) {
             YT_LOG_DEBUG("Will not pull rows since actual replication progress is behind replication card replica progress"
                 " (ReplicationProgress: %v, ReplicaInfo: %v)",
                 static_cast<TReplicationProgress>(*replicationProgress),
-                *selfReplicaInfo);
+                *selfReplica);
             return {};
         }
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
-        auto historyItemIndex = selfReplicaInfo->FindHistoryItemIndex(oldestTimestamp);
+        auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
             YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %x, History: %v)",
                 oldestTimestamp,
-                selfReplicaInfo->History);
+                selfReplica->History);
             return {};
         }
 
-        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplicaInfo->History));
-        const auto& historyItem = selfReplicaInfo->History[historyItemIndex];
+        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
+        const auto& historyItem = selfReplica->History[historyItemIndex];
         if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
             YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %x, HistoryItem: %v)",
                 oldestTimestamp,
@@ -517,9 +374,9 @@ private:
             return {};
         }
 
-        if (!IsReplicaAsync(selfReplicaInfo->Mode)) {
+        if (!IsReplicaAsync(selfReplica->Mode)) {
             YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
-                selfReplicaInfo->Mode);
+                selfReplica->Mode);
             // NB: Allow this since sync replica could be catching up.
         }
 
@@ -536,12 +393,12 @@ private:
                     continue;
                 }
 
-                if (selfReplicaInfo->ContentType == ETableReplicaContentType::Data) {
+                if (selfReplica->ContentType == ETableReplicaContentType::Data) {
                     if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress)) {
                         return {replicaId, &replicaInfo};
                     }
                 } else {
-                    YT_VERIFY(selfReplicaInfo->ContentType == ETableReplicaContentType::Queue);
+                    YT_VERIFY(selfReplica->ContentType == ETableReplicaContentType::Queue);
                     auto replicaOldestTimestamp = GetReplicationProgressMinTimestamp(
                         replicaInfo.ReplicationProgress,
                         replicationProgress->Segments[0].LowerKey,
@@ -581,8 +438,8 @@ private:
                 auto upperTimestamp = NullTimestamp;
                 if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
                     upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplicaInfo->Mode, selfReplicaInfo->State)) {
-                    upperTimestamp = selfReplicaInfo->History.back().Timestamp;
+                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State)) {
+                    upperTimestamp = selfReplica->History.back().Timestamp;
                 }
 
                 return {replicaId, &replicaInfo, upperTimestamp};
@@ -606,6 +463,276 @@ private:
         }
 
         YT_LOG_DEBUG("Will not pull rows since no in-sync queue found");
+        return {};
+    }
+
+    void DoPullRows(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TReplicationCardPtr& replicationCard,
+        const TReplicaInfo* selfReplica,
+        const TRefCountedReplicationProgressPtr& replicationProgress)
+    {
+        auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
+        if (!queueReplicaInfo) {
+            THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from");
+        }
+        YT_VERIFY(queueReplicaId);
+
+        const auto& tableProfiler = tabletSnapshot->TableProfiler;
+        auto* counters = tableProfiler->GetTablePullerCounters();
+        auto finally = Finally([this, queueReplicaId=queueReplicaId, tableProfiler, counters] {
+            if (std::uncaught_exception()) {
+                BannedReplicaTracker_.BanReplica(queueReplicaId);
+                counters->ErrorCount.Increment();
+            }
+        });
+
+        const auto& clusterName = queueReplicaInfo->ClusterName;
+        const auto& replicaPath = queueReplicaInfo->ReplicaPath;
+        TPullRowsResult result;
+        {
+            TEventTimerGuard timerGuard(counters->PullRowsTime);
+
+            auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
+            if (!alienConnection) {
+                THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
+                    << HardErrorAttribute;
+            }
+            auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+
+            TPullRowsOptions options;
+            options.TabletRowsPerRead = TabletRowsPerRead;
+            options.ReplicationProgress = *replicationProgress;
+            options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes.Load();
+            options.UpperTimestamp = upperTimestamp;
+            options.UpstreamReplicaId = queueReplicaId;
+            options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
+
+            YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %x)",
+                clusterName,
+                replicaPath,
+                options.ReplicationProgress,
+                options.StartReplicationRowIndexes,
+                upperTimestamp);
+
+            result = WaitFor(alienClient->PullRows(replicaPath, options))
+                .ValueOrThrow();
+        }
+
+        if (result.Versioned != TableSchema_->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Could not pull from queue since it has unexpected replication log format")
+                << TErrorAttribute("queue_cluster", clusterName)
+                << TErrorAttribute("queue_path", replicaPath)
+                << TErrorAttribute("versioned_result", result.Versioned)
+                << HardErrorAttribute;
+        }
+
+        auto rowCount = result.RowCount;
+        auto dataWeight = result.DataWeight;
+        const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
+        auto resultRows = result.Rowset->GetSharedRange();
+        const auto& progress = result.ReplicationProgress;
+
+        YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v)",
+            rowCount,
+            dataWeight,
+            progress,
+            endReplicationRowIndexes);
+
+        // TODO(savrus) Remove this sanity check when pull rows is mature enough.
+        if (result.Versioned) {
+            auto versionedRows = ReinterpretCastRange<TVersionedRow>(resultRows);
+            for (auto row : versionedRows) {
+                YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
+                auto rowTimestamp = row.GetWriteTimestampCount() > 0
+                    ? row.BeginWriteTimestamps()[0]
+                    : row.BeginDeleteTimestamps()[0];
+                auto progressTimestamp = FindReplicationProgressTimestampForKey(
+                    *replicationProgress,
+                    row.BeginKeys(),
+                    row.EndKeys());
+                if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
+                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
+                        rowTimestamp,
+                        progressTimestamp,
+                        row,
+                        static_cast<TReplicationProgress>(*replicationProgress));
+
+                    THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                        << TErrorAttribute("row_timestamp", rowTimestamp)
+                        << TErrorAttribute("progress_timestamp", progressTimestamp)
+                        << HardErrorAttribute;
+                }
+            }
+        } else {
+            auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
+            auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
+
+            const auto* timestampColumn = TableSchema_->FindColumn(TimestampColumnName);
+            if (!timestampColumn) {
+                THROW_ERROR_EXCEPTION("Invalid table schema: %Qv column is absent",
+                    TimestampColumnName)
+                    << HardErrorAttribute;
+            }
+            int timestampColumnIndex = TableSchema_->GetColumnIndex(*timestampColumn) + 1;
+
+            for (auto row : unversionedRows) {
+                if (auto rowTimestamp = row[timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
+                    YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
+                        rowTimestamp,
+                        progressTimestamp,
+                        row,
+                        static_cast<TReplicationProgress>(*replicationProgress));
+
+                    THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                        << TErrorAttribute("row_timestamp", rowTimestamp)
+                        << TErrorAttribute("progress_timestamp", progressTimestamp)
+                        << HardErrorAttribute;
+                }
+            }
+        }
+
+        // Update progress even if no rows pulled.
+        if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
+            YT_VERIFY(resultRows.empty());
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
+            return;
+        }
+
+        {
+            TEventTimerGuard timerGuard(counters->WriteTime);
+
+            auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+            auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+                .ValueOrThrow();
+
+            // Set options to avoid nested writes to other replicas.
+            TModifyRowsOptions modifyOptions;
+            modifyOptions.ReplicationCard = replicationCard;
+            modifyOptions.UpstreamReplicaId = tabletSnapshot->UpstreamReplicaId;
+            modifyOptions.TopmostTransaction = false;
+
+            std::vector<TRowModification> rowModifications;
+            rowModifications.reserve(resultRows.size());
+            for (auto row : resultRows) {
+                rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
+            }
+
+            localTransaction->ModifyRows(
+                tabletSnapshot->TablePath,
+                NameTable_,
+                MakeSharedRange(rowModifications),
+                modifyOptions);
+
+            {
+                NProto::TReqWritePulledRows req;
+                ToProto(req.mutable_tablet_id(), TabletId_);
+                req.set_replication_round(ReplicationRound_);
+                ToProto(req.mutable_new_replication_progress(), progress);
+                for (const auto [tabletId, endReplicationRowIndex] : endReplicationRowIndexes) {
+                    auto protoEndReplicationRowIndex = req.add_new_replication_row_indexes();
+                    ToProto(protoEndReplicationRowIndex->mutable_tablet_id(), tabletId);
+                    protoEndReplicationRowIndex->set_replication_row_index(endReplicationRowIndex);
+                }
+                localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
+            }
+
+            YT_LOG_DEBUG("Commiting pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
+                localTransaction->GetId(),
+                ReplicationRound_);
+
+            // NB: 2PC is used here to correctly process transaction signatures (sent by both rows and actions).
+            // TODO(savrus) Discard 2PC.
+            TTransactionCommitOptions commitOptions;
+            commitOptions.CoordinatorCellId = Slot_->GetCellId();
+            commitOptions.Force2PC = true;
+            commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+            WaitFor(localTransaction->Commit(commitOptions))
+                .ThrowOnError();
+
+            ++ReplicationRound_;
+
+            YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v, NewReplicationRound: %v)",
+                localTransaction->GetId(),
+                ReplicationRound_);
+        }
+
+        counters->RowCount.Increment(rowCount);
+        counters->DataWeight.Increment(dataWeight);
+    }
+
+    std::optional<TReplicationProgress> MaybeAdvanceReplicationProgress(
+        const TReplicaInfo* selfReplica,
+        const TRefCountedReplicationProgressPtr& progress)
+    {
+        if (progress->Segments.size() == 1 && progress->Segments[0].Timestamp == MinTimestamp) {
+            auto historyTimestamp = selfReplica->History[0].Timestamp;
+            auto progressTimestamp = GetReplicationProgressMinTimestamp(
+                selfReplica->ReplicationProgress,
+                PivotKey_.Get(),
+                NextPivotKey_.Get());
+
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %x, HistoryMinTimestamp: %x)",
+                progressTimestamp,
+                historyTimestamp);
+
+            if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
+                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
+                    static_cast<TReplicationProgress>(*progress),
+                    selfReplica,
+                    historyTimestamp);
+
+                return AdvanceReplicationProgress(
+                    *progress,
+                    historyTimestamp);
+            }
+
+            YT_LOG_DEBUG("Checking that replication card contains further progress (ReplicationProgress: %v, Replica: %v)",
+                static_cast<TReplicationProgress>(*progress),
+                selfReplica);
+
+            if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
+                YT_LOG_DEBUG("Advance replication progress to replica progress from replication card");
+                return ExtractReplicationProgress(
+                    selfReplica->ReplicationProgress,
+                    PivotKey_.Get(),
+                    NextPivotKey_.Get());
+            }
+        }
+
+        auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
+        auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
+
+        YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %x, HistoryItemIndex: %v)",
+            ETabletWriteMode::Pull,
+            oldestTimestamp,
+            historyItemIndex);
+
+        if (historyItemIndex == -1) {
+            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
+                static_cast<TReplicationProgress>(*progress),
+                *selfReplica,
+                oldestTimestamp);
+        } else {
+            const auto& item = selfReplica->History[historyItemIndex];
+            if (IsReplicaReallySync(item.Mode, item.State)) {
+                ++historyItemIndex;
+                if (historyItemIndex >= std::ssize(selfReplica->History)) {
+                    YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
+                        historyItemIndex,
+                        *selfReplica);
+                    return {};
+                }
+
+                YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %x)",
+                    selfReplica->History[historyItemIndex].Era,
+                    selfReplica->History[historyItemIndex].Timestamp);
+                return AdvanceReplicationProgress(
+                    *progress,
+                    selfReplica->History[historyItemIndex].Timestamp);
+            }
+        }
+
         return {};
     }
 

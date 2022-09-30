@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/core/logging/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,17 @@ IChaosAgentPtr CreateChaosAgent(
     ITabletSlotPtr slot,
     NChaosClient::TReplicationCardId replicationCardId,
     NApi::NNative::IConnectionPtr localConnection);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AdvanceTabletReplicationProgress(
+    NApi::NNative::IConnectionPtr connection,
+    const NLogging::TLogger& Logger,
+    TTabletCellId tabletCellId,
+    TTabletId tabletId,
+    const NChaosClient::TReplicationProgress& progress,
+    bool validateStrictAdvance = false,
+    std::optional<ui64> replicationRound = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

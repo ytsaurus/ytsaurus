@@ -354,6 +354,7 @@ message TReqAdvanceReplicationProgress
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NChaosClient.NProto.TReplicationProgress new_replication_progress = 2;
     required bool validate_strict_advance = 3;
+    optional uint64 replication_round = 4;
 }
 
 message THunkStorageSettings
