@@ -650,7 +650,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
         bool hasGracefulPreemptionCandidates = false;
         for (const auto& job : runningJobs) {
-            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetPreempted()) {
+            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->IsInterrupted()) {
                 hasGracefulPreemptionCandidates = true;
                 break;
             }
@@ -2168,8 +2168,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     YT_LOG_DEBUG("Job fail requested");
                     ToProto(response->add_jobs_to_fail(), jobId);
                 }
-            } else if (job->GetInterruptReason() != EInterruptReason::None) {
-                SendPreemptedJobToNode(
+            } else if (job->IsInterrupted()) {
+                SendInterruptedJobToNode(
                     response,
                     job,
                     CpuDurationToDuration(job->GetInterruptionTimeout()));
@@ -2658,7 +2658,7 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
     operationState->RecentlyFinishedJobIds.clear();
 }
 
-void TNodeShard::SendPreemptedJobToNode(
+void TNodeShard::SendInterruptedJobToNode(
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     const TJobPtr& job,
     TDuration interruptTimeout) const
@@ -2666,33 +2666,40 @@ void TNodeShard::SendPreemptedJobToNode(
     YT_LOG_DEBUG(
         "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
         job->GetId(),
-        job->GetInterruptReason());
+        job->GetInterruptionReason());
     AddJobToInterrupt(
         response,
         job->GetId(),
         interruptTimeout,
-        job->GetInterruptReason(),
+        job->GetInterruptionReason(),
         job->GetPreemptionReason());
 }
 
 void TNodeShard::ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
 {
-    if (!job->GetPreempted()) {
+    if (!job->IsInterrupted()) {
         PreemptJob(job, DurationToCpuDuration(interruptTimeout));
-        SendPreemptedJobToNode(response, job, interruptTimeout);
+        SendInterruptedJobToNode(response, job, interruptTimeout);
     }
 }
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration interruptTimeout)
 {
+    if (job->IsInterrupted()) {
+        YT_LOG_DEBUG(
+            "Job is already interruption, ignore preemption (JobId: %v, OperationId: %v, InterruptionReason: %v)",
+            job->GetId(),
+            job->GetOperationId(),
+            job->GetInterruptionReason());
+        return;
+    }
+
     YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, TreeId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
         job->GetTreeId(),
         job->GetInterruptible(),
         job->GetPreemptionReason());
-
-    job->SetPreempted(true);
 
     DoInterruptJob(job, EInterruptReason::Preemption, interruptTimeout);
 }
@@ -2718,28 +2725,30 @@ void TNodeShard::DoInterruptJob(
     TCpuDuration interruptTimeout,
     const std::optional<TString>& interruptUser)
 {
-    YT_LOG_DEBUG("Interrupting job (Reason: %v, CurrentReason: %v InterruptTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
+    YT_VERIFY(reason != EInterruptReason::None);
+
+    if (job->IsInterrupted()) {
+        YT_LOG_DEBUG(
+            "Job is already interrupted, do nothing (JobId: %v, OperationId: %v, InterruptionReason: %v, InterruptionTimeout: %.3g)",
+            job->GetId(),
+            job->GetOperationId(),
+            job->GetInterruptionReason(),
+            CpuDurationToDuration(interruptTimeout).SecondsFloat());
+        return;
+    }
+
+    YT_LOG_DEBUG("Interrupting job (Reason: %v, InterruptionTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
         reason,
-        job->GetInterruptReason(),
         CpuDurationToDuration(interruptTimeout).SecondsFloat(),
         job->GetId(),
         job->GetOperationId(),
         interruptUser);
 
-    if (job->GetInterruptReason() == EInterruptReason::None && reason != EInterruptReason::None) {
-        job->SetInterruptReason(reason);
-    }
+    job->SetInterruptionReason(reason);
 
     if (interruptTimeout != 0) {
-        if (job->GetInterruptionTimeout() == 0) {
-            job->SetInterruptionTimeout(interruptTimeout);
-        } else {
-            YT_LOG_DEBUG("Job is already interrupting (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v)",
-                job->GetInterruptReason(),
-                job->GetInterruptionTimeout(),
-                job->GetId(),
-                job->GetOperationId());
-        }
+        YT_VERIFY(job->GetInterruptionTimeout() == 0);
+        job->SetInterruptionTimeout(interruptTimeout);
     }
 }
 

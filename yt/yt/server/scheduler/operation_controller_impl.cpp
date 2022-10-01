@@ -487,9 +487,8 @@ void TOperationControllerImpl::OnJobFinished(
         .OperationId = OperationId_,
         .Id = job->GetId(),
         .FinishTime = TInstant::Now(),
-        .InterruptReason = job->GetInterruptReason(),
+        .InterruptReason = job->GetInterruptionReason(),
         .PreemptedFor = job->GetPreemptedFor(),
-        .Preempted = job->GetPreempted(),
         .PreemptionReason = job->GetPreemptionReason(),
     };
 

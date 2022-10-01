@@ -373,7 +373,7 @@ private:
     void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration interruptTimeout);
     NJobTrackerClient::TJobToAbort BuildPreemptedJobAbortAttributes(const TJobPtr& job) const;
 
-    void SendPreemptedJobToNode(
+    void SendInterruptedJobToNode(
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         const TJobPtr& job,
         TDuration interruptTimeout) const;

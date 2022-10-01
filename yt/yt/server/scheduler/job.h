@@ -79,9 +79,6 @@ class TJob
     //! Stage job was scheduled at.
     DEFINE_BYVAL_RO_PROPERTY(std::optional<EJobSchedulingStage>, SchedulingStage);
 
-    //! Flag that marks job as preempted by scheduler.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Preempted, false);
-
     //! Job fail was requested by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, FailRequested, false);
 
@@ -95,7 +92,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, PreemptedForProperlyStarvingOperation, false);
 
     //! The purpose of the job interruption.
-    DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
+    DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptionReason, EInterruptReason::None);
 
     //! Timeout for job to be interrupted (considering by node).
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuDuration, InterruptionTimeout, 0);
@@ -136,6 +133,8 @@ public:
     bool IsRevived() const;
 
     void SetNode(const TExecNodePtr& node);
+
+    bool IsInterrupted() const noexcept;
 
 private:
     NLogging::TLogger CreateLogger();

@@ -57,6 +57,11 @@ bool TJob::IsRevived() const
     return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;
 }
 
+bool TJob::IsInterrupted() const noexcept
+{
+    return InterruptionReason_ != EInterruptReason::None;
+}
+
 NLogging::TLogger TJob::CreateLogger()
 {
     return SchedulerLogger.WithTag("JobId: %v, OperationId: %v, Address: %v",

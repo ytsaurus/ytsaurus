@@ -111,7 +111,6 @@ message TSchedulerToAgentFinishedJobEvent
 
     // for Aborted
     optional TPreemptedFor preempted_for = 5;
-    optional bool preempted = 6;
     optional string preemption_reason = 7;
 
     // for Completed
