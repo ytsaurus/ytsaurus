@@ -6,6 +6,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "object_type", "type": "string"},
     {"name": "dynamic", "type": "boolean"},
     {"name": "sorted", "type": "boolean"},
+    {"name": "auto_trim_policy", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
 

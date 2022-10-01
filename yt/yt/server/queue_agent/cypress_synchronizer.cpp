@@ -126,12 +126,14 @@ private:
                 case ECypressSyncObjectType::Queue:
                     queueRows.push_back({
                         .Queue = object.Object,
+                        .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
                     break;
                 case ECypressSyncObjectType::Consumer:
                     consumerRows.push_back({
                         .Consumer = object.Object,
+                        .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
                     break;

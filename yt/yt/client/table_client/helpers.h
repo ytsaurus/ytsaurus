@@ -107,6 +107,9 @@ void FromUnversionedValue(NYTree::IMapNodePtr* value, TUnversionedValue unversio
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NNet::TIP6Address& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(NNet::TIP6Address* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const TError& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
+void FromUnversionedValue(TError* value, TUnversionedValue unversionedValue);
+
 template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,

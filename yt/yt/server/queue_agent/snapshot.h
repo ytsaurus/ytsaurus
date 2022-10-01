@@ -17,6 +17,7 @@ struct TQueueSnapshot
 
     EQueueFamily Family;
     int PartitionCount = 0;
+    NQueueClient::EQueueAutoTrimPolicy AutoTrimPolicy = NQueueClient::EQueueAutoTrimPolicy::None;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
     THashMap<NQueueClient::TCrossClusterReference, TConsumerSnapshotPtr> ConsumerSnapshots;
