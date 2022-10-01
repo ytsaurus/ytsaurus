@@ -31,6 +31,26 @@ static const auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
+{
+    std::optional<TString> stringValue;
+    if (optionalValue) {
+        stringValue = FormatEnum(*optionalValue);
+    }
+    return stringValue;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRow>
 TTableBase<TRow>::TTableBase(TYPath path, NApi::IClientPtr client)
     : Path_(std::move(path))
@@ -91,6 +111,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("object_type", EValueType::String),
     TColumnSchema("dynamic", EValueType::Boolean),
     TColumnSchema("sorted", EValueType::Boolean),
+    TColumnSchema("auto_trim_policy", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
 });
 
@@ -120,6 +141,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto revisionId = nameTable->FindId("revision");
     auto dynamicId = nameTable->FindId("dynamic");
     auto sortedId = nameTable->FindId("sorted");
+    auto autoTrimPolicyId = nameTable->FindId("auto_trim_policy");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
@@ -133,25 +155,28 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
             return std::nullopt;
         };
 
-        if (auto rowRevision = findValue(rowRevisionId)) {
-            typedRow.RowRevision = rowRevision->Data.Uint64;
-        }
-        if (auto revision = findValue(revisionId)) {
-            typedRow.Revision = revision->Data.Uint64;
-        }
+        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
+            if (auto value = findValue(id)) {
+                valueToSet = FromUnversionedValue<T>(*value);
+            }
+        };
+
+        setSimpleOptional(rowRevisionId, typedRow.RowRevision);
+        setSimpleOptional(revisionId, typedRow.Revision);
+
         if (auto type = findValue(objectTypeId)) {
             // TODO(max42): possible exception here is not handled well.
             typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
         }
-        if (auto dynamic = findValue(dynamicId)) {
-            typedRow.Dynamic = dynamic->Data.Boolean;
+
+        setSimpleOptional(dynamicId, typedRow.Dynamic);
+        setSimpleOptional(sortedId, typedRow.Sorted);
+
+        if (auto autoTrimPolicy = findValue(autoTrimPolicyId)) {
+            typedRow.AutoTrimPolicy = ParseEnum<EQueueAutoTrimPolicy>(autoTrimPolicy->AsStringBuf());
         }
-        if (auto sorted = findValue(sortedId)) {
-            typedRow.Sorted = sorted->Data.Boolean;
-        }
-        if (auto synchronizationError = findValue(synchronizationErrorId)) {
-            typedRow.SynchronizationError = ConvertTo<TError>(TYsonStringBuf{synchronizationError->AsStringBuf()});
-        }
+
+        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
     }
 
     return typedRows;
@@ -163,29 +188,20 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
 
     TUnversionedRowsBuilder rowsBuilder;
     for (const auto& row : rows) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Cluster, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Path, nameTable->GetIdOrThrow("path")));
-        if (row.RowRevision) {
-            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.RowRevision, nameTable->GetIdOrThrow("row_revision")));
-        }
-        if (row.Revision) {
-            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.Revision, nameTable->GetIdOrThrow("revision")));
-        }
-        if (row.ObjectType) {
-            rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum<EObjectType>(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
-        }
-        if (row.Dynamic) {
-            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Dynamic, nameTable->GetIdOrThrow("dynamic")));
-        }
-        if (row.Sorted) {
-            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Sorted, nameTable->GetIdOrThrow("sorted")));
-        }
-        if (row.SynchronizationError) {
-            auto errorYson = ConvertToYsonString(*row.SynchronizationError);
-            rowBuilder.AddValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), nameTable->GetIdOrThrow("synchronization_error")));
-        }
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+        auto rowBuffer = New<TRowBuffer>();
+        TUnversionedRowBuilder rowBuilder;
+
+        rowBuilder.AddValue(ToUnversionedValue(row.Queue.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Queue.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
+        rowBuilder.AddValue(ToUnversionedValue(row.RowRevision, rowBuffer, nameTable->GetIdOrThrow("row_revision")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
+        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Dynamic, rowBuffer, nameTable->GetIdOrThrow("dynamic")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Sorted, rowBuffer, nameTable->GetIdOrThrow("sorted")));
+        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.AutoTrimPolicy), rowBuffer, nameTable->GetIdOrThrow("auto_trim_policy")));
+        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
+
+        rowsBuilder.AddRow(rowBuilder.GetRow());
     }
 
     return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
@@ -209,7 +225,7 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted"};
+    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_policy"};
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -224,6 +240,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
+        .AutoTrimPolicy = cypressAttributes->Find<EQueueAutoTrimPolicy>("auto_trim_policy"),
         .SynchronizationError = TError(),
     };
 }
@@ -316,12 +333,14 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
             return std::nullopt;
         };
 
-        if (auto rowRevision = findValue(rowRevisionId)) {
-            typedRow.RowRevision = rowRevision->Data.Uint64;
-        }
-        if (auto revision = findValue(revisionId)) {
-            typedRow.Revision = revision->Data.Uint64;
-        }
+        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
+            if (auto value = findValue(id)) {
+                valueToSet = FromUnversionedValue<T>(*value);
+            }
+        };
+
+        setSimpleOptional(rowRevisionId, typedRow.RowRevision);
+        setSimpleOptional(revisionId, typedRow.Revision);
 
         if (auto targetCluster = findValue(targetClusterId), targetPath = findValue(targetPathId); targetCluster && targetPath) {
             typedRow.TargetQueue = TCrossClusterReference{targetCluster->AsString(), targetPath->AsString()};
@@ -331,23 +350,18 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
             // TODO(max42): possible exception here is not handled well.
             typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
         }
-        if (auto treatAsQueueConsumer = findValue(treatAsQueueConsumerId)) {
-            typedRow.TreatAsQueueConsumer = treatAsQueueConsumer->Data.Boolean;
-        }
-        if (auto schema = findValue(schemaId)) {
-            auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(TYsonStringBuf(schema->AsStringBuf()));
+
+        setSimpleOptional(treatAsQueueConsumerId, typedRow.TreatAsQueueConsumer);
+
+        if (auto schemaValue = findValue(schemaId)) {
+            auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(TYsonStringBuf(schemaValue->AsStringBuf()));
             YT_VERIFY(workaroundVector.size() == 1);
             typedRow.Schema = workaroundVector.back();
         }
-        if (auto vital = findValue(vitalId)) {
-            typedRow.Vital = vital->Data.Boolean;
-        }
-        if (auto owner = findValue(ownerId)) {
-            typedRow.Owner = owner->AsString();
-        }
-        if (auto synchronizationError = findValue(synchronizationErrorId)) {
-            typedRow.SynchronizationError = ConvertTo<TError>(TYsonStringBuf{synchronizationError->AsStringBuf()});
-        }
+
+        setSimpleOptional(vitalId, typedRow.Vital);
+        setSimpleOptional(ownerId, typedRow.Owner);
+        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
     }
 
     return typedRows;
@@ -359,42 +373,38 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
 
     TUnversionedRowsBuilder rowsBuilder;
     for (const auto& row : rows) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Cluster, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Path, nameTable->GetIdOrThrow("path")));
-        if (row.RowRevision) {
-            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.RowRevision, nameTable->GetIdOrThrow("row_revision")));
-        }
-        if (row.Revision) {
-            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.Revision, nameTable->GetIdOrThrow("revision")));
-        }
+        auto rowBuffer = New<TRowBuffer>();
+        TUnversionedRowBuilder rowBuilder;
+
+        rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
+        rowBuilder.AddValue(ToUnversionedValue(row.RowRevision, rowBuffer, nameTable->GetIdOrThrow("row_revision")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
+
+        std::optional<TString> targetQueueCluster;
+        std::optional<TString> targetQueuePath;
         if (row.TargetQueue) {
-            rowBuilder.AddValue(MakeUnversionedStringValue(row.TargetQueue->Cluster, nameTable->GetIdOrThrow("target_cluster")));
-            rowBuilder.AddValue(MakeUnversionedStringValue(row.TargetQueue->Path, nameTable->GetIdOrThrow("target_path")));
-        }
-        if (row.ObjectType) {
-            rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
-        }
-        if (row.TreatAsQueueConsumer) {
-            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsQueueConsumer, nameTable->GetIdOrThrow("treat_as_queue_consumer")));
-        }
-        if (row.Schema) {
-            // Enclosing into a list is a workaround for storing YSON with top-level attributes.
-            auto schemaYson = ConvertToYsonString(std::vector{row.Schema});
-            rowBuilder.AddValue(MakeUnversionedAnyValue(schemaYson.AsStringBuf(), nameTable->GetIdOrThrow("schema")));
-        }
-        if (row.Vital) {
-            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Vital, nameTable->GetIdOrThrow("vital")));
-        }
-        if (row.Owner) {
-            rowBuilder.AddValue(MakeUnversionedStringValue(*row.Owner, nameTable->GetIdOrThrow("owner")));
-        }
-        if (row.SynchronizationError) {
-            auto errorYson = ConvertToYsonString(*row.SynchronizationError);
-            rowBuilder.AddValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), nameTable->GetIdOrThrow("synchronization_error")));
+            targetQueueCluster = row.TargetQueue->Cluster;
+            targetQueuePath = row.TargetQueue->Path;
         }
 
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+        rowBuilder.AddValue(ToUnversionedValue(targetQueueCluster, rowBuffer, nameTable->GetIdOrThrow("target_cluster")));
+        rowBuilder.AddValue(ToUnversionedValue(targetQueuePath, rowBuffer, nameTable->GetIdOrThrow("target_path")));
+        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
+        rowBuilder.AddValue(ToUnversionedValue(row.TreatAsQueueConsumer, rowBuffer, nameTable->GetIdOrThrow("treat_as_queue_consumer")));
+
+        std::optional<TYsonString> schemaYson;
+        if (row.Schema) {
+            // Enclosing into a list is a workaround for storing YSON with top-level attributes.
+            schemaYson = ConvertToYsonString(std::vector{row.Schema});
+        }
+
+        rowBuilder.AddValue(ToUnversionedValue(schemaYson, rowBuffer, nameTable->GetIdOrThrow("schema")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Vital, rowBuffer, nameTable->GetIdOrThrow("vital")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Owner, rowBuffer, nameTable->GetIdOrThrow("owner")));
+        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
+
+        rowsBuilder.AddRow(rowBuilder.GetRow());
     }
 
     return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());

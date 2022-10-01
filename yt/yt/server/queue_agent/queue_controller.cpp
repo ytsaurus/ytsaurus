@@ -148,6 +148,7 @@ private:
         YT_LOG_DEBUG("Building queue snapshot");
 
         QueueSnapshot_->Row = PreviousQueueSnapshot_->Row;
+        QueueSnapshot_->AutoTrimPolicy = QueueSnapshot_->Row.AutoTrimPolicy.value_or(EQueueAutoTrimPolicy::None);
 
         auto queueRef = QueueSnapshot_->Row.Queue;
 
@@ -779,6 +780,13 @@ private:
             THROW_ERROR_EXCEPTION(
                 "Trimming iteration skipped due to queue error")
                 << queueSnapshot->Error;
+        }
+
+        if (queueSnapshot->AutoTrimPolicy != EQueueAutoTrimPolicy::VitalConsumers) {
+            YT_LOG_DEBUG(
+                "Trimming iteration skipped due to trimming policy (AutoTrimPolicy: %v)",
+                queueSnapshot->AutoTrimPolicy);
+            return;
         }
 
         bool hasVitalConsumers = false;

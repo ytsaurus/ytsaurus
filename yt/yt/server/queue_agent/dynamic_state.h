@@ -51,6 +51,7 @@ struct TQueueTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
+    std::optional<NQueueClient::EQueueAutoTrimPolicy> AutoTrimPolicy;
     std::optional<TError> SynchronizationError;
 
     static std::vector<TQueueTableRow> ParseRowRange(

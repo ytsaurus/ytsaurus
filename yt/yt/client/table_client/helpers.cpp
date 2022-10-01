@@ -626,6 +626,32 @@ void FromUnversionedValue(TIP6Address* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TError& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    EValueFlags flags)
+{
+    auto errorYson = ConvertToYsonString(value);
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), id, flags));
+}
+
+void FromUnversionedValue(TError* value, TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type == EValueType::Null) {
+        *value = {};
+    }
+    if (unversionedValue.Type != EValueType::Any) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot parse error from value of type %Qlv",
+            unversionedValue.Type);
+    }
+    *value = ConvertTo<TError>(FromUnversionedValue<TYsonStringBuf>(unversionedValue));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ProtobufToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const Message& value,
