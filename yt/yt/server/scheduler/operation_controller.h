@@ -200,9 +200,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobFinished(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
+    virtual void OnJobFinished(const TJobPtr& job) = 0;
     
     //! Called to notify the controller that a job has been aborted by scheduler.
     /*!

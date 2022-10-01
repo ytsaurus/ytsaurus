@@ -35,7 +35,6 @@ void MergeJobSummaries(
 {
     YT_VERIFY(nodeJobSummary.Id == schedulerJobSummary.Id);
 
-    nodeJobSummary.JobExecutionCompleted = schedulerJobSummary.JobExecutionCompleted;
     nodeJobSummary.FinishTime = schedulerJobSummary.FinishTime;
 }
 
@@ -256,7 +255,6 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, 
 {
     JobEventsCommonPartToProto(protoEvent, finishedJobSummary);
     protoEvent->set_finish_time(ToProto<ui64>(finishedJobSummary.FinishTime));
-    protoEvent->set_job_execution_completed(finishedJobSummary.JobExecutionCompleted);
     protoEvent->set_interrupt_reason(static_cast<int>(finishedJobSummary.InterruptReason));
     if (finishedJobSummary.PreemptedFor) {
         ToProto(protoEvent->mutable_preempted_for(), *finishedJobSummary.PreemptedFor);
@@ -271,7 +269,6 @@ void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSch
 {
     JobEventsCommonPartFromProto(finishedJobSummary, protoEvent);
     finishedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
-    finishedJobSummary->JobExecutionCompleted = protoEvent->job_execution_completed();
     YT_VERIFY(protoEvent->has_interrupt_reason());
 
     finishedJobSummary->InterruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());

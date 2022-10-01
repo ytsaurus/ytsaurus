@@ -2138,7 +2138,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 YT_LOG_DEBUG("Job finished, storage scheduled");
 
                 AddRecentlyFinishedJob(job);
-                OnJobFinished(job, jobStatus);
+                OnJobFinished(job);
                 ToProto(response->add_jobs_to_store(), jobId);
             }
 
@@ -2410,10 +2410,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 }
 
-void TNodeShard::OnJobFinished(const TJobPtr& job, TJobStatus* status)
+void TNodeShard::OnJobFinished(const TJobPtr& job)
 {
-    YT_VERIFY(status);
-
     if (const auto allocationState = job->GetAllocationState();
         allocationState == EAllocationState::Finishing ||
         allocationState == EAllocationState::Finished)
@@ -2426,7 +2424,7 @@ void TNodeShard::OnJobFinished(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        controller->OnJobFinished(job, status);
+        controller->OnJobFinished(job);
     }
 
     UnregisterJob(job);

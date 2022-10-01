@@ -109,8 +109,6 @@ message TSchedulerToAgentFinishedJobEvent
     required NYT.NProto.TGuid job_id = 2;
     required uint64 finish_time = 3;
 
-    required bool job_execution_completed = 4;
-
     // for Aborted
     optional TPreemptedFor preempted_for = 5;
     optional bool preempted = 6;
