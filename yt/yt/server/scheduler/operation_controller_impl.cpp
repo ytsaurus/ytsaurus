@@ -475,12 +475,9 @@ bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
 }
 
 void TOperationControllerImpl::OnJobFinished(
-    const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status)
+    const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    YT_VERIFY(status);
 
     if (ShouldSkipJobEvent(job)) {
         return;
@@ -490,7 +487,6 @@ void TOperationControllerImpl::OnJobFinished(
         .OperationId = OperationId_,
         .Id = job->GetId(),
         .FinishTime = TInstant::Now(),
-        .JobExecutionCompleted = status->job_execution_completed(),
         .InterruptReason = job->GetInterruptReason(),
         .PreemptedFor = job->GetPreemptedFor(),
         .Preempted = job->GetPreempted(),

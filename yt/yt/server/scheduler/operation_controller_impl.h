@@ -39,9 +39,7 @@ public:
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
 
     bool OnJobStarted(const TJobPtr& job) override;
-    void OnJobFinished(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) override;
+    void OnJobFinished(const TJobPtr& job) override;
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
