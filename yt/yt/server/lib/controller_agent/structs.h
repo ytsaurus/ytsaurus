@@ -142,7 +142,6 @@ struct TFinishedJobSummary
     // COMPAT(pogorelov)
     EInterruptReason InterruptReason;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    bool Preempted;
     std::optional<TString> PreemptionReason;
 };
 

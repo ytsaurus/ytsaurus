@@ -259,7 +259,6 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, 
     if (finishedJobSummary.PreemptedFor) {
         ToProto(protoEvent->mutable_preempted_for(), *finishedJobSummary.PreemptedFor);
     }
-    protoEvent->set_preempted(finishedJobSummary.Preempted);
     if (finishedJobSummary.PreemptionReason) {
         ToProto(protoEvent->mutable_preemption_reason(), *finishedJobSummary.PreemptionReason);
     }
@@ -276,7 +275,6 @@ void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSch
     if (protoEvent->has_preempted_for()) {
         finishedJobSummary->PreemptedFor = FromProto<NScheduler::TPreemptedFor>(protoEvent->preempted_for());
     }
-    finishedJobSummary->Preempted = protoEvent->preempted();
     if (protoEvent->has_preemption_reason()) {
         finishedJobSummary->PreemptionReason = FromProto<TString>(protoEvent->preemption_reason());
     }
@@ -371,7 +369,7 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
     MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
 
     auto error = FromProto<TError>(nodeJobSummary->GetJobResult().error());
-    if (schedulerJobSummary.Preempted) {
+    if (schedulerJobSummary.InterruptReason == EInterruptReason::Preemption) {
         if (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
             error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
         {

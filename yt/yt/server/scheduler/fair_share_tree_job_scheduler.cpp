@@ -2274,9 +2274,9 @@ void TFairShareTreeJobScheduler::PreemptJobsGracefully(
 
     const auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshot);
     for (const auto& [job, preemptionStatus, operationElement] : jobInfos) {
-        bool shouldPreemptJobGracefully = (job->GetPreemptionMode() == EPreemptionMode::Graceful) &&
-            !job->GetPreempted() &&
-            (preemptionStatus == EJobPreemptionStatus::Preemptible);
+        bool shouldPreemptJobGracefully = job->GetPreemptionMode() == EPreemptionMode::Graceful &&
+            !job->IsInterrupted() &&
+            preemptionStatus == EJobPreemptionStatus::Preemptible;
         if (shouldPreemptJobGracefully) {
             schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
         }
