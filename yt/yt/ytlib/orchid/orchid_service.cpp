@@ -22,11 +22,14 @@ class TOrchidService
 public:
     TOrchidService(
         INodePtr root,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             invoker,
             TOrchidServiceProxy::GetDescriptor(),
-            OrchidLogger)
+            OrchidLogger,
+            NullRealmId,
+            std::move(authenticator))
         , RootService_(CreateRootService(root))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -78,11 +81,13 @@ private:
 
 IServicePtr CreateOrchidService(
     INodePtr root,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    IAuthenticatorPtr authenticator)
 {
     return New<TOrchidService>(
-        root,
-        invoker);
+        std::move(root),
+        std::move(invoker),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

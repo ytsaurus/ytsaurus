@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -101,6 +102,11 @@ public:
         return ControlQueue_->GetInvoker();
     }
 
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
+    {
+        return NativeAuthenticator_;
+    }
+
 private:
     const TMasterCacheConfigPtr Config_;
 
@@ -116,6 +122,8 @@ private:
     ICoreDumperPtr CoreDumper_;
 
     IConnectionPtr Connection_;
+
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
     std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
@@ -138,6 +146,8 @@ private:
 
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
+        NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
+
         MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
         ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);
 
@@ -146,7 +156,8 @@ private:
 
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_));
+            CoreDumper_,
+            NativeAuthenticator_));
 
         SetNodeByYPath(
             OrchidRoot_,
@@ -200,6 +211,11 @@ const NRpc::IServerPtr& TBootstrapBase::GetRpcServer() const
 const IInvokerPtr& TBootstrapBase::GetControlInvoker() const
 {
     return Bootstrap_->GetControlInvoker();
+}
+
+const NRpc::IAuthenticatorPtr& TBootstrapBase::GetNativeAuthenticator() const
+{
+    return Bootstrap_->GetNativeAuthenticator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

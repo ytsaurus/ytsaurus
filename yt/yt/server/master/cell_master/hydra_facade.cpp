@@ -137,6 +137,7 @@ public:
                 Bootstrap_->GetCellManager()->GetCellId(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
+                Bootstrap_->GetNativeAuthenticator(),
                 hydraManagerOptions,
                 hydraManagerDynamicOptions);
         } else {
@@ -150,6 +151,7 @@ public:
                 Bootstrap_->GetCellManager()->GetCellId(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
+                Bootstrap_->GetNativeAuthenticator(),
                 hydraManagerOptions,
                 hydraManagerDynamicOptions);
         }
@@ -170,7 +172,8 @@ public:
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetControlInvoker(),
             HydraManager_->GetElectionCallbacks(),
-            Bootstrap_->GetRpcServer());
+            Bootstrap_->GetRpcServer(),
+            Bootstrap_->GetNativeAuthenticator());
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
 

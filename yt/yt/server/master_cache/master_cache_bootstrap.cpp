@@ -62,7 +62,8 @@ public:
                     masterConfig->RpcTimeout),
                 ObjectServiceCache_,
                 masterConfig->CellId,
-                Logger);
+                Logger,
+                GetNativeAuthenticator());
         };
 
         CachingObjectServices_.push_back(initCachingObjectService(

@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/rpc/authenticator.h>
+
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -36,11 +38,14 @@ public:
     TClientDiscoveryService(
         IServerPtr rpcServer,
         TGroupManagerPtr groupManager,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
             TDiscoveryClientServiceProxy::GetDescriptor(),
-            DiscoveryServerLogger)
+            DiscoveryServerLogger,
+            NullRealmId,
+            std::move(authenticator))
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
     {
@@ -145,11 +150,14 @@ public:
         IServerPtr rpcServer,
         TGroupManagerPtr groupManager,
         IInvokerPtr invoker,
-        const TDiscoveryServerConfigPtr& config)
+        const TDiscoveryServerConfigPtr& config,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
             TDiscoveryServerServiceProxy::GetDescriptor(),
-            DiscoveryServerLogger)
+            DiscoveryServerLogger,
+            NullRealmId,
+            std::move(authenticator))
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
         , GossipBatchSize_(config->GossipBatchSize)
@@ -206,7 +214,8 @@ public:
         TDiscoveryServerConfigPtr config,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr serverInvoker,
-        IInvokerPtr gossipInvoker)
+        IInvokerPtr gossipInvoker,
+        IAuthenticatorPtr authenticator)
         : RpcServer_(std::move(rpcServer))
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
@@ -220,12 +229,14 @@ public:
         , ClientService_(New<TClientDiscoveryService>(
             RpcServer_,
             GroupManager_,
-            serverInvoker))
+            serverInvoker,
+            authenticator))
         , ServerService_(New<TServerDiscoveryService>(
             RpcServer_,
             GroupManager_,
             serverInvoker,
-            Config_))
+            Config_,
+            authenticator))
     { }
 
     void Initialize() override
@@ -324,7 +335,8 @@ IDiscoveryServerPtr CreateDiscoveryServer(
     TDiscoveryServerConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr serverInvoker,
-    IInvokerPtr gossipInvoker)
+    IInvokerPtr gossipInvoker,
+    IAuthenticatorPtr authenticator)
 {
     return New<TDiscoveryServer>(
         std::move(rpcServer),
@@ -332,7 +344,8 @@ IDiscoveryServerPtr CreateDiscoveryServer(
         std::move(config),
         std::move(channelFactory),
         std::move(serverInvoker),
-        std::move(gossipInvoker));
+        std::move(gossipInvoker),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -103,7 +103,8 @@ private:
             serverConfig,
             ChannelFactory_,
             serverActionQueue->GetInvoker(),
-            gossipActionQueue->GetInvoker());
+            gossipActionQueue->GetInvoker(),
+            /*authenticator*/ nullptr);
 
         ActionQueues_.push_back(serverActionQueue);
         ActionQueues_.push_back(gossipActionQueue);
@@ -142,7 +143,8 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger);
+            DiscoveryServerLogger,
+            /*authenticator*/ nullptr);
         factories.push_back(factory);
 
         throttlers.push_back(factory->GetOrCreateThrottler(
@@ -237,7 +239,8 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger);
+            DiscoveryServerLogger,
+            /*authenticator*/ nullptr);
         factories.push_back(factory);
 
         throttlers.push_back(factory->GetOrCreateThrottler(

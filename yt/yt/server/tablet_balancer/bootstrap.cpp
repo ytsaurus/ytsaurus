@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -127,6 +128,8 @@ private:
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;
 
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
+
     ICypressElectionManagerPtr ElectionManager_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
@@ -148,6 +151,8 @@ void TBootstrap::DoRun()
     Connection_ = NNative::CreateConnection(
         Config_->ClusterConnection,
         connectionOptions);
+
+    NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 
     auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
     Client_ = Connection_->CreateNativeClient(clientOptions);
@@ -201,10 +206,12 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(NAdmin::CreateAdminService(
         ControlInvoker_,
-        CoreDumper_));
+        CoreDumper_,
+        NativeAuthenticator_));
     RpcServer_->RegisterService(NOrchid::CreateOrchidService(
         orchidRoot,
-        ControlInvoker_));
+        ControlInvoker_,
+        NativeAuthenticator_));
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();

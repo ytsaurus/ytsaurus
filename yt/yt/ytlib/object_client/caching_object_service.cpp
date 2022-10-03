@@ -52,12 +52,14 @@ public:
         IChannelPtr masterChannel,
         TObjectServiceCachePtr cache,
         TRealmId masterCellId,
-        NLogging::TLogger logger)
+        NLogging::TLogger logger,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
             TObjectServiceProxy::GetDescriptor(),
             logger,
-            masterCellId)
+            masterCellId,
+            std::move(authenticator))
         , Config_(config)
         , Cache_(std::move(cache))
         , CellId_(masterCellId)
@@ -304,7 +306,8 @@ ICachingObjectServicePtr CreateCachingObjectService(
     IChannelPtr masterChannel,
     TObjectServiceCachePtr cache,
     TRealmId masterCellId,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IAuthenticatorPtr authenticator)
 {
     return New<TCachingObjectService>(
         std::move(config),
@@ -312,7 +315,8 @@ ICachingObjectServicePtr CreateCachingObjectService(
         std::move(masterChannel),
         std::move(cache),
         masterCellId,
-        std::move(logger));
+        std::move(logger),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

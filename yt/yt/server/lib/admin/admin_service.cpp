@@ -26,11 +26,14 @@ class TAdminService
 public:
     TAdminService(
         IInvokerPtr invoker,
-        ICoreDumperPtr coreDumper)
+        ICoreDumperPtr coreDumper,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
             TAdminServiceProxy::GetDescriptor(),
-            AdminLogger)
+            AdminLogger,
+            NullRealmId,
+            std::move(authenticator))
         , CoreDumper_(std::move(coreDumper))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Die));
@@ -96,9 +99,10 @@ private:
 
 IServicePtr CreateAdminService(
     IInvokerPtr invoker,
-    ICoreDumperPtr coreDumper)
+    ICoreDumperPtr coreDumper,
+    IAuthenticatorPtr authenticator)
 {
-    return New<TAdminService>(std::move(invoker), std::move(coreDumper));
+    return New<TAdminService>(std::move(invoker), std::move(coreDumper), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

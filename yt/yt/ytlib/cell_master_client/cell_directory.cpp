@@ -355,7 +355,8 @@ private:
             CellChannelMap_[cellTag][EMasterChannelKind::Cache],
             Cache_,
             config->CellId,
-            ObjectClientLogger);
+            ObjectClientLogger,
+            /*authenticator*/ nullptr);
         CachingObjectServices_.push_back(cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
         CellChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);

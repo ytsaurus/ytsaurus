@@ -63,6 +63,8 @@ public:
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
 
+        // TODO(gepardo): Possibly add authentication here.
+
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>("Automaton");
         Automaton_ = New<TClockAutomaton>(Bootstrap_);
 
@@ -88,6 +90,7 @@ public:
                 Bootstrap_->GetCellManager()->GetCellId(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
+                /*authenticator*/ nullptr,
                 hydraManagerOptions);
         } else {
             HydraManager_ = NHydra::CreateDistributedHydraManager(
@@ -100,6 +103,7 @@ public:
                 Bootstrap_->GetCellManager()->GetCellId(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
+                /*authenticator*/ nullptr,
                 hydraManagerOptions);
         }
 
@@ -119,7 +123,8 @@ public:
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetControlInvoker(),
             HydraManager_->GetElectionCallbacks(),
-            Bootstrap_->GetRpcServer());
+            Bootstrap_->GetRpcServer(),
+            /*authenticator*/ nullptr);
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
 

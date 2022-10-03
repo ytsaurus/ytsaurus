@@ -257,8 +257,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ChaosNodeService_ = CreateChaosNodeService(this);
-        CoordinatorService_ = CreateCoordinatorService(this);
+        ChaosNodeService_ = CreateChaosNodeService(this, Bootstrap_->GetNativeAuthenticator());
+        CoordinatorService_ = CreateCoordinatorService(this, Bootstrap_->GetNativeAuthenticator());
 
         ChaosManager_->Initialize();
         CoordinatorManager_->Initialize();

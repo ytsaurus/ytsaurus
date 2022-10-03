@@ -34,7 +34,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TControllerAgentServiceProxy::GetDescriptor(),
-            ControllerAgentLogger)
+            ControllerAgentLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperationInfo));

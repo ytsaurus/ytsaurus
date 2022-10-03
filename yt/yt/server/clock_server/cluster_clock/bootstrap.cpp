@@ -199,6 +199,8 @@ void TBootstrap::DoInitialize()
 
     auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
 
+    // TODO(gepardo): Possibly add authentication here.
+
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;
 
@@ -249,12 +251,19 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
-        GetCellTag());
+        GetCellTag(),
+        /*authenticator*/ nullptr);
 
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     // TODO(shakurov): only register when using old Hydra.
-    RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore)); // cell realm
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+    RpcServer_->RegisterService(CreateLocalSnapshotService(
+        CellId_,
+        snapshotStore,
+        /*authenticator*/ nullptr)); // cell realm
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_,
+        /*authenticator*/ nullptr));
 
     RpcServer_->Configure(Config_->RpcServer);
 }
@@ -291,7 +300,10 @@ void TBootstrap::DoRun()
     HttpServer_->Start();
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
+    RpcServer_->RegisterService(CreateOrchidService(
+        orchidRoot,
+        GetControlInvoker(),
+        /*authenticator*/ nullptr));
     RpcServer_->Start();
 }
 

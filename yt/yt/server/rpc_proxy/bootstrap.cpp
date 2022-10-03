@@ -19,6 +19,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -134,6 +135,8 @@ void TBootstrap::DoRun()
 
     NativeConnection_->GetNodeDirectorySynchronizer()->Start();
 
+    NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
+
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
@@ -195,9 +198,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "proxy");
 
-    auto orchidService =CreateOrchidService(
+    auto orchidService = CreateOrchidService(
         orchidRoot,
-        GetControlInvoker());
+        GetControlInvoker(),
+        NativeAuthenticator_);
     RpcServer_->RegisterService(orchidService);
     if (TvmOnlyRpcServer_) {
         TvmOnlyRpcServer_->RegisterService(orchidService);
@@ -250,7 +254,10 @@ void TBootstrap::DoRun()
         }
     }
 
-    auto adminService = CreateAdminService(GetControlInvoker(), /*coreDumper*/ nullptr);
+    auto adminService = CreateAdminService(
+        GetControlInvoker(),
+        /*coreDumper*/ nullptr,
+        NativeAuthenticator_);
     RpcServer_->RegisterService(adminService);
     if (TvmOnlyRpcServer_) {
         TvmOnlyRpcServer_->RegisterService(adminService);

@@ -112,6 +112,8 @@ private:
             CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
         }
 
+        // TODO(gepardo): Pass authentication here.
+
         NMonitoring::Initialize(
             HttpServer_,
             Config_->SolomonExporter,
@@ -130,14 +132,18 @@ private:
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
             CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory));
-        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
+        RpcServer_->RegisterService(CreateTimestampProxyService(
+            timestampProvider,
+            /*authenticator*/ nullptr));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
-            GetControlInvoker()));
+            GetControlInvoker(),
+            /*authenticator*/ nullptr));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_));
+            CoreDumper_,
+            /*authenticator*/ nullptr));
     }
 
     void DoRun()

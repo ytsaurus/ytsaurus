@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -124,6 +125,8 @@ void TBootstrap::DoRun()
 
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
 
+    NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
+
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
@@ -210,10 +213,12 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
-        CoreDumper_));
+        CoreDumper_,
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        ControlInvoker_));
+        ControlInvoker_,
+        NativeAuthenticator_));
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();

@@ -88,6 +88,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         WarnForUnrecognizedOptions(Logger, Config_);
     }
 
+    // TODO(gepardo): Pass native authenticator here.
+
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
     Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
@@ -138,13 +140,17 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker(),
+        /*authenticator*/ nullptr));
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_,
+        /*authenticator*/ nullptr));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);

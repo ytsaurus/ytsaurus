@@ -52,12 +52,14 @@ public:
         TCellId cellId,
         TBatchingChunkServiceConfigPtr serviceConfig,
         TMasterConnectionConfigPtr connectionConfig,
-        IChannelFactoryPtr channelFactory)
+        IChannelFactoryPtr channelFactory,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
             ClusterNodeLogger.WithTag("CellTag: %v", CellTagFromId(cellId)),
-            cellId)
+            cellId,
+            std::move(authenticator))
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(connectionConfig))
         , LeaderChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Leader))
@@ -576,13 +578,15 @@ IServicePtr CreateBatchingChunkService(
     TCellId cellId,
     TBatchingChunkServiceConfigPtr serviceConfig,
     TMasterConnectionConfigPtr connectionConfig,
-    IChannelFactoryPtr channelFactory)
+    IChannelFactoryPtr channelFactory,
+    IAuthenticatorPtr authenticator)
 {
     return New<TBatchingChunkService>(
         cellId,
         serviceConfig,
         connectionConfig,
-        channelFactory);
+        channelFactory,
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,7 @@ struct IBootstrap
     virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
     virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
+    virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,7 @@ public:
     const NYTree::IMapNodePtr& GetOrchidRoot() const override;
     const NRpc::IServerPtr& GetRpcServer() const override;
     const IInvokerPtr& GetControlInvoker() const override;
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override;
 
 private:
     IBootstrap* const Bootstrap_;

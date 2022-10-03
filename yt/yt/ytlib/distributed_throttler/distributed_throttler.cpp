@@ -229,12 +229,14 @@ public:
         TRealmId realmId,
         TThrottlersPtr throttlers,
         NLogging::TLogger logger,
+        IAuthenticatorPtr authenticator,
         int shardCount = 16)
         : TServiceBase(
             invoker,
             TDistributedThrottlerProxy::GetDescriptor(),
             logger,
-            realmId)
+            realmId,
+            authenticator)
         , RpcServer_(std::move(rpcServer))
         , DiscoveryClient_(std::move(discoveryClient))
         , GroupId_(std::move(groupId))
@@ -730,7 +732,8 @@ public:
         TMemberId memberId,
         IServerPtr rpcServer,
         TString address,
-        const NLogging::TLogger& logger)
+        const NLogging::TLogger& logger,
+        IAuthenticatorPtr authenticator)
         : ChannelFactory_(std::move(channelFactory))
         , GroupId_(std::move(groupId))
         , MemberId_(std::move(memberId))
@@ -765,7 +768,8 @@ public:
             Config_.Load(),
             RealmId_,
             Throttlers_,
-            Logger))
+            Logger,
+            std::move(authenticator)))
     {
         auto* attributes = MemberClient_->GetAttributes();
         attributes->Set(RealmIdAttributeKey, RealmId_);
@@ -1177,7 +1181,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TMemberId memberId,
     IServerPtr rpcServer,
     TString address,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IAuthenticatorPtr authenticator)
 {
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
@@ -1187,7 +1192,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(memberId),
         std::move(rpcServer),
         std::move(address),
-        std::move(logger));
+        std::move(logger),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

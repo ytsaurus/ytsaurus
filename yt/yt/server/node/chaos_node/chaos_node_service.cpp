@@ -39,14 +39,17 @@ class TChaosNodeService
     : public THydraServiceBase
 {
 public:
-    explicit TChaosNodeService(IChaosSlotPtr slot)
+    TChaosNodeService(
+        IChaosSlotPtr slot,
+        IAuthenticatorPtr authenticator)
         : THydraServiceBase(
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TChaosNodeServiceProxy::GetDescriptor(),
             ChaosNodeLogger,
             slot->GetCellId(),
-            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
+            std::move(authenticator))
         , Slot_(std::move(slot))
     {
         YT_VERIFY(Slot_);
@@ -265,9 +268,11 @@ private:
     }
 };
 
-IServicePtr CreateChaosNodeService(IChaosSlotPtr slot)
+IServicePtr CreateChaosNodeService(
+    IChaosSlotPtr slot,
+    IAuthenticatorPtr authenticator)
 {
-    return New<TChaosNodeService>(std::move(slot));
+    return New<TChaosNodeService>(std::move(slot), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

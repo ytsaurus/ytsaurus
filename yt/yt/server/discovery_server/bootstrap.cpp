@@ -31,6 +31,7 @@
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/bus/channel.h>
 
+#include <yt/yt/core/rpc/authenticator.h>
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
@@ -136,13 +137,16 @@ private:
 
         auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
 
+        // TODO(gepardo): Pass authenticator here instead of nullptr.
+
         DiscoveryServer_ = CreateDiscoveryServer(
             RpcServer_,
             localAddress,
             Config_->DiscoveryServer,
             ChannelFactory_,
             GetWorkerInvoker(),
-            GetWorkerInvoker());
+            GetWorkerInvoker(),
+            /*authenticator*/ nullptr);
         DiscoveryServer_->Initialize();
 
         NMonitoring::Initialize(
@@ -165,10 +169,12 @@ private:
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
-            GetControlInvoker()));
+            GetControlInvoker(),
+            /*authenticator*/ nullptr));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_));
+            CoreDumper_,
+            /*authenticator*/ nullptr));
     }
 
     void DoRun()

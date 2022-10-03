@@ -23,7 +23,8 @@ public:
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
-        NObjectClient::TCellTag cellTag);
+        NObjectClient::TCellTag cellTag,
+        NRpc::IAuthenticatorPtr authenticator);
 
     ~TTimestampManager();
 

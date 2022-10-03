@@ -74,6 +74,7 @@ private:
     ICoreDumperPtr CoreDumper_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
     NApi::NNative::IClientPtr NativeClient_;
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;

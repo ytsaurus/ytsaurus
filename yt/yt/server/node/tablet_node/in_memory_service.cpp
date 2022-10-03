@@ -154,7 +154,9 @@ public:
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
-            TabletNodeLogger)
+            TabletNodeLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartSession));

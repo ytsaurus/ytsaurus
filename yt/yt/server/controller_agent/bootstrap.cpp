@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -127,6 +128,8 @@ void TBootstrap::DoRun()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
+    NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
+
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
 
@@ -174,10 +177,12 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
-        CoreDumper_));
+        CoreDumper_,
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker(),
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
@@ -241,6 +246,11 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
+}
+
+const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
+{
+    return NativeAuthenticator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

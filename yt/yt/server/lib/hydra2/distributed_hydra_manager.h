@@ -25,6 +25,7 @@ NHydra::IDistributedHydraManagerPtr CreateDistributedHydraManager(
     NElection::TCellId cellId,
     NHydra::IChangelogStoreFactoryPtr changelogStoreFactory,
     NHydra::ISnapshotStorePtr snapshotStore,
+    NRpc::IAuthenticatorPtr authenticator,
     const NHydra::TDistributedHydraManagerOptions& options = {},
     const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions = {});
 

@@ -176,6 +176,7 @@ public:
         TCellId cellId,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
+        IAuthenticatorPtr authenticator,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
         : Config_(std::move(config))
@@ -206,11 +207,13 @@ public:
         , HydraService_(New<THydraService>(
             this,
             ControlInvoker_,
-            cellId))
+            cellId,
+            authenticator))
         , InternalHydraService_(New<TInternalHydraService>(
             this,
             ControlInvoker_,
-            cellId))
+            cellId,
+            authenticator))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
@@ -617,14 +620,16 @@ private:
             TDistributedHydraManagerPtr owner,
             IInvokerPtr invoker,
             const TServiceDescriptor& descriptor,
-            TCellId cellId)
+            TCellId cellId,
+            IAuthenticatorPtr authenticator)
             : THydraServiceBase(
                 owner,
                 invoker,
                 descriptor,
                 HydraLogger.WithTag("CellId: %v", cellId),
                 cellId,
-                CreateHydraManagerUpstreamSynchronizer(owner))
+                CreateHydraManagerUpstreamSynchronizer(owner),
+                std::move(authenticator))
             , Owner_(owner)
         { }
 
@@ -648,12 +653,14 @@ private:
         THydraService(
             TDistributedHydraManagerPtr distributedHydraManager,
             IInvokerPtr controlInvoker,
-            TCellId cellId)
+            TCellId cellId,
+            IAuthenticatorPtr authenticator)
         : TOwnedHydraServiceBase(
             distributedHydraManager,
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
-            cellId)
+            cellId,
+            std::move(authenticator))
         {
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceSyncWithLeader));
@@ -761,12 +768,14 @@ private:
         TInternalHydraService(
             TDistributedHydraManagerPtr distributedHydraManager,
             IInvokerPtr controlInvoker,
-            TCellId cellId)
+            TCellId cellId,
+            NRpc::IAuthenticatorPtr authenticator)
         : TOwnedHydraServiceBase(
             distributedHydraManager,
             controlInvoker,
             TInternalHydraServiceProxy::GetDescriptor(),
-            cellId)
+            cellId,
+            std::move(authenticator))
         {
             RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot)
@@ -2748,6 +2757,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     TCellId cellId,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
+    IAuthenticatorPtr authenticator,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions)
 {
@@ -2770,6 +2780,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
         cellId,
         changelogStoreFactory,
         snapshotStore,
+        std::move(authenticator),
         options,
         dynamicOptions);
 }

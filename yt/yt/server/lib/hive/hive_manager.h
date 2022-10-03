@@ -52,7 +52,8 @@ public:
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
-        NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer);
+        NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer,
+        NRpc::IAuthenticatorPtr authenticator);
 
     ~THiveManager();
 

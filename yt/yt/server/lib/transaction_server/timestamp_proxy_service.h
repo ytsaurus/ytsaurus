@@ -10,7 +10,9 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateTimestampProxyService(NTransactionClient::ITimestampProviderPtr provider);
+NRpc::IServicePtr CreateTimestampProxyService(
+    NTransactionClient::ITimestampProviderPtr provider,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

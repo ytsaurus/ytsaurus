@@ -81,7 +81,8 @@ public:
             cellManager,
             ActionQueue->GetInvoker(),
             CallbacksMock,
-            selfServer);
+            selfServer,
+            /*authenticator*/ nullptr);
 
         WaitFor(BIND(&IElectionManager::Initialize, ElectionManager)
             .AsyncVia(ActionQueue->GetInvoker())

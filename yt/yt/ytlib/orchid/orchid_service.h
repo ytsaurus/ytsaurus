@@ -10,7 +10,8 @@ namespace NYT::NOrchid {
 
 NRpc::IServicePtr CreateOrchidService(
     NYTree::INodePtr root,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

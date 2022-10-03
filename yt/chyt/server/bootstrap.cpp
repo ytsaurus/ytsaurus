@@ -95,6 +95,8 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting ClickHouse server");
 
+    // TODO(gepardo): Add authentication here.
+
     ValidateLauncherCompatibility(Config_->Launcher);
 
     // Set up crash handlers.
@@ -129,10 +131,12 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
-        CoreDumper_));
+        CoreDumper_,
+        /*authenticator*/ nullptr));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker(),
+        /*authenticator*/ nullptr));
 
     RpcServer_->Configure(Config_->RpcServer);
 
