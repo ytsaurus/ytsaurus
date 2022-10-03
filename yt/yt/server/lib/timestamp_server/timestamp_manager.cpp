@@ -48,12 +48,15 @@ public:
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
-        TCellTag cellTag)
+        TCellTag cellTag,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
-            TimestampServerLogger)
+            TimestampServerLogger,
+            NullRealmId,
+            std::move(authenticator))
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -377,13 +380,15 @@ TTimestampManager::TTimestampManager(
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    TCellTag cellTag)
+    TCellTag cellTag,
+    IAuthenticatorPtr authenticator)
     : Impl_(New<TImpl>(
         config,
         automatonInvoker,
         hydraManager,
         automaton,
-        cellTag))
+        cellTag,
+        std::move(authenticator)))
 { }
 
 TTimestampManager::~TTimestampManager() = default;

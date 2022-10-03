@@ -35,7 +35,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NDiscoveryClient::TMemberId memberId,
     NRpc::IServerPtr rpcServer,
     TString address,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

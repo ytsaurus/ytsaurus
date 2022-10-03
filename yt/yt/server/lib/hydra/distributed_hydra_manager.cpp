@@ -153,6 +153,7 @@ public:
         TCellId cellId,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
+        IAuthenticatorPtr authenticator,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
         : THydraServiceBase(
@@ -161,7 +162,8 @@ public:
             TLegacyHydraServiceProxy::GetDescriptor(),
             HydraLogger.WithTag("CellId: %v", cellId),
             cellId,
-            CreateHydraManagerUpstreamSynchronizer(MakeWeak(this)))
+            CreateHydraManagerUpstreamSynchronizer(MakeWeak(this)),
+            std::move(authenticator))
         , Config_(config)
         , RpcServer_(rpcServer)
         , ElectionManager_(electionManager)
@@ -2291,6 +2293,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     TCellId cellId,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
+    IAuthenticatorPtr authenticator,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions)
 {
@@ -2313,6 +2316,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
         cellId,
         changelogStoreFactory,
         snapshotStore,
+        std::move(authenticator),
         options,
         dynamicOptions);
 }

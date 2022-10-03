@@ -39,6 +39,7 @@ public:
     const TSchedulerPtr& GetScheduler() const;
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const ICoreDumperPtr& GetCoreDumper() const;
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
     void Run();
 
@@ -57,6 +58,7 @@ private:
     TControllerAgentTrackerPtr ControllerAgentTracker_;
     ICoreDumperPtr CoreDumper_;
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     void DoRun();
 };

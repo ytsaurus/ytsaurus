@@ -72,7 +72,8 @@ public:
             TTabletServiceProxy::GetDescriptor(),
             TabletNodeLogger,
             slot->GetCellId(),
-            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
+            bootstrap->GetNativeAuthenticator())
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {

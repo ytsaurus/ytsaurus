@@ -83,7 +83,8 @@ public:
             serverConfig,
             ChannelFactory_,
             serverActionQueue->GetInvoker(),
-            gossipActionQueue->GetInvoker());
+            gossipActionQueue->GetInvoker(),
+            /*authenticator*/ nullptr);
 
         ActionQueues_.push_back(serverActionQueue);
         ActionQueues_.push_back(gossipActionQueue);

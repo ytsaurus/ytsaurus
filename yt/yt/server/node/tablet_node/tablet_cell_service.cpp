@@ -31,7 +31,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             NTabletCellClient::TTabletCellServiceProxy::GetDescriptor(),
-            TabletNodeLogger)
+            TabletNodeLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         YT_VERIFY(Bootstrap_);

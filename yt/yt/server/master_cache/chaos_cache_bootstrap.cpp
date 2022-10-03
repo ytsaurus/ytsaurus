@@ -37,7 +37,8 @@ public:
         ChaosCacheService_ = CreateChaosCacheService(
             ChaosCacheQueue_->GetInvoker(),
             client,
-            ChaosCache_);
+            ChaosCache_,
+            GetNativeAuthenticator());
 
         GetRpcServer()->RegisterService(ChaosCacheService_);
     }

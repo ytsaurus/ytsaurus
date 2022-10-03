@@ -10,7 +10,8 @@ namespace NYT::NHydra {
 
 NRpc::IServicePtr CreateLocalSnapshotService(
     NElection::TCellId cellId,
-    ILegacySnapshotStorePtr store);
+    ILegacySnapshotStorePtr store,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -937,11 +937,4 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsValidSourceTvmId(const IConnectionPtr& connection, NAuth::TTvmId tvmId)
-{
-    return tvmId == connection->GetConfig()->TvmId || connection->GetClusterDirectory()->HasTvmId(tvmId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi::NNative

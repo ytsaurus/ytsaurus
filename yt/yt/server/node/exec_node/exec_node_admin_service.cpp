@@ -26,7 +26,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TExecNodeAdminServiceProxy::GetDescriptor(),
-            ExecNodeLogger)
+            ExecNodeLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         YT_VERIFY(Bootstrap_);

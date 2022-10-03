@@ -51,6 +51,11 @@ public:
         return Bootstrap_->GetClient();
     }
 
+    IAuthenticatorPtr GetNativeAuthenticator() const override
+    {
+        return Bootstrap_->GetNativeAuthenticator();
+    }
+
     TNetworkPreferenceList GetLocalNetworks() const override
     {
         return Bootstrap_->GetLocalNetworks();

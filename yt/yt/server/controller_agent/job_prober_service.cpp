@@ -32,7 +32,9 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TJobProberServiceProxy::GetDescriptor(),
-            ControllerAgentLogger)
+            ControllerAgentLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
@@ -52,7 +54,7 @@ private:
         context->SetRequestInfo("OperationId: %v", operationId);
 
         SwitchTo(Bootstrap_->GetControlInvoker());
-        
+
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);

@@ -21,7 +21,9 @@ public:
         : NRpc::TServiceBase(
             GetSyncInvoker(),
             TJobTrackerServiceProxy::GetDescriptor(),
-            SchedulerLogger)
+            SchedulerLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(

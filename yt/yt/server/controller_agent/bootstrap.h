@@ -40,6 +40,7 @@ public:
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const ICoreDumperPtr& GetCoreDumper() const;
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
     void Run();
 
@@ -58,6 +59,7 @@ private:
     NApi::NNative::IClientPtr Client_;
     TControllerAgentPtr ControllerAgent_;
     ICoreDumperPtr CoreDumper_;
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     void DoRun();
 };

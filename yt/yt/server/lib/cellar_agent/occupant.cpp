@@ -417,6 +417,7 @@ public:
                     GetCellId(),
                     ChangelogStoreFactoryThunk_,
                     SnapshotStoreThunk_,
+                    Bootstrap_->GetNativeAuthenticator(),
                     hydraManagerOptions,
                     hydraManagerDynamicOptions);
             } else {
@@ -430,6 +431,7 @@ public:
                     GetCellId(),
                     ChangelogStoreFactoryThunk_,
                     SnapshotStoreThunk_,
+                    Bootstrap_->GetNativeAuthenticator(),
                     hydraManagerOptions,
                     hydraManagerDynamicOptions);
             }
@@ -450,7 +452,8 @@ public:
                 CellManager_,
                 Bootstrap_->GetControlInvoker(),
                 hydraManager->GetElectionCallbacks(),
-                rpcServer);
+                rpcServer,
+                Bootstrap_->GetNativeAuthenticator());
             ElectionManager_->Initialize();
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
@@ -462,7 +465,8 @@ public:
                 occupier->GetOccupierAutomatonInvoker(),
                 hydraManager,
                 Automaton_,
-                CreateHydraManagerUpstreamSynchronizer(hydraManager));
+                CreateHydraManagerUpstreamSynchronizer(hydraManager),
+                Bootstrap_->GetNativeAuthenticator());
 
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
                 ? Options_->ClockClusterTag
@@ -487,7 +491,8 @@ public:
                 {
                     CreateTransactionParticipantProvider(connection),
                     CreateTransactionParticipantProvider(connection->GetClusterDirectory())
-                });
+                },
+                Bootstrap_->GetNativeAuthenticator());
 
             occupier->Initialize();
 

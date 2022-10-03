@@ -41,7 +41,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TJobSpecServiceProxy::GetDescriptor(),
-            ControllerAgentLogger)
+            ControllerAgentLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpecs)

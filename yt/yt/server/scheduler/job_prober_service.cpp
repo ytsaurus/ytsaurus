@@ -32,7 +32,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TJobProberServiceProxy::GetDescriptor(),
-            SchedulerLogger)
+            SchedulerLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));

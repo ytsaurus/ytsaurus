@@ -128,7 +128,8 @@ private:
             MemberId_,
             Bootstrap_->GetRpcServer(),
             BuildServiceAddress(GetLocalHostName(), Bootstrap_->GetConfig()->RpcPort),
-            TabletNodeLogger);
+            TabletNodeLogger,
+            Bootstrap_->GetNativeAuthenticator());
     }
 };
 

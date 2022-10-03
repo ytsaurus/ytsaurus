@@ -121,6 +121,7 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
@@ -500,6 +501,11 @@ const IReplicatedTableTrackerPtr& TBootstrap::GetNewReplicatedTableTracker() con
     return NewReplicatedTableTracker_;
 }
 
+const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
+{
+    return NativeAuthenticator_;
+}
+
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
@@ -514,7 +520,8 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
         ToString(GetCellManager()->GetSelfPeerId()),
         RpcServer_,
         BuildServiceAddress(GetLocalHostName(), Config_->RpcPort),
-        std::move(logger));
+        std::move(logger),
+        NativeAuthenticator_);
 }
 
 void TBootstrap::Initialize()
@@ -682,6 +689,10 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
+    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
+
+    NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
+
     ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
 
     const auto& networks = Config_->Networks;
@@ -747,7 +758,8 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
-        CreateMulticellUpstreamSynchronizer(this));
+        CreateMulticellUpstreamSynchronizer(this),
+        NativeAuthenticator_);
 
     std::vector<TString> addresses;
     addresses.reserve(localCellConfig->Peers.size());
@@ -829,7 +841,8 @@ void TBootstrap::DoInitialize()
             HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
             HydraFacade_->GetHydraManager(),
             HydraFacade_->GetAutomaton(),
-            GetCellTag());
+            GetCellTag(),
+            NativeAuthenticator_);
     }
 
     TransactionSupervisor_ = CreateTransactionSupervisor(
@@ -848,7 +861,8 @@ void TBootstrap::DoInitialize()
                 CellDirectory_,
                 TimestampProvider_,
                 GetKnownParticipantCellTags())
-        });
+        },
+        NativeAuthenticator_);
 
     AlertManager_->Initialize();
     ObjectManager_->Initialize();
@@ -902,7 +916,8 @@ void TBootstrap::DoInitialize()
         discoveryServerConfig,
         ChannelFactory_,
         DiscoveryQueue_->GetInvoker(),
-        DiscoveryQueue_->GetInvoker());
+        DiscoveryQueue_->GetInvoker(),
+        NativeAuthenticator_);
 
     if (TimestampManager_) {
         RpcServer_->RegisterService(TimestampManager_->GetRpcService()); // null realm
@@ -914,7 +929,7 @@ void TBootstrap::DoInitialize()
 
 
     if (!Config_->UseNewHydra) {
-        RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore)); // cell realm
+        RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore, NativeAuthenticator_)); // cell realm
     }
     RpcServer_->RegisterService(CreateNodeTrackerService(this));
     RpcServer_->RegisterService(CreateDataNodeTrackerService(this));
@@ -924,7 +939,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(ObjectService_);
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateChunkService(this));
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
     RpcServer_->RegisterService(CreateTransactionService(this));
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
@@ -1016,7 +1031,7 @@ void TBootstrap::InitializeTimestampProvider()
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
             std::move(timestampProviderChannel));
-        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_));
+        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_, NativeAuthenticator_));
     } else {
         TimestampProvider_ = CreateRemoteTimestampProvider(
             Config_->TimestampProvider,
@@ -1026,7 +1041,6 @@ void TBootstrap::InitializeTimestampProvider()
 
 void TBootstrap::DoRun()
 {
-    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
     ClusterConnection_->GetClusterDirectorySynchronizer()->Start();
 
     // Initialize periodic update of latest timestamp.
@@ -1092,7 +1106,7 @@ void TBootstrap::DoRun()
     HttpServer_->Start();
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
+    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker(), NativeAuthenticator_));
     RpcServer_->Start();
 }
 

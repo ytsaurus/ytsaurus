@@ -24,14 +24,17 @@ class TCoordinatorService
     : public THydraServiceBase
 {
 public:
-    explicit TCoordinatorService(IChaosSlotPtr slot)
+    TCoordinatorService(
+        IChaosSlotPtr slot,
+        IAuthenticatorPtr authenticator)
         : THydraServiceBase(
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TCoordinatorServiceProxy::GetDescriptor(),
             ChaosNodeLogger,
             slot->GetCellId(),
-            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
+            std::move(authenticator))
         , Slot_(std::move(slot))
     {
         YT_VERIFY(Slot_);
@@ -110,9 +113,11 @@ private:
     }
 };
 
-IServicePtr CreateCoordinatorService(IChaosSlotPtr slot)
+IServicePtr CreateCoordinatorService(
+    IChaosSlotPtr slot,
+    IAuthenticatorPtr authenticator)
 {
-    return New<TCoordinatorService>(std::move(slot));
+    return New<TCoordinatorService>(std::move(slot), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

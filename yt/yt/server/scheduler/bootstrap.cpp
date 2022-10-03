@@ -165,10 +165,12 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(EControlQueue::Default),
-        CoreDumper_));
+        CoreDumper_,
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker(EControlQueue::StaticOrchid)));
+        GetControlInvoker(EControlQueue::StaticOrchid),
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOperationService(this, Scheduler_->GetOperationServiceResponseKeeper()));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
@@ -235,6 +237,11 @@ const TControllerAgentTrackerPtr& TBootstrap::GetControllerAgentTracker() const
 const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
+}
+
+const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
+{
+    return NativeAuthenticator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

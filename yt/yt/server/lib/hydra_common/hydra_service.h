@@ -32,7 +32,8 @@ protected:
         const NRpc::TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
         NRpc::TRealmId realmId,
-        IUpstreamSynchronizerPtr upstreamSynchronizer);
+        IUpstreamSynchronizerPtr upstreamSynchronizer,
+        NRpc::IAuthenticatorPtr authenticator);
 
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();

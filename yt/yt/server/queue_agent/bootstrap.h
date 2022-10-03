@@ -53,6 +53,8 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
 
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
+
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
     NHiveClient::TClientDirectoryPtr ClientDirectory_;

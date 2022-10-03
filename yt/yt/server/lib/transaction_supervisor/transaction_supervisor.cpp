@@ -83,7 +83,8 @@ public:
         TCellId selfCellId,
         TClusterTag selfClockClusterTag,
         ITimestampProviderPtr timestampProvider,
-        std::vector<ITransactionParticipantProviderPtr> participantProviders)
+        std::vector<ITransactionParticipantProviderPtr> participantProviders,
+        IAuthenticatorPtr authenticator)
         : TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -98,6 +99,7 @@ public:
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
         , Logger(TransactionSupervisorLogger.WithTag("CellId: %v", SelfCellId_))
+        , Authenticator_(std::move(authenticator))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
     {
@@ -224,6 +226,8 @@ private:
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
 
     const NLogging::TLogger Logger;
+
+    const IAuthenticatorPtr Authenticator_;
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
@@ -653,7 +657,8 @@ private:
                 descriptor,
                 TransactionSupervisorLogger,
                 owner->SelfCellId_,
-                CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_))
+                CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_),
+                owner->Authenticator_)
             , Owner_(owner)
         { }
 
@@ -2411,7 +2416,8 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     TCellId selfCellId,
     TClusterTag selfClockClusterTag,
     ITimestampProviderPtr timestampProvider,
-    std::vector<ITransactionParticipantProviderPtr> participantProviders)
+    std::vector<ITransactionParticipantProviderPtr> participantProviders,
+    IAuthenticatorPtr authenticator)
 {
     return New<TTransactionSupervisor>(
         std::move(config),
@@ -2424,7 +2430,8 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
         selfCellId,
         selfClockClusterTag,
         std::move(timestampProvider),
-        std::move(participantProviders));
+        std::move(participantProviders),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

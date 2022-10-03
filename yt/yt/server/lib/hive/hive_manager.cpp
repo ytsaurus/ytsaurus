@@ -100,14 +100,16 @@ public:
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
-        IUpstreamSynchronizerPtr upstreamSynchronizer)
+        IUpstreamSynchronizerPtr upstreamSynchronizer,
+        IAuthenticatorPtr authenticator)
         : THydraServiceBase(
             hydraManager,
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
             HiveServerLogger,
             selfCellId,
-            std::move(upstreamSynchronizer))
+            std::move(upstreamSynchronizer),
+            std::move(authenticator))
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -1683,7 +1685,8 @@ THiveManager::THiveManager(
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    IUpstreamSynchronizerPtr upstreamSynchronizer)
+    IUpstreamSynchronizerPtr upstreamSynchronizer,
+    IAuthenticatorPtr authenticator)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(cellDirectory),
@@ -1691,7 +1694,8 @@ THiveManager::THiveManager(
         std::move(automatonInvoker),
         std::move(hydraManager),
         std::move(automaton),
-        std::move(upstreamSynchronizer)))
+        std::move(upstreamSynchronizer),
+        std::move(authenticator)))
 { }
 
 THiveManager::~THiveManager()

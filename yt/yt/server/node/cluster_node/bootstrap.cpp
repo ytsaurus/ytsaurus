@@ -102,6 +102,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -395,6 +396,11 @@ public:
     const NApi::NNative::IConnectionPtr& GetConnection() const override
     {
         return Connection_;
+    }
+
+    const IAuthenticatorPtr& GetNativeAuthenticator() const override
+    {
+        return NativeAuthenticator_;
     }
 
     IChannelPtr GetMasterChannel(TCellTag cellTag) override
@@ -699,6 +705,7 @@ private:
 
     NApi::NNative::IClientPtr Client_;
     NApi::NNative::IConnectionPtr Connection_;
+    IAuthenticatorPtr NativeAuthenticator_;
 
     IOrchidServiceProviderPtr JobsOrchidServiceProvider_;
     IJobResourceManagerPtr JobResourceManager_;
@@ -767,6 +774,8 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+
+        NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
@@ -862,7 +871,8 @@ private:
                 config->CellId,
                 Config_->BatchingChunkService,
                 config,
-                Connection_->GetChannelFactory()));
+                Connection_->GetChannelFactory(),
+                NativeAuthenticator_));
         };
 
         createBatchingChunkService(Config_->ClusterConnection->PrimaryMaster);
@@ -926,7 +936,7 @@ private:
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
             CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
-        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
+        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, NativeAuthenticator_));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,
@@ -946,7 +956,8 @@ private:
                     masterConfig->RpcTimeout),
                 ObjectServiceCache_,
                 masterConfig->CellId,
-                Logger);
+                Logger,
+                NativeAuthenticator_);
         };
 
         CachingObjectServices_.push_back(initCachingObjectService(
@@ -977,7 +988,7 @@ private:
             TabletNodeBootstrap_ = NTabletNode::CreateBootstrap(this);
         }
 
-        RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+        RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
 
         RpcServer_->Configure(Config_->RpcServer);
 
@@ -1122,7 +1133,8 @@ private:
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
-            GetControlInvoker()));
+            GetControlInvoker(),
+            NativeAuthenticator_));
 
         YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
 
@@ -1444,6 +1456,11 @@ const NNative::IConnectionPtr& TBootstrapBase::GetConnection() const
 IChannelPtr TBootstrapBase::GetMasterChannel(TCellTag cellTag)
 {
     return Bootstrap_->GetMasterChannel(cellTag);
+}
+
+const IAuthenticatorPtr& TBootstrapBase::GetNativeAuthenticator() const
+{
+    return Bootstrap_->GetNativeAuthenticator();
 }
 
 TNodeDescriptor TBootstrapBase::GetLocalDescriptor() const

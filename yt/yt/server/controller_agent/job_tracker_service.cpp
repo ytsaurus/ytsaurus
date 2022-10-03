@@ -29,7 +29,9 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TJobTrackerServiceProxy::GetDescriptor(),
-            ControllerAgentLogger)
+            ControllerAgentLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
         , HeartbeatStatisticBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/statistic_bytes"))
         , HeartbeatJobResultBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/job_result_bytes"))
@@ -73,9 +75,9 @@ private:
             const auto operationId = FromProto<TOperationId>(job.operation_id());
             groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
         }
-        
+
         SwitchTo(Bootstrap_->GetControlInvoker());
-        
+
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         if (FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id()) != controllerAgent->GetIncarnationId()) {
             context->Reply(TError{EErrorCode::IncarnationMismatch, "Controller agent incarnation mismatch"});
@@ -83,7 +85,7 @@ private:
         }
         controllerAgent->ValidateConnected();
         context->Reply();
-        
+
         for (auto& [operationId, jobSummaries] : groupedJobSummaries) {
             const auto operation = controllerAgent->FindOperation(operationId);
             if (!operation) {

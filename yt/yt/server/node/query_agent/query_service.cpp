@@ -378,7 +378,9 @@ public:
                 DefaultQLExecutionPoolWeight,
                 DefaultQLExecutionTag),
             TQueryServiceProxy::GetDescriptor(),
-            QueryAgentLogger)
+            QueryAgentLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Config_(config)
         , Bootstrap_(bootstrap)
         , PoolWeightCache_(New<TPoolWeightCache>(

@@ -21,7 +21,8 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
         descriptor,
         logger,
         bootstrap->GetMulticellManager()->GetCellId(),
-        CreateMulticellUpstreamSynchronizer(bootstrap))
+        CreateMulticellUpstreamSynchronizer(bootstrap),
+        bootstrap->GetNativeAuthenticator())
     , Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);

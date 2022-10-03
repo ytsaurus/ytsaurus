@@ -23,7 +23,9 @@ public:
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::AgentTracker),
             TControllerAgentTrackerServiceProxy::GetDescriptor(),
-            SchedulerLogger)
+            SchedulerLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
         , ResponseKeeper_(responseKeeper)
     {

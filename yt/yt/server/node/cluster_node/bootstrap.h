@@ -90,6 +90,7 @@ struct IBootstrapBase
     virtual const NApi::NNative::IClientPtr& GetClient() const = 0;
     virtual const NApi::NNative::IConnectionPtr& GetConnection() const = 0;
     virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) = 0;
+    virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
 
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
 
@@ -238,6 +239,7 @@ public:
     const NApi::NNative::IClientPtr& GetClient() const override;
     const NApi::NNative::IConnectionPtr& GetConnection() const override;
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override;
 
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
 

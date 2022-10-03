@@ -25,7 +25,8 @@ IDiscoveryServerPtr CreateDiscoveryServer(
     TDiscoveryServerConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr serverInvoker,
-    IInvokerPtr gossipInvoker);
+    IInvokerPtr gossipInvoker,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -49,7 +49,8 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     TCellId selfCellId,
     NApi::TClusterTag selfClockClusterTag,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
-    std::vector<ITransactionParticipantProviderPtr> participantProviders);
+    std::vector<ITransactionParticipantProviderPtr> participantProviders,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

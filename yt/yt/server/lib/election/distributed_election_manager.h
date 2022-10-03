@@ -13,7 +13,8 @@ IElectionManagerPtr CreateDistributedElectionManager(
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks,
-    NRpc::IServerPtr rpcServer);
+    NRpc::IServerPtr rpcServer,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

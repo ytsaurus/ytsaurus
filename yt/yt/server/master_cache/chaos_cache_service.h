@@ -15,7 +15,8 @@ namespace NYT::NMasterCache {
 NRpc::IServicePtr CreateChaosCacheService(
     IInvokerPtr invoker,
     NApi::IClientPtr client,
-    TChaosCachePtr cache);
+    TChaosCachePtr cache,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

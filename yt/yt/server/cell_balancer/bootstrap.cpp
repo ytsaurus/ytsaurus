@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -138,6 +139,8 @@ private:
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;
 
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
+
     ICypressElectionManagerPtr ElectionManager_;
     IMasterConnectorPtr MasterConnector_;
     ICellTrackerPtr CellTracker_;
@@ -151,6 +154,8 @@ private:
 
         auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 
         BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -197,10 +202,12 @@ private:
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
-            GetControlInvoker()));
+            GetControlInvoker(),
+            NativeAuthenticator_));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_));
+            CoreDumper_,
+            NativeAuthenticator_));
     }
 
     void DoRun()

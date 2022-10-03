@@ -19,12 +19,16 @@ class TTimestampProxyService
     : public TServiceBase
 {
 public:
-    explicit TTimestampProxyService(ITimestampProviderPtr provider)
+    explicit TTimestampProxyService(
+        ITimestampProviderPtr provider,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
-            TransactionServerLogger)
-        , Provider_(provider)
+            TransactionServerLogger,
+            NullRealmId,
+            std::move(authenticator))
+        , Provider_(std::move(provider))
     {
         YT_VERIFY(Provider_);
 
@@ -56,9 +60,11 @@ private:
 
 };
 
-IServicePtr CreateTimestampProxyService(ITimestampProviderPtr provider)
+IServicePtr CreateTimestampProxyService(
+    ITimestampProviderPtr provider,
+    IAuthenticatorPtr authenticator)
 {
-    return New<TTimestampProxyService>(provider);
+    return New<TTimestampProxyService>(std::move(provider), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

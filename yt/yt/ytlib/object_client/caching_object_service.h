@@ -26,7 +26,8 @@ ICachingObjectServicePtr CreateCachingObjectService(
     NRpc::IChannelPtr masterChannel,
     TObjectServiceCachePtr cache,
     NRpc::TRealmId masterCellId,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

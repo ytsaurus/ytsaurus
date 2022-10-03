@@ -23,12 +23,14 @@ class TLocalSnapshotService
 public:
     TLocalSnapshotService(
         TCellId cellId,
-        ILegacySnapshotStorePtr store)
+        ILegacySnapshotStorePtr store,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             GetHydraIOInvoker(),
             TSnapshotServiceProxy::GetDescriptor(),
             HydraLogger,
-            cellId)
+            cellId,
+            std::move(authenticator))
         , Store_(std::move(store))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
@@ -114,11 +116,13 @@ private:
 
 IServicePtr CreateLocalSnapshotService(
     TCellId cellId,
-    ILegacySnapshotStorePtr store)
+    ILegacySnapshotStorePtr store,
+    IAuthenticatorPtr authenticator)
 {
     return New<TLocalSnapshotService>(
         cellId,
-        std::move(store));
+        std::move(store),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

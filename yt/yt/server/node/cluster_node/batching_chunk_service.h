@@ -16,7 +16,8 @@ NRpc::IServicePtr CreateBatchingChunkService(
     NElection::TCellId cellId,
     TBatchingChunkServiceConfigPtr serviceConfig,
     NApi::NNative::TMasterConnectionConfigPtr connectionConfig,
-    NRpc::IChannelFactoryPtr channelFactory);
+    NRpc::IChannelFactoryPtr channelFactory,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

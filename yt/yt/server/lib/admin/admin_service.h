@@ -12,7 +12,8 @@ namespace NYT::NAdmin {
 
 NRpc::IServicePtr CreateAdminService(
     IInvokerPtr invoker,
-    ICoreDumperPtr coreDumper);
+    ICoreDumperPtr coreDumper,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

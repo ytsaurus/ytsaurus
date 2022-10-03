@@ -32,7 +32,9 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TArbitrageServiceProxy::GetDescriptor(),
-            ClusterNodeLogger)
+            ClusterNodeLogger,
+            NullRealmId,
+            bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));

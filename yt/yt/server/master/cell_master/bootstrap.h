@@ -139,6 +139,7 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
     const NTabletServer::IReplicatedTableTrackerPtr& GetNewReplicatedTableTracker() const;
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
@@ -223,6 +224,8 @@ protected:
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
+
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     static NElection::TPeerId ComputePeerId(
         NElection::TCellConfigPtr config,

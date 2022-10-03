@@ -48,7 +48,8 @@ public:
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
         IElectionCallbacksPtr electionCallbacks,
-        IServerPtr rpcServer);
+        IServerPtr rpcServer,
+        IAuthenticatorPtr authenticator);
 
     void Initialize() override;
     void Finalize() override;
@@ -571,12 +572,14 @@ TDistributedElectionManager::TDistributedElectionManager(
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks,
-    IServerPtr rpcServer)
+    IServerPtr rpcServer,
+    IAuthenticatorPtr authenticator)
     : TServiceBase(
         controlInvoker,
         TElectionServiceProxy::GetDescriptor(),
         ElectionLogger.WithTag("CellId: %v", cellManager->GetCellId()),
-        cellManager->GetCellId())
+        cellManager->GetCellId(),
+        std::move(authenticator))
     , Config_(std::move(config))
     , ControlInvoker_(std::move(controlInvoker))
     , ElectionCallbacks_(std::move(electionCallbacks))
@@ -1033,14 +1036,16 @@ IElectionManagerPtr CreateDistributedElectionManager(
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks,
-    IServerPtr rpcServer)
+    IServerPtr rpcServer,
+    IAuthenticatorPtr authenticator)
 {
     return New<TDistributedElectionManager>(
         std::move(config),
         std::move(cellManager),
         std::move(controlInvoker),
         std::move(electionCallbacks),
-        std::move(rpcServer));
+        std::move(rpcServer),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
