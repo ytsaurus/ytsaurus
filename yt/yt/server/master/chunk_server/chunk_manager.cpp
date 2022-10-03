@@ -2518,14 +2518,8 @@ private:
 
     int TotalReplicaCount_ = 0;
 
-    // COMPAT(ifsmirnov)
-    bool NeedRecomputeApprovedReplicaCount_ = false;
-
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
-
-    // COMPAT(gritukan)
-    bool NeedCreateHunkChunkLists_ = false;
 
     // COMPAT(kvk1920)
     bool NeedTransformOldReplicas_ = false;
@@ -4142,24 +4136,10 @@ private:
 
         Load(context, ConsistentReplicaPlacementTokenDistribution_);
 
-        // COMPAT(h0pless)
-        if (context.GetVersion() >= EMasterReign::FixChunkWeightHistograms) {
-            LoadHistogramValues(context, ChunkRowCountHistogram_);
-            LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
-            LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
-            LoadHistogramValues(context, ChunkDataWeightHistogram_);
-        } else {
-            TGaugeHistogram dummy(ChunkRowCountHistogram_);
-            LoadHistogramValues(context, dummy);
-            LoadHistogramValues(context, dummy);
-            LoadHistogramValues(context, dummy);
-            LoadHistogramValues(context, dummy);
-            dummy.Reset();
-        }
-        NeedRecomputeChunkWeightStatisticsHistogram_ = context.GetVersion() < EMasterReign::FixChunkWeightHistograms;
-
-        // COMPAT(gritukan)
-        NeedCreateHunkChunkLists_ = context.GetVersion() < EMasterReign::ChunkListType;
+        LoadHistogramValues(context, ChunkRowCountHistogram_);
+        LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
+        LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
+        LoadHistogramValues(context, ChunkDataWeightHistogram_);
 
         // COMPAT(kvk1920)
         NeedTransformOldReplicas_ = context.GetVersion() < EMasterReign::ChunkLocationInReplica;
@@ -4258,196 +4238,6 @@ private:
 
         ChunkPlacement_->Initialize();
 
-        if (NeedRecomputeApprovedReplicaCount_) {
-            YT_LOG_INFO("Recomputing approved replica count for chunks");
-
-            for (auto [chunkId, chunk] : ChunkMap_) {
-                if (IsObjectAlive(chunk) && chunk->IsBlob()) {
-                    chunk->SetApprovedReplicaCount(std::ssize(chunk->GetReplicas()));
-                }
-            }
-
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            for (auto [nodeId, node] : nodeTracker->Nodes()) {
-                for (auto* location : node->ChunkLocations()) {
-                    for (auto [replica, instant] : location->UnapprovedReplicas()) {
-                        auto* chunk = replica.GetPtr();
-                        if (IsObjectAlive(chunk) && chunk->IsBlob()) {
-                            chunk->SetApprovedReplicaCount(
-                                chunk->GetApprovedReplicaCount() - 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (NeedCreateHunkChunkLists_) {
-            THashMap<TChunkList*, TChunkList*> chunkListToHunkChunkList;
-            THashMap<TChunkList*, TChunkList*> tabletChunkListToHunkChunkList;
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-            auto isDynamicTable = [&] (TCypressNode* node) {
-                if (!IsTableType(node->GetType())) {
-                    return false;
-                }
-
-                auto* table = node->As<NTableServer::TTableNode>();
-                return table->IsDynamic() && !table->IsExternal() && table->IsTrunk();
-            };
-
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!isDynamicTable(node)) {
-                    continue;
-                }
-
-                auto* table = node->As<NTableServer::TTableNode>();
-
-                int tabletCount = std::ssize(table->GetChunkList()->Children());
-                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
-                    auto* tabletChunkList = table->GetChunkList()->Children()[tabletIndex]->As<TChunkList>();
-                    bool hasHunkChunkList = false;
-                    for (auto* child : tabletChunkList->Children()) {
-                        if (IsObjectAlive(child) &&
-                            child->GetType() == EObjectType::ChunkList &&
-                            child->AsChunkList()->GetKind() == EChunkListKind::HunkRoot)
-                        {
-                            hasHunkChunkList = true;
-                            break;
-                        }
-                    }
-                    if (hasHunkChunkList) {
-                        tabletManager->CopyChunkListIfShared(
-                            table,
-                            EChunkListContentType::Main,
-                            tabletIndex);
-                    }
-                }
-            }
-
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!isDynamicTable(node)) {
-                    continue;
-                }
-                auto* table = node->As<NTableServer::TTableNode>();
-                auto* chunkList = table->GetChunkList();
-                if (!chunkListToHunkChunkList.contains(chunkList)) {
-                    auto* hunkChunkList = CreateChunkList(EChunkListKind::HunkRoot);
-                    EmplaceOrCrash(chunkListToHunkChunkList, chunkList, hunkChunkList);
-
-                    YT_VERIFY(
-                        chunkList->GetKind() == EChunkListKind::SortedDynamicRoot ||
-                        chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot);
-
-                    for (auto* child : chunkList->Children()) {
-                        auto* tabletChunkList = child->AsChunkList();
-                        if (!tabletChunkListToHunkChunkList.contains(tabletChunkList)) {
-                            TChunkList* tabletHunkChunkList = nullptr;
-                            for (auto* child : tabletChunkList->Children()) {
-                                if (IsObjectAlive(child) &&
-                                    child->GetType() == EObjectType::ChunkList &&
-                                    child->AsChunkList()->GetKind() == EChunkListKind::HunkRoot)
-                                {
-                                    YT_VERIFY(!tabletHunkChunkList);
-                                    tabletHunkChunkList = child->AsChunkList();
-                                }
-                            }
-
-                            if (tabletHunkChunkList) {
-                                DetachFromChunkList(
-                                    tabletChunkList,
-                                    tabletHunkChunkList,
-                                    EChunkDetachPolicy::SortedTablet);
-                                tabletHunkChunkList->SetKind(EChunkListKind::Hunk);
-                            } else {
-                                tabletHunkChunkList = CreateChunkList(EChunkListKind::Hunk);
-                            }
-
-                            EmplaceOrCrash(
-                                tabletChunkListToHunkChunkList,
-                                tabletChunkList,
-                                tabletHunkChunkList);
-                        }
-
-                        auto* tabletHunkChunkList = GetOrCrash(tabletChunkListToHunkChunkList, tabletChunkList);
-                        AttachToChunkList(hunkChunkList, tabletHunkChunkList);
-                    }
-                }
-
-                auto* hunkChunkList = GetOrCrash(chunkListToHunkChunkList, chunkList);
-                table->SetHunkChunkList(hunkChunkList);
-                hunkChunkList->AddOwningNode(table);
-            }
-
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!isDynamicTable(node)) {
-                    continue;
-                }
-
-                auto* table = node->As<NTableServer::TTableNode>();
-                int tabletCount = std::ssize(table->Tablets());
-                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
-                    auto* tablet = table->Tablets()[tabletIndex];
-                    auto* tabletChunkList = tablet->GetChunkList();
-
-                    for (auto* child : tabletChunkList->Children()) {
-                        if (child && child->GetType() == EObjectType::ChunkList) {
-                            auto kind = child->AsChunkList()->GetKind();
-                            YT_VERIFY(kind != EChunkListKind::Hunk && kind != EChunkListKind::HunkRoot);
-                        }
-
-                        if (IsHunkChunk(child)) {
-                            YT_LOG_WARNING(
-                                "Found hunk chunk in tablet chunk list, preparing tablet for chunk move "
-                                "(TabletId: %v, ChunkId: %v, ChunkListId: %v)",
-                                tablet->GetId(),
-                                child->GetId(),
-                                tabletChunkList->GetId());
-
-                            tabletManager->CopyChunkListIfShared(
-                                table,
-                                EChunkListContentType::Main,
-                                tabletIndex);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!isDynamicTable(node)) {
-                    continue;
-                }
-
-                auto* table = node->As<NTableServer::TTableNode>();
-                int tabletCount = std::ssize(table->Tablets());
-                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
-                    auto* tablet = table->Tablets()[tabletIndex];
-                    auto* tabletChunkList = tablet->GetChunkList();
-                    auto* hunkChunkList = tablet->GetHunkChunkList();
-
-                    std::vector<TChunkTree*> hunkChunksToMove;
-                    for (auto* child : tabletChunkList->Children()) {
-                        if (!IsHunkChunk(child)) {
-                            continue;
-                        }
-
-                        YT_LOG_WARNING("Found hunk chunk in tablet chunk list, moving it to hunk chunk list "
-                            "(ChunkId: %v, TabletId: %v, ChunkListId: %v, HunkChunkListId: %v)",
-                            child->GetId(),
-                            tablet->GetId(),
-                            tabletChunkList->GetId(),
-                            hunkChunkList->GetId());
-                       hunkChunksToMove.push_back(child);
-                    }
-
-                    AttachToChunkList(hunkChunkList, hunkChunksToMove);
-                    DetachFromChunkList(tabletChunkList, hunkChunksToMove, EChunkDetachPolicy::SortedTablet);
-                }
-            }
-        }
-
         YT_LOG_INFO("Finished initializing chunks");
     }
 
@@ -4511,8 +4301,6 @@ private:
 
         ExpirationTracker_->Clear();
 
-        NeedRecomputeApprovedReplicaCount_ = false;
-        NeedCreateHunkChunkLists_ = false;
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
     }
 

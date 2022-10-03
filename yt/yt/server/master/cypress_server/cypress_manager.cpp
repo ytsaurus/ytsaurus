@@ -2311,9 +2311,6 @@ private:
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
-    // COMPAT(shakurov)
-    bool NeedInitializeNodeTouchTimes_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2342,11 +2339,8 @@ private:
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
         ShardMap_.LoadKeys(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::AccessControlObjectOverhaul) {
-            AccessControlObjectNamespaceMap_.LoadKeys(context);
-            AccessControlObjectMap_.LoadKeys(context);
-        }
+        AccessControlObjectNamespaceMap_.LoadKeys(context);
+        AccessControlObjectMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2356,21 +2350,16 @@ private:
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
         ShardMap_.LoadValues(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::AccessControlObjectOverhaul) {
-            AccessControlObjectNamespaceMap_.LoadValues(context);
-            for (auto [id, object] : AccessControlObjectNamespaceMap_) {
-                RegisterAccessControlObjectNamespace(object);
-            }
 
-            AccessControlObjectMap_.LoadValues(context);
-            for (auto [id, object] : AccessControlObjectMap_) {
-                object->Namespace()->RegisterMember(object);
-            }
+        AccessControlObjectNamespaceMap_.LoadValues(context);
+        for (auto [id, object] : AccessControlObjectNamespaceMap_) {
+            RegisterAccessControlObjectNamespace(object);
         }
 
-        // COMPAT(shakurov)
-        NeedInitializeNodeTouchTimes_ = context.GetVersion() <= EMasterReign::InitTouchTimeOnCloning;
+        AccessControlObjectMap_.LoadValues(context);
+        for (auto [id, object] : AccessControlObjectMap_) {
+            object->Namespace()->RegisterMember(object);
+        }
     }
 
     void Clear() override
@@ -2494,8 +2483,7 @@ private:
             }
 
             // COMPAT(shakurov)
-            if (NeedInitializeNodeTouchTimes_ &&
-                node->TryGetExpirationTimeout() &&
+            if (node->TryGetExpirationTimeout() &&
                 !node->GetTouchTime())
             {
                 // NB: touch time on branches is not actually used but for

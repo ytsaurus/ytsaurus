@@ -86,10 +86,7 @@ void TBackupCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& co
 
     Persist(context, CutoffRowIndex);
     Persist(context, NextDynamicStoreId);
-
-    if (context.IsSave() || context.GetVersion() >= EMasterReign::BackupReplicated) {
-        Persist(context, DynamicStoreIdsToKeep);
-    }
+    Persist(context, DynamicStoreIdsToKeep);
 };
 
 TString ToString(const TBackupCutoffDescriptor& descriptor)
@@ -194,17 +191,8 @@ void TTablet::Load(TLoadContext& context)
     Load(context, UnconfirmedDynamicTableLocks_);
     Load(context, EdenStoreIds_);
     Load(context, BackupState_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
-        Load(context, BackupCutoffDescriptor_);
-    } else {
-        BackupCutoffDescriptor_.emplace();
-        Load(context, *BackupCutoffDescriptor_);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
-        Load(context, BackedUpReplicaInfos_);
-    }
+    Load(context, BackupCutoffDescriptor_);
+    Load(context, BackedUpReplicaInfos_);
     Load(context, DynamicStores_);
     Load(context, ReplicationProgress_);
 }

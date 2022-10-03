@@ -842,10 +842,6 @@ private:
     //! Contains native trunk nodes for which IsConsumer() is true.
     THashSet<TTableNode*> Consumers_;
 
-    // COMPAT(ifsmirnov)
-    bool NeedToFillMountConfigStorage_ = false;
-
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1126,7 +1122,6 @@ private:
         TableCollocationMap_.Clear();
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
-        NeedToFillMountConfigStorage_ = false;
         Consumers_.clear();
     }
 
@@ -1153,8 +1148,6 @@ private:
 
         Load(context, Queues_);
         Load(context, Consumers_);
-
-        NeedToFillMountConfigStorage_ = context.GetVersion() < EMasterReign::BuiltinMountConfig;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -1172,49 +1165,6 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
-
-        if (NeedToFillMountConfigStorage_) {
-            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
-                if (!IsTableType(node->GetType())) {
-                    continue;
-                }
-
-                auto* tableNode = node->As<TTableNode>();
-                if (!tableNode->GetAttributes()) {
-                    continue;
-                }
-
-                auto migratedAttributes = ExtractOldStyleMountConfigAttributes(
-                    tableNode->GetMutableAttributes());
-                if (migratedAttributes.empty()) {
-                    continue;
-                }
-
-                bool isBranched = tableNode->GetVersionedId().IsBranched();
-
-                auto trunkTableNode = tableNode->GetTrunkNode();
-                auto* storage = trunkTableNode->GetMutableMountConfigStorage();
-                for (const auto& [key, value] : migratedAttributes) {
-                    if (!value) {
-                        YT_VERIFY(isBranched);
-                        YT_LOG_ALERT("Mount config attribute deleted in transaction (TableId: %v, Key: %v)",
-                            tableNode->GetVersionedId(),
-                            key);
-                        continue;
-                    }
-
-                    if (isBranched) {
-                        YT_LOG_ALERT("Mount config attribute set in transaction, setting it to trunk node "
-                            "(TableId: %v, Key: %v, Value: %v)",
-                            tableNode->GetVersionedId(),
-                            key,
-                            ConvertToYsonString(value, EYsonFormat::Text));
-                    }
-
-                    storage->Set(key, value);
-                }
-            }
-        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const

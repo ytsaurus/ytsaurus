@@ -310,19 +310,7 @@ void TObject::Load(NCellMaster::TLoadContext& context)
     if (Load<bool>(context)) {
         SetForeign();
     }
-
-    // COMPAT(gritukan): Egor shall not pass!
-    if (context.GetVersion() < EMasterReign::SequoiaObjects) {
-        YT_VERIFY(!IsSequoia());
-    }
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::Aevum) {
-        Load(context, Aevum_);
-    } else {
-        YT_VERIFY(!IsSequoia());
-        Aevum_ = NSequoiaServer::EAevum::None;
-    }
+    Load(context, Aevum_);
 }
 
 void TObject::SaveEctoplasm(TStreamSaveContext& context) const

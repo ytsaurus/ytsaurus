@@ -159,22 +159,13 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, TabletCountByBackupState);
     Load(context, AggregatedTabletBackupState);
     Load(context, BackupCheckpointTimestamp);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
-        Load(context, BackupMode);
-    }
+    Load(context, BackupMode);
     Load(context, BackupError);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
-        Load(context, ReplicaBackupDescriptors);
-    }
+    Load(context, ReplicaBackupDescriptors);
     Load(context, QueueAgentStage);
     Load(context, TreatAsConsumer);
     Load(context, IsVitalConsumer);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BuiltinMountConfig) {
-        Load(context, *MountConfigStorage);
-    }
+    Load(context, *MountConfigStorage);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {

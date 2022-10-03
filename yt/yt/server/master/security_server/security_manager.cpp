@@ -2816,9 +2816,6 @@ private:
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
 
-        // COMPAT(aleksandra-zh, gritukan)
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::RecomputeResourceUsageOnceAgainᛝ;
-
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
