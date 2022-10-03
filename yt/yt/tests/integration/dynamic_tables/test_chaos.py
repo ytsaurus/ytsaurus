@@ -2432,7 +2432,7 @@ class TestChaos(ChaosTestBase):
         self._create_replica_tables(replicas, replica_ids, ordered=True)
 
         for driver in self._get_drivers():
-            set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"])
+            set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", ["primary"], driver=driver)
         wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_ids[1])) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_ids[2])) == "sync")
