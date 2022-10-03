@@ -53,7 +53,9 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
     CheckConversions<TQueueTableRow>(
         {.Cluster = "mamma", .Path = "mia"},
         15,
-        ConvertToAttributes(TYsonStringBuf("{attribute_revision=43u; type=table; sorted=%false; dynamic=%true}")),
+        ConvertToAttributes(TYsonStringBuf(
+            "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; auto_trim_policy=vital_consumers; "
+            "queue_agent_stage=fun}")),
         {
             .Queue = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
@@ -61,6 +63,8 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .ObjectType = NObjectClient::EObjectType::Table,
             .Dynamic = true,
             .Sorted = false,
+            .AutoTrimPolicy = EQueueAutoTrimPolicy::VitalConsumers,
+            .QueueAgentStage = "fun",
             .SynchronizationError = TError(),
         });
 }
@@ -72,7 +76,8 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         15,
         ConvertToAttributes(TYsonStringBuf(
             "{attribute_revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true; owner=nosokhvost}")),
+            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true; owner=nosokhvost; "
+            "queue_agent_stage=fun}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
@@ -83,6 +88,7 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
             .Vital = true,
             .Owner = "nosokhvost",
+            .QueueAgentStage = "fun",
             .SynchronizationError = TError(),
         });
 

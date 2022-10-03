@@ -52,6 +52,8 @@ struct TQueueTableRow
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
     std::optional<NQueueClient::EQueueAutoTrimPolicy> AutoTrimPolicy;
+    std::optional<TString> QueueAgentStage;
+
     std::optional<TError> SynchronizationError;
 
     static std::vector<TQueueTableRow> ParseRowRange(
@@ -101,6 +103,8 @@ struct TConsumerTableRow
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<bool> Vital;
     std::optional<TString> Owner;
+    std::optional<TString> QueueAgentStage;
+
     std::optional<TError> SynchronizationError;
 
     static std::vector<TConsumerTableRow> ParseRowRange(

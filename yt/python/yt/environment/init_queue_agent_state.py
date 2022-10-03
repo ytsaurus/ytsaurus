@@ -7,6 +7,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "dynamic", "type": "boolean"},
     {"name": "sorted", "type": "boolean"},
     {"name": "auto_trim_policy", "type": "string"},
+    {"name": "queue_agent_stage", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
 
@@ -22,6 +23,7 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "schema", "type": "any"},
     {"name": "vital", "type": "boolean"},
     {"name": "owner", "type": "string"},
+    {"name": "queue_agent_stage", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
 
