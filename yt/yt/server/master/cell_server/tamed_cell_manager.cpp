@@ -1192,12 +1192,6 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    // COMPAT(gritukan)
-    bool NeedToRecomputeCellBundleRefCounters_ = false;
-
-    // COMPAT(gritukan)
-    bool NeedToReplicatePrerequisiteTransactions_ = false;
-
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -1241,12 +1235,6 @@ private:
         CellBundleMap_.LoadKeys(context);
         CellMap_.LoadKeys(context);
         AreaMap_.LoadKeys(context);
-
-        NeedToRecomputeCellBundleRefCounters_ =
-            context.GetVersion() < EMasterReign::RecomputeCellBundleRefCounters;
-
-        NeedToReplicatePrerequisiteTransactions_ =
-            context.GetVersion() < EMasterReign::FixPrerequisiteTxReplication;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1341,52 +1329,6 @@ private:
             cell->GossipStatus().Initialize(Bootstrap_);
         }
 
-        if (NeedToRecomputeCellBundleRefCounters_) {
-            auto refCounters = ComputeCellBundleRefCounters();
-
-            for (auto [cellBundleId, cellBundle] : CellBundleMap_) {
-                if (!IsObjectAlive(cellBundle)) {
-                    YT_VERIFY(refCounters[cellBundle] == 0);
-                    continue;
-                }
-
-                auto oldRefCounter = cellBundle->GetObjectRefCounter(/*flushObjectUnrefs*/ true);
-                auto newRefCounter = refCounters[cellBundle];
-                // Every tablet cell bundle gets one more reference just because it exists.
-                ++newRefCounter;
-                if (oldRefCounter != newRefCounter) {
-                    YT_VERIFY(newRefCounter < oldRefCounter);
-                    const auto& objectManager = Bootstrap_->GetObjectManager();
-                    objectManager->UnrefObject(cellBundle, oldRefCounter - newRefCounter);
-                    YT_VERIFY(cellBundle->GetObjectRefCounter(/*flushUnrefs*/ true) == newRefCounter);
-
-                    YT_LOG_ALERT("Fixed cell bundle ref counter "
-                        "(CellBundleId: %v, TabletCellBundleName: %v, RefCounter: %v -> %v)",
-                        cellBundle->GetId(),
-                        cellBundle->GetName(),
-                        oldRefCounter,
-                        newRefCounter);
-                }
-            }
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (NeedToReplicatePrerequisiteTransactions_ && multicellManager->IsPrimaryMaster()) {
-            for (auto [transaction, peerInfo] : TransactionToCellMap_) {
-                auto [cell, peerId] = peerInfo;
-                TReqStartPrerequisiteTransaction request;
-                ToProto(request.mutable_cell_id(), cell->GetId());
-                ToProto(request.mutable_transaction_id(), transaction->GetId());
-                if (peerId) {
-                    request.set_peer_id(*peerId);
-                }
-                multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
-            }
-
-            YT_LOG_INFO("Replicated cell prerequisite transactions to secondary masters (TransactionCount: %v)",
-                TransactionToCellMap_.size());
-        }
-
         AfterSnapshotLoaded_.Fire();
     }
 
@@ -1406,9 +1348,6 @@ private:
         CellBundlesPerTypeMap_.clear();
         CellsPerTypeMap_.clear();
         BundleNodeTracker_->Clear();
-
-        NeedToRecomputeCellBundleRefCounters_ = false;
-        NeedToReplicatePrerequisiteTransactions_ = false;
     }
 
     void CheckInvariants() override
@@ -2425,8 +2364,7 @@ private:
             return;
         }
 
-        // COMPAT(gritukan): Use EmplaceOrCrash after EMasterReign::FixPrerequisiteTxReplication.
-        TransactionToCellMap_[transaction] = std::make_pair(cell, peerId);
+        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
         cell->SetPrerequisiteTransaction(peerId, transaction);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",

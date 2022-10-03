@@ -80,13 +80,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::ChunkListType) {
-        Load(context, ChunkLists_);
-    } else {
-        Load(context, ChunkLists_[EChunkListContentType::Main]);
-    }
-
+    Load(context, ChunkLists_);
     Load(context, UpdateMode_);
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);

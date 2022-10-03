@@ -88,13 +88,7 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, DataWeight);
-    // COMPAT(achulkov2)
-    if (context.IsLoad() && context.GetVersion() < EMasterReign::LogicalDataWeight) {
-        // This way trimmed_row_count for old chunk trees won't be negative.
-        LogicalDataWeight = DataWeight;
-    } else {
-        Persist(context, LogicalDataWeight);
-    }
+    Persist(context, LogicalDataWeight);
     Persist(context, RegularDiskSpace);
     Persist(context, ErasureDiskSpace);
     Persist(context, ChunkCount);

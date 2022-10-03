@@ -40,9 +40,7 @@ void TArea::Load(NCellMaster::TLoadContext& context)
     Load(context, Name_);
     Load(context, CellBundle_);
     Load(context, NodeTagFilter_);
-    if (context.GetVersion() >= EMasterReign::AreaChaosOptions) {
-        TNullableIntrusivePtrSerializer<>::Load(context, ChaosOptions_);
-    }
+    TNullableIntrusivePtrSerializer<>::Load(context, ChaosOptions_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

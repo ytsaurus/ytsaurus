@@ -317,10 +317,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Acd_);
     Load(context, Opaque_);
     Load(context, AccessTime_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::PersistentNodeTouchTime) {
-        Load(context, TouchTime_);
-    }
+    Load(context, TouchTime_);
     Load(context, AccessCounter_);
     Load(context, Shard_);
     Load(context, Annotation_);

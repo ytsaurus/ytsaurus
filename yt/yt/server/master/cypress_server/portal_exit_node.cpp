@@ -42,16 +42,9 @@ void TPortalExitNode::Load(TLoadContext& context)
     Load(context, Path_);
     Load(context, Key_);
     Load(context, ParentId_);
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::PortalAclAndAttributeSynchronization) {
-        Load(context, EffectiveInheritableAttributes_);
-        Load(context, EffectiveAnnotationPath_);
-        Load(context, DirectAcd_);
-    } else {
-        // NB: In old versions annotations were always present on portal nodes.
-        EffectiveAnnotationPath_ = Path_;
-    }
+    Load(context, EffectiveInheritableAttributes_);
+    Load(context, EffectiveAnnotationPath_);
+    Load(context, DirectAcd_);
 }
 
 void TPortalExitNode::FillInheritableAttributes(TTransientAttributes *attributes) const

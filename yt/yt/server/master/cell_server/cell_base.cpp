@@ -139,13 +139,7 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, GossipStatus_);
     Load(context, PeerCount_);
     Load(context, LastLeaderChangeTime_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::SuspendTabletCell) {
-        Load(context, Suspended_);
-    } else {
-        Suspended_ = false;
-    }
+    Load(context, Suspended_);
 }
 
 TPeerId TCellBase::FindPeerId(const TString& address) const

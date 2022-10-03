@@ -32,55 +32,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    // 22.2 starts here.
-    ((LogicalDataWeight)                                            (2000))  // achulkov2
-    ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko
-    ((PersistentNodeTouchTime)                                      (2002))  // shakurov
-    ((UnconditionallyClearPrerequisitesFromExternalizedRequests)    (2003))  // shakurov
-    ((SequoiaObjects)                                               (2004))  // gritukan
-    ((MoveSyncSuppressionFlagsToMulticellSyncExt)                   (2005))  // shakurov
-    ((BanObviousCyclicSymlinks)                                     (2006))  // h0pless
-    ((MasterJobThrottlerPerType)                                    (2007))  // h0pless
-    ((PortalAclAndAttributeSynchronization)                         (2008))  // kvk1920
-    ((ProfilingPeriodDynamicConfig)                                 (2009))  // shakurov
-    ((SequoiaGorshok)                                               (2010))  // gritukan
-    ((SequoiaTransaction)                                           (2011))  // gritukan
-    ((Aevum)                                                        (2012))  // gritukan
-    ((DedicatedChunkHost)                                           (2013))  // h0pless
-    ((ChangedExceptionTypeInResolve)                                (2014))  // h0pless
-    ((ChunkListType)                                                (2015))  // gritukan
-    ((BuiltinMountConfig)                                           (2016))  // ifsmirnov
-    ((BackupReplicated)                                             (2017))  // ifsmirnov
-    ((DefaultMaxBackingStoreMemoryRatio)                            (2018))  // ifsmirnov
-    ((FarewellToOldCFR)                                             (2019))  // akozhikhov
-    ((InitTouchTimeOnCloning)                                       (2020))  // shakurov
-    ((AdaptiveHedgingManager)                                       (2021))  // akozhikhov
-    ((NewReplicatedTableTracker)                                    (2022))  // akozhikhov
-    ((RemoveReplicateHostNameOption)                                (2023))  // prime
-    ((ForcedUnmountEdenStoreIds)                                    (2024))  // ifsmirnov
-    ((RecomputeAccountResourceUsageOnceAgain)                       (2025))  // aleksandra-zh
-    ((LetsRecomputeAccountResourceUsageAgainWhyNotItsNice)          (2026))  // gritukan
-    ((BackupsMisc)                                                  (2027))  // ifsmirnov
-    ((FixChunkWeightHistograms)                                     (2028))  // h0pless
-    ((PerClusterBackupFlag)                                         (2029))  // ifsmirnov
-    ((SequoiaConfirmChunks)                                         (2030))  // aleksandra-zh
-    ((AreaChaosOptions)                                             (2031))  // savrus
-    ((CrpPullReplication)                                           (2032))  // aleksandra-zh
-    ((SuspendTabletCell)                                            (2033))  // gritukan
-    ((MountConfigAttributesInUserAttributes)                        (2034))  // ifsmirnov
-    ((RecomputeResourceUsageOnceAgainᛝ)                             (2035))  // gritukan
-    ((FixPrerequisiteTxReplication)                                 (2036))  // gritukan
-    ((AccessControlObjectOverhaul)                                  (2037))  // shakurov
-    ((RotationAfterBackup)                                          (2038))  // ifsmirnov
-    ((FixCellarHeartbeat)                                           (2039))  // savrus
-    ((SetNoneForHunkErasureCodecAttribute)                          (2040))  // gritukan
-    ((OrderedChaosTables)                                           (2041))  // savrus
-    ((RecomputeCellBundleRefCounters)                               (2042))  // gritukan
-    ((BackupVsTabletAction)                                         (2043))  // ifsmirnov
-    ((AlwaysUseNewHeartbeats)                                       (2044))  // gepardo
-    ((ExpectedTabletState)                                          (2045))  // savrus
-    ((FixOrderedTablesReplicatoinProgress222)                       (2046))  // savrus
-    ((DropSomeUselessConfigOptions)                                 (2047))  // akozhikhov
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
     ((TabletActionExpirationTimeout)                                (2101))  // alexelexa
