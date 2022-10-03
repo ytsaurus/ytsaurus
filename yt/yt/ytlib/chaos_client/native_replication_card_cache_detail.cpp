@@ -84,13 +84,14 @@ public:
     TGetSession(
         TReplicationCardCache* owner,
         const TReplicationCardCacheKey& key,
-        const NLogging::TLogger& logger)
+        const NLogging::TLogger& logger,
+        TGuid sessionId)
         : Owner_(owner)
         , Key_ (key)
         , Logger(logger
             .WithTag("ReplicationCardId: %v, CacheSessionId: %v",
                 Key_.CardId,
-                TGuid::Create()))
+                sessionId))
     { }
 
     TReplicationCardPtr Run()
@@ -178,7 +179,12 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
     }
 
     auto invoker = connection->GetInvoker();
-    auto session = New<TGetSession>(this, key, Logger);
+    auto sessionId = TGuid::Create();
+    auto session = New<TGetSession>(this, key, Logger, sessionId);
+
+    YT_LOG_DEBUG("Requesting replication card (ReplicationCardId: %v, CacheSessionId: %v)",
+        key.CardId,
+        sessionId);
 
     return BIND(&TGetSession::Run, std::move(session))
         .AsyncVia(std::move(invoker))
