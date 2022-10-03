@@ -24,7 +24,6 @@ Y_UNIT_TEST_SUITE(TestErrors)
         } catch (const NYT::TErrorResponse& e) {
             const auto& error = e.GetError();
             UNIT_ASSERT_VALUES_EQUAL(error.GetCode(), NYT::NClusterErrorCodes::NYTree::ResolveError);
-            UNIT_ASSERT_VALUES_EQUAL(error.GetAttributes().contains("host"), true);
             UNIT_ASSERT_VALUES_EQUAL(error.InnerErrors().size(), 1);
         }
     }
