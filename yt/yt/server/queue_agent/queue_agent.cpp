@@ -354,6 +354,13 @@ void TQueueAgent::Poll()
 
     for (const auto& row : queueRows) {
         YT_LOG_TRACE("Processing queue row (Row: %v)", ConvertToYsonString(row, EYsonFormat::Text).ToString());
+        if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
+            YT_LOG_TRACE(
+                "Queue stage %v differs from queue agent stage %Qv",
+                row.QueueAgentStage,
+                Config_->Stage);
+            continue;
+        }
 
         auto& freshQueue = freshQueues[row.Queue];
 
@@ -382,6 +389,13 @@ void TQueueAgent::Poll()
 
     for (const auto& row : consumerRows) {
         YT_LOG_TRACE("Processing consumer row (Row: %v)", ConvertToYsonString(row, EYsonFormat::Text).ToString());
+        if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
+            YT_LOG_TRACE(
+                "Consumer stage %v differs from queue agent stage %Qv",
+                row.QueueAgentStage,
+                Config_->Stage);
+            continue;
+        }
 
         auto& freshConsumer = freshConsumers[row.Consumer];
 

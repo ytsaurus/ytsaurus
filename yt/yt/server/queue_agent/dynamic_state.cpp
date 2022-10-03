@@ -112,6 +112,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("dynamic", EValueType::Boolean),
     TColumnSchema("sorted", EValueType::Boolean),
     TColumnSchema("auto_trim_policy", EValueType::String),
+    TColumnSchema("queue_agent_stage", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
 });
 
@@ -142,6 +143,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto dynamicId = nameTable->FindId("dynamic");
     auto sortedId = nameTable->FindId("sorted");
     auto autoTrimPolicyId = nameTable->FindId("auto_trim_policy");
+    auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
@@ -176,6 +178,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
             typedRow.AutoTrimPolicy = ParseEnum<EQueueAutoTrimPolicy>(autoTrimPolicy->AsStringBuf());
         }
 
+        setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
         setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
     }
 
@@ -199,6 +202,7 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         rowBuilder.AddValue(ToUnversionedValue(row.Dynamic, rowBuffer, nameTable->GetIdOrThrow("dynamic")));
         rowBuilder.AddValue(ToUnversionedValue(row.Sorted, rowBuffer, nameTable->GetIdOrThrow("sorted")));
         rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.AutoTrimPolicy), rowBuffer, nameTable->GetIdOrThrow("auto_trim_policy")));
+        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
@@ -225,7 +229,7 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_policy"};
+    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_policy", "queue_agent_stage"};
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -241,6 +245,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimPolicy = cypressAttributes->Find<EQueueAutoTrimPolicy>("auto_trim_policy"),
+        .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .SynchronizationError = TError(),
     };
 }
@@ -255,6 +260,9 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("object_type").Value(row.ObjectType)
             .Item("dynamic").Value(row.Dynamic)
             .Item("sorted").Value(row.Sorted)
+            .Item("auto_trim_policy").Value(row.AutoTrimPolicy)
+            .Item("queue_agent_stage").Value(row.QueueAgentStage)
+            .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }
 
@@ -286,6 +294,7 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
     TColumnSchema("schema", EValueType::Any),
     TColumnSchema("vital", EValueType::Boolean),
     TColumnSchema("owner", EValueType::String),
+    TColumnSchema("queue_agent_stage", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
 });
 
@@ -320,6 +329,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
     auto schemaId = nameTable->FindId("schema");
     auto vitalId = nameTable->FindId("vital");
     auto ownerId = nameTable->FindId("owner");
+    auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
@@ -361,6 +371,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
 
         setSimpleOptional(vitalId, typedRow.Vital);
         setSimpleOptional(ownerId, typedRow.Owner);
+        setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
         setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
     }
 
@@ -402,6 +413,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         rowBuilder.AddValue(ToUnversionedValue(schemaYson, rowBuffer, nameTable->GetIdOrThrow("schema")));
         rowBuilder.AddValue(ToUnversionedValue(row.Vital, rowBuffer, nameTable->GetIdOrThrow("vital")));
         rowBuilder.AddValue(ToUnversionedValue(row.Owner, rowBuffer, nameTable->GetIdOrThrow("owner")));
+        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
@@ -428,7 +440,8 @@ NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTa
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target_queue", "attribute_revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer", "owner"};
+    return {"target_queue", "attribute_revision", "type", "treat_as_queue_consumer", "schema",
+            "vital_queue_consumer", "owner", "queue_agent_stage"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -448,6 +461,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
         .Vital = cypressAttributes->Get<bool>("vital_queue_consumer", false),
         .Owner = cypressAttributes->Get<TString>("owner", ""),
+        .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .SynchronizationError = TError(),
     };
 }
@@ -465,6 +479,8 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("schema").Value(row.Schema)
             .Item("vital").Value(row.Vital)
             .Item("owner").Value(row.Owner)
+            .Item("queue_agent_stage").Value(row.QueueAgentStage)
+            .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }
 

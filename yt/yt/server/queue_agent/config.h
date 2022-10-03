@@ -83,6 +83,10 @@ public:
     //! Used to create channels to other queue agents.
     NBus::TTcpBusConfigPtr BusClient;
 
+    //! Identifies a family of queue agents.
+    //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
+    TString Stage;
+
     REGISTER_YSON_STRUCT(TQueueAgentConfig)
 
     static void Register(TRegistrar registrar);

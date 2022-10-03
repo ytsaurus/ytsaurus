@@ -242,6 +242,53 @@ class TestQueueAgentBase(YTEnvSetup):
             insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
 
 
+class TestQueueAgent(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+            },
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            "policy": "watching",
+            "clusters": ["primary"],
+        },
+    }
+
+    @authors("achulkov2")
+    def test_other_stages_are_ignored(self):
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+        queue_orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_orchid.wait_fresh_poll()
+
+        status = queue_orchid.get_queue_status("primary://tmp/q")
+        assert status["partition_count"] == 1
+
+        set("//tmp/q/@queue_agent_stage", "testing")
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_orchid.wait_fresh_poll()
+
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
+            queue_orchid.get_queue_status("primary://tmp/q")
+
+        set("//tmp/q/@queue_agent_stage", "production")
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_orchid.wait_fresh_poll()
+
+        status = queue_orchid.get_queue_status("primary://tmp/q")
+        assert status["partition_count"] == 1
+
+
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
@@ -287,7 +334,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q"}])
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production"}])
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
@@ -295,7 +342,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Missing object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(1234)}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(1234)}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -304,8 +352,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Wrong object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(2345),
-                      "object_type": "map_node"}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(2345), "object_type": "map_node"}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -313,8 +361,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(3456),
-                      "object_type": "table", "dynamic": True, "sorted": True}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(3456), "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -322,8 +370,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Proper ordered dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
-                      "dynamic": True, "sorted": False}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(4567), "object_type": "table", "dynamic": True, "sorted": False}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -332,8 +380,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Switch back to sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(5678), "object_type": "table",
-                      "dynamic": False, "sorted": False}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(5678), "object_type": "table", "dynamic": False, "sorted": False}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -359,7 +407,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c"}])
+                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production"}])
         orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
@@ -367,7 +415,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Missing target.
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(1234)}],
+                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(1234)}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
@@ -376,8 +425,9 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Unregistered target queue.
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
-                      "target_cluster": "primary", "target_path": "//tmp/q", "treat_as_queue_consumer": True}],
+                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(2345), "target_cluster": "primary", "target_path": "//tmp/q",
+                      "treat_as_queue_consumer": True}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
@@ -385,8 +435,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Register target queue with wrong object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567),
-                      "object_type": "map_node", "dynamic": True, "sorted": False}],
+                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(4567), "object_type": "map_node", "dynamic": True, "sorted": False}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
@@ -1265,6 +1315,10 @@ class TestMasterIntegration(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            "policy": "polling",
         },
     }
 

@@ -455,6 +455,9 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
 
         config["rpc_port"] = rpc_ports[i]
         config["monitoring_port"] = next(ports_generator)
+
+        set_at(config, "queue_agent/stage", "production")
+
         configs.append(config)
 
     return configs
