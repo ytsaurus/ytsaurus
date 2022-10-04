@@ -15,8 +15,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
-import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
-import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
+import ru.yandex.yt.ytclient.request.TabletInfo;
+import ru.yandex.yt.ytclient.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

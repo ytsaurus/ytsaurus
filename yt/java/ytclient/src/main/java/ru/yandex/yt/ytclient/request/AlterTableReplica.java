@@ -11,7 +11,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
-import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 

@@ -17,15 +17,14 @@ import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.CopyNode;
 import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.LinkNode;
 import ru.yandex.yt.ytclient.request.ListNode;
@@ -48,6 +47,7 @@ import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
+import ru.yandex.yt.ytclient.request.WriteFile;
 import ru.yandex.yt.ytclient.request.WriteTable;
 
 /**
@@ -64,74 +64,126 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<GUID> createNode(CreateNode req);
 
+    /**
+     * @deprected prefer to use {@link #createNode(CreateNode)}
+     */
+    @Deprecated
     default CompletableFuture<GUID> createNode(CreateNode.BuilderBase<?, CreateNode> req) {
         return createNode(req.build());
     }
 
     CompletableFuture<Void> removeNode(RemoveNode req);
 
+    /**
+     * @deprected prefer to use {@link #removeNode(RemoveNode)}
+     */
+    @Deprecated
     default CompletableFuture<Void> removeNode(RemoveNode.BuilderBase<?, RemoveNode> req) {
         return removeNode(req.build());
     }
 
     CompletableFuture<Void> setNode(SetNode req);
 
+    /**
+     * @deprected prefer to use {@link #setNode(SetNode)}
+     */
+    @Deprecated
     default CompletableFuture<Void> setNode(SetNode.BuilderBase<?, SetNode> req) {
         return setNode(req.build());
     }
 
     CompletableFuture<YTreeNode> getNode(GetNode req);
 
+    /**
+     * @deprected prefer to use {@link #getNode(GetNode)}
+     */
+    @Deprecated
     default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?, GetNode> getNode) {
         return getNode(getNode.build());
     }
 
     CompletableFuture<YTreeNode> listNode(ListNode req);
 
+    /**
+     * @deprected prefer to use {@link #listNode(ListNode)}
+     */
+    @Deprecated
     default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?, ListNode> listNode) {
         return listNode(listNode.build());
     }
 
     CompletableFuture<LockNodeResult> lockNode(LockNode req);
 
+    /**
+     * @deprected prefer to use {@link #lockNode(LockNode)}
+     */
+    @Deprecated
     default CompletableFuture<LockNodeResult> lockNode(LockNode.BuilderBase<?, LockNode> req) {
         return lockNode(req.build());
     }
 
     CompletableFuture<GUID> copyNode(CopyNode req);
 
+    /**
+     * @deprected prefer to use {@link #copyNode(CopyNode)}
+     */
+    @Deprecated
     default CompletableFuture<GUID> copyNode(CopyNode.BuilderBase<?, CopyNode> req) {
         return copyNode(req.build());
     }
 
     CompletableFuture<GUID> linkNode(LinkNode req);
 
+    /**
+     * @deprected prefer to use {@link #linkNode(LinkNode)}
+     */
+    @Deprecated
     default CompletableFuture<GUID> linkNode(LinkNode.BuilderBase<?, LinkNode> req) {
         return linkNode(req.build());
     }
 
     CompletableFuture<GUID> moveNode(MoveNode req);
 
+    /**
+     * @deprected prefer to use {@link #moveNode(MoveNode)}
+     */
+    @Deprecated
     default CompletableFuture<GUID> moveNode(MoveNode.BuilderBase<?, MoveNode> req) {
         return moveNode(req.build());
     }
 
     CompletableFuture<Boolean> existsNode(ExistsNode req);
 
+    /**
+     * @deprected prefer to use {@link #existsNode(ExistsNode)}
+     */
+    @Deprecated
     default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?, ExistsNode> req) {
         return existsNode(req.build());
     }
 
     CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
 
+    /**
+     * @deprected prefer to use {@link #concatenateNodes(ConcatenateNodes)}
+     */
+    @Deprecated
     default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?, ConcatenateNodes> req) {
         return concatenateNodes(req.build());
     }
 
+    /**
+     * @deprected prefer to use {@link #readTable(ReadTable)}
+     */
+    @Deprecated
     default <T> CompletableFuture<TableReader<T>> readTable(ReadTable.BuilderBase<T, ?, ReadTable<T>> req) {
         return readTable(req.build());
     }
 
+    /**
+     * @deprected prefer to use {@link #readTable(ReadTable, TableAttachmentReader)}
+     */
+    @Deprecated
     default <T> CompletableFuture<TableReader<T>> readTable(
             ReadTable.BuilderBase<T, ?, ReadTable<T>> req,
             @Nullable TableAttachmentReader<T> reader) {
@@ -168,6 +220,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 
+    /**
+     * @deprected prefer to use {@link #writeTable(WriteTable)}
+     */
+    @Deprecated
     default <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable.BuilderBase<T, ?, WriteTable<T>> req) {
         return writeTable(req.build());
     }
@@ -176,14 +232,30 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
 
     CompletableFuture<FileReader> readFile(ReadFile req);
 
+    /**
+     * @deprected prefer to use {@link #readFile(ReadFile)}
+     */
+    @Deprecated
     default CompletableFuture<FileReader> readFile(ReadFile.BuilderBase<?, ReadFile> req) {
         return readFile(req.build());
     }
 
     CompletableFuture<FileWriter> writeFile(WriteFile req);
 
+    /**
+     * @deprected prefer to use {@link #writeTable(WriteTable)}
+     */
+    @Deprecated
+    default CompletableFuture<FileWriter> writeFile(WriteFile.BuilderBase<?> req) {
+        return writeFile(req.build());
+    }
+
     CompletableFuture<GUID> startOperation(StartOperation req);
 
+    /**
+     * @deprected prefer to use {@link #startOperation(StartOperation)}
+     */
+    @Deprecated
     default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?, StartOperation> req) {
         return startOperation(req.build());
     }
