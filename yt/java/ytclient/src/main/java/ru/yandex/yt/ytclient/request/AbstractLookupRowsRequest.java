@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy;
+package ru.yandex.yt.ytclient.request;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,29 +14,38 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
-import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
-public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequest<R>> extends RequestBase<R> {
-    private final String path;
-    private final TableSchema schema;
-    private final List<String> lookupColumns = new ArrayList<>();
-    @Nullable private YtTimestamp timestamp;
-    @Nullable private YtTimestamp retentionTimestamp;
+public abstract class AbstractLookupRowsRequest<
+        TBuilder extends RequestBase.Builder<TBuilder, TRequest>,
+        TRequest extends RequestBase<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {
+    protected final String path;
+    protected final TableSchema schema;
+    protected final List<String> lookupColumns;
+    @Nullable
+    protected final YtTimestamp timestamp;
+    @Nullable
+    protected final YtTimestamp retentionTimestamp;
 
     // NB. Java default of keepMissingRows is different from YT default for historical reasons,
     // now we have to keep backward compatibility.
-    private boolean keepMissingRows = false;
+    protected boolean keepMissingRows = false;
 
-    public AbstractLookupRowsRequest(String path, TableSchema schema) {
-        this.path = Objects.requireNonNull(path);
-        this.schema = Objects.requireNonNull(schema);
-        if (!schema.isLookupSchema()) {
+    AbstractLookupRowsRequest(Builder<?, ?> builder) {
+        super(builder);
+        this.path = Objects.requireNonNull(builder.path);
+        this.schema = Objects.requireNonNull(builder.schema);
+        if (!this.schema.isLookupSchema()) {
             throw new IllegalArgumentException("LookupRowsRequest requires a lookup schema");
         }
+        this.lookupColumns = new ArrayList<>(Objects.requireNonNull(builder.lookupColumns));
+        this.timestamp = builder.timestamp;
+        this.retentionTimestamp = builder.retentionTimestamp;
+        this.keepMissingRows = builder.keepMissingRows;
     }
 
     public String getPath() {
@@ -47,26 +56,8 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
         return keepMissingRows;
     }
 
-    @SuppressWarnings("unchecked")
-    public R setKeepMissingRows(boolean keepMissingRows) {
-        this.keepMissingRows = keepMissingRows;
-        return (R) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public R setTimestamp(YtTimestamp timestamp) {
-        this.timestamp = timestamp;
-        return (R) this;
-    }
-
     public Optional<YtTimestamp> getTimestamp() {
         return Optional.ofNullable(timestamp);
-    }
-
-    @SuppressWarnings("unchecked")
-    public R setRetentionTimestamp(YtTimestamp retentionTimestamp) {
-        this.retentionTimestamp = retentionTimestamp;
-        return (R) this;
     }
 
     public Optional<YtTimestamp> getRetentionTimestamp() {
@@ -81,25 +72,9 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
         return Collections.unmodifiableList(lookupColumns);
     }
 
-    @SuppressWarnings("unchecked")
-    public R addLookupColumn(String name) {
-        lookupColumns.add(name);
-        return (R) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public R addLookupColumns(List<String> names) {
-        lookupColumns.addAll(names);
-        return (R) this;
-    }
-
-    public R addLookupColumns(String... names) {
-        return addLookupColumns(Arrays.asList(names));
-    }
-
     public abstract void serializeRowsetTo(List<byte[]> attachments);
 
-    HighLevelRequest<TReqLookupRows.Builder> asLookupRowsWritable() {
+    public HighLevelRequest<TReqLookupRows.Builder> asLookupRowsWritable() {
         //noinspection Convert2Diamond
         return new HighLevelRequest<TReqLookupRows.Builder>() {
             @Override
@@ -129,7 +104,7 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
         };
     }
 
-    HighLevelRequest<TReqVersionedLookupRows.Builder> asVersionedLookupRowsWritable() {
+    public HighLevelRequest<TReqVersionedLookupRows.Builder> asVersionedLookupRowsWritable() {
         //noinspection Convert2Diamond
         return new HighLevelRequest<TReqVersionedLookupRows.Builder>() {
             @Override
@@ -154,5 +129,89 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
                 serializeRowsetTo(builder.attachments());
             }
         };
+    }
+
+    public abstract static class Builder<
+            TBuilder extends Builder<TBuilder, TRequest>,
+            TRequest extends AbstractLookupRowsRequest<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest> {
+        @Nullable
+        private String path;
+        @Nullable
+        private TableSchema schema;
+        private final List<String> lookupColumns = new ArrayList<>();
+        @Nullable
+        private YtTimestamp timestamp;
+        @Nullable
+        private YtTimestamp retentionTimestamp;
+        // NB. Java default of keepMissingRows is different from YT default for historical reasons,
+        // now we have to keep backward compatibility.
+        private boolean keepMissingRows = false;
+
+        public Builder() {
+        }
+
+        public TBuilder setPath(String path) {
+            this.path = path;
+            return self();
+        }
+
+        public TBuilder setSchema(TableSchema schema) {
+            this.schema = schema;
+            return self();
+        }
+
+        public TBuilder setKeepMissingRows(boolean keepMissingRows) {
+            this.keepMissingRows = keepMissingRows;
+            return self();
+        }
+
+        public TBuilder setTimestamp(@Nullable YtTimestamp timestamp) {
+            this.timestamp = timestamp;
+            return self();
+        }
+
+        public TBuilder setRetentionTimestamp(@Nullable YtTimestamp retentionTimestamp) {
+            this.retentionTimestamp = retentionTimestamp;
+            return self();
+        }
+
+        public TBuilder addLookupColumn(String name) {
+            lookupColumns.add(name);
+            return self();
+        }
+
+        public TBuilder addLookupColumns(List<String> names) {
+            lookupColumns.addAll(names);
+            return self();
+        }
+
+        public TBuilder addLookupColumns(String... names) {
+            return addLookupColumns(Arrays.asList(names));
+        }
+
+        public String getPath() {
+            return Objects.requireNonNull(path);
+        }
+
+        public boolean getKeepMissingRows() {
+            return keepMissingRows;
+        }
+
+        public Optional<YtTimestamp> getTimestamp() {
+            return Optional.ofNullable(timestamp);
+        }
+
+        public Optional<YtTimestamp> getRetentionTimestamp() {
+            return Optional.ofNullable(retentionTimestamp);
+        }
+
+        public TableSchema getSchema() {
+            return Objects.requireNonNull(schema);
+        }
+
+        public List<String> getLookupColumns() {
+            return Collections.unmodifiableList(lookupColumns);
+        }
     }
 }

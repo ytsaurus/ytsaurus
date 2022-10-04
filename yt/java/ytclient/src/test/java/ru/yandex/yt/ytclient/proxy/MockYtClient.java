@@ -59,8 +59,10 @@ import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.LockNodeResult;
+import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.request.MapReduceOperation;
+import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.MoveNode;
@@ -151,26 +153,52 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
+        return (CompletableFuture<UnversionedRowset>) callMethod("lookupRows");
+    }
+
+    @Override
+    public CompletableFuture<UnversionedRowset> lookupRows(MappedLookupRowsRequest<?> request) {
         return (CompletableFuture<UnversionedRowset>) callMethod("lookupRows");
     }
 
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
-            AbstractLookupRowsRequest<?> request,
+            LookupRowsRequest request,
             YTreeObjectSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
     }
 
     @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request) {
+    public <T> CompletableFuture<List<T>> lookupRows(
+            MappedLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    ) {
+        return (CompletableFuture<List<T>>) callMethod("lookupRows");
+    }
+
+    @Override
+    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
+        return (CompletableFuture<VersionedRowset>) callMethod("versionedLookupRows");
+    }
+
+    @Override
+    public CompletableFuture<VersionedRowset> versionedLookupRows(MappedLookupRowsRequest<?> request) {
         return (CompletableFuture<VersionedRowset>) callMethod("versionedLookupRows");
     }
 
     @Override
     public <T> CompletableFuture<List<T>> versionedLookupRows(
-            AbstractLookupRowsRequest<?> request,
+            LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer
+    ) {
+        return (CompletableFuture<List<T>>) callMethod("versionedLookupRows");
+    }
+
+    @Override
+    public <T> CompletableFuture<List<T>> versionedLookupRows(
+            MappedLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("versionedLookupRows");
@@ -287,7 +315,13 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public <T> CompletableFuture<Void> lookupRows(AbstractLookupRowsRequest<?> request,
+    public <T> CompletableFuture<Void> lookupRows(LookupRowsRequest request,
+                                                  YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+        return null;
+    }
+
+    @Override
+    public <T> CompletableFuture<Void> lookupRows(MappedLookupRowsRequest<?> request,
                                                   YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
         return null;
     }
