@@ -700,6 +700,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
@@ -4671,6 +4672,73 @@ private:
                 NYT::ToProto(response->mutable_statistics(), result);
 
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PartitionTables)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        std::vector<TRichYPath> paths;
+        for (const auto& path : request->paths()) {
+            paths.emplace_back(ConvertTo<TRichYPath>(TYsonStringBuf(path)));
+        }
+
+        TPartitionTablesOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
+        if (request->has_fetch_chunk_spec()) {
+            if (request->fetch_chunk_spec().has_max_chunk_per_fetch()) {
+                options.FetchChunkSpecConfig->MaxChunksPerFetch =
+                    request->fetch_chunk_spec().max_chunk_per_fetch();
+            }
+            if (request->fetch_chunk_spec().has_max_chunk_per_locate_request()) {
+                options.FetchChunkSpecConfig->MaxChunksPerLocateRequest =
+                    request->fetch_chunk_spec().max_chunk_per_locate_request();
+            }
+        }
+
+        options.FetcherConfig = New<NChunkClient::TFetcherConfig>();
+        if (request->has_fetcher() && request->fetcher().has_node_rpc_timeout()) {
+            options.FetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+        }
+
+        options.ChunkSliceFetcherConfig = New<NChunkClient::TChunkSliceFetcherConfig>();
+        if (request->has_chunk_slice_fetcher() && request->chunk_slice_fetcher().has_max_slices_per_fetch()) {
+            options.ChunkSliceFetcherConfig->MaxSlicesPerFetch = request->chunk_slice_fetcher().max_slices_per_fetch();
+        }
+
+        options.PartitionMode = CheckedEnumCast<NTableClient::ETablePartitionMode>(request->partition_mode());
+
+        options.DataWeightPerPartition = request->data_weight_per_partition();
+
+        if (request->has_max_partition_count()) {
+            options.MaxPartitionCount = request->max_partition_count();
+        }
+
+        options.EnableKeyGuarantee = request->enable_key_guarantee();
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v",
+            paths,
+            options.PartitionMode,
+            options.EnableKeyGuarantee,
+            options.DataWeightPerPartition);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PartitionTables(paths, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_partitions(), result.Partitions);
+
+                context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
             });
     }
 

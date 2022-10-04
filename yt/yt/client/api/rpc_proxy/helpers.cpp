@@ -13,6 +13,8 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NTableClient;
@@ -1135,6 +1137,35 @@ void FromProto(
         statistics->TimestampTotalWeight.reset();
     }
     statistics->LegacyChunkDataWeight = protoStatistics.legacy_chunk_data_weight();
+}
+
+void ToProto(
+    NProto::TMultiTablePartition* protoMultiTablePartition,
+    const NApi::TMultiTablePartition& multiTablePartition)
+{
+    protoMultiTablePartition->Clear();
+
+    NYT::ToProto(
+        protoMultiTablePartition->mutable_table_ranges(),
+        multiTablePartition.TableRanges);
+}
+
+void FromProto(
+    NApi::TMultiTablePartition* multiTablePartition,
+    const NProto::TMultiTablePartition& protoMultiTablePartition)
+{
+    NYT::FromProto(
+        &multiTablePartition->TableRanges,
+        protoMultiTablePartition.table_ranges());
+}
+
+void FromProto(
+    NApi::TMultiTablePartitions* multiTablePartitions,
+    const NProto::TRspPartitionTables& protoRspPartitionTables)
+{
+    NYT::FromProto(
+        &multiTablePartitions->Partitions,
+        protoRspPartitionTables.partitions());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

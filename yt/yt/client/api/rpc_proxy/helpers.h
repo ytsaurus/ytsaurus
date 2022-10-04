@@ -168,6 +168,18 @@ void FromProto(
     NTableClient::TColumnarStatistics* statistics,
     const NProto::TColumnarStatistics& protoStatistics);
 
+void ToProto(
+    NProto::TMultiTablePartition* protoMultiTablePartition,
+    const NApi::TMultiTablePartition& multiTablePartition);
+
+void FromProto(
+    NApi::TMultiTablePartition* multiTablePartition,
+    const NProto::TMultiTablePartition& protoMultiTablePartition);
+
+void FromProto(
+    NApi::TMultiTablePartitions* multiTablePartitions,
+    const NProto::TRspPartitionTables& protoRspPartitionTables);
+
 NProto::EOperationType ConvertOperationTypeToProto(
     NScheduler::EOperationType operationType);
 

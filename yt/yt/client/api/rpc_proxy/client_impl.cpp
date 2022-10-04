@@ -1446,11 +1446,45 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     }));
 }
 
-TFuture<TMultiTablePartitions> TClient::PartitionTables(
-    const std::vector<NYPath::TRichYPath>& /*paths*/,
-    const TPartitionTablesOptions& /*options*/)
+TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
+    const std::vector<NYPath::TRichYPath>& paths,
+    const TPartitionTablesOptions& options)
 {
-    YT_UNIMPLEMENTED();
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.PartitionTables();
+    SetTimeoutOptions(*req, options);
+
+    for (const auto& path : paths) {
+        req->add_paths(ConvertToYsonString(path).ToString());
+    }
+
+    req->mutable_fetch_chunk_spec()->set_max_chunk_per_fetch(
+        options.FetchChunkSpecConfig->MaxChunksPerFetch);
+    req->mutable_fetch_chunk_spec()->set_max_chunk_per_locate_request(
+        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest);
+
+    req->mutable_fetcher()->set_node_rpc_timeout(
+        ToProto<i64>(options.FetcherConfig->NodeRpcTimeout));
+
+    req->mutable_chunk_slice_fetcher()->set_max_slices_per_fetch(
+        ToProto<i64>(options.ChunkSliceFetcherConfig->MaxSlicesPerFetch));
+
+    req->set_partition_mode(static_cast<NProto::EPartitionTablesMode>(options.PartitionMode));
+
+    req->set_data_weight_per_partition(options.DataWeightPerPartition);
+
+    if (options.MaxPartitionCount) {
+        req->set_max_partition_count(*options.MaxPartitionCount);
+    }
+
+    req->set_enable_key_guarantee(options.EnableKeyGuarantee);
+
+    ToProto(req->mutable_transactional_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPartitionTablesPtr& rsp) {
+        return FromProto<TMultiTablePartitions>(*rsp);
+    }));
 }
 
 TFuture<void> TClient::TruncateJournal(

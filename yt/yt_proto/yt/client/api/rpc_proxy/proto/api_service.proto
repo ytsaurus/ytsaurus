@@ -237,6 +237,13 @@ enum EColumnarStatisticsFetcherMode
     CSFM_FALLBACK = 2;
 }
 
+enum EPartitionTablesMode
+{
+    TPM_SORTED = 0;
+    TPM_ORDERED = 1;
+    TPM_UNORDERED = 2;
+}
+
 // COMPAT(max42).
 // A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
 // It is different in that universal filter is encoded via all = true
@@ -1588,6 +1595,48 @@ message TRspGetColumnarStatistics
 {
 
     repeated TColumnarStatistics statistics = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPartitionTables
+{
+    message TFetchChunkSpec
+    {
+        optional int32 max_chunk_per_fetch = 1;
+        optional int32 max_chunk_per_locate_request = 2;
+    }
+
+    message TFetcher
+    {
+        optional uint64 node_rpc_timeout = 1; // TDuration
+    }
+
+    message TChunkSliceFetcher
+    {
+        optional int32 max_slices_per_fetch = 1;
+    }
+
+    repeated string paths = 1; // RichYPath
+    optional TFetchChunkSpec fetch_chunk_spec = 2;
+    optional TFetcher fetcher = 3;
+    optional TChunkSliceFetcher chunk_slice_fetcher = 4;
+    required EPartitionTablesMode partition_mode = 5;
+    required int64 data_weight_per_partition = 6;
+    optional int32 max_partition_count = 7;
+    optional bool enable_key_guarantee = 8;
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TMultiTablePartition
+{
+    repeated bytes table_ranges = 1; // RichYPath
+}
+
+message TRspPartitionTables
+{
+    repeated TMultiTablePartition partitions = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
