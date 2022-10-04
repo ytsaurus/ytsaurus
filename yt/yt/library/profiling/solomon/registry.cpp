@@ -516,11 +516,13 @@ NProto::TSensorDump TSolomonRegistry::DumpSensors() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _unix_
 // This function overrides weak symbol defined in impl.cpp
 IRegistryImplPtr GetGlobalRegistry()
 {
     return TSolomonRegistry::Get();
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
