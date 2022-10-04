@@ -52,13 +52,13 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {

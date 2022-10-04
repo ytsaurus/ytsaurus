@@ -25,15 +25,14 @@ import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
-import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.CopyNode;
 import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.ExistsNode;
 import ru.yandex.yt.ytclient.request.GetFileFromCache;
+import ru.yandex.yt.ytclient.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.LinkNode;
 import ru.yandex.yt.ytclient.request.ListNode;
@@ -57,6 +56,7 @@ import ru.yandex.yt.ytclient.request.SetNode;
 import ru.yandex.yt.ytclient.request.SortOperation;
 import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
+import ru.yandex.yt.ytclient.request.WriteFile;
 import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
@@ -464,7 +464,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
-        return client.writeFile(req.setTransactionalOptions(transactionalOptions));
+        return client.writeFile(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;

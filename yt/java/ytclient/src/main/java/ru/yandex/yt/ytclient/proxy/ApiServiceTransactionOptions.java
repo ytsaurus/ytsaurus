@@ -18,7 +18,7 @@ import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.Durability;
-import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.request.StartTransaction;
 
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;
@@ -179,52 +179,52 @@ public class ApiServiceTransactionOptions {
     }
 
     public StartTransaction toStartTransaction() {
-        StartTransaction startTransaction;
+        StartTransaction.Builder startTransactionBuilder;
         switch (getType()) {
             case TT_MASTER:
                 if (getSticky()) {
-                    startTransaction = StartTransaction.stickyMaster();
+                    startTransactionBuilder = StartTransaction.stickyMaster().toBuilder();
                 } else {
-                    startTransaction = StartTransaction.master();
+                    startTransactionBuilder = StartTransaction.master().toBuilder();
                 }
                 break;
             case TT_TABLET:
-                startTransaction = StartTransaction.tablet();
+                startTransactionBuilder = StartTransaction.tablet().toBuilder();
                 break;
             default:
                 throw new IllegalStateException("Unexpected type of transaction: " + getType());
         }
         if (timeout != null) {
-            startTransaction.setTimeout(timeout);
+            startTransactionBuilder.setTimeout(timeout);
         }
         if (deadline != null) {
-            startTransaction.setDeadline(deadline);
+            startTransactionBuilder.setDeadline(deadline);
         }
         if (id != null && !id.isEmpty()) {
-            startTransaction.setId(id);
+            startTransactionBuilder.setId(id);
         }
         if (parentId != null && !parentId.isEmpty()) {
-            startTransaction.setParentId(parentId);
+            startTransactionBuilder.setParentId(parentId);
         }
         if (ping != null) {
-            startTransaction.setPing(ping);
+            startTransactionBuilder.setPing(ping);
         }
         if (pingAncestors != null) {
-            startTransaction.setPingAncestors(pingAncestors);
+            startTransactionBuilder.setPingAncestors(pingAncestors);
         }
         if (pingPeriod != null) {
-            startTransaction.setPingPeriod(pingPeriod);
+            startTransactionBuilder.setPingPeriod(pingPeriod);
         }
         if (failedPingRetryPeriod != null) {
-            startTransaction.setFailedPingRetryPeriod(failedPingRetryPeriod);
+            startTransactionBuilder.setFailedPingRetryPeriod(failedPingRetryPeriod);
         }
         if (atomicity != null) {
             switch (atomicity) {
                 case A_FULL:
-                    startTransaction.setAtomicity(Atomicity.Full);
+                    startTransactionBuilder.setAtomicity(Atomicity.Full);
                     break;
                 case A_NONE:
-                    startTransaction.setAtomicity(Atomicity.None);
+                    startTransactionBuilder.setAtomicity(Atomicity.None);
                     break;
                 default:
                     break;
@@ -233,25 +233,25 @@ public class ApiServiceTransactionOptions {
         if (durability != null) {
             switch (durability) {
                 case D_SYNC:
-                    startTransaction.setDurability(Durability.Sync);
+                    startTransactionBuilder.setDurability(Durability.Sync);
                     break;
                 case D_ASYNC:
-                    startTransaction.setDurability(Durability.Async);
+                    startTransactionBuilder.setDurability(Durability.Async);
                     break;
                 default:
                     break;
             }
         }
         if (!attributes.isEmpty()) {
-            startTransaction.setAttributes(getAttributes());
+            startTransactionBuilder.setAttributes(getAttributes());
         }
         if (onPingFailed != null) {
-            startTransaction.setOnPingFailed(onPingFailed);
+            startTransactionBuilder.setOnPingFailed(onPingFailed);
         }
         if (prerequisiteTransactionIds != null) {
             throw new RuntimeException("prerequisite_transaction_ids is not supported in RPC proxy API yet");
         }
 
-        return startTransaction;
+        return startTransactionBuilder.build();
     }
 }

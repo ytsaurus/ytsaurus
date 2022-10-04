@@ -22,7 +22,7 @@ public class GetFileFromCache
     private final YPath cachePath;
     private final String md5;
     @Nullable
-    private MasterReadOptions masterReadOptions;
+    private final MasterReadOptions masterReadOptions;
 
     GetFileFromCache(Builder builder) {
         super(builder);
