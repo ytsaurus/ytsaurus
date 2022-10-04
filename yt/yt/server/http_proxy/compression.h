@@ -31,6 +31,7 @@ bool IsCompressionSupported(const TContentEncoding& contentEncoding);
 std::vector<TContentEncoding> GetSupportedCompressions();
 
 extern TContentEncoding IdentityContentEncoding;
+extern std::vector<TContentEncoding> SupportedCompressions;
 
 TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader);
 

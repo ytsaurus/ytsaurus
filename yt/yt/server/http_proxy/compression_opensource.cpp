@@ -4,19 +4,26 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TContentEncoding> SupportedCompressions = {
+    "gzip",
+    IdentityContentEncoding,
+    "br",
+    "deflate",
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IOutputStream> TryDetectOptionalCompressors(
-    TContentEncoding contentEncoding,
-    IOutputStream* inner)
+    TContentEncoding /*contentEncoding*/,
+    IOutputStream* /*inner*/)
 {
-    Y_UNUSED(contentEncoding, inner);
     return nullptr;
 }
 
 std::unique_ptr<IInputStream> TryDetectOptionalDecompressors(
-    TContentEncoding contentEncoding,
-    IInputStream* inner)
+    TContentEncoding /*contentEncoding*/,
+    IInputStream* /*inner*/)
 {
-    Y_UNUSED(contentEncoding, inner);
     return nullptr;
 }
 

@@ -263,17 +263,6 @@ DEFINE_REFCOUNTED_TYPE(TDecompressingInputStream)
 
 TContentEncoding IdentityContentEncoding = "identity";
 
-static const std::vector<TContentEncoding> SupportedCompressions = {
-    "gzip",
-    IdentityContentEncoding,
-    "br",
-    "x-lzop",
-    "y-lzo",
-    "y-lzf",
-    "y-snappy",
-    "deflate",
-};
-
 bool IsCompressionSupported(const TContentEncoding& contentEncoding)
 {
     if (contentEncoding.StartsWith("z-")) {

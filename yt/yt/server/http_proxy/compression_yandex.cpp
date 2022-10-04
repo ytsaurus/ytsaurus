@@ -7,6 +7,19 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TContentEncoding> SupportedCompressions = {
+    "gzip",
+    IdentityContentEncoding,
+    "br",
+    "x-lzop",
+    "y-lzo",
+    "y-lzf",
+    "y-snappy",
+    "deflate",
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IOutputStream> TryDetectOptionalCompressors(
     TContentEncoding contentEncoding,
     IOutputStream* inner)
