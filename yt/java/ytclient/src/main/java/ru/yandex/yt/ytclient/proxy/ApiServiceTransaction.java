@@ -24,9 +24,8 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
-import ru.yandex.yt.ytclient.proxy.request.ReadFile;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.request.CheckPermission;
@@ -46,6 +45,8 @@ import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.ReadFile;
+import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.request.ReduceOperation;
 import ru.yandex.yt.ytclient.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.request.RemoveNode;
@@ -409,13 +410,15 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
-    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        return client.readTable(req.setTransactionalOptions(transactionalOptions));
+    public <T> CompletableFuture<TableReader<T>> readTable(
+            ReadTable<T> req, @Nullable TableAttachmentReader<T> reader) {
+        return client.readTable(req.toBuilder().setTransactionalOptions(transactionalOptions).build(), reader);
     }
 
     @Override
-    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
-        return client.readTableV2(req.setTransactionalOptions(transactionalOptions));
+    public <T> CompletableFuture<AsyncReader<T>> readTableV2(
+            ReadTable<T> req, @Nullable TableAttachmentReader<T> reader) {
+        return client.readTableV2(req.toBuilder().setTransactionalOptions(transactionalOptions).build(), reader);
     }
 
     @Override
@@ -430,7 +433,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
 
     @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
-        return client.readFile(req.setTransactionalOptions(transactionalOptions));
+        return client.readFile(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

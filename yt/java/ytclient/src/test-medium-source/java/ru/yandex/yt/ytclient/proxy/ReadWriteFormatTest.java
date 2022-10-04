@@ -17,17 +17,15 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentYsonReader;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -149,9 +147,10 @@ public class ReadWriteFormatTest {
         writer.close().join();
 
         TableReader<YTreeNode> reader = yt.readTable(
-                new ReadTable<>(path, (WireRowDeserializer<YTreeNode>) null)
+                new ReadTable<YTreeNode>(path, new ReadTable.SerializationContext<>(Format.ysonBinary())),
+                /*new ReadTable<>(path, (WireRowDeserializer<YTreeNode>) null)
                         .setDesiredRowsetFormat(ERowsetFormat.RF_FORMAT)
-                        .setFormat(Format.ysonBinary()),
+                        .setFormat(Format.ysonBinary()),*/
                 new TableAttachmentYsonReader()
         ).join();
 
@@ -234,8 +233,10 @@ public class ReadWriteFormatTest {
 
         writer.close().join();
 
-        TableReader<YTreeMapNode> reader = yt.readTable(
-                new ReadTable<>(path, YTreeObjectSerializerFactory.forClass(YTreeMapNode.class))).join();
+        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(
+                path,
+                new ReadTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(YTreeMapNode.class)))
+        ).join();
 
         int currentRowNumber = 0;
 

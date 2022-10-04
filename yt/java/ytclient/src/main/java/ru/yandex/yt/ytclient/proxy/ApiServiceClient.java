@@ -13,10 +13,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
-import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
-import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.request.AbortJob;
@@ -297,31 +293,5 @@ public interface ApiServiceClient extends TransactionalClient {
     default CompletableFuture<Void> updateOperationParameters(
             UpdateOperationParameters.BuilderBase<?, UpdateOperationParameters> req) {
         return updateOperationParameters(req.build());
-    }
-
-    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                    @Nullable TableAttachmentReader<T> reader);
-
-    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
-                                                      @Nullable TableAttachmentReader<T> reader);
-
-    default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
-        return readTable(req, TableAttachmentReader.BYPASS);
-    }
-
-    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        if (req.getDeserializer() != null) {
-            return readTable(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
-        } else {
-            return readTable(req, null);
-        }
-    }
-
-    default <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
-        if (req.getDeserializer() != null) {
-            return readTableV2(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
-        } else {
-            return readTableV2(req, null);
-        }
     }
 }

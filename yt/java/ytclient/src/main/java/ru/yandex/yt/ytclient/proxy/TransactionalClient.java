@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -12,11 +13,12 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
+import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.operations.Operation;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.ReadFile;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
@@ -36,6 +38,9 @@ import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.ReadFile;
+import ru.yandex.yt.ytclient.request.ReadTable;
+import ru.yandex.yt.ytclient.request.ReadTableDirect;
 import ru.yandex.yt.ytclient.request.ReduceOperation;
 import ru.yandex.yt.ytclient.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.request.RemoveNode;
@@ -123,9 +128,43 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
         return concatenateNodes(req.build());
     }
 
-    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
+    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable.BuilderBase<T, ?, ReadTable<T>> req) {
+        return readTable(req.build());
+    }
 
-    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req);
+    default <T> CompletableFuture<TableReader<T>> readTable(
+            ReadTable.BuilderBase<T, ?, ReadTable<T>> req,
+            @Nullable TableAttachmentReader<T> reader) {
+        return readTable(req.build(), reader);
+    }
+
+    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
+        Optional<WireRowDeserializer<T>> deserializer = req.getSerializationContext().getDeserializer();
+        if (deserializer.isPresent()) {
+            return readTable(req, new TableAttachmentWireProtocolReader<>(deserializer.get()));
+        } else {
+            return readTable(req, null);
+        }
+    }
+
+    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
+                                                    @Nullable TableAttachmentReader<T> reader);
+
+    default <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
+        Optional<WireRowDeserializer<T>> deserializer = req.getSerializationContext().getDeserializer();
+        if (deserializer.isPresent()) {
+            return readTableV2(req, new TableAttachmentWireProtocolReader<>(deserializer.get()));
+        } else {
+            return readTableV2(req, null);
+        }
+    }
+
+    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
+                                                      @Nullable TableAttachmentReader<T> reader);
+
+    default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
+        return readTable(req, TableAttachmentReader.BYPASS);
+    }
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 
@@ -136,6 +175,10 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req);
 
     CompletableFuture<FileReader> readFile(ReadFile req);
+
+    default CompletableFuture<FileReader> readFile(ReadFile.BuilderBase<?, ReadFile> req) {
+        return readFile(req.build());
+    }
 
     CompletableFuture<FileWriter> writeFile(WriteFile req);
 
