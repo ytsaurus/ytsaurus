@@ -81,6 +81,10 @@ def extract_cumulative_used_cpu(job_statistics):
     return sum([extract_statistic(job_statistics, statistic_path, default=0) for statistic_path in statistic_paths]) / 1000.0
 
 
+def extract_cumulative_gpu_utilization(job_statistics):
+    return extract_statistic(job_statistics, "user_job/gpu/cumulative_utilization_gpu", default=0) / 1000.0
+
+
 class YsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, yson.YsonEntity):
@@ -120,6 +124,7 @@ class OperationInfo:
     accumulated_resource_usage_gpu: typing.Optional[float]
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
+    cumulative_gpu_utilization: typing.Optional[float]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
@@ -233,6 +238,7 @@ def merge_info(info_base, info_update):
 
     info_base.cumulative_max_memory += info_update.cumulative_max_memory
     info_base.cumulative_used_cpu += info_update.cumulative_used_cpu
+    info_base.cumulative_gpu_utilization += info_update.cumulative_gpu_utilization
 
     info_base.operation_state = info_update.operation_state
     info_base.start_time = info_update.start_time
@@ -327,6 +333,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_memory=info["accumulated_resource_usage"]["user_memory"],
                 accumulated_resource_usage_gpu=info["accumulated_resource_usage"]["gpu"],
                 cumulative_used_cpu=0.0,
+                cumulative_gpu_utilization=0.0,
                 cumulative_max_memory=0.0,
                 job_statistics=None,
                 start_time=None,
@@ -378,6 +385,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
                 accumulated_resource_usage_gpu=usage["gpu"],
+                cumulative_gpu_utilization=extract_cumulative_gpu_utilization(job_statistics),
                 cumulative_used_cpu=extract_cumulative_used_cpu(job_statistics),
                 cumulative_max_memory=extract_cumulative_max_memory(job_statistics),
                 job_statistics=yson.dumps(job_statistics),
@@ -543,6 +551,7 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
     client.create(
         "table",
         tags_output_table,
+        recursive=True,
         attributes={
             "schema": TableSchema.from_row_type(TagsRow),
             "optimize_for": "scan",
