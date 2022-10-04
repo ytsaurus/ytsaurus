@@ -79,6 +79,48 @@ TTagSet TTagSet::WithTag(TTag tag, int parent)
     return copy;
 }
 
+TTagSet TTagSet::WithRequiredTag(TTag tag, int parent)
+{
+    auto copy = *this;
+    copy.AddRequiredTag(std::move(tag), parent);
+    return copy;
+}
+
+TTagSet TTagSet::WithExcludedTag(TTag tag, int parent)
+{
+    auto copy = *this;
+    copy.AddExcludedTag(std::move(tag), parent);
+    return copy;
+}
+
+TTagSet TTagSet::WithAlternativeTag(TTag tag, int alternativeTo, int parent)
+{
+    auto copy = *this;
+    copy.AddAlternativeTag(std::move(tag), alternativeTo, parent);
+    return copy;
+}
+
+TTagSet TTagSet::WithExtensionTag(TTag tag, int extensionOf)
+{
+    auto copy = *this;
+    copy.AddExtensionTag(std::move(tag), extensionOf);
+    return copy;
+}
+
+TTagSet TTagSet::WithTagWithChild(TTag tag, int child)
+{
+    auto copy = *this;
+    copy.AddTagWithChild(std::move(tag), child);
+    return copy;
+}
+
+TTagSet TTagSet::WithTagSet(const TTagSet& other)
+{
+    auto copy = *this;
+    copy.Append(other);
+    return copy;
+}
+
 void TTagSet::AddTag(TTag tag, int parent)
 {
     int parentIndex = Tags_.size() + parent;

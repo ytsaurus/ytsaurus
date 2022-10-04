@@ -62,6 +62,12 @@ public:
     explicit TTagSet(const TTagList& tags);
 
     TTagSet WithTag(TTag tag, int parent = NoParent);
+    TTagSet WithRequiredTag(TTag tag, int parent = NoParent);
+    TTagSet WithExcludedTag(TTag tag, int parent = NoParent);
+    TTagSet WithAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent);
+    TTagSet WithExtensionTag(TTag tag, int extensionOf);
+    TTagSet WithTagWithChild(TTag tag, int child);
+    TTagSet WithTagSet(const TTagSet& other);
 
     void AddTag(TTag tag, int parent = NoParent);
     void AddRequiredTag(TTag tag, int parent = NoParent);
