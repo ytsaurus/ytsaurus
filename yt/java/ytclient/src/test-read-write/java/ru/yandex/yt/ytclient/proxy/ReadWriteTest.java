@@ -33,8 +33,8 @@ import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
@@ -292,7 +292,8 @@ public class ReadWriteTest {
         writer.close().join();
 
         TableReader<UnversionedRow> reader =
-                yt.readTable(new ReadTable<>(path, new UnversionedRowDeserializer())).join();
+                yt.readTable(new ReadTable<>(
+                        path, new ReadTable.SerializationContext<>(new UnversionedRowDeserializer()))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -356,7 +357,9 @@ public class ReadWriteTest {
         writer.finish().join();
 
         AsyncReader<UnversionedRow> reader =
-                yt.readTableV2(new ReadTable<>(path, new UnversionedRowDeserializer())).join();
+                yt.readTableV2(new ReadTable<>(
+                        path,
+                        new ReadTable.SerializationContext<>(new UnversionedRowDeserializer()))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -419,7 +422,8 @@ public class ReadWriteTest {
         TableReader<Row> reader = yt.readTable(
                 new ReadTable<>(
                         path,
-                        (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class))).join();
+                        new ReadTable.SerializationContext<>(
+                                (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -479,7 +483,8 @@ public class ReadWriteTest {
         AsyncReader<Row> reader = yt.readTableV2(
                 new ReadTable<>(
                         path,
-                        (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class))).join();
+                        new ReadTable.SerializationContext<>(
+                                (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -584,7 +589,8 @@ public class ReadWriteTest {
 
         writer.close().join();
 
-        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(path, serializer)).join();
+        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(
+                path,new ReadTable.SerializationContext<>(serializer))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -647,7 +653,8 @@ public class ReadWriteTest {
 
         writer.finish().join();
 
-        AsyncReader<YTreeMapNode> reader = yt.readTableV2(new ReadTable<>(path, serializer)).join();
+        AsyncReader<YTreeMapNode> reader = yt.readTableV2(new ReadTable<>(
+                path, new ReadTable.SerializationContext<>(serializer))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 

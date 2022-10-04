@@ -1,11 +1,10 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package ru.yandex.yt.ytclient.request;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
 public class ReadTableDirect extends ReadTable<byte[]> {
     public ReadTableDirect(YPath path) {
-        super(path, (WireRowDeserializer<byte[]>) null);
+        super(path, new SerializationContext<>());
     }
 
     /**
@@ -13,6 +12,6 @@ public class ReadTableDirect extends ReadTable<byte[]> {
      */
     @Deprecated
     public ReadTableDirect(String path) {
-        super(path, (WireRowDeserializer<byte[]>) null);
+        super(ReadTable.<byte[]>builder().setPath(path).setSerializationContext(new SerializationContext<>()));
     }
 }

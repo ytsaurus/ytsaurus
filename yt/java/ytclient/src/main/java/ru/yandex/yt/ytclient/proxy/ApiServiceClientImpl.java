@@ -66,8 +66,6 @@ import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.GetFileFromCacheResult;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.ReadFile;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
@@ -116,6 +114,8 @@ import ru.yandex.yt.ytclient.request.MutateNode;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
+import ru.yandex.yt.ytclient.request.ReadFile;
+import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.request.ReduceOperation;
 import ru.yandex.yt.ytclient.request.RemoteCopyOperation;
 import ru.yandex.yt.ytclient.request.RemountTable;
@@ -995,8 +995,10 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         if (reader != null) {
             tableReader = new TableReaderImpl<>(reader);
         } else {
-            Objects.requireNonNull(req.getObjectClazz());
-            tableReader = new TableReaderImpl<>(req.getObjectClazz());
+            if (!req.getSerializationContext().getObjectClazz().isPresent()) {
+                throw new IllegalArgumentException("No object clazz");
+            }
+            tableReader = new TableReaderImpl<>(req.getSerializationContext().getObjectClazz().get());
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
@@ -1018,8 +1020,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         if (reader != null) {
             tableReader = new AsyncTableReaderImpl<>(reader, executorService);
         } else {
-            Objects.requireNonNull(req.getObjectClazz());
-            tableReader = new AsyncTableReaderImpl<>(req.getObjectClazz(), executorService);
+            if (!req.getSerializationContext().getObjectClazz().isPresent()) {
+                throw new IllegalArgumentException("No object clazz");
+            }
+            tableReader = new AsyncTableReaderImpl<>(
+                    req.getSerializationContext().getObjectClazz().get(), executorService);
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
