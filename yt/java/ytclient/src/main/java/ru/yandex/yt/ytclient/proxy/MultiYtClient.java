@@ -22,6 +22,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
+import ru.yandex.yt.ytclient.request.LookupRowsRequest;
+import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.SelectRowsRequest;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
@@ -77,26 +79,52 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     }
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
+        return executor.execute((client) -> client.lookupRows(request));
+    }
+
+    @Override
+    public CompletableFuture<UnversionedRowset> lookupRows(MappedLookupRowsRequest<?> request) {
         return executor.execute((client) -> client.lookupRows(request));
     }
 
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
-            AbstractLookupRowsRequest<?> request,
+            LookupRowsRequest request,
             YTreeObjectSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.lookupRows(request, serializer));
     }
 
     @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request) {
+    public <T> CompletableFuture<List<T>> lookupRows(
+            MappedLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    ) {
+        return executor.execute((client) -> client.lookupRows(request, serializer));
+    }
+
+    @Override
+    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
+        return executor.execute((client) -> client.versionedLookupRows(request));
+    }
+
+    @Override
+    public CompletableFuture<VersionedRowset> versionedLookupRows(MappedLookupRowsRequest<?> request) {
         return executor.execute((client) -> client.versionedLookupRows(request));
     }
 
     @Override
     public <T> CompletableFuture<List<T>> versionedLookupRows(
-            AbstractLookupRowsRequest<?> request,
+            LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer
+    ) {
+        return executor.execute((client) -> client.versionedLookupRows(request, serializer));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<T>> versionedLookupRows(
+            MappedLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.versionedLookupRows(request, serializer));

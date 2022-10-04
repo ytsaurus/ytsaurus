@@ -36,6 +36,8 @@ import ru.yandex.yt.ytclient.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.ListJobs;
 import ru.yandex.yt.ytclient.request.ListJobsResult;
+import ru.yandex.yt.ytclient.request.LookupRowsRequest;
+import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.RemountTable;
@@ -86,7 +88,13 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req);
 
     <T> CompletableFuture<Void> lookupRows(
-            AbstractLookupRowsRequest<?> request,
+            LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer,
+            ConsumerSource<T> consumer
+    );
+
+    <T> CompletableFuture<Void> lookupRows(
+            MappedLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer,
             ConsumerSource<T> consumer
     );
@@ -98,12 +106,14 @@ public interface ApiServiceClient extends TransactionalClient {
     );
 
     @Deprecated
-    default CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+    default CompletableFuture<UnversionedRowset> lookupRows(
+            LookupRowsRequest.BuilderBase<?> request, YtTimestamp timestamp) {
         return lookupRows(request.setTimestamp(timestamp));
     }
 
     @Deprecated
-    default CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
+    default CompletableFuture<VersionedRowset> versionedLookupRows(
+            LookupRowsRequest.BuilderBase<?> request, YtTimestamp timestamp) {
         return versionedLookupRows(request.setTimestamp(timestamp));
     }
 
