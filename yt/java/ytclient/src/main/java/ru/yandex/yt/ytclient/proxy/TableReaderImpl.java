@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
@@ -12,14 +11,14 @@ import javax.annotation.Nullable;
 import NYT.NChunkClient.NProto.DataStatistics;
 import com.google.protobuf.Parser;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
+import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -30,15 +29,18 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     @Nullable protected TableAttachmentReader<T> reader;
     // Need for creating TableAttachmentReader later
     @Nullable private final Class<T> objectClazz;
+    @Nullable private final ReadTable<T> req;
     protected TRspReadTableMeta metadata = null;
 
-    TableReaderBaseImpl(Class<T> objectClazz) {
+    TableReaderBaseImpl(ReadTable<T> req, Class<T> objectClazz) {
+        this.req = req;
         this.objectClazz = objectClazz;
     }
 
     TableReaderBaseImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
         this.objectClazz = null;
+        this.req = null;
     }
 
     @Override
@@ -52,13 +54,15 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
             self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
             if (self.reader == null) {
                 Objects.requireNonNull(self.objectClazz);
-                YTreeSerializer<T> serializer = YTreeObjectSerializerFactory.forClass(
-                        self.objectClazz, ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
-                if (!(serializer instanceof YTreeObjectSerializer)) {
+                YTreeSerializer<T> serializer = Objects.requireNonNull(req).createSerializer(
+                        self.objectClazz,
+                        ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
+                if (!(serializer.getClass().getName().equals(
+                        "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer"))) {
                     throw new RuntimeException("Got not a YTreeObjectSerializer");
                 }
                 self.reader = new TableAttachmentWireProtocolReader<>(
-                        MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer));
+                        MappedRowsetDeserializer.forClass((YTreeRowSerializer<T>) serializer));
             }
 
             return self;
@@ -79,8 +83,8 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
 }
 
 class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T> {
-    TableReaderImpl(Class<T> objectClazz) {
-        super(objectClazz);
+    TableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
+        super(req, objectClazz);
     }
 
     TableReaderImpl(TableAttachmentReader<T> reader) {
@@ -144,16 +148,13 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
 }
 
 class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncReader<T> {
-    private final ScheduledExecutorService executorService;
 
-    AsyncTableReaderImpl(Class<T> objectClazz, ScheduledExecutorService executorService) {
-        super(objectClazz);
-        this.executorService = executorService;
+    AsyncTableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
+        super(req, objectClazz);
     }
 
-    AsyncTableReaderImpl(TableAttachmentReader<T> reader, ScheduledExecutorService executorService) {
+    AsyncTableReaderImpl(TableAttachmentReader<T> reader) {
         super(reader);
-        this.executorService = executorService;
     }
 
     public CompletableFuture<AsyncReader<T>> waitMetadata() {

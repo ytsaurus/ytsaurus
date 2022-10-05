@@ -24,7 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
@@ -189,8 +188,7 @@ class RetryingTableWriterBaseImpl<T> {
                                     } else {
                                         this.tableRowsSerializer = new TableRowsWireSerializer<>(
                                                 MappedRowSerializer.forClass(
-                                                        YTreeObjectSerializerFactory.forClass(
-                                                                objectClazz, result.schema)
+                                                        req.createSerializer(objectClazz, result.schema)
                                                 ));
                                     }
                                 }
