@@ -185,6 +185,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext() == persistent);
 
+        // Fast path.
+        if (!HasWriteState(transaction->GetId())) {
+            return;
+        }
+
         PrepareLockedRows(transaction, persistent);
         PrepareLocklessRows(transaction, persistent);
 
@@ -227,6 +232,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+
+        // Fast path.
+        if (!HasWriteState(transaction->GetId())) {
+            return;
+        }
 
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
@@ -631,6 +641,15 @@ private:
         } else {
             return it->second;
         }
+    }
+
+    //! Returns true if transaction has either transient or persistent
+    //! write state and false otherwise.
+    bool HasWriteState(TTransactionId transactionId)
+    {
+        return
+            FindTransactionTransientWriteState(transactionId) ||
+            FindTransactionPersistentWriteState(transactionId);
     }
 
     void UpdateWriteRecordCounters(

@@ -43,6 +43,24 @@ DEFINE_ENUM(EBackupStage,
     ((RespondedToMasterFailure)       (5))
 )
 
+DEFINE_ENUM(ETabletLockType,
+    // Lock of this kind is acquired on leader during #Write RPC call
+    // and is released when corresponding mutation is committed or
+    // when epoch finishes.
+    ((TransientWrite)                (0))
+    // Lock of this kind is acquired by transaction that transiently
+    // affects tablet and is released when corresponding transaction
+    // is finished (committed, aborted or serialized) or when epoch
+    // finishes.
+    ((TransientTransaction)          (1))
+    // Lock of this kind is acquired by transaction that persistently
+    // affects tablet and is released when corresponding transaction
+    // is finished (committed, aborted or serialized).
+    // Note that transaction may hold both transient and persistent
+    // locks on tablet.
+    ((PersistentTransaction)         (2))
+);
+
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;

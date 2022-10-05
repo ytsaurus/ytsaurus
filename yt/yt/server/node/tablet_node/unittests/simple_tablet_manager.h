@@ -42,8 +42,8 @@ public:
 
     // ITabletCellWriteManagerHost
 
-    i64 LockTablet(TTablet* tablet) override;
-    i64 UnlockTablet(TTablet* tablet) override;
+    i64 LockTablet(TTablet* tablet, ETabletLockType lockType) override;
+    i64 UnlockTablet(TTablet* tablet, ETabletLockType lockType) override;
     void OnTabletRowUnlocked(TTablet* tablet) override;
     TTablet* GetTabletOrThrow(TTabletId id) override;
     TTablet* FindTablet(const TTabletId& id) const override;

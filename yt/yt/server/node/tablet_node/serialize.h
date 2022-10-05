@@ -43,6 +43,7 @@ DEFINE_ENUM(ETabletReign,
     ((TabletWriteManager)                 (100600)) // gritukan
     ((HunkTablets)                        (100601)) // gritukan
     ((AdvanceReplicationRound)            (100602)) // savrus
+    ((ReworkTabletLocks)                  (100603)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

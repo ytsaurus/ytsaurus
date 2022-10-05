@@ -25,8 +25,8 @@ struct ITabletCellWriteManagerHost
     //! This method is called whenever a (sorted) tablet row is being unlocked.
     virtual void OnTabletRowUnlocked(TTablet* tablet) = 0;
 
-    virtual i64 LockTablet(TTablet* tablet) = 0;
-    virtual i64 UnlockTablet(TTablet* tablet) = 0;
+    virtual i64 LockTablet(TTablet* tablet, ETabletLockType lockType) = 0;
+    virtual i64 UnlockTablet(TTablet* tablet, ETabletLockType lockType) = 0;
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;
@@ -71,6 +71,10 @@ struct ITabletCellWriteManager
         const TSyncReplicaIdList& syncReplicaIds,
         NTableClient::IWireProtocolReader* reader,
         TFuture<void>* commitResult) = 0;
+
+    // Tablet lock stuff.
+    virtual void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
+    virtual void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TTablet*), ReplicatorWriteTransactionFinished);
 };
