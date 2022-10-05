@@ -311,7 +311,7 @@ struct TTabletInfo
     //! Mostly makes sense for ordered tablets.
     //! Contains the barrier timestamp of the tablet cell containing the tablet, which lags behind the current timestamp.
     //! It is guaranteed that all transactions with commit timestamp not exceeding the barrier
-    //! are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
+    //! are fully committed; e.g. all their added rows are visible (and are included in TTabletInfo::TotalRowCount).
     NTransactionClient::TTimestamp BarrierTimestamp;
 
     //! Contains maximum timestamp of committed transactions.
