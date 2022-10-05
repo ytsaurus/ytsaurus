@@ -13,7 +13,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapNodeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -136,13 +135,10 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             this.objectClazz = null;
         }
 
-        public SerializationContext(YTreeObjectSerializer<T> serializer) {
-            this(MappedRowsetDeserializer.forClass(serializer));
-        }
-
         public SerializationContext(YTreeSerializer<T> serializer) {
-            if (serializer instanceof YTreeObjectSerializer) {
-                this.deserializer = MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer);
+            if (serializer.getClass().getName().equals(
+                    "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer")) {
+                this.deserializer = MappedRowsetDeserializer.forClass((YTreeRowSerializer<T>) serializer);
             } else {
                 this.deserializer = new YTreeDeserializer<>(serializer);
             }
