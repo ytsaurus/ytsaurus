@@ -173,6 +173,9 @@ public:
     //! no alive transactions in it, so tablet cell can be safely removed.
     bool IsDecommissioned() const;
 
+    void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet);
+    void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet);
+
     // COMPAT(gritukan)
     ETabletReign GetSnapshotReign() const;
 

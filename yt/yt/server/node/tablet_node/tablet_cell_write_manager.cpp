@@ -277,7 +277,7 @@ public:
                 TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, syncReplicaIds);
 
                 PrelockedTablets_.push(tablet);
-                LockTablet(tablet);
+                LockTablet(tablet, ETabletLockType::TransientWrite);
 
                 IncrementTabletInFlightMutationCount(tablet, replicatorWrite, +1);
 
@@ -352,7 +352,7 @@ public:
         while (!PrelockedTablets_.empty()) {
             auto* tablet = PrelockedTablets_.front();
             PrelockedTablets_.pop();
-            UnlockTablet(tablet);
+            UnlockTablet(tablet, ETabletLockType::TransientWrite);
         }
     }
 
@@ -364,14 +364,16 @@ public:
         auto transactions = transactionManager->GetTransactions();
 
         // COMPAT(gritukan)
-        if (transactionManager->GetSnapshotReign() < ETabletReign::TabletWriteManager) {
-            YT_VERIFY(transactions.empty());
+        if (transactionManager->GetSnapshotReign() < ETabletReign::ReworkTabletLocks) {
+            const auto& transactionManager = Host_->GetTransactionManager();
+            // If this fails, you forgot to suspend tablet cells before update.
+            YT_VERIFY(transactionManager->IsDecommissioned());
         }
 
         for (auto* transaction : transactions) {
             YT_VERIFY(GetTransientAffectedTablets(transaction).empty());
             for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
-                LockTablet(tablet);
+                LockTablet(tablet, ETabletLockType::PersistentTransaction);
             }
         }
     }
@@ -409,7 +411,7 @@ private:
         PrelockedTablets_.pop();
         YT_VERIFY(tablet->GetId() == writeRecord.TabletId);
         auto finallyGuard = Finally([&] {
-            UnlockTablet(tablet);
+            UnlockTablet(tablet, ETabletLockType::TransientWrite);
         });
 
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
@@ -865,11 +867,8 @@ private:
             tabletWriteManager->OnTransactionTransientReset(transaction);
         }
 
-        // Release all transient locks.
-        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
-            UnlockTablet(tablet);
-        }
-        transaction->TransientAffectedTabletIds().clear();
+        // Releases transient locks.
+        UnlockLockedTablets(transaction);
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)
@@ -1022,13 +1021,13 @@ private:
         return tablets;
     }
 
-    void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet)
+    void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto tabletId = tablet->GetId();
         if (transaction->TransientAffectedTabletIds().emplace(tabletId).second) {
-            auto lockCount = LockTablet(tablet);
+            auto lockCount = LockTablet(tablet, ETabletLockType::TransientTransaction);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Transaction transiently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
                 transaction->GetId(),
@@ -1037,14 +1036,15 @@ private:
         }
     }
 
-    void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet)
+    void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
+        YT_VERIFY(!transaction->GetTransient());
 
         auto tabletId = tablet->GetId();
         if (transaction->PersistentAffectedTabletIds().emplace(tabletId).second) {
-            auto lockCount = LockTablet(tablet);
+            auto lockCount = LockTablet(tablet, ETabletLockType::PersistentTransaction);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Transaction persistently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
                 transaction->GetId(),
@@ -1081,14 +1081,14 @@ private:
         }
     }
 
-    i64 LockTablet(TTablet* tablet)
+    i64 LockTablet(TTablet* tablet, ETabletLockType lockType)
     {
-        return Host_->LockTablet(tablet);
+        return Host_->LockTablet(tablet, lockType);
     }
 
-    i64 UnlockTablet(TTablet* tablet)
+    i64 UnlockTablet(TTablet* tablet, ETabletLockType lockType)
     {
-        return Host_->UnlockTablet(tablet);
+        return Host_->UnlockTablet(tablet, lockType);
     }
 
     void UnlockLockedTablets(TTransaction* transaction)
@@ -1096,13 +1096,14 @@ private:
         // NB: Transaction may hold both transient and persistent lock on tablet,
         // so #GetAffectedTablets cannot be used here.
         for (auto* tablet : GetTransientAffectedTablets(transaction)) {
-            UnlockTablet(tablet);
+            UnlockTablet(tablet, ETabletLockType::TransientTransaction);
         }
-        //transaction->TransientAffectedTabletIds().clear();
+        transaction->TransientAffectedTabletIds().clear();
+
         for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
-            UnlockTablet(tablet);
+            UnlockTablet(tablet, ETabletLockType::PersistentTransaction);
         }
-        //transaction->PersistentAffectedTabletIds().clear();
+        transaction->PersistentAffectedTabletIds().clear();
     }
 
     TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const

@@ -2000,21 +2000,54 @@ void TTablet::UpdateUnflushedTimestamp() const
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
-i64 TTablet::Lock()
+i64 TTablet::Lock(ETabletLockType lockType)
 {
-    return ++TabletLockCount_;
+    ++TabletLockCount_[lockType];
+
+    return ++TotalTabletLockCount_;
 }
 
-i64 TTablet::Unlock()
+i64 TTablet::Unlock(ETabletLockType lockType)
 {
-    YT_ASSERT(TabletLockCount_ > 0);
+    YT_ASSERT(TabletLockCount_[lockType] > 0);
+    --TabletLockCount_[lockType];
 
-    return --TabletLockCount_;
+    YT_ASSERT(TotalTabletLockCount_ > 0);
+    return --TotalTabletLockCount_;
 }
 
-i64 TTablet::GetTabletLockCount() const
+i64 TTablet::GetTotalTabletLockCount() const
 {
-    return TabletLockCount_;
+    return TotalTabletLockCount_;
+}
+
+i64 TTablet::GetTransientTabletLockCount() const
+{
+    auto isTransientLockType = [&] (ETabletLockType lockType) {
+        switch (lockType) {
+            case ETabletLockType::TransientWrite:
+            case ETabletLockType::TransientTransaction:
+                return true;
+            case ETabletLockType::PersistentTransaction:
+                return false;
+            default:
+                YT_ABORT();
+        }
+    };
+
+    i64 lockCount = 0;
+    for (auto lockType : TEnumTraits<ETabletLockType>::GetDomainValues()) {
+        if (isTransientLockType(lockType)) {
+            lockCount += TabletLockCount_[lockType];
+        }
+    }
+
+    return lockCount;
+}
+
+i64 TTablet::GetTabletLockCount(ETabletLockType lockType) const
+{
+    return TabletLockCount_[lockType];
 }
 
 int TTablet::GetEdenStoreCount() const

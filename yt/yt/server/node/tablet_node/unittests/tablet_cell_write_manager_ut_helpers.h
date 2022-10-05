@@ -450,7 +450,7 @@ protected:
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
 
         auto [lockCount, hasActiveLocks] = RunInAutomaton([&] {
-            return std::make_pair(tablet->GetTabletLockCount(), tablet->GetStoreManager()->HasActiveLocks());
+            return std::make_pair(tablet->GetTotalTabletLockCount(), tablet->GetStoreManager()->HasActiveLocks());
         });
 
         EXPECT_EQ(0, lockCount);

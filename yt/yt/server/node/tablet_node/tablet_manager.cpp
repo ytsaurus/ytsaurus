@@ -834,22 +834,6 @@ private:
             tablet->Reconfigure(Slot_);
             tablet->OnAfterSnapshotLoaded();
 
-            if (Reign_ >= ETabletReign::ReplicationTxLocksTablet) {
-                for (auto [replicaId, replica] : tablet->Replicas()) {
-                    if (replica.GetPreparedReplicationTransactionId()) {
-                        LockTablet(tablet);
-                    }
-                }
-
-                const auto& chaosData = tablet->ChaosData();
-                if (chaosData->PreparedWritePulledRowsTransactionId) {
-                    LockTablet(tablet);
-                }
-                if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
-                    LockTablet(tablet);
-                }
-            }
-
             Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
                 /*initial*/ true);
@@ -1073,7 +1057,7 @@ private:
 
             auto tabletHolder = TabletMap_.Release(tabletId);
 
-            if (tablet->GetTabletLockCount() > 0) {
+            if (tablet->GetTotalTabletLockCount() > 0) {
                 SetTabletOrphaned(std::move(tabletHolder));
             } else {
                 // Just a formality.
@@ -2160,24 +2144,20 @@ private:
                 round);
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
-            if (IsInUnmountWorkflow(tablet->GetState())) {
-                THROW_ERROR_EXCEPTION("Cannot write pulled rows since tablet is in %Qlv state",
-                    tablet->GetState());
-            }
+        if (IsInUnmountWorkflow(tablet->GetState())) {
+            THROW_ERROR_EXCEPTION("Cannot write pulled rows since tablet is in %Qlv state",
+                tablet->GetState());
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            if (chaosData->PreparedWritePulledRowsTransactionId) {
-                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
-                    << TErrorAttribute("transaction_id", transaction->GetId())
-                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
-            }
-            chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
-            LockTablet(tablet);
+        if (chaosData->PreparedWritePulledRowsTransactionId) {
+            THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                << TErrorAttribute("transaction_id", transaction->GetId())
+                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
         }
+        chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
+
+        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
+        tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
             tabletId,
@@ -2223,24 +2203,17 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet) &&
-            chaosData->PreparedWritePulledRowsTransactionId)
-        {
-            if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                    "Unexpected write pull rows transaction finalized, ignored "
-                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
-                    transaction->GetId(),
-                    chaosData->PreparedWritePulledRowsTransactionId,
-                    tablet->GetId());
-                return;
-            }
-
-            chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
-            UnlockTablet(tablet);
+        if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Unexpected write pull rows transaction finalized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                chaosData->PreparedWritePulledRowsTransactionId,
+                tablet->GetId());
+            return;
         }
+
+        chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
 
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
@@ -2278,17 +2251,13 @@ private:
             return;
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            const auto& chaosData = tablet->ChaosData();
-            auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
-            if (expectedTransactionId != transaction->GetId()) {
-                return;
-            }
-
-            expectedTransactionId = NullTransactionId;
-            UnlockTablet(tablet);
+        const auto& chaosData = tablet->ChaosData();
+        auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
+        if (expectedTransactionId != transaction->GetId()) {
+            return;
         }
+
+        expectedTransactionId = NullTransactionId;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -2325,25 +2294,20 @@ private:
                 tabletId);
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
-            if (IsInUnmountWorkflow(tablet->GetState())) {
-                THROW_ERROR_EXCEPTION("Cannot advance replication progress since tablet is in %Qlv state",
-                    tablet->GetState());
-            }
+        if (IsInUnmountWorkflow(tablet->GetState())) {
+            THROW_ERROR_EXCEPTION("Cannot advance replication progress since tablet is in %Qlv state",
+                tablet->GetState());
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            const auto& chaosData = tablet->ChaosData();
-            if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
-                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
-                    << TErrorAttribute("transaction_id", transaction->GetId())
-                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
-            }
-            chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
-            LockTablet(tablet);
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+            THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                << TErrorAttribute("transaction_id", transaction->GetId())
+                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
         }
+        chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
+
+        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
+        tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
 
         transaction->ForceSerialization(tabletId);
 
@@ -2368,23 +2332,17 @@ private:
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(!round || replicationRound == *round);
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet) &&
-            chaosData->PreparedAdvanceReplicationProgressTransactionId)
-        {
-            if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                    "Unexpected replication progress advance transaction serialized, ignored "
-                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
-                    transaction->GetId(),
-                    chaosData->PreparedAdvanceReplicationProgressTransactionId,
-                    tablet->GetId());
-                return;
-            }
-
-            chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
-            UnlockTablet(tablet);
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Unexpected replication progress advance transaction serialized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                chaosData->PreparedAdvanceReplicationProgressTransactionId,
+                tablet->GetId());
+            return;
         }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         bool validateStrictAdvance = request->validate_strict_advance();
@@ -2439,17 +2397,13 @@ private:
             return;
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            const auto& chaosData = tablet->ChaosData();
-            auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
-            if (expectedTransactionId != transaction->GetId()) {
-                return;
-            }
-
-            expectedTransactionId = NullTransactionId;
-            UnlockTablet(tablet);
+        const auto& chaosData = tablet->ChaosData();
+        auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
+        if (expectedTransactionId != transaction->GetId()) {
+            return;
         }
+
+        expectedTransactionId = NullTransactionId;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
@@ -2476,12 +2430,9 @@ private:
                 replicaInfo->GetState());
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DoNotLockUnmountingTablet)) {
-            if (IsInUnmountWorkflow(tablet->GetState())) {
-                THROW_ERROR_EXCEPTION("Cannot prepare rows replication since tablet is in %Qlv state",
-                    tablet->GetState());
-            }
+        if (IsInUnmountWorkflow(tablet->GetState())) {
+            THROW_ERROR_EXCEPTION("Cannot prepare rows replication since tablet is in %Qlv state",
+                tablet->GetState());
         }
 
         if (replicaInfo->GetPreparedReplicationTransactionId()) {
@@ -2554,10 +2505,8 @@ private:
         replicaInfo->SetPreparedReplicationRowIndex(newReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            LockTablet(tablet);
-        }
+        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
+        tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %x -> %x)",
@@ -2589,19 +2538,14 @@ private:
             return;
         }
 
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            if (replicaInfo->GetPreparedReplicationTransactionId() != transaction->GetId()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                    "Unexpected replication transaction finalized, ignored "
-                    "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
-                    transaction->GetId(),
-                    replicaInfo->GetPreparedReplicationTransactionId(),
-                    tablet->GetId());
-                return;
-            }
-
-            UnlockTablet(tablet);
+        if (replicaInfo->GetPreparedReplicationTransactionId() != transaction->GetId()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Unexpected replication transaction finalized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                replicaInfo->GetPreparedReplicationTransactionId(),
+                tablet->GetId());
+            return;
         }
 
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
@@ -2693,11 +2637,6 @@ private:
 
         replicaInfo->SetPreparedReplicationRowIndex(-1);
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
-
-        // COMPAT(gritukan)
-        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::ReplicationTxLocksTablet)) {
-            UnlockTablet(tablet);
-        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %x -> %x)",
@@ -2961,14 +2900,14 @@ private:
         tabletHolder->SetState(ETabletState::Orphaned);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is orphaned and will be kept (TabletId: %v, LockCount: %v)",
             id,
-            tabletHolder->GetTabletLockCount());
+            tabletHolder->GetTotalTabletLockCount());
         YT_VERIFY(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
     }
 
     void OnTabletUnlocked(TTablet* tablet)
     {
         CheckIfTabletFullyUnlocked(tablet);
-        if (tablet->GetState() == ETabletState::Orphaned && tablet->GetTabletLockCount() == 0) {
+        if (tablet->GetState() == ETabletState::Orphaned && tablet->GetTotalTabletLockCount() == 0) {
             auto id = tablet->GetId();
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet unlocked and will be dropped (TabletId: %v)",
                 id);
@@ -2992,7 +2931,7 @@ private:
             return;
         }
 
-        if (tablet->GetTabletLockCount() > 0) {
+        if (tablet->GetTotalTabletLockCount() > 0) {
             return;
         }
 
@@ -3126,6 +3065,8 @@ private:
         if (tablet->GetSettings().MountConfig->PrecacheChunkReplicasOnMount) {
             PrecacheChunkReplicas(tablet);
         }
+
+        YT_VERIFY(tablet->GetTransientTabletLockCount() == 0);
     }
 
     void PrecacheChunkReplicas(TTablet* tablet)
@@ -3292,7 +3233,12 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
-                .Item("lock_count").Value(tablet->GetTabletLockCount())
+                .Item("total_lock_count").Value(tablet->GetTotalTabletLockCount())
+                .Item("lock_count").DoMapFor(
+                    TEnumTraits<ETabletLockType>::GetDomainValues(),
+                    [&] (auto fluent, auto lockType) {
+                        fluent.Item(FormatEnum(lockType)).Value(tablet->GetTabletLockCount(lockType));
+                    })
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("dynamic_store_count").Value(tablet->GetDynamicStoreCount())
@@ -3993,7 +3939,7 @@ private:
         return Slot_->GetCellId();
     }
 
-    i64 LockTablet(TTablet* tablet) override
+    i64 LockTablet(TTablet* tablet, ETabletLockType lockType) override
     {
         // After lock barrier is does not make any sense to lock tablet, since
         // lock will not prevent tablet from being unmounted or frozen,
@@ -4002,17 +3948,18 @@ private:
         auto lockAllowed = !(state > ETabletState::UnmountWaitingForLocks && state <= ETabletState::UnmountLast);
         YT_LOG_ALERT_UNLESS(lockAllowed,
             "Tablet was locked in unexpected state "
-            "(TabletId: %v, TabletState: %v, LockCount: %v)",
+            "(TabletId: %v, TabletState: %v, LockType: %v, LockCount: %v)",
             tablet->GetId(),
             state,
-            tablet->GetTabletLockCount());
+            lockType,
+            tablet->GetTotalTabletLockCount());
 
-        return tablet->Lock();
+        return tablet->Lock(lockType);
     }
 
-    i64 UnlockTablet(TTablet* tablet) override
+    i64 UnlockTablet(TTablet* tablet, ETabletLockType lockType) override
     {
-        auto lockCount = tablet->Unlock();
+        auto lockCount = tablet->Unlock(lockType);
         OnTabletUnlocked(tablet);
         return lockCount;
     }

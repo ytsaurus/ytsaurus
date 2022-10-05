@@ -679,9 +679,21 @@ public:
 
     void UpdateUnflushedTimestamp() const;
 
-    i64 Lock();
-    i64 Unlock();
-    i64 GetTabletLockCount() const;
+    // Lock stuff.
+
+    //! Acquires tablet lock of a given kind.
+    //! Returns total number of locks acquired (of all kinds).
+    i64 Lock(ETabletLockType lockType);
+    //! Releases tablet lock of a given kind.
+    //! Returns total number of locks acquired (of all kinds).
+    i64 Unlock(ETabletLockType lockType);
+
+    //! Returns total number of locks acquired (of all kinds).
+    i64 GetTotalTabletLockCount() const;
+    //! Returns total number of transient locks acquired (of all kinds).
+    i64 GetTransientTabletLockCount() const;
+    //! Returns number of acquired locks of a given kind.
+    i64 GetTabletLockCount(ETabletLockType lockType) const;
 
     void UpdateReplicaCounters();
 
@@ -751,7 +763,11 @@ private:
 
     TRowCachePtr RowCache_;
 
-    i64 TabletLockCount_ = 0;
+    //! Number of tablet locks, per lock type.
+    TEnumIndexedVector<ETabletLockType, i64> TabletLockCount_;
+
+    //! Total number of tablet locks of all types.
+    i64 TotalTabletLockCount_ = 0;
 
     IPerTabletStructuredLoggerPtr StructuredLogger_;
 
