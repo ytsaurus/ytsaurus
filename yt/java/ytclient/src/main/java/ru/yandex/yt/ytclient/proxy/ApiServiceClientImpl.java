@@ -69,6 +69,7 @@ import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.request.BaseOperation;
@@ -680,7 +681,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
 
     @Override
-    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
+    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
         return RpcUtil.apply(
                 sendRequest(
                         new ModifyRowsWrapper(transactionId, request),
@@ -1281,9 +1282,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 @NonNullFields
 class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
     private final GUID transactionId;
-    private final AbstractModifyRowsRequest<?> request;
+    private final AbstractModifyRowsRequest<?, ?> request;
 
-    ModifyRowsWrapper(GUID transactionId, AbstractModifyRowsRequest<?> request) {
+    ModifyRowsWrapper(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
         this.transactionId = transactionId;
         this.request = request;
     }

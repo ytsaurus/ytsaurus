@@ -111,7 +111,7 @@ public class MappedModifyRowsRequestTest {
         final List<byte[]> expect = metadata.serializeMappedObjects(all, i -> i >= 6);
 
         final List<byte[]> actual = new ArrayList<>();
-        request.serializeRowsetTo(actual);
+        request.build().serializeRowsetTo(actual);
 
         Assert.assertArrayEquals(WireProtocolTest.mergeChunks(expect), WireProtocolTest.mergeChunks(actual));
     }

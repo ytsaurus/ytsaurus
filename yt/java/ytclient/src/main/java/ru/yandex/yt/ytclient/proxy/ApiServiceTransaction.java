@@ -26,6 +26,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.request.CopyNode;
@@ -372,7 +373,14 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer, consumer);
     }
 
-    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?> request) {
+    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?, ?> request) {
+        // TODO: hide id to request
+        CompletableFuture<Void> result = client.modifyRows(id, request);
+        modifyRowsResults.add(result);
+        return result;
+    }
+
+    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest.Builder<?, ?> request) {
         // TODO: hide id to request
         CompletableFuture<Void> result = client.modifyRows(id, request);
         modifyRowsResults.add(result);
