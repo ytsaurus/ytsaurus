@@ -40,7 +40,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     @Nullable
     private final TransactionalOptions transactionalOptions;
 
-    public ReadTable(BuilderBase<T, ?, ?> builder) {
+    public ReadTable(BuilderBase<T, ?> builder) {
         super(builder);
         if (builder.path == null && builder.stringPath == null) {
             throw new IllegalArgumentException("Path wasn't set");
@@ -174,22 +174,16 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder<T> extends BuilderBase<T, Builder<T>, ReadTable<T>> {
+    public static class Builder<T> extends BuilderBase<T, Builder<T>> {
         @Override
         protected Builder<T> self() {
             return this;
         }
-
-        @Override
-        public ReadTable<T> build() {
-            return new ReadTable<T>(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            T, TBuilder extends BuilderBase<T, TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest> {
+            T, TBuilder extends BuilderBase<T, TBuilder>>
+            extends RequestBase.Builder<TBuilder, ReadTable<T>> {
         @Nullable
         private YPath path;
         @Nullable
@@ -238,6 +232,11 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         public TBuilder setTransactionalOptions(@Nullable TransactionalOptions transactionalOptions) {
             this.transactionalOptions = transactionalOptions;
             return self();
+        }
+
+        @Override
+        public ReadTable<T> build() {
+            return new ReadTable<T>(this);
         }
     }
 }

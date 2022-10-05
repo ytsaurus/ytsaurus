@@ -7,7 +7,6 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -16,7 +15,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class CopyNode
         extends CopyLikeReq<CopyNode.Builder, CopyNode>
         implements HighLevelRequest<TReqCopyNode.Builder> {
-    public CopyNode(BuilderBase<?, ?> builder) {
+    public CopyNode(BuilderBase<?> builder) {
         super(builder);
     }
 
@@ -82,27 +81,21 @@ public class CopyNode
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder, CopyNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public CopyNode build() {
-            return new CopyNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends CopyLikeReq<?, TRequest>>
-            extends CopyLikeReq.Builder<TBuilder, TRequest>
+            TBuilder extends BuilderBase<TBuilder>>
+            extends CopyLikeReq.Builder<TBuilder, CopyNode>
             implements HighLevelRequest<TReqCopyNode.Builder> {
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
         }
 
@@ -127,6 +120,11 @@ public class CopyNode
             if (additionalData != null) {
                 builder.mergeFrom(additionalData);
             }
+        }
+
+        @Override
+        public CopyNode build() {
+            return new CopyNode(this);
         }
     }
 }

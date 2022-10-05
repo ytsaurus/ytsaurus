@@ -9,8 +9,7 @@ import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class WriteTable<T> extends ru.yandex.yt.ytclient.request.WriteTable.BuilderBase<
-        T, WriteTable<T>, ru.yandex.yt.ytclient.request.WriteTable<T>> {
+public class WriteTable<T> extends ru.yandex.yt.ytclient.request.WriteTable.BuilderBase<T, WriteTable<T>> {
 
     public WriteTable(YPath path, WireRowSerializer<T> serializer, @Nullable TableSchema tableSchema) {
         setSerializationContext(new ru.yandex.yt.ytclient.request.WriteTable.SerializationContext<T>(serializer));
@@ -64,10 +63,5 @@ public class WriteTable<T> extends ru.yandex.yt.ytclient.request.WriteTable.Buil
     @Override
     protected WriteTable<T> self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.WriteTable<T> build() {
-        return new ru.yandex.yt.ytclient.request.WriteTable<>(this);
     }
 }

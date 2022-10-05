@@ -8,8 +8,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi
-public class AbortJob extends ru.yandex.yt.ytclient.request.AbortJob.BuilderBase<
-        AbortJob, ru.yandex.yt.ytclient.request.AbortJob> {
+public class AbortJob extends ru.yandex.yt.ytclient.request.AbortJob.BuilderBase<AbortJob> {
     public AbortJob(GUID jobId) {
         this(jobId, null);
     }
@@ -24,10 +23,5 @@ public class AbortJob extends ru.yandex.yt.ytclient.request.AbortJob.BuilderBase
     @Override
     protected AbortJob self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.AbortJob build() {
-        return new ru.yandex.yt.ytclient.request.AbortJob(this);
     }
 }

@@ -21,7 +21,6 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
@@ -48,7 +47,7 @@ public class CreateNode
     private final boolean lockExisting;
     private final Map<String, YTreeNode> attributes;
 
-    public CreateNode(BuilderBase<?, ?> builder) {
+    public CreateNode(BuilderBase<?> builder) {
         super(builder);
         this.type = Objects.requireNonNull(builder.type);
         this.recursive = builder.recursive;
@@ -185,23 +184,16 @@ public class CreateNode
                 .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
-    public static class Builder extends BuilderBase<Builder, CreateNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public CreateNode build() {
-            return new CreateNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends MutatePath<?, TRequest>>
-            extends MutatePath.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqCreateNode.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends MutatePath.Builder<TBuilder, CreateNode> {
         @Nullable
         protected ObjectType type;
         protected boolean recursive = false;
@@ -213,7 +205,7 @@ public class CreateNode
         protected BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.type = builder.type;
             this.recursive = builder.recursive;
@@ -294,41 +286,6 @@ public class CreateNode
             return Collections.unmodifiableMap(attributes);
         }
 
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
-            Objects.requireNonNull(path);
-            Objects.requireNonNull(type);
-
-            builder.body()
-                    .setPath(path.toString())
-                    .setType(type.value())
-                    .setRecursive(recursive)
-                    .setForce(force)
-                    .setIgnoreExisting(ignoreExisting)
-                    .setLockExisting(lockExisting);
-
-            if (transactionalOptions != null) {
-                builder.body().setTransactionalOptions(
-                        transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            if (prerequisiteOptions != null) {
-                builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-            }
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-            if (additionalData != null) {
-                builder.body().mergeFrom(additionalData);
-            }
-
-            if (!attributes.isEmpty()) {
-                final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
-                for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
-                    aBuilder.addAttributesBuilder()
-                            .setKey(me.getKey())
-                            .setValue(ByteString.copyFrom(me.getValue().toBinary()));
-                }
-            }
-        }
-
         public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
             Objects.requireNonNull(type);
 
@@ -358,6 +315,11 @@ public class CreateNode
             if (force) {
                 sb.append("Force: true; ");
             }
+        }
+
+        @Override
+        public CreateNode build() {
+            return new CreateNode(this);
         }
     }
 }

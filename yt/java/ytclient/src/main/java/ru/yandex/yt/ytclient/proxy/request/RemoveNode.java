@@ -6,8 +6,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class RemoveNode extends ru.yandex.yt.ytclient.request.RemoveNode.BuilderBase<
-        RemoveNode, ru.yandex.yt.ytclient.request.RemoveNode> {
+public class RemoveNode extends ru.yandex.yt.ytclient.request.RemoveNode.BuilderBase<RemoveNode> {
     public RemoveNode(ru.yandex.yt.ytclient.request.RemoveNode other) {
         super(other.toBuilder());
     }
@@ -27,10 +26,5 @@ public class RemoveNode extends ru.yandex.yt.ytclient.request.RemoveNode.Builder
     @Override
     protected RemoveNode self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.RemoveNode build() {
-        return new ru.yandex.yt.ytclient.request.RemoveNode(this);
     }
 }

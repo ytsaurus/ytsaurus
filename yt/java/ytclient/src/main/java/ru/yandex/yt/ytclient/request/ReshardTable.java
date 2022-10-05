@@ -10,7 +10,6 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
@@ -26,7 +25,7 @@ public class ReshardTable
     private final TableSchema schema;
     private final List<UnversionedRow> pivotKeys;
 
-    public ReshardTable(BuilderBase<?, ?> builder) {
+    public ReshardTable(BuilderBase<?> builder) {
         super(builder);
         this.tabletCount = builder.tabletCount;
         this.schema = builder.schema;
@@ -97,23 +96,16 @@ public class ReshardTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, ReshardTable> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public ReshardTable build() {
-            return new ReshardTable(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqReshardTable.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, ReshardTable> {
         @Nullable
         private Integer tabletCount;
         @Nullable
@@ -123,7 +115,7 @@ public class ReshardTable
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.tabletCount = builder.tabletCount;
             this.schema = builder.schema;
@@ -153,21 +145,6 @@ public class ReshardTable
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqReshardTable.Builder, ?> requestBuilder) {
-            TReqReshardTable.Builder builder = requestBuilder.body();
-            super.writeTo(builder);
-            if (schema != null) {
-                builder.setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(schema));
-            }
-            if (tabletCount != null) {
-                builder.setTabletCount(tabletCount);
-            }
-            if (!pivotKeys.isEmpty()) {
-                serializeRowsetTo(requestBuilder.attachments());
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             if (schema != null) {
@@ -194,6 +171,11 @@ public class ReshardTable
             WireProtocolWriter writer = new WireProtocolWriter(attachments);
             writer.writeUnversionedRowset(pivotKeys, new UnversionedRowSerializer(schema));
             writer.finish();
+        }
+
+        @Override
+        public ReshardTable build() {
+            return new ReshardTable(this);
         }
     }
 }

@@ -155,7 +155,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #mountTable(MountTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> mountTable(MountTable.BuilderBase<?, MountTable> req) {
+    default CompletableFuture<Void> mountTable(MountTable.BuilderBase<?> req) {
         return mountTable(req.build());
     }
 
@@ -173,7 +173,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #unmountTable(UnmountTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> unmountTable(UnmountTable.BuilderBase<?, UnmountTable> req) {
+    default CompletableFuture<Void> unmountTable(UnmountTable.BuilderBase<?> req) {
         return unmountTable(req.build());
     }
 
@@ -187,7 +187,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #remountTable(RemountTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> remountTable(RemountTable.BuilderBase<?, RemountTable> req) {
+    default CompletableFuture<Void> remountTable(RemountTable.BuilderBase<?> req) {
         return remountTable(req.build());
     }
 
@@ -205,7 +205,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #freezeTable(FreezeTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> freezeTable(FreezeTable.BuilderBase<?, FreezeTable> req) {
+    default CompletableFuture<Void> freezeTable(FreezeTable.BuilderBase<?> req) {
         return freezeTable(req.build());
     }
 
@@ -229,7 +229,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #unfreezeTable(FreezeTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> unfreezeTable(FreezeTable.BuilderBase<?, FreezeTable> req) {
+    default CompletableFuture<Void> unfreezeTable(FreezeTable.BuilderBase<?> req) {
         return unfreezeTable(req.build());
     }
 
@@ -239,7 +239,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #unfreezeTable(UnfreezeTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> unfreezeTable(UnfreezeTable.BuilderBase<?, UnfreezeTable> req) {
+    default CompletableFuture<Void> unfreezeTable(UnfreezeTable.BuilderBase<?> req) {
         return unfreezeTable(req.build());
     }
 
@@ -277,7 +277,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #reshardTable(ReshardTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> reshardTable(ReshardTable.BuilderBase<?, ReshardTable> req) {
+    default CompletableFuture<Void> reshardTable(ReshardTable.BuilderBase<?> req) {
         return reshardTable(req.build());
     }
 
@@ -294,7 +294,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #alterTable(AlterTable)}
      */
     @Deprecated
-    default CompletableFuture<Void> alterTable(AlterTable.BuilderBase<?, AlterTable> req) {
+    default CompletableFuture<Void> alterTable(AlterTable.BuilderBase<?> req) {
         return alterTable(req.build());
     }
 
@@ -314,7 +314,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #getOperation(GetOperation)}
      */
     @Deprecated
-    default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?, GetOperation> req) {
+    default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?> req) {
         return getOperation(req.build());
     }
 
@@ -326,7 +326,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #suspendOperation(SuspendOperation)}
      */
     @Deprecated
-    default CompletableFuture<Void> suspendOperation(SuspendOperation.BuilderBase<?, SuspendOperation> req) {
+    default CompletableFuture<Void> suspendOperation(SuspendOperation.BuilderBase<?> req) {
         return suspendOperation(req.build());
     }
 
@@ -336,7 +336,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #resumeOperation(ResumeOperation)}
      */
     @Deprecated
-    default CompletableFuture<Void> resumeOperation(ResumeOperation.BuilderBase<?, ResumeOperation> req) {
+    default CompletableFuture<Void> resumeOperation(ResumeOperation.BuilderBase<?> req) {
         return resumeOperation(req.build());
     }
 
@@ -346,7 +346,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #getJob(GetJob)}
      */
     @Deprecated
-    default CompletableFuture<YTreeNode> getJob(GetJob.BuilderBase<?, GetJob> req) {
+    default CompletableFuture<YTreeNode> getJob(GetJob.BuilderBase<?> req) {
         return getJob(req.build());
     }
 
@@ -356,7 +356,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * @deprected prefer to use {@link #abortJob(AbortJob)}
      */
     @Deprecated
-    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?, AbortJob> req) {
+    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?> req) {
         return abortJob(req.build());
     }
 
@@ -371,7 +371,7 @@ public interface ApiServiceClient extends TransactionalClient {
      */
     @Deprecated
     default CompletableFuture<Void> updateOperationParameters(
-            UpdateOperationParameters.BuilderBase<?, UpdateOperationParameters> req) {
+            UpdateOperationParameters.BuilderBase<?> req) {
         return updateOperationParameters(req.build());
     }
 }

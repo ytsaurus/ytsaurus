@@ -22,7 +22,6 @@ import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.Durability;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.TransactionType;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -307,11 +306,6 @@ public class StartTransaction
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public StartTransaction build() {
-            return new StartTransaction(this);
-        }
     }
 
     public abstract static class BuilderBase<
@@ -471,6 +465,11 @@ public class StartTransaction
             this.attributes.clear();
             this.attributes.putAll(attributes);
             return self();
+        }
+
+        @Override
+        public StartTransaction build() {
+            return new StartTransaction(this);
         }
     }
 }

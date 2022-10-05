@@ -18,7 +18,6 @@ import ru.yandex.yt.rpcproxy.EOperationType;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -34,7 +33,7 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
     private final TransactionalOptions transactionalOptions;
     private final MutatingOptions mutatingOptions;
 
-    public StartOperation(BuilderBase<?, ?> builder) {
+    public StartOperation(BuilderBase<?> builder) {
         super(builder);
         this.type = Objects.requireNonNull(builder.type);
         this.spec = Objects.requireNonNull(builder.spec);
@@ -92,25 +91,18 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, StartOperation> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
-        }
-
-        @Override
-        public StartOperation build() {
-            return new StartOperation(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqStartOperation.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, StartOperation> {
         @Nullable
         private EOperationType type;
         @Nullable
@@ -122,7 +114,7 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         protected BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?, ?> builder) {
+        BuilderBase(BuilderBase<?> builder) {
             super(builder);
             type = builder.type;
             spec = YTree.deepCopy(spec);
@@ -153,21 +145,6 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqStartOperation.Builder, ?> requestBuilder) {
-            TReqStartOperation.Builder builder = requestBuilder.body();
-            ByteString.Output output = ByteString.newOutput();
-            YTreeBinarySerializer.serialize(spec, output);
-
-            builder.setType(Objects.requireNonNull(type)).setSpec(output.toByteString());
-
-            if (transactionalOptions != null) {
-                builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
-
-        @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             sb.append("OperationType: ").append(type).append("; ");
             super.writeArgumentsLogString(sb);
@@ -176,6 +153,11 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         @Override
         public void writeHeaderTo(TRequestHeader.Builder header) {
             super.writeHeaderTo(header);
+        }
+
+        @Override
+        public StartOperation build() {
+            return new StartOperation(this);
         }
     }
 }

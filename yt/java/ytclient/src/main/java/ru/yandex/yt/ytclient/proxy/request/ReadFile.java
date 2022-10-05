@@ -1,7 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-public class ReadFile extends ru.yandex.yt.ytclient.request.ReadFile.BuilderBase<
-        ReadFile, ru.yandex.yt.ytclient.request.ReadFile> {
+public class ReadFile extends ru.yandex.yt.ytclient.request.ReadFile.BuilderBase<ReadFile> {
     public ReadFile(String path) {
         setPath(path);
     }
@@ -9,10 +8,5 @@ public class ReadFile extends ru.yandex.yt.ytclient.request.ReadFile.BuilderBase
     @Override
     protected ReadFile self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.ReadFile build() {
-        return new ru.yandex.yt.ytclient.request.ReadFile(this);
     }
 }

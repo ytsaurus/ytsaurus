@@ -10,8 +10,7 @@ import ru.yandex.lang.NonNullApi;
  * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#unmountTable(UnmountTable)
  */
 @NonNullApi
-public class UnmountTable extends ru.yandex.yt.ytclient.request.UnmountTable.BuilderBase<
-        UnmountTable, ru.yandex.yt.ytclient.request.UnmountTable> {
+public class UnmountTable extends ru.yandex.yt.ytclient.request.UnmountTable.BuilderBase<UnmountTable> {
     public UnmountTable(YPath path) {
         setPath(path.justPath());
     }
@@ -27,10 +26,5 @@ public class UnmountTable extends ru.yandex.yt.ytclient.request.UnmountTable.Bui
     @Override
     protected UnmountTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.UnmountTable build() {
-        return new ru.yandex.yt.ytclient.request.UnmountTable(this);
     }
 }

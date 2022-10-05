@@ -2,8 +2,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 
-public class ReshardTable extends ru.yandex.yt.ytclient.request.ReshardTable.BuilderBase<
-        ReshardTable, ru.yandex.yt.ytclient.request.ReshardTable> {
+public class ReshardTable extends ru.yandex.yt.ytclient.request.ReshardTable.BuilderBase<ReshardTable> {
     public ReshardTable(YPath path) {
         setPath(path.justPath());
     }
@@ -19,10 +18,5 @@ public class ReshardTable extends ru.yandex.yt.ytclient.request.ReshardTable.Bui
     @Override
     protected ReshardTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.ReshardTable build() {
-        return new ru.yandex.yt.ytclient.request.ReshardTable(this);
     }
 }

@@ -5,7 +5,7 @@ import javax.annotation.Nonnull;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 
 public class ReshardTableAutomatic extends ru.yandex.yt.ytclient.request.ReshardTableAutomatic.BuilderBase<
-        ReshardTableAutomatic, ru.yandex.yt.ytclient.request.ReshardTableAutomatic> {
+        ReshardTableAutomatic> {
     public ReshardTableAutomatic(YPath path, boolean keepActions) {
         setPath(path.justPath()).setKeepActions(keepActions);
     }
@@ -22,10 +22,5 @@ public class ReshardTableAutomatic extends ru.yandex.yt.ytclient.request.Reshard
     @Override
     protected ReshardTableAutomatic self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.ReshardTableAutomatic build() {
-        return new ru.yandex.yt.ytclient.request.ReshardTableAutomatic(this);
     }
 }

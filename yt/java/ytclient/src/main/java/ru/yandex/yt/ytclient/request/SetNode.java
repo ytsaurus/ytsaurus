@@ -20,7 +20,6 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -33,7 +32,7 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
     private final boolean force;
     private final boolean recursive;
 
-    public SetNode(BuilderBase<?, ?> builder) {
+    public SetNode(BuilderBase<?> builder) {
         super(builder);
         this.value = Objects.requireNonNull(builder.value).clone();
         this.force = builder.force;
@@ -120,23 +119,16 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
                 .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
-    public static class Builder extends BuilderBase<Builder, SetNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public SetNode build() {
-            return new SetNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends MutatePath<?, TRequest>>
-            extends MutatePath.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqSetNode.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends MutatePath.Builder<TBuilder, SetNode> {
         @Nullable
         private byte[] value;
         private boolean force;
@@ -145,7 +137,7 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             if (builder.value != null) {
                 this.value = Arrays.copyOf(builder.value, builder.value.length);
@@ -196,29 +188,6 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqSetNode.Builder, ?> builder) {
-            Objects.requireNonNull(path);
-            Objects.requireNonNull(value);
-            builder.body().setPath(path.toString())
-                    .setForce(force)
-                    .setValue(ByteString.copyFrom(value));
-            if (transactionalOptions != null) {
-                builder.body().setTransactionalOptions(
-                        transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            if (prerequisiteOptions != null) {
-                builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-            }
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-            if (additionalData != null) {
-                builder.body().mergeFrom(additionalData);
-            }
-            if (recursive) {
-                builder.body().setRecursive(true);
-            }
-        }
-
-        @Override
         public YTreeBuilder toTree(YTreeBuilder builder) {
             return builder
                     .apply(super::toTree)
@@ -235,6 +204,11 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
             if (recursive) {
                 sb.append("Recursive: true; ");
             }
+        }
+
+        @Override
+        public SetNode build() {
+            return new SetNode(this);
         }
     }
 }

@@ -4,8 +4,7 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class RemountTable extends ru.yandex.yt.ytclient.request.RemountTable.BuilderBase<
-        RemountTable, ru.yandex.yt.ytclient.request.RemountTable> {
+public class RemountTable extends ru.yandex.yt.ytclient.request.RemountTable.BuilderBase<RemountTable> {
     public RemountTable(YPath path) {
         setPath(path.justPath());
     }
@@ -21,10 +20,5 @@ public class RemountTable extends ru.yandex.yt.ytclient.request.RemountTable.Bui
     @Override
     protected RemountTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.RemountTable build() {
-        return new ru.yandex.yt.ytclient.request.RemountTable(this);
     }
 }

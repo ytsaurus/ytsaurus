@@ -113,11 +113,6 @@ public class WriteFile extends RequestBase<WriteFile.Builder, WriteFile> {
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public WriteFile build() {
-            return new WriteFile(this);
-        }
     }
 
     public abstract static class BuilderBase<TBuilder extends BuilderBase<TBuilder>>
@@ -172,6 +167,11 @@ public class WriteFile extends RequestBase<WriteFile.Builder, WriteFile> {
         public TBuilder setComputeMd5(@Nullable Boolean flag) {
             this.computeMd5 = flag;
             return self();
+        }
+
+        @Override
+        public WriteFile build() {
+            return new WriteFile(this);
         }
     }
 }

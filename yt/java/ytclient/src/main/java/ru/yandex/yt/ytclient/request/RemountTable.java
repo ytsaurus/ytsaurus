@@ -3,14 +3,13 @@ package ru.yandex.yt.ytclient.request;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 public class RemountTable
         extends TableReq<RemountTable.Builder, RemountTable>
         implements HighLevelRequest<TReqRemountTable.Builder> {
-    public RemountTable(BuilderBase<?, ?> builder) {
+    public RemountTable(BuilderBase<?> builder) {
         super(builder);
     }
 
@@ -40,33 +39,26 @@ public class RemountTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, RemountTable> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
+        }
+    }
+
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, RemountTable> {
+        protected BuilderBase() {
+        }
+
+        protected BuilderBase(BuilderBase<?> builder) {
+            super(builder);
         }
 
         @Override
         public RemountTable build() {
             return new RemountTable(this);
-        }
-    }
-
-    public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqRemountTable.Builder> {
-        protected BuilderBase() {
-        }
-
-        protected BuilderBase(BuilderBase<?, ?> builder) {
-            super(builder);
-        }
-
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqRemountTable.Builder, ?> builder) {
-            super.writeTo(builder.body());
         }
     }
 }

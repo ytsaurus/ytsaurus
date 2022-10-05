@@ -13,7 +13,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -30,7 +29,7 @@ public class GetOperation
     private final MasterReadOptions masterReadOptions;
     private final boolean includeRuntime;
 
-    public GetOperation(BuilderBase<?, ?> builder) {
+    public GetOperation(BuilderBase<?> builder) {
         super(builder);
         this.guid = Objects.requireNonNull(builder.guid);
         this.attributes = new ArrayList<>(builder.attributes);
@@ -89,25 +88,18 @@ public class GetOperation
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder, GetOperation> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
-        }
-
-        @Override
-        public GetOperation build() {
-            return new GetOperation(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqGetOperation.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, GetOperation> {
         @Nullable
         private GUID guid;
         private List<String> attributes = new ArrayList<>();
@@ -119,7 +111,7 @@ public class GetOperation
         protected BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?, ?> builder) {
+        BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.guid = builder.guid;
             this.attributes = new ArrayList<>(builder.attributes);
@@ -156,25 +148,17 @@ public class GetOperation
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqGetOperation.Builder, ?> requestBuilder) {
-            TReqGetOperation.Builder builder = requestBuilder.body()
-                    .setOperationId(RpcUtil.toProto(Objects.requireNonNull(guid)))
-                    // TODO(max42): switch to modern "attributes" field.
-                    .addAllLegacyAttributes(attributes)
-                    .setIncludeRuntime(includeRuntime);
-
-            if (masterReadOptions != null) {
-                builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             sb.append("Id: ").append(guid).append("; ");
             if (!attributes.isEmpty()) {
                 sb.append("Attributes: ").append(attributes).append("; ");
             }
             super.writeArgumentsLogString(sb);
+        }
+
+        @Override
+        public GetOperation build() {
+            return new GetOperation(this);
         }
     }
 }

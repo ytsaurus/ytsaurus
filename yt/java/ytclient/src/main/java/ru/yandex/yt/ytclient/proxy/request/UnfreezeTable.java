@@ -4,8 +4,7 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class UnfreezeTable extends ru.yandex.yt.ytclient.request.UnfreezeTable.BuilderBase<
-        UnfreezeTable, ru.yandex.yt.ytclient.request.UnfreezeTable> {
+public class UnfreezeTable extends ru.yandex.yt.ytclient.request.UnfreezeTable.BuilderBase<UnfreezeTable> {
     public UnfreezeTable(YPath path) {
         setPath(path);
     }
@@ -21,10 +20,5 @@ public class UnfreezeTable extends ru.yandex.yt.ytclient.request.UnfreezeTable.B
     @Override
     protected UnfreezeTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.UnfreezeTable build() {
-        return new ru.yandex.yt.ytclient.request.UnfreezeTable(this);
     }
 }

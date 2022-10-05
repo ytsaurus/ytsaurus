@@ -14,8 +14,7 @@ import ru.yandex.lang.NonNullFields;
  */
 @NonNullApi
 @NonNullFields
-public class ResumeOperation extends ru.yandex.yt.ytclient.request.ResumeOperation.BuilderBase<
-        ResumeOperation, ru.yandex.yt.ytclient.request.ResumeOperation> {
+public class ResumeOperation extends ru.yandex.yt.ytclient.request.ResumeOperation.BuilderBase<ResumeOperation> {
 
     public ResumeOperation(GUID operationId) {
         setOperationId(operationId);
@@ -32,10 +31,5 @@ public class ResumeOperation extends ru.yandex.yt.ytclient.request.ResumeOperati
     @Override
     protected ResumeOperation self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.ResumeOperation build() {
-        return new ru.yandex.yt.ytclient.request.ResumeOperation(this);
     }
 }

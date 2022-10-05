@@ -27,7 +27,7 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
     private TransactionalOptions transactionalOptions = null;
     private SuppressableAccessTrackingOptions suppressableAccessTrackingOptions = null;
 
-    public ReadFile(BuilderBase<?, ?> builder) {
+    public ReadFile(BuilderBase<?> builder) {
         super(builder);
         this.path = builder.path;
         this.offset = builder.offset;
@@ -100,24 +100,18 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, ReadFile> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
-        }
-
-        @Override
-        public ReadFile build() {
-            return new ReadFile(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, ReadFile> {
         @Nullable
         private String path;
 
@@ -162,6 +156,11 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
                 @Nullable SuppressableAccessTrackingOptions suppressableAccessTrackingOptions) {
             this.suppressableAccessTrackingOptions = suppressableAccessTrackingOptions;
             return self();
+        }
+
+        @Override
+        public ReadFile build() {
+            return new ReadFile(this);
         }
     }
 }

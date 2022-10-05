@@ -8,7 +8,6 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortJob;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
@@ -23,7 +22,7 @@ public class AbortJob
         this(builder().setJobId(jobId));
     }
 
-    public AbortJob(BuilderBase<?, ?> builder) {
+    public AbortJob(BuilderBase<?> builder) {
         super(builder);
         this.jobId = Objects.requireNonNull(builder.jobId);
         this.interruptTimeout = builder.interruptTimeout;
@@ -63,25 +62,18 @@ public class AbortJob
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder, AbortJob> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
-        }
-
-        @Override
-        public AbortJob build() {
-            return new AbortJob(this);
         }
     }
 
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqAbortJob.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, AbortJob> {
         @Nullable
         private GUID jobId;
         @Nullable
@@ -90,7 +82,7 @@ public class AbortJob
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
             jobId = builder.jobId;
             interruptTimeout = builder.interruptTimeout;
@@ -107,19 +99,15 @@ public class AbortJob
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqAbortJob.Builder, ?> requestBuilder) {
-            TReqAbortJob.Builder messageBuilder = requestBuilder.body();
-            messageBuilder.setJobId(RpcUtil.toProto(Objects.requireNonNull(jobId)));
-            if (interruptTimeout != null) {
-                messageBuilder.setInterruptTimeout(interruptTimeout);
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             sb.append("jobId: ").append(jobId).append(";");
             sb.append("interruptTimeout: ").append(interruptTimeout).append(";");
+        }
+
+        @Override
+        public AbortJob build() {
+            return new AbortJob(this);
         }
     }
 }

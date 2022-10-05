@@ -9,7 +9,7 @@ import ru.yandex.lang.NonNullFields;
 @NonNullFields
 @NonNullApi
 public class UpdateOperationParameters extends ru.yandex.yt.ytclient.request.UpdateOperationParameters.BuilderBase<
-        UpdateOperationParameters, ru.yandex.yt.ytclient.request.UpdateOperationParameters> {
+        UpdateOperationParameters> {
     public UpdateOperationParameters(GUID guid) {
         setOperationId(guid);
     }
@@ -25,11 +25,6 @@ public class UpdateOperationParameters extends ru.yandex.yt.ytclient.request.Upd
     @Override
     protected UpdateOperationParameters self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.UpdateOperationParameters build() {
-        return new ru.yandex.yt.ytclient.request.UpdateOperationParameters(this);
     }
 
     public static class SchedulingOptions
