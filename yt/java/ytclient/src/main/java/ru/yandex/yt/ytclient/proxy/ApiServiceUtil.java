@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.type_info.TiType;
 import ru.yandex.type_info.TypeIO;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
@@ -18,6 +18,7 @@ import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
+import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -154,11 +155,21 @@ public class ApiServiceUtil {
     public static <T> void deserializeUnversionedRowset(
             TRowsetDescriptor descriptor,
             List<byte[]> attachments,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
         deserializeUnversionedRowset(descriptor, attachments,
-                schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
+                schema -> {
+                    if (serializer.getClass().getName().equals(
+                            "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer")) {
+                        return MappedRowsetDeserializer.forClass(
+                                schema, serializer, consumer);
+                    } else {
+                        YTreeDeserializer<T> deserializer = new YTreeDeserializer<>(serializer, consumer);
+                        deserializer.updateSchema(schema);
+                        return deserializer;
+                    }
+                });
     }
 
     public static UnversionedRowset deserializeUnversionedRowset(
@@ -187,15 +198,6 @@ public class ApiServiceUtil {
         validateRowsetDescriptor(descriptor);
         final B deserializer = deserializerFunction.apply(deserializeRowsetSchema(descriptor));
         return new WireProtocolReader(attachments).readUnversionedRowset(deserializer);
-    }
-
-    public static <T> void deserializeVersionedRowset(TRowsetDescriptor descriptor,
-                                                      List<byte[]> attachments,
-                                                      YTreeObjectSerializer<T> serializer,
-                                                      ConsumerSource<T> consumer
-    ) {
-        deserializeVersionedRowset(descriptor, attachments,
-                schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
     }
 
     public static VersionedRowset deserializeVersionedRowset(TRowsetDescriptor descriptor, List<byte[]> attachments) {
