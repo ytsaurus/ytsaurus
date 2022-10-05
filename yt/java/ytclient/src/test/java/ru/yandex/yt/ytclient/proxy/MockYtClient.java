@@ -15,7 +15,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
@@ -166,7 +166,7 @@ public class MockYtClient implements BaseYtClient {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
     }
@@ -174,7 +174,7 @@ public class MockYtClient implements BaseYtClient {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
     }
@@ -190,22 +190,6 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(
-            LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return (CompletableFuture<List<T>>) callMethod("versionedLookupRows");
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(
-            MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return (CompletableFuture<List<T>>) callMethod("versionedLookupRows");
-    }
-
-    @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         return (CompletableFuture<UnversionedRowset>) callMethod("selectRows");
     }
@@ -213,7 +197,7 @@ public class MockYtClient implements BaseYtClient {
     @Override
     public <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("selectRows");
     }
@@ -317,25 +301,18 @@ public class MockYtClient implements BaseYtClient {
 
     @Override
     public <T> CompletableFuture<Void> lookupRows(LookupRowsRequest request,
-                                                  YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+                                                  YTreeRowSerializer<T> serializer, ConsumerSource<T> consumer) {
         return null;
     }
 
     @Override
     public <T> CompletableFuture<Void> lookupRows(MappedLookupRowsRequest<?> request,
-                                                  YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+                                                  YTreeRowSerializer<T> serializer, ConsumerSource<T> consumer) {
         return null;
     }
 
     @Override
-    public <T> CompletableFuture<Void> versionedLookupRows(LookupRowsRequest request,
-                                                           YTreeObjectSerializer<T> serializer,
-                                                           ConsumerSource<T> consumer) {
-        return null;
-    }
-
-    @Override
-    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer, ConsumerSource<T> consumer) {
         return null;
     }
 
@@ -411,7 +388,8 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public CompletableFuture<Void> alterTableReplica(GUID replicaId, boolean enabled, ETableReplicaMode mode, boolean preserveTimestamp, EAtomicity atomicity) {
+    public CompletableFuture<Void> alterTableReplica(
+            GUID replicaId, boolean enabled, ETableReplicaMode mode, boolean preserveTimestamp, EAtomicity atomicity) {
         return null;
     }
 

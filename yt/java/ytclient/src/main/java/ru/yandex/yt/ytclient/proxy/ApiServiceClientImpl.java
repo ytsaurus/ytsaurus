@@ -29,7 +29,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -476,7 +476,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
@@ -489,7 +489,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
@@ -502,7 +502,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public <T> CompletableFuture<Void> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
         return lookupRowsImpl(request, response -> {
@@ -515,7 +515,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public <T> CompletableFuture<Void> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
         return lookupRowsImpl(request, response -> {
@@ -567,41 +567,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
     }
 
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
-                                                              YTreeObjectSerializer<T> serializer) {
-        return versionedLookupRowsImpl(request, response -> {
-            final ConsumerSourceRet<T> result = ConsumerSource.list();
-            ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
-            return result.get();
-        });
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(MappedLookupRowsRequest<?> request,
-                                                              YTreeObjectSerializer<T> serializer) {
-        return versionedLookupRowsImpl(request, response -> {
-            final ConsumerSourceRet<T> result = ConsumerSource.list();
-            ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
-            return result.get();
-        });
-    }
-
-    @Override
-    public <T> CompletableFuture<Void> versionedLookupRows(
-            LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer,
-            ConsumerSource<T> consumer
-    ) {
-        return versionedLookupRowsImpl(request, response -> {
-            ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, consumer);
-            return null;
-        });
-    }
-
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
             LookupRowsRequest request,
             Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader
@@ -650,7 +615,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer) {
         return selectRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -660,7 +625,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
         return selectRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),

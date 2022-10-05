@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
@@ -99,19 +99,13 @@ public interface ApiServiceClient extends TransactionalClient {
 
     <T> CompletableFuture<Void> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     );
 
     <T> CompletableFuture<Void> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer,
-            ConsumerSource<T> consumer
-    );
-
-    <T> CompletableFuture<Void> versionedLookupRows(
-            LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     );
 

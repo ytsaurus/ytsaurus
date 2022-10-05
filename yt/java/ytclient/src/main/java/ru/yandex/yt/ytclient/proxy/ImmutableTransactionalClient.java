@@ -3,7 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
@@ -22,13 +22,13 @@ public interface ImmutableTransactionalClient {
 
     <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     );
 
     @Deprecated
     default <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest.BuilderBase<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return lookupRows(request.build(), serializer);
     }
@@ -41,19 +41,6 @@ public interface ImmutableTransactionalClient {
         return versionedLookupRows(request.build());
     }
 
-    <T> CompletableFuture<List<T>> versionedLookupRows(
-            LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
-    );
-
-    @Deprecated
-    default <T> CompletableFuture<List<T>> versionedLookupRows(
-            LookupRowsRequest.BuilderBase<?> request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return versionedLookupRows(request.build(), serializer);
-    }
-
     CompletableFuture<UnversionedRowset> lookupRows(MappedLookupRowsRequest<?> request);
 
     @Deprecated
@@ -64,13 +51,13 @@ public interface ImmutableTransactionalClient {
 
     <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     );
 
     @Deprecated
     default <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest.BuilderBase<?, ?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return lookupRows(request.build(), serializer);
     }
@@ -83,27 +70,14 @@ public interface ImmutableTransactionalClient {
         return versionedLookupRows(request.build());
     }
 
-    <T> CompletableFuture<List<T>> versionedLookupRows(
-            MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
-    );
-
-    @Deprecated
-    default <T> CompletableFuture<List<T>> versionedLookupRows(
-            MappedLookupRowsRequest.BuilderBase<?, ?> request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return versionedLookupRows(request.build(), serializer);
-    }
-
     CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
 
     <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     );
 
-    <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+    <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer,
                                            ConsumerSource<T> consumer);
 
     CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request);
@@ -116,14 +90,14 @@ public interface ImmutableTransactionalClient {
 
     default <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest.BuilderBase<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return selectRows(request.build(), serializer);
     }
 
     default <T> CompletableFuture<Void> selectRows(
             SelectRowsRequest.BuilderBase<?> request,
-            YTreeObjectSerializer<T> serializer,
+            YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
         return selectRows(request.build(), serializer, consumer);

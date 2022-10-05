@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
@@ -313,7 +313,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
@@ -321,7 +321,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
@@ -334,18 +334,6 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(MappedLookupRowsRequest<?> request) {
         return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
-                                                              YTreeObjectSerializer<T> serializer) {
-        return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(MappedLookupRowsRequest<?> request,
-                                                              YTreeObjectSerializer<T> serializer) {
-        return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(String query) {
@@ -363,12 +351,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer) {
         return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
 
     @Override
-    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
         return client.selectRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer, consumer);
     }

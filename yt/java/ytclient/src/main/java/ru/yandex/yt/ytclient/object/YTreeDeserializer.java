@@ -12,14 +12,20 @@ import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class YTreeDeserializer<T> implements WireRowDeserializer<T>, WireValueDeserializer<Void> {
+public class YTreeDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void> {
     private TableSchema schema;
     private String[] id2key;
     private YTreeBuilder builder = YTree.builder();
     private final YTreeSerializer<T> serializer;
+    private final ConsumerSource<T> consumer;
 
     public YTreeDeserializer(YTreeSerializer<T> serializer) {
+        this(serializer, (unused) -> { });
+    }
+
+    public YTreeDeserializer(YTreeSerializer<T> serializer, @Nullable ConsumerSource<T> consumer) {
         this.serializer = Objects.requireNonNull(serializer);
+        this.consumer = Objects.requireNonNull(consumer);
     }
 
     public void updateSchema(@Nonnull TableSchema schema) {
@@ -37,6 +43,11 @@ public class YTreeDeserializer<T> implements WireRowDeserializer<T>, WireValueDe
     }
 
     @Override
+    public void setRowCount(int rowCount) {
+        consumer.setRowCount(rowCount);
+    }
+
+    @Override
     @Nonnull
     public WireValueDeserializer<?> onNewRow(int columnCount) {
         builder = YTree.builder().beginMap();
@@ -46,12 +57,15 @@ public class YTreeDeserializer<T> implements WireRowDeserializer<T>, WireValueDe
     @Override
     @Nonnull
     public T onCompleteRow() {
-        return serializer.deserialize(builder.endMap().build().mapNode());
+        T row = serializer.deserialize(builder.endMap().build().mapNode());
+        consumer.accept(row);
+        return row;
     }
 
     @Override
     @Nullable
     public T onNullRow() {
+        consumer.accept(null);
         return null;
     }
 

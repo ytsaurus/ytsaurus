@@ -8,7 +8,7 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
@@ -39,7 +39,7 @@ public class SelectRowsResult {
                                 response.attachments()));
     }
 
-    public <T> CompletableFuture<List<T>> getRowsList(YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> getRowsList(YTreeRowSerializer<T> serializer) {
         return handleResponse(response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -48,7 +48,7 @@ public class SelectRowsResult {
         });
     }
 
-    public <T> CompletableFuture<Void> handleWithConsumer(YTreeObjectSerializer<T> serializer,
+    public <T> CompletableFuture<Void> handleWithConsumer(YTreeRowSerializer<T> serializer,
                                                           ConsumerSource<T> consumer) {
         return handleResponse(response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),

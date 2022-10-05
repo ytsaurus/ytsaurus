@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
@@ -91,7 +91,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.lookupRows(request, serializer));
     }
@@ -99,7 +99,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.lookupRows(request, serializer));
     }
@@ -115,22 +115,6 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(
-            LookupRowsRequest request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return executor.execute((client) -> client.versionedLookupRows(request, serializer));
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(
-            MappedLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
-    ) {
-        return executor.execute((client) -> client.versionedLookupRows(request, serializer));
-    }
-
-    @Override
     public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
         return executor.execute((client) -> client.selectRowsV2(request));
     }
@@ -143,13 +127,13 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     @Override
     public <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest request,
-            YTreeObjectSerializer<T> serializer
+            YTreeRowSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.selectRows(request, serializer));
     }
 
     @Override
-    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer,
+    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
         return executor.execute((client) -> client.selectRows(request, serializer, consumer));
     }
