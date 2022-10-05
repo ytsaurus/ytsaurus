@@ -26,6 +26,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.request.AbstractLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.CheckPermission;
 import ru.yandex.yt.ytclient.request.ConcatenateNodes;
@@ -39,10 +40,8 @@ import ru.yandex.yt.ytclient.request.LinkNode;
 import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.LockNodeResult;
-import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.request.MapReduceOperation;
-import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
@@ -301,38 +300,20 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
-        return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
-    }
-
-    @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(MappedLookupRowsRequest<?> request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
-            LookupRowsRequest request,
+            AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
     ) {
         return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> lookupRows(
-            MappedLookupRowsRequest<?> request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        return client.lookupRows(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
-    }
-
-    @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
-        return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
-    }
-
-    @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(MappedLookupRowsRequest<?> request) {
+    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 

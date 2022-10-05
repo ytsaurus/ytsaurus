@@ -16,6 +16,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AbstractLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
@@ -36,7 +37,6 @@ import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.ListJobs;
 import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.request.LookupRowsRequest;
-import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.RemountTable;
@@ -98,16 +98,18 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req);
 
     <T> CompletableFuture<Void> lookupRows(
-            LookupRowsRequest request,
+            AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     );
 
-    <T> CompletableFuture<Void> lookupRows(
-            MappedLookupRowsRequest<?> request,
+    default <T> CompletableFuture<Void> lookupRows(
+            AbstractLookupRowsRequest.Builder<?, ?> request,
             YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
-    );
+    ) {
+        return lookupRows(request.build(), serializer, consumer);
+    }
 
     @Deprecated
     default CompletableFuture<UnversionedRowset> lookupRows(
