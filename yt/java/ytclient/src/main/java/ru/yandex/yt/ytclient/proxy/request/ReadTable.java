@@ -3,9 +3,13 @@ package ru.yandex.yt.ytclient.proxy.request;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
-public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTable.BuilderBase<T, ReadTable<T>> {
+@NonNullApi
+@NonNullFields
+public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTableRequest.BuilderBase<T, ReadTable<T>> {
 
     public ReadTable(YPath path, WireRowDeserializer<T> deserializer) {
         setPath(path).setSerializationContext(

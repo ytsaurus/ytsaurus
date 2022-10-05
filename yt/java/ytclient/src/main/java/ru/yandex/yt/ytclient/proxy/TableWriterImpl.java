@@ -7,7 +7,6 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
@@ -61,7 +60,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
                             (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
                 } else {
                     this.tableRowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
-                            YTreeObjectSerializerFactory.forClass(objectClazz, self.schema)
+                            req.createSerializer(objectClazz, self.schema)
                     ));
                 }
             }

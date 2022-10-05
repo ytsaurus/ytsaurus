@@ -976,7 +976,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             if (!req.getSerializationContext().getObjectClazz().isPresent()) {
                 throw new IllegalArgumentException("No object clazz");
             }
-            tableReader = new TableReaderImpl<>(req.getSerializationContext().getObjectClazz().get());
+            tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClazz().get());
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
@@ -996,13 +996,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         AsyncTableReaderImpl<T> tableReader;
         if (reader != null) {
-            tableReader = new AsyncTableReaderImpl<>(reader, executorService);
+            tableReader = new AsyncTableReaderImpl<>(reader);
         } else {
             if (!req.getSerializationContext().getObjectClazz().isPresent()) {
                 throw new IllegalArgumentException("No object clazz");
             }
-            tableReader = new AsyncTableReaderImpl<>(
-                    req.getSerializationContext().getObjectClazz().get(), executorService);
+            tableReader = new AsyncTableReaderImpl<>(req,
+                    req.getSerializationContext().getObjectClazz().get());
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(

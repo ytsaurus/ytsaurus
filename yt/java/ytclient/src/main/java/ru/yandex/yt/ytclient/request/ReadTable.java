@@ -10,8 +10,11 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapNodeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -23,6 +26,7 @@ import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
 @NonNullFields
@@ -68,6 +72,15 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
     private String getPath() {
         return path != null ? path.toString() : Objects.requireNonNull(stringPath);
+    }
+
+    @SuppressWarnings("unchecked")
+    public YTreeRowSerializer<T> createSerializer(Class<T> clazz, TableSchema schema) {
+        if (clazz.equals(YTreeMapNode.class)) {
+            return (YTreeRowSerializer<T>) new YTreeMapNodeSerializer((Class<YTreeMapNode>) clazz);
+        } else {
+            throw new IllegalArgumentException("Unsupported class: " + clazz);
+        }
     }
 
     public TReqReadTable.Builder writeTo(TReqReadTable.Builder builder) {
@@ -236,7 +249,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
         @Override
         public ReadTable<T> build() {
-            return new ReadTable<T>(this);
+            return new ReadTable<>(this);
         }
     }
 }

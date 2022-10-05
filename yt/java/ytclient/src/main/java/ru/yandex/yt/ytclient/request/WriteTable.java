@@ -13,6 +13,8 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapNodeSerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -78,6 +80,15 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
     public static <T> Builder<T> builder() {
         return new Builder<T>();
+    }
+
+    @SuppressWarnings("unchecked")
+    public YTreeRowSerializer<T> createSerializer(Class<T> clazz, TableSchema schema) {
+        if (clazz.equals(YTreeMapNode.class)) {
+            return (YTreeRowSerializer<T>) new YTreeMapNodeSerializer((Class<YTreeMapNode>) clazz);
+        } else {
+            throw new IllegalArgumentException("Unsupported class: " + clazz);
+        }
     }
 
     public SerializationContext<T> getSerializationContext() {
