@@ -2174,33 +2174,27 @@ private:
         return nullptr;
     }
 
-    TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
+    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
-        auto scheduleJobsFuture = BIND(
-            &TFairShareTreeJobScheduler::ScheduleJobs,
+        auto processSchedulingHeartbeatFuture = BIND(
+            &TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat,
             TreeScheduler_,
             schedulingContext,
-            treeSnapshot)
+            treeSnapshot,
+            skipScheduleJobs)
             .AsyncVia(GetCurrentInvoker())
             .Run();
 
-        return scheduleJobsFuture
+        return processSchedulingHeartbeatFuture
             .Apply(BIND(
                 &TFairShareTree::ApplyScheduledAndPreemptedResourcesDelta,
                 MakeStrong(this),
                 schedulingContext,
                 treeSnapshot));
-    }
-
-    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
-    {
-        auto treeSnapshot = GetTreeSnapshot();
-        YT_VERIFY(treeSnapshot);
-        TreeScheduler_->PreemptJobsGracefully(schedulingContext, treeSnapshot);
     }
 
     void ProcessUpdatedJob(

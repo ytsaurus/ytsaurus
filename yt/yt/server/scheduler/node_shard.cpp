@@ -603,6 +603,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             &hasWaitingJobs);
     }
 
+    // TODO(eshcherbin): Rename to |shouldScheduleJobs|?
     bool skipScheduleJobs = false;
     if (hasWaitingJobs || isThrottlingActive) {
         if (hasWaitingJobs) {
@@ -636,6 +637,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
+    SubmitJobsToStrategy();
+
     auto mediumDirectory = Bootstrap_
         ->GetClient()
         ->GetNativeConnection()
@@ -646,21 +649,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node,
         runningJobs,
         mediumDirectory);
+    Y_UNUSED(WaitFor(ManagerHost_->GetStrategy()->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs)));
 
-    YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
-        bool hasGracefulPreemptionCandidates = false;
-        for (const auto& job : runningJobs) {
-            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->IsInterrupted()) {
-                hasGracefulPreemptionCandidates = true;
-                break;
-            }
-        }
-        if (hasGracefulPreemptionCandidates) {
-            ManagerHost_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
-        }
-    }
-
-    SubmitJobsToStrategy();
+    ProcessScheduledAndPreemptedJobs(
+        schedulingContext,
+        /*requestContext*/ context);
 
     context->SetResponseInfo(
         "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
@@ -671,29 +664,21 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->GetSchedulingSegment(),
         FormatRunningJobStatisticsCompact(node->GetRunningJobStatistics()));
     if (!skipScheduleJobs) {
-        YT_PROFILE_TIMING("/scheduler/schedule_time") {
-            HeartbeatWithScheduleJobsCounter_.Increment();
-            Y_UNUSED(WaitFor(ManagerHost_->GetStrategy()->ScheduleJobs(schedulingContext)));
-        }
-
-        const auto& statistics = schedulingContext->GetSchedulingStatistics();
+        HeartbeatWithScheduleJobsCounter_.Increment();
 
         node->SetResourceUsage(schedulingContext->ResourceUsage());
 
+        const auto& statistics = schedulingContext->GetSchedulingStatistics();
         if (statistics.ScheduleWithPreemption) {
             node->SetLastPreemptiveHeartbeatStatistics(statistics);
         } else {
             node->SetLastNonPreemptiveHeartbeatStatistics(statistics);
         }
 
-        ProcessScheduledAndPreemptedJobs(
-            schedulingContext,
-            /* requestContext */ context);
-
-        // NB: some jobs maybe considered aborted after processing scheduled jobs.
+        // NB: Some jobs maybe considered aborted after processing scheduled jobs.
         SubmitJobsToStrategy();
 
-        // TODO(eshcherbin): Possible to shorten this message by writing preemptible info
+        // TODO(eshcherbin): It's possible to shorten this message by writing preemptible info
         // only when preemptive scheduling has been attempted.
         context->SetIncrementalResponseInfo(
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
@@ -708,10 +693,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             FormatScheduleJobAttemptsCompact(statistics),
             FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
     } else {
-        ProcessScheduledAndPreemptedJobs(
-            schedulingContext,
-            /* requestContext */ context);
-
         context->SetIncrementalResponseInfo("PreemptedJobs: %v", schedulingContext->PreemptedJobs().size());
     }
 
@@ -2292,7 +2273,6 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
     auto* response = &rpcContext->Response();
 
     std::vector<TJobId> startedJobs;
-
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
         if (!operationState) {

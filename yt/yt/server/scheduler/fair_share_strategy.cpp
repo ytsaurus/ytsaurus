@@ -197,28 +197,16 @@ public:
         }
     }
 
-    TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
+    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
-        auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
-        if (!tree) {
-            return VoidFuture;
+        if (auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags)) {
+            return tree->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs);
         }
 
-        return tree->ScheduleJobs(schedulingContext);
-    }
-
-    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
-        auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
-        if (tree) {
-            tree->PreemptJobsGracefully(schedulingContext);
-        }
+        return VoidFuture;
     }
 
     void RegisterOperation(

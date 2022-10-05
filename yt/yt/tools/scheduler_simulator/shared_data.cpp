@@ -324,9 +324,9 @@ TSharedSchedulerStrategy::TSharedSchedulerStrategy(
     , ControlThreadInvoker_(controlThreadInvoker)
 { }
 
-void TSharedSchedulerStrategy::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
+void TSharedSchedulerStrategy::ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs)
 {
-    WaitFor(SchedulerStrategy_->ScheduleJobs(schedulingContext))
+    WaitFor(SchedulerStrategy_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs))
         .ThrowOnError();
 }
 
