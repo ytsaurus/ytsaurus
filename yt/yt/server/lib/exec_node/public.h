@@ -35,6 +35,7 @@ YT_DEFINE_ERROR_ENUM(
     ((ArtifactDownloadFailed)        (1113))
     ((JobProxyPreparationTimeout)    (1114))
     ((JobPreparationTimeout)         (1115))
+    ((FatalJobPreparationTimeout)    (1116))
     ((JobProxyFailed)                (1120))
     ((SetupCommandFailed)            (1121))
     ((GpuLayerNotFetched)            (1122))

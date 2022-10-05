@@ -475,6 +475,8 @@ def get_node_config():
 
         node_directory_prepare_backoff_time = 100;
 
+        job_prepare_time_limit = 60000;
+
         scheduler_connector = {
             failed_heartbeat_backoff_start_time = 50;
             failed_heartbeat_backoff_max_time = 50;

@@ -244,6 +244,13 @@ void TJob::Start()
                         .Via(Invoker_),
                     prepareTimeLimit);
             }
+            
+            if (auto prepareTimeLimit = Config_->JobPrepareTimeLimit) {
+                TDelayedExecutor::Submit(
+                    BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), *prepareTimeLimit, /*fatal*/ true)
+                        .Via(Invoker_),
+                    *prepareTimeLimit);
+            }
 
             if (UserJobSpec_->has_network_project_id()) {
                 NetworkProjectId_ = UserJobSpec_->network_project_id();
@@ -1643,13 +1650,13 @@ void TJob::OnJobProxyPreparationTimeout()
     });
 }
 
-void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit)
+void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ < EJobPhase::Running) {
         auto error = TError(
-            EErrorCode::JobPreparationTimeout,
+            fatal ? EErrorCode::JobPreparationTimeout : EErrorCode::FatalJobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
             << TErrorAttribute("job_start_time", StartTime_);
@@ -2449,6 +2456,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
         error.FindMatching(EErrorCode::GpuCheckCommandIncorrect) ||
         error.FindMatching(EErrorCode::TmpfsOverflow) ||
+        error.FindMatching(EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
 
