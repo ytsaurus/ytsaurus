@@ -2476,6 +2476,8 @@ private:
                     TError("Min required archive version is not met")
                         << TErrorAttribute("version", version)
                         << TErrorAttribute("min_required_version", Config_->MinRequiredArchiveVersion));
+            } else {
+                SetSchedulerAlert(ESchedulerAlertType::ArchiveIsOutdated, TError());
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing operation archive version")
