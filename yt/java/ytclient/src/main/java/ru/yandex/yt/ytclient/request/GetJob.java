@@ -8,17 +8,15 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
-
 
 @NonNullFields
 @NonNullApi
 public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements HighLevelRequest<TReqGetJob.Builder> {
     private final GUID jobId;
 
-    public GetJob(BuilderBase<?, ?> builder) {
+    public GetJob(BuilderBase<?> builder) {
         super(builder);
         this.jobId = Objects.requireNonNull(builder.jobId);
     }
@@ -52,18 +50,6 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
         sb.append("jobId: ").append(jobId).append(";");
     }
 
-    public static class Builder extends BuilderBase<Builder, GetJob> {
-        @Override
-        protected Builder self() {
-            return this;
-        }
-
-        @Override
-        public GetJob build() {
-            return new GetJob(this);
-        }
-    }
-
     @Override
     public Builder toBuilder() {
         return builder()
@@ -77,18 +63,23 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
                 .setAdditionalData(additionalData);
     }
 
+    public static class Builder extends BuilderBase<Builder> {
+        @Override
+        protected Builder self() {
+            return this;
+        }
+    }
+
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends OperationReq<?, TRequest>>
-            extends OperationReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqGetJob.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends OperationReq.Builder<TBuilder, GetJob> {
         @Nullable
         private GUID jobId;
 
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.jobId = builder.jobId;
         }
@@ -99,16 +90,14 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqGetJob.Builder, ?> requestBuilder) {
-            TReqGetJob.Builder messageBuilder = requestBuilder.body();
-            writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
-            messageBuilder.setJobId(RpcUtil.toProto(Objects.requireNonNull(jobId)));
-        }
-
-        @Override
         protected void writeArgumentsLogString(StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             sb.append("jobId: ").append(jobId).append(";");
+        }
+
+        @Override
+        public GetJob build() {
+            return new GetJob(this);
         }
     }
 }

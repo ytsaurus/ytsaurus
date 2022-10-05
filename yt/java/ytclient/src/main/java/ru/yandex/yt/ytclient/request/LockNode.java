@@ -14,7 +14,6 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -31,7 +30,7 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
     @Nullable
     private final String attributeKey;
 
-    public LockNode(BuilderBase<?, ?> builder) {
+    public LockNode(BuilderBase<?> builder) {
         super(builder);
         this.mode = Objects.requireNonNull(builder.mode);
         this.waitable = builder.waitable;
@@ -134,23 +133,16 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
                 .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
-    public static class Builder extends BuilderBase<Builder, LockNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public LockNode build() {
-            return new LockNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends MutatePath<?, TRequest>>
-            extends MutatePath.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqLockNode.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends MutatePath.Builder<TBuilder, LockNode> {
         @Nullable
         private LockMode mode;
 
@@ -163,7 +155,7 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.mode = builder.mode;
             this.waitable = builder.waitable;
@@ -189,32 +181,6 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
         public TBuilder setAttributeKey(@Nullable String attributeKey) {
             this.attributeKey = attributeKey;
             return self();
-        }
-
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqLockNode.Builder, ?> builder) {
-            builder.body()
-                    .setPath(Objects.requireNonNull(path).toString())
-                    .setMode(Objects.requireNonNull(mode).getProtoValue())
-                    .setWaitable(waitable);
-
-            if (childKey != null) {
-                builder.body().setChildKey(childKey);
-            }
-            if (attributeKey != null) {
-                builder.body().setAttributeKey(attributeKey);
-            }
-            if (transactionalOptions != null) {
-                builder.body().setTransactionalOptions(
-                        transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            if (prerequisiteOptions != null) {
-                builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-            }
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-            if (additionalData != null) {
-                builder.body().mergeFrom(additionalData);
-            }
         }
 
         public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
@@ -255,6 +221,11 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
 
         public Optional<String> getAttributeKey() {
             return Optional.ofNullable(attributeKey);
+        }
+
+        @Override
+        public LockNode build() {
+            return new LockNode(this);
         }
     }
 }

@@ -20,7 +20,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yson.YsonTextWriter;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
@@ -37,7 +36,7 @@ public class UpdateOperationParameters
     @Nullable
     private final Double weight;
 
-    public UpdateOperationParameters(BuilderBase<?, ?> builder) {
+    public UpdateOperationParameters(BuilderBase<?> builder) {
         super(builder);
         if (builder.owners != null) {
             this.owners = new ArrayList<>(builder.owners);
@@ -264,23 +263,16 @@ public class UpdateOperationParameters
         }
     }
 
-    public static class Builder extends BuilderBase<Builder, UpdateOperationParameters> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public UpdateOperationParameters build() {
-            return new UpdateOperationParameters(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends OperationReq<?, TRequest>>
-            extends OperationReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqUpdateOperationParameters.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends OperationReq.Builder<TBuilder, UpdateOperationParameters> {
         @Nullable
         private List<String> owners;
         @Nullable
@@ -324,15 +316,6 @@ public class UpdateOperationParameters
         public TBuilder setWeight(double weight) {
             this.weight = weight;
             return self();
-        }
-
-
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqUpdateOperationParameters.Builder, ?> requestBuilder) {
-            TReqUpdateOperationParameters.Builder messageBuilder = requestBuilder.body();
-            writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
-            YTreeNode parameters = toTreeParametersOnly(YTree.mapBuilder()).buildMap();
-            messageBuilder.setParameters(ByteString.copyFrom(parameters.toBinary()));
         }
 
         public YTreeBuilder toTree(YTreeBuilder builder) {
@@ -387,6 +370,11 @@ public class UpdateOperationParameters
             writeArgumentsLogString(sb);
             sb.append(")");
             return sb.toString();
+        }
+
+        @Override
+        public UpdateOperationParameters build() {
+            return new UpdateOperationParameters(this);
         }
     }
 }

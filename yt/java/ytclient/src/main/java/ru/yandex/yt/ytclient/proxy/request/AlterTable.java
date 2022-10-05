@@ -6,8 +6,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class AlterTable extends ru.yandex.yt.ytclient.request.AlterTable.BuilderBase<
-        AlterTable, ru.yandex.yt.ytclient.request.AlterTable> {
+public class AlterTable extends ru.yandex.yt.ytclient.request.AlterTable.BuilderBase<AlterTable> {
     public AlterTable(YPath path) {
         setPath(path);
     }
@@ -23,10 +22,5 @@ public class AlterTable extends ru.yandex.yt.ytclient.request.AlterTable.Builder
     @Override
     protected AlterTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.AlterTable build() {
-        return new ru.yandex.yt.ytclient.request.AlterTable(this);
     }
 }

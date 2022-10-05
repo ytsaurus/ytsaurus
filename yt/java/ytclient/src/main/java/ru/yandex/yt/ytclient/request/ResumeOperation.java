@@ -5,7 +5,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqResumeOperation;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 /**
@@ -20,7 +19,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 @NonNullFields
 public class ResumeOperation extends OperationReq<ResumeOperation.Builder, ResumeOperation>
         implements HighLevelRequest<TReqResumeOperation.Builder> {
-    public ResumeOperation(BuilderBase<?, ?> builder) {
+    public ResumeOperation(BuilderBase<?> builder) {
         super(builder);
     }
 
@@ -62,38 +61,30 @@ public class ResumeOperation extends OperationReq<ResumeOperation.Builder, Resum
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, ResumeOperation> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
+        }
+    }
+
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder>>
+            extends OperationReq.Builder<TBuilder, ResumeOperation> {
+        protected BuilderBase() {
+        }
+
+        protected BuilderBase(BuilderBase<?> builder) {
+            super(builder);
+        }
+
+        public YTreeBuilder toTree(YTreeBuilder builder) {
+            return super.toTree(builder);
         }
 
         @Override
         public ResumeOperation build() {
             return new ResumeOperation(this);
-        }
-    }
-
-    public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends OperationReq<?, TRequest>>
-            extends OperationReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqResumeOperation.Builder> {
-        protected BuilderBase() {
-        }
-
-        protected BuilderBase(BuilderBase<?, ?> builder) {
-            super(builder);
-        }
-
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqResumeOperation.Builder, ?> builder) {
-            TReqResumeOperation.Builder messageBuilder = builder.body();
-            writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
-        }
-
-        public YTreeBuilder toTree(YTreeBuilder builder) {
-            return super.toTree(builder);
         }
     }
 }

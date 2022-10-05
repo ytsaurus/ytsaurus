@@ -1,7 +1,5 @@
 package ru.yandex.yt.ytclient.request;
 
-import java.util.Objects;
-
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
@@ -9,7 +7,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -23,7 +20,7 @@ public class RemoveNode
     private final boolean recursive;
     private final boolean force;
 
-    public RemoveNode(BuilderBase<?, ?> builder) {
+    public RemoveNode(BuilderBase<?> builder) {
         super(builder);
         this.recursive = builder.recursive;
         this.force = builder.force;
@@ -100,30 +97,23 @@ public class RemoveNode
                 .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
-    public static class Builder extends BuilderBase<Builder, RemoveNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public RemoveNode build() {
-            return new RemoveNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends MutatePath<?, TRequest>>
-            extends MutatePath.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqRemoveNode.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends MutatePath.Builder<TBuilder, RemoveNode> {
         private boolean recursive = true;
         private boolean force = false;
 
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.recursive = builder.recursive;
             this.force = builder.force;
@@ -148,23 +138,6 @@ public class RemoveNode
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqRemoveNode.Builder, ?> builder) {
-            builder.body()
-                    .setPath(Objects.requireNonNull(path).toString())
-                    .setRecursive(recursive)
-                    .setForce(force);
-
-            if (transactionalOptions != null) {
-                builder.body().setTransactionalOptions(
-                        transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-            if (additionalData != null) {
-                builder.body().mergeFrom(additionalData);
-            }
-        }
-
-        @Override
         public YTreeBuilder toTree(YTreeBuilder builder) {
             return builder
                     .apply(super::toTree)
@@ -181,6 +154,11 @@ public class RemoveNode
             if (recursive) {
                 sb.append("Recursive: true; ");
             }
+        }
+
+        @Override
+        public RemoveNode build() {
+            return new RemoveNode(this);
         }
     }
 }

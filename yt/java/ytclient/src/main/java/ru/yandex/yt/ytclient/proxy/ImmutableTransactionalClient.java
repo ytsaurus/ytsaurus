@@ -110,19 +110,19 @@ public interface ImmutableTransactionalClient {
 
 
     default CompletableFuture<UnversionedRowset> selectRows(
-            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request) {
+            SelectRowsRequest.BuilderBase<?> request) {
         return selectRows(request.build());
     }
 
     default <T> CompletableFuture<List<T>> selectRows(
-            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request,
+            SelectRowsRequest.BuilderBase<?> request,
             YTreeObjectSerializer<T> serializer
     ) {
         return selectRows(request.build(), serializer);
     }
 
     default <T> CompletableFuture<Void> selectRows(
-            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request,
+            SelectRowsRequest.BuilderBase<?> request,
             YTreeObjectSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
@@ -130,7 +130,7 @@ public interface ImmutableTransactionalClient {
     }
 
     default CompletableFuture<SelectRowsResult> selectRowsV2(
-            SelectRowsRequest.BuilderBase<?, SelectRowsRequest> request) {
+            SelectRowsRequest.BuilderBase<?> request) {
         return selectRowsV2(request.build());
     }
 }

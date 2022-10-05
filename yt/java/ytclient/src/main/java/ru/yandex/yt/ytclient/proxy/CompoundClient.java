@@ -39,7 +39,7 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
 
     CompletableFuture<Void> mountTableAndWaitTablets(MountTable req);
 
-    default CompletableFuture<Void> mountTableAndWaitTablets(MountTable.BuilderBase<?, MountTable> req) {
+    default CompletableFuture<Void> mountTableAndWaitTablets(MountTable.BuilderBase<?> req) {
         return mountTableAndWaitTablets(req.build());
     }
 
@@ -94,7 +94,7 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * @see UnmountTable
      */
     CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable req);
-    default CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable.BuilderBase<?, UnmountTable> req) {
+    default CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable.BuilderBase<?> req) {
         return unmountTableAndWaitTablets(req.build());
     }
 

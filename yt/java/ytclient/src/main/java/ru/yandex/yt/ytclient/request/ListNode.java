@@ -6,7 +6,6 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
@@ -14,7 +13,7 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements HighLevelRequest<TReqListNode.Builder> {
-    public ListNode(BuilderBase<?, ?> builder) {
+    public ListNode(BuilderBase<?> builder) {
         super(builder);
     }
 
@@ -80,27 +79,20 @@ public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements 
                 .setTraceId(traceId, traceSampled);
     }
 
-    public static class Builder extends BuilderBase<Builder, ListNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public ListNode build() {
-            return new ListNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends GetLikeReq<?, TRequest>>
-            extends GetLikeReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqListNode.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends GetLikeReq.Builder<TBuilder, ListNode> {
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
         }
 
@@ -110,33 +102,8 @@ public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements 
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
-            builder.body().setPath(path.toString());
-            if (attributes != null) {
-                // TODO(max42): switch to modern "attributes" field.
-                builder.body().setLegacyAttributes(attributes.writeTo(TLegacyAttributeKeys.newBuilder()));
-            }
-            if (maxSize != null) {
-                builder.body().setMaxSize(maxSize);
-            }
-            if (transactionalOptions != null) {
-                builder.body().setTransactionalOptions(
-                        transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            if (prerequisiteOptions != null) {
-                builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
-            }
-            if (masterReadOptions != null) {
-                builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
-            }
-            if (suppressableAccessTrackingOptions != null) {
-                builder.body().setSuppressableAccessTrackingOptions(
-                        suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder())
-                );
-            }
-            if (additionalData != null) {
-                builder.body().mergeFrom(additionalData);
-            }
+        public ListNode build() {
+            return new ListNode(this);
         }
     }
 }

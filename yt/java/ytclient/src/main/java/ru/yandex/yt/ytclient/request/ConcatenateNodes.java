@@ -16,7 +16,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -29,7 +28,7 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
     private final List<YPath> sourcePaths;
     private final YPath destinationPath;
 
-    public ConcatenateNodes(BuilderBase<?, ?> builder) {
+    public ConcatenateNodes(BuilderBase<?> builder) {
         super(builder);
         this.sourcePaths = Objects.requireNonNull(builder.sourcePaths);
         this.destinationPath = Objects.requireNonNull(builder.destinationPath);
@@ -116,23 +115,16 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder, ConcatenateNodes> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public ConcatenateNodes build() {
-            return new ConcatenateNodes(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends MutateNode<?, TRequest>>
-            extends MutateNode.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqConcatenateNodes.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends MutateNode.Builder<TBuilder, ConcatenateNodes> {
         @Nullable
         private List<YPath> sourcePaths;
         @Nullable
@@ -141,7 +133,7 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             if (builder.sourcePaths != null) {
                 this.sourcePaths = new ArrayList<>(builder.sourcePaths);
@@ -167,27 +159,6 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
             return Objects.requireNonNull(destinationPath);
         }
 
-
-        @Override
-        public void writeTo(RpcClientRequestBuilder<TReqConcatenateNodes.Builder, ?> requestBuilder) {
-            Objects.requireNonNull(sourcePaths);
-            Objects.requireNonNull(destinationPath);
-            TReqConcatenateNodes.Builder builder = requestBuilder.body();
-            for (YPath s : sourcePaths) {
-                builder.addSrcPaths(s.toString());
-            }
-
-            builder.setDstPath(destinationPath.toString());
-
-            if (transactionalOptions != null) {
-                builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
-            }
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-            if (additionalData != null) {
-                builder.mergeFrom(additionalData);
-            }
-        }
-
         @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             Objects.requireNonNull(sourcePaths);
@@ -209,6 +180,11 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
                     .apply(super::toTree)
                     .key("source_paths").value(sourcePaths, (b2, t) -> t.toTree(b2))
                     .key("destination_path").apply(destinationPath::toTree);
+        }
+
+        @Override
+        public ConcatenateNodes build() {
+            return new ConcatenateNodes(this);
         }
     }
 }

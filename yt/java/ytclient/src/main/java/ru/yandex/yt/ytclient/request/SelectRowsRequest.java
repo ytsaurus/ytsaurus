@@ -9,29 +9,40 @@ import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
+@NonNullFields
 public class SelectRowsRequest
         extends RequestBase<SelectRowsRequest.Builder, SelectRowsRequest>
         implements HighLevelRequest<TReqSelectRows.Builder> {
     private final String query;
-    @Nullable private final YtTimestamp timestamp;
-    @Nullable private final YtTimestamp retentionTimestamp;
-    @Nullable private final Long inputRowsLimit;
-    @Nullable private final Long outputRowsLimit;
-    @Nullable private final Boolean failOnIncompleteResult;
-    @Nullable private final Integer maxSubqueries;
-    @Nullable private final Boolean allowJoinWithoutIndex;
-    @Nullable private final String udfRegistryPath;
-    @Nullable private final String executionPool;
-    @Nullable private final Boolean allowFullScan;
+    @Nullable
+    private final YtTimestamp timestamp;
+    @Nullable
+    private final YtTimestamp retentionTimestamp;
+    @Nullable
+    private final Long inputRowsLimit;
+    @Nullable
+    private final Long outputRowsLimit;
+    @Nullable
+    private final Boolean failOnIncompleteResult;
+    @Nullable
+    private final Integer maxSubqueries;
+    @Nullable
+    private final Boolean allowJoinWithoutIndex;
+    @Nullable
+    private final String udfRegistryPath;
+    @Nullable
+    private final String executionPool;
+    @Nullable
+    private final Boolean allowFullScan;
 
-    public SelectRowsRequest(BuilderBase<?, ?> builder) {
+    public SelectRowsRequest(BuilderBase<?> builder) {
         super(builder);
-        this.query = builder.query;
+        this.query = Objects.requireNonNull(builder.query);
         this.timestamp = builder.timestamp;
         this.retentionTimestamp = builder.retentionTimestamp;
         this.inputRowsLimit = builder.inputRowsLimit;
@@ -183,23 +194,16 @@ public class SelectRowsRequest
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder, SelectRowsRequest> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public SelectRowsRequest build() {
-            return new SelectRowsRequest(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqSelectRows.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, SelectRowsRequest> {
         @Nullable private String query;
         @Nullable private YtTimestamp timestamp;
         @Nullable private YtTimestamp retentionTimestamp;
@@ -215,7 +219,7 @@ public class SelectRowsRequest
         public BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?, ?> builder) {
+        BuilderBase(BuilderBase<?> builder) {
             super(builder);
             query = builder.query;
             timestamp = builder.timestamp;
@@ -330,44 +334,14 @@ public class SelectRowsRequest
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqSelectRows.Builder, ?> builder) {
-            builder.body().setQuery(Objects.requireNonNull(query));
-            if (timestamp != null) {
-                builder.body().setTimestamp(timestamp.getValue());
-            }
-            if (retentionTimestamp != null) {
-                builder.body().setRetentionTimestamp(retentionTimestamp.getValue());
-            }
-            if (inputRowsLimit != null) {
-                builder.body().setInputRowLimit(inputRowsLimit);
-            }
-            if (outputRowsLimit != null) {
-                builder.body().setOutputRowLimit(outputRowsLimit);
-            }
-            if (failOnIncompleteResult != null) {
-                builder.body().setFailOnIncompleteResult(failOnIncompleteResult);
-            }
-            if (maxSubqueries != null) {
-                builder.body().setMaxSubqueries(maxSubqueries);
-            }
-            if (allowJoinWithoutIndex != null) {
-                builder.body().setAllowJoinWithoutIndex(allowJoinWithoutIndex);
-            }
-            if (udfRegistryPath != null) {
-                builder.body().setUdfRegistryPath(udfRegistryPath);
-            }
-            if (executionPool != null) {
-                builder.body().setExecutionPool(executionPool);
-            }
-            if (allowFullScan != null) {
-                builder.body().setAllowFullScan(allowFullScan);
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             sb.append("Query: ").append(query).append("; ");
+        }
+
+        @Override
+        public SelectRowsRequest build() {
+            return new SelectRowsRequest(this);
         }
     }
 }

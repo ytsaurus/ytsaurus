@@ -61,7 +61,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
                 .setTableSchema(tableSchema));
     }
 
-    public WriteTable(BuilderBase<T, ?, ?> builder) {
+    public WriteTable(BuilderBase<T, ?> builder) {
         super(builder);
         this.path = builder.path;
         this.stringPath = builder.stringPath;
@@ -241,15 +241,10 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder<T> extends BuilderBase<T, Builder<T>, WriteTable<T>> {
+    public static class Builder<T> extends BuilderBase<T, Builder<T>> {
         @Override
         protected Builder<T> self() {
             return this;
-        }
-
-        @Override
-        public WriteTable<T> build() {
-            return new WriteTable<T>(this);
         }
     }
 
@@ -257,9 +252,8 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     @NonNullFields
     public abstract static class BuilderBase<
             T,
-            TBuilder extends BuilderBase<T, TBuilder, TRequest>,
-            TRequest extends RequestBase<?, TRequest>>
-            extends RequestBase.Builder<TBuilder, TRequest> {
+            TBuilder extends BuilderBase<T, TBuilder>>
+            extends RequestBase.Builder<TBuilder, WriteTable<T>> {
         @Nullable
         private YPath path;
         @Nullable
@@ -383,6 +377,11 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
                 builder.setFormat(ByteString.copyFrom(data));
             }
             return builder;
+        }
+
+        @Override
+        public WriteTable<T> build() {
+            return new WriteTable<T>(this);
         }
     }
 }

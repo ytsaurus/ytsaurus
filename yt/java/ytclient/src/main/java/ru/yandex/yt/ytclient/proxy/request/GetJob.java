@@ -6,8 +6,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi
-public class GetJob extends ru.yandex.yt.ytclient.request.GetJob.BuilderBase<
-        GetJob, ru.yandex.yt.ytclient.request.GetJob> {
+public class GetJob extends ru.yandex.yt.ytclient.request.GetJob.BuilderBase<GetJob> {
 
     public GetJob(GUID operationId, GUID jobId) {
         setOperationId(operationId).setJobId(jobId);
@@ -24,10 +23,5 @@ public class GetJob extends ru.yandex.yt.ytclient.request.GetJob.BuilderBase<
     @Override
     protected GetJob self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.GetJob build() {
-        return new ru.yandex.yt.ytclient.request.GetJob(this);
     }
 }

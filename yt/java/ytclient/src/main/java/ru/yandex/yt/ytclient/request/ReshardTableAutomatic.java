@@ -7,7 +7,7 @@ public class ReshardTableAutomatic
         extends TableReq<ReshardTableAutomatic.Builder, ReshardTableAutomatic> {
     private final boolean keepActions;
 
-    public ReshardTableAutomatic(BuilderBase<?, ?> builder) {
+    public ReshardTableAutomatic(BuilderBase<?> builder) {
         super(builder);
         this.keepActions = builder.keepActions;
     }
@@ -40,22 +40,16 @@ public class ReshardTableAutomatic
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, ReshardTableAutomatic> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public ReshardTableAutomatic build() {
-            return new ReshardTableAutomatic(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, ReshardTableAutomatic> {
         private boolean keepActions = false;
 
         public TBuilder setKeepActions(boolean keepActions) {
@@ -67,6 +61,11 @@ public class ReshardTableAutomatic
             super.writeTo(builder);
             builder.setKeepActions(keepActions);
             return builder;
+        }
+
+        @Override
+        public ReshardTableAutomatic build() {
+            return new ReshardTableAutomatic(this);
         }
     }
 }

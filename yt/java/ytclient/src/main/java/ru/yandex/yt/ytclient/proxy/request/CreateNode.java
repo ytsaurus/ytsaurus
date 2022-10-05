@@ -17,8 +17,7 @@ import ru.yandex.lang.NonNullFields;
  */
 @NonNullApi
 @NonNullFields
-public class CreateNode extends ru.yandex.yt.ytclient.request.CreateNode.BuilderBase<
-        CreateNode, ru.yandex.yt.ytclient.request.CreateNode> {
+public class CreateNode extends ru.yandex.yt.ytclient.request.CreateNode.BuilderBase<CreateNode> {
     public CreateNode(ru.yandex.yt.ytclient.request.CreateNode other) {
         super(other.toBuilder());
     }
@@ -52,10 +51,5 @@ public class CreateNode extends ru.yandex.yt.ytclient.request.CreateNode.Builder
     @Override
     protected CreateNode self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.CreateNode build() {
-        return new ru.yandex.yt.ytclient.request.CreateNode(this);
     }
 }

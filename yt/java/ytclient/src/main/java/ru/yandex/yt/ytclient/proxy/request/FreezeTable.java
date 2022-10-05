@@ -6,8 +6,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class FreezeTable extends ru.yandex.yt.ytclient.request.FreezeTable.BuilderBase<
-        FreezeTable, ru.yandex.yt.ytclient.request.FreezeTable> {
+public class FreezeTable extends ru.yandex.yt.ytclient.request.FreezeTable.BuilderBase<FreezeTable> {
     public FreezeTable(YPath path) {
         setPath(path.justPath());
     }
@@ -23,11 +22,6 @@ public class FreezeTable extends ru.yandex.yt.ytclient.request.FreezeTable.Build
     @Override
     protected FreezeTable self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.FreezeTable build() {
-        return new ru.yandex.yt.ytclient.request.FreezeTable(this);
     }
 }
 

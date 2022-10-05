@@ -58,9 +58,4 @@ public class StartTransaction extends ru.yandex.yt.ytclient.request.StartTransac
     protected StartTransaction self() {
         return this;
     }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.StartTransaction build() {
-        return new ru.yandex.yt.ytclient.request.StartTransaction(this);
-    }
 }

@@ -5,8 +5,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
-public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTable.BuilderBase<
-        T, ReadTable<T>, ru.yandex.yt.ytclient.request.ReadTable<T>> {
+public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTable.BuilderBase<T, ReadTable<T>> {
 
     public ReadTable(YPath path, WireRowDeserializer<T> deserializer) {
         setPath(path).setSerializationContext(
@@ -58,10 +57,5 @@ public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTable.Builde
     @Override
     protected ReadTable<T> self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.ReadTable<T> build() {
-        return new ru.yandex.yt.ytclient.request.ReadTable<>(this);
     }
 }

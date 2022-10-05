@@ -68,7 +68,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #createNode(CreateNode)}
      */
     @Deprecated
-    default CompletableFuture<GUID> createNode(CreateNode.BuilderBase<?, CreateNode> req) {
+    default CompletableFuture<GUID> createNode(CreateNode.BuilderBase<?> req) {
         return createNode(req.build());
     }
 
@@ -78,7 +78,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #removeNode(RemoveNode)}
      */
     @Deprecated
-    default CompletableFuture<Void> removeNode(RemoveNode.BuilderBase<?, RemoveNode> req) {
+    default CompletableFuture<Void> removeNode(RemoveNode.BuilderBase<?> req) {
         return removeNode(req.build());
     }
 
@@ -88,7 +88,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #setNode(SetNode)}
      */
     @Deprecated
-    default CompletableFuture<Void> setNode(SetNode.BuilderBase<?, SetNode> req) {
+    default CompletableFuture<Void> setNode(SetNode.BuilderBase<?> req) {
         return setNode(req.build());
     }
 
@@ -98,7 +98,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #getNode(GetNode)}
      */
     @Deprecated
-    default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?, GetNode> getNode) {
+    default CompletableFuture<YTreeNode> getNode(GetNode.BuilderBase<?> getNode) {
         return getNode(getNode.build());
     }
 
@@ -108,7 +108,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #listNode(ListNode)}
      */
     @Deprecated
-    default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?, ListNode> listNode) {
+    default CompletableFuture<YTreeNode> listNode(ListNode.BuilderBase<?> listNode) {
         return listNode(listNode.build());
     }
 
@@ -118,7 +118,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #lockNode(LockNode)}
      */
     @Deprecated
-    default CompletableFuture<LockNodeResult> lockNode(LockNode.BuilderBase<?, LockNode> req) {
+    default CompletableFuture<LockNodeResult> lockNode(LockNode.BuilderBase<?> req) {
         return lockNode(req.build());
     }
 
@@ -128,7 +128,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #copyNode(CopyNode)}
      */
     @Deprecated
-    default CompletableFuture<GUID> copyNode(CopyNode.BuilderBase<?, CopyNode> req) {
+    default CompletableFuture<GUID> copyNode(CopyNode.BuilderBase<?> req) {
         return copyNode(req.build());
     }
 
@@ -138,7 +138,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #linkNode(LinkNode)}
      */
     @Deprecated
-    default CompletableFuture<GUID> linkNode(LinkNode.BuilderBase<?, LinkNode> req) {
+    default CompletableFuture<GUID> linkNode(LinkNode.BuilderBase<?> req) {
         return linkNode(req.build());
     }
 
@@ -148,7 +148,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #moveNode(MoveNode)}
      */
     @Deprecated
-    default CompletableFuture<GUID> moveNode(MoveNode.BuilderBase<?, MoveNode> req) {
+    default CompletableFuture<GUID> moveNode(MoveNode.BuilderBase<?> req) {
         return moveNode(req.build());
     }
 
@@ -158,7 +158,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #existsNode(ExistsNode)}
      */
     @Deprecated
-    default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?, ExistsNode> req) {
+    default CompletableFuture<Boolean> existsNode(ExistsNode.BuilderBase<?> req) {
         return existsNode(req.build());
     }
 
@@ -168,7 +168,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #concatenateNodes(ConcatenateNodes)}
      */
     @Deprecated
-    default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?, ConcatenateNodes> req) {
+    default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?> req) {
         return concatenateNodes(req.build());
     }
 
@@ -176,7 +176,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #readTable(ReadTable)}
      */
     @Deprecated
-    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable.BuilderBase<T, ?, ReadTable<T>> req) {
+    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable.BuilderBase<T, ?> req) {
         return readTable(req.build());
     }
 
@@ -185,7 +185,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      */
     @Deprecated
     default <T> CompletableFuture<TableReader<T>> readTable(
-            ReadTable.BuilderBase<T, ?, ReadTable<T>> req,
+            ReadTable.BuilderBase<T, ?> req,
             @Nullable TableAttachmentReader<T> reader) {
         return readTable(req.build(), reader);
     }
@@ -224,7 +224,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #writeTable(WriteTable)}
      */
     @Deprecated
-    default <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable.BuilderBase<T, ?, WriteTable<T>> req) {
+    default <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable.BuilderBase<T, ?> req) {
         return writeTable(req.build());
     }
 
@@ -236,7 +236,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #readFile(ReadFile)}
      */
     @Deprecated
-    default CompletableFuture<FileReader> readFile(ReadFile.BuilderBase<?, ReadFile> req) {
+    default CompletableFuture<FileReader> readFile(ReadFile.BuilderBase<?> req) {
         return readFile(req.build());
     }
 
@@ -256,7 +256,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
      * @deprected prefer to use {@link #startOperation(StartOperation)}
      */
     @Deprecated
-    default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?, StartOperation> req) {
+    default CompletableFuture<GUID> startOperation(StartOperation.BuilderBase<?> req) {
         return startOperation(req.build());
     }
 

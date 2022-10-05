@@ -6,12 +6,13 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
+@NonNullFields
 public class MountTable
         extends TableReq<MountTable.Builder, MountTable>
         implements HighLevelRequest<TReqMountTable.Builder> {
@@ -19,7 +20,7 @@ public class MountTable
     private final GUID cellId;
     private final boolean freeze;
 
-    public MountTable(BuilderBase<?, ?> builder) {
+    public MountTable(BuilderBase<?> builder) {
         super(builder);
         this.cellId = builder.cellId;
         this.freeze = builder.freeze;
@@ -63,23 +64,16 @@ public class MountTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, MountTable> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public MountTable build() {
-            return new MountTable(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqMountTable.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, MountTable> {
         @Nullable
         private GUID cellId;
         private boolean freeze = false;
@@ -87,7 +81,7 @@ public class MountTable
         protected BuilderBase() {
         }
 
-        BuilderBase(BuilderBase<?, ?> builder) {
+        BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.cellId = builder.cellId;
             this.freeze = builder.freeze;
@@ -104,18 +98,14 @@ public class MountTable
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqMountTable.Builder, ?> builder) {
-            super.writeTo(builder.body());
-            builder.body().setFreeze(freeze);
-            if (cellId != null) {
-                builder.body().setCellId(RpcUtil.toProto(cellId));
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             sb.append("Freeze: ").append(freeze).append("; ");
+        }
+
+        @Override
+        public MountTable build() {
+            return new MountTable(this);
         }
     }
 }

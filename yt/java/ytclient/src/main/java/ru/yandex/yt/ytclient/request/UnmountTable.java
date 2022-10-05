@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.request;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 /**
@@ -18,7 +17,7 @@ public class UnmountTable
         implements HighLevelRequest<TReqUnmountTable.Builder> {
     private final boolean force;
 
-    public UnmountTable(BuilderBase<?, ?> builder) {
+    public UnmountTable(BuilderBase<?> builder) {
         super(builder);
         this.force = builder.force;
     }
@@ -51,12 +50,7 @@ public class UnmountTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, UnmountTable> {
-        @Override
-        public UnmountTable build() {
-            return new UnmountTable(this);
-        }
-
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
@@ -64,16 +58,14 @@ public class UnmountTable
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqUnmountTable.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, UnmountTable> {
         private boolean force = false;
 
         protected BuilderBase() {
         }
 
-        protected BuilderBase(BuilderBase<?, ?> builder) {
+        protected BuilderBase(BuilderBase<?> builder) {
             super(builder);
             this.force = builder.force;
         }
@@ -90,9 +82,8 @@ public class UnmountTable
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqUnmountTable.Builder, ?> builder) {
-            super.writeTo(builder.body());
-            builder.body().setForce(force);
+        public UnmountTable build() {
+            return new UnmountTable(this);
         }
     }
 }

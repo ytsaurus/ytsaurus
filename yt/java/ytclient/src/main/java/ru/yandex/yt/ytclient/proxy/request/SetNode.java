@@ -7,8 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class SetNode extends ru.yandex.yt.ytclient.request.SetNode.BuilderBase<
-        SetNode, ru.yandex.yt.ytclient.request.SetNode> {
+public class SetNode extends ru.yandex.yt.ytclient.request.SetNode.BuilderBase<SetNode> {
     public SetNode(ru.yandex.yt.ytclient.request.SetNode other) {
         super(other.toBuilder());
     }
@@ -28,10 +27,5 @@ public class SetNode extends ru.yandex.yt.ytclient.request.SetNode.BuilderBase<
     @Override
     protected SetNode self() {
         return this;
-    }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.SetNode build() {
-        return new ru.yandex.yt.ytclient.request.SetNode(this);
     }
 }

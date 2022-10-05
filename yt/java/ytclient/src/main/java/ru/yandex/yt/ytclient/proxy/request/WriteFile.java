@@ -14,9 +14,4 @@ public class WriteFile extends ru.yandex.yt.ytclient.request.WriteFile.BuilderBa
     protected WriteFile self() {
         return this;
     }
-
-    @Override
-    public ru.yandex.yt.ytclient.request.WriteFile build() {
-        return new ru.yandex.yt.ytclient.request.WriteFile(this);
-    }
 }

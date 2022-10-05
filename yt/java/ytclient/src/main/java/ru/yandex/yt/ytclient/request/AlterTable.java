@@ -15,7 +15,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -35,7 +34,7 @@ public class AlterTable
     @Nullable
     private final TransactionalOptions transactionalOptions;
 
-    public AlterTable(BuilderBase<?, ?> builder) {
+    public AlterTable(BuilderBase<?> builder) {
         super(builder);
         this.schemaNode = builder.schemaNode;
         this.dynamic = builder.dynamic;
@@ -112,23 +111,16 @@ public class AlterTable
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, AlterTable> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public AlterTable build() {
-            return new AlterTable(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends TableReq<?, TRequest>>
-            extends TableReq.Builder<TBuilder, TRequest>
-            implements HighLevelRequest<TReqAlterTable.Builder> {
+            TBuilder extends BuilderBase<TBuilder>>
+            extends TableReq.Builder<TBuilder, AlterTable> {
         @Nullable
         private YTreeNode schemaNode;
         @Nullable
@@ -141,7 +133,7 @@ public class AlterTable
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
             if (builder.schemaNode != null) {
                 schemaNode = YTree.deepCopy(builder.schemaNode);
@@ -189,29 +181,6 @@ public class AlterTable
         }
 
         @Override
-        public void writeTo(RpcClientRequestBuilder<TReqAlterTable.Builder, ?> requestBuilder) {
-            TReqAlterTable.Builder builder = requestBuilder.body();
-
-            super.writeTo(builder);
-
-            if (schemaNode != null) {
-                builder.setSchema(ByteString.copyFrom(schemaNode.toBinary()));
-            }
-
-            if (dynamic != null) {
-                builder.setDynamic(dynamic);
-            }
-
-            if (upstreamReplicaId != null) {
-                builder.setUpstreamReplicaId(RpcUtil.toProto(upstreamReplicaId));
-            }
-
-            if (transactionalOptions != null) {
-                builder.setTransactionalOptions(transactionalOptions.toProto());
-            }
-        }
-
-        @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             super.writeArgumentsLogString(sb);
             if (schemaNode != null) {
@@ -230,6 +199,11 @@ public class AlterTable
                             upstreamReplicaId != null,
                             x -> x.key("upstream_replica_id").value(upstreamReplicaId.toString())
                     );
+        }
+
+        @Override
+        public AlterTable build() {
+            return new AlterTable(this);
         }
     }
 }

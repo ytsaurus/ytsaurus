@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.request;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -7,7 +9,6 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
@@ -20,7 +21,7 @@ public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder, BuildSnaps
 
     BuildSnapshot(Builder builder) {
         super(builder);
-        this.cellId = builder.cellId;
+        this.cellId = Objects.requireNonNull(builder.cellId);
         this.setReadOnly = builder.setReadOnly;
     }
 

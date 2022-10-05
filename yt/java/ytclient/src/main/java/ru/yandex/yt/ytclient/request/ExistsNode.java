@@ -7,7 +7,6 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
@@ -17,7 +16,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class ExistsNode
         extends GetLikeReq<ExistsNode.Builder, ExistsNode>
         implements HighLevelRequest<TReqExistsNode.Builder> {
-    public ExistsNode(BuilderBase<?, ?> builder) {
+    public ExistsNode(BuilderBase<?> builder) {
         super(builder);
     }
 
@@ -72,27 +71,21 @@ public class ExistsNode
                 .setAdditionalData(additionalData);
     }
 
-    public static class Builder extends BuilderBase<Builder, ExistsNode> {
+    public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
             return this;
         }
-
-        @Override
-        public ExistsNode build() {
-            return new ExistsNode(this);
-        }
     }
 
     public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder, TRequest>,
-            TRequest extends GetLikeReq<?, TRequest>>
-            extends GetLikeReq.Builder<TBuilder, TRequest>
+            TBuilder extends BuilderBase<TBuilder>>
+            extends GetLikeReq.Builder<TBuilder, ExistsNode>
             implements HighLevelRequest<TReqExistsNode.Builder> {
         public BuilderBase() {
         }
 
-        public BuilderBase(BuilderBase<?, ?> builder) {
+        public BuilderBase(BuilderBase<?> builder) {
             super(builder);
         }
 
@@ -117,6 +110,11 @@ public class ExistsNode
             if (additionalData != null) {
                 builder.body().mergeFrom(additionalData);
             }
+        }
+
+        @Override
+        public ExistsNode build() {
+            return new ExistsNode(this);
         }
     }
 }
