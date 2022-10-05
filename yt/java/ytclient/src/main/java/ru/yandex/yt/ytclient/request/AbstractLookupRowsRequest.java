@@ -21,8 +21,8 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
 public abstract class AbstractLookupRowsRequest<
-        TBuilder extends RequestBase.Builder<TBuilder, TRequest>,
-        TRequest extends RequestBase<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {
+        TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
+        TRequest extends AbstractLookupRowsRequest<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {
     protected final String path;
     protected final TableSchema schema;
     protected final List<String> lookupColumns;

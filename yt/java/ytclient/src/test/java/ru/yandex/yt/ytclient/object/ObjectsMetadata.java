@@ -131,7 +131,7 @@ public class ObjectsMetadata<T> {
             yTreeSerializer.serialize(row, builder);
             request.addUpdate(builder.build().asMap());
         }
-        return request.getRows();
+        return request.build().getRows();
     }
 
 }

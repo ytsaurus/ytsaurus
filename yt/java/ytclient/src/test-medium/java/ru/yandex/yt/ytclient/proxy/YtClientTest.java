@@ -49,6 +49,7 @@ import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.AlterTable;
+import ru.yandex.yt.ytclient.request.ModifyRowsRequest;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -509,8 +510,9 @@ public class YtClientTest {
 
         var tx = client.startTransaction(StartTransaction.tablet()).join();
         try (tx) {
-            tx.modifyRows(new ModifyRowsRequest(table.toString(), schema)
+            tx.modifyRows(ModifyRowsRequest.builder().setPath(table.toString()).setSchema(schema)
                     .addInsert(Map.of("key", "foo", "value", "bar"))
+                    .build()
                     .prepare(compression)
             ).join();
             tx.commit().join();

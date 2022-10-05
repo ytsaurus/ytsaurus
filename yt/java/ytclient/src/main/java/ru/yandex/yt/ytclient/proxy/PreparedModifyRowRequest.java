@@ -1,15 +1,11 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import javax.annotation.Nonnull;
-
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
-import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -24,10 +20,10 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
  * Compression used in this request have to match with compression of the client otherwise exception will be thrown
  * when trying to execute this request.
  */
-public class PreparedModifyRowRequest extends AbstractModifyRowsRequest<PreparedModifyRowRequest> {
-    private final Compression codecId;
-    private final List<byte[]> compressedAttachments;
-
+@NonNullApi
+@NonNullFields
+public class PreparedModifyRowRequest
+        extends ru.yandex.yt.ytclient.request.PreparedModifyRowRequest.BuilderBase<PreparedModifyRowRequest> {
     PreparedModifyRowRequest(
             String path,
             TableSchema schema,
@@ -35,51 +31,17 @@ public class PreparedModifyRowRequest extends AbstractModifyRowsRequest<Prepared
             Compression codecId,
             List<byte[]> compressedAttachments
     ) {
-        super(path, schema);
-        this.rowModificationTypes.addAll(rowModificationTypes);
-        this.codecId = codecId;
-        this.compressedAttachments = compressedAttachments;
+        setPath(path).setSchema(schema).setRowModificationTypes(rowModificationTypes)
+                .setCodecId(codecId).setCompressedAttachments(compressedAttachments);
     }
 
-    @Override
-    void serializeRowsetTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
-        builder.setCompressedAttachments(codecId, compressedAttachments);
-    }
-
-    @Nonnull
     @Override
     protected PreparedModifyRowRequest self() {
         return this;
     }
 
     @Override
-    public PreparedModifyRowRequest build() {
-        throw new RuntimeException("unimplemented build() method");
-    }
-}
-
-abstract class PreparableModifyRowsRequest<R extends PreparableModifyRowsRequest<R>>
-        extends AbstractModifyRowsRequest<R> {
-    PreparableModifyRowsRequest(String path, TableSchema schema) {
-        super(path, schema);
-    }
-
-    @Override
-    void serializeRowsetTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
-        serializeRowsetTo(builder.attachments());
-    }
-
-    abstract void serializeRowsetTo(List<byte[]> attachments);
-
-    /**
-     * Serialize and compress rowset.
-     */
-    public PreparedModifyRowRequest prepare(RpcCompression rpcCompression) {
-        List<byte[]> attachments = new ArrayList<>();
-        serializeRowsetTo(attachments);
-        Compression codecId = rpcCompression.getRequestCodecId().orElse(Compression.fromValue(0));
-        List<byte[]> preparedMessage = RpcUtil.createCompressedAttachments(attachments, codecId);
-
-        return new PreparedModifyRowRequest(path, schema, rowModificationTypes, codecId, preparedMessage);
+    public ru.yandex.yt.ytclient.request.PreparedModifyRowRequest build() {
+        return new ru.yandex.yt.ytclient.request.PreparedModifyRowRequest(this);
     }
 }

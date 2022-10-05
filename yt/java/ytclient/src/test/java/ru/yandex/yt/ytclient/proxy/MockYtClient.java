@@ -26,6 +26,7 @@ import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.request.BuildSnapshot;
@@ -339,7 +340,7 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
+    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
         return null;
     }
 

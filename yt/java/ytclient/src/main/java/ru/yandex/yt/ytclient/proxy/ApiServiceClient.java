@@ -16,6 +16,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.request.BuildSnapshot;
@@ -134,7 +135,11 @@ public interface ApiServiceClient extends TransactionalClient {
         return selectRows(SelectRowsRequest.of(query).setTimeout(requestTimeout));
     }
 
-    CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request);
+    CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request);
+
+    default CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest.Builder<?, ?> request) {
+        return modifyRows(transactionId, (AbstractModifyRowsRequest<?, ?>) request.build());
+    }
 
     CompletableFuture<Long> buildSnapshot(BuildSnapshot req);
 
