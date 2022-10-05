@@ -200,7 +200,7 @@ public:
         TSchedulerStrategyHost& strategyHost,
         const IInvokerPtr& controlThreadInvoker);
 
-    void ScheduleJobs(const NScheduler::ISchedulingContextPtr& schedulingContext);
+    void ProcessSchedulingHeartbeat(const NScheduler::ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs);
 
     void PreemptJob(const NScheduler::TJobPtr& job);
 

@@ -49,12 +49,12 @@ TString FormatProfilingRangeIndex(int rangeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TJobWithPreemptionInfo> CollectJobsWithPreemptionInfo(
-    const ISchedulingContextPtr& schedulingContext,
+std::vector<TJobWithPreemptionInfo> GetJobPreemptionInfos(
+    const std::vector<TJobPtr>& jobs,
     const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     std::vector<TJobWithPreemptionInfo> jobInfos;
-    for (const auto& job : schedulingContext->RunningJobs()) {
+    for (const auto& job : jobs) {
         auto* operationElement = treeSnapshot->FindEnabledOperationElement(job->GetOperationId());
         const auto& operationSharedState = operationElement
             ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(operationElement)
@@ -76,6 +76,13 @@ std::vector<TJobWithPreemptionInfo> CollectJobsWithPreemptionInfo(
     }
 
     return jobInfos;
+}
+
+std::vector<TJobWithPreemptionInfo> CollectRunningJobsWithPreemptionInfo(
+    const ISchedulingContextPtr& schedulingContext,
+    const TFairShareTreeSnapshotPtr& treeSnapshot)
+{
+    return GetJobPreemptionInfos(schedulingContext->RunningJobs(), treeSnapshot);
 }
 
 void SortJobsWithPreemptionInfo(std::vector<TJobWithPreemptionInfo>* jobInfos)
@@ -765,7 +772,7 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
 
     NProfiling::TWallTimer timer;
 
-    auto jobInfos = CollectJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
+    auto jobInfos = CollectRunningJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     for (const auto& jobInfo : jobInfos) {
         const auto& [job, preemptionStatus, operationElement] = jobInfo;
 
@@ -991,7 +998,7 @@ void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
         SchedulingContext_->GetNodeDescriptor().Id,
         SchedulingContext_->GetNodeDescriptor().Address);
 
-    auto jobInfos = CollectJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
+    auto jobInfos = CollectRunningJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     SortJobsWithPreemptionInfo(&jobInfos);
 
     TJobResources currentResources;
@@ -2138,6 +2145,25 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     }
 }
 
+void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
+    const ISchedulingContextPtr& schedulingContext,
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    bool skipScheduleJobs)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // TODO(eshcherbin): Remove this profiling in favour of custom per-tree counters.
+    YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
+        PreemptJobsGracefully(schedulingContext, treeSnapshot);
+    }
+
+    if (!skipScheduleJobs) {
+        YT_PROFILE_TIMING("/scheduler/schedule_time") {
+            ScheduleJobs(schedulingContext, treeSnapshot);
+        }
+    }
+}
+
 void TFairShareTreeJobScheduler::ScheduleJobs(
     const ISchedulingContextPtr& schedulingContext,
     const TFairShareTreeSnapshotPtr& treeSnapshot)
@@ -2272,12 +2298,16 @@ void TFairShareTreeJobScheduler::PreemptJobsGracefully(
 
     YT_LOG_TRACE("Looking for gracefully preemptible jobs");
 
-    const auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshot);
-    for (const auto& [job, preemptionStatus, operationElement] : jobInfos) {
-        bool shouldPreemptJobGracefully = job->GetPreemptionMode() == EPreemptionMode::Graceful &&
-            !job->IsInterrupted() &&
-            preemptionStatus == EJobPreemptionStatus::Preemptible;
-        if (shouldPreemptJobGracefully) {
+    std::vector<TJobPtr> candidates;
+    for (const auto& job : schedulingContext->RunningJobs()) {
+        if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->IsInterrupted()) {
+            candidates.push_back(job);
+        }
+    }
+
+    auto jobInfos = GetJobPreemptionInfos(candidates, treeSnapshot);
+    for (const auto& [job, preemptionStatus, _] : jobInfos) {
+        if (preemptionStatus == EJobPreemptionStatus::Preemptible) {
             schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
         }
     }

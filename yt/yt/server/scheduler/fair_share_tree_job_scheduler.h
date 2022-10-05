@@ -563,9 +563,8 @@ public:
         TFairShareStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
 
-    //! Schedule jobs.
-    void ScheduleJobs(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
-    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
+    //! Process node heartbeat.
+    void ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot, bool skipScheduleJobs);
 
     //! Operation management.
     void RegisterOperation(const TSchedulerOperationElement* element);
@@ -672,6 +671,9 @@ private:
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    void ScheduleJobs(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
 
     void InitSchedulingStages();
     TPreemptiveScheduleJobsStageList BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context);

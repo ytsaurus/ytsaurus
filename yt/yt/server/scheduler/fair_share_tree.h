@@ -76,8 +76,7 @@ struct IFairShareTree
     : public virtual TRefCounted
 {
     //! Methods below rely on presence of snapshot.
-    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
     virtual void ProcessUpdatedJob(
         TOperationId operationId,
         TJobId jobId,

@@ -158,11 +158,8 @@ struct TCachedJobPreemptionStatuses
 struct ISchedulerStrategy
     : public virtual TRefCounted
 {
-    //! Performs scheduling of new jobs.
-    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-
-    //! Performs preemption for jobs of operation with enabled graceful preemption.
-    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    //! Processes running jobs and schedules new jobs.
+    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
 
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(

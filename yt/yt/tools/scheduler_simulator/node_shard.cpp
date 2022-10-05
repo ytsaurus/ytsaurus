@@ -170,7 +170,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     auto context = New<TSchedulingContext>(ShardId_ % MaxNodeShardCount, SchedulerConfig_, node, nodeJobs, MediumDirectory_);
     context->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
-    SchedulingStrategy_->ScheduleJobs(context);
+    SchedulingStrategy_->ProcessSchedulingHeartbeat(context, /*skipScheduleJobs*/ false);
 
     node->SetResourceUsage(context->ResourceUsage());
 
