@@ -1,0 +1,52 @@
+package ru.yandex.inside.yt.kosher.impl.ytree.object;
+
+import java.util.Collections;
+import java.util.Map;
+
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.type_info.TiType;
+import ru.yandex.yson.YsonConsumer;
+
+/**
+ * @author sankear
+ */
+public interface YTreeSerializer<T> {
+
+    void serialize(T obj, YsonConsumer consumer);
+
+    default void serializeForField(YTreeObjectField field, T obj, YsonConsumer consumer) {
+        consumer.onKeyedItem(field.key);
+        serialize(obj, consumer);
+    }
+
+    default Map<String, YTreeObjectField<?>> getFieldMap() {
+        return Collections.emptyMap();
+    }
+
+    default Class<T> getClazz() {
+        throw new IllegalStateException();
+    }
+
+    T deserialize(YTreeNode node);
+
+    default T deserializeForField(YTreeObjectField field, YTreeMapNode node) {
+        if (field.isAttribute) {
+            return deserialize(node.getAttributeOrThrow(field.key));
+        } else {
+            return deserialize(node.getOrThrow(field.key));
+        }
+    }
+
+    default boolean deserializationFieldsAreMandatory() {
+        return true;
+    }
+
+    default <U> YTreeSerializer<U> uncheckedCast() {
+        //noinspection unchecked
+        return (YTreeSerializer<U>) this;
+    }
+
+    TiType getColumnValueType();
+
+}
