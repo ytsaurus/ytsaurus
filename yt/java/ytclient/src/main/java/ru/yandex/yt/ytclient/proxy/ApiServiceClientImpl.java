@@ -68,6 +68,7 @@ import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
+import ru.yandex.yt.ytclient.request.AbstractLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.AbstractModifyRowsRequest;
 import ru.yandex.yt.ytclient.request.AlterTable;
 import ru.yandex.yt.ytclient.request.AlterTableReplica;
@@ -101,10 +102,8 @@ import ru.yandex.yt.ytclient.request.ListJobsResult;
 import ru.yandex.yt.ytclient.request.ListNode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.LockNodeResult;
-import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.request.MapReduceOperation;
-import ru.yandex.yt.ytclient.request.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.MoveNode;
@@ -460,14 +459,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     /* */
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
-        return lookupRowsImpl(request, response ->
-                ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                        response.attachments()));
-    }
-
-    @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(MappedLookupRowsRequest<?> request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return lookupRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                         response.attachments()));
@@ -475,20 +467,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public <T> CompletableFuture<List<T>> lookupRows(
-            LookupRowsRequest request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        return lookupRowsImpl(request, response -> {
-            final ConsumerSourceRet<T> result = ConsumerSource.list();
-            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
-            return result.get();
-        });
-    }
-
-    @Override
-    public <T> CompletableFuture<List<T>> lookupRows(
-            MappedLookupRowsRequest<?> request,
+            AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
     ) {
         return lookupRowsImpl(request, response -> {
@@ -501,20 +480,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public <T> CompletableFuture<Void> lookupRows(
-            LookupRowsRequest request,
-            YTreeRowSerializer<T> serializer,
-            ConsumerSource<T> consumer
-    ) {
-        return lookupRowsImpl(request, response -> {
-            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, consumer);
-            return null;
-        });
-    }
-
-    @Override
-    public <T> CompletableFuture<Void> lookupRows(
-            MappedLookupRowsRequest<?> request,
+            AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
@@ -526,22 +492,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     private <T> CompletableFuture<T> lookupRowsImpl(
-            LookupRowsRequest request,
-            Function<RpcClientResponse<TRspLookupRows>, T> responseReader
-    ) {
-        return handleHeavyResponse(
-                sendRequest(
-                        request.asLookupRowsWritable(),
-                        ApiServiceMethodTable.LOOKUP_ROWS.createRequestBuilder(rpcOptions)
-                ),
-                response -> {
-                    logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-                    return responseReader.apply(response);
-                });
-    }
-
-    private <T> CompletableFuture<T> lookupRowsImpl(
-            MappedLookupRowsRequest<?> request,
+            AbstractLookupRowsRequest<?, ?> request,
             Function<RpcClientResponse<TRspLookupRows>, T> responseReader
     ) {
         return handleHeavyResponse(
@@ -556,35 +507,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
-        return versionedLookupRowsImpl(request, response -> ApiServiceUtil
-                .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
-    }
-
-    @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(MappedLookupRowsRequest<?> request) {
+    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return versionedLookupRowsImpl(request, response -> ApiServiceUtil
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
     }
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
-            LookupRowsRequest request,
-            Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader
-    ) {
-        return handleHeavyResponse(
-                sendRequest(
-                        request.asVersionedLookupRowsWritable(),
-                        ApiServiceMethodTable.VERSIONED_LOOKUP_ROWS.createRequestBuilder(rpcOptions)
-                ),
-                response -> {
-                    logger.trace("VersionedLookupRows incoming rowset descriptor: {}",
-                            response.body().getRowsetDescriptor());
-                    return responseReader.apply(response);
-                });
-    }
-
-    private <T> CompletableFuture<T> versionedLookupRowsImpl(
-            MappedLookupRowsRequest<?> request,
+            AbstractLookupRowsRequest<?, ?> request,
             Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader
     ) {
         return handleHeavyResponse(
