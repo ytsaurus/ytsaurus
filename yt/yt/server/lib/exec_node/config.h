@@ -423,6 +423,8 @@ public:
 
     TDuration JobAbortionTimeout;
 
+    std::optional<TDuration> JobPrepareTimeLimit;
+
     //! This option is used for testing purposes only.
     //! Adds inner errors for failed jobs.
     bool TestJobErrorTruncation;

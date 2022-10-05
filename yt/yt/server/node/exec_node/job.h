@@ -389,7 +389,7 @@ private:
 
     void OnJobProxyPreparationTimeout();
 
-    void OnJobPreparationTimeout(TDuration prepareTimeLimit);
+    void OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal);
 
     void OnJobAbortionTimeout();
 

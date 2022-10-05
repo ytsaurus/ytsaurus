@@ -468,6 +468,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default(TDuration::Minutes(15));
 
+    registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
+        .Default();
+
     registrar.Parameter("test_job_error_truncation", &TThis::TestJobErrorTruncation)
         .Default(false);
 
