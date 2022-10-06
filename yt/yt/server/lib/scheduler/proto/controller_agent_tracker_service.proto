@@ -99,18 +99,12 @@ message TSchedulerToAgentStartedJobEvent
 
 message TSchedulerToAgentFinishedJobEvent
 {
-    message TPreemptedFor
-    {
-        required NYT.NProto.TGuid operation_id = 1;
-        required NYT.NProto.TGuid job_id = 2;
-    }
-
     required NYT.NProto.TGuid operation_id = 1;
     required NYT.NProto.TGuid job_id = 2;
     required uint64 finish_time = 3;
 
     // for Aborted
-    optional TPreemptedFor preempted_for = 5;
+    optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 5;
     optional string preemption_reason = 7;
 
     // for Completed

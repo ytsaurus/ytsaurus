@@ -209,6 +209,10 @@ TAbortedJobSummary::TAbortedJobSummary(NJobTrackerClient::NProto::TJobStatus* st
     : TJobSummary(status)
 {
     YT_VERIFY(State == ExpectedState);
+
+    if (status->has_preempted_for()) {
+        PreemptedFor = FromProto<NScheduler::TPreemptedFor>(status->preempted_for());
+    }
 }
 
 std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJobSummary&& eventSummary, const TLogger& Logger)
@@ -365,6 +369,18 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
     TFinishedJobSummary&& schedulerJobSummary,
     const TLogger& Logger)
 {
+    if (nodeJobSummary->PreemptedFor) {
+        YT_LOG_FATAL_IF(
+            !schedulerJobSummary.PreemptedFor,
+            "PreemptedFor received from node but not received from scheduler (JobId: %v)",
+            schedulerJobSummary.Id);
+        
+        YT_LOG_FATAL_IF(
+            schedulerJobSummary.PreemptedFor != nodeJobSummary->PreemptedFor,
+            "PreemptedFor from node and scheduer differ (NodePreemptedFor: %v, SchedulerPreemptedFor: %v)",
+            nodeJobSummary->PreemptedFor,
+            schedulerJobSummary.PreemptedFor);
+    }
     nodeJobSummary->PreemptedFor = std::move(schedulerJobSummary.PreemptedFor);
     MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
 

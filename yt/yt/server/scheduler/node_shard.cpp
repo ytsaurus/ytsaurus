@@ -98,7 +98,8 @@ void AddJobToInterrupt(
     TJobId jobId,
     TDuration duration,
     EInterruptReason interruptionReason,
-    const std::optional<TString>& preemptionReason)
+    const std::optional<TString>& preemptionReason,
+    const std::optional<TPreemptedFor>& preemptedFor)
 {
     auto jobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(jobToInterrupt->mutable_job_id(), jobId);
@@ -107,6 +108,10 @@ void AddJobToInterrupt(
 
     if (preemptionReason) {
         jobToInterrupt->set_preemption_reason(*preemptionReason);
+    }
+
+    if (preemptedFor) {
+        ToProto(jobToInterrupt->mutable_preempted_for(), *preemptedFor);
     }
 }
 
@@ -2652,7 +2657,8 @@ void TNodeShard::SendInterruptedJobToNode(
         job->GetId(),
         interruptTimeout,
         job->GetInterruptionReason(),
-        job->GetPreemptionReason());
+        job->GetPreemptionReason(),
+        job->GetPreemptedFor());
 }
 
 void TNodeShard::ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)

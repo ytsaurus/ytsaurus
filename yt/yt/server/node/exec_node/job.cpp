@@ -1034,17 +1034,46 @@ void TJob::ReportProfile()
 void TJob::GuardedInterrupt(
     TDuration timeout,
     EInterruptReason interruptionReason,
-    const std::optional<TString>& preemptionReason)
+    const std::optional<TString>& preemptionReason,
+    const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (InterruptionTimeoutCookie_ || InterruptionReason_ != EInterruptReason::None) {
+        YT_LOG_DEBUG(
+            "Job interruption is already requested, ignore (InterruptionReason: %v, PreemptedFor: %v, CurrentError: %v)",
+            InterruptionReason_,
+            PreemptedFor_,
+            Error_);
+        return;
+    }
+
+    YT_LOG_DEBUG(
+        "Job interruption requested (Timeout: %v, InterruptionReason: %v, Preempted: %v, PreemptionReason: %v, PreemptedFor: %v)",
+        timeout,
+        interruptionReason,
+        preemptionReason,
+        preemptedFor);
+
+    if (JobPhase_ > EJobPhase::Running) {
+        // We're done with this job, no need to interrupt.
+        YT_LOG_DEBUG("Job is already not running, do nothing (JobPhase: %v)", JobPhase_);
+        return;
+    }
+
+    InterruptionReason_ = interruptionReason;
+    PreemptedFor_ = preemptedFor;
+
     if (!IsInterruptible()) {
+        YT_LOG_DEBUG("Job is not interruptible and will be aborted");
+
         auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Abort uninterruptible job")
             << TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
 
-        if (preemptionReason) {
+        if (interruptionReason == EInterruptReason::Preemption) {
+            error = TError{"Job preempted"} << error;
             error = error
-                << TErrorAttribute("preemption_reason", *preemptionReason)
+                << TErrorAttribute("preemption_reason", preemptionReason)
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
         }
 
@@ -1052,32 +1081,28 @@ void TJob::GuardedInterrupt(
         return;
     }
 
-    if (InterruptionTimeoutCookie_) {
-        YT_LOG_DEBUG("Job interruption is already requested, ignore");
-        return;
-    }
-
-    YT_LOG_DEBUG("Job interruption requested (Timeout: %v)", timeout);
-
-    if (timeout) {
-        InterruptionTimeoutCookie_ = TDelayedExecutor::Submit(
-            BIND(&TJob::OnJobInterruptionTimeout, MakeWeak(this)),
-            timeout,
-            Bootstrap_->GetJobInvoker());
-    }
-
     if (JobPhase_ < EJobPhase::Running) {
-        Abort(TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet"));
-        return;
-    } else if (JobPhase_ > EJobPhase::Running) {
-        // We're done with this job, no need to interrupt.
+        TError error(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet");
+
+        if (interruptionReason == EInterruptReason::Preemption) {
+            error = TError{"Job preempted"} << error;
+            error = error
+                << TErrorAttribute("preemption_reason", preemptionReason)
+                << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+        }
+
+        Abort(error);
         return;
     }
-
-    InterruptionReason_ = interruptionReason;
 
     try {
         GetJobProbeOrThrow()->Interrupt();
+        if (timeout) {
+            InterruptionTimeoutCookie_ = TDelayedExecutor::Submit(
+                BIND(&TJob::OnJobInterruptionTimeout, MakeWeak(this)),
+                timeout,
+                Bootstrap_->GetJobInvoker());
+        }
     } catch (const std::exception& ex) {
         auto error = TError("Error interrupting job on job proxy")
             << ex;
@@ -1160,14 +1185,17 @@ const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetCont
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptReason interruptionReason,
-    const std::optional<TString>& preemptionReason)
+    const std::optional<TString>& preemptionReason,
+    const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    YT_LOG_INFO("Interrupting job (PreemptionReason: %v, Timeout: %v)",
+    YT_LOG_INFO("Interrupting job (InterruptionReason: %v, PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
+        interruptionReason,
         preemptionReason,
+        preemptedFor,
         timeout);
 
     try {
-        GuardedInterrupt(timeout, interruptionReason, preemptionReason);
+        GuardedInterrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to interrupt job");
     }
@@ -1187,6 +1215,11 @@ void TJob::Fail()
 NScheduler::EInterruptReason TJob::GetInterruptionReason() const noexcept
 {
     return InterruptionReason_;
+}
+
+const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const noexcept
+{
+    return PreemptedFor_;
 }
 
 // Helpers.
@@ -1762,7 +1795,7 @@ void TJob::Cleanup()
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: do this after slot cleanup.
     {
-        auto inputNodeDirectory = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)
+        auto* inputNodeDirectory = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)
             ->release_input_node_directory();
         NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] () {
             delete inputNodeDirectory;
@@ -2926,6 +2959,9 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
         jobStatus->set_stderr_size(stderrSize);
     }
     jobStatus->set_interruption_reason(static_cast<int>(job->GetInterruptionReason()));
+    if (auto preemptedFor = job->GetPreemptedFor()) {
+        ToProto(jobStatus->mutable_preempted_for(), *preemptedFor);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

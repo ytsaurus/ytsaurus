@@ -176,7 +176,11 @@ private:
             interruptionReason = CheckedEnumCast<EInterruptReason>(request->interruption_reason());
         }
 
-        job->Interrupt(timeout, interruptionReason, /*preemptionReason*/ {});
+        job->Interrupt(
+            timeout,
+            interruptionReason,
+            /*preemptionReason*/ {},
+            /*preemptedFor*/ {});
 
         context->Reply();
     }

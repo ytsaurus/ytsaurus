@@ -139,6 +139,7 @@ struct TFinishedJobSummary
     TOperationId OperationId;
     TJobId Id;
     TInstant FinishTime;
+    
     // COMPAT(pogorelov)
     EInterruptReason InterruptReason;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;

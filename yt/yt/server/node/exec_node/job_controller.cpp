@@ -13,8 +13,11 @@
 #include <yt/yt/server/node/data_node/job_controller.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
+
+#include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -778,7 +781,12 @@ private:
                     interruptionReason = CheckedEnumCast<EInterruptReason>(jobToInterrupt.interruption_reason());
                 }
 
-                job->Interrupt(timeout, interruptionReason, preemptionReason);
+                std::optional<NScheduler::TPreemptedFor> preemptedFor;
+                if (jobToInterrupt.has_preempted_for()) {
+                    preemptedFor = FromProto<NScheduler::TPreemptedFor>(jobToInterrupt.preempted_for());
+                }
+
+                job->Interrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
             } else {
                 YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                     jobId);
@@ -1366,7 +1374,11 @@ private:
             const auto& Logger = job->GetLogger();
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");
-                job->Interrupt(/*timeout*/ {}, EInterruptReason::Unknown, /*preemptionReason*/ {});
+                job->Interrupt(
+                    /*timeout*/ {},
+                    EInterruptReason::Unknown,
+                    /*preemptionReason*/ {},
+                    /*preemptedFor*/ {});
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to interrupt job");
             }

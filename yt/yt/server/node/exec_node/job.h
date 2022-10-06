@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/server/lib/scheduler/structs.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
@@ -177,7 +179,8 @@ public:
     void GuardedInterrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
-        const std::optional<TString>& preemptionReason);
+        const std::optional<TString>& preemptionReason,
+        const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void GuardedFail();
 
@@ -198,11 +201,13 @@ public:
     void Interrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
-        const std::optional<TString>& preemptionReason);
+        const std::optional<TString>& preemptionReason,
+        const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void Fail();
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
+    const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -307,6 +312,7 @@ private:
     NJobAgent::TJobEvents JobEvents_;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
+    std::optional<NScheduler::TPreemptedFor> PreemptedFor_;
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
