@@ -693,7 +693,10 @@ void TBootstrap::DoInitialize()
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 
-    ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
+    ChannelFactory_ = NNative::CreateNativeAuthenticationInjectingChannelFactory(
+        CreateCachingChannelFactory(
+            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)),
+        Config_->ClusterConnection->TvmId);
 
     const auto& networks = Config_->Networks;
 
