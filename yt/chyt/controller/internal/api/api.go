@@ -65,7 +65,7 @@ func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission 
 		return err
 	}
 
-	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias)
+	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias, "principal")
 	response, err := a.ytc.CheckPermission(ctx, user, permission, accessNodePath, nil)
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission 
 
 	if response.Action != yt.ActionAllow {
 		return yterrors.Err(
-			fmt.Sprintf("%v access to strawberry operation %v denied for user %v", permission, alias, user),
+			fmt.Sprintf("%q access to strawberry operation %q denied for user %q", permission, alias, user),
 			yterrors.CodeAuthorizationError,
 			yterrors.Attr("alias", alias),
 			yterrors.Attr("permission", permission),
