@@ -83,8 +83,8 @@ def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, ReadTimeout, Timeout
     from yt.packages.requests.exceptions import ChunkedEncodingError
-    from yt.packages.urllib3.exceptions import ReadTimeoutError  # YTADMINREQ-22305
-    return (HTTPError, ConnectionError, ReadTimeout, Timeout, IncompleteRead, BadStatusLine,
+    from yt.packages.urllib3.exceptions import ConnectTimeoutError, ReadTimeoutError  # YTADMINREQ-22305 , YTADMINREQ-30006
+    return (HTTPError, ConnectTimeoutError, ConnectionError, ReadTimeout, Timeout, IncompleteRead, BadStatusLine,
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
