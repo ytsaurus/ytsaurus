@@ -21,6 +21,8 @@ struct TAuthenticationContext
 {
     const NRpc::NProto::TRequestHeader* Header;
     NNet::TNetworkAddress UserIP;
+    //! True iff the request comes from the current process.
+    bool IsLocal;
 };
 
 struct IAuthenticator

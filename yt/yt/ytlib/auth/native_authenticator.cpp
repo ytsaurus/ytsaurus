@@ -25,7 +25,7 @@ public:
 
     bool CanAuthenticate(const TAuthenticationContext& context) override
     {
-        if (!TvmService_ || !AuthenticationManager_->IsValidationEnabled()) {
+        if (!NeedsAuthentication(context)) {
             return true;
         }
 
@@ -40,7 +40,7 @@ public:
     TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
         const TAuthenticationContext& context) override
     {
-        if (!TvmService_ || !AuthenticationManager_->IsValidationEnabled()) {
+        if (!NeedsAuthentication(context)) {
             return MakeResult(context);
         }
 
@@ -79,6 +79,11 @@ private:
     TNativeAuthenticationManager* AuthenticationManager_;
     const ITvmServicePtr TvmService_;
     const std::function<bool(TTvmId)> SourceValidator_;
+
+    bool NeedsAuthentication(const TAuthenticationContext& context) const
+    {
+        return !context.IsLocal && TvmService_ && AuthenticationManager_->IsValidationEnabled();
+    }
 
     TFuture<NRpc::TAuthenticationResult> MakeResult(const TAuthenticationContext& context)
     {

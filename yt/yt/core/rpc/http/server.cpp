@@ -100,6 +100,11 @@ public:
         return EndpointNetworkAddress_;
     }
 
+    bool IsEndpointLocal() const override
+    {
+        return false;
+    }
+
     TBusNetworkStatistics GetNetworkStatistics() const override
     {
         return {};

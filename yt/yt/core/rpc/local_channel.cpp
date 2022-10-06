@@ -175,6 +175,11 @@ private:
             return EmptyAddress;
         }
 
+        bool IsEndpointLocal() const override
+        {
+            return true;
+        }
+
         const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
         {
             return NNet::NullNetworkAddress;

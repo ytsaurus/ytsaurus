@@ -95,6 +95,9 @@ struct IBus
     //! Returns the statistics for the whole network this bus is bound to.
     virtual TBusNetworkStatistics GetNetworkStatistics() const = 0;
 
+    //! Returns true if the bus' endpoint belongs to our process.
+    virtual bool IsEndpointLocal() const = 0;
+
     //! Returns a future indicating the moment when the bus is actually ready to send messages.
     /*!
      *  Some bus implementaions are not immediately ready upon creation. E.g. a client socket

@@ -249,6 +249,11 @@ private:
             return PeerAddress_;
         }
 
+        bool IsEndpointLocal() const override
+        {
+            return false;
+        }
+
         TFuture<void> GetReadyFuture() const override
         {
             return VoidFuture;
