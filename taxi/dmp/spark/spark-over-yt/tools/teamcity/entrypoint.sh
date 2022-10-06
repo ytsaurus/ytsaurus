@@ -9,14 +9,23 @@ export SPARK_HOME=/app/spark-over-yt/.tox/py27/lib/python2.7/site-packages/pyspa
 mkdir $HOME/.yt
 echo $YT_TOKEN > $HOME/.yt/token
 
-sbt --version
-
 export SBT_CREDENTIALS=$HOME/.sbt/.credentials
+
+if [ -f /credentials ]; then
+    cp /credentials $SBT_CREDENTIALS
+fi
 
 # generate XML credentials
 if [ -f $SBT_CREDENTIALS ]; then
     python3 /app/spark-over-yt/tools/teamcity/cli.py generate-xml-creds $SBT_CREDENTIALS $HOME/.m2/settings.xml
 fi
+
+if [ -d $SBT_CREDENTIALS ]; then
+    rm -r $SBT_CREDENTIALS
+    touch $SBT_CREDENTIALS
+fi
+
+touch SBT_CREDENTIALS
 
 SBT="sbt -Duser.home=/app --sbt-dir /cache/sbt --sbt-boot /cache/sbt/boot --ivy /cache/ivy"
 

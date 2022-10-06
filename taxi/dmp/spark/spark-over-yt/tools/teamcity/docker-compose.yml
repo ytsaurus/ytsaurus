@@ -15,9 +15,9 @@ services:
       - ${SPYT_CACHE_DIR:-cache}:/${HOME}/.cache
       - ${SPYT_IVY_DIR:-ivy}:/cache/ivy
       - ${SPYT_SBT_DIR:-sbt}:/cache/sbt
-      - ${SPYT_M2_DIR:-sbt}:/cache/m2
+      - ${SPYT_M2_DIR:-m2}:/cache/m2
       - ${PYPI_CRED:-not_allowed}:/home/${USER:-sbtuser}/.pypirc
-      - ${ARTIFACTORY_CREDS_FILE:-sbt_creds}:/home/${USER:-sbtuser}/.sbt/.credentials
+      - ${ARTIFACTORY_CREDS_FILE:-sbt_creds}:/credentials
       # фаллбек рут -- больше вероятность попасть на валидный config.json
       # в контексте, в котором HOME не определен
       - ${HOME:-root}/.docker/config.json:/home/${USER:-sbtuser}/.docker/config.json:ro
@@ -43,6 +43,7 @@ volumes:
   cache:
   ivy:
   sbt:
+  m2:
   reports:
   not_allowed:
   sbt_creds:
