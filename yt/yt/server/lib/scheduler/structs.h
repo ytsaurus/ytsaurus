@@ -84,10 +84,15 @@ struct TPreemptedFor
 {
     TJobId JobId;
     TOperationId OperationId;
+
+    bool operator == (const TPreemptedFor& other) const noexcept;
+    bool operator != (const TPreemptedFor& other) const noexcept;
 };
 
-void ToProto(NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
-void FromProto(TPreemptedFor* preemptedFor, const NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor& proto);
+TString ToString(const TPreemptedFor& preemptedFor);
+
+void ToProto(NJobTrackerClient::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
+void FromProto(TPreemptedFor* preemptedFor, const NJobTrackerClient::NProto::TPreemptedFor& proto);
 
 void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);

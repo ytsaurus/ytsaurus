@@ -71,6 +71,7 @@ message TJobToInterrupt
     required int64 timeout = 2;
     optional string preemption_reason = 3;
     optional int32 interruption_reason = 4; // NScheduler::EInterruptReason
+    optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 6;
 }
 
 message TRspHeartbeat

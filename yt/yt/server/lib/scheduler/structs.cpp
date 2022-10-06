@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NScheduler {
 
 using namespace NControllerAgent;
@@ -81,13 +83,31 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
+bool TPreemptedFor::operator == (const TPreemptedFor& other) const noexcept
+{
+    return JobId == other.JobId && OperationId == other.OperationId;
+}
+
+bool TPreemptedFor::operator != (const TPreemptedFor& other) const noexcept
+{
+    return !(*this == other);
+}
+
+TString ToString(const TPreemptedFor& preemptedFor)
+{
+    return Format(
+        "{OperationId: %v, JobId: %v}",
+        preemptedFor.OperationId,
+        preemptedFor.JobId);
+}
+
+void ToProto(NJobTrackerClient::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
 {
     ToProto(proto->mutable_job_id(), preemptedFor.JobId);
     ToProto(proto->mutable_operation_id(), preemptedFor.OperationId);
 }
 
-void FromProto(TPreemptedFor* preemptedFor, const NScheduler::NProto::TSchedulerToAgentFinishedJobEvent::TPreemptedFor& proto)
+void FromProto(TPreemptedFor* preemptedFor, const NJobTrackerClient::NProto::TPreemptedFor& proto)
 {
     FromProto(&preemptedFor->JobId, proto.job_id());
     FromProto(&preemptedFor->OperationId, proto.operation_id());

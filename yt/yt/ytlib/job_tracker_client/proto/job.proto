@@ -6,6 +6,12 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPreemptedFor
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
 // Describes a job to be run at a node.
 message TJobSpec
 {
@@ -59,6 +65,7 @@ message TJobStatus
     optional int64 stderr_size = 13;
 
     optional int32 interruption_reason = 18;
+    optional TPreemptedFor preempted_for = 19;
 
     optional TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
