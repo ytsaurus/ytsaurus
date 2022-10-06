@@ -87,6 +87,7 @@ public:
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     const TString& GetEndpointAddress() const override;
     const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override;
+    bool IsEndpointLocal() const override;
     TBusNetworkStatistics GetNetworkStatistics() const override;
     TFuture<void> GetReadyFuture() const override;
     TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;

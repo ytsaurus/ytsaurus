@@ -601,6 +601,11 @@ const TNetworkAddress& TTcpConnection::GetEndpointNetworkAddress() const
     return EndpointNetworkAddress_;
 }
 
+bool TTcpConnection::IsEndpointLocal() const
+{
+    return false;
+}
+
 TBusNetworkStatistics TTcpConnection::GetNetworkStatistics() const
 {
     if (auto networkCounters = NetworkCounters_.Acquire()) {

@@ -75,6 +75,12 @@ public:
         return Connection_->GetEndpointNetworkAddress();
     }
 
+    bool IsEndpointLocal() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->IsEndpointLocal();
+    }
+
     TBusNetworkStatistics GetNetworkStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
