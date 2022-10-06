@@ -15,6 +15,16 @@ namespace NYT::NApi::NNative {
 //! specified in the connection's cluster directory.
 NRpc::IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connection);
 
+//! Wraps channel factory in a way that it injects service tickets for native
+//! authentication. #tvmId is the TVM id of the destination cluster (if set to nullopt,
+//! then the destination cluster doesn't require service tickets).
+//!
+//! If either there native TVM service is not configured or tvm ID is empty, the channel
+//! is unchanged.
+NRpc::IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
+    NRpc::IChannelFactoryPtr channelFactory,
+    std::optional<NAuth::TTvmId> tvmId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

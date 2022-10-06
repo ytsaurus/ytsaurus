@@ -6,6 +6,7 @@
 #include "transaction_participant.h"
 #include "transaction.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 
@@ -63,8 +64,6 @@
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
-
-#include <yt/yt/library/auth/credentials_injecting_channel.h>
 
 #include <yt/yt/library/auth_server/tvm_service.h>
 
@@ -143,19 +142,11 @@ public:
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
     {
-        auto tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
-        if (Config_->TvmId && !tvmService) {
-            THROW_ERROR_EXCEPTION("Cluster connection requires TVM authentification, but TVM service is unset");
-        }
-        ChannelFactory_ = CreateCachingChannelFactory(
-            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
-            Config_->IdleChannelTtl);
-        if (tvmService && Config_->TvmId) {
-            auto ticketAuth = CreateServiceTicketAuth(tvmService, *Config_->TvmId);
-            ChannelFactory_ = CreateServiceTicketInjectingChannelFactory(
-                std::move(ChannelFactory_),
-                std::move(ticketAuth));
-        }
+        ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
+            CreateCachingChannelFactory(
+                NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+                Config_->IdleChannelTtl),
+            Config_->TvmId);
     }
 
     void Initialize()
