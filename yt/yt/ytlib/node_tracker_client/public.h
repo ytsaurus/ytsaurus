@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/yt/ytlib/memory_trackers/public.h>
-
 namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////

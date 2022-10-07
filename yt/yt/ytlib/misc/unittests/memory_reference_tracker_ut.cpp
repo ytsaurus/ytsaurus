@@ -1,22 +1,16 @@
-#include <yt/yt/ytlib/chunk_client/block.h>
-
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
-
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 namespace NYT {
-
 namespace {
-
-using NChunkClient::TBlock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef CreateBlock(i64 size)
+TSharedRef CreateReference(i64 size)
 {
     TString s;
     s.resize(size, '*');
@@ -32,11 +26,9 @@ class TTypedMemoryTracker
     : public ITypedNodeMemoryTracker
 {
 public:
-    using ECategory = INodeMemoryTracker::ECategory;
-
     TTypedMemoryTracker(
         INodeMemoryTrackerPtr memoryTracker,
-        ECategory category)
+        EMemoryCategory category)
         : MemoryTracker_(std::move(memoryTracker))
         , Category_(category)
     { }
@@ -88,15 +80,13 @@ public:
 
 private:
     const INodeMemoryTrackerPtr MemoryTracker_;
-    const ECategory Category_;
+    const EMemoryCategory Category_;
 };
 
 class TMockNodeMemoryTracker
     : public INodeMemoryTracker
 {
 public:
-    using ECategory = INodeMemoryTracker::ECategory;
-
     TMockNodeMemoryTracker()
         : Logger("TMockSimpleMemoryUsageTracker")
     {
@@ -123,27 +113,27 @@ public:
         YT_ABORT();
     }
 
-    i64 GetExplicitLimit(ECategory /*category*/) const
+    i64 GetExplicitLimit(EMemoryCategory /*category*/) const
     {
         YT_ABORT();
     }
 
-    i64 GetLimit(ECategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
+    i64 GetLimit(EMemoryCategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
     {
         YT_ABORT();
     }
 
-    i64 GetUsed(ECategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
+    i64 GetUsed(EMemoryCategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
     {
         YT_ABORT();
     }
 
-    i64 GetFree(ECategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
+    i64 GetFree(EMemoryCategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
     {
         YT_ABORT();
     }
 
-    bool IsExceeded(ECategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
+    bool IsExceeded(EMemoryCategory /*category*/, const std::optional<TPoolTag>& /*poolTag*/ = {}) const
     {
         YT_ABORT();
     }
@@ -153,7 +143,7 @@ public:
         YT_ABORT();
     }
 
-    void SetCategoryLimit(ECategory /*category*/, i64 /*newLimit*/)
+    void SetCategoryLimit(EMemoryCategory /*category*/, i64 /*newLimit*/)
     {
         YT_ABORT();
     }
@@ -164,35 +154,35 @@ public:
     }
 
 
-    void Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
+    void Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
     {
         YT_LOG_DEBUG("Acquire(%v, %v)", category, size);
         CategoryToUsage_[category] += size;
     }
 
-    TError TryAcquire(ECategory /*category*/, i64 /*size*/, const std::optional<TPoolTag>& /*poolTag*/)
+    TError TryAcquire(EMemoryCategory /*category*/, i64 /*size*/, const std::optional<TPoolTag>& /*poolTag*/)
     {
         YT_ABORT();
     }
 
-    TError TryChange(ECategory /*category*/, i64 /*size*/, const std::optional<TPoolTag>& /*poolTag*/)
+    TError TryChange(EMemoryCategory /*category*/, i64 /*size*/, const std::optional<TPoolTag>& /*poolTag*/)
     {
         YT_ABORT();
     }
 
-    void Release(ECategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
+    void Release(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& /*poolTag*/)
     {
         YT_LOG_DEBUG("Release(%v, %v)", category, size);
         CategoryToUsage_[category] -= size;
     }
 
-    i64 UpdateUsage(ECategory /*category*/, i64 /*newUsage*/)
+    i64 UpdateUsage(EMemoryCategory /*category*/, i64 /*newUsage*/)
     {
         YT_ABORT();
     }
 
     ITypedNodeMemoryTrackerPtr WithCategory(
-        ECategory category,
+        EMemoryCategory category,
         std::optional<TPoolTag> poolTag)
     {
         YT_VERIFY(!poolTag);
@@ -205,7 +195,7 @@ public:
             return false;
         }
 
-        for (auto& [someCategory, someSize]: CategoryToUsage_) {
+        for (auto [someCategory, someSize] : CategoryToUsage_) {
             if (someCategory != category && someSize != 0) {
                 return false;
             }
@@ -216,7 +206,7 @@ public:
 
     bool IsEmpty()
     {
-        for (auto& [someCategory, someSize]: CategoryToUsage_) {
+        for (auto [someCategory, someSize] : CategoryToUsage_) {
             if (someSize != 0) {
                 return false;
             }
@@ -224,6 +214,7 @@ public:
 
         return true;
     }
+
 private:
     const NLogging::TLogger Logger;
     THashMap<EMemoryCategory, i64> CategoryToUsage_;
@@ -231,12 +222,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TBlockTrackerHelpersTest, BlockCreation)
+TEST(TMemoryReferenceTrackerHelpersTest, ReferenceCreation)
 {
-    CreateBlock(239);
+    CreateReference(239);
 }
 
-TEST(TBlockTrackerHelpersTest, Tracker)
+TEST(TMemoryReferenceTrackerHelpersTest, Tracker)
 {
     auto tracker = New<TMockNodeMemoryTracker>();
     auto category = EMemoryCategory::BlockCache;
@@ -247,126 +238,132 @@ TEST(TBlockTrackerHelpersTest, Tracker)
     EXPECT_FALSE(tracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, Register)
+TEST(TMemoryReferenceTrackerTest, Register)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block_1 = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block_1 = blockTracker->RegisterBlock(std::move(block_1));
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
-        auto block_2 = blockTracker->RegisterBlock(block_1);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
+        reference = referenceTracker->WithCategory()->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
+        auto mirrorReference = referenceTracker->WithCategory()->Track(reference);
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, Acquire)
+TEST(TMemoryReferenceTrackerTest, Acquire)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block = blockTracker->RegisterBlock(std::move(block));
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
+        reference = referenceTracker->WithCategory()->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
+        auto referenceP2p = referenceTracker->WithCategory(EMemoryCategory::P2P)->Track(reference);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
+        auto referenceCache = referenceTracker->WithCategory(EMemoryCategory::MasterCache)->Track(reference);
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Mixed, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, AcquireRelease)
+TEST(TMemoryReferenceTrackerTest, AcquireRelease)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block = blockTracker->RegisterBlock(std::move(block));
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
+        reference = referenceTracker->WithCategory()->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
+        auto referenceP2p = referenceTracker->WithCategory(EMemoryCategory::P2P)->Track(reference);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
+        auto referenceCache = referenceTracker->WithCategory(EMemoryCategory::MasterCache)->Track(reference);
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Mixed, 1));
 
-        blockTracker->ReleaseCategory(block, EMemoryCategory::P2P);
+        referenceP2p.Reset();
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
 
-        blockTracker->ReleaseCategory(block, EMemoryCategory::MasterCache);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
+        referenceCache.Reset();
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, BlockCache)
+TEST(TMemoryReferenceTrackerTest, BlockCache)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block = blockTracker->RegisterBlock(std::move(block));
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
+        reference = referenceTracker->WithCategory()->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Unknown, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::BlockCache);
+        auto referenceBlockCache = referenceTracker->WithCategory(EMemoryCategory::BlockCache)->Track(reference);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::BlockCache, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
+        auto referenceP2p = referenceTracker->WithCategory(EMemoryCategory::P2P)->Track(reference);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
+        auto referenceMasterCache = referenceTracker->WithCategory(EMemoryCategory::MasterCache)->Track(reference);
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Mixed, 1));
 
-        blockTracker->ReleaseCategory(block, EMemoryCategory::P2P);
+        referenceP2p.Reset();
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
 
-        blockTracker->ReleaseCategory(block, EMemoryCategory::MasterCache);
+        referenceMasterCache.Reset();
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::BlockCache, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, ResetCategory)
+TEST(TMemoryReferenceTrackerTest, ResetCategory)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block = ResetCategory(std::move(block), blockTracker, EMemoryCategory::P2P);
+        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::P2P, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
-        block = ResetCategory(std::move(block), blockTracker, EMemoryCategory::MasterCache);
+        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::MasterCache, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(TBlockTrackerTest, AttachCategory)
+TEST(TMemoryReferenceTrackerTest, AttachCategory)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
-    auto blockTracker = CreateBlockTracker(memoryTracker);
+    auto referenceTracker = CreateNodeMemoryReferenceTracker(memoryTracker);
 
     {
-        auto block = CreateBlock(1);
+        auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        block = AttachCategory(std::move(block), blockTracker, EMemoryCategory::P2P);
+        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::P2P, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
-        block = AttachCategory(std::move(block), blockTracker, EMemoryCategory::MasterCache);
-        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
+        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::MasterCache, std::move(reference), true);
+        EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Mixed, 1));
     }
+
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 

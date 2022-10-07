@@ -442,7 +442,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("io_tracker", &TThis::IOTracker)
         .DefaultNew();
-    registrar.Parameter("enable_block_tracker", &TThis::EnableBlockTracker)
+    registrar.Parameter("enable_memory_reference_tracker", &TThis::EnableMemoryReferenceTracker)
+        .Alias("enable_block_tracker")
         .Default(true);
 }
 

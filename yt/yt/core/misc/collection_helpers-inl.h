@@ -152,19 +152,31 @@ void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set)
 }
 
 template <class TMap, class TKey>
-const auto& GetOrCrash(const TMap& map, const TKey& key)
+auto GetIteratorOrCrash(const TMap& map, const TKey& key)
 {
     auto it = map.find(key);
     YT_VERIFY(it != map.end());
-    return it->second;
+    return it;
+}
+
+template <class TMap, class TKey>
+auto GetIteratorOrCrash(TMap& map, const TKey& key)
+{
+    auto it = map.find(key);
+    YT_VERIFY(it != map.end());
+    return it;
+}
+
+template <class TMap, class TKey>
+const auto& GetOrCrash(const TMap& map, const TKey& key)
+{
+    return GetIteratorOrCrash(map, key)->second;
 }
 
 template <class TMap, class TKey>
 auto& GetOrCrash(TMap& map, const TKey& key)
 {
-    auto it = map.find(key);
-    YT_VERIFY(it != map.end());
-    return it->second;
+    return GetIteratorOrCrash(map, key)->second;
 }
 
 template <class TMap, class TKey>

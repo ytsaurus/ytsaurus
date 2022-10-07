@@ -7,15 +7,13 @@
 #include "chunk_reader_memory_manager.h"
 #include "chunk_reader_statistics.h"
 
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
-
-#include <yt/yt/ytlib/chunk_client/block_category.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -258,10 +256,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
                 cachedBlock.Size(),
                 std::memory_order_relaxed);
 
-            cachedBlock = AttachCategory(
-                std::move(cachedBlock),
-                ChunkReadOptions_.BlockTracker,
-                ChunkReadOptions_.MemoryCategory);
+            cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
@@ -358,12 +353,9 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
-        auto& windowSlot = Window_[windowIndex];
+        uncompressedBlock = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(uncompressedBlock));
 
-        uncompressedBlock = AttachCategory(
-            std::move(uncompressedBlock),
-            ChunkReadOptions_.BlockTracker,
-            ChunkReadOptions_.MemoryCategory);
+        auto& windowSlot = Window_[windowIndex];
 
         TRef ref = uncompressedBlock;
         windowSlot.MemoryUsageGuard->CaptureBlock(std::move(uncompressedBlock));
@@ -436,12 +428,9 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     cachedBlock.Size(),
                     std::memory_order_relaxed);
 
-                auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
+                cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
-                cachedBlock = AttachCategory(
-                    std::move(cachedBlock),
-                    ChunkReadOptions_.BlockTracker,
-                    ChunkReadOptions_.MemoryCategory);
+                auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
 
                 TRef ref = cachedBlock.Data;
                 windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
@@ -592,13 +581,6 @@ void TBlockFetcher::OnGotBlocks(
 
     YT_VERIFY(blocks.size() == blockIndexes.size());
     YT_VERIFY(blocks.size() == windowIndexes.size());
-
-    for (auto& block: blocks) {
-        block = AttachCategory(
-            std::move(block),
-            ChunkReadOptions_.BlockTracker,
-            ChunkReadOptions_.MemoryCategory);
-    }
 
     auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
     YT_LOG_DEBUG("Got block group (ChunkId: %v, Blocks: %v)",

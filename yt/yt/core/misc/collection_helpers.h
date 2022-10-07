@@ -45,6 +45,20 @@ void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set);
  * This function is supposed to replace a frequent pattern
  *    auto it = map.find(key);
  *    YT_VERIFY(it != map.end());
+ *    use it;
+ * with
+ *    use GetIteratorOrCrash(map, key);
+ */
+template <class TMap, class TKey>
+auto GetIteratorOrCrash(const TMap& map, const TKey& key);
+
+template <class TMap, class TKey>
+auto GetIteratorOrCrash(TMap& map, const TKey& key);
+
+/*!
+ * This function is supposed to replace a frequent pattern
+ *    auto it = map.find(key);
+ *    YT_VERIFY(it != map.end());
  *    use it->second;
  * with
  *    use GetOrCrash(map, key);

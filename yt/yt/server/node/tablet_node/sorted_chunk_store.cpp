@@ -333,11 +333,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto backendReaders = GetBackendReaders(workloadCategory);
     auto chunkReader = backendReaders.ChunkReader;
 
-    if (chunkReadOptions.BlockTracker) {
+    if (chunkReadOptions.MemoryReferenceTracker) {
         chunkReader = CreateBlockTrackingChunkReader(
             chunkReader,
-            chunkReadOptions.BlockTracker,
-            chunkReadOptions.MemoryCategory);
+            chunkReadOptions.MemoryReferenceTracker);
     }
 
     auto chunkState = PrepareChunkState(
@@ -417,11 +416,10 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             ChunkId_,
             chunkState->BlockCache);
 
-        if (chunkReadOptions.BlockTracker) {
+        if (chunkReadOptions.MemoryReferenceTracker) {
             chunkReader = CreateBlockTrackingChunkReader(
                 chunkReader,
-                chunkReadOptions.BlockTracker,
-                chunkReadOptions.MemoryCategory);
+                chunkReadOptions.MemoryReferenceTracker);
         }
 
         return NNewTableClient::CreateVersionedChunkReader(
@@ -616,11 +614,10 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             ChunkId_,
             chunkState->BlockCache);
 
-        if (chunkReadOptions.BlockTracker) {
+        if (chunkReadOptions.MemoryReferenceTracker) {
             chunkReader = CreateBlockTrackingChunkReader(
                 chunkReader,
-                chunkReadOptions.BlockTracker,
-                chunkReadOptions.MemoryCategory);
+                chunkReadOptions.MemoryReferenceTracker);
         }
 
         return NNewTableClient::CreateVersionedChunkReader(

@@ -1,8 +1,6 @@
 #include "block_tracking_chunk_reader.h"
 
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
-
-#include <yt/yt/ytlib/chunk_client/block_category.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -16,14 +14,12 @@ class TBlockTrackingChunkReader
 public:
     TBlockTrackingChunkReader(
         IChunkReaderPtr underlying,
-        IBlockTrackerPtr tracker,
-        std::optional<EMemoryCategory> category)
+        IMemoryReferenceTrackerPtr tracker)
         : Underlying_(std::move(underlying))
-        , BlockTracker_(std::move(tracker))
-        , Category_(category)
+        , MemoryReferenceTracker_(std::move(tracker))
     {
         YT_VERIFY(Underlying_);
-        YT_VERIFY(BlockTracker_);
+        YT_VERIFY(MemoryReferenceTracker_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -63,8 +59,7 @@ public:
 
 private:
     const IChunkReaderPtr Underlying_;
-    const IBlockTrackerPtr BlockTracker_;
-    const std::optional<EMemoryCategory> Category_;
+    const IMemoryReferenceTrackerPtr MemoryReferenceTracker_;
 
     TFuture<std::vector<TBlock>> TrackBlocks(const TFuture<std::vector<TBlock>>& future)
     {
@@ -73,10 +68,8 @@ private:
             output.reserve(blocks.size());
 
             for (const auto& block : blocks) {
-                output.push_back(AttachCategory(
-                    block,
-                    BlockTracker_,
-                    Category_));
+                output.push_back(block);
+                output.back().Data = MemoryReferenceTracker_->Track(block.Data, /*keepHolder*/ true);
             }
 
             return output;
@@ -88,13 +81,11 @@ DEFINE_REFCOUNTED_TYPE(TBlockTrackingChunkReader);
 
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,
-    IBlockTrackerPtr tracker,
-    std::optional<EMemoryCategory> category)
+    IMemoryReferenceTrackerPtr tracker)
 {
     return New<TBlockTrackingChunkReader>(
         std::move(underlying),
-        std::move(tracker),
-        category);
+        std::move(tracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

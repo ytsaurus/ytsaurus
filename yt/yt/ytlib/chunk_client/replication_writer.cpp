@@ -850,7 +850,7 @@ private:
 
         TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.FinishChunk();
-        req->SetBlockTracker(Options_->BlockTracker);
+        req->SetMemoryReferenceTracker(Options_->MemoryReferenceTracker);
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
 
