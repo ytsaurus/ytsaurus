@@ -43,7 +43,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -51,15 +50,15 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.ListNode;
-import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
-import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.GetFileFromCache;
 import ru.yandex.yt.ytclient.request.GetFileFromCacheResult;
+import ru.yandex.yt.ytclient.request.ListNode;
+import ru.yandex.yt.ytclient.request.MoveNode;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
+import ru.yandex.yt.ytclient.request.RemoveNode;
+import ru.yandex.yt.ytclient.request.WriteFile;
 
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
@@ -139,10 +138,12 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private void uploadIfNeeded(TransactionalClient yt, boolean isLocalMode) {
         uploadMap.clear();
 
-        yt.createNode(new CreateNode(jarsDir, CypressNodeType.MAP)
+        yt.createNode(CreateNode.builder()
+                .setPath(jarsDir)
+                .setType(ObjectType.MapNode)
                 .setRecursive(true)
                 .setIgnoreExisting(true)
-        ).join();
+                .build()).join();
 
         if (!isUsingFileCache() && lastUploadTime != null && Instant.now()
                 .isBefore(lastUploadTime.plus(uploadTimeout))) {
@@ -160,7 +161,10 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
     protected void writeFile(TransactionalClient yt, YPath path, InputStream data) {
         yt.createNode(new CreateNode(path, ObjectType.File)).join();
-        FileWriter writer = yt.writeFile(new WriteFile(path.toString()).setComputeMd5(true)).join();
+        FileWriter writer = yt.writeFile(WriteFile.builder()
+                .setPath(path.toString())
+                .setComputeMd5(true)
+                .build()).join();
         try {
             byte[] bytes = new byte[0x10000];
             for (; ; ) {
@@ -190,7 +194,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
             writeFile(yt, tmpPath, fileContent.get());
 
             res = yt.putFileToCache(new PutFileToCache(tmpPath, cacheDir, md5)).join().getPath();
-            yt.removeNode(new RemoveNode(tmpPath).setRecursive(false).setForce(true)).join();
+            yt.removeNode(RemoveNode.builder().setPath(tmpPath).setRecursive(false).setForce(true).build()).join();
         }
 
         res = res
@@ -370,14 +374,19 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     private void collectJars(TransactionalClient yt) {
-        yt.createNode(new CreateNode(jarsDir, CypressNodeType.MAP)
+        yt.createNode(CreateNode.builder()
+                .setPath(jarsDir)
+                .setType(ObjectType.MapNode)
                 .setRecursive(true)
                 .setIgnoreExisting(true)
-        ).join();
+                .build()).join();
         if (isUsingFileCache()) {
-            yt.createNode(new CreateNode(cacheDir, CypressNodeType.MAP)
+            yt.createNode(CreateNode.builder()
+                    .setPath(cacheDir)
+                    .setType(ObjectType.MapNode)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
+                    .build()
             ).join();
         }
 
@@ -540,10 +549,12 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         if (originalName.endsWith(NATIVE_FILE_EXTENSION)) {
             // TODO: do we really need this?
             YPath dllDir = jarsDir.child(md5);
-            yt.createNode(new CreateNode(dllDir, CypressNodeType.MAP)
+            yt.createNode(CreateNode.builder()
+                    .setPath(dllDir)
+                    .setType(ObjectType.MapNode)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
-            ).join();
+                    .build()).join();
             jarPath = dllDir.child(originalName);
         } else {
             jarPath = jarsDir.child(calculateYPath(fileContent, originalName));
@@ -555,14 +566,22 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
         int actualFileCacheReplicationFactor = isLocalMode ? 1 : fileCacheReplicationFactor;
 
-        yt.createNode(new CreateNode(tmpPath, ObjectType.File)
+        yt.createNode(CreateNode.builder()
+                .setPath(tmpPath)
+                .setType(ObjectType.File)
                 .addAttribute("replication_factor", YTree.integerNode(actualFileCacheReplicationFactor))
                 .setIgnoreExisting(true)
-        ).join();
+                .build()).join();
 
         writeFile(yt, tmpPath, fileContent.get());
 
-        yt.moveNode(new MoveNode(tmpPath, jarPath).setPreserveAccount(true).setRecursive(true).setForce(true)).join();
+        yt.moveNode(MoveNode.builder()
+                .setSource(tmpPath.toString())
+                .setDestination(jarPath.toString())
+                .setPreserveAccount(true)
+                .setRecursive(true)
+                .setForce(true)
+                .build()).join();
 
         return jarPath.plusAdditionalAttribute("file_name", originalName);
     }

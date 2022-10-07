@@ -64,7 +64,6 @@ import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.request.AbortJob;
 import ru.yandex.yt.ytclient.request.AbortOperation;
 import ru.yandex.yt.ytclient.request.AbortTransaction;
@@ -1136,9 +1135,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             ((MutateNode.Builder<?, ?>) req).setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()));
         }
 
-        if (req instanceof RequestBase) {
-            ((RequestBase<?>) req).setUserAgent(configuration.getVersion());
-        } else if (req instanceof ru.yandex.yt.ytclient.request.RequestBase) {
+        if (req instanceof ru.yandex.yt.ytclient.request.RequestBase) {
             req = (RequestType) ((ru.yandex.yt.ytclient.request.RequestBase<?, ?>) req)
                     .toBuilder()
                     .setUserAgent(configuration.getVersion())

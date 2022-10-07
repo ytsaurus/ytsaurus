@@ -4,13 +4,13 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.request.CreateNode;
 
 @NonNullApi
 @NonNullFields
@@ -42,10 +42,13 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
 
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
-        yt.createNode(new CreateNode(getOutputTable(), CypressNodeType.TABLE, getOutputTableAttributes())
+        yt.createNode(CreateNode.builder()
+                .setPath(getOutputTable())
+                .setType(ObjectType.Table)
+                .setAttributes(getOutputTableAttributes())
                 .setRecursive(true)
                 .setIgnoreExisting(true)
-        );
+                .build());
         return builder.beginMap()
                 .apply(b -> toTree(b, context))
                 .key("cluster_name").value(cluster)

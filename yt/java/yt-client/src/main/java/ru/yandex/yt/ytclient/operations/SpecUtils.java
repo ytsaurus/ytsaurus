@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.request.CreateNode;
 
 final class SpecUtils {
     private SpecUtils() {
@@ -82,10 +82,13 @@ final class SpecUtils {
             Map<String, YTreeNode> outputTableAttributes
     ) {
         for (YPath outputTable : outputTables) {
-            yt.createNode(new CreateNode(outputTable, CypressNodeType.TABLE, outputTableAttributes)
+            yt.createNode(CreateNode.builder()
+                    .setPath(outputTable)
+                    .setType(ObjectType.Table)
+                    .setAttributes(outputTableAttributes)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
-            ).join();
+                    .build()).join();
         }
     }
 }
