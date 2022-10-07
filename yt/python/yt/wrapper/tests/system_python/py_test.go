@@ -213,6 +213,7 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 
 	err = cmdPrepareSourceTree.Run()
 	if err != nil {
+		t.Logf("Prepare source tree command: %v", cmdPrepareSourceTree)
 		t.Logf("Prepare source tree command stdout: %s", stdout.String())
 		t.Logf("Prepare source tree command stderr: %s", stderr.String())
 		return fmt.Errorf("Prepare source tree failed: %s", err)
@@ -296,12 +297,10 @@ func TestPyTest(t *testing.T) {
 		"TESTS_SANDBOX="+sandboxDir,
 		"YT_ENABLE_VERBOSE_LOGGING=1",
 	)
-	if pythonVersion != "3.6" {
-		cmdPytest.Env = append(
-			cmdPytest.Env,
-			"PYTEST_PLUGINS=pytest_timeout",
-		)
-	}
+	cmdPytest.Env = append(
+		cmdPytest.Env,
+		"PYTEST_PLUGINS=pytest_timeout",
+	)
 
 	t.Logf("env: %s", cmdPytest.Env)
 	t.Logf("running %s", cmdPytest.String())

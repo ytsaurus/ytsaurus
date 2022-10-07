@@ -12,9 +12,16 @@ import yandex.type_info as ti
 
 try:
     import dataclasses
-    from typing_extensions import get_type_hints
 except ImportError:
     pass
+
+try:
+    from yt.packages.typing_extensions import get_type_hints
+except ImportError:
+    try:
+        from typing_extensions import get_type_hints
+    except ImportError:
+        pass
 
 
 class _PySchemaSerializer:
