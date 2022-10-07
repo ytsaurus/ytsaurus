@@ -23,20 +23,24 @@ YT_PYTHON_PACKAGE_LIST = [
     "requests",
     "distro",
     ("urllib3", "urllib3/src"),
+    "chardet",
 ]
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
     ("argcomplete", "argcomplete/py2"),
     "simplejson",
     "cloudpickle",
+    ("charset_normalizer", "charset-normalizer"),
     "decorator",
     "backports_abc",
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
     "tqdm",
+    ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     "six",
     ("attr", "attrs"),
+    "typing",
 ]
 
 LIBRARY_PYTHON_PACKAGE_LIST = [

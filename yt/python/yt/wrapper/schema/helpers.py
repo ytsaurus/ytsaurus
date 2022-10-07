@@ -6,11 +6,13 @@ try:
 except ImportError:
     from six import PY3
 
+import sys
+
 
 def _get_availability_error(py3=True, skiff=True):
     errors = []
-    if py3 and not PY3:
-        errors.append(YtError("This functionality works only in Python 3"))
+    if py3 and (not PY3 or sys.version_info < (3, 7)):
+        errors.append(YtError("This functionality works only in Python 3.7+"))
     if skiff:
         try:
             check_skiff_bindings()

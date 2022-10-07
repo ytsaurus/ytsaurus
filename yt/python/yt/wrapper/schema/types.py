@@ -5,18 +5,32 @@ from ..errors import YtError
 from .. import skiff
 
 import copy
-import typing
+
+try:
+    import typing
+except ImportError:
+    import yt.packages.typing as typing
 
 import yandex.type_info as ti
 
 try:
     import dataclasses
-    from typing_extensions import Annotated
 except ImportError:
     pass
 
+try:
+    from yt.packages.typing_extensions import Annotated, Protocol
+except ImportError:
+    try:
+        from typing_extensions import Annotated, Protocol
+    except ImportError:
+        Protocol = object
+
 if typing.TYPE_CHECKING:
-    from typing_extensions import dataclass_transform
+    try:
+        from yt.packages.typing_extensions import dataclass_transform
+    except ImportError:
+        from typing_extensions import dataclass_transform
 else:
     def dataclass_transform():
         return lambda x: x
@@ -171,8 +185,11 @@ def _check_ti_types_compatible(src_type, dst_type, field_path):
             raise_incompatible()
 
 
-class _YtDataclassProtocol(typing.Protocol):
-    _YT_DATACLASS_MARKER = None
+if Protocol is not object:
+    class _YtDataclassProtocol(Protocol):
+        _YT_DATACLASS_MARKER = None
+else:
+    _YtDataclassProtocol = None
 
 
 YtDataclassType = typing.TypeVar('YtDataclassType', bound=_YtDataclassProtocol)
@@ -195,7 +212,7 @@ class RowIteratorProtocol(typing.Iterable[YtDataclassType]):
         pass
 
 
-class ContextProtocol(typing.Protocol):
+class ContextProtocol(Protocol):
     def get_table_index():
         pass
 
