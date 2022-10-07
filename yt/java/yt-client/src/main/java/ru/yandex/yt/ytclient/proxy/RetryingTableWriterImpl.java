@@ -29,12 +29,12 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.GetNode;
-import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.request.CreateNode;
+import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.LockMode;
+import ru.yandex.yt.ytclient.request.LockNode;
+import ru.yandex.yt.ytclient.request.StartTransaction;
 import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -158,21 +158,28 @@ class RetryingTableWriterBaseImpl<T> {
         firstBufferHandled = firstBuffer.handled;
         this.buffer = firstBuffer;
 
-        StartTransaction transactionRequest = StartTransaction.master();
-        req.getTransactionId().ifPresent(transactionRequest::setParentId);
-        this.init = apiServiceClient.startTransaction(transactionRequest)
+        StartTransaction.Builder transactionRequestBuilder = StartTransaction.master().toBuilder();
+        req.getTransactionId().ifPresent(transactionRequestBuilder::setParentId);
+        this.init = apiServiceClient.startTransaction(transactionRequestBuilder.build())
                 .thenCompose(transaction -> {
                     CompletableFuture<?> createNodeFuture;
                     if (!append) {
                         createNodeFuture = transaction.createNode(
-                                new CreateNode(path, ObjectType.Table).setIgnoreExisting(true));
+                                CreateNode.builder()
+                                        .setPath(path)
+                                        .setType(ObjectType.Table)
+                                        .setIgnoreExisting(true)
+                                        .build());
                     } else {
                         createNodeFuture = CompletableFuture.completedFuture(transaction);
                     }
                     return createNodeFuture
                             .thenCompose(unused -> transaction.lockNode(new LockNode(path, lockMode)))
                             .thenCompose(unused -> transaction.getNode(
-                                    new GetNode(path.justPath()).setAttributes(ColumnFilter.of("schema"))))
+                                    GetNode.builder()
+                                            .setPath(path.justPath())
+                                            .setAttributes(ColumnFilter.of("schema"))
+                                            .build()))
                             .thenApply(node -> new InitResult(
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
@@ -268,7 +275,7 @@ class RetryingTableWriterBaseImpl<T> {
 
         GUID parentTxId = checkedGet(init).transaction.getId();
         CompletableFuture<ApiServiceTransaction> localTransactionFuture = apiServiceClient.startTransaction(
-                StartTransaction.master().setParentId(parentTxId));
+                StartTransaction.master().toBuilder().setParentId(parentTxId).build());
 
         tryWith(localTransactionFuture, localTransaction -> {
             CompletableFuture<RawTableWriter> writerFuture = localTransaction.writeTable(req)

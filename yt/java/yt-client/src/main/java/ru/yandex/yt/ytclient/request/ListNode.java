@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -15,6 +16,10 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements HighLevelRequest<TReqListNode.Builder> {
     public ListNode(BuilderBase<?> builder) {
         super(builder);
+    }
+
+    public ListNode(YPath path) {
+        this(builder().setPath(path));
     }
 
     public static Builder builder() {

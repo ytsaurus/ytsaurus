@@ -31,7 +31,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.proxy.request.WriteFile;
+import ru.yandex.yt.ytclient.request.WriteFile;
 
 @NonNullApi
 @NonNullFields

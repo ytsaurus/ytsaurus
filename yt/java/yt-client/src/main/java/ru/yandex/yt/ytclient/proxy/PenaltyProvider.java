@@ -25,9 +25,9 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
-import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadKind;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
+import ru.yandex.yt.ytclient.request.GetNode;
 import ru.yandex.yt.ytclient.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.request.TabletInfo;
@@ -178,10 +178,12 @@ public abstract class PenaltyProvider implements Closeable {
                 checkAllReplicaIdsPresent();
                 return CompletableFuture.completedFuture(null);
             } catch (UnknownReplicaIdException ex) {
-                return client.getNode(new GetNode(tablePath)
+                return client.getNode(GetNode.builder()
+                        .setPath(tablePath)
                         .setAttributes(ColumnFilter.of("replicas"))
                         .setTimeout(Duration.ofSeconds(5))
                         .setMasterReadOptions(new MasterReadOptions().setReadFrom(MasterReadKind.Cache))
+                        .build()
                 ).thenApply(node -> {
                     for (Map.Entry<String, YTreeNode> row : node.getAttributeOrThrow("replicas").asMap().entrySet()) {
                         String cluster = row.getValue().asMap().get("cluster_name").stringValue();
@@ -204,10 +206,12 @@ public abstract class PenaltyProvider implements Closeable {
         }
 
         private CompletableFuture<TabletsInfo> getTabletsInfo() {
-            return client.getNode(new GetNode(tablePath)
+            return client.getNode(GetNode.builder()
+                    .setPath(tablePath)
                     .setAttributes(ColumnFilter.of("tablet_count"))
                     .setTimeout(Duration.ofSeconds(5))
                     .setMasterReadOptions(new MasterReadOptions().setReadFrom(MasterReadKind.Cache))
+                    .build()
             ).thenCompose(tabletsCountNode -> {
                 int tabletsCount = tabletsCountNode.getAttributeOrThrow("tablet_count").intValue();
                 return client.getTabletInfos(
