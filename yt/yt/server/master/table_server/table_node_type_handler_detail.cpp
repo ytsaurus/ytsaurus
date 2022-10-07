@@ -32,9 +32,12 @@
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+using namespace NChaosClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -106,6 +109,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
     auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
     auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
+    auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -258,6 +262,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 } else if (optionalPivotKeys) {
                     tabletManager->Reshard(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys);
                 }
+            }
+
+            if (replicationProgress) {
+                tabletManager->ScatterReplicationProgress(node, *replicationProgress);
             }
 
             node->SetUpstreamReplicaId(upstreamReplicaId);

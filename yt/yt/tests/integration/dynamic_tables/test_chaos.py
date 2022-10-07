@@ -18,7 +18,7 @@ from yt_commands import (
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
-    create_table_replica, sync_enable_table_replica)
+    create_table_replica, sync_enable_table_replica, get_tablet_infos)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -124,10 +124,10 @@ class ChaosTestBase(DynamicTablesBase):
         def _check():
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
-                    logger.debug("Waiting for era {0} got {1}".format(era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
+                    logger.debug("Waiting {0} for era {1} got {2}".format(path, era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
                     return False
                 if check_write and orchid["write_mode"] != "direct":
-                    logger.debug("Waiting for direct write mode but got {0}".format(orchid["write_mode"]))
+                    logger.debug("Waiting {0} for direct write mode but got {1}".format(path, orchid["write_mode"]))
                     return False
             return True
         wait(_check)
@@ -135,7 +135,7 @@ class ChaosTestBase(DynamicTablesBase):
     def _sync_replication_card(self, card_id):
         def _check():
             card_replicas = get("#{0}/@replicas".format(card_id))
-            return all(replica["state"] in ["enabled", "disabled"] for replica in card_replicas.values())
+            return all(replica["state"] in ["enabled", "disabled"] and replica["mode"] in ["sync", "async"] for replica in card_replicas.values())
         wait(_check)
         return get("#{0}/@".format(card_id))
 
@@ -163,7 +163,7 @@ class ChaosTestBase(DynamicTablesBase):
             if mount_tables:
                 sync_mount_table(path, driver=driver)
 
-    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
+    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None, pivot_keys=None, replication_progress=None):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -175,6 +175,10 @@ class ChaosTestBase(DynamicTablesBase):
             kwargs = {"driver": driver, "upstream_replica_id": replica_id}
             if schema:
                 kwargs["schema"] = schema
+            if pivot_keys:
+                kwargs["pivot_keys"] = pivot_keys
+            if replication_progress:
+                kwargs["replication_progress"] = replication_progress
             create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
@@ -329,6 +333,51 @@ class ChaosTestBase(DynamicTablesBase):
             chaos_nodes = self._list_chaos_nodes(driver)
             for chaos_node in chaos_nodes:
                 set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_cache", driver=driver)
+
+    def _get_schemas_by_name(self, schema_names):
+        schemas = {
+            "sorted_simple": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "sorted_value2": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+                {"name": "value2", "type": "string"},
+            ],
+            "sorted_key2": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "sorted_key2_inverted": [
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "sorted_hash": [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key)"},
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "ordered_simple": [
+                {"name": "$timestamp", "type": "uint64"},
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+            ],
+            "ordered_value2": [
+                {"name": "$timestamp", "type": "uint64"},
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+                {"name": "value2", "type": "string"},
+            ],
+            "ordered_simple_int": [
+                {"name": "$timestamp", "type": "uint64"},
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "int64"},
+            ],
+        }
+        return [schemas[name] for name in schema_names]
 
 
 ##################################################################
@@ -2796,6 +2845,98 @@ class TestChaos(ChaosTestBase):
             insert_rows(table, new_values)
             for tablet_index in range(tablet_count):
                 _check(tablet_index, values[tablet_index])
+
+    @authors("savrus")
+    @pytest.mark.parametrize("schemas", [
+        ("sorted_value2", "sorted_simple"),
+        ("sorted_key2", "sorted_simple"),
+        ("sorted_simple", "sorted_hash"),
+        ("sorted_hash", "sorted_simple"),
+        ("sorted_key2", "sorted_key2_inverted")
+    ])
+    def test_schema_incompatibility(self, schemas):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        schema1, schema2 = self._get_schemas_by_name(schemas)
+        self._create_replica_tables(replicas[:1], replica_ids[:1], schema=schema2)
+        self._create_replica_tables(replicas[1:], replica_ids[1:], schema=schema1)
+        self._sync_replication_era(card_id, replicas)
+
+        def _create_data(schema_name):
+            if schema_name == "sorted_key2":
+                return [{"key": 0, "key2": 0, "value": str(0)}], [{"key": 0, "key2": 0}]
+            else:
+                return [{"key": 0, "value": str(0)}], [{"key": 0}]
+
+        values, keys = _create_data(schemas[0])
+        insert_rows("//tmp/r", values, driver=remote_driver1)
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+            message = errors[0]["message"]
+            if message.startswith("Table schemas are incompatible"):
+                return True
+            return False
+        wait(_check)
+
+        def are_keys_compatible():
+            for index in range(len(schema2)):
+                c2 = schema2[index]
+                if "sort_order" not in c2:
+                    break
+                if index == len(schema1):
+                    return False
+                c1 = schema1[index]
+                return c1["name"] == c2["name"] and c1["type"] == c2["type"]
+
+        if not are_keys_compatible():
+            with raises_yt_error("Table schemas are incompatible"):
+                lookup_rows("//tmp/t", keys, replica_consistency="sync")
+
+    @authors("savrus")
+    @pytest.mark.parametrize("schemas", [
+        ("ordered_value2", "ordered_simple"),
+        ("ordered_simple", "ordered_simple_int"),
+    ])
+    def test_ordered_schema_incompatibility(self, schemas):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        schema1, schema2 = self._get_schemas_by_name(schemas)
+        self._create_replica_tables(replicas[:1], replica_ids[:1], schema=schema2, ordered=True)
+        self._create_replica_tables(replicas[1:], replica_ids[1:], schema=schema1, ordered=True)
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"$tablet_index": 0, "key": 0, "value": str(0)}]
+        insert_rows("//tmp/r", values, driver=remote_driver1)
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+            message = errors[0]["message"]
+            if message.startswith("Table schemas are incompatible"):
+                return True
+            return False
+        wait(_check)
 
 
 ##################################################################

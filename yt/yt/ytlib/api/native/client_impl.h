@@ -725,6 +725,8 @@ private:
     {
         NApi::IClientPtr Client;
         NYPath::TYPath Path;
+        NTabletClient::TTableReplicaId ReplicaId;
+        NTableClient::TTableSchemaPtr OriginalTableSchema;
     };
 
     TReplicaFallbackInfo GetReplicaFallbackInfo(

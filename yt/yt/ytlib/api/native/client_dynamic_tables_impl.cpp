@@ -17,8 +17,8 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
@@ -64,6 +64,7 @@
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/pivot_keys_builder.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -582,6 +583,9 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
     {
         auto unresolveOptions = options;
         unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
+        unresolveOptions.FallbackTableSchema = replicaFallbackInfo.OriginalTableSchema;
+        unresolveOptions.FallbackReplicaId = replicaFallbackInfo.ReplicaId;
+
         return replicaFallbackInfo.Client->LookupRows(
             replicaFallbackInfo.Path,
             nameTable,
@@ -640,6 +644,9 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     {
         auto unresolveOptions = options;
         unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
+        unresolveOptions.FallbackTableSchema = replicaFallbackInfo.OriginalTableSchema;
+        unresolveOptions.FallbackReplicaId = replicaFallbackInfo.ReplicaId;
+
         return replicaFallbackInfo.Client->VersionedLookupRows(
             replicaFallbackInfo.Path,
             nameTable,
@@ -694,6 +701,9 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                 {
                     auto unresolveOptions = lookupRowsOptions;
                     unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
+                    unresolveOptions.FallbackTableSchema = replicaFallbackInfo.OriginalTableSchema;
+                    unresolveOptions.FallbackReplicaId = replicaFallbackInfo.ReplicaId;
+
                     return replicaFallbackInfo.Client->LookupRows(
                         replicaFallbackInfo.Path,
                         subrequest.NameTable,
@@ -760,6 +770,22 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    if (options.FallbackReplicaId && tableInfo->UpstreamReplicaId != options.FallbackReplicaId) {
+        THROW_ERROR_EXCEPTION("Invalid upstream replica id for chosen sync replica %Qv: expected %v, got %v",
+            path,
+            options.FallbackReplicaId,
+            tableInfo->UpstreamReplicaId);
+    }
+
+    if (options.FallbackTableSchema) {
+        ValidateTableSchemaUpdate(
+            *options.FallbackTableSchema,
+            *tableInfo->Schemas[ETableSchemaKind::Primary],
+            true,
+            false);
+    }
+
 
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
 
@@ -860,6 +886,7 @@ TRowset TClient::DoLookupRowsOnce(
         }
 
         auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
+        replicaFallbackInfo.OriginalTableSchema = schema;
         return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
     } else if (tableInfo->IsReplicationLog()) {
@@ -2473,6 +2500,10 @@ TPullRowsResult TClient::DoPullRows(
 
     tableInfo->ValidateDynamic();
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
+
+    if (options.TableSchema) {
+        ValidateTableSchemaUpdate(*tableInfo->Schemas[ETableSchemaKind::Primary], *options.TableSchema, true, false);
+    }
 
     auto& segments = options.ReplicationProgress.Segments;
     if (segments.empty()) {

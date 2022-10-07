@@ -589,6 +589,8 @@ struct TLookupRequestOptions
     bool EnablePartialResult = false;
     std::optional<bool> UseLookupCache;
     TDetailedProfilingInfoPtr DetailedProfilingInfo;
+    NTableClient::TTableSchemaPtr FallbackTableSchema;
+    NTabletClient::TTableReplicaId FallbackReplicaId;
 };
 
 struct TLookupRowsOptionsBase
@@ -681,6 +683,7 @@ struct TPullRowsOptions
 
     NChaosClient::TReplicationProgress ReplicationProgress;
     NTransactionClient::TTimestamp UpperTimestamp = NTransactionClient::NullTimestamp;
+    NTableClient::TTableSchemaPtr TableSchema;
 };
 
 struct TPullRowsResult
