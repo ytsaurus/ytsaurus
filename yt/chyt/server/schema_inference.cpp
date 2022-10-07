@@ -60,7 +60,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
     auto onColumnMiss = [&] (int tableIndex) {
         switch (settings->MissingColumnMode) {
             case EMissingColumnMode::Throw: {
-                THROW_ERROR_EXCEPTION("Column %v is missing in input table %Qv but is present in %Qv; "
+                THROW_ERROR_EXCEPTION("Column %Qv is missing in input table %v but is present in %v; "
                     "you can specify how to handle missing columns via setting chyt.concat_tables.missing_column_mode",
                     columnName,
                     tables[tableIndex]->Path,
@@ -153,7 +153,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
             // they can actually be present in chunks with any type.
             if (!tableSchema->GetStrict() && *commonType != *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
                 onTypeMismatch(
-                    TError("The column %v is missing in input table %Qv with non-strict schema; "
+                    TError("Column %Qv is missing in input table %v with non-strict schema; "
                         "read of the column is forbidden because it may be present in data with a mismatched type; "
                         "you can specify how to handle incompatible column types "
                         "via setting chyt.concat_tables.type_mismatch_mode",
