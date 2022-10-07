@@ -62,6 +62,9 @@ DEFINE_ENUM(EMasterReign,
     ((DropSomeUselessConfigOptions_22_3)                            (2126))  // akozhikhov
     ((EffectiveErasureCodecs)                                       (2127))  // gritukan
     ((MulticellEnableConsistentChunkReplicaPlacement)               (2128))  // shakurov
+
+    // 22.4 starts here.
+    ((FixChunkRequisitionUpdateOnCypressNodeMerging)                (2200))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

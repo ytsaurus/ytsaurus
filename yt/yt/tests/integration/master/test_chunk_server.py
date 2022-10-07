@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
-    start_transaction, insert_rows, build_snapshot, gc_collect,
+    start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
     multicell_sleep, update_nodes_dynamic_config, switch_leader,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
@@ -337,6 +337,21 @@ class TestChunkServer(YTEnvSetup):
             return len(jobs) == 1 and jobs[0]["state"] in {"completed", "aborted", "failed"}
 
         wait(check_if_job_finished)
+
+    @authors("kvk1920")
+    def test_missing_requisition_update_yt17756(self):
+        create_account("a")
+        create_account("b")
+        create("table", "//tmp/a", attributes={"account": "a"})
+        write_table("//tmp/a", {"a": 1, "b": 2})
+        create("table", "//tmp/b", attributes={"account": "b"})
+        concatenate(["//tmp/a"], "//tmp/b")
+        chunk = get_singular_chunk_id("//tmp/a")
+        assert chunk == get_singular_chunk_id("//tmp/b")
+        assert get("//tmp/b/@account") == "b"
+        wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"a", "b"})
+        write_table("//tmp/a", {"a": 2, "b": 3})
+        wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
 
 
 ##################################################################

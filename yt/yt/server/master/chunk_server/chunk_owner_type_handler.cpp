@@ -300,6 +300,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
+            auto oldOriginatingChunkLists = originatingNode->GetChunkLists();
             if (branchedChunkList->GetKind() == EChunkListKind::Static || !originatingNode->IsTrunk()) {
                 for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                     auto* originatingChunkList = originatingNode->GetChunkList(contentType);
@@ -332,7 +333,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* originatingChunkList = originatingNode->GetChunkList(contentType)) {
+                if (auto* originatingChunkList = oldOriginatingChunkLists[contentType]) {
                     chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
                 }
 
