@@ -410,7 +410,7 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
-    bool EnableBlockTracker;
+    bool EnableMemoryReferenceTracker;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 

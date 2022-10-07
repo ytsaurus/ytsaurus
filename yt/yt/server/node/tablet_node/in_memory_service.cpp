@@ -12,11 +12,10 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/ytlib/chunk_client/block_category.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -27,6 +26,7 @@
 #include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 #include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
@@ -100,10 +100,11 @@ public:
         }
 
         YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
-        data->Blocks[id.BlockIndex] = ResetCategory(
-            block,
-            Bootstrap_->GetBlockTracker(),
-            EMemoryCategory::TabletStatic);
+        data->Blocks[id.BlockIndex] = block;
+        data->Blocks[id.BlockIndex].Data = TrackMemoryReference(
+            Bootstrap_->GetNodeMemoryReferenceTracker(),
+            EMemoryCategory::TabletStatic,
+            std::move(block.Data));
 
         return TError();
     }
@@ -262,7 +263,7 @@ private:
                         chunkData->Blocks,
                         versionedChunkMeta,
                         tabletSnapshot,
-                        Bootstrap_->GetBlockTracker(),
+                        Bootstrap_->GetNodeMemoryReferenceTracker(),
                         Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletStatic))
                     .Apply(BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager(), chunkId));
 

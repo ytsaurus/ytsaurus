@@ -140,7 +140,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYTAlloc::TMemoryTag>, ResponseMemoryTag);
-    DEFINE_BYVAL_RW_PROPERTY(IBlockTrackerPtr, BlockTracker);
+    DEFINE_BYVAL_RW_PROPERTY(IMemoryReferenceTrackerPtr, MemoryReferenceTracker);
     // For testing purposes only.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, SendDelay);
 
@@ -253,7 +253,7 @@ private:
     void PrepareHeader();
     TSharedRefArray GetHeaderlessMessage() const;
 
-    TSharedRefArray SetRpcMemoryCategory(TSharedRefArray array) const;
+    TSharedRefArray ApplyMemoryTracking(TSharedRefArray array) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientRequest)

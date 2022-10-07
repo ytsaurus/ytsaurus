@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/memory_trackers/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>

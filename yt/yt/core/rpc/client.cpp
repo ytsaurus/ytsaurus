@@ -6,8 +6,8 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/misc/block_tracker.h>
 #include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
@@ -108,7 +108,7 @@ TSharedRefArray TClientRequest::Serialize()
 
     if (!retry) {
         auto output = CreateRequestMessage(Header_, headerlessMessage);
-        return SetRpcMemoryCategory(std::move(output));
+        return ApplyMemoryTracking(std::move(output));
     }
 
     if (StreamingEnabled_) {
@@ -119,7 +119,7 @@ TSharedRefArray TClientRequest::Serialize()
     patchedHeader.set_retry(true);
 
     auto output = CreateRequestMessage(patchedHeader, headerlessMessage);
-    return SetRpcMemoryCategory(std::move(output));
+    return ApplyMemoryTracking(std::move(output));
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
@@ -494,21 +494,17 @@ bool IsRequestSticky(const IClientRequestPtr& request)
     return balancingExt.enable_stickiness();
 }
 
-TSharedRefArray TClientRequest::SetRpcMemoryCategory(TSharedRefArray array) const
+TSharedRefArray TClientRequest::ApplyMemoryTracking(TSharedRefArray array) const
 {
-    if (!BlockTracker_) {
+    if (!MemoryReferenceTracker_) {
         return array;
     }
 
     std::vector<TSharedRef> output;
     output.reserve(array.size());
 
-    for (const auto& block: array) {
-        output.push_back(
-            ResetCategory(
-                block,
-                BlockTracker_,
-                EMemoryCategory::Rpc));
+    for (auto& reference : array) {
+        output.push_back(MemoryReferenceTracker_->Track(std::move(reference)));
     }
 
     return TSharedRefArray(std::move(output), TSharedRefArray::TMoveParts{});

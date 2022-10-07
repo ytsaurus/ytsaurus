@@ -2,21 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/client/misc/config.h>
-#include <yt/yt/client/misc/workload.h>
-
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/config.h>
 
+#include <yt/yt/client/misc/config.h>
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/compression/public.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/library/erasure/public.h>
+#include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/error.h>
@@ -25,7 +27,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/library/erasure/public.h>
 
 namespace NYT::NChunkClient {
 

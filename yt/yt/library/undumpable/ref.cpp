@@ -9,7 +9,7 @@ namespace NYT {
 static constexpr size_t MinUndumpableSize = 64_KB;
 
 struct TUndumpableHolder
-    : public ISharedRangeHolder
+    : public TSharedRangeHolder
 {
     TUndumpableHolder(const TSharedRef& ref)
         : Inner(ref.GetHolder())
@@ -25,7 +25,7 @@ struct TUndumpableHolder
         }
     }
 
-    ISharedRangeHolderPtr Inner;
+    TSharedRangeHolderPtr Inner;
     TUndumpableMark* Mark = nullptr;
 };
 

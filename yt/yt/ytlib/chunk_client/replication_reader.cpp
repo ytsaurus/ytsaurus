@@ -16,15 +16,12 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chunk_client/block_category.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
 
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
@@ -56,6 +53,7 @@
 #include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -1957,10 +1955,7 @@ private:
         auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
 
         for (auto& block: response) {
-            block = AttachCategory(
-                std::move(block),
-                Options_.BlockTracker,
-                Options_.MemoryCategory);
+            block.Data = TrackMemoryReference(Options_.MemoryReferenceTracker, std::move(block.Data));
         }
 
         for (int index = 0; index < std::ssize(response); ++index) {

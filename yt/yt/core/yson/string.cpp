@@ -42,7 +42,7 @@ void TBinaryYsonStringSerializer::Load(TStreamLoadContext& context, TYsonString&
     auto type = Load<i32>(context);
     if (type != -1) {
         struct TLoadedYsonStringPayload
-            : public ISharedRangeHolder
+            : public TSharedRangeHolder
             , public TWithExtraSpace<TLoadedYsonStringPayload>
         {
             char* GetData()

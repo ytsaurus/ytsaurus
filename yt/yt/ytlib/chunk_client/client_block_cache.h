@@ -2,7 +2,7 @@
 
 #include "block_cache.h"
 
-#include <yt/yt/ytlib/memory_trackers/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -34,7 +34,7 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,
-    IBlockTrackerPtr blockTracker = nullptr,
+    INodeMemoryReferenceTrackerPtr memoryReferenceTracker = nullptr,
     const NProfiling::TProfiler& profiler = {});
 
 //! Returns an always-empty block cache.

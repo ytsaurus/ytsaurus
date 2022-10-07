@@ -2,8 +2,6 @@
 
 #include "deferred_chunk_meta.h"
 
-#include <yt/yt/ytlib/memory_trackers/public.h>
-
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {

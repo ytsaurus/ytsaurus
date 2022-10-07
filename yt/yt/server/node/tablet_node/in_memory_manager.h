@@ -11,8 +11,7 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/yt/ytlib/memory_trackers/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
@@ -60,7 +59,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     std::vector<NChunkClient::TBlock> blocksWithCategory,
     const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const IBlockTrackerPtr& blockTracker,
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
     const IMemoryUsageTrackerPtr& memoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +97,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler,
-    const IBlockTrackerPtr& blockTracker);
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

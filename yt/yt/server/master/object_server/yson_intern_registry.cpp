@@ -69,7 +69,7 @@ private:
 };
 
 class TInternedYsonStringData
-    : public ISharedRangeHolder
+    : public TSharedRangeHolder
     , public TWithExtraSpace<TInternedYsonStringData>
 {
 public:

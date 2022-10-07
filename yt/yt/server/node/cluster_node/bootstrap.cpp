@@ -112,8 +112,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
-
+#include <yt/yt/ytlib/misc/config.h>
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -507,13 +507,13 @@ public:
         return BlockCache_;
     }
 
-    const IBlockTrackerPtr& GetBlockTracker() const override
+    const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override
     {
-        if (EnableBlockTracker_.load()) {
-            return BlockTracker_;
+        if (EnableMemoryReferenceTracker_.load()) {
+            return NodeMemoryReferenceTracker_;
         } else {
-            static const IBlockTrackerPtr nullBlockTracker;
-            return nullBlockTracker;
+            static const INodeMemoryReferenceTrackerPtr nullTracker;
+            return nullTracker;
         }
     }
 
@@ -712,8 +712,8 @@ private:
 
     IMasterConnectorPtr MasterConnector_;
 
-    IBlockTrackerPtr BlockTracker_;
-    std::atomic<bool> EnableBlockTracker_ = {true};
+    INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
+    std::atomic<bool> EnableMemoryReferenceTracker_ = true;
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -853,13 +853,13 @@ private:
             ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
-        BlockTracker_ = CreateBlockTracker(MemoryUsageTracker_);
+        NodeMemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
             EBlockType::UncompressedData | EBlockType::CompressedData,
             MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
-            BlockTracker_,
+            NodeMemoryReferenceTracker_,
             DataNodeProfiler.WithPrefix("/block_cache"));
 
         BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -1280,7 +1280,10 @@ private:
 
         IOTracker_->SetConfig(newConfig->IOTracker);
 
-        EnableBlockTracker_ = newConfig->EnableBlockTracker;
+        EnableMemoryReferenceTracker_ = newConfig->EnableMemoryReferenceTracker;
+        auto memoryReferenceTrackerConfig = New<TNodeMemoryReferenceTrackerConfig>();
+        memoryReferenceTrackerConfig->EnableMemoryReferenceTracker = newConfig->EnableMemoryReferenceTracker;
+        NodeMemoryReferenceTracker_->Reconfigure(std::move(memoryReferenceTrackerConfig));
 
     #ifdef __linux__
         if (InstanceLimitsTracker_) {
@@ -1538,9 +1541,9 @@ const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
     return Bootstrap_->GetBlockCache();
 }
 
-const IBlockTrackerPtr& TBootstrapBase::GetBlockTracker() const
+const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTracker() const
 {
-    return Bootstrap_->GetBlockTracker();
+    return Bootstrap_->GetNodeMemoryReferenceTracker();
 }
 
 const IClientBlockCachePtr& TBootstrapBase::GetClientBlockCache() const

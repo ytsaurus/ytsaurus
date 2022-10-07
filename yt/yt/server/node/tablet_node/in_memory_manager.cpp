@@ -24,7 +24,6 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/ytlib/chunk_client/block_category.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -32,8 +31,7 @@
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
@@ -55,6 +53,7 @@
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
@@ -100,15 +99,15 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     std::vector<NChunkClient::TBlock> blocksWithCategory,
     const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const IBlockTrackerPtr& blockTracker,
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
     const IMemoryUsageTrackerPtr& memoryTracker)
 {
-    std::vector<NChunkClient::TBlock> blocks(blocksWithCategory.size());
-    for (int i = 0; i < std::ssize(blocks); ++i) {
-        blocks[i] = ResetCategory(
-            blocksWithCategory[i],
-            blockTracker,
-            std::nullopt);
+    std::vector<NChunkClient::TBlock> blocks;
+    blocks.reserve(blocksWithCategory.size());
+
+    for (const auto& block : blocksWithCategory) {
+        blocks.push_back(block);
+        blocks.back().Data = TrackMemoryReference(memoryReferenceTracker, EMemoryCategory::Unknown, block.Data);
     }
 
     for (auto& block: blocks) {
@@ -354,7 +353,7 @@ private:
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
                 readerProfiler,
-                Bootstrap_->GetBlockTracker());
+                Bootstrap_->GetNodeMemoryReferenceTracker());
 
             VERIFY_INVOKERS_AFFINITY(std::vector{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
@@ -409,7 +408,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler,
-    const IBlockTrackerPtr& blockTracker)
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker)
 {
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     auto mode = mountConfig->InMemoryMode;
@@ -627,11 +626,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     i64 allocatedMemory = 0;
     for (auto& block: blocks) {
         allocatedMemory += block.Size();
-
-        block = ResetCategory(
-            std::move(block),
-            blockTracker,
-            EMemoryCategory::TabletStatic);
+        block.Data = TrackMemoryReference(memoryReferenceTracker, EMemoryCategory::TabletStatic, std::move(block.Data));
     }
 
     if (memoryUsageGuard) {
@@ -645,7 +640,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         std::move(blocks),
         versionedChunkMeta,
         tabletSnapshot,
-        blockTracker,
+        memoryReferenceTracker,
         memoryTracker->WithCategory(EMemoryCategory::TabletStatic));
 
     YT_LOG_INFO(

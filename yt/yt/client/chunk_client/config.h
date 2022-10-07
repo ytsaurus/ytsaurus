@@ -412,9 +412,7 @@ class TMemoryTrackedWriterOptions
 public:
     IMemoryUsageTrackerPtr MemoryTracker;
 
-    IBlockTrackerPtr BlockTracker;
-
-    std::optional<EMemoryCategory> MemoryCategory;
+    IMemoryReferenceTrackerPtr MemoryReferenceTracker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

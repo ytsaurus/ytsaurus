@@ -195,34 +195,7 @@ DEFINE_ENUM(EProcessErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IBlockTracker)
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EMemoryCategory,
-    ((Footprint)                   (0))
-    ((BlockCache)                  (1))
-    ((ChunkMeta)                   (2))
-    ((ChunkBlockMeta)             (10))
-    ((ChunkBlocksExt)             (16))
-    ((ChunkJournalIndex)          (20))
-    ((Rpc)                        (21))
-    ((UserJobs)                    (3))
-    ((TabletStatic)                (4))
-    ((TabletDynamic)               (5))
-    ((BlobSession)                 (6))
-    ((VersionedChunkMeta)          (7))
-    ((SystemJobs)                  (8))
-    ((Query)                       (9))
-    ((TmpfsLayers)                (11))
-    ((MasterCache)                (12))
-    ((LookupRowsCache)            (13))
-    ((AllocFragmentation)         (14))
-    ((P2P)                        (15))
-    ((UnknownBlocks)              (17))
-    ((MixedBlocks)                (18))
-    ((Compaction)                 (19))
-);
+DECLARE_REFCOUNTED_STRUCT(IMemoryReferenceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
