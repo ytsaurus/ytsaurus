@@ -329,7 +329,8 @@ TClient::TReplicaFallbackInfo TClient::GetReplicaFallbackInfo(
     auto replicaInfo = PickRandomReplica(replicas);
     return {
         .Client = GetOrCreateReplicaClient(replicaInfo->ClusterName),
-        .Path = replicaInfo->ReplicaPath
+        .Path = replicaInfo->ReplicaPath,
+        .ReplicaId = replicaInfo->ReplicaId
     };
 }
 

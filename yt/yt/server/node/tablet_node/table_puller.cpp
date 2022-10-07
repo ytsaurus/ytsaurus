@@ -147,9 +147,7 @@ public:
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
         , TableSchema_(tablet->GetTableSchema())
-        , NameTable_(TableSchema_->IsSorted()
-            ? TNameTable::FromSchema(*TableSchema_)
-            : TNameTable::FromSchema(*TableSchema_->ToVersionedWrite()))
+        , VersionedWriteSchema_(TableSchema_->ToVersionedWrite())
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicaId_(tablet->GetUpstreamReplicaId())
         , PivotKey_(tablet->GetPivotKey())
@@ -197,7 +195,7 @@ private:
     const TTabletId TabletId_;
     const TRevision MountRevision_;
     const TTableSchemaPtr TableSchema_;
-    const TNameTablePtr NameTable_;
+    const TTableSchemaPtr VersionedWriteSchema_;
     const TTableMountConfigPtr MountConfig_;
     const TReplicaId ReplicaId_;
     const TLegacyOwningKey PivotKey_;
@@ -507,6 +505,7 @@ private:
             options.UpperTimestamp = upperTimestamp;
             options.UpstreamReplicaId = queueReplicaId;
             options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
+            options.TableSchema = TableSchema_;
 
             YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %x)",
                 clusterName,
@@ -532,6 +531,7 @@ private:
         const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
         auto resultRows = result.Rowset->GetSharedRange();
         const auto& progress = result.ReplicationProgress;
+        const auto& nameTable = result.Rowset->GetNameTable();
 
         YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v)",
             rowCount,
@@ -568,16 +568,20 @@ private:
             auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
             auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
 
-            const auto* timestampColumn = TableSchema_->FindColumn(TimestampColumnName);
-            if (!timestampColumn) {
-                THROW_ERROR_EXCEPTION("Invalid table schema: %Qv column is absent",
+            auto timestampColumnIndex = nameTable->FindId(TimestampColumnName);
+            if (!timestampColumnIndex) {
+                THROW_ERROR_EXCEPTION("Invalid pulled rows result: %Qv column is absent",
                     TimestampColumnName)
                     << HardErrorAttribute;
             }
-            int timestampColumnIndex = TableSchema_->GetColumnIndex(*timestampColumn) + 1;
 
             for (auto row : unversionedRows) {
-                if (auto rowTimestamp = row[timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
+                if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
+                    YT_LOG_ALERT("Could not identify timestamp column in pulled row. Timesamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
+                        row,
+                        *timestampColumnIndex);
+                }
+                if (auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
                     YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
                         rowTimestamp,
                         progressTimestamp,
@@ -620,7 +624,7 @@ private:
 
             localTransaction->ModifyRows(
                 tabletSnapshot->TablePath,
-                NameTable_,
+                nameTable,
                 MakeSharedRange(rowModifications),
                 modifyOptions);
 
