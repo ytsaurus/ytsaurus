@@ -196,10 +196,7 @@ public class YtClientTest {
 
         final YPath readPath = YPath.simple(writePath.toString())
                 .withColumns("k1", "v1")
-                .withExact(new RangeLimit(
-                        List.of(new YTreeBuilder().value(1).build()),
-                        -1,
-                        -1));
+                .withExact(RangeLimit.key(new YTreeBuilder().value(1).build()));
 
         readWriteImpl(writePath, readPath, new MappedObject(1, "test1"));
     }
