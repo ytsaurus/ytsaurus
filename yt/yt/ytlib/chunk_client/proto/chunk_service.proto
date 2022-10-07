@@ -82,6 +82,9 @@ message TReqAllocateWriteTargets
         // This does not prevent further balancing to move chunk there.
         repeated string forbidden_addresses = 2;
 
+        // Node addresses (with port number!) that were already allocated for this chunk.
+        repeated string allocated_addresses = 7;
+
         // Host name (without port number!) to be preferred for upload.
         // The client typically puts the name of the local host here to
         // facilitate local uploads.

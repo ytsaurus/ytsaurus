@@ -108,6 +108,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
+    const std::vector<TString>& allocatedAddresses,
     const NLogging::TLogger& logger);
 
 //! Returns the cumulative error for the whole batch.

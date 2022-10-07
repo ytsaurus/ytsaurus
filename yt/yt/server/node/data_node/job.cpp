@@ -2064,6 +2064,7 @@ private:
                 /*replicationFactorOverride*/ std::nullopt,
                 /*localHostName*/ Bootstrap_->GetLocalHostName(),
                 /*forbiddenAddresses*/ {},
+                /*allocatedAddresses*/ {},
                 Logger);
             YT_VERIFY(std::ssize(writeTargets) == ReplicationFactor_);
 

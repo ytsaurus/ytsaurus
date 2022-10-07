@@ -412,7 +412,8 @@ private:
             erasureCodec->GetTotalPartCount(),
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
-            /*forbiddenAddresses*/ std::vector<TString>(),
+            /*forbiddenAddresses*/ {},
+            /*allocatedAddresses*/ {},
             Logger);
 
         auto writers = CreateAllErasurePartWriters(

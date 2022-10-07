@@ -496,10 +496,18 @@ private:
         int activeTargets = static_cast<int>(Nodes_.size());
 
         std::vector<TString> forbiddenAddresses;
+        forbiddenAddresses.reserve(Nodes_.size() + BannedNodeAddresses_.size());
+        // TODO(gritukan): Do not pass allocated nodes as forbidden when masters will be new.
         for (const auto& node : Nodes_) {
             forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
         }
         forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodeAddresses_.begin(), BannedNodeAddresses_.end());
+
+        std::vector<TString> allocatedAddresses;
+        allocatedAddresses.reserve(Nodes_.size());
+        for (const auto& node : Nodes_) {
+            allocatedAddresses.push_back(node->Descriptor.GetDefaultAddress());
+        }
 
         auto preferredHostName = Config_->PreferLocalHost
             ? std::make_optional(LocalHostName_)
@@ -513,6 +521,7 @@ private:
             /*replicationFactorOverride*/ UploadReplicationFactor_,
             preferredHostName,
             forbiddenAddresses,
+            allocatedAddresses,
             Logger);
     }
 

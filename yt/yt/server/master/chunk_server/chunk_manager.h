@@ -149,6 +149,7 @@ struct IChunkManager
         int minCount,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
         const std::optional<TString>& preferredHostName) = 0;
 
     virtual TNodeList AllocateWriteTargets(
