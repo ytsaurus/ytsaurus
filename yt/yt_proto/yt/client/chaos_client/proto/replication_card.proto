@@ -52,7 +52,7 @@ message TReplicationCard
     optional string table_path = 5;
     optional string table_cluster_name = 6;
     optional uint64 current_timestamp = 7;
-    optional string replicated_table_options = 8; // NTabletClient::TReplicatedTableOptions
+    optional bytes replicated_table_options = 8; // NTabletClient::TReplicatedTableOptions
     optional NYT.NProto.TGuid replication_card_collocation_id = 9;
 }
 

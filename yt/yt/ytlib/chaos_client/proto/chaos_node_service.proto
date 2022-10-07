@@ -21,7 +21,7 @@ message TReqCreateReplicationCard
     optional NYT.NProto.TGuid table_id = 2; // NTableClient::TTableId
     optional string table_path = 3;
     optional string table_cluster_name = 4;
-    optional string replicated_table_options = 5; // NTabletClient::TReplicatedTableOptions
+    optional bytes replicated_table_options = 5; // NTabletClient::TReplicatedTableOptions
 }
 
 message TRspCreateReplicationCard
@@ -68,7 +68,7 @@ message TRspFindReplicationCard
 message TReqAlterReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
-    optional string replicated_table_options = 2; // NTabletClient::TReplicatedTableOptions
+    optional bytes replicated_table_options = 2; // NTabletClient::TReplicatedTableOptions
     optional bool enable_replicated_table_tracker = 3;
     optional NYT.NProto.TGuid replication_card_collocation_id = 4;
 }
