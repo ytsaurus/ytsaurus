@@ -49,6 +49,6 @@ public class Range extends RangeCriteria {
     @Override
     @Nonnull
     public RangeCriteria forRetry(long nextRowIndex) {
-        return new Range(lower.rowIndex(nextRowIndex), upper);
+        return new Range(lower.toBuilder().setRowIndex(nextRowIndex).build(), upper);
     }
 }

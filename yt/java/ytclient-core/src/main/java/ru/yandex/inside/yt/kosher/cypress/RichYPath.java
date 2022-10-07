@@ -681,7 +681,7 @@ public class RichYPath implements YPath {
         if (mapNode.containsKey("offset")) {
             offset = mapNode.getOrThrow("offset").longValue();
         }
-        return Optional.of(new RangeLimit(limitKey, rowIndex, offset));
+        return Optional.of(RangeLimit.builder().setKey(limitKey).setRowIndex(rowIndex).setOffset(offset).build());
     }
 }
 

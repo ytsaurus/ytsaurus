@@ -58,8 +58,8 @@ public class Exact extends RangeCriteria {
             List<YTreeNode> upperKey = new ArrayList<>(exact.key);
             upperKey.add(lastPart);
             return new Range(
-                    new RangeLimit(exact.key, nextRowIndex, -1),
-                    new RangeLimit(upperKey, -1, -1));
+                    RangeLimit.builder().setKey(exact.key).setRowIndex(nextRowIndex).build(),
+                    RangeLimit.key(upperKey));
         } else if (exact.rowIndex == nextRowIndex && exact.offset == -1) {
             return this;
         } else {

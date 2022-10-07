@@ -1,5 +1,6 @@
 package ru.yandex.inside.yt.kosher.cypress;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -20,38 +21,18 @@ import ru.yandex.lang.NonNullFields;
 public class RangeLimit {
     @SuppressWarnings("VisibilityModifier")
     public final List<YTreeNode> key;
-    @SuppressWarnings("VisibilityModifier")
-    @Nullable public final KeyBound keyBound;
+    @Nullable
+    private final KeyBound keyBound;
     @SuppressWarnings("VisibilityModifier")
     public final long rowIndex;
     @SuppressWarnings("VisibilityModifier")
     public final long offset;
 
-    private RangeLimit(List<YTreeNode> key, KeyBound keyBound, long rowIndex, long offset) {
+    private RangeLimit(List<YTreeNode> key, @Nullable KeyBound keyBound, long rowIndex, long offset) {
         this.key = key;
         this.keyBound = keyBound;
         this.rowIndex = rowIndex;
         this.offset = offset;
-    }
-
-    /**
-     * @deprecated use the
-     * {@linkplain #builder()} instead}
-     */
-    @Deprecated
-    public RangeLimit(List<YTreeNode> key, long rowIndex, long offset) {
-        this.key = key;
-        this.keyBound = null;
-        this.rowIndex = rowIndex;
-        this.offset = offset;
-    }
-
-    public RangeLimit(List<YTreeNode> key) {
-        this(key, -1, -1);
-    }
-
-    public RangeLimit(YTreeNode... key) {
-        this(Arrays.asList(key));
     }
 
     public static Builder builder() {
@@ -78,12 +59,24 @@ public class RangeLimit {
         return Objects.hash(key, keyBound, rowIndex, offset);
     }
 
-    public RangeLimit rowIndex(long rowIndex) {
-        return new RangeLimit(key, rowIndex, offset);
+    public static RangeLimit row(long rowIndex) {
+        return new RangeLimit(Collections.emptyList(), null, rowIndex, -1);
     }
 
-    public static RangeLimit row(long rowIndex) {
-        return new RangeLimit(Collections.emptyList(), rowIndex, -1);
+    public static RangeLimit offset(long offset) {
+        return new RangeLimit(Collections.emptyList(), null, -1, offset);
+    }
+
+    public static RangeLimit key(List<YTreeNode> key) {
+        return new RangeLimit(key, null, -1, -1);
+    }
+
+    public static RangeLimit key(YTreeNode... key) {
+        return key(Arrays.asList(key));
+    }
+
+    public static RangeLimit key(Relation relation, YTreeNode... key) {
+        return new RangeLimit(Collections.emptyList(), KeyBound.of(relation, key), -1, -1);
     }
 
     public YTreeBuilder toTree(YTreeBuilder builder) {
@@ -98,11 +91,20 @@ public class RangeLimit {
                 .endMap();
     }
 
+    public Builder toBuilder() {
+        return builder()
+                .setKeyBound(keyBound)
+                .setKey(key)
+                .setRowIndex(rowIndex)
+                .setOffset(offset);
+    }
+
     @NonNullApi
     @NonNullFields
     public static class Builder {
         private List<YTreeNode> key = Collections.emptyList();
-        @Nullable private KeyBound keyBound = null;
+        @Nullable
+        private KeyBound keyBound = null;
         private long rowIndex = -1;
         private long offset = -1;
 
@@ -118,7 +120,7 @@ public class RangeLimit {
             return this;
         }
 
-        public Builder setKeyBound(KeyBound keyBound) {
+        public Builder setKeyBound(@Nullable KeyBound keyBound) {
             this.keyBound = keyBound;
             return this;
         }
@@ -134,7 +136,7 @@ public class RangeLimit {
         }
 
         public RangeLimit build() {
-            return new RangeLimit(key, keyBound, rowIndex, offset);
+            return new RangeLimit(new ArrayList<>(key), keyBound, rowIndex, offset);
         }
     }
 }
