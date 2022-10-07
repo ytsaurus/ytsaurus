@@ -722,6 +722,7 @@ private:
                     /*replicationFactorOverride*/ std::nullopt,
                     preferredReplica,
                     GetBannedNodes(),
+                    /*allocatedAddresses*/ {},
                     Logger);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));

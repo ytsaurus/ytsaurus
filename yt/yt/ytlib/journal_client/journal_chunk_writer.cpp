@@ -199,7 +199,8 @@ private:
             ReplicaCount_,
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredReplica*/ std::nullopt,
-            /*bannedAddresses*/ {},
+            /*forbiddenAddresses*/ {},
+            /*allocatedAddresses*/ {},
             Logger);
 
         YT_VERIFY(std::ssize(replicas) == ReplicaCount_);

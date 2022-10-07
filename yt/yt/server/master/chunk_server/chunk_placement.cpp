@@ -46,6 +46,7 @@ public:
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
         TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
@@ -57,6 +58,19 @@ public:
         if (forbiddenNodes) {
             ForbiddenNodes_ = *forbiddenNodes;
         }
+        if (allocatedNodes) {
+            ForbiddenNodes_.insert(
+                ForbiddenNodes_.end(),
+                allocatedNodes->begin(),
+                allocatedNodes->end());
+        }
+
+        SortUnique(ForbiddenNodes_);
+
+        auto processAllocatedNode = [&] (TNode* node) {
+            IncreaseRackUsage(node);
+            IncreaseDataCenterUsage(node);
+        };
 
         int mediumIndex = medium->GetIndex();
         for (auto replica : chunk->StoredReplicas()) {
@@ -72,13 +86,16 @@ public:
                 // put more than two replicas in every data center, so it's impossible to allocate extra
                 // replica to move unsafely placed replica there.
                 if (!node->GetDecommissioned() && replica != unsafelyPlacedReplica) {
-                    IncreaseRackUsage(node);
-                    IncreaseDataCenterUsage(node);
+                    processAllocatedNode(node);
                 }
             }
         }
 
-        std::sort(ForbiddenNodes_.begin(), ForbiddenNodes_.end());
+        if (allocatedNodes) {
+            for (auto* node : *allocatedNodes) {
+                processAllocatedNode(node);
+            }
+        }
     }
 
     bool CheckNode(
@@ -288,6 +305,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
+    const TNodeList* allocatedNodes,
     const std::optional<TString>& preferredHostName,
     ESessionType sessionType)
 {
@@ -300,6 +318,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         /*forceRackAwareness*/ sessionType == ESessionType::Replication,
         replicationFactorOverride,
         forbiddenNodes,
+        allocatedNodes,
         preferredHostName);
 
     for (auto* target : targetNodes) {
@@ -417,6 +436,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     bool forceRackAwareness,
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
+    const TNodeList* allocatedNodes,
     const std::optional<TString>& preferredHostName,
     TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
 {
@@ -429,6 +449,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         desiredCount,
         minCount,
         forbiddenNodes,
+        allocatedNodes,
         preferredNode);
 
     // We may have trouble placing replicas consistently. In that case, ignore
@@ -455,6 +476,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         replicationFactorOverride,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         forbiddenNodes,
+        allocatedNodes,
         unsafelyPlacedReplica);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness, bool enableDataCenterAwareness) {
@@ -554,6 +576,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     int desiredCount,
     int minCount,
     const TNodeList* forbiddenNodes,
+    const TNodeList* allocatedNodes,
     TNode* preferredNode)
 {
     YT_ASSERT(replicaIndexes.empty() || std::ssize(replicaIndexes) == minCount);
@@ -626,9 +649,19 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         }));
 
     auto isNodeForbidden = [&] (TNode* node) {
-        return
-            forbiddenNodes &&
-            std::find(forbiddenNodes->begin(), forbiddenNodes->end(), node) != forbiddenNodes->end();
+        if (forbiddenNodes &&
+            std::find(forbiddenNodes->begin(), forbiddenNodes->end(), node) != forbiddenNodes->end())
+        {
+            return true;
+        }
+
+        if (allocatedNodes &&
+            std::find(allocatedNodes->begin(), allocatedNodes->end(), node) != allocatedNodes->end())
+        {
+            return true;
+        }
+
+        return false;
     };
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
@@ -732,6 +765,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         sessionType == ESessionType::Replication,
         replicationFactorOverride,
         /*forbiddenNodes*/ nullptr,
+        /*allocatedNodes*/ nullptr,
         /*preferredHostName*/ std::nullopt,
         unsafelyPlacedReplica);
 
@@ -906,7 +940,8 @@ TNode* TChunkPlacement::GetBalancingTarget(
         chunk,
         /*replicationFactorOverride*/ std::nullopt,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
-        nullptr,
+        /*forbiddenNodes*/ nullptr,
+        /*allocatedNodes*/ nullptr,
         /*unsafelyPlacedReplica*/ {});
 
     PrepareFillFactorIterator(medium);

@@ -435,6 +435,7 @@ private:
                 ? std::make_optional(subrequest.preferred_host_name())
                 : std::nullopt;
             auto forbiddenAddresses = FromProto<std::vector<TString>>(subrequest.forbidden_addresses());
+            auto allocatedAddresses = FromProto<std::vector<TString>>(subrequest.allocated_addresses());
 
             auto* subresponse = response->add_subresponses();
             try {
@@ -445,12 +446,19 @@ private:
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 TNodeList forbiddenNodes;
                 for (const auto& address : forbiddenAddresses) {
-                    auto* node = nodeTracker->FindNodeByAddress(address);
-                    if (node) {
+                    if (auto* node = nodeTracker->FindNodeByAddress(address)) {
                         forbiddenNodes.push_back(node);
                     }
                 }
                 std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
+
+                TNodeList allocatedNodes;
+                for (const auto& address : allocatedAddresses) {
+                    if (auto* node = nodeTracker->FindNodeByAddress(address)) {
+                        allocatedNodes.push_back(node);
+                    }
+                }
+                std::sort(allocatedNodes.begin(), allocatedNodes.end());
 
                 auto targets = chunkManager->AllocateWriteTargets(
                     medium,
@@ -459,6 +467,7 @@ private:
                     minTargetCount,
                     replicationFactorOverride,
                     &forbiddenNodes,
+                    &allocatedNodes,
                     preferredHostName);
 
                 for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
@@ -470,7 +479,7 @@ private:
 
                 YT_LOG_DEBUG("Write targets allocated "
                     "(SessionId: %v%v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, Targets: %v)",
                     sessionId,
                     MakeFormatterWrapper([&] (auto* builder) {
                         if (chunk->HasConsistentReplicaPlacementHash()) {
@@ -484,18 +493,20 @@ private:
                     replicationFactorOverride,
                     preferredHostName,
                     forbiddenAddresses,
+                    allocatedAddresses,
                     MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 YT_LOG_DEBUG(error, "Error allocating write targets "
                     "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v)",
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v)",
                     sessionId,
                     desiredTargetCount,
                     minTargetCount,
                     replicationFactorOverride,
                     preferredHostName,
-                    forbiddenAddresses);
+                    forbiddenAddresses,
+                    allocatedAddresses);
                 ToProto(subresponse->mutable_error(), error);
             }
         }
@@ -682,6 +693,8 @@ private:
             .ThrowOnError();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateChunkService(TBootstrap* boostrap)
 {

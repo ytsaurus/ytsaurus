@@ -110,6 +110,7 @@ public:
         int minCount,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
         const std::optional<TString>& preferredHostName,
         NChunkClient::ESessionType sessionType);
 
@@ -208,6 +209,7 @@ private:
         bool forceRackAwareness,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
+        const TNodeList* allocatedNodes = nullptr,
         const std::optional<TString>& preferredHostName = std::nullopt,
         TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
@@ -218,6 +220,7 @@ private:
         int desiredCount,
         int minCount,
         const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
         TNode* preferredNode);
 
     TNode* GetBalancingTarget(

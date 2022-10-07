@@ -524,6 +524,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
+    const std::vector<TString>& allocatedAddresses,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -533,12 +534,14 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
 
     YT_LOG_DEBUG("Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, "
-        "PreferredHostName: %v, ForbiddenAddresses: %v, UseFollowers: %v)",
+        "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, "
+        "UseFollowers: %v)",
         sessionId,
         desiredTargetCount,
         minTargetCount,
         preferredHostName,
         forbiddenAddresses,
+        allocatedAddresses,
         useFollowers);
 
     auto channelKind = useFollowers ? EMasterChannelKind::Follower : EMasterChannelKind::Leader;
@@ -556,6 +559,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
         req->set_preferred_host_name(*preferredHostName);
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
+    ToProto(req->mutable_allocated_addresses(), allocatedAddresses);
     ToProto(req->mutable_session_id(), sessionId);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());

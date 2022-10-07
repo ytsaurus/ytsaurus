@@ -69,7 +69,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partIndexList.size(),
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
-            std::vector<TString>(),
+            /*forbiddenAddresses*/ {},
+            /*allocatedAddresses*/ {},
             ChunkClientLogger);
     }
 

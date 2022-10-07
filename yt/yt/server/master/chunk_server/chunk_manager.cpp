@@ -771,6 +771,7 @@ public:
         int minCount,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
         const std::optional<TString>& preferredHostName) override
     {
         return ChunkPlacement_->AllocateWriteTargets(
@@ -780,6 +781,7 @@ public:
             minCount,
             replicationFactorOverride,
             forbiddenNodes,
+            allocatedNodes,
             preferredHostName,
             ESessionType::User);
     }
