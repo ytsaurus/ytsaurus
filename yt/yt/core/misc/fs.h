@@ -173,7 +173,7 @@ void SetQuota(
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
 //! exceptions are being thrown. For all other exceptions, immediately terminates
 //! with fatal error.
-void ExpectIOErrors(std::function<void()> func);
+void WrapIOErrors(std::function<void()> func);
 
 //! Sets a given mode on the path.
 void Chmod(const TString& path, int mode);

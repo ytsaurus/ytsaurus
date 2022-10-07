@@ -89,7 +89,7 @@ public:
         YT_LOG_DEBUG("Opening changelog");
 
         try {
-            NFS::ExpectIOErrors([&] {
+            NFS::WrapIOErrors([&] {
                 DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}))
                     .ValueOrThrow();
                 LockDataFile();
@@ -241,7 +241,7 @@ public:
             recordCount);
 
         try {
-            NFS::ExpectIOErrors([&] {
+            NFS::WrapIOErrors([&] {
                 WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = Config_->EnableSync}))
                     .ThrowOnError();
 
@@ -617,7 +617,7 @@ private:
 
         YT_VERIFY(static_cast<i32>(buffer.Size()) == header.FirstRecordOffset);
 
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             auto tempFileName = FileName_ + NFS::TempFileSuffix;
 
             auto dataFile = WaitFor(IOEngine_->Open({.Path = tempFileName, .Mode = WrOnly | CloseOnExec | CreateAlways}))
