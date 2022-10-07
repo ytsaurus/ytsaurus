@@ -537,7 +537,7 @@ private:
 
             auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());
 
-            NFS::ExpectIOErrors([&] () {
+            NFS::WrapIOErrors([&] () {
                 TFileInput metaFileInput(metaFile);
                 metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
             });

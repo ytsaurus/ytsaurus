@@ -574,7 +574,7 @@ protected:
     void DoFlushDirectory(const TFlushDirectoryRequest& request)
     {
         Sensors_->UpdateKernelStatistics();
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             NFS::FlushDirectory(request.Path);
         });
@@ -583,7 +583,7 @@ protected:
     void DoClose(const TCloseRequest& request)
     {
         Sensors_->UpdateKernelStatistics();
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             if (request.Size) {
                 request.Handle->Resize(*request.Size);
@@ -635,7 +635,7 @@ protected:
     void DoLock(const TLockRequest& request)
     {
         Sensors_->UpdateKernelStatistics();
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
             if (HandleEintr(::flock, *request.Handle, op) != 0) {
                 ythrow TFileError();
@@ -646,7 +646,7 @@ protected:
     void DoResize(const TResizeRequest& request)
     {
         Sensors_->UpdateKernelStatistics();
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             if (!request.Handle->Resize(request.Size)) {
                 ythrow TFileError();
             }
@@ -1097,7 +1097,7 @@ private:
             sessionId,
             readWaitTime);
 
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             auto config = Config_.Load();
 
             while (toReadRemaining > 0) {
@@ -1119,9 +1119,9 @@ private:
 
                 if (reallyRead < 0) {
                     // TODO(aozeritsky): ythrow is placed here consciously.
-                    // ExpectIOErrors rethrows some kind of arcadia-style exception.
+                    // WrapIOErrors rethrows some kind of arcadia-style exception.
                     // So in order to keep the old behaviour we should use ythrow or
-                    // rewrite ExpectIOErrors.
+                    // rewrite WrapIOErrors.
                     ythrow TFileError();
                 }
 
@@ -1183,7 +1183,7 @@ private:
 
         auto fileOffset = request.Offset;
 
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
             auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
@@ -1317,7 +1317,7 @@ private:
         auto doFdatasync = doFsync;
 #endif
 
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             int result;
             switch (request.Mode) {
@@ -1344,7 +1344,7 @@ private:
         }
 
 #ifdef _linux_
-        NFS::ExpectIOErrors([&] {
+        NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             int result = 0;
             {

@@ -806,7 +806,7 @@ void SetQuota(
 #endif
 }
 
-void ExpectIOErrors(std::function<void()> func)
+void WrapIOErrors(std::function<void()> func)
 {
     try {
         func();
@@ -835,9 +835,6 @@ void ExpectIOErrors(std::function<void()> func)
                 break;
             }
         }
-    } catch (...) {
-        TError error(CurrentExceptionMessage());
-        YT_LOG_FATAL(error, "Unexpected exception thrown during I/O operation");
     }
 }
 
