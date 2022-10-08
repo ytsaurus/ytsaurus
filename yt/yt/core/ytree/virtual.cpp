@@ -25,6 +25,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVirtualMapBase::TVirtualMapBase()
+    : TVirtualMapBase(/*owningNode*/ nullptr)
+{ }
+
 TVirtualMapBase::TVirtualMapBase(INodePtr owningNode)
     : OwningNode_(std::move(owningNode))
 { }

@@ -17,7 +17,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque, true);
 
 protected:
-    explicit TVirtualMapBase(INodePtr owningNode = nullptr);
+    TVirtualMapBase();
+    explicit TVirtualMapBase(INodePtr owningNode);
 
     virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
@@ -50,7 +51,6 @@ private:
     const INodePtr OwningNode_;
 
     TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

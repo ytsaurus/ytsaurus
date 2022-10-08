@@ -136,13 +136,40 @@ class TestChunkLocations(YTEnvSetup):
         set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
         check()
 
+    @authors("kvk1920")
+    def test_sharded_location_map(self):
+        LOCATION_SHARD_COUNT = 256
+        locations = ls("//sys/chunk_locations")
+        shards = ls("//sys/chunk_location_shards")
+        assert len(shards) == LOCATION_SHARD_COUNT
+        sharded_locations = []
+        for shard_name in shards:
+            shard = ls(f"//sys/chunk_location_shards/{shard_name}")
+            for location in shard:
+                shard_index = int(shard_name, base=16)
+                uuid_part = int(location.split('-')[-1], base=16) % LOCATION_SHARD_COUNT
+                assert shard_index == uuid_part
+            sharded_locations += shard
+        assert sorted(locations) == sorted(sharded_locations)
+
+    @authors("kvk1920")
+    def test_sharded_location_map_attribtues(self):
+        locations = {
+            str(location): location.attributes
+            for location in ls("//sys/chunk_locations", attributes=["state", "node_address"])
+        }
+        for shard_index in ls("//sys/chunk_location_shards"):
+            shard = ls(f"//sys/chunk_location_shards/{shard_index}", attributes=["state", "node_address"])
+            for location in shard:
+                assert locations[str(location)] == location.attributes
+        assert sum(map(lambda shard: shard.attributes["count"], ls("//sys/chunk_location_shards", attributes=["count"]))) == \
+            get("//sys/chunk_locations/@count")
 
 ##################################################################
 
 
 class TestChunkLocationsMulticell(TestChunkLocations):
     NUM_SECONDARY_MASTER_CELLS = 2
-
 
 ##################################################################
 
