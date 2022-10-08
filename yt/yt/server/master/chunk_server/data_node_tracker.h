@@ -18,6 +18,10 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TChunkLocationUuidMap = THashMap<TChunkLocationUuid, TRealChunkLocation*>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IDataNodeTracker
     : public virtual TRefCounted
 {
@@ -72,6 +76,9 @@ struct IDataNodeTracker
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TRealChunkLocation)
     virtual TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
     virtual TRealChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
+
+    virtual const TChunkLocationUuidMap& ChunkLocationUuidMap() const = 0;
+    virtual const TChunkLocationUuidMap& ChunkLocationUuidMapShard(int shardIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

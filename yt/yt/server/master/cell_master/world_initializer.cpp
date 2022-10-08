@@ -470,6 +470,11 @@ private:
                 EObjectType::ChunkLocationMap);
 
             ScheduleCreateNode(
+                "//sys/chunk_locations_sharded",
+                transactionId,
+                EObjectType::MapNode);
+
+            ScheduleCreateNode(
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);
@@ -752,6 +757,17 @@ private:
                                 .Item("target_path").Value(FromObjectId(objectManager->GetSchema(type)->GetId()))
                             .EndMap());
                 }
+            }
+
+            for (int shardIndex = 0; shardIndex < NChunkServer::ChunkLocationShardCount; ++shardIndex) {
+                ScheduleCreateNode(
+                    Format("//sys/chunk_location_shards/%.2x", shardIndex),
+                    transactionId,
+                    EObjectType::ChunkLocationMap,
+                    BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("chunk_location_shard_index").Value(shardIndex)
+                        .EndMap());
             }
 
             ScheduleCreateNode(

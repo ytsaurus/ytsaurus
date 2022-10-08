@@ -42,45 +42,46 @@ class TVirtualChunkLocationMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkLocationMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
+    TVirtualChunkLocationMap(
+        TBootstrap* bootstrap,
+        INodePtr owningNode,
+        const TChunkLocationUuidMap* locations)
+        : TVirtualMapBase(std::move(owningNode))
         , Bootstrap_(bootstrap)
+        , ChunkLocations_(locations)
     { }
 
 private:
     TBootstrap* const Bootstrap_;
+    const TChunkLocationUuidMap* const ChunkLocations_;
 
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
-        const auto& chunkLocations = nodeTracker->ChunkLocations();
         std::vector<TString> keys;
-        keys.reserve(std::min(sizeLimit, std::ssize(chunkLocations)));
-        for (auto [locationId, location] : chunkLocations) {
+        keys.reserve(std::min(sizeLimit, std::ssize(*ChunkLocations_)));
+        for (auto [locationUuid, location] : *ChunkLocations_) {
             if (std::ssize(keys) >= sizeLimit) {
                 break;
             }
-            keys.push_back(ToString(location->GetUuid()));
+            keys.push_back(ToString(locationUuid));
         }
         return keys;
     }
 
     i64 GetSize() const override
     {
-        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
-        return nodeTracker->ChunkLocations().GetSize();
+        return std::ssize(*ChunkLocations_);
     }
 
     IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = nodeTracker->FindChunkLocationByUuid(TChunkLocationUuid::FromString(key));
-        if (!IsObjectAlive(location)) {
+        auto* const* location = ChunkLocations_->FindPtr(TChunkLocationUuid::FromString(key));
+        if (!location || !IsObjectAlive(*location)) {
             return nullptr;
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetProxy(location);
+        return objectManager->GetProxy(*location);
     }
 };
 
@@ -92,7 +93,20 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
         bootstrap,
         EObjectType::ChunkLocationMap,
         BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
-            return New<TVirtualChunkLocationMap>(bootstrap, owningNode);
+            YT_VERIFY(owningNode);
+            const auto& nodeTracker = bootstrap->GetDataNodeTracker();
+
+            const TChunkLocationUuidMap* chunkLocations = nullptr;
+            if (auto shardIndex = owningNode->Attributes().Find<int>("chunk_location_shard_index")) {
+                chunkLocations = &nodeTracker->ChunkLocationUuidMapShard(*shardIndex);
+            } else {
+                chunkLocations = &nodeTracker->ChunkLocationUuidMap();
+            }
+
+            return New<TVirtualChunkLocationMap>(
+                bootstrap,
+                owningNode,
+                chunkLocations);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

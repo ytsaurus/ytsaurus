@@ -59,6 +59,21 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetChunkLocationShardIndex(TChunkLocationUuid uuid)
+{
+    return TDirectObjectIdHash()(uuid) % ChunkLocationShardCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeTracker
     : public IDataNodeTracker
     , public IDataNodeTrackerInternal
@@ -144,7 +159,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto& statistics = *request->mutable_statistics();
         PopulateChunkLocationStatistics(node, statistics.chunk_locations());
-        
+
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -336,7 +351,7 @@ public:
 
         objectManager->RefObject(location);
 
-        EmplaceOrCrash(ChunkLocationUuidToLocation_, locationUuid, location);
+        RegisterChunkLocationUuid(location);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk location created (LocationId: %v, LocationUuid: %v)",
             locationId,
@@ -365,7 +380,17 @@ public:
             location->SetNode(nullptr);
         }
 
-        EraseOrCrash(ChunkLocationUuidToLocation_, location->GetUuid());
+        UnregisterChunkLocationUuid(location->GetUuid());
+    }
+
+    const TChunkLocationUuidMap& ChunkLocationUuidMap() const override
+    {
+        return ChunkLocationUuidToLocation_;
+    }
+
+    const TChunkLocationUuidMap& ChunkLocationUuidMapShard(int shardIndex) const override
+    {
+        return ShardedChunkLocationUuidToLocation_[shardIndex];
     }
 
 private:
@@ -373,10 +398,32 @@ private:
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
     NHydra::TEntityMap<TRealChunkLocation> ChunkLocationMap_;
-    THashMap<TChunkLocationUuid, TRealChunkLocation*> ChunkLocationUuidToLocation_;
+    TChunkLocationUuidMap ChunkLocationUuidToLocation_;
+    std::array<TChunkLocationUuidMap, ChunkLocationShardCount> ShardedChunkLocationUuidToLocation_;
 
     THashMap<TChunkLocationUuid, TError> LocationAlerts_;
 
+
+    TChunkLocationUuidMap& GetChunkLocationShard(TChunkLocationUuid uuid)
+    {
+        auto shardIndex = GetChunkLocationShardIndex(uuid);
+        return ShardedChunkLocationUuidToLocation_[shardIndex];
+    }
+
+    void RegisterChunkLocationUuid(TRealChunkLocation* location)
+    {
+        auto uuid = location->GetUuid();
+        EmplaceOrCrash(ChunkLocationUuidToLocation_, uuid, location);
+        auto& shard = GetChunkLocationShard(uuid);
+        EmplaceOrCrash(shard, uuid, location);
+    }
+
+    void UnregisterChunkLocationUuid(TChunkLocationUuid uuid)
+    {
+        EraseOrCrash(ChunkLocationUuidToLocation_, uuid);
+        auto& shard = GetChunkLocationShard(uuid);
+        EraseOrCrash(shard, uuid);
+    }
 
     std::vector<TError> GetAlerts() const
     {
@@ -502,7 +549,7 @@ private:
                 diskFamily))
         {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Inconsistent medium (LocationUuid: %v, DiskFamily: %v, Medium: %v, DiskFamilyWhitelist: %v)",
-                locationUuid, 
+                locationUuid,
                 medium->GetName(),
                 diskFamilyWhitelist,
                 diskFamily);
@@ -574,6 +621,9 @@ private:
 
         ChunkLocationMap_.Clear();
         ChunkLocationUuidToLocation_.clear();
+        for (auto& shard : ShardedChunkLocationUuidToLocation_) {
+            shard.clear();
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -610,7 +660,7 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         for (auto [locationId, location] : ChunkLocationMap_) {
-            EmplaceOrCrash(ChunkLocationUuidToLocation_, location->GetUuid(), location);
+            RegisterChunkLocationUuid(location);
         }
     }
 

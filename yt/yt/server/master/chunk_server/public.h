@@ -309,6 +309,9 @@ struct TChunkToShardIndex
 
 using TShardedChunkSet = TShardedSet<TChunk*, ChunkShardCount, TChunkToShardIndex>;
 
+//! Number of shards in sharded location map.
+constexpr int ChunkLocationShardCount = 256;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
