@@ -102,6 +102,7 @@ class InfraClient(object):
             "sas": False,
             "vla": False,
             "iva": False,
+            "components": [],
         }
         if finish_time is not None:
             event_spec['finishTime'] = finish_time
