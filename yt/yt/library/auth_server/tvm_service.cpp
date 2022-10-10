@@ -127,7 +127,7 @@ public:
     TString GetServiceTicket(const TString& serviceAlias) override
     {
         if (!Config_->ClientEnableServiceTicketFetching) {
-            THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
+            THROW_ERROR_EXCEPTION("Fetching service tickets is disabled");
         }
 
         YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceAlias: %v)", serviceAlias);
@@ -137,7 +137,7 @@ public:
     TString GetServiceTicket(TTvmId serviceId) override
     {
         if (!Config_->ClientEnableServiceTicketFetching) {
-            THROW_ERROR_EXCEPTION("Fetching service tickets disabled");
+            THROW_ERROR_EXCEPTION("Fetching service tickets is disabled");
         }
 
         YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId: %v)", serviceId);
@@ -179,7 +179,7 @@ public:
     TParsedServiceTicket ParseServiceTicket(const TString& ticket) override
     {
         if (!Config_->ClientEnableServiceTicketChecking) {
-            THROW_ERROR_EXCEPTION("Parsing service tickets disabled");
+            THROW_ERROR_EXCEPTION("Parsing service tickets is disabled");
         }
 
         YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
@@ -300,15 +300,6 @@ private:
     }
 };
 
-ITvmServicePtr CreateTvmService(
-    TTvmServiceConfigPtr config,
-    TProfiler profiler)
-{
-    return New<TTvmService>(
-        std::move(config),
-        std::move(profiler));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTvmService
@@ -355,14 +346,123 @@ private:
     }
 };
 
-IDynamicTvmServicePtr CreateDynamicTvmService(
-    TTvmServiceConfigPtr config,
-    TProfiler profiler)
+////////////////////////////////////////////////////////////////////////////////
+
+class TMockTvmService
+    : public IDynamicTvmService
 {
-    return New<TDynamicTvmService>(
-        std::move(config),
-        std::move(profiler));
-}
+public:
+    explicit TMockTvmService(TTvmServiceConfigPtr config)
+        : Config_(std::move(config))
+    {
+        DestinationAliases_ = Config_->ClientDstMap;
+        for (const auto& [_, tvmId] : Config_->ClientDstMap) {
+            DestinationIds_.insert(tvmId);
+        }
+
+        YT_LOG_DEBUG("Created TVM service testing stub");
+    }
+
+    TTvmId GetSelfTvmId() override
+    {
+        return Config_->ClientSelfId;
+    }
+
+    TString GetServiceTicket(const TString& serviceAlias) override
+    {
+        if (!Config_->ClientEnableServiceTicketFetching) {
+            THROW_ERROR_EXCEPTION("Fetching service tickets is disabled");
+        }
+
+        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceAlias: %v)", serviceAlias);
+
+        auto guard = ReaderGuard(Lock_);
+        auto iter = DestinationAliases_.find(serviceAlias);
+        if (iter == DestinationAliases_.end()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service alias %Qv is unknown", serviceAlias);
+        }
+        auto tvmId = iter->second;
+        guard.Release();
+
+        return MakeServiceTicket(Config_->ClientSelfId, tvmId);
+    }
+
+    TString GetServiceTicket(TTvmId serviceId) override
+    {
+        if (!Config_->ClientEnableServiceTicketFetching) {
+            THROW_ERROR_EXCEPTION("Fetching service tickets is disabled");
+        }
+
+        YT_LOG_DEBUG("Retrieving TVM service ticket (ServiceId: %v)", serviceId);
+
+        auto guard = ReaderGuard(Lock_);
+        if (!DestinationIds_.contains(serviceId)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service id %v is unknown", serviceId);
+        }
+        guard.Release();
+
+        return MakeServiceTicket(Config_->ClientSelfId, serviceId);
+    }
+
+    TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
+    {
+        THROW_ERROR_EXCEPTION("Parsing user tickets is not supported");
+    }
+
+    TParsedServiceTicket ParseServiceTicket(const TString& ticket) override
+    {
+        if (!Config_->ClientEnableServiceTicketChecking) {
+            THROW_ERROR_EXCEPTION("Parsing service tickets is disabled");
+        }
+
+        YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", ticket);
+
+        if (!ticket.StartsWith(TicketPrefix)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bad ticket header");
+        }
+        auto ticketBody = TStringBuf(ticket).substr(TicketPrefix.size());
+        TStringBuf srcIdString;
+        TStringBuf dstIdString;
+        if (!ticketBody.TrySplit('-', srcIdString, dstIdString)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bad ticket body");
+        }
+        try {
+            auto srcId = FromString<TTvmId>(srcIdString);
+            auto dstId = FromString<TTvmId>(dstIdString);
+
+            if (dstId != GetSelfTvmId()) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Destination TVM id mismatch");
+            }
+
+            return TParsedServiceTicket{.TvmId = srcId};
+        } catch (const TFromStringException& exc) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bad ticket body") << exc;
+        }
+    }
+
+    void AddDestinationServiceIds(const std::vector<TTvmId>& serviceIds) override
+    {
+        auto guard = WriterGuard(Lock_);
+        for (auto tvmId : serviceIds) {
+            DestinationIds_.insert(tvmId);
+        }
+    }
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    TTvmServiceConfigPtr Config_;
+    THashSet<ui32> DestinationIds_;
+    THashMap<TString, ui32> DestinationAliases_;
+
+    static const TString TicketPrefix;
+
+    static TString MakeServiceTicket(TTvmId src, TTvmId dst)
+    {
+        return Format("%v%v-%v", TicketPrefix, src, dst);
+    }
+};
+
+const TString TMockTvmService::TicketPrefix = "TestTicket-";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,6 +486,34 @@ private:
     ITvmServicePtr TvmService_;
     TTvmId DstServiceId_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITvmServicePtr CreateTvmService(
+    TTvmServiceConfigPtr config,
+    TProfiler profiler)
+{
+    if (config->EnableMock) {
+        return New<TMockTvmService>(std::move(config));
+    }
+
+    return New<TTvmService>(
+        std::move(config),
+        std::move(profiler));
+}
+
+IDynamicTvmServicePtr CreateDynamicTvmService(
+    TTvmServiceConfigPtr config,
+    TProfiler profiler)
+{
+    if (config->EnableMock) {
+        return New<TMockTvmService>(std::move(config));
+    }
+
+    return New<TDynamicTvmService>(
+        std::move(config),
+        std::move(profiler));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
