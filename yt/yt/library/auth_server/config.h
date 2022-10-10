@@ -79,6 +79,9 @@ public:
     int TvmToolPort = 0;
     TString TvmToolAuthToken;
 
+    //! For testing only. If enabled, then a mock instead of a real TVM service will be used.
+    bool EnableMock = false;
+
     REGISTER_YSON_STRUCT(TTvmServiceConfig);
 
     static void Register(TRegistrar registrar);

@@ -75,6 +75,9 @@ void TTvmServiceConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("tvm_tool_auth_token", &TThis::TvmToolAuthToken)
         .Optional();
+
+    registrar.Parameter("enable_mock", &TThis::EnableMock)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
