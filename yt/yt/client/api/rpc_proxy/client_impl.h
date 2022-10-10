@@ -350,6 +350,12 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) override;
 
+    // YQL
+
+    TFuture<TStartYqlQueryResult> StartYqlQuery(
+        const TString& query,
+        const TStartYqlQueryOptions& options = {}) override;
+
 private:
     const TConnectionPtr Connection_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;

@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/queue_client/config.h>
 
+#include <yt/yt/ytlib/yql_client/config.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -84,6 +86,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
+    registrar.Parameter("yql_agent", &TThis::YqlAgent)
+        .Default();
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
