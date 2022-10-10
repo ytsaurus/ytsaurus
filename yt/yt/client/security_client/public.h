@@ -36,6 +36,7 @@ extern const TString TabletCellSnapshotterUserName;
 extern const TString TableMountInformerUserName;
 extern const TString AlienCellSynchronizerUserName;
 extern const TString QueueAgentUserName;
+extern const TString YqlAgentUserName;
 extern const TString TabletBalancerUserName;
 
 extern const TString EveryoneGroupName;

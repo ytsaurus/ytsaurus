@@ -489,6 +489,10 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) override;
 
+    virtual TFuture<TStartYqlQueryResult> StartYqlQuery(
+        const TString& query,
+        const TStartYqlQueryOptions& options = {}) override;
+
 protected:
     const IClientPtr Underlying_;
 };

@@ -250,6 +250,11 @@ public:
         const TPullQueueOptions& options = {}),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
+    IMPLEMENT_METHOD(TStartYqlQueryResult, StartYqlQuery, (
+        const TString& query,
+        const TStartYqlQueryOptions& options = {}),
+        (query, options))
+
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
         const TGetNodeOptions& options),
@@ -1475,6 +1480,14 @@ private:
         NTabletClient::TTabletId lockerTabletId,
         bool lock,
         const TTimeoutOptions& options);
+
+    //
+    // YQL
+    //
+
+    TStartYqlQueryResult DoStartYqlQuery(
+        const TString& query,
+        const TStartYqlQueryOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

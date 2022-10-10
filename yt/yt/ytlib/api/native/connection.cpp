@@ -39,6 +39,8 @@
 
 #include <yt/yt/ytlib/queue_client/config.h>
 
+#include <yt/yt/ytlib/yql_client/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -179,6 +181,7 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
+        InitializeYqlAgentChannel();
 
         PermissionCache_ = New<TPermissionCache>(
             Config_->PermissionCache,
@@ -436,6 +439,14 @@ public:
         return it->second;
     }
 
+    const IChannelPtr& GetYqlAgentChannelOrThrow() const override
+    {
+        if (!YqlAgentChannel_) {
+            THROW_ERROR_EXCEPTION("YQL agent channel is not configured");
+        }
+        return YqlAgentChannel_;
+    }
+
     const IChannelFactoryPtr& GetChannelFactory() override
     {
         return ChannelFactory_;
@@ -650,6 +661,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
+    IChannelPtr YqlAgentChannel_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -773,6 +785,31 @@ private:
 
             QueueAgentChannels_[stage] = std::move(channel);
         }
+    }
+
+    void InitializeYqlAgentChannel()
+    {
+        if (!Config_->YqlAgent) {
+            return;
+        }
+
+        auto endpointDescription = "YqlAgent";
+        auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("yql_agent").Value(true)
+            .EndMap());
+
+        auto channel = CreateBalancingChannel(
+            Config_->YqlAgent->Channel,
+            ChannelFactory_,
+            std::move(endpointDescription),
+            std::move(endpointAttributes));
+
+        // TODO(max42): make customizable.
+        constexpr auto timeout = TDuration::Days(1);
+        channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
+
+        YqlAgentChannel_ = std::move(channel);
     }
 
     void SetupTvmIdSynchronization()

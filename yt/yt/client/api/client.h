@@ -1554,6 +1554,20 @@ struct TRestoreTableBackupOptions
     bool EnableReplicas = false;
 };
 
+struct TStartYqlQueryOptions
+    : public TTimeoutOptions
+{ };
+
+struct TStartYqlQueryResult
+{
+    // Any field may be a null YSON string.
+
+    NYson::TYsonString Result;
+    NYson::TYsonString Plan;
+    NYson::TYsonString Statistics;
+    NYson::TYsonString TaskInfo;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -1834,7 +1848,7 @@ struct IClient
     virtual TFuture<void> AlterReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TAlterReplicationCardOptions& options = {}) = 0;
- 
+
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
@@ -2057,6 +2071,12 @@ struct IClient
     virtual TFuture<void> ResumeTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) = 0;
+
+    // YQL
+
+    virtual TFuture<TStartYqlQueryResult> StartYqlQuery(
+        const TString& query,
+        const TStartYqlQueryOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

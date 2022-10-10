@@ -781,6 +781,13 @@ TFuture<void> TDelegatingClient::ResumeTabletCells(
     return Underlying_->ResumeTabletCells(cellIds, options);
 }
 
+TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
+    const TString& query,
+    const TStartYqlQueryOptions& options)
+{
+    return Underlying_->StartYqlQuery(query, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

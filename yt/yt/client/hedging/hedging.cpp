@@ -215,6 +215,7 @@ public:
     UNSUPPORTED_METHOD(TFuture<NChaosClient::TReplicationCardPtr>, GetReplicationCard, (NChaosClient::TReplicationCardId, const TGetReplicationCardOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, UpdateChaosTableReplicaProgress, (NChaosClient::TReplicaId, const TUpdateChaosTableReplicaProgressOptions&));
     UNSUPPORTED_METHOD(TFuture<TPullRowsResult>, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
+    UNSUPPORTED_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (const TString&, const TStartYqlQueryOptions&));
 
 private:
     THedgingExecutorPtr Executor_;
@@ -282,7 +283,7 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
     });
 }
 
-THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache) 
+THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache)
 {
     return GetHedgingClientOptions(config, [clientsCache] (const auto& clientConfig) {
         return clientsCache->GetClient(clientConfig.GetClusterName());

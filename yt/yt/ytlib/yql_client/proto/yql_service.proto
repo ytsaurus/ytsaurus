@@ -1,0 +1,47 @@
+package NYT.NYqlClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// A counterpart to NYql::NEmbedded::TOperationRequest.
+message TYqlRequest
+{
+    optional string query = 1;
+    optional string title = 2;
+    optional int64 syntax_version = 3 [default = 1];
+    optional bytes attributes = 4; // YSON
+    optional bytes parameters = 5; // YSON
+    optional int64 mode = 6 [default = 2]; // EExecuteMode
+}
+
+// A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.
+message TYqlResponse
+{
+    optional string result = 1; // YSON
+    optional string plan = 2; // YSON
+    optional string statistics = 3; // YSON
+    optional string task_info = 4; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartQuery
+{
+    optional bool async = 1;
+    optional TYqlRequest yql_request = 2;
+}
+
+message TRspStartQuery
+{
+    optional NYT.NProto.TGuid query_id = 1;
+    // May be missing if request mode is async.
+    oneof result {
+        TYqlResponse yql_response = 2;
+        NYT.NProto.TError error = 3;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

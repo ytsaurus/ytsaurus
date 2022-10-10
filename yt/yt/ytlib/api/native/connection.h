@@ -85,6 +85,7 @@ struct IConnection
     virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;
 
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
+    virtual const NRpc::IChannelPtr& GetYqlAgentChannelOrThrow() const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;

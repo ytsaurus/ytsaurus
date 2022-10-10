@@ -1644,6 +1644,13 @@ TFuture<void> TClient::ResumeTabletCells(
     ThrowUnimplemented("ResumeTabletCells");
 }
 
+TFuture<TStartYqlQueryResult> TClient::StartYqlQuery(
+    const TString& /*query*/,
+    const TStartYqlQueryOptions& /*options*/)
+{
+    ThrowUnimplemented("StartYqlQuery");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy

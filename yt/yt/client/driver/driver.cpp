@@ -12,6 +12,7 @@
 #include "transaction_commands.h"
 #include "internal_commands.h"
 #include "proxy_discovery_cache.h"
+#include "yql_commands.h"
 
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/connection.h>
@@ -316,6 +317,8 @@ public:
 
         REGISTER_ALL(TSuspendTabletCellsCommand,           "suspend_tablet_cells",            Null,       Structured, false,  false);
         REGISTER_ALL(TResumeTabletCellsCommand,            "resume_tablet_cells",             Null,       Structured, false,  false);
+
+        REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );
