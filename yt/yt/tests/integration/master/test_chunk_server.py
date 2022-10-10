@@ -11,7 +11,7 @@ from yt_commands import (
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
+from yt.common import YtError, WaitFailed
 import yt.yson as yson
 
 import pytest
@@ -338,8 +338,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(check_if_job_finished)
 
-    @authors("kvk1920")
-    def test_missing_requisition_update_yt17756(self):
+    def _reproduce_missing_requisition_update(self):
         create_account("a")
         create_account("b")
         create("table", "//tmp/a", attributes={"account": "a"})
@@ -352,6 +351,20 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"a", "b"})
         write_table("//tmp/a", {"a": 2, "b": 3})
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
+
+    @authors("kvk1920")
+    def test_missing_requisition_update_yt17756(self):
+        with pytest.raises(WaitFailed):
+            self._reproduce_missing_requisition_update()
+
+    @authors("kvk1920")
+    def test_fix_missing_requisition_update_yt17756(self):
+        path = "//sys/@config/chunk_manager/enable_fix_requisition_update_on_merge"
+        set(path, True)
+        try:
+            self._reproduce_missing_requisition_update()
+        finally:
+            set(path, False)
 
 
 ##################################################################
