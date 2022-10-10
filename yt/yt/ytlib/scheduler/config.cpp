@@ -289,6 +289,10 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_min_data_weight_per_chunk", &TThis::ShallowMergeMinDataWeightPerChunk)
         .Default(64_KB);
 
+    registrar.Preprocessor([] (TAutoMergeConfig* config) {
+        config->JobIO->TableWriter->DesiredChunkWeight = 8_GB;
+    });
+
     registrar.Postprocessor([] (TAutoMergeConfig* config) {
         if (config->Mode == EAutoMergeMode::Manual) {
             if (!config->MaxIntermediateChunkCount || !config->ChunkCountPerMergeJob) {
