@@ -12,11 +12,9 @@ import NYT.NChunkClient.NProto.DataStatistics;
 import com.google.protobuf.Parser;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.request.ReadTable;
@@ -30,18 +28,15 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     @Nullable protected TableAttachmentReader<T> reader;
     // Need for creating TableAttachmentReader later
     @Nullable private final Class<T> objectClazz;
-    @Nullable private final ReadTable<T> req;
     protected TRspReadTableMeta metadata = null;
 
-    TableReaderBaseImpl(ReadTable<T> req, Class<T> objectClazz) {
-        this.req = req;
+    TableReaderBaseImpl(Class<T> objectClazz) {
         this.objectClazz = objectClazz;
     }
 
     TableReaderBaseImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
         this.objectClazz = null;
-        this.req = null;
     }
 
     @Override
@@ -55,15 +50,12 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
             self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
             if (self.reader == null) {
                 Objects.requireNonNull(self.objectClazz);
-                YTreeSerializer<T> serializer = serializationResolver.forClass(
+
+                YTreeRowSerializer<T> serializer = serializationResolver.forClass(
                         self.objectClazz,
                         ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
-                if (!(serializer.getClass().getName().equals(
-                        "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer"))) {
-                    throw new RuntimeException("Got not a YTreeObjectSerializer");
-                }
                 self.reader = new TableAttachmentWireProtocolReader<>(
-                        MappedRowsetDeserializer.forClass((YTreeRowSerializer<T>) serializer));
+                        serializationResolver.createWireRowDeserializer(serializer));
             }
 
             return self;
@@ -85,7 +77,7 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
 
 class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T> {
     TableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
-        super(req, objectClazz);
+        super(objectClazz);
     }
 
     TableReaderImpl(TableAttachmentReader<T> reader) {
@@ -151,7 +143,7 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
 class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncReader<T> {
 
     AsyncTableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
-        super(req, objectClazz);
+        super(objectClazz);
     }
 
     AsyncTableReaderImpl(TableAttachmentReader<T> reader) {

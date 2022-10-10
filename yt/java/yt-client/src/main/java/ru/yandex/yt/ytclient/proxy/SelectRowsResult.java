@@ -12,6 +12,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -27,9 +28,16 @@ public class SelectRowsResult {
     private final RpcClientResponse<TRspSelectRows> response;
     private final Executor heavyExecutor;
 
-    public SelectRowsResult(RpcClientResponse<TRspSelectRows> response, Executor heavyExecutor) {
+    private final SerializationResolver serializationResolver;
+
+    public SelectRowsResult(
+            RpcClientResponse<TRspSelectRows> response,
+            Executor heavyExecutor,
+            SerializationResolver serializationResolver
+    ) {
         this.response = response;
         this.heavyExecutor = heavyExecutor;
+        this.serializationResolver = serializationResolver;
     }
 
     public CompletableFuture<UnversionedRowset> getUnversionedRowset() {
@@ -43,7 +51,7 @@ public class SelectRowsResult {
         return handleResponse(response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
+                    response.attachments(), serializer, result, serializationResolver);
             return result.get();
         });
     }
@@ -52,7 +60,7 @@ public class SelectRowsResult {
                                                           ConsumerSource<T> consumer) {
         return handleResponse(response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, consumer);
+                    response.attachments(), serializer, consumer, serializationResolver);
             return null;
         });
     }

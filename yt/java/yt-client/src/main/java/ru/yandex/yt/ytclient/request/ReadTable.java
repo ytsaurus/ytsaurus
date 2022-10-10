@@ -10,7 +10,6 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -18,9 +17,7 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
-import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
@@ -107,6 +104,8 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         @Nullable
         private final WireRowDeserializer<T> deserializer;
         @Nullable
+        private final YTreeSerializer<T> serializer;
+        @Nullable
         private final Class<T> objectClazz;
         private ERowsetFormat desiredRowsetFormat = ERowsetFormat.RF_YT_WIRE;
         @Nullable
@@ -115,26 +114,25 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         SerializationContext() {
             // Only for ReadTableDirect
             this.deserializer = null;
+            this.serializer = null;
             this.objectClazz = null;
         }
 
         public SerializationContext(WireRowDeserializer<T> deserializer) {
             this.deserializer = deserializer;
+            this.serializer = null;
             this.objectClazz = null;
         }
 
         public SerializationContext(YTreeSerializer<T> serializer) {
-            if (serializer.getClass().getName().equals(
-                    "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer")) {
-                this.deserializer = MappedRowsetDeserializer.forClass((YTreeRowSerializer<T>) serializer);
-            } else {
-                this.deserializer = new YTreeDeserializer<>(serializer);
-            }
+            this.serializer = serializer;
+            this.deserializer = null;
             this.objectClazz = null;
         }
 
         public SerializationContext(Format format) {
             this.deserializer = null;
+            this.serializer = null;
             this.objectClazz = null;
             this.format = format;
             this.desiredRowsetFormat = ERowsetFormat.RF_FORMAT;
@@ -142,11 +140,16 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
         public SerializationContext(Class<T> objectClazz) {
             this.deserializer = null;
+            this.serializer = null;
             this.objectClazz = objectClazz;
         }
 
         public Optional<WireRowDeserializer<T>> getDeserializer() {
             return Optional.ofNullable(this.deserializer);
+        }
+
+        public Optional<YTreeSerializer<T>> getSerializer() {
+            return Optional.ofNullable(this.serializer);
         }
 
         public Optional<Class<T>> getObjectClazz() {

@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +31,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -63,6 +65,7 @@ import ru.yandex.yt.ytclient.operations.OperationImpl;
 import ru.yandex.yt.ytclient.operations.Spec;
 import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.request.AbortJob;
@@ -484,7 +487,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
+                    response.attachments(), serializer, result, serializationResolver);
             return result.get();
         });
     }
@@ -497,7 +500,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     ) {
         return lookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, consumer);
+                    response.attachments(), serializer, consumer, serializationResolver);
             return null;
         });
     }
@@ -543,7 +546,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
         return sendRequest(request, ApiServiceMethodTable.SELECT_ROWS.createRequestBuilder(rpcOptions))
                 .thenApply(
-                        response -> new SelectRowsResult(response, heavyExecutor)
+                        response -> new SelectRowsResult(response, heavyExecutor, serializationResolver)
                 );
     }
 
@@ -559,7 +562,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return selectRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result);
+                    response.attachments(), serializer, result, serializationResolver);
             return result.get();
         });
     }
@@ -569,7 +572,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                                   ConsumerSource<T> consumer) {
         return selectRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, consumer);
+                    response.attachments(), serializer, consumer, serializationResolver);
             return null;
         });
     }
@@ -980,6 +983,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
+        if (reader == null) {
+            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
+            if (serializer.isPresent()) {
+                reader = new TableAttachmentWireProtocolReader<>(
+                        serializationResolver.createWireRowDeserializer(serializer.get()));
+            }
+        }
+
         TableReaderImpl<T> tableReader;
         if (reader != null) {
             tableReader = new TableReaderImpl<>(reader);
@@ -1004,6 +1015,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
+
+        if (reader == null) {
+            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
+            if (serializer.isPresent()) {
+                reader = new TableAttachmentWireProtocolReader<>(
+                        serializationResolver.createWireRowDeserializer(serializer.get()));
+            }
+        }
 
         AsyncTableReaderImpl<T> tableReader;
         if (reader != null) {
@@ -1035,11 +1054,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(req);
+        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(req, serializationResolver);
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload(serializationResolver));
+                .thenCompose(control -> tableWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1056,11 +1075,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        AsyncTableWriterImpl<T> tableWriter = new AsyncTableWriterImpl<>(req);
+        AsyncTableWriterImpl<T> tableWriter = new AsyncTableWriterImpl<>(req, serializationResolver);
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<AsyncWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload(serializationResolver));
+                .thenCompose(control -> tableWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }

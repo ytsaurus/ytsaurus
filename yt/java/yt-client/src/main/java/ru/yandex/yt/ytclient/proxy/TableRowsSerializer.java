@@ -15,13 +15,13 @@ import com.google.protobuf.CodedOutputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.request.WriteTable;
@@ -96,14 +96,14 @@ class TableRowsWireSerializer<T> extends TableRowsSerializer<T> {
 @NonNullFields
 class TableRowsYsonSerializer<T> extends TableRowsSerializer<T> {
     private final Format format;
-    private final YTreeRowSerializer<T> ysonSerializer;
+    private final YTreeSerializer<T> ysonSerializer;
     private TableSchema schema;
 
-    TableRowsYsonSerializer(Format format, YTreeRowSerializer<T> ysonSerializer) {
+    TableRowsYsonSerializer(Format format, YTreeSerializer<T> ysonSerializer, TableSchema schema) {
         super(ERowsetFormat.RF_FORMAT);
         this.format = format;
         this.ysonSerializer = ysonSerializer;
-        this.schema = MappedRowSerializer.asTableSchema(ysonSerializer.getFieldMap());
+        this.schema = schema;
     }
 
     @Override
@@ -162,11 +162,20 @@ abstract class TableRowsSerializer<T> {
     public abstract TableSchema getSchema();
 
     @Nullable
-    public static <T> TableRowsSerializer<T> createTableRowsSerializer(WriteTable.SerializationContext<T> context) {
+    public static <T> TableRowsSerializer<T> createTableRowsSerializer(
+            WriteTable.SerializationContext<T> context,
+            SerializationResolver serializationResolver
+    ) {
         if (context.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
             Optional<WireRowSerializer<T>> reqSerializer = context.getSerializer();
             if (reqSerializer.isPresent()) {
                 return new TableRowsWireSerializer<>(reqSerializer.get());
+            }
+
+            Optional<YTreeSerializer<T>> ysonSerializer = context.getYsonSerializer();
+            if (ysonSerializer.isPresent()) {
+                return new TableRowsWireSerializer<>(
+                        serializationResolver.createWireRowSerializer(ysonSerializer.get()));
             }
             return null;
         } else if (context.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
@@ -180,7 +189,11 @@ abstract class TableRowsSerializer<T> {
                 throw new IllegalArgumentException(
                         "Format " + context.getFormat().get().getType() + " isn't supported");
             }
-            return new TableRowsYsonSerializer<>(context.getFormat().get(), context.getYsonSerializer().get());
+            YTreeSerializer<T> serializer = context.getYsonSerializer().get();
+            return new TableRowsYsonSerializer<>(
+                    context.getFormat().get(),
+                    serializer,
+                    serializationResolver.asTableSchema(serializer));
         } else {
             throw new IllegalArgumentException("Unsupported rowset format");
         }
