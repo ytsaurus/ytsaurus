@@ -12,7 +12,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
 @NonNullFields
-public class WriteTable<T> extends ru.yandex.yt.ytclient.request.WriteTableRequest.BuilderBase<T, WriteTable<T>> {
+public class WriteTable<T> extends ru.yandex.yt.ytclient.request.WriteTable.BuilderBase<T, WriteTable<T>> {
 
     public WriteTable(YPath path, WireRowSerializer<T> serializer, @Nullable TableSchema tableSchema) {
         setSerializationContext(new ru.yandex.yt.ytclient.request.WriteTable.SerializationContext<T>(serializer));

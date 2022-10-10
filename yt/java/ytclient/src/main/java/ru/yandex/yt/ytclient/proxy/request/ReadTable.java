@@ -9,7 +9,7 @@ import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
 @NonNullApi
 @NonNullFields
-public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTableRequest.BuilderBase<T, ReadTable<T>> {
+public class ReadTable<T> extends ru.yandex.yt.ytclient.request.ReadTable.BuilderBase<T, ReadTable<T>> {
 
     public ReadTable(YPath path, WireRowDeserializer<T> deserializer) {
         setPath(path).setSerializationContext(

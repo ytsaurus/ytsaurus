@@ -21,7 +21,7 @@ public class BackwardCompatibility {
     /**
      * Get list of rpcclients that can be used to send messages to YtClient.
      */
-    public static List<RpcClient> selectDestinations(YtClient client) {
+    public static List<RpcClient> selectDestinations(YtClientOpensource client) {
         return client.selectDestinations();
     }
 }

@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.request.WriteTable;
@@ -30,7 +31,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
         this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req.getSerializationContext());
     }
 
-    public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl() {
+    public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl(SerializationResolver serializationResolver) {
         TableWriterBaseImpl<T> self = this;
 
         return startUpload.thenApply((attachments) -> {
@@ -60,7 +61,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
                             (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
                 } else {
                     this.tableRowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
-                            req.createSerializer(objectClazz, self.schema)
+                            serializationResolver.forClass(objectClazz, self.schema)
                     ));
                 }
             }
@@ -83,8 +84,8 @@ class TableWriterImpl<T> extends TableWriterBaseImpl<T> implements TableWriter<T
     }
 
     @SuppressWarnings("unchecked")
-    public CompletableFuture<TableWriter<T>> startUpload() {
-        return startUploadImpl().thenApply(writer -> (TableWriter<T>) writer);
+    public CompletableFuture<TableWriter<T>> startUpload(SerializationResolver serializationResolver) {
+        return startUploadImpl(serializationResolver).thenApply(writer -> (TableWriter<T>) writer);
     }
 
     @Override
@@ -111,8 +112,8 @@ class AsyncTableWriterImpl<T> extends TableWriterBaseImpl<T> implements AsyncWri
     }
 
     @SuppressWarnings("unchecked")
-    public CompletableFuture<AsyncWriter<T>> startUpload() {
-        return super.startUploadImpl().thenApply(writer -> (AsyncWriter<T>) writer);
+    public CompletableFuture<AsyncWriter<T>> startUpload(SerializationResolver serializationResolver) {
+        return super.startUploadImpl(serializationResolver).thenApply(writer -> (AsyncWriter<T>) writer);
     }
 
     @Override

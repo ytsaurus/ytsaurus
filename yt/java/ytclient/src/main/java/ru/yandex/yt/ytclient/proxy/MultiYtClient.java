@@ -161,7 +161,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends YtClient.BaseBuilder<Builder> {
+    public static class Builder extends YtClientOpensource.BaseBuilder<MultiYtClient, Builder> {
         List<YtClientOptions> clientsOptions = new ArrayList<>();
         List<YtClient> clients = new ArrayList<>();
         List<String> clusters = new ArrayList<>();
@@ -362,7 +362,8 @@ class MultiExecutor implements Closeable {
         }
     }
 
-    private static List<YtClient> createClientsFromClusters(List<String> clusters, MultiYtClient.Builder builder) {
+    private static List<YtClient> createClientsFromClusters(
+            List<String> clusters, MultiYtClient.Builder builder) {
         List<YtClient> result = new ArrayList<>();
         for (String cluster : clusters) {
             YtClient.Builder clientBuilder = YtClient.builder()

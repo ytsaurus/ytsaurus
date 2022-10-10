@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
+import ru.yandex.yt.ytclient.SerializationResolverImpl;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
@@ -136,7 +137,8 @@ public final class ExamplesUtil {
                                         new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15))
                                 ).build(),
                         ForkJoinPool.commonPool(),
-                        connector.executorService());
+                        connector.executorService(),
+                        new SerializationResolverImpl());
                 consumer.accept(serviceClient);
             }
         }

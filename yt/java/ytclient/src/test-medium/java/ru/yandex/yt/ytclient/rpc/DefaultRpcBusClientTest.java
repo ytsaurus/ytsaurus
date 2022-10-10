@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
+import ru.yandex.yt.ytclient.proxy.SerializationResolverImpl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
@@ -39,7 +40,8 @@ public class DefaultRpcBusClientTest {
                         rpcClient,
                         YtClientConfiguration.builder().setRpcOptions(options).build(),
                         ForkJoinPool.commonPool(),
-                        connector.executorService());
+                        connector.executorService(),
+                        new SerializationResolverImpl());
                 var listNodeFuture = api.listNode("/");
 
                 waitFuture(listNodeFuture, 5000);
