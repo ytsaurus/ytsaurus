@@ -897,9 +897,11 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshotUponActionQueueOverflow)
     Sleep(SleepPeriod);
 
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
-    auto tableId = Host_->CreateReplicatedTable();
-    Host_->CreateTableReplica(tableId);
-    EXPECT_TRUE(Host_->LoadingFromSnapshotRequested());
+    while (!Host_->LoadingFromSnapshotRequested()) {
+        // This is racy so do retries.
+        auto tableId = Host_->CreateReplicatedTable();
+        Host_->CreateTableReplica(tableId);
+    }
 
     auto client1 = Host_->GetMockClient(Cluster1);
     MockGoodReplicaCluster(client1);
