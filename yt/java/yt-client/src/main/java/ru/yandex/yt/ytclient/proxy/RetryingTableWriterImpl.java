@@ -27,7 +27,6 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -148,7 +147,8 @@ class RetryingTableWriterBaseImpl<T> {
         this.req = req.toBuilder().setNeedRetries(false).build();
         this.secondaryReq = this.req.toBuilder().setPath(req.getYPath().append(true)).build();
 
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req.getSerializationContext());
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
+                this.req.getSerializationContext(), serializationResolver);
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -196,9 +196,8 @@ class RetryingTableWriterBaseImpl<T> {
                                                         new UnversionedRowSerializer());
                                     } else {
                                         this.tableRowsSerializer = new TableRowsWireSerializer<>(
-                                                MappedRowSerializer.forClass(
-                                                        serializationResolver.forClass(objectClazz, result.schema)
-                                                ));
+                                                serializationResolver.createWireRowSerializer(
+                                                        serializationResolver.forClass(objectClazz, result.schema)));
                                     }
                                 }
                                 return result;

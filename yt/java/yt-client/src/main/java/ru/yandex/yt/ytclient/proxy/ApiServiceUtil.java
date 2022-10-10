@@ -12,13 +12,12 @@ import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TTableSchema;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
-import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -156,20 +155,11 @@ public class ApiServiceUtil {
             TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeRowSerializer<T> serializer,
-            ConsumerSource<T> consumer
+            ConsumerSource<T> consumer,
+            SerializationResolver serializationResolver
     ) {
         deserializeUnversionedRowset(descriptor, attachments,
-                schema -> {
-                    if (serializer.getClass().getName().equals(
-                            "ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer")) {
-                        return MappedRowsetDeserializer.forClass(
-                                schema, serializer, consumer);
-                    } else {
-                        YTreeDeserializer<T> deserializer = new YTreeDeserializer<>(serializer, consumer);
-                        deserializer.updateSchema(schema);
-                        return deserializer;
-                    }
-                });
+                schema -> serializationResolver.createWireRowDeserializer(schema, serializer, consumer));
     }
 
     public static UnversionedRowset deserializeUnversionedRowset(

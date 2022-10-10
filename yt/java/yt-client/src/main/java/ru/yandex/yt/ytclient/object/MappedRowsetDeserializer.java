@@ -19,7 +19,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeIntegerNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeStringNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
@@ -79,22 +78,16 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
         this.flattenStackSize = configuration.flattenWrappers.size();
     }
 
-    public static <T> MappedRowsetDeserializer<T> forClass(YTreeRowSerializer<T> serializer) {
-        if (!(serializer instanceof YTreeObjectSerializer)) {
-            throw new IllegalArgumentException("YTreeObjectSerializer was expected");
-        }
+    public static <T> MappedRowsetDeserializer<T> forClass(YTreeObjectSerializer<T> serializer) {
         final TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
         return MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> { });
     }
 
     public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
-                                                           YTreeRowSerializer<T> objectSerializer,
+                                                           YTreeObjectSerializer<T> objectSerializer,
                                                            ConsumerSource<T> consumer) {
-        if (!(objectSerializer instanceof YTreeObjectSerializer)) {
-            throw new IllegalArgumentException("YTreeObjectSerializer was expected");
-        }
         return new MappedRowsetDeserializer<>(
-                schema, new SerializerConfiguration<>((YTreeObjectSerializer<T>) objectSerializer), consumer);
+                schema, new SerializerConfiguration<>(objectSerializer), consumer);
     }
 
     private void parseSchema(TableSchema schema) {

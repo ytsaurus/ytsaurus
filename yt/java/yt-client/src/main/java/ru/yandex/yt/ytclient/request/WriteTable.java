@@ -19,7 +19,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.Format;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -165,7 +164,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         @Nullable
         private final WireRowSerializer<T> serializer;
         @Nullable
-        private final YTreeRowSerializer<T> ysonSerializer;
+        private final YTreeSerializer<T> ysonSerializer;
         @Nullable
         private final Class<T> objectClazz;
         private ERowsetFormat rowsetFormat = ERowsetFormat.RF_YT_WIRE;
@@ -179,14 +178,16 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
 
         public SerializationContext(YTreeSerializer<T> serializer) {
-            this(MappedRowSerializer.forClass(serializer));
+            this.ysonSerializer = serializer;
+            this.serializer = null;
+            this.objectClazz = null;
         }
 
         public SerializationContext(YTreeSerializer<T> serializer, Format format) {
             if (!(serializer instanceof YTreeRowSerializer)) {
                 throw new IllegalArgumentException("YTreeRowSerializer was expected");
             }
-            this.ysonSerializer = (YTreeRowSerializer<T>) serializer;
+            this.ysonSerializer = serializer;
             this.serializer = null;
             this.objectClazz = null;
             this.rowsetFormat = ERowsetFormat.RF_FORMAT;
@@ -203,7 +204,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
             return Optional.ofNullable(this.serializer);
         }
 
-        public Optional<YTreeRowSerializer<T>> getYsonSerializer() {
+        public Optional<YTreeSerializer<T>> getYsonSerializer() {
             return Optional.ofNullable(this.ysonSerializer);
         }
 

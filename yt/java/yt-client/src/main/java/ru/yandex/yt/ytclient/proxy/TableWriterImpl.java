@@ -11,7 +11,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -24,14 +23,17 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     protected @Nullable TableSchema schema;
     protected final WriteTable<T> req;
     protected @Nullable TableRowsSerializer<T> tableRowsSerializer;
+    private final SerializationResolver serializationResolver;
 
-    TableWriterBaseImpl(WriteTable<T> req) {
+    TableWriterBaseImpl(WriteTable<T> req, SerializationResolver serializationResolver) {
         super(req.getWindowSize(), req.getPacketSize());
         this.req = req;
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(this.req.getSerializationContext());
+        this.serializationResolver = serializationResolver;
+        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
+                this.req.getSerializationContext(), serializationResolver);
     }
 
-    public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl(SerializationResolver serializationResolver) {
+    public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl() {
         TableWriterBaseImpl<T> self = this;
 
         return startUpload.thenApply((attachments) -> {
@@ -60,9 +62,10 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
                     this.tableRowsSerializer =
                             (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
                 } else {
-                    this.tableRowsSerializer = new TableRowsWireSerializer<>(MappedRowSerializer.forClass(
-                            serializationResolver.forClass(objectClazz, self.schema)
-                    ));
+                    this.tableRowsSerializer = new TableRowsWireSerializer<>(
+                            serializationResolver.createWireRowSerializer(
+                                    serializationResolver.forClass(objectClazz, self.schema))
+                    );
                 }
             }
 
@@ -79,13 +82,13 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
 @NonNullApi
 @NonNullFields
 class TableWriterImpl<T> extends TableWriterBaseImpl<T> implements TableWriter<T> {
-    TableWriterImpl(WriteTable<T> req) {
-        super(req);
+    TableWriterImpl(WriteTable<T> req, SerializationResolver serializationResolver) {
+        super(req, serializationResolver);
     }
 
     @SuppressWarnings("unchecked")
-    public CompletableFuture<TableWriter<T>> startUpload(SerializationResolver serializationResolver) {
-        return startUploadImpl(serializationResolver).thenApply(writer -> (TableWriter<T>) writer);
+    public CompletableFuture<TableWriter<T>> startUpload() {
+        return startUploadImpl().thenApply(writer -> (TableWriter<T>) writer);
     }
 
     @Override
@@ -107,13 +110,13 @@ class TableWriterImpl<T> extends TableWriterBaseImpl<T> implements TableWriter<T
 @NonNullApi
 @NonNullFields
 class AsyncTableWriterImpl<T> extends TableWriterBaseImpl<T> implements AsyncWriter<T> {
-    AsyncTableWriterImpl(WriteTable<T> req) {
-        super(req);
+    AsyncTableWriterImpl(WriteTable<T> req, SerializationResolver serializationResolver) {
+        super(req, serializationResolver);
     }
 
     @SuppressWarnings("unchecked")
-    public CompletableFuture<AsyncWriter<T>> startUpload(SerializationResolver serializationResolver) {
-        return super.startUploadImpl(serializationResolver).thenApply(writer -> (AsyncWriter<T>) writer);
+    public CompletableFuture<AsyncWriter<T>> startUpload() {
+        return super.startUploadImpl().thenApply(writer -> (AsyncWriter<T>) writer);
     }
 
     @Override
