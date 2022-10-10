@@ -26,6 +26,7 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
@@ -135,7 +136,8 @@ class RetryingTableWriterBaseImpl<T> {
             ApiServiceClient apiServiceClient,
             ScheduledExecutorService executor,
             WriteTable<T> req,
-            RpcOptions rpcOptions
+            RpcOptions rpcOptions,
+            SerializationResolver serializationResolver
     ) {
         Objects.requireNonNull(req.getYPath());
 
@@ -195,7 +197,7 @@ class RetryingTableWriterBaseImpl<T> {
                                     } else {
                                         this.tableRowsSerializer = new TableRowsWireSerializer<>(
                                                 MappedRowSerializer.forClass(
-                                                        req.createSerializer(objectClazz, result.schema)
+                                                        serializationResolver.forClass(objectClazz, result.schema)
                                                 ));
                                     }
                                 }
@@ -463,9 +465,10 @@ class RetryingTableWriterImpl<T> extends RetryingTableWriterBaseImpl<T> implemen
             ApiServiceClient apiServiceClient,
             ScheduledExecutorService executor,
             WriteTable<T> req,
-            RpcOptions rpcOptions
+            RpcOptions rpcOptions,
+            SerializationResolver serializationResolver
     ) {
-        super(apiServiceClient, executor, req, rpcOptions);
+        super(apiServiceClient, executor, req, rpcOptions, serializationResolver);
     }
 
     @Override
@@ -506,9 +509,10 @@ class AsyncRetryingTableWriterImpl<T> extends RetryingTableWriterBaseImpl<T> imp
             ApiServiceClient apiServiceClient,
             ScheduledExecutorService executor,
             WriteTable<T> req,
-            RpcOptions rpcOptions
+            RpcOptions rpcOptions,
+            SerializationResolver serializationResolver
     ) {
-        super(apiServiceClient, executor, req, rpcOptions);
+        super(apiServiceClient, executor, req, rpcOptions, serializationResolver);
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.request.MountTable;
@@ -33,14 +34,27 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     private final ScheduledExecutorService executorService;
 
     public CompoundClientImpl(
-            ScheduledExecutorService executorService, YtClientConfiguration configuration, Executor heavyExecutor) {
-        super(null, configuration, heavyExecutor, executorService);
+            ScheduledExecutorService executorService,
+            YtClientConfiguration configuration,
+            Executor heavyExecutor,
+            SerializationResolver serializationResolver
+    ) {
+        super(null, configuration, heavyExecutor, executorService, serializationResolver);
         this.executorService = executorService;
     }
 
     public CompoundClientImpl(
-            ScheduledExecutorService executorService, RpcOptions rpcOptions, Executor heavyExecutor) {
-        this(executorService, YtClientConfiguration.builder().setRpcOptions(rpcOptions).build(), heavyExecutor);
+            ScheduledExecutorService executorService,
+            RpcOptions rpcOptions,
+            Executor heavyExecutor,
+            SerializationResolver serializationResolver
+    ) {
+        this(
+                executorService,
+                YtClientConfiguration.builder().setRpcOptions(rpcOptions).build(),
+                heavyExecutor,
+                serializationResolver
+        );
     }
 
     @Override
@@ -64,7 +78,8 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         if (req.getNeedRetries()) {
             return CompletableFuture.completedFuture(
-                            new RetryingTableWriterImpl<>(this, executorService, req, rpcOptions))
+                            new RetryingTableWriterImpl<>(this, executorService, req, rpcOptions,
+                                    serializationResolver))
                     .thenCompose(writer -> writer.readyEvent().thenApply(unused -> writer));
         }
 
@@ -75,7 +90,8 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     public <T> CompletableFuture<AsyncWriter<T>> writeTableV2(WriteTable<T> req) {
         if (req.getNeedRetries()) {
             return CompletableFuture.completedFuture(
-                    new AsyncRetryingTableWriterImpl<>(this, executorService, req, rpcOptions));
+                    new AsyncRetryingTableWriterImpl<>(
+                            this, executorService, req, rpcOptions, serializationResolver));
         }
         return super.writeTableV2(req);
     }

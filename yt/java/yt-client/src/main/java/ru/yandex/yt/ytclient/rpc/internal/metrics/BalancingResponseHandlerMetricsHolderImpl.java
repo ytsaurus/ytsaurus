@@ -4,7 +4,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 
-import ru.yandex.yt.ytclient.proxy.YtClient;
+import ru.yandex.yt.ytclient.proxy.YtClientOpensource;
 
 /**
  * @author dkondra
@@ -15,13 +15,13 @@ public class BalancingResponseHandlerMetricsHolderImpl implements BalancingRespo
 
     private static final MetricRegistry METRICS = SharedMetricRegistries.getOrCreate("ytclient");
     private static final Counter INFLIGHT = METRICS.counter(
-            MetricRegistry.name(YtClient.class, "requests", "inflight")
+            MetricRegistry.name(YtClientOpensource.class, "requests", "inflight")
     );
     private static final Counter FAILOVER = METRICS.counter(
-            MetricRegistry.name(YtClient.class, "requests", "failover")
+            MetricRegistry.name(YtClientOpensource.class, "requests", "failover")
     );
     private static final Counter TOTAL = METRICS.counter(
-            MetricRegistry.name(YtClient.class, "requests", "total")
+            MetricRegistry.name(YtClientOpensource.class, "requests", "total")
     );
 
     @Override

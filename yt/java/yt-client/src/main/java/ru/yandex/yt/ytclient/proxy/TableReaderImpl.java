@@ -15,6 +15,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
@@ -48,13 +49,13 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
         return TRspReadTable.parser();
     }
 
-    public CompletableFuture<TableReaderBaseImpl<T>> waitMetadataImpl() {
+    public CompletableFuture<TableReaderBaseImpl<T>> waitMetadataImpl(SerializationResolver serializationResolver) {
         TableReaderBaseImpl<T> self = this;
         return readHead().thenApply((data) -> {
             self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
             if (self.reader == null) {
                 Objects.requireNonNull(self.objectClazz);
-                YTreeSerializer<T> serializer = Objects.requireNonNull(req).createSerializer(
+                YTreeSerializer<T> serializer = serializationResolver.forClass(
                         self.objectClazz,
                         ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
                 if (!(serializer.getClass().getName().equals(
@@ -122,8 +123,8 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
         return metadata.getOmittedInaccessibleColumnsList();
     }
 
-    public CompletableFuture<TableReader<T>> waitMetadata() {
-        return waitMetadataImpl().thenApply(reader -> (TableReader<T>) reader);
+    public CompletableFuture<TableReader<T>> waitMetadata(SerializationResolver serializationResolver) {
+        return waitMetadataImpl(serializationResolver).thenApply(reader -> (TableReader<T>) reader);
     }
 
     @Override
@@ -157,8 +158,8 @@ class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncRea
         super(reader);
     }
 
-    public CompletableFuture<AsyncReader<T>> waitMetadata() {
-        return super.waitMetadataImpl().thenApply(reader -> (AsyncReader<T>) reader);
+    public CompletableFuture<AsyncReader<T>> waitMetadata(SerializationResolver serializationResolver) {
+        return super.waitMetadataImpl(serializationResolver).thenApply(reader -> (AsyncReader<T>) reader);
     }
 
     @Override

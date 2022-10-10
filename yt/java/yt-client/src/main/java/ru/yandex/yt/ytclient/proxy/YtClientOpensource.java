@@ -26,6 +26,8 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import ru.yandex.yt.ytclient.SerializationResolver;
+import ru.yandex.yt.ytclient.SerializationResolverImpl;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
@@ -57,7 +59,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  *      When all internal threads of YtClient are blocked by such callbacks
  *      YtClient becomes unable to send requests and receive responses.
  */
-public class YtClient extends CompoundClientImpl implements BaseYtClient {
+public class YtClientOpensource extends CompoundClientImpl implements BaseYtClient {
     private final BusConnector busConnector;
     private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;
@@ -69,7 +71,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
      * @deprecated prefer to use {@link #builder()}
      */
     @Deprecated
-    public YtClient(
+    public YtClientOpensource(
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
@@ -82,7 +84,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
      * @deprecated prefer to use {@link #builder()}
      */
     @Deprecated
-    public YtClient(
+    public YtClientOpensource(
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
@@ -96,7 +98,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
      * @deprecated prefer to use {@link #builder()}
      */
     @Deprecated
-    public YtClient(
+    public YtClientOpensource(
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
@@ -106,8 +108,35 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
             RpcOptions options
     ) {
         this(
-                new BuilderWithDefaults(
-                    builder()
+                connector,
+                clusters,
+                localDataCenterName,
+                proxyRole,
+                credentials,
+                compression,
+                options,
+                new SerializationResolverImpl()
+        );
+    }
+
+    /**
+     * @deprecated prefer to use {@link #builder()}
+     */
+    @Deprecated
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public YtClientOpensource(
+            BusConnector connector,
+            List<YtCluster> clusters,
+            String localDataCenterName,
+            String proxyRole,
+            RpcCredentials credentials,
+            RpcCompression compression,
+            RpcOptions options,
+            SerializationResolver serializationResolver
+    ) {
+        this(
+                new BuilderWithDefaults<>(
+                    new Builder()
                             .setSharedBusConnector(connector)
                             .setClusters(clusters)
                             .setPreferredClusterName(localDataCenterName)
@@ -115,26 +144,31 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
                             .setRpcCredentials(credentials)
                             .setRpcCompression(compression)
                             .setRpcOptions(options)
-                            // old constructors did not validate their arguments
                             .disableValidation()
-                    )
+                            // old constructors did not validate their arguments
+                    ), serializationResolver
         );
     }
 
-    public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
+    public YtClientOpensource(
+            BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
         this(connector, Arrays.asList(cluster), cluster.getName(), credentials, options);
     }
 
-    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
+    public YtClientOpensource(
+            BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
         this(connector, new YtCluster(clusterName), credentials, options);
     }
 
-    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials) {
+    public YtClientOpensource(BusConnector connector, String clusterName, RpcCredentials credentials) {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
-    private YtClient(BuilderWithDefaults builder) {
-        super(builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor);
+    protected YtClientOpensource(BuilderWithDefaults builder, SerializationResolver serializationResolver) {
+        super(
+                builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor,
+                serializationResolver
+        );
 
         builder.builder.validate();
 
@@ -169,8 +203,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
 
     /**
      * Create builder for YtClient.
+     * @return
      */
-    public static Builder builder() {
+    public static ClientBuilder<?, ?> builder() {
         return new Builder();
     }
 
@@ -406,7 +441,8 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
                                 curClient,
                                 YtClientConfiguration.builder().setRpcOptions(options).build(),
                                 heavyExecutor,
-                                executorService
+                                executorService,
+                                new SerializationResolverImpl()
                         ));
                     }
                 }
@@ -455,8 +491,10 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
 
     @NonNullApi
     @NonNullFields
-    public abstract static class BaseBuilder<T extends BaseBuilder<T>> {
-        @Nullable RpcCredentials credentials;
+    public abstract static class BaseBuilder<
+            TClient, TBuilder extends BaseBuilder<TClient, TBuilder>> {
+        @Nullable
+        RpcCredentials credentials;
         RpcCompression compression = new RpcCompression();
         YtClientConfiguration configuration = YtClientConfiguration.builder()
                 .setRpcOptions(new RpcOptions())
@@ -469,7 +507,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * When no rpc credentials is set they are loaded from environment.
          * @see RpcCredentials#loadFromEnvironment()
          */
-        public T setRpcCredentials(RpcCredentials rpcCredentials) {
+        public TBuilder setRpcCredentials(RpcCredentials rpcCredentials) {
             this.credentials = rpcCredentials;
             return self();
         }
@@ -480,7 +518,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * <p>
          * If it's not specified no compression will be used.
          */
-        public T setRpcCompression(RpcCompression rpcCompression) {
+        public TBuilder setRpcCompression(RpcCompression rpcCompression) {
             this.compression = rpcCompression;
             return self();
         }
@@ -491,7 +529,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * @deprecated prefer to use {@link #setYtClientConfiguration(YtClientConfiguration)} ()}
          */
         @Deprecated
-        public T setRpcOptions(RpcOptions rpcOptions) {
+        public TBuilder setRpcOptions(RpcOptions rpcOptions) {
             this.configuration = YtClientConfiguration.builder()
                     .setRpcOptions(rpcOptions)
                     .build();
@@ -501,17 +539,39 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         /**
          * Set settings of YtClient.
          */
-        public T setYtClientConfiguration(YtClientConfiguration configuration) {
+        public TBuilder setYtClientConfiguration(YtClientConfiguration configuration) {
             this.configuration = configuration;
             return self();
         }
 
-        protected abstract T self();
+        protected abstract TBuilder self();
+
+        /**
+         * Finally create a client.
+         */
+        public abstract TClient build();
+    }
+
+    @NonNullApi
+    @NonNullFields
+    public static class Builder extends ClientBuilder<YtClientOpensource, Builder> {
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
+        @Override
+        public YtClientOpensource build() {
+            return new YtClientOpensource(new BuilderWithDefaults<>(this), new SerializationResolverImpl());
+        }
     }
 
     @NonNullFields
     @NonNullApi
-    public static class Builder extends BaseBuilder<Builder> {
+    public abstract static class ClientBuilder<
+            TClient extends YtClientOpensource,
+            TBuilder extends ClientBuilder<TClient, TBuilder>>
+            extends BaseBuilder<TClient, TBuilder> {
         @Nullable BusConnector busConnector;
         boolean isBusConnectorOwner = true;
         @Nullable String preferredClusterName;
@@ -521,7 +581,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
 
-        Builder() {
+        ClientBuilder() {
         }
 
         /**
@@ -531,7 +591,7 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
          * YtClient will chose cluster to send requests based on cluster availability and their ping.
          */
-        public Builder setClusters(String firstCluster, String... rest) {
+        public TBuilder setClusters(String firstCluster, String... rest) {
             List<YtCluster> ytClusters = new ArrayList<>();
             ytClusters.add(new YtCluster(YtCluster.normalizeName(firstCluster)));
             for (String clusterName : rest) {
@@ -546,9 +606,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * <p>
          * Similar to {@link #setClusters(String, String...)} but allows finer configuration.
          */
-        public Builder setClusters(List<YtCluster> clusters) {
+        public TBuilder setClusters(List<YtCluster> clusters) {
             this.clusters = clusters;
-            return this;
+            return self();
         }
 
         /**
@@ -556,16 +616,16 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          *
          * <p>
          * Connector will be owned by YtClient.
-         * YtClient will close it when {@link YtClient#close()} is called.
+         * YtClient will close it when {@link YtClientOpensource#close()} is called.
          *
          * <p>
          * If bus is never set default bus will be created
          * (default bus will be owned by YtClient so you don't need to worry about closing it).
          */
-        public Builder setOwnBusConnector(BusConnector connector) {
+        public TBuilder setOwnBusConnector(BusConnector connector) {
             this.busConnector = connector;
             isBusConnectorOwner = true;
-            return this;
+            return self();
         }
 
         /**
@@ -576,10 +636,10 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          *
          * @see #setOwnBusConnector
          */
-        public Builder setSharedBusConnector(BusConnector connector) {
+        public TBuilder setSharedBusConnector(BusConnector connector) {
             this.busConnector = connector;
             isBusConnectorOwner = false;
-            return this;
+            return self();
         }
 
         /**
@@ -590,9 +650,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          *                "arnold.yt.yandex.net"
          *                "localhost:8054"
          */
-        public Builder setCluster(String cluster) {
+        public TBuilder setCluster(String cluster) {
             setClusters(cluster);
-            return this;
+            return self();
         }
 
         /**
@@ -600,18 +660,18 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * By default, ForkJoinPool.commonPool().
          * @return self
          */
-        public Builder setHeavyExecutor(Executor heavyExecutor) {
+        public TBuilder setHeavyExecutor(Executor heavyExecutor) {
             this.heavyExecutor = heavyExecutor;
-            return this;
+            return self();
         }
 
         /**
          * Create and use default connector with specified working thread count.
          */
-        public Builder setDefaultBusConnectorWithThreadCount(int threadCount) {
+        public TBuilder setDefaultBusConnectorWithThreadCount(int threadCount) {
             setOwnBusConnector(new DefaultBusConnector(new NioEventLoopGroup(threadCount), true));
             isBusConnectorOwner = true;
-            return this;
+            return self();
         }
 
         /**
@@ -625,9 +685,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * If preferred cluster is not set or is set but unavailable YtClient chooses
          * cluster based on network metrics.
          */
-        public Builder setPreferredClusterName(@Nullable String preferredClusterName) {
+        public TBuilder setPreferredClusterName(@Nullable String preferredClusterName) {
             this.preferredClusterName = YtCluster.normalizeName(preferredClusterName);
-            return this;
+            return self();
         }
 
         /**
@@ -637,16 +697,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
          * Projects that have dedicated proxies should use this option so YtClient will use them.
          * If no proxy role is specified default proxies will be used.
          */
-        public Builder setProxyRole(@Nullable String proxyRole) {
+        public TBuilder setProxyRole(@Nullable String proxyRole) {
             this.proxyRole = proxyRole;
-            return this;
-        }
-
-        /**
-         * Finally create a client.
-         */
-        public YtClient build() {
-            return new YtClient(new BuilderWithDefaults(this));
+            return self();
         }
 
         void validate() {
@@ -680,14 +733,9 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
             }
         }
 
-        Builder disableValidation() {
+        TBuilder disableValidation() {
             enableValidation = false;
-            return this;
-        }
-
-        @Override
-        protected Builder self() {
-            return this;
+            return self();
         }
     }
 
@@ -699,12 +747,14 @@ public class YtClient extends CompoundClientImpl implements BaseYtClient {
     //   3. Its better not to touch and modify builder instance since it's theoretically can be used by
     //   user to initialize another YtClient.
     @NonNullFields
-    private static class BuilderWithDefaults {
-        final Builder builder;
+    public static class BuilderWithDefaults<
+            TClient extends YtClientOpensource,
+            TBuilder extends ClientBuilder<TClient, TBuilder>> {
+        final ClientBuilder<TClient, TBuilder> builder;
         final BusConnector busConnector;
         final RpcCredentials credentials;
 
-        BuilderWithDefaults(Builder builder) {
+        public BuilderWithDefaults(ClientBuilder<TClient, TBuilder> builder) {
             this.builder = builder;
 
             if (builder.busConnector != null) {

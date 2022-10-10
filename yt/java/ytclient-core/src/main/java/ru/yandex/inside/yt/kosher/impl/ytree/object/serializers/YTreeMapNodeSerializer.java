@@ -36,6 +36,6 @@ public class YTreeMapNodeSerializer implements YTreeRowSerializer<YTreeMapNode> 
 
     @Override
     public Class<YTreeMapNode> getClazz() {
-        return (Class<YTreeMapNode>) clazz;
+        return clazz;
     }
 }

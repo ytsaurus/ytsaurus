@@ -54,6 +54,7 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
@@ -159,14 +160,16 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     private final Executor heavyExecutor;
     private final ExecutorService prepareSpecExecutor = Executors.newSingleThreadExecutor();
     @Nullable private final RpcClient rpcClient;
-    final YtClientConfiguration configuration;
-    final RpcOptions rpcOptions;
+    private final YtClientConfiguration configuration;
+    protected final RpcOptions rpcOptions;
+    protected final SerializationResolver serializationResolver;
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
             @Nonnull YtClientConfiguration configuration,
             @Nonnull Executor heavyExecutor,
-            @Nonnull ScheduledExecutorService executorService
+            @Nonnull ScheduledExecutorService executorService,
+            SerializationResolver serializationResolver
     ) {
         OutageController outageController = configuration.getRpcOptions().getTestingOptions().getOutageController();
         if (client != null && outageController != null) {
@@ -178,15 +181,23 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         this.configuration = configuration;
         this.rpcOptions = configuration.getRpcOptions();
         this.executorService = executorService;
+        this.serializationResolver = serializationResolver;
     }
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
             @Nonnull RpcOptions options,
             @Nonnull Executor heavyExecutor,
-            @Nonnull ScheduledExecutorService executorService
+            @Nonnull ScheduledExecutorService executorService,
+            SerializationResolver serializationResolver
     ) {
-        this(client, YtClientConfiguration.builder().setRpcOptions(options).build(), heavyExecutor, executorService);
+        this(
+                client,
+                YtClientConfiguration.builder().setRpcOptions(options).build(),
+                heavyExecutor,
+                executorService,
+                serializationResolver
+        );
     }
 
     @Override
@@ -217,7 +228,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
                         new ApiServiceClientImpl(
-                                Objects.requireNonNull(sender), configuration, heavyExecutor, executorService),
+                                Objects.requireNonNull(sender), configuration, heavyExecutor,
+                                executorService, serializationResolver),
                         id,
                         startTimestamp,
                         startTransaction.getPing(),
@@ -979,7 +991,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
-                control -> tableReader.waitMetadata());
+                control -> tableReader.waitMetadata(serializationResolver));
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1005,7 +1017,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
-                control -> tableReader.waitMetadata());
+                control -> tableReader.waitMetadata(serializationResolver));
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
 
@@ -1027,7 +1039,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload());
+                .thenCompose(control -> tableWriter.startUpload(serializationResolver));
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1048,7 +1060,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<AsyncWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload());
+                .thenCompose(control -> tableWriter.startUpload(serializationResolver));
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
