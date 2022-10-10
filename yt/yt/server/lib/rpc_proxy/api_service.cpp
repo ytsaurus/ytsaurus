@@ -94,6 +94,7 @@ using namespace NApi;
 using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
+using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
@@ -4643,14 +4644,15 @@ private:
         TGetColumnarStatisticsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        options.FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
-        options.FetchChunkSpecConfig->MaxChunksPerFetch =
-            request->fetch_chunk_spec().max_chunk_per_fetch();
-        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest =
-            request->fetch_chunk_spec().max_chunk_per_locate_request();
+        options.FetchChunkSpecConfig = New<TFetchChunkSpecConfig>();
+        if (request->has_fetch_chunk_spec_config()) {
+            FromProto(options.FetchChunkSpecConfig, request->fetch_chunk_spec_config());
+        }
 
-        options.FetcherConfig = New<NChunkClient::TFetcherConfig>();
-        options.FetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+        options.FetcherConfig = New<TFetcherConfig>();
+        if (request->has_fetcher_config()) {
+            FromProto(options.FetcherConfig, request->fetcher_config());
+        }
 
         options.FetcherMode = CheckedEnumCast<NTableClient::EColumnarStatisticsFetcherMode>(request->fetcher_mode());
 
@@ -4687,26 +4689,19 @@ private:
         TPartitionTablesOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        options.FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
-        if (request->has_fetch_chunk_spec()) {
-            if (request->fetch_chunk_spec().has_max_chunk_per_fetch()) {
-                options.FetchChunkSpecConfig->MaxChunksPerFetch =
-                    request->fetch_chunk_spec().max_chunk_per_fetch();
-            }
-            if (request->fetch_chunk_spec().has_max_chunk_per_locate_request()) {
-                options.FetchChunkSpecConfig->MaxChunksPerLocateRequest =
-                    request->fetch_chunk_spec().max_chunk_per_locate_request();
-            }
+        options.FetchChunkSpecConfig = New<TFetchChunkSpecConfig>();
+        if (request->has_fetch_chunk_spec_config()) {
+            FromProto(options.FetchChunkSpecConfig, request->fetch_chunk_spec_config());
         }
 
-        options.FetcherConfig = New<NChunkClient::TFetcherConfig>();
-        if (request->has_fetcher() && request->fetcher().has_node_rpc_timeout()) {
-            options.FetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+        options.FetcherConfig = New<TFetcherConfig>();
+        if (request->has_fetcher_config()) {
+            FromProto(options.FetcherConfig, request->fetcher_config());
         }
 
-        options.ChunkSliceFetcherConfig = New<NChunkClient::TChunkSliceFetcherConfig>();
-        if (request->has_chunk_slice_fetcher() && request->chunk_slice_fetcher().has_max_slices_per_fetch()) {
-            options.ChunkSliceFetcherConfig->MaxSlicesPerFetch = request->chunk_slice_fetcher().max_slices_per_fetch();
+        options.ChunkSliceFetcherConfig = New<TChunkSliceFetcherConfig>();
+        if (request->has_chunk_slice_fetcher_config() && request->chunk_slice_fetcher_config().has_max_slices_per_fetch()) {
+            options.ChunkSliceFetcherConfig->MaxSlicesPerFetch = request->chunk_slice_fetcher_config().max_slices_per_fetch();
         }
 
         options.PartitionMode = CheckedEnumCast<NTableClient::ETablePartitionMode>(request->partition_mode());

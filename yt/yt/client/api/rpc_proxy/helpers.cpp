@@ -1114,6 +1114,43 @@ void FromProto(
 }
 
 void ToProto(
+    NProto::TFetchChunkSpecConfig* protoFetchChunkSpecConfig,
+    const NChunkClient::TFetchChunkSpecConfigPtr& fetchChunkSpecConfig)
+{
+    protoFetchChunkSpecConfig->set_max_chunk_per_fetch(
+        fetchChunkSpecConfig->MaxChunksPerFetch);
+    protoFetchChunkSpecConfig->set_max_chunk_per_locate_request(
+        fetchChunkSpecConfig->MaxChunksPerLocateRequest);
+}
+
+void FromProto(
+    const NChunkClient::TFetchChunkSpecConfigPtr& fetchChunkSpecConfig,
+    const NProto::TFetchChunkSpecConfig& protoFetchChunkSpecConfig)
+{
+    NYT::FromProto(
+        &fetchChunkSpecConfig->MaxChunksPerFetch,
+        protoFetchChunkSpecConfig.max_chunk_per_fetch());
+    NYT::FromProto(
+        &fetchChunkSpecConfig->MaxChunksPerLocateRequest,
+        protoFetchChunkSpecConfig.max_chunk_per_locate_request());
+}
+
+void ToProto(
+    NProto::TFetcherConfig* protoFetcherConfig,
+    const NChunkClient::TFetcherConfigPtr& fetcherConfig)
+{
+    protoFetcherConfig->set_node_rpc_timeout(
+        NYT::ToProto<i64>(fetcherConfig->NodeRpcTimeout));
+}
+
+void FromProto(
+    const NChunkClient::TFetcherConfigPtr& fetcherConfig,
+    const NProto::TFetcherConfig& protoFetcherConfig)
+{
+    fetcherConfig->NodeRpcTimeout = TDuration::FromValue(protoFetcherConfig.node_rpc_timeout());
+}
+
+void ToProto(
     NProto::TColumnarStatistics* protoStatistics,
     const NTableClient::TColumnarStatistics& statistics)
 {

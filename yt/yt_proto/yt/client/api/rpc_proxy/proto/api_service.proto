@@ -1562,22 +1562,22 @@ message TRspAlterReplicationCard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TFetchChunkSpecConfig
+{
+    optional int32 max_chunk_per_fetch = 1;
+    optional int32 max_chunk_per_locate_request = 2;
+}
+
+message TFetcherConfig
+{
+    optional uint64 node_rpc_timeout = 1; // TDuration
+}
+
 message TReqGetColumnarStatistics
 {
-    message TFetchChunkSpec
-    {
-        optional int32 max_chunk_per_fetch = 1 [default = 100000];
-        optional int32 max_chunk_per_locate_request = 2 [default = 10000];
-    }
-
-    message TFetcher
-    {
-        optional uint64 node_rpc_timeout = 1 [default = 30000000]; // TDuration, 30 seconds by default
-    }
-
     repeated string paths = 1; // RichYPath
-    required TFetchChunkSpec fetch_chunk_spec = 2;
-    required TFetcher fetcher = 3;
+    optional TFetchChunkSpecConfig fetch_chunk_spec_config = 2;
+    optional TFetcherConfig fetcher_config = 3;
     optional EColumnarStatisticsFetcherMode fetcher_mode = 4;
     optional bool enable_early_finish = 5 [default = false];
 
@@ -1601,26 +1601,15 @@ message TRspGetColumnarStatistics
 
 message TReqPartitionTables
 {
-    message TFetchChunkSpec
-    {
-        optional int32 max_chunk_per_fetch = 1;
-        optional int32 max_chunk_per_locate_request = 2;
-    }
-
-    message TFetcher
-    {
-        optional uint64 node_rpc_timeout = 1; // TDuration
-    }
-
-    message TChunkSliceFetcher
+    message TChunkSliceFetcherConfig
     {
         optional int32 max_slices_per_fetch = 1;
     }
 
     repeated string paths = 1; // RichYPath
-    optional TFetchChunkSpec fetch_chunk_spec = 2;
-    optional TFetcher fetcher = 3;
-    optional TChunkSliceFetcher chunk_slice_fetcher = 4;
+    optional TFetchChunkSpecConfig fetch_chunk_spec_config = 2;
+    optional TFetcherConfig fetcher_config = 3;
+    optional TChunkSliceFetcherConfig chunk_slice_fetcher_config = 4;
     required EPartitionTablesMode partition_mode = 5;
     required int64 data_weight_per_partition = 6;
     optional int32 max_partition_count = 7;
