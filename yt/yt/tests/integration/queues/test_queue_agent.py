@@ -461,12 +461,9 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_no_alerts(self):
-        orchid = QueueAgentOrchid()
         alert_orchid = AlertManagerOrchid()
 
-        orchid.wait_fresh_poll()
-
-        assert not alert_orchid.get_alerts()
+        wait(lambda: not alert_orchid.get_alerts())
 
 
 class TestOrchidSelfRedirect(TestQueueAgentBase):
@@ -1681,9 +1678,7 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
         for consumer in consumers:
             self._assert_increased_revision(consumer)
 
-        orchid.wait_fresh_poll()
-
-        assert not alert_orchid.get_alerts()
+        wait(lambda: not alert_orchid.get_alerts())
 
 
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
