@@ -104,7 +104,7 @@ TExecutionStack::TExecutionStack(size_t size)
 TExecutionStack::~TExecutionStack()
 {
     const size_t guardSize = GuardPageCount * GetPageSize();
-    ::munmap(Base_, guardSize + Size_);
+    ::munmap(Base_, guardSize * 2 + Size_);
 }
 
 #elif defined(_win_)
