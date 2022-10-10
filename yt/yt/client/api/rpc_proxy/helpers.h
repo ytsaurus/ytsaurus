@@ -161,6 +161,22 @@ void FromProto(
     const NProto::TListJobsStatistics& protoStatistics);
 
 void ToProto(
+    NProto::TFetchChunkSpecConfig* protoFetchChunkSpecConfig,
+    const NChunkClient::TFetchChunkSpecConfigPtr& fetchChunkSpecConfig);
+
+void FromProto(
+    const NChunkClient::TFetchChunkSpecConfigPtr& fetchChunkSpecConfig,
+    const NProto::TFetchChunkSpecConfig& protoFetchChunkSpecConfig);
+
+void ToProto(
+    NProto::TFetcherConfig* protoFetcherConfig,
+    const NChunkClient::TFetcherConfigPtr& fetcherConfig);
+
+void FromProto(
+    const NChunkClient::TFetcherConfigPtr& fetcherConfig,
+    const NProto::TFetcherConfig& protoFetcherConfig);
+
+void ToProto(
     NProto::TColumnarStatistics* protoStatistics,
     const NTableClient::TColumnarStatistics& statistics);
 

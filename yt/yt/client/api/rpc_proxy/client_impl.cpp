@@ -48,6 +48,7 @@ using NYT::FromProto;
 
 using namespace NAuth;
 using namespace NChaosClient;
+using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NScheduler;
@@ -1429,13 +1430,9 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
 
     req->set_fetcher_mode(static_cast<NProto::EColumnarStatisticsFetcherMode>(options.FetcherMode));
 
-    req->mutable_fetch_chunk_spec()->set_max_chunk_per_fetch(
-        options.FetchChunkSpecConfig->MaxChunksPerFetch);
-    req->mutable_fetch_chunk_spec()->set_max_chunk_per_locate_request(
-        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest);
+    ToProto(req->mutable_fetch_chunk_spec_config(), options.FetchChunkSpecConfig);
 
-    req->mutable_fetcher()->set_node_rpc_timeout(
-        NYT::ToProto<i64>(options.FetcherConfig->NodeRpcTimeout));
+    ToProto(req->mutable_fetcher_config(), options.FetcherConfig);
 
     req->set_enable_early_finish(options.EnableEarlyFinish);
 
@@ -1459,15 +1456,11 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
         req->add_paths(ConvertToYsonString(path).ToString());
     }
 
-    req->mutable_fetch_chunk_spec()->set_max_chunk_per_fetch(
-        options.FetchChunkSpecConfig->MaxChunksPerFetch);
-    req->mutable_fetch_chunk_spec()->set_max_chunk_per_locate_request(
-        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest);
+    ToProto(req->mutable_fetch_chunk_spec_config(), options.FetchChunkSpecConfig);
 
-    req->mutable_fetcher()->set_node_rpc_timeout(
-        ToProto<i64>(options.FetcherConfig->NodeRpcTimeout));
+    ToProto(req->mutable_fetcher_config(), options.FetcherConfig);
 
-    req->mutable_chunk_slice_fetcher()->set_max_slices_per_fetch(
+    req->mutable_chunk_slice_fetcher_config()->set_max_slices_per_fetch(
         ToProto<i64>(options.ChunkSliceFetcherConfig->MaxSlicesPerFetch));
 
     req->set_partition_mode(static_cast<NProto::EPartitionTablesMode>(options.PartitionMode));
