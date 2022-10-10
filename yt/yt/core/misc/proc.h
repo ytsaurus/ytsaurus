@@ -38,6 +38,15 @@ bool IsSystemError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _win_
+    using TFileDescriptor = SOCKET;
+    using uid_t = i64;
+#else
+    using TFileDescriptor = int;
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<int> ListPids();
 std::vector<int> GetPidsByUid(int uid = -1);
 std::vector<int> GetPidsUnderParent(int targetPid);
@@ -119,32 +128,35 @@ TString GetProcessName(int pid);
 std::vector<TString> GetProcessCommandLine(int pid);
 
 TError StatusToError(int status);
+
+#ifdef _unix_
 TError ProcessInfoToError(const siginfo_t& processInfo);
+#endif
 
-bool TryClose(int fd, bool ignoreBadFD = true);
-void SafeClose(int fd, bool ignoreBadFD = true);
+bool TryClose(TFileDescriptor fd, bool ignoreBadFD = true);
+void SafeClose(TFileDescriptor fd, bool ignoreBadFD = true);
 
-bool TryDup2(int oldFD, int newFD);
-void SafeDup2(int oldFD, int newFD);
+bool TryDup2(TFileDescriptor oldFD, TFileDescriptor newFD);
+void SafeDup2(TFileDescriptor oldFD, TFileDescriptor newFD);
 
-void SafeSetCloexec(int fd);
+void SafeSetCloexec(TFileDescriptor fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
 void SafeCreateStderrFile(TString fileName);
 
 //! Returns a pipe with CLOSE_EXEC flag.
-void SafePipe(int fd[2]);
+void SafePipe(TFileDescriptor fd[2]);
 
-int SafeDup(int fd);
+TFileDescriptor SafeDup(TFileDescriptor fd);
 
 //! Returns a pty with CLOSE_EXEC flag on master channel.
-void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width);
-void SafeLoginTty(int fd);
-void SafeSetTtyWindowSize(int slaveFD, int height, int width);
+void SafeOpenPty(TFileDescriptor* masterFD, TFileDescriptor* slaveFD, int height, int width);
+void SafeLoginTty(TFileDescriptor fd);
+void SafeSetTtyWindowSize(TFileDescriptor slaveFD, int height, int width);
 
-bool TryMakeNonblocking(int fd);
-void SafeMakeNonblocking(int fd);
+bool TryMakeNonblocking(TFileDescriptor fd);
+void SafeMakeNonblocking(TFileDescriptor fd);
 
 bool TrySetUid(int uid);
 void SafeSetUid(int uid);

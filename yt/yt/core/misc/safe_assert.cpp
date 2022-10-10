@@ -94,7 +94,11 @@ void PushSafeAssertionsFrame(
 
 bool SafeAssertionsModeEnabled()
 {
+#ifdef _unix_
     return !SafeAssertionsContext().empty();
+#else
+    return false;
+#endif
 }
 
 ICoreDumperPtr GetSafeAssertionsCoreDumper()

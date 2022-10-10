@@ -545,6 +545,9 @@ TEST(TAsyncSlruCacheTest, TouchEvictedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Profiling is not supported on Windows for now.
+#ifdef _unix_
+
 TEST(TAsyncSlruGhostCacheTest, InsertSmall)
 {
     constexpr int cacheSize = 10;
@@ -901,6 +904,8 @@ TEST(TAsyncSlruGhostCacheTest, ReconfigureTrim)
     EXPECT_EQ(newCacheSize, cache->GetSize());
     EXPECT_EQ(newCacheSize, cache->GetCapacity());
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

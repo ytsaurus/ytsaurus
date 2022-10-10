@@ -82,9 +82,15 @@ YT_DEFINE_ERROR_CODE_RANGE(-10005, -10000, "NYT::DifferentTest", DifferentTestEr
 
 TEST(TErrorCodeRegistryTest, Basic)
 {
+#ifdef _unix_
     EXPECT_EQ(
         TErrorCodeRegistry::Get()->Get(-1543),
         (TErrorCodeRegistry::TErrorCodeInfo{"NYT::(anonymous namespace)", "Muahaha"}));
+#else
+    EXPECT_EQ(
+        TErrorCodeRegistry::Get()->Get(-1543),
+        (TErrorCodeRegistry::TErrorCodeInfo{"NYT::`anonymous namespace'", "Muahaha"}));
+#endif
     EXPECT_EQ(
         TErrorCodeRegistry::Get()->Get(-3),
         (TErrorCodeRegistry::TErrorCodeInfo{"NYT::NInternalLittleWorld", "C"}));

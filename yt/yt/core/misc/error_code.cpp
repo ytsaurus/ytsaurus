@@ -128,6 +128,12 @@ TString TErrorCodeRegistry::ParseNamespace(const std::type_info& errorCodeEnumTy
     // the first occurrence into #name.
     YT_VERIFY(StringSplitter(
         TypeName(errorCodeEnumTypeInfo)).SplitByString("EErrorCode").Limit(2).TryCollectInto(&name, &std::ignore));
+
+    // TypeName returns name in form "enum ErrorCode" on Windows
+    if (name.StartsWith("enum ")) {
+        name.remove(0, 5);
+    }
+
     // If the enum was declared directly in the global namespace, #name should be empty.
     // Otherwise, #name should end with "::".
     if (!name.empty()) {

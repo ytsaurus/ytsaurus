@@ -82,12 +82,12 @@ TString FormatErrorMessage(const char (&message)[Length])
 
 template <size_t Length, class... TArgs>
 TError::TErrorOr(const char (&messageOrFormat)[Length], TArgs&&... args)
-    : TErrorOr(NYT::EErrorCode::Generic, NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
+    : TErrorOr(NYT::EErrorCode::Generic, NYT::NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
 { }
 
 template <size_t Length, class... TArgs>
 TError::TErrorOr(TErrorCode code, const char (&messageOrFormat)[Length], TArgs&&... args)
-    : TErrorOr(code, NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
+    : TErrorOr(code, NYT::NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
 { }
 
 template <class... TArgs>

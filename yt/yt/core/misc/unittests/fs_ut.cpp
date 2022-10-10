@@ -13,22 +13,23 @@ namespace {
 TEST(TFSTest, TestGetRealPath)
 {
     auto cwd = NFs::CurrentWorkingDirectory();
+    auto rootPrefix = cwd.substr(0, cwd.find(LOCSLASH_C));
     EXPECT_EQ(CombinePaths(cwd, "dir"), GetRealPath("dir"));
     EXPECT_EQ(cwd, GetRealPath("dir/.."));
     EXPECT_EQ(CombinePaths(cwd, "dir"), GetRealPath("dir/./a/b/../../."));
-    EXPECT_EQ(GetRealPath("/a"), "/a");
-    EXPECT_EQ(GetRealPath("/a/b"), "/a/b");
-    EXPECT_EQ(GetRealPath("/a/b/c/.././../d/."), "/a/d");
+    EXPECT_EQ(GetRealPath("/a"), rootPrefix + NormalizePathSeparators("/a"));
+    EXPECT_EQ(GetRealPath("/a/b"), rootPrefix + NormalizePathSeparators("/a/b"));
+    EXPECT_EQ(GetRealPath("/a/b/c/.././../d/."), rootPrefix + NormalizePathSeparators("/a/d"));
 }
 
 TEST(TFSTest, TestGetDirectoryName)
 {
     auto cwd = NFs::CurrentWorkingDirectory();
-    EXPECT_EQ(GetDirectoryName("/a/b/c"), "/a/b");
-    EXPECT_EQ(GetDirectoryName("a/b/c"), cwd + "/a/b");
-    EXPECT_EQ(GetDirectoryName("."), cwd);
-    EXPECT_EQ(GetDirectoryName("/"), "/");
-    EXPECT_EQ(GetDirectoryName("/a"), "/");
+    EXPECT_EQ(GetDirectoryName("/a/b/c"), NormalizePathSeparators("/a/b"));
+    EXPECT_EQ(GetDirectoryName("a/b/c"), NormalizePathSeparators(cwd + "/a/b"));
+    EXPECT_EQ(GetDirectoryName("."), NormalizePathSeparators(cwd));
+    EXPECT_EQ(GetDirectoryName("/"), NormalizePathSeparators("/"));
+    EXPECT_EQ(GetDirectoryName("/a"), NormalizePathSeparators("/"));
 }
 
 TEST(TFSTest, TestIsDirEmtpy)
@@ -71,10 +72,10 @@ TEST(TFSTest, TestGetRelativePath)
 {
     EXPECT_EQ(GetRelativePath("/a", "/a/b"), "b");
     EXPECT_EQ(GetRelativePath("/a/b", "/a"), "..");
-    EXPECT_EQ(GetRelativePath("/a/b/c", "/d/e"), "../../../d/e");
-    EXPECT_EQ(GetRelativePath("/a/b/c/d", "/a/b"), "../..");
-    EXPECT_EQ(GetRelativePath("/a/b/c/d/e", "/a/b/c/f/g/h"), "../../f/g/h");
-    EXPECT_EQ(GetRelativePath("a/b/c", "d/e"), "../../../d/e");
+    EXPECT_EQ(GetRelativePath("/a/b/c", "/d/e"), NormalizePathSeparators("../../../d/e"));
+    EXPECT_EQ(GetRelativePath("/a/b/c/d", "/a/b"), NormalizePathSeparators("../.."));
+    EXPECT_EQ(GetRelativePath("/a/b/c/d/e", "/a/b/c/f/g/h"), NormalizePathSeparators("../../f/g/h"));
+    EXPECT_EQ(GetRelativePath("a/b/c", "d/e"), NormalizePathSeparators("../../../d/e"));
     EXPECT_EQ(GetRelativePath("/a/b", "/a/b"), ".");
 
     EXPECT_EQ(GetRelativePath(CombinePaths(NFs::CurrentWorkingDirectory(), "dir")), "dir");
@@ -84,4 +85,3 @@ TEST(TFSTest, TestGetRelativePath)
 
 } // namespace
 } // namespace NYT::NFS
-

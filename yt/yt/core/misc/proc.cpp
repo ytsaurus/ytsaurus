@@ -286,7 +286,7 @@ size_t GetCurrentThreadId()
     YT_VERIFY(pthread_threadid_np(nullptr, &tid) == 0);
     return static_cast<size_t>(tid);
 #else
-    YT_ABORT();
+    return ::GetCurrentThreadId();
 #endif
 }
 
@@ -556,6 +556,13 @@ std::vector<TString> GetProcessCommandLine(int pid)
 #endif
 }
 
+void SafeClose(TFileDescriptor fd, bool ignoreBadFD)
+{
+    if (!TryClose(fd, ignoreBadFD)) {
+        THROW_ERROR TError::FromSystem();
+    }
+}
+
 #ifdef _unix_
 
 TError StatusToError(int status)
@@ -588,6 +595,7 @@ TError StatusToError(int status)
     }
 }
 
+#ifdef _unix_
 TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     switch (processInfo.si_code) {
@@ -620,6 +628,7 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
                 processInfo.si_code);
     }
 }
+#endif
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env)
 {
@@ -668,13 +677,6 @@ bool TryClose(int fd, bool ignoreBadFD)
             default:
                 return false;
         }
-    }
-}
-
-void SafeClose(int fd, bool ignoreBadFD)
-{
-    if (!TryClose(fd, ignoreBadFD)) {
-        THROW_ERROR TError::FromSystem();
     }
 }
 
@@ -913,27 +915,30 @@ TString SafeGetUsernameByUid(int uid)
 
 #else
 
-bool TryClose(int /* fd */, bool /* ignoreBadFD */)
+bool TryClose(TFileDescriptor fd, bool ignoreBadFD)
+{
+    if (::closesocket(fd) != SOCKET_ERROR) {
+        return true;
+    }
+
+    if (WSAGetLastError() == WSAENOTSOCK) {
+        return ignoreBadFD;
+    }
+
+    return false;
+}
+
+bool TryDup2(TFileDescriptor /* oldFD */, TFileDescriptor /* newFD */)
 {
     YT_UNIMPLEMENTED();
 }
 
-void SafeClose(int /* fd */, bool /* ignoreBadFD */)
+void SafeDup2(TFileDescriptor /* oldFD */, TFileDescriptor /* newFD */)
 {
     YT_UNIMPLEMENTED();
 }
 
-bool TryDup2(int /* oldFD */, int /* newFD */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void SafeDup2(int /* oldFD */, int /* newFD */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void SafeSetCloexec(int /* fd */)
+void SafeSetCloexec(TFileDescriptor /* fd */)
 {
     YT_UNIMPLEMENTED();
 }
@@ -953,37 +958,37 @@ void CloseAllDescriptors()
     YT_UNIMPLEMENTED();
 }
 
-void SafePipe(int /* fd */ [2])
+void SafePipe(TFileDescriptor /* fd */ [2])
 {
     YT_UNIMPLEMENTED();
 }
 
-int SafeDup(int /* fd */)
+TFileDescriptor SafeDup(TFileDescriptor /* fd */)
 {
     YT_UNIMPLEMENTED();
 }
 
-void SafeOpenPty(int* /* masterFD */, int* /* slaveFD */, int /* height */, int /* width */)
+void SafeOpenPty(TFileDescriptor* /* masterFD */, TFileDescriptor* /* slaveFD */, int /* height */, int /* width */)
 {
     YT_UNIMPLEMENTED();
 }
 
-void SafeLoginTty(int /* slaveFD */)
+void SafeLoginTty(TFileDescriptor /* slaveFD */)
 {
     YT_UNIMPLEMENTED();
 }
 
-void SafeSetTtyWindowSize(int /* slaveFD */, int /* height */, int /* width */)
+void SafeSetTtyWindowSize(TFileDescriptor /* slaveFD */, int /* height */, int /* width */)
 {
     YT_UNIMPLEMENTED();
 }
 
-bool TryMakeNonblocking(int /* fd */)
+bool TryMakeNonblocking(TFileDescriptor /* fd */)
 {
     YT_UNIMPLEMENTED();
 }
 
-void SafeMakeNonblocking(int /* fd */)
+void SafeMakeNonblocking(TFileDescriptor /* fd */)
 {
     YT_UNIMPLEMENTED();
 }
@@ -1126,6 +1131,7 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
 
 void SendSignal(const std::vector<int>& pids, const TString& signalName)
 {
+#ifdef _unix_
     ValidateSignalName(signalName);
     auto sig = FindSignalIdBySignalName(signalName);
     for (int pid : pids) {
@@ -1134,19 +1140,24 @@ void SendSignal(const std::vector<int>& pids, const TString& signalName)
                 << TError::FromSystem();
         }
     }
+#else
+    YT_UNIMPLEMENTED();
+#endif
 }
 
 std::optional<int> FindSignalIdBySignalName(const TString& signalName)
 {
     static const THashMap<TString, int> SignalNameToNumber{
-        { "SIGHUP",  SIGHUP },
+        { "SIGTERM", SIGTERM },
         { "SIGINT",  SIGINT },
         { "SIGALRM", SIGALRM },
         { "SIGKILL", SIGKILL },
-        { "SIGTERM", SIGTERM },
+#ifdef _unix_
+        { "SIGHUP",  SIGHUP },
         { "SIGUSR1", SIGUSR1 },
         { "SIGUSR2", SIGUSR2 },
         { "SIGURG", SIGURG },
+#endif
     };
 
     auto it = SignalNameToNumber.find(signalName);

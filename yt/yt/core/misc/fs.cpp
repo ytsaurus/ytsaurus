@@ -54,7 +54,7 @@ namespace {
 bool Exists(const TString& path)
 {
 #ifdef _win32_
-    return GetFileAttributesA(~path) != 0xFFFFFFFF;
+    return GetFileAttributesA(path.data()) != 0xFFFFFFFF;
 #else
     return access(path.data(), F_OK) == 0;
 #endif
@@ -87,7 +87,7 @@ void Remove(const TString& path)
 {
     bool ok;
 #ifdef _win_
-    ok = DeleteFileA(~path);
+    ok = DeleteFileA(path.data());
 #else
     struct stat sb;
     ok = lstat(path.data(), &sb) == 0;
@@ -123,7 +123,7 @@ void Rename(const TString& source, const TString& destination)
 {
     bool ok;
 #if defined(_win_)
-    ok = MoveFileEx(~source, ~destination, MOVEFILE_REPLACE_EXISTING) != 0;
+    ok = MoveFileEx(source.data(), destination.data(), MOVEFILE_REPLACE_EXISTING) != 0;
 #else
     ok = rename(source.data(), destination.data()) == 0;
 #endif
@@ -150,7 +150,7 @@ TString GetDirectoryName(const TString& path)
     size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
     if (slashPosition == 0) {
         // Root.
-        return "/";
+        return TString(1, LOCSLASH_C);
     } else {
         return absPath.substr(0, slashPosition);
     }
@@ -186,11 +186,12 @@ TString GetRealPath(const TString& path)
 
 bool IsPathRelativeAndInvolvesNoTraversal(const TString& path)
 {
-    if (path.StartsWith(LOCSLASH_C)) {
+    auto normalizedPath = NormalizePathSeparators(path);
+    if (normalizedPath.StartsWith(LOCSLASH_C)) {
         return false;
     }
 
-    TStringBuf currentPath(path);
+    TStringBuf currentPath(normalizedPath);
     int depth = 0;
     while (!currentPath.empty()) {
         size_t slashPosition = currentPath.find_first_of(LOCSLASH_C);
@@ -204,7 +205,7 @@ bool IsPathRelativeAndInvolvesNoTraversal(const TString& path)
             if (depth < 0) {
                 return false;
             }
-        } else if (path == ".") {
+        } else if (normalizedPath == ".") {
             // Do nothing.
         } else {
             ++depth;
@@ -336,7 +337,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path)
     bool ok;
 #ifdef _win_
     ok = GetDiskFreeSpaceEx(
-        ~path,
+        path.data(),
         (PULARGE_INTEGER) &result.AvailableSpace,
         (PULARGE_INTEGER) &result.TotalSpace,
         (PULARGE_INTEGER) &result.FreeSpace) != 0;
@@ -385,6 +386,8 @@ TPathStatistics GetPathStatistics(const TString& path)
     return statistics;
 #else
     ThrowNotSupported();
+    // Suppress clang's error about reaching end of non-void function without return.
+    Y_UNREACHABLE();
 #endif
 }
 
@@ -503,7 +506,7 @@ bool IsAbsolutePath(const TString& path)
 
 TString CombinePaths(const TString& path1, const TString& path2)
 {
-    return IsAbsolutePath(path2) ? path2 : JoinPaths(path1, path2);
+    return IsAbsolutePath(path2) ? NormalizePathSeparators(path2) : JoinPaths(path1, path2);
 }
 
 TString CombinePaths(const std::vector<TString>& paths)
@@ -535,7 +538,7 @@ TString JoinPaths(const TString& path1, const TString& path2)
     if (delim == 0)
         path.append(1, PATH_DELIM);
     path.append(path2, delim == 2 ? 1 : 0, TString::npos);
-    return path;
+    return NormalizePathSeparators(path);
 }
 
 TString NormalizePathSeparators(const TString& path)
@@ -585,7 +588,7 @@ void MakeSymbolicLink(const TString& filePath, const TString& linkPath)
 #ifdef _win_
     // From MSDN: If the function succeeds, the return value is nonzero.
     // If the function fails, the return value is zero. To get extended error information, call GetLastError.
-    bool ok = CreateSymbolicLink(~linkPath, ~filePath, 0) != 0;
+    bool ok = CreateSymbolicLink(linkPath.data(), filePath.data(), 0) != 0;
 #else
     bool ok = symlink(filePath.data(), linkPath.data()) == 0;
 #endif
@@ -741,8 +744,13 @@ struct stat Stat(TStringBuf path)
 
 i64 GetBlockSize(TStringBuf device)
 {
+#ifdef _unix_
     struct stat statInfo = Stat(device);
     return static_cast<i64>(statInfo.st_blksize);
+#else
+    ThrowNotSupported();
+    Y_UNREACHABLE();
+#endif
 }
 
 TString GetFilesystemName(TStringBuf path)

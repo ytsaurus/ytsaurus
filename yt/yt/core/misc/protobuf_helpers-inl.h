@@ -343,7 +343,7 @@ void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
     const std::vector<TOriginal>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -351,7 +351,7 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const std::vector<TOriginal>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal, size_t Size>
@@ -359,7 +359,7 @@ void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
     const TCompactVector<TOriginal, Size>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal, size_t Size>
@@ -367,7 +367,7 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const TCompactVector<TOriginal, Size>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -375,7 +375,7 @@ void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
     TRange<TOriginal> originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -383,7 +383,7 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     TRange<TOriginal> originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class T, class E, E Min, E Max>
@@ -391,7 +391,7 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const TEnumIndexedVector<E, T, Min, Max>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class T, class E, E Min, E Max>
@@ -399,7 +399,7 @@ void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
     const TEnumIndexedVector<E, T, Min, Max>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -407,7 +407,7 @@ void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
     const THashSet<TOriginal>& originalArray)
 {
-    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TOriginalArray, class TSerialized>
@@ -415,7 +415,7 @@ void FromProto(
     TOriginalArray* originalArray,
     const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
 {
-    NDetail::FromProtoArrayImpl(originalArray, serializedArray);
+    NYT::NDetail::FromProtoArrayImpl(originalArray, serializedArray);
 }
 
 template <class TOriginalArray, class TSerialized>
@@ -423,7 +423,7 @@ void FromProto(
     TOriginalArray* originalArray,
     const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
 {
-    NDetail::FromProtoArrayImpl(originalArray, serializedArray);
+    NYT::NDetail::FromProtoArrayImpl(originalArray, serializedArray);
 }
 
 // Throws if duplicate elements are found.
@@ -432,7 +432,7 @@ void CheckedHashSetFromProto(
     THashSet<TOriginal>* originalHashSet,
     const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedHashSet)
 {
-    NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
+    NYT::NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
 }
 
 template <class TOriginal, class TSerialized>
@@ -440,7 +440,7 @@ void CheckedHashSetFromProto(
     THashSet<TOriginal>* originalHashSet,
     const ::google::protobuf::RepeatedField<TSerialized>& serializedHashSet)
 {
-    NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
+    NYT::NDetail::CheckedFromProtoArrayImpl(originalHashSet, serializedHashSet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

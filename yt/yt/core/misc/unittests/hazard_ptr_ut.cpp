@@ -257,6 +257,7 @@ TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
 NThreading::TEvent Started;
 NThreading::TEvent Finish;
 
+#ifndef _win_
 TEST(THazardPtrTest, SupportFork)
 {
     // Ensure that delete list is empty.
@@ -331,6 +332,7 @@ TEST(THazardPtrTest, SupportFork)
         thread1.Join();
     }
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
