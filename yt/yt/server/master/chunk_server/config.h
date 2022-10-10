@@ -503,6 +503,9 @@ public:
     //! will be scheduled within this period.
     TDuration RemovalJobScheduleDelay;
 
+    // COMPAT(kvk1920): YT-17756.
+    bool EnableFixRequisitionUpdateOnMerge;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

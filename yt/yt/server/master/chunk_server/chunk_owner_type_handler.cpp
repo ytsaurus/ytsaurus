@@ -2,6 +2,8 @@
 #include "chunk_manager.h"
 #include "medium.h"
 #include "helpers.h"
+// COMPAT(kvk1920)
+#include "config.h"
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
@@ -22,6 +24,8 @@
 
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config.h>
+// COMPAT(kvk1920)
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/file_server/file_node.h>
 
@@ -251,6 +255,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+    const auto& chunkManagerDynamicConfig = TBase::Bootstrap_->GetConfigManager()->GetConfig();
+    auto enableFixRequisitionUpdateOnMerge = chunkManagerDynamicConfig->ChunkManager->EnableFixRequisitionUpdateOnMerge;
 
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
@@ -333,7 +339,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* originatingChunkList = oldOriginatingChunkLists[contentType]) {
+                // COMPAT(kvk1920)
+                auto* originatingChunkList = enableFixRequisitionUpdateOnMerge
+                    ? oldOriginatingChunkLists[contentType]
+                    : originatingNode->GetChunkList(contentType);
+                if (originatingChunkList) {
                     chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
                 }
 
