@@ -18,8 +18,8 @@ TChunkReplacer::TChunkReplacer(
     , Logger(std::move(logger))
     , NewRootChunkList_(ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static))
 {
-    ChunkReplacerCallbacks_->RefObject(NewRootChunkList_);
     // TODO(aleksandra-zh): optimize.
+    ChunkReplacerCallbacks_->RefObject(NewRootChunkList_);
 }
 
 TChunkReplacer::~TChunkReplacer()
@@ -42,21 +42,21 @@ bool TChunkReplacer::FindChunkList(
         }
 
         auto* chunkList = chunkTree->AsChunkList();
-        if (chunkList->Statistics().Rank > 1) {
+
+        if (chunkList->GetId() == desiredChunkListId) {
+            PrevParentChunkList_ = chunkList;
+            NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, NewParentChunkList_);
+        } else if (chunkList->Statistics().Rank > 1) {
             if (entry.Index < std::ssize(chunkList->Children())) {
                 Stack_.push({chunkList->Children()[entry.Index], 0});
                 ++entry.Index;
                 continue;
             }
         } else {
-            if (chunkList->GetId() == desiredChunkListId) {
-                PrevParentChunkList_ = chunkList;
-                NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
-                ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, NewParentChunkList_);
-            } else {
-                ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkList);
-            }
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkList);
         }
+
         Stack_.pop();
     }
     Initialized_ = PrevParentChunkList_ != nullptr;
