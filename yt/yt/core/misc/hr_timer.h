@@ -32,8 +32,8 @@ Y_FORCE_INLINE ui64 GetRdtsc()
 // it should be used only for relative measurements.
 struct THRInstant
 {
-    long Seconds;
-    long Nanoseconds;
+    i64 Seconds;
+    i64 Nanoseconds;
 };
 
 // Represents a duration in nano-seconds.

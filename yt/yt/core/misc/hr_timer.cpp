@@ -63,6 +63,7 @@ THRDuration GetHRDuration(const THRInstant& begin, const THRInstant& end)
         end.Seconds > begin.Seconds &&
         end.Seconds - begin.Seconds <
             static_cast<i64>(std::numeric_limits<THRDuration>::max() / NumberOfNsInS));
+
     return
         ( end.Seconds - begin.Seconds ) * NumberOfNsInS
         + end.Nanoseconds - begin.Nanoseconds;
