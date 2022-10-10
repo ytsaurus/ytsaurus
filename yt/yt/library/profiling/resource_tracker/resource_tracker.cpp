@@ -183,9 +183,9 @@ void TResourceTracker::CollectSensors(ISensorWriter* writer)
     LastUpdateTime_ = TInstant::Now();
 }
 
-void TResourceTracker::SetCpuFactor(double factor)
+void TResourceTracker::SetVCpuFactor(double vCpuFactor)
 {
-    CpuFactor_ = factor;
+    VCpuFactor_ = vCpuFactor;
 }
 
 bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo* info)
@@ -342,7 +342,7 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         profilingKeyToAggregatedTimings[newInfo.ProfilingKey] += newInfo.Timings - oldInfo.Timings;
     }
 
-    double cpuFactor = CpuFactor_;
+    double vCpuFactor = VCpuFactor_;
 
     double maxUtilization = 0.0;
     for (const auto& [profilingKey, aggregatedTimings] : profilingKeyToAggregatedTimings) {
@@ -368,10 +368,10 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         writer->AddGauge("/cpu_wait", waitTime);
         writer->AddGauge("/thread_count", threadCount);
         writer->AddGauge("/utilization", utilization);
-        if (cpuFactor != 0.0) {
-            writer->AddGauge("/corrected_user_cpu", userCpuTime * cpuFactor);
-            writer->AddGauge("/corrected_system_cpu", systemCpuTime * cpuFactor);
-            writer->AddGauge("/corrected_total_cpu", totalCpuTime * cpuFactor);
+        if (vCpuFactor != 0.0) {
+            writer->AddGauge("/user_vcpu", userCpuTime * vCpuFactor);
+            writer->AddGauge("/system_vcpu", systemCpuTime * vCpuFactor);
+            writer->AddGauge("/total_vcpu", totalCpuTime * vCpuFactor);
         }
 
         maxUtilization = std::max(maxUtilization, utilization);
@@ -423,9 +423,9 @@ void EnableResourceTracker()
     GetResourceTracker();
 }
 
-void SetCpuFactor(double factor)
+void SetVCpuFactor(double vCpuFactor)
 {
-    GetResourceTracker()->SetCpuFactor(factor);
+    GetResourceTracker()->SetVCpuFactor(vCpuFactor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

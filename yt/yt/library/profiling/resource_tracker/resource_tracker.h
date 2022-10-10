@@ -54,10 +54,10 @@ public:
 
     void CollectSensors(ISensorWriter* writer) override;
 
-    void SetCpuFactor(double factor);
+    void SetVCpuFactor(double factor);
 
 private:
-    std::atomic<double> CpuFactor_{0.0};
+    std::atomic<double> VCpuFactor_{0.0};
 
     i64 TicksPerSecond_;
     TInstant LastUpdateTime_;
@@ -116,10 +116,10 @@ TResourceTrackerPtr GetResourceTracker();
 
 void EnableResourceTracker();
 
-//! If this factor is set, additional metrics will be reported:
+//! If this vCpuFactor is set, additional metrics will be reported:
 //!   user, system, total cpu multiplied by given factor.
-//! E. g. corrected_system_cpu = system_cpu * factor.
-void SetCpuFactor(double factor);
+//! E. g. system_vcpu = system_cpu * vcpu_factor.
+void SetVCpuFactor(double vCpuFactor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
