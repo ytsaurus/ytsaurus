@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.request;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,14 +14,12 @@ import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
 public class GetOperation
-          extends RequestBase<GetOperation.Builder, GetOperation>
+          extends OperationReq<GetOperation.Builder, GetOperation>
           implements HighLevelRequest<TReqGetOperation.Builder> {
-    private final GUID guid;
     private final List<String> attributes;
 
     @Nullable
@@ -31,7 +28,6 @@ public class GetOperation
 
     public GetOperation(BuilderBase<?> builder) {
         super(builder);
-        this.guid = Objects.requireNonNull(builder.guid);
         this.attributes = new ArrayList<>(builder.attributes);
         if (builder.masterReadOptions != null) {
             this.masterReadOptions = new MasterReadOptions(builder.masterReadOptions);
@@ -42,7 +38,11 @@ public class GetOperation
     }
 
     public GetOperation(GUID guid) {
-        this(builder().setId(guid));
+        this(builder().setOperationId(guid));
+    }
+
+    public GetOperation(String alias) {
+        this(builder().setOperationAlias(alias));
     }
 
     public static Builder builder() {
@@ -51,20 +51,20 @@ public class GetOperation
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetOperation.Builder, ?> requestBuilder) {
-        TReqGetOperation.Builder builder = requestBuilder.body()
-                .setOperationId(RpcUtil.toProto(guid))
+        TReqGetOperation.Builder messageBuilder = requestBuilder.body();
+        writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
+        messageBuilder
                 // TODO(max42): switch to modern "attributes" field.
                 .addAllLegacyAttributes(attributes)
                 .setIncludeRuntime(includeRuntime);
 
         if (masterReadOptions != null) {
-            builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
+            messageBuilder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
     }
 
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
-        sb.append("Id: ").append(guid).append("; ");
         if (!attributes.isEmpty()) {
             sb.append("Attributes: ").append(attributes).append("; ");
         }
@@ -74,7 +74,8 @@ public class GetOperation
     @Override
     public Builder toBuilder() {
         Builder builder =  builder()
-                .setId(guid)
+                .setOperationId(operationId)
+                .setOperationAlias(operationAlias)
                 .setAttributes(new ArrayList<>(attributes))
                 .includeRuntime(includeRuntime)
                 .setTimeout(timeout)
@@ -99,9 +100,7 @@ public class GetOperation
     @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
-            extends RequestBase.Builder<TBuilder, GetOperation> {
-        @Nullable
-        private GUID guid;
+            extends OperationReq.Builder<TBuilder, GetOperation> {
         private List<String> attributes = new ArrayList<>();
 
         @Nullable
@@ -113,17 +112,11 @@ public class GetOperation
 
         BuilderBase(BuilderBase<?> builder) {
             super(builder);
-            this.guid = builder.guid;
             this.attributes = new ArrayList<>(builder.attributes);
             if (builder.masterReadOptions != null) {
                 this.masterReadOptions = new MasterReadOptions(builder.masterReadOptions);
             }
             this.includeRuntime = builder.includeRuntime;
-        }
-
-        public TBuilder setId(GUID id) {
-            this.guid = id;
-            return self();
         }
 
         public TBuilder setMasterReadOptions(MasterReadOptions masterReadOptions) {
@@ -149,7 +142,6 @@ public class GetOperation
 
         @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
-            sb.append("Id: ").append(guid).append("; ");
             if (!attributes.isEmpty()) {
                 sb.append("Attributes: ").append(attributes).append("; ");
             }

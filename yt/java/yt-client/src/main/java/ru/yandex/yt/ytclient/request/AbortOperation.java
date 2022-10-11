@@ -1,7 +1,5 @@
 package ru.yandex.yt.ytclient.request;
 
-import java.util.Objects;
-
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -9,24 +7,25 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
-public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOperation>
+public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOperation>
         implements HighLevelRequest<TReqAbortOperation.Builder> {
-    private final GUID id;
     @Nullable
     private final String message;
 
     AbortOperation(Builder builder) {
         super(builder);
-        this.id = Objects.requireNonNull(builder.id);
         this.message = builder.message;
     }
 
     public AbortOperation(GUID id) {
-        this(builder().setId(id));
+        this(builder().setOperationId(id));
+    }
+
+    public AbortOperation(String alias) {
+        this(builder().setOperationAlias(alias));
     }
 
     public static Builder builder() {
@@ -34,16 +33,16 @@ public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOpe
     }
 
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqAbortOperation.Builder, ?> requestBuilder) {
-        requestBuilder.body().setOperationId(RpcUtil.toProto(id));
+    public void writeTo(RpcClientRequestBuilder<TReqAbortOperation.Builder, ?> builder) {
+        TReqAbortOperation.Builder messageBuilder = builder.body();
+        writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
         if (message != null) {
-            requestBuilder.body().setAbortMessage(message);
+            messageBuilder.setAbortMessage(message);
         }
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        sb.append("Id: ").append(id).append("; ");
         if (message != null) {
             sb.append("Message: ").append(message).append("; ");
         }
@@ -52,7 +51,9 @@ public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOpe
 
     @Override
     public Builder toBuilder() {
-        Builder builder = builder().setId(id)
+        Builder builder = builder()
+                .setOperationId(operationId)
+                .setOperationAlias(operationAlias)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -66,9 +67,7 @@ public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOpe
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder, AbortOperation> {
-        @Nullable
-        private GUID id;
+    public static class Builder extends OperationReq.Builder<Builder, AbortOperation> {
         @Nullable
         private String message;
 
@@ -77,13 +76,7 @@ public class AbortOperation extends RequestBase<AbortOperation.Builder, AbortOpe
 
         public Builder(Builder builder) {
             super(builder);
-            id = builder.id;
             message = builder.message;
-        }
-
-        public Builder setId(GUID id) {
-            this.id = id;
-            return self();
         }
 
         public Builder setMessage(String message) {

@@ -4,7 +4,7 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 
 public class GetOperation extends ru.yandex.yt.ytclient.request.GetOperation.BuilderBase<GetOperation> {
     public GetOperation(GUID guid) {
-        setId(guid);
+        setOperationId(guid);
     }
 
     @Override

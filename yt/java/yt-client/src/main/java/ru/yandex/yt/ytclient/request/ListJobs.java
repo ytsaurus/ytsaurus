@@ -1,21 +1,16 @@
 package ru.yandex.yt.ytclient.request;
 
-import java.util.Objects;
-
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.EJobState;
 import ru.yandex.yt.rpcproxy.TReqListJobs;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class ListJobs
-        extends RequestBase<ListJobs.Builder, ListJobs>
+        extends OperationReq<ListJobs.Builder, ListJobs>
         implements HighLevelRequest<TReqListJobs.Builder> {
-    private final GUID operationId;
     @Nullable
     private final JobState state;
     @Nullable
@@ -23,7 +18,6 @@ public class ListJobs
 
     ListJobs(Builder builder) {
         super(builder);
-        this.operationId = Objects.requireNonNull(builder.operationId);
         this.state = builder.state;
         this.limit = builder.limit;
     }
@@ -34,7 +28,9 @@ public class ListJobs
 
     @Override
     public Builder toBuilder() {
-        Builder builder = builder().setOperationId(operationId);
+        Builder builder = builder()
+                .setOperationId(operationId)
+                .setOperationAlias(operationAlias);
         if (state != null) {
             builder.setState(state);
         }
@@ -51,18 +47,18 @@ public class ListJobs
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqListJobs.Builder, ?> requestBuilder) {
-        requestBuilder.body().setOperationId(RpcUtil.toProto(operationId));
+        TReqListJobs.Builder messageBuilder = requestBuilder.body();
+        writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
         if (state != null) {
-            requestBuilder.body().setState(EJobState.forNumber(state.getProtoValue()));
+            messageBuilder.setState(EJobState.forNumber(state.getProtoValue()));
         }
         if (limit != null) {
-            requestBuilder.body().setLimit(limit);
+            messageBuilder.setLimit(limit);
         }
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        sb.append("OperationId: ").append(operationId).append("; ");
         if (state != null) {
             sb.append("State: ").append(state.getWireName()).append("; ");
         }
@@ -74,9 +70,7 @@ public class ListJobs
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends RequestBase.Builder<Builder, ListJobs> {
-        @Nullable
-        private GUID operationId;
+    public static class Builder extends OperationReq.Builder<Builder, ListJobs> {
         @Nullable
         private JobState state;
         @Nullable
@@ -90,11 +84,6 @@ public class ListJobs
             operationId = builder.operationId;
             state = builder.state;
             limit = builder.limit;
-        }
-
-        public Builder setOperationId(GUID operationId) {
-            this.operationId = operationId;
-            return self();
         }
 
         public Builder setState(JobState state) {
