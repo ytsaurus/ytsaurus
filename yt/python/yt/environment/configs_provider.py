@@ -278,7 +278,7 @@ def _build_master_configs(yt_config,
         for master_index in xrange(yt_config.master_count):
             config = default_config.get_master_config()
 
-            init_singletons(config, yt_config.fqdn, master_index, yt_config.enable_resource_tracking)
+            init_singletons(config, yt_config, master_index)
 
             init_jaeger_collector(config, "master", {
                 "cell_role": "primary" if cell_index == 0 else "secondary",
@@ -366,7 +366,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     for clock_index in xrange(yt_config.clock_count):
         config = default_config.get_clock_config()
 
-        init_singletons(config, yt_config.fqdn, clock_index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, clock_index)
 
         init_jaeger_collector(config, "clock", {
             "clock_index": str(clock_index)
@@ -436,7 +436,7 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
     for i in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
 
-        init_singletons(config, yt_config.fqdn, i, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, i)
 
         init_jaeger_collector(config, "queue_agent", {
             "queue_agent_index": str(i)
@@ -474,7 +474,7 @@ def _build_timestamp_provider_configs(yt_config,
     for index in xrange(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "timestamp_provider", {
             "timestamp_provider_index": str(index)
@@ -509,7 +509,7 @@ def _build_cell_balancer_configs(yt_config,
     for index in xrange(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "cell_balancer", {
             "cell_balancer_index": str(index)
@@ -549,7 +549,7 @@ def _build_master_cache_configs(yt_config,
     for index in xrange(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "master_cache", {"master_cache_index": str(index)})
 
@@ -588,7 +588,7 @@ def _build_scheduler_configs(scheduler_dirs,
     for index in xrange(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "scheduler", {"scheduler_index": str(index)})
 
@@ -626,7 +626,7 @@ def _build_controller_agent_configs(controller_agent_dirs,
     for index in xrange(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "controller_agent", {"controller_agent_index": str(index)})
 
@@ -668,7 +668,7 @@ def _build_node_configs(node_dirs,
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "node", {"node_index": str(index)})
 
@@ -813,7 +813,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
     for index in xrange(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "chaos_node", {"chaos_node_index": str(index)})
 
@@ -882,7 +882,7 @@ def _build_http_proxy_config(proxy_dir,
 
         fqdn = "{0}:{1}".format(yt_config.fqdn, config["port"])
         set_at(config, "coordinator/public_fqdn", fqdn)
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "http_proxy", {"http_proxy_index": str(index)})
 
@@ -1019,7 +1019,7 @@ def _build_rpc_proxy_configs(logs_dir,
                 "tracing_mode": "force",
             }
         }
-        init_singletons(config, yt_config.fqdn, rpc_proxy_index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, rpc_proxy_index)
 
         init_jaeger_collector(config, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
 
@@ -1123,6 +1123,9 @@ def _build_cluster_connection_config(yt_config,
         "use_followers_for_write_targets_allocation": False,
     }
 
+    if yt_config.mock_tvm_id is not None:
+        cluster_connection["tvm_id"] = yt_config.mock_tvm_id
+
     update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
     update_inplace(cluster_connection["primary_master"], _get_balancing_channel_config())
     update_inplace(cluster_connection["primary_master"], _get_rpc_config())
@@ -1207,7 +1210,7 @@ def _build_tablet_balancer_configs(yt_config,
     for index in xrange(yt_config.tablet_balancer_count):
         config = default_config.get_tablet_balancer_config()
 
-        init_singletons(config, yt_config.fqdn, index, yt_config.enable_resource_tracking)
+        init_singletons(config, yt_config, index)
 
         init_jaeger_collector(config, "tablet_balancer", {"tablet_balancer_index": str(index)})
 
@@ -1357,7 +1360,7 @@ def get_at(config, path, default_value=None):
     return config
 
 
-def init_singletons(config, fqdn, index, enable_resource_tracking):
+def init_singletons(config, yt_config, index):
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })
@@ -1365,11 +1368,21 @@ def init_singletons(config, fqdn, index, enable_resource_tracking):
         "compression_pool_size": 1,
         "heavy_pool_size": 1
     })
-    set_at(config, "address_resolver/localhost_fqdn", fqdn)
+    set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
     set_at(config, "cypress_annotations/yt_env_index", index)
-    set_at(config, "enable_ref_counted_tracker_profiling", enable_resource_tracking)
-    set_at(config, "enable_resource_tracker", enable_resource_tracking)
+    set_at(config, "enable_ref_counted_tracker_profiling", yt_config.enable_resource_tracking)
+    set_at(config, "enable_resource_tracker", yt_config.enable_resource_tracking)
+    if yt_config.mock_tvm_id is not None:
+        set_at(config, "native_authentication_manager", {
+            "tvm_service": {
+                "enable_mock": True,
+                "client_self_id": yt_config.mock_tvm_id,
+                "client_enable_service_ticket_fetching": True,
+                "client_enable_service_ticket_checking": True,
+            },
+            "enable_validation": True,
+        })
 
 
 def init_jaeger_collector(config, name, process_tags):

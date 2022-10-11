@@ -46,6 +46,9 @@ class LocalYtConfig(object):
     enable_resource_tracking = attr.ib(False)
     enable_tvm_only_proxies = attr.ib(False)
 
+    """Native authentication settings"""
+    mock_tvm_id = attr.ib(None)
+
     """Logging configuration"""
     enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
