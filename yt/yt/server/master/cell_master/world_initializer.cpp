@@ -742,6 +742,11 @@ private:
                 transactionId,
                 EObjectType::MapNode);
 
+            ScheduleCreateNode(
+                "//sys/zookeeper_shards",
+                transactionId,
+                EObjectType::ZookeeperShardMap);
+
             FlushScheduled();
 
             // Level 3

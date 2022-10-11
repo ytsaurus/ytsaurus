@@ -1,0 +1,29 @@
+#pragma once
+
+#include <yt/yt/server/lib/hydra_common/public.h>
+
+#include <yt/yt/client/zookeeper/public.h>
+
+#include <yt/yt/client/object_client/public.h>
+
+namespace NYT::NZookeeperMaster {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TZookeeperShardId = NObjectClient::TObjectId;
+class TZookeeperShard;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NZookeeperClient::TZookeeperPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IZookeeperManager)
+
+struct IBootstrapProxy;
+struct IBootstrap;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NZookeeperMaster

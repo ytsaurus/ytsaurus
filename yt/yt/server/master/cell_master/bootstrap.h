@@ -36,6 +36,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/server/master/zookeeper_server/public.h>
+
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/server/lib/hydra_common/public.h>
@@ -49,6 +51,8 @@
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
 #include <yt/yt/server/lib/discovery_server/public.h>
+
+#include <yt/yt/server/lib/zookeeper_master/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -77,9 +81,9 @@ namespace NYT::NCellMaster {
 class TBootstrap
 {
 public:
-    TBootstrap() = default;
-
+    TBootstrap();
     TBootstrap(TCellMasterConfigPtr config);
+
     ~TBootstrap();
 
     const TCellMasterConfigPtr& GetConfig() const;
@@ -140,6 +144,9 @@ public:
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
     const NTabletServer::IReplicatedTableTrackerPtr& GetNewReplicatedTableTracker() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
+
+    const NZookeeperServer::IZookeeperManagerPtr& GetZookeeperManager() const;
+    NZookeeperMaster::IBootstrap* GetZookeeperBootstrap() const;
 
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
@@ -222,6 +229,11 @@ protected:
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
+
+    std::unique_ptr<NZookeeperMaster::IBootstrapProxy> ZookeeperBootstrapProxy_;
+    std::unique_ptr<NZookeeperMaster::IBootstrap> ZookeeperBootstrap_;
+
+    NZookeeperServer::IZookeeperManagerPtr ZookeeperManager_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 

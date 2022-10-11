@@ -76,7 +76,8 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
         "network_projects",
         "http_proxy_roles",
         "rpc_proxy_roles",
-        "access_control_object_namespaces"
+        "access_control_object_namespaces",
+        "zookeeper_shards",
     ]
 
     if enable_secondary_cells_cleanup:

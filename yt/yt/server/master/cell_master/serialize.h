@@ -63,6 +63,8 @@ DEFINE_ENUM(EMasterReign,
     ((EffectiveErasureCodecs)                                       (2127))  // gritukan
     ((MulticellEnableConsistentChunkReplicaPlacement)               (2128))  // shakurov
     ((ShardedChunkLocationMap)                                      (2129))  // kvk1920
+    // 22.4 starts here.
+    ((ZookeeperShards)                                              (2200))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

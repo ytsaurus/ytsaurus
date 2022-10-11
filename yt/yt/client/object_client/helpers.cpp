@@ -100,7 +100,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::MasterTableSchemaMap ||
         type == EObjectType::ChaosReplicatedTable ||
         type == EObjectType::AccessControlObjectNamespaceMap ||
-        type == EObjectType::HunkStorage;
+        type == EObjectType::HunkStorage ||
+        type == EObjectType::ZookeeperShardMap;
 }
 
 bool IsUserType(EObjectType type)

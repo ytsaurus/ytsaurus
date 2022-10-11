@@ -121,6 +121,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChunkAutotomizer)
     (IncumbentManager)
     (TabletService)
+    (Zookeeper)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,
