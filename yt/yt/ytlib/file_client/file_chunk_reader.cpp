@@ -106,7 +106,8 @@ public:
         , TraceContext_(CreateTraceContextFromCurrent("FileChunkReader"))
         , FinishGuard_(TraceContext_)
     {
-        PackBaggageFromDataSource(TraceContext_, dataSource);
+        // NB(gepardo): Real extraChunkTags will be packed later, in DoOpen().
+        PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
 
         TCurrentTraceContextGuard guard(TraceContext_);
 
@@ -296,6 +297,8 @@ private:
             }
         }
         YT_VERIFY(blockCount >= 0);
+
+        PackBaggageFromExtraChunkTags(TraceContext_, MakeExtraChunkTags(miscExt));
 
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,

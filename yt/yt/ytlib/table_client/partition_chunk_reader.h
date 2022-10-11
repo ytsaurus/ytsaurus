@@ -68,7 +68,6 @@ private:
 
     THorizontalBlockReader* BlockReader_ = nullptr;
 
-
     TFuture<void> InitializeBlockSequence();
 
     void InitFirstBlock() override;

@@ -228,7 +228,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
     @authors("gepardo")
     def test_read_table(self):
         from_barrier = write_log_barrier(self.get_node_address())
-        create("table", "//tmp/table")
+        create("table", "//tmp/table", attributes={"compression_codec": "zlib_5"})
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         assert read_table("//tmp/table") == [{"a": 1, "b": 2, "c": 3}]
         raw_events = self.wait_for_raw_events(count=2, from_barrier=from_barrier)
@@ -239,11 +239,17 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["chunk_id"] == chunk_id
         assert raw_events[0]["location_type@"] == "store"
         assert "location_id" in raw_events[0]
+        assert raw_events[0]["compression_codec@"] == "zlib_5"
+        assert raw_events[0]["erasure_codec@"] == "none"
+
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
         assert raw_events[1]["direction@"] == "read"
         assert raw_events[1]["chunk_id"] == chunk_id
         assert raw_events[1]["location_type@"] == "store"
         assert "location_id" in raw_events[1]
+        assert raw_events[1]["compression_codec@"] == "zlib_5"
+        assert raw_events[1]["erasure_codec@"] == "none"
+
         for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
@@ -340,7 +346,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
 
-    def _check_data_read(self, from_barriers, method):
+    def _check_data_read(self, from_barriers, method, chunk_type):
         was_data_read = False
         for node_id in range(self.NUM_NODES):
             raw_events = self.read_raw_events(from_barrier=from_barriers[node_id], node_id=node_id)
@@ -350,6 +356,9 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
             assert raw_events[0]["data_node_method@"] == method
             assert raw_events[0]["bytes"] > 0
             assert raw_events[0]["io_requests"] > 0
+            if chunk_type == "blob":
+                assert raw_events[0]["compression_codec@"] == "zlib_5"
+                assert raw_events[0]["erasure_codec@"] == "reed_solomon_3_3"
             was_data_read = True
         assert was_data_read
 
@@ -358,7 +367,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
         data = [{"a": i, "b": 2 * i, "c": 3 * i} for i in range(100)]
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
-        create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3"})
+        create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3", "compression_codec": "zlib_5"})
         write_table("//tmp/table", data)
         chunk_id = get("//tmp/table/@chunk_ids")[0]
 
@@ -369,11 +378,13 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
             assert raw_events[0]["chunk_id"] == chunk_id
             assert raw_events[0]["bytes"] > 0
             assert raw_events[0]["io_requests"] > 0
+            assert raw_events[0]["compression_codec@"] == "zlib_5"
+            assert raw_events[0]["erasure_codec@"] == "reed_solomon_3_3"
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_table("//tmp/table") == data
         time.sleep(1.0)
-        self._check_data_read(from_barriers, "GetBlockSet")
+        self._check_data_read(from_barriers, "GetBlockSet", "blob")
 
     @authors("gepardo")
     def test_erasure_journal_chunks(self):
@@ -400,7 +411,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_journal("//tmp/journal") == data
         time.sleep(1.0)
-        self._check_data_read(from_barriers, "GetBlockRange")
+        self._check_data_read(from_barriers, "GetBlockRange", "journal")
 
 ##################################################################
 
@@ -827,7 +838,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_files(self):
-        create("file", "//tmp/file")
+        create("file", "//tmp/file", attributes={"compression_codec": "zlib_5"})
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
         write_file("//tmp/file", b"Soon we will see how this file is being read ;)")
@@ -841,6 +852,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert write_event["api_method@"] == "write_file"
         assert write_event["proxy_kind@"] == self._get_proxy_kind()
         assert write_event["account@"] == "tmp"
+        assert write_event["compression_codec@"] == "zlib_5"
+        assert write_event["erasure_codec@"] == "none"
         assert "object_id" in write_event
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
@@ -855,6 +868,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert read_event["api_method@"] == "read_file"
         assert read_event["proxy_kind@"] == self._get_proxy_kind()
         assert read_event["account@"] == "tmp"
+        assert read_event["compression_codec@"] == "zlib_5"
+        assert read_event["erasure_codec@"] == "none"
         assert "object_id" in read_event
 
 
@@ -942,6 +957,12 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
             assert job_type == expected_job_type
             if kind not in paths:
                 paths[kind] = {"read": [], "write": [], "read_chunks": [], "write_chunks": []}
+
+            assert "erasure_codec@" in event
+            if job_type == "shallow_merge":
+                assert "compression_codec@" not in event
+            else:
+                assert "compression_codec@" in event
 
             path = event["object_path"]
             if path.find("intermediate") == -1:
@@ -2093,6 +2114,8 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
         assert event["user@"] == "root"
         assert "object_id" in event
         assert event["account@"] == "tmp"
+        assert "compression_codec@" not in event
+        assert "erasure_codec@" in event
 
 
 class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):

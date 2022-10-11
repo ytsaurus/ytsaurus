@@ -187,11 +187,31 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExtraChunkTags
+{
+    std::optional<NCompression::ECodec> CompressionCodec;
+    std::optional<NErasure::ECodec> ErasureCodec;
+};
+
+TExtraChunkTags MakeExtraChunkTags(const NChunkClient::NProto::TMiscExt& miscExt);
+
 void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource);
 void AddTagsFromDataSink(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSink& dataSink);
 
+void AddExtraChunkTags(const NYTree::IAttributeDictionaryPtr& baggage, const TExtraChunkTags& extraTags);
+
 void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource);
-void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink);
+void PackBaggageFromExtraChunkTags(const NTracing::TTraceContextPtr& context, const TExtraChunkTags& extraTags);
+
+void PackBaggageForChunkReader(
+    const NTracing::TTraceContextPtr& context,
+    const NChunkClient::TDataSource& dataSource,
+    const TExtraChunkTags& extraTags);
+
+void PackBaggageForChunkWriter(
+    const NTracing::TTraceContextPtr& context,
+    const NChunkClient::TDataSink& dataSink,
+    const TExtraChunkTags& extraTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

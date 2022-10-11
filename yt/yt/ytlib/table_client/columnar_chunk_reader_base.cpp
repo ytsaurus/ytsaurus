@@ -67,7 +67,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     }
 
     if (dataSource) {
-        PackBaggageFromDataSource(TraceContext_, *dataSource);
+        PackBaggageForChunkReader(TraceContext_, *dataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
     }
 }
 

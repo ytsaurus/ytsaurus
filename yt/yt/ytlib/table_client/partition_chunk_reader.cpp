@@ -60,7 +60,8 @@ TPartitionChunkReader::TPartitionChunkReader(
     , NameTable_(nameTable)
     , PartitionTag_(partitionTag)
 {
-    PackBaggageFromDataSource(TraceContext_, dataSource);
+    // NB(gepardo): Real extraChunkTags will be packed later, in InitializeBlockSequence().
+    PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
 
     SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -115,7 +116,11 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         });
     }
 
-    return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_->extensions()));
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+
+    PackBaggageFromExtraChunkTags(TraceContext_, MakeExtraChunkTags(miscExt));
+
+    return DoOpen(std::move(blocks), miscExt);
 }
 
 void TPartitionChunkReader::InitFirstBlock()

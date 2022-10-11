@@ -124,15 +124,21 @@ public:
     {
         TJob::Initialize();
 
+        TExtraChunkTags extraChunkTags;
+        const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[0];
+        if (tableSpec.chunk_specs_size() != 0) {
+            extraChunkTags.ErasureCodec = NErasure::ECodec(tableSpec.chunk_specs()[0].erasure_codec());
+        }
+
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         YT_VERIFY(std::ssize(dataSourceDirectory->DataSources()) == 1);
-        PackBaggageFromDataSource(InputTraceContext_, dataSourceDirectory->DataSources()[0]);
+        PackBaggageForChunkReader(InputTraceContext_, dataSourceDirectory->DataSources()[0], extraChunkTags);
 
         if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
-            PackBaggageFromDataSink(OutputTraceContext_, dataSinkDirectory->DataSinks()[0]);
+            PackBaggageForChunkWriter(OutputTraceContext_, dataSinkDirectory->DataSinks()[0], extraChunkTags);
         }
 
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(

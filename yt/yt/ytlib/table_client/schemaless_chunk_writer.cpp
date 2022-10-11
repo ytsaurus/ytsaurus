@@ -156,7 +156,13 @@ public:
         ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
 
         if (dataSink) {
-            PackBaggageFromDataSink(TraceContext_, *dataSink);
+            PackBaggageForChunkWriter(
+                TraceContext_,
+                *dataSink,
+                TExtraChunkTags{
+                    .CompressionCodec = Options_->CompressionCodec,
+                    .ErasureCodec = chunkWriter->GetErasureCodecId(),
+                });
         }
 
         // NB(gepardo). TEncodingChunkWriter writes the blocks into the underlying writer in a callback.
