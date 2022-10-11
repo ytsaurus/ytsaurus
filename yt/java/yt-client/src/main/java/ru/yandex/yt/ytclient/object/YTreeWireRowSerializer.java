@@ -12,7 +12,6 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.type_info.TiType;
 import ru.yandex.yson.ClosableYsonConsumer;
 import ru.yandex.yson.YsonConsumer;
@@ -26,16 +25,14 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
     private static final int BUFFER_SIZE = 64;
     private static final int OUTPUT_SIZE = 256;
 
-    private final YTreeRowSerializer<T> objectSerializer;
+    protected final YTreeRowSerializer<T> objectSerializer;
     protected TableSchema tableSchema;
     protected YTreeConsumerProxy delegate;
-    private final boolean supportState;
 
     protected YTreeWireRowSerializer(YTreeRowSerializer<T> objectSerializer) {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
         this.tableSchema = TableSchema.newBuilder().build();
         this.delegate = new YTreeConsumerProxy(tableSchema);
-        this.supportState = YTreeStateSupport.class.isAssignableFrom(objectSerializer.getClazz());
     }
 
     public static <T> YTreeWireRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
@@ -54,10 +51,7 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
     @Override
     public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly, boolean aggregate,
                              int[] idMapping) {
-        final T compareWith = !keyFieldsOnly && supportState
-                ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
-                : null;
-        this.objectSerializer.serializeRow(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, compareWith);
+        this.objectSerializer.serializeRow(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, null);
         delegate.complete();
     }
 
@@ -106,7 +100,7 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
             direct.updateSchema(schemaDelta);
         }
 
-        private void complete() {
+        void complete() {
             direct.complete();
         }
 
