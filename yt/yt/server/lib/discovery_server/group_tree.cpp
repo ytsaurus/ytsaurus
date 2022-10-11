@@ -419,6 +419,13 @@ public:
         NYPath::TTokenizer tokenizer(unresolvedPath);
         tokenizer.Advance();
 
+        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such group %Qv",
+                path);
+        }
+
         tokenizer.Expect(NYPath::ETokenType::At);
         tokenizer.Advance();
 
