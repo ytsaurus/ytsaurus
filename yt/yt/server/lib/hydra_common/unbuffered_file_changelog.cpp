@@ -124,8 +124,8 @@ public:
                         THROW_ERROR_EXCEPTION(
                             NHydra::EErrorCode::BrokenChangelog,
                             "Invalid header signature %x in changelog file %v",
-                            FileName_,
-                            header->Signature);
+                            header->Signature,
+                            FileName_);
                 }
 
                 if (header->UnusedMustBeMinus2 != -2) {
