@@ -1743,9 +1743,8 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto chunkId = chunk->GetId();
 
             if (!chunk->IsRefreshActual()) {
+                // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkWithIndexes);
-
-                queue.erase(jt);
                 ++misscheduledReplicationJobs;
                 continue;
             }
