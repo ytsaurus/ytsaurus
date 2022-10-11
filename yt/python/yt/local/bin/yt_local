@@ -188,6 +188,9 @@ def add_start_subparser(subparsers):
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
 
+    parser.add_argument("--mock-tvm-id", type=int, default=None,
+                        help="cluster native TVM id used for authentication mock.")
+
     parser.add_argument("--jobs-memory-limit", type=int,
                         help="memory limit for jobs in bytes")
     parser.add_argument("--jobs-cpu-limit", type=int,
