@@ -63,6 +63,10 @@ private:
             title);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        if (transactionManager->FindTransaction(transactionId)) {
+            THROW_ERROR_EXCEPTION("Transaction %v already exists", transactionId);
+        }
+
         auto* transaction = transactionManager->StartTransaction(
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
