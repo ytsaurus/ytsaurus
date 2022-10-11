@@ -261,7 +261,10 @@ void TDynamicTablesTestBase::WriteRows(
         nameTable,
         rows);
 
-    auto commitResult = WaitFor(transaction->Commit())
+    TTransactionCommitOptions options{
+        .Force2PC = true,
+    };
+    auto commitResult = WaitFor(transaction->Commit(options))
         .ValueOrThrow();
 }
 
