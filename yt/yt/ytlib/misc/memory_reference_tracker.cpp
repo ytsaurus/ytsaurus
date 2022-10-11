@@ -146,6 +146,13 @@ private:
 
         auto rawReference = TRef(reference);
         const auto& holder = reference.GetHolder();
+
+        // Reference could be without a holder, e.g. empty reference.
+        if (!holder) {
+            YT_VERIFY(reference.Begin() == TRef::MakeEmpty().Begin());
+            return reference;
+        }
+
         auto options = TSharedRangeHolderCloneOptions{
             .KeepMemoryReferenceTracking = keepHolder
         };
