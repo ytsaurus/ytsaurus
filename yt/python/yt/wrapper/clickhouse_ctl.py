@@ -13,11 +13,11 @@ def get_full_ctl_address(address):
     if not address:
         address = os.getenv("CHYT_CTL_ADDRESS")
     if not address:
-        return "https://production.chyt-ctl.in.yandex-team.ru"
+        return "http://production.chyt-ctl.yt.yandex-team.ru"
     if address.isalnum():
-        return "https://{}.chyt-ctl.in.yandex-team.ru".format(address)
+        return "http://{}.chyt-ctl.yt.yandex-team.ru".format(address)
     if not address.startswith("http://") and not address.startswith("https://"):
-        return "https://" + address
+        return "http://" + address
     return address
 
 
