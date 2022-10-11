@@ -30,6 +30,10 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_service.h>
 
+#include <yt/yt/server/master/zookeeper_server/bootstrap_proxy.h>
+#include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
+#include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
+
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
@@ -49,6 +53,9 @@
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
+
+#include <yt/yt/server/lib/zookeeper_master/bootstrap.h>
+#include <yt/yt/server/lib/zookeeper_master/bootstrap_proxy.h>
 
 #include <yt/yt/server/master/journal_server/journal_manager.h>
 #include <yt/yt/server/master/journal_server/journal_node.h>
@@ -224,6 +231,8 @@ using namespace NYTree;
 using namespace NCellServer;
 using namespace NDiscoveryServer;
 using namespace NDistributedThrottler;
+using namespace NZookeeperMaster;
+using namespace NZookeeperServer;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionManagerPtr;
@@ -233,6 +242,8 @@ using NTransactionServer::TTransactionManagerPtr;
 static inline const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TBootstrap::TBootstrap() = default;
 
 TBootstrap::TBootstrap(TCellMasterConfigPtr config)
     : Config_(std::move(config))
@@ -504,6 +515,16 @@ const IReplicatedTableTrackerPtr& TBootstrap::GetNewReplicatedTableTracker() con
 const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
+}
+
+const NZookeeperServer::IZookeeperManagerPtr& TBootstrap::GetZookeeperManager() const
+{
+    return ZookeeperManager_;
+}
+
+NZookeeperMaster::IBootstrap* TBootstrap::GetZookeeperBootstrap() const
+{
+    return ZookeeperBootstrap_.get();
 }
 
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
@@ -836,6 +857,11 @@ void TBootstrap::DoInitialize()
 
     ObjectService_ = CreateObjectService(Config_->ObjectService, this);
 
+    ZookeeperBootstrapProxy_ = CreateZookeeperBootstrapProxy(this);
+    ZookeeperBootstrap_ = CreateBootstrap(ZookeeperBootstrapProxy_.get());
+
+    ZookeeperManager_ = CreateZookeeperManager(this);
+
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
@@ -890,6 +916,8 @@ void TBootstrap::DoInitialize()
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
     SchedulerPoolManager_->Initialize();
+    ZookeeperBootstrap_->Initialize();
+    ZookeeperManager_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
     // new automaton parts registration after its initialization.
@@ -1020,6 +1048,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateHunkStorageTypeHandler(this));
     CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateZookeeperShardMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 

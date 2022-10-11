@@ -2081,6 +2081,22 @@ def create_access_control_object(name, namespace, **kwargs):
     execute_command("create", kwargs)
 
 
+def create_zookeeper_shard(name, root_path, cell_tag=None, **kwargs):
+    kwargs["type"] = "zookeeper_shard"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["root_path"] = root_path
+    if cell_tag:
+        kwargs["attributes"]["cell_tag"] = cell_tag
+
+    execute_command("create", kwargs)
+
+
+def remove_zookeeper_shard(name, **kwargs):
+    remove("//sys/zookeeper_shards/" + name, **kwargs)
+
+
 #########################################
 # Helpers:
 

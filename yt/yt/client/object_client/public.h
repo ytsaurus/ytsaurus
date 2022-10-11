@@ -294,6 +294,10 @@ DEFINE_ENUM(EObjectType,
     ((ChaosTableReplica)                  (1205))
     ((ChaosReplicatedTable)               (1206))
     ((ReplicationCardCollocation)         (1207))
+
+    // Zookeeper stuff
+    ((ZookeeperShard)                     (1400))
+    ((ZookeeperShardMap)                  (1401))
 );
 
 //! A bit mask marking schema types.

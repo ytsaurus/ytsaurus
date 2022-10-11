@@ -397,6 +397,7 @@
     XX(RetainedTimestamp, retained_timestamp) \
     XX(Revision, revision) \
     XX(RootNodeId, root_node_id) \
+    XX(RootPath, root_path) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
     XX(SchedulingTag, scheduling_tag) \
