@@ -8,6 +8,7 @@
 #include "schemaless_block_reader.h"
 #include "virtual_value_directory.h"
 #include "versioned_chunk_reader.h"
+#include "cached_versioned_chunk_meta.h"
 
 #include <yt/yt/ytlib/table_chunk_format/public.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
@@ -468,7 +469,7 @@ public:
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
         if (chunkState->DataSource) {
-            PackBaggageFromDataSource(TraceContext_, *chunkState->DataSource);
+            PackBaggageForChunkReader(TraceContext_, *chunkState->DataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
         }
     }
 

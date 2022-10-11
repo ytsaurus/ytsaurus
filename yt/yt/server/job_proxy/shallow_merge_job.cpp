@@ -205,11 +205,7 @@ private:
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
 
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
-            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
-            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
-            PackBaggageFromDataSink(OutputTraceContext_, dataSinkDirectory->DataSinks()[0]);
-        }
+        TExtraChunkTags extraChunkTags;
 
         for (int inputSpecIndex = 0; inputSpecIndex < SchedulerJobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
             const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[inputSpecIndex];
@@ -218,8 +214,20 @@ private:
             InputFinishGuards_.emplace_back(traceContext);
             if (tableSpec.chunk_specs_size() != 0) {
                 int tableIndex = tableSpec.chunk_specs()[0].table_index();
-                PackBaggageFromDataSource(traceContext, dataSourceDirectory->DataSources()[tableIndex]);
+                extraChunkTags = TExtraChunkTags{
+                    .ErasureCodec = NErasure::ECodec(tableSpec.chunk_specs()[0].erasure_codec()),
+                };
+                PackBaggageForChunkReader(
+                    traceContext,
+                    dataSourceDirectory->DataSources()[tableIndex],
+                    extraChunkTags);
             }
+        }
+
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            PackBaggageForChunkWriter(OutputTraceContext_, dataSinkDirectory->DataSinks()[0], extraChunkTags);
         }
     }
 

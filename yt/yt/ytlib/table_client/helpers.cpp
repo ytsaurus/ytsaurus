@@ -698,6 +698,14 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExtraChunkTags MakeExtraChunkTags(const NChunkClient::NProto::TMiscExt& miscExt)
+{
+    return TExtraChunkTags{
+        .CompressionCodec = NCompression::ECodec(miscExt.compression_codec()),
+        .ErasureCodec = NErasure::ECodec(miscExt.erasure_codec()),
+    };
+}
+
 void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource)
 {
     if (dataSource.GetPath()) {
@@ -724,6 +732,16 @@ void AddTagsFromDataSink(const NYTree::IAttributeDictionaryPtr& baggage, const N
     }
 }
 
+void AddExtraChunkTags(const NYTree::IAttributeDictionaryPtr& baggage, const TExtraChunkTags& extraTags)
+{
+    if (extraTags.CompressionCodec) {
+        AddTagToBaggage(baggage, EAggregateIOTag::CompressionCodec, FormatEnum(*extraTags.CompressionCodec));
+    }
+    if (extraTags.ErasureCodec) {
+        AddTagToBaggage(baggage, EAggregateIOTag::ErasureCodec, FormatEnum(*extraTags.ErasureCodec));
+    }
+}
+
 void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource)
 {
     auto baggage = context->UnpackOrCreateBaggage();
@@ -731,10 +749,32 @@ void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const 
     context->PackBaggage(baggage);
 }
 
-void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink)
+void PackBaggageFromExtraChunkTags(const NTracing::TTraceContextPtr& context, const TExtraChunkTags& extraTags)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    AddExtraChunkTags(baggage, extraTags);
+    context->PackBaggage(baggage);
+}
+
+void PackBaggageForChunkReader(
+    const NTracing::TTraceContextPtr& context,
+    const NChunkClient::TDataSource& dataSource,
+    const TExtraChunkTags& extraTags)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    AddTagsFromDataSource(baggage, dataSource);
+    AddExtraChunkTags(baggage, extraTags);
+    context->PackBaggage(baggage);
+}
+
+void PackBaggageForChunkWriter(
+    const NTracing::TTraceContextPtr& context,
+    const NChunkClient::TDataSink& dataSink,
+    const TExtraChunkTags& extraTags)
 {
     auto baggage = context->UnpackOrCreateBaggage();
     AddTagsFromDataSink(baggage, dataSink);
+    AddExtraChunkTags(baggage, extraTags);
     context->PackBaggage(baggage);
 }
 

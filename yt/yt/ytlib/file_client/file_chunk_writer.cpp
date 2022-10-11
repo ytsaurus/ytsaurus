@@ -102,7 +102,13 @@ TFileChunkWriter::TFileChunkWriter(
     , TraceContext_(CreateTraceContextFromCurrent("FileChunkWriter"))
     , FinishGuard_(TraceContext_)
 {
-    PackBaggageFromDataSink(TraceContext_, dataSink);
+    PackBaggageForChunkWriter(
+        TraceContext_,
+        dataSink,
+        TExtraChunkTags{
+            .CompressionCodec = options->CompressionCodec,
+            .ErasureCodec = chunkWriter->GetErasureCodecId(),
+        });
 }
 
 bool TFileChunkWriter::Write(TRef data)

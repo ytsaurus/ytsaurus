@@ -82,7 +82,7 @@ public:
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
             Config_,
             Options_,
-            std::move(chunkWriter),
+            chunkWriter,
             std::move(blockCache),
             Logger))
         , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
@@ -95,7 +95,13 @@ public:
         , FinishGuard_(TraceContext_)
     {
         if (dataSink) {
-            PackBaggageFromDataSink(TraceContext_, *dataSink);
+            PackBaggageForChunkWriter(
+                TraceContext_,
+                *dataSink,
+                TExtraChunkTags{
+                    .CompressionCodec = Options_->CompressionCodec,
+                    .ErasureCodec = chunkWriter->GetErasureCodecId(),
+                });
         }
     }
 
