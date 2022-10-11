@@ -18,19 +18,6 @@ public enum LockMode {
         this.protoValue = protoValue;
     }
 
-    public static LockMode of(ru.yandex.inside.yt.kosher.cypress.LockMode lockMode) {
-        switch (lockMode) {
-            case SNAPSHOT:
-                return Snapshot;
-            case SHARED:
-                return Shared;
-            case EXCLUSIVE:
-                return Exclusive;
-            default:
-                throw new IllegalArgumentException("Unknown lock mode: " + lockMode);
-        }
-    }
-
     public int getProtoValue() {
         return protoValue;
     }

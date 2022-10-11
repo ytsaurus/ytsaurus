@@ -1,5 +1,7 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.object;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yson.YsonConsumer;
@@ -10,5 +12,5 @@ import ru.yandex.yson.YsonConsumer;
 @NonNullApi
 @NonNullFields
 public interface YTreeRowSerializer<T> extends YTreeSerializer<T> {
-    void serializeRow(T obj, YsonConsumer consumer, boolean keyFieldsOnly, T compareWith);
+    void serializeRow(T obj, YsonConsumer consumer, boolean keyFieldsOnly, @Nullable T compareWith);
 }

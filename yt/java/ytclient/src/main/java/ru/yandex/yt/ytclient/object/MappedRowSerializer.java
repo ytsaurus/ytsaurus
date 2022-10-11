@@ -9,14 +9,29 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowSerializer<T> extends YTreeWireRowSerializer<T> {
+    private final boolean supportState;
+
     private MappedRowSerializer(YTreeRowSerializer<T> objectSerializer) {
         super(objectSerializer);
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeWireRowSerializer.YTreeConsumerProxy(tableSchema);
+        this.supportState = YTreeStateSupport.class.isAssignableFrom(objectSerializer.getClazz());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly, boolean aggregate,
+                             int[] idMapping) {
+        final T compareWith = !keyFieldsOnly && supportState
+                ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
+                : null;
+        this.objectSerializer.serializeRow(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, compareWith);
+        delegate.complete();
     }
 
     public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {

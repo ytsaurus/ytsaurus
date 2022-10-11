@@ -167,12 +167,6 @@ public class ReshardTable
             return new UnversionedRow(row);
         }
 
-        private void serializeRowsetTo(List<byte[]> attachments) {
-            WireProtocolWriter writer = new WireProtocolWriter(attachments);
-            writer.writeUnversionedRowset(pivotKeys, new UnversionedRowSerializer(schema));
-            writer.finish();
-        }
-
         @Override
         public ReshardTable build() {
             return new ReshardTable(this);

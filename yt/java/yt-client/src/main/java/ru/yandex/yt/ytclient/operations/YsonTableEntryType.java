@@ -4,15 +4,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import ru.yandex.inside.yt.kosher.common.YtFormat;
-import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.tables.CloseableIterator;
-import ru.yandex.inside.yt.kosher.tables.RetriableIterator;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
+import ru.yandex.yt.ytclient.serialization.YTreeBinarySerializer;
 
 /**
  * @author sankear
@@ -36,12 +34,6 @@ public class YsonTableEntryType implements YTableEntryType<YTreeMapNode> {
     public CloseableIterator<YTreeMapNode> iterator(InputStream input, OperationContext context) {
         context.withSettingIndices(setTableIndex, setRowIndex);
         return YTreeBinarySerializer.iterator(input, context).map(YTreeNode::mapNode);
-    }
-
-    @Override
-    public RetriableIterator<YTreeMapNode> iterator(YPath path, InputStream input,
-                                                    YTreeBinarySerializer.YTreeRetriableIterator.RetryState state) {
-        return YTreeBinarySerializer.iterator(path, input, state).uncheckedCast();
     }
 
     @Override
