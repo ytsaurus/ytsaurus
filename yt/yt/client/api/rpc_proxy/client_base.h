@@ -35,12 +35,15 @@ protected:
     // Stickiness affects retries policy.
     virtual NRpc::IChannelPtr WrapStickyChannelIntoRetrying(NRpc::IChannelPtr underlying) const = 0;
 
-    TApiServiceProxy CreateApiServiceProxy(NRpc::IChannelPtr channel = {});
-    void InitStreamingRequest(NRpc::TClientRequest& request);
     friend class TTransaction;
 
 public:
     NApi::IConnectionPtr GetConnection() override;
+
+    // Helpers for accessing low-lepel API service proxy.
+    // Prefer using interface methods unless you know exactly what you are doing.
+    TApiServiceProxy CreateApiServiceProxy(NRpc::IChannelPtr channel = {});
+    void InitStreamingRequest(NRpc::TClientRequest& request);
 
     // Transactions.
     TFuture<NApi::ITransactionPtr> StartTransaction(
