@@ -83,13 +83,16 @@ public class OperationImpl implements Operation {
     }
 
     private CompletableFuture<YTreeNode> getOperation(String attribute) {
-        return client.getOperation(GetOperation.builder().setId(id).addAttribute(attribute).build());
+        return client.getOperation(GetOperation.builder()
+                .setOperationId(id)
+                .addAttribute(attribute)
+                .build());
     }
 
     private void watchImpl() {
         logger.debug("Operation's watch iteration was started (OperationId: {})", id);
         client.getOperation(GetOperation.builder()
-                        .setId(id)
+                        .setOperationId(id)
                         .addAttribute("state")
                         .addAttribute("brief_progress")
                         .addAttribute("type")
