@@ -2288,7 +2288,6 @@ private:
             "io_weights",
             "scheduling_segment",
             "data_center",
-            "flavors",
             "annotations",
         });
         batchReq->AddRequest(req, "get_nodes");
