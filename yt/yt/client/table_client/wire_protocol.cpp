@@ -1013,10 +1013,12 @@ auto IWireProtocolReader::GetSchemaData(
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     };
     if (!filter.IsUniversal()) {
+        schemaData.reserve(std::ssize(filter.GetIndexes()));
         for (int id : filter.GetIndexes()) {
             addColumn(id);
         }
     } else {
+        schemaData.reserve(schema.GetColumnCount());
         for (int id = 0; id < schema.GetColumnCount(); ++id) {
             addColumn(id);
         }
@@ -1027,6 +1029,7 @@ auto IWireProtocolReader::GetSchemaData(
 auto IWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaData
 {
     TSchemaData schemaData;
+    schemaData.reserve(schema.GetColumnCount());
     for (int id = 0; id < schema.GetColumnCount(); ++id) {
         auto value = MakeUnversionedValueHeader(schema.Columns()[id].GetWireType(), id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));

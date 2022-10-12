@@ -525,7 +525,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto backendReaders = GetBackendReaders(workloadCategory);
 
     if (mountConfig->EnableDataNodeLookup && backendReaders.LookupReader) {
-        auto reader = CreateRowLookupReader(
+        auto reader = CreateVersionedLookupReader(
             std::move(backendReaders.LookupReader),
             chunkReadOptions,
             filteredKeys,

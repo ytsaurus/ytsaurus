@@ -31,12 +31,12 @@ struct TDataBufferTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowLookupReader
+class TVersionedLookupReader
     : public IVersionedReader
 {
 public:
-    TRowLookupReader(
-        ILookupReaderPtr underlyingReader,
+    TVersionedLookupReader(
+        ILookupReaderPtr lookupReader,
         TClientChunkReadOptions chunkReadOptions,
         TSharedRange<TLegacyKey> lookupKeys,
         TTabletSnapshotPtr tabletSnapshot,
@@ -46,18 +46,19 @@ public:
         TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling)
-        : UnderlyingReader_(std::move(underlyingReader))
+        : LookupReader_(std::move(lookupReader))
         , RowsReadOptions_(std::move(chunkReadOptions))
         , LookupKeys_(std::move(lookupKeys))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , ColumnFilter_(std::move(columnFilter))
+        , SchemaData_(IWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , OverrideTimestamp_(overrideTimestamp)
         , EnablePeerProbing_(enablePeerProbing)
         , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
-        ReadyEvent_ = DoOpen();
+        DoOpen();
     }
 
     TFuture<void> Open() override
@@ -69,7 +70,7 @@ public:
     {
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
-        if (!BeginRead()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 
@@ -77,7 +78,7 @@ public:
             return nullptr;
         }
 
-        YT_VERIFY(FetchedRows_.size() == LookupKeys_.size());
+        RowBuffer_->Clear();
 
         std::vector<TVersionedRow> rows;
         rows.reserve(
@@ -86,7 +87,8 @@ public:
                 options.MaxRowsPerRead));
 
         while (rows.size() < rows.capacity()) {
-            rows.push_back(FetchedRows_[RowCount_++]);
+            ++RowCount_;
+            rows.push_back(WireReader_->ReadVersionedRow(SchemaData_, /*captureValues*/ false));
             DataWeight_ += GetDataWeight(rows.back());
         }
 
@@ -129,11 +131,12 @@ public:
     }
 
 private:
-    const ILookupReaderPtr UnderlyingReader_;
+    const ILookupReaderPtr LookupReader_;
     const TClientChunkReadOptions RowsReadOptions_;
     const TSharedRange<TLegacyKey> LookupKeys_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TColumnFilter ColumnFilter_;
+    const TSchemaData SchemaData_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TTimestamp OverrideTimestamp_;
@@ -143,23 +146,24 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_;
     int RowCount_ = 0;
     i64 DataWeight_ = 0;
     std::atomic<i64> CompressedDataSize_ = 0;
     std::atomic<i64> UncompressedDataSize_ = 0;
     std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = 0;
 
-    TFuture<TSharedRef> FetchedRowset_;
-    std::vector<TVersionedRow> FetchedRows_;
+    std::unique_ptr<IWireProtocolReader> WireReader_;
 
-    TFuture<void> DoOpen()
+
+    void DoOpen()
     {
         if (LookupKeys_.Empty()) {
-            return VoidFuture;
+            ReadyEvent_ = VoidFuture;
+            return;
         }
 
-        FetchedRowset_ = UnderlyingReader_->LookupRows(
+        ReadyEvent_ = LookupReader_->LookupRows(
             RowsReadOptions_,
             LookupKeys_,
             TabletSnapshot_->TableId,
@@ -173,11 +177,7 @@ private:
             OverrideTimestamp_,
             EnablePeerProbing_,
             EnableRejectsIfThrottling_)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
-                ProcessFetchedRowset(fetchedRowset);
-                return fetchedRowset;
-            }));
-        return FetchedRowset_.As<void>();
+            .Apply(BIND(&TVersionedLookupReader::OnRowsLookuped, MakeStrong(this)));
     }
 
     i64 ComputeEstimatedSize()
@@ -199,42 +199,23 @@ private:
         return estimatedSize * LookupKeys_.Size();
     }
 
-    void ProcessFetchedRowset(const TSharedRef& fetchedRowset)
+    void OnRowsLookuped(const TSharedRef& compressedRowset)
     {
-        CompressedDataSize_ += fetchedRowset.Size();
+        CompressedDataSize_ += compressedRowset.Size();
 
         TWallTimer timer;
-        auto uncompressedFetchedRowset = Codec_->Decompress(fetchedRowset);
+        auto rowset = Codec_->Decompress(compressedRowset);
         DecompressionTime_ += timer.GetElapsedValue();
-        UncompressedDataSize_ += uncompressedFetchedRowset.Size();
+        UncompressedDataSize_ += rowset.Size();
 
-        auto schemaData = IWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema, TColumnFilter());
-        auto reader = CreateWireProtocolReader(uncompressedFetchedRowset, RowBuffer_);
-
-        FetchedRows_.reserve(LookupKeys_.Size());
-        for (int i = 0; i < std::ssize(LookupKeys_); ++i) {
-            FetchedRows_.push_back(reader->ReadVersionedRow(schemaData, true));
-        }
-    }
-
-    bool BeginRead()
-    {
-        if (!FetchedRowset_.IsSet()) {
-            return false;
-        }
-
-        if (!FetchedRowset_.Get().IsOK()) {
-            return false;
-        }
-
-        return true;
+        WireReader_ = CreateWireProtocolReader(std::move(rowset), RowBuffer_);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRowLookupReader(
-    ILookupReaderPtr underlyingReader,
+IVersionedReaderPtr CreateVersionedLookupReader(
+    ILookupReaderPtr lookupReader,
     TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
@@ -245,8 +226,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     bool enablePeerProbing,
     bool enableRejectsIfThrottling)
 {
-    return New<TRowLookupReader>(
-        std::move(underlyingReader),
+    return New<TVersionedLookupReader>(
+        std::move(lookupReader),
         std::move(chunkReadOptions),
         std::move(lookupKeys),
         std::move(tabletSnapshot),

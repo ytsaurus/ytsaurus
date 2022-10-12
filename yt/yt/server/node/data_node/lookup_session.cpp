@@ -10,21 +10,19 @@
 
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/yt/client/misc/workload.h>
-
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-
-#include <yt/yt/client/table_client/config.h>
-#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/client/misc/workload.h>
+
+#include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NDataNode {
 
@@ -40,7 +38,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+struct TKeyReaderBufferTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,23 +52,25 @@ TLookupSession::TLookupSession(
     TTimestamp timestamp,
     bool produceAllVersions,
     TTableSchemaPtr tableSchema,
-    const std::vector<TSharedRef>& serializedKeys,
+    const std::vector<TSharedRef>& keyRefs,
     NCompression::ECodec codecId,
     TTimestamp overrideTimestamp,
     bool populateCache)
     : Bootstrap_(bootstrap)
     , Chunk_(std::move(chunk))
     , ChunkId_(Chunk_->GetId())
-    , ReadSessionId_(readSessionId)
     , ColumnFilter_(std::move(columnFilter))
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , TableSchema_(std::move(tableSchema))
-    , Codec_(NCompression::GetCodec(codecId))
     , OverrideTimestamp_(overrideTimestamp)
+    , CodecId_(codecId)
+    , Logger(DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v",
+        ChunkId_,
+        readSessionId))
 {
     Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
-    Options_.ReadSessionId = ReadSessionId_;
+    Options_.ReadSessionId = readSessionId;
     Options_.WorkloadDescriptor = std::move(workloadDescriptor);
     Options_.PopulateCache = populateCache;
 
@@ -80,30 +81,32 @@ TLookupSession::TLookupSession(
     YT_VERIFY(TableSchema_);
     if (!TableSchema_->GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
-            << TErrorAttribute("read_session_id", ReadSessionId_);
+            << TErrorAttribute("read_session_id", readSessionId);
     }
     if (!TableSchema_->GetStrict()) {
         THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
-            << TErrorAttribute("read_session_id", ReadSessionId_);
+            << TErrorAttribute("read_session_id", readSessionId);
     }
 
-    // Use cache for readers?
+    auto serializedKeys = keyRefs.size() == 1
+        ? keyRefs[0]
+        : MergeRefsToRef<TKeyReaderBufferTag>(keyRefs);
+    auto wireReader = CreateWireProtocolReader(
+        std::move(serializedKeys),
+        New<TRowBuffer>(TKeyReaderBufferTag()));
+    Keys_ = wireReader->ReadUnversionedRowset(/*captureValues*/ false);
+    KeyCount_ = Keys_.Size();
+
+    YT_VERIFY(KeyCount_ != 0);
+
     UnderlyingChunkReader_ = CreateLocalChunkReader(
         New<TReplicationReaderConfig>(),
         Chunk_,
         Bootstrap_->GetBlockCache(),
         Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
-    auto keysReader = CreateWireProtocolReader(
-        MergeRefsToRef<TKeyReaderBufferTag>(serializedKeys),
-        KeyReaderRowBuffer_);
-    RequestedKeys_ = keysReader->ReadUnversionedRowset(true);
-    YT_VERIFY(!RequestedKeys_.Empty());
-
-    YT_LOG_DEBUG("Local chunk reader is created for lookup request (ChunkId: %v, ReadSessionId: %v, KeyCount: %v)",
-        ChunkId_,
-        ReadSessionId_,
-        RequestedKeys_.Size());
+    YT_LOG_DEBUG("Local chunk reader is created for lookup request (KeyCount: %v)",
+        KeyCount_);
 }
 
 TFuture<TSharedRef> TLookupSession::Run()
@@ -111,18 +114,19 @@ TFuture<TSharedRef> TLookupSession::Run()
     NProfiling::TWallTimer metaWaitTimer;
     const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
 
-    return
-        chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_)
-            .Apply(BIND(
-                [=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)]
-                (const TVersionedChunkMetaCacheEntryPtr& entry)
-            {
-                Options_.ChunkReaderStatistics->MetaWaitTime.fetch_add(
-                    metaWaitTimer.GetElapsedValue(),
-                    std::memory_order_relaxed);
-                return DoRun(entry->Meta());
-            })
-            .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
+    auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_);
+    if (metaFuture.IsSet()) {
+        const auto& metaOrError = metaFuture.Get();
+        return metaOrError.IsOK()
+            ? OnGotMeta(/*timer*/ std::nullopt, metaOrError.Value())
+            : MakeFuture<TSharedRef>(TError(metaOrError));
+    }
+
+    return metaFuture.Apply(BIND(
+        &TLookupSession::OnGotMeta,
+        MakeStrong(this),
+        std::move(metaWaitTimer))
+        .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
 }
 
 const TChunkReaderStatisticsPtr& TLookupSession::GetChunkReaderStatistics()
@@ -136,6 +140,8 @@ std::tuple<TTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     const TReqLookupRows::TTableSchemaData& schemaData,
     const TTableSchemaCachePtr& tableSchemaCache)
 {
+    const auto& Logger = DataNodeLogger;
+
     auto tableId = FromProto<TObjectId>(schemaData.table_id());
     auto revision = schemaData.revision();
     i64 schemaSize = schemaData.has_schema_size() ? schemaData.schema_size() : 1_MB;
@@ -182,13 +188,12 @@ bool TLookupSession::CheckKeyColumnCompatibility()
     auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
     if (type != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Chunk %v is of invalid type", ChunkId_)
-            << TErrorAttribute("read_session_id", ReadSessionId_)
             << TErrorAttribute("expected_chunk_type", EChunkType::Table)
             << TErrorAttribute("chunk_type", type);
     }
 
     const auto& tableKeyColumns = TableSchema_->GetKeyColumns();
-    for (auto key : RequestedKeys_) {
+    for (auto key : Keys_) {
         YT_VERIFY(key.GetCount() == tableKeyColumns.size());
     }
 
@@ -210,7 +215,6 @@ bool TLookupSession::CheckKeyColumnCompatibility()
             tableKeyColumns.begin());
     if (!isCompatibleKeyColumns) {
         THROW_ERROR_EXCEPTION("Chunk %v has incompatible key columns", ChunkId_)
-            << TErrorAttribute("read_session_id", ReadSessionId_)
             << TErrorAttribute("table_key_columns", tableKeyColumns)
             << TErrorAttribute("chunk_key_columns", chunkKeyColumns);
     }
@@ -218,8 +222,20 @@ bool TLookupSession::CheckKeyColumnCompatibility()
     return true;
 }
 
-TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
+TFuture<TSharedRef> TLookupSession::OnGotMeta(
+    std::optional<NProfiling::TWallTimer> timer,
+    const TVersionedChunkMetaCacheEntryPtr& entry)
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLookupInvoker());
+
+    if (timer) {
+        Options_.ChunkReaderStatistics->MetaWaitTime.fetch_add(
+            timer->GetElapsedValue(),
+            std::memory_order_relaxed);
+    }
+
+    const auto& chunkMeta = entry->Meta();
+
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
@@ -230,29 +246,37 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
         New<TChunkReaderPerformanceCounters>(),
-        TKeyComparer(Bootstrap_->GetRowComparerProvider()->Get(TableSchema_->GetKeyColumnTypes()).UUComparer),
+        GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
         TableSchema_);
 
-    auto writer = CreateWireProtocolWriter();
-    auto onRow = [&] (TVersionedRow row) {
-        writer->WriteVersionedRow(row);
-    };
-
-    auto rowReaderAdapter = New<TRowReaderAdapter>(
+    // TODO(akozhikhov): Maybe cache this reader somehow?
+    return DoLookup(CreateVersionedChunkReader(
         TChunkReaderConfig::GetDefault(),
         UnderlyingChunkReader_,
         chunkState,
         chunkMeta,
         Options_,
-        RequestedKeys_,
+        Keys_,
         ColumnFilter_,
         Timestamp_,
-        ProduceAllVersions_);
-    rowReaderAdapter->ReadRowset(onRow);
+        ProduceAllVersions_));
+}
 
-    // TODO(akozhikhov): update compression statistics.
-    return Codec_->Compress(writer->Finish());
+TFuture<TSharedRef> TLookupSession::DoLookup(IVersionedReaderPtr reader) const
+{
+    return New<TVersionedRowsetReader>(
+        KeyCount_,
+        std::move(reader),
+        CodecId_,
+        Bootstrap_->GetStorageLookupInvoker())
+        ->ReadRowset();
+}
+
+TKeyComparer TLookupSession::GetKeyComparer() const
+{
+    const auto& comparerProvider = Bootstrap_->GetRowComparerProvider();
+    return TKeyComparer(comparerProvider->Get(TableSchema_->GetKeyColumnTypes()).UUComparer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

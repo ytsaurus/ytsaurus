@@ -41,8 +41,9 @@ DEFINE_REFCOUNTED_TYPE(ILookupReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRowLookupReader(
-    ILookupReaderPtr underlyingReader,
+//! Converts ILookupReader to IVersionedReader.
+IVersionedReaderPtr CreateVersionedLookupReader(
+    ILookupReaderPtr lookupReader,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
