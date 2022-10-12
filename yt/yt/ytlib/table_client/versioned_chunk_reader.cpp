@@ -2059,56 +2059,66 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowReaderAdapter::TRowReaderAdapter(
-    TChunkReaderConfigPtr config,
-    IChunkReaderPtr chunkReader,
-    const TChunkStatePtr& chunkState,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    const TClientChunkReadOptions& chunkReadOptions,
-    const TSharedRange<TLegacyKey>& keys,
-    const TColumnFilter& columnFilter,
-    TTimestamp timestamp,
-    bool produceAllVersions)
-    : KeyCount_(keys.Size())
-    , UnderlyingReader_(
-        CreateVersionedChunkReader(
-            config,
-            chunkReader,
-            chunkState,
-            chunkMeta,
-            chunkReadOptions,
-            keys,
-            columnFilter,
-            timestamp,
-            produceAllVersions))
-{ }
-
-void TRowReaderAdapter::ReadRowset(const std::function<void(TVersionedRow)>& onRow)
+TVersionedRowsetReader::TVersionedRowsetReader(
+    int rowCount,
+    IVersionedReaderPtr underlyingReader,
+    NCompression::ECodec codecId,
+    IInvokerPtr invoker)
+    : TotalRowCount_(rowCount)
+    , UnderlyingReader_(std::move(underlyingReader))
+    , Codec_(NCompression::GetCodec(codecId))
+    , Invoker_(std::move(invoker))
 {
-    for (int i = 0; i < KeyCount_; ++i) {
-        onRow(FetchRow());
-    }
+    UnderlyingReader_->Open();
 }
 
-TVersionedRow TRowReaderAdapter::FetchRow()
+TFuture<TSharedRef> TVersionedRowsetReader::ReadRowset()
 {
-    ++RowIndex_;
-    if (!RowBatch_ || RowIndex_ >= RowBatch_->GetRowCount()) {
-        RowIndex_ = 0;
-        while (true) {
-            TRowBatchReadOptions options{
-                .MaxRowsPerRead = RowBufferCapacity
-            };
-            RowBatch_ = UnderlyingReader_->Read(options);
-            YT_VERIFY(RowBatch_);
-            if (!RowBatch_->IsEmpty()) {
+    DoReadRowset(TError());
+    return RowsetPromise_;
+}
+
+void TVersionedRowsetReader::DoReadRowset(const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    if (RowsetPromise_.IsSet()) {
+        return;
+    }
+
+    if (!error.IsOK()) {
+        RowsetPromise_.TrySet(error);
+        return;
+    }
+
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = RowBufferCapacity
+    };
+
+    while (true) {
+        auto rowBatch = UnderlyingReader_->Read(options);
+        YT_VERIFY(rowBatch);
+
+        if (rowBatch->IsEmpty()) {
+            // TODO(akozhikhov): Propagate cancellation from RowsetPromise_.
+            UnderlyingReader_->GetReadyEvent().Subscribe(BIND(
+                &TVersionedRowsetReader::DoReadRowset,
+                MakeStrong(this))
+                .Via(Invoker_));
+            break;
+        } else {
+            ReadRowCount_ += rowBatch->GetRowCount();
+            for (auto row : rowBatch->MaterializeRows()) {
+                WireWriter_->WriteVersionedRow(row);
+            }
+
+            if (ReadRowCount_ == TotalRowCount_) {
+                // TODO(akozhikhov): Update compression statistics.
+                RowsetPromise_.TrySet(Codec_->Compress(WireWriter_->Finish()));
                 break;
             }
-            NConcurrency::WaitFor(UnderlyingReader_->GetReadyEvent())
-                .ThrowOnError();
         }
     }
-    return RowBatch_->MaterializeRows()[RowIndex_];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

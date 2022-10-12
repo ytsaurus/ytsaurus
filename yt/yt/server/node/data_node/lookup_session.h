@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +31,7 @@ public:
         NTransactionClient::TTimestamp timestamp,
         bool produceAllVersions,
         NTableClient::TTableSchemaPtr tableSchema,
-        const std::vector<TSharedRef>& serializedKeys,
+        const std::vector<TSharedRef>& keyRefs,
         NCompression::ECodec codecId,
         NTransactionClient::TTimestamp overrideTimestamp,
         bool populateCache);
@@ -46,29 +48,32 @@ public:
         const TTableSchemaCachePtr& tableSchemaCache);
 
 private:
-    struct TKeyReaderBufferTag { };
-
     IBootstrap const* Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
-    const NChunkClient::TReadSessionId ReadSessionId_;
     const NTableClient::TColumnFilter ColumnFilter_;
     const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const NTableClient::TTableSchemaPtr TableSchema_;
-    NCompression::ICodec* const Codec_;
     const NTransactionClient::TTimestamp OverrideTimestamp_;
+    const NCompression::ECodec CodecId_;
+    const NLogging::TLogger Logger;
+    const NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<NChunkClient::TChunkReaderStatistics>();
 
     TChunkReadOptions Options_;
+    TSharedRange<NTableClient::TUnversionedRow> Keys_;
+    int KeyCount_;
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;
-    TSharedRange<NTableClient::TUnversionedRow> RequestedKeys_;
-    const NTableClient::TRowBufferPtr KeyReaderRowBuffer_ = New<NTableClient::TRowBuffer>(TKeyReaderBufferTag());
-    const NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<NChunkClient::TChunkReaderStatistics>();
 
 
     bool CheckKeyColumnCompatibility();
 
-    TSharedRef DoRun(NTableClient::TCachedVersionedChunkMetaPtr chunkMeta);
+    TFuture<TSharedRef> OnGotMeta(
+        std::optional<NProfiling::TWallTimer> timer,
+        const NTabletNode::TVersionedChunkMetaCacheEntryPtr& chunkMeta);
+    TFuture<TSharedRef> DoLookup(NTableClient::IVersionedReaderPtr reader) const;
+
+    NTableClient::TKeyComparer GetKeyComparer() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLookupSession)

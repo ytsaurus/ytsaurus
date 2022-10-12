@@ -83,34 +83,36 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowReaderAdapter
+//! Asynchronously reads all requested rows via #underlyingReader
+//! and returns wire encoded rowset compressed with #codecId.
+class TVersionedRowsetReader
     : public TRefCounted
 {
 public:
-    TRowReaderAdapter(
-        TChunkReaderConfigPtr config,
-        NChunkClient::IChunkReaderPtr chunkReader,
-        const TChunkStatePtr& chunkState,
-        const TCachedVersionedChunkMetaPtr& chunkMeta,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        const TSharedRange<TLegacyKey>& keys,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
-        bool produceAllVersions);
+    TVersionedRowsetReader(
+        int rowCount,
+        IVersionedReaderPtr underlyingReader,
+        NCompression::ECodec codecId,
+        IInvokerPtr invoker);
 
-    void ReadRowset(const std::function<void (TVersionedRow)>& onRow);
+    TFuture<TSharedRef> ReadRowset();
 
 private:
-    const int KeyCount_;
+    const int TotalRowCount_;
     const IVersionedReaderPtr UnderlyingReader_;
+    NCompression::ICodec* const Codec_;
+    const IInvokerPtr Invoker_;
+    const std::unique_ptr<IWireProtocolWriter> WireWriter_ = CreateWireProtocolWriter();
 
-    IVersionedRowBatchPtr RowBatch_;
-    int RowIndex_ = -1;
+    const TPromise<TSharedRef> RowsetPromise_ = NewPromise<TSharedRef>();
 
-    TVersionedRow FetchRow();
+    int ReadRowCount_ = 0;
+
+
+    void DoReadRowset(const TError& error);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRowReaderAdapter)
+DEFINE_REFCOUNTED_TYPE(TVersionedRowsetReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
