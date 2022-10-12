@@ -308,6 +308,82 @@ TEST_F(TChunkReplacerTest, Subtrees)
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
 }
 
+TEST_F(TChunkReplacerTest, SubtreesAndChunks1)
+{
+    //               rootList                //
+    //      /     /     \      \      \      //
+    // chunk1  chunk2  chunk3  chunk4  list1 //
+    //                                   |   //
+    //                                chunk5 //
+
+    auto* chunk1 = CreateChunk(1, 1, 1, 1);
+    auto* chunk2 = CreateChunk(2, 2, 2, 2);
+    auto* chunk3 = CreateChunk(3, 3, 3, 3);
+    auto* chunk4 = CreateChunk(4, 4, 4, 4);
+
+    auto* list1 = CreateChunkList();
+    auto* chunk5 = CreateChunk(5, 5, 5, 5);
+    auto* rootList = CreateChunkList();
+
+    AttachToChunkList(list1, {chunk5});
+    AttachToChunkList(rootList, {chunk1, chunk2, chunk3, chunk4, list1});
+
+    auto oldChunks = EnumerateChunksInChunkTree(rootList);
+    {
+        TChunkReplacer replacer(New<TTestChunkReplacerCallbacks>(this));
+        ASSERT_TRUE(replacer.FindChunkList(rootList, rootList->GetId()));
+
+        auto* newChunk = CreateChunk(6, 6, 6, 6);
+        std::vector ids{chunk2->GetId(), chunk3->GetId()};
+        ASSERT_TRUE(replacer.ReplaceChunkSequence(newChunk, ids));
+
+        auto* newList = replacer.Finish();
+        ASSERT_TRUE(newList);
+        auto chunks = EnumerateChunksInChunkTree(newList);
+        EXPECT_EQ(chunks, std::vector({chunk1, newChunk, chunk4, chunk5}));
+    }
+
+    EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
+}
+
+TEST_F(TChunkReplacerTest, SubtreesAndChunks2)
+{
+    //               rootList              //
+    //      /     /     \      \           //
+    // chunk1  chunk2  chunk3  list1       //
+    //                        /     \      //
+    //                    chunk4    chunk5 //
+
+    auto* chunk1 = CreateChunk(1, 1, 1, 1);
+    auto* chunk2 = CreateChunk(2, 2, 2, 2);
+    auto* chunk3 = CreateChunk(3, 3, 3, 3);
+
+    auto* list1 = CreateChunkList();
+    auto* chunk4 = CreateChunk(4, 4, 4, 4);
+    auto* chunk5 = CreateChunk(5, 5, 5, 5);
+    auto* rootList = CreateChunkList();
+
+    AttachToChunkList(list1, {chunk4, chunk5});
+    AttachToChunkList(rootList, {chunk1, chunk2, chunk3, list1});
+
+    auto oldChunks = EnumerateChunksInChunkTree(rootList);
+    {
+        TChunkReplacer replacer(New<TTestChunkReplacerCallbacks>(this));
+        ASSERT_TRUE(replacer.FindChunkList(rootList, list1->GetId()));
+
+        auto* newChunk = CreateChunk(6, 6, 6, 6);
+        std::vector ids{chunk4->GetId(), chunk5->GetId()};
+        ASSERT_TRUE(replacer.ReplaceChunkSequence(newChunk, ids));
+
+        auto* newList = replacer.Finish();
+        ASSERT_TRUE(newList);
+        auto chunks = EnumerateChunksInChunkTree(newList);
+        EXPECT_EQ(chunks, std::vector({chunk1, chunk2, chunk3, newChunk}));
+    }
+
+    EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
+}
+
 TEST_F(TChunkReplacerTest, Fails)
 {
     //           rootList             //

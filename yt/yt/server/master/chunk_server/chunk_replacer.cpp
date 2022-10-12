@@ -38,11 +38,16 @@ bool TChunkReplacer::FindChunkList(
         auto* chunkTree = entry.ChunkTree;
 
         if (chunkTree->GetType() != EObjectType::ChunkList) {
-            return false;
+            if (chunkTree->GetType() != EObjectType::Chunk) {
+                return false;
+            }
+
+            ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkTree);
+            Stack_.pop();
+            continue;
         }
 
         auto* chunkList = chunkTree->AsChunkList();
-
         if (chunkList->GetId() == desiredChunkListId) {
             PrevParentChunkList_ = chunkList;
             NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
