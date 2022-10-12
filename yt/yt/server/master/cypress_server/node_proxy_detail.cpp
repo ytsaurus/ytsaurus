@@ -22,6 +22,7 @@
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/config.h>
+#include <yt/yt/server/master/security_server/helpers.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
@@ -44,8 +45,6 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/misc/string.h>
 
@@ -468,11 +467,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             auto attributeUpdated = TObjectProxyBase::SetBuiltinAttribute(key, value);
             auto* node = GetThisImpl();
             if (attributeUpdated && !node->IsBeingCreated()) {
-                LogStructuredEventFluently(CypressServerLogger, ELogLevel::Info)
-                    .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
-                    .Item("attribute").Value(key.Unintern())
-                    .Item("path").Value(GetPath())
-                    .Item("value").Value(value);
+                LogAcdUpdate(key.Unintern(), GetPath(), value);
             }
             if (attributeUpdated && GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
                 SetModified(EModificationType::Attributes);
