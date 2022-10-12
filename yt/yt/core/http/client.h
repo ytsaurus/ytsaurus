@@ -35,6 +35,10 @@ struct IClient
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers = nullptr) = 0;
+
+    virtual TFuture<IResponsePtr> Delete(
+        const TString& url,
+        const THeadersPtr& headers = nullptr) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

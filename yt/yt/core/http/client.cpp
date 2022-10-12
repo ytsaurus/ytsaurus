@@ -65,6 +65,13 @@ public:
         return Request(EMethod::Put, url, TSharedRef{body}, headers);
     }
 
+    TFuture<IResponsePtr> Delete(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return Request(EMethod::Delete, url, std::nullopt, headers);
+    }
+
 private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;
