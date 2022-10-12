@@ -112,23 +112,44 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 		return err
 	}
 
-	poolPath := findPoolPath(poolsNode, pool)
-	if poolPath == "" {
-		return yterrors.Err("pool not found", yterrors.Attr("pool", pool))
+	poolSubPath := findPoolPath(poolsNode, pool)
+	if poolSubPath == "" {
+		return yterrors.Err(
+			fmt.Sprintf("pool %v does not exist", pool),
+			yterrors.Attr("pool", pool))
 	}
+	poolPath := ypath.Path("//sys/pools").Child(poolSubPath)
 
-	response, err := a.ytc.CheckPermission(ctx, user, permission, ypath.Path("//sys/pools/"+poolPath), nil)
+	response, err := a.ytc.CheckPermission(ctx, user, permission, poolPath, nil)
 	if err != nil {
 		return err
 	}
 
 	if response.Action != yt.ActionAllow {
 		return yterrors.Err(
-			fmt.Sprintf("%v access to pool %v denied for user %v", permission, pool, user),
+			fmt.Sprintf("%v permission to pool %v denied for user %v", permission, pool, user),
 			yterrors.CodeAuthorizationError,
 			yterrors.Attr("pool", pool),
 			yterrors.Attr("permission", permission),
 			yterrors.Attr("user", user))
+	}
+
+	if a.cfg.RobotUsername != "" {
+		response, err = a.ytc.CheckPermission(ctx, a.cfg.RobotUsername, yt.PermissionUse, poolPath, nil)
+		if err != nil {
+			return err
+		}
+		if response.Action != yt.ActionAllow {
+			return yterrors.Err(
+				fmt.Sprintf("use permission to pool %v denied for system user %v; "+
+					"in order to use the pool in the controller, you need to grant use permission to our system user %v",
+					pool,
+					a.cfg.RobotUsername,
+					a.cfg.RobotUsername),
+				yterrors.Attr("pool", pool),
+				yterrors.Attr("permission", permission),
+				yterrors.Attr("user", a.cfg.RobotUsername))
+		}
 	}
 
 	return nil

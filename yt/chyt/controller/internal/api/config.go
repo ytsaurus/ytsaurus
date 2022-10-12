@@ -6,10 +6,11 @@ import (
 )
 
 type APIConfig struct {
-	Family  string
-	Stage   string
-	Root    ypath.Path
-	BaseACL []yt.ACE
+	Family        string
+	Stage         string
+	Root          ypath.Path
+	BaseACL       []yt.ACE
+	RobotUsername string
 }
 
 type HTTPAPIConfig struct {
