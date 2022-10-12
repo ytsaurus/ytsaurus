@@ -42,10 +42,12 @@ public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
         IPollerPtr poller,
-        IMessageHandlerPtr handler)
+        IMessageHandlerPtr handler,
+        IPacketTranscoderFactory* packetTranscoderFactory)
         : Config_(std::move(config))
         , Poller_(std::move(poller))
         , Handler_(std::move(handler))
+        , PacketTranscoderFactory_(std::move(packetTranscoderFactory))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Poller_);
@@ -118,6 +120,8 @@ protected:
     const TTcpBusServerConfigPtr Config_;
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
+
+    IPacketTranscoderFactory* const PacketTranscoderFactory_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ControlSpinLock_);
     SOCKET ServerSocket_ = INVALID_SOCKET;
@@ -246,7 +250,8 @@ protected:
                 address,
                 std::nullopt,
                 Handler_,
-                std::move(poller));
+                std::move(poller),
+                PacketTranscoderFactory_);
 
             {
                 auto guard = WriterGuard(ConnectionsSpinLock_);
@@ -299,6 +304,8 @@ protected:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteTcpBusServer
     : public TTcpBusServerBase
 {
@@ -328,6 +335,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalTcpBusServer
     : public TTcpBusServerBase
 {
@@ -335,11 +344,13 @@ public:
     TLocalTcpBusServer(
         TTcpBusServerConfigPtr config,
         IPollerPtr poller,
-        IMessageHandlerPtr handler)
+        IMessageHandlerPtr handler,
+        IPacketTranscoderFactory* packetTranscoderFactory)
         : TTcpBusServerBase(
             std::move(config),
             std::move(poller),
-            std::move(handler))
+            std::move(handler),
+            packetTranscoderFactory)
     { }
 
 private:
@@ -375,8 +386,11 @@ class TTcpBusServerProxy
     : public IBusServer
 {
 public:
-    explicit TTcpBusServerProxy(TTcpBusServerConfigPtr config)
+    explicit TTcpBusServerProxy(
+        TTcpBusServerConfigPtr config,
+        IPacketTranscoderFactory* packetTranscoderFactory)
         : Config_(std::move(config))
+        , PacketTranscoderFactory_(packetTranscoderFactory)
     {
         YT_VERIFY(Config_);
     }
@@ -391,7 +405,8 @@ public:
         auto server = New<TServer>(
             Config_,
             TTcpDispatcher::TImpl::Get()->GetAcceptorPoller(),
-            std::move(handler));
+            std::move(handler),
+            PacketTranscoderFactory_);
 
         Server_.Store(server);
         server->Start();
@@ -409,6 +424,8 @@ public:
 private:
     const TTcpBusServerConfigPtr Config_;
 
+    IPacketTranscoderFactory* const PacketTranscoderFactory_;
+
     TAtomicObject<TIntrusivePtr<TServer>> Server_;
 };
 
@@ -418,9 +435,12 @@ class TCompositeBusServer
     : public IBusServer
 {
 public:
-    explicit TCompositeBusServer(const std::vector<IBusServerPtr>& servers)
-        : Servers_(servers)
+    explicit TCompositeBusServer(
+        std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
+        : PacketTranscoderFactory_(std::move(packetTranscoderFactory))
     { }
+
+    // IBusServer implementation.
 
     void Start(IMessageHandlerPtr handler) override
     {
@@ -438,21 +458,43 @@ public:
         return AllSucceeded(asyncResults);
     }
 
+    void RegisterServer(IBusServerPtr server)
+    {
+        Servers_.push_back(std::move(server));
+    }
+
+    IPacketTranscoderFactory* GetPacketTranscoderFactory() const
+    {
+        return PacketTranscoderFactory_.get();
+    }
+
 private:
-    const std::vector<IBusServerPtr> Servers_;
+    std::vector<IBusServerPtr> Servers_;
+
+    std::unique_ptr<IPacketTranscoderFactory> PacketTranscoderFactory_;
 };
 
-IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
+IBusServerPtr CreateTcpBusServer(
+    TTcpBusServerConfigPtr config,
+    std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
 {
-    std::vector<IBusServerPtr> servers;
+    auto server = New<TCompositeBusServer>(std::move(packetTranscoderFactory));
+
     if (config->Port) {
-        servers.push_back(New<TTcpBusServerProxy<TRemoteTcpBusServer>>(config));
+        server->RegisterServer(
+            New<TTcpBusServerProxy<TRemoteTcpBusServer>>(
+                config,
+                server->GetPacketTranscoderFactory()));
     }
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
-    servers.push_back(New<TTcpBusServerProxy<TLocalTcpBusServer>>(config));
+    server->RegisterServer(
+        New<TTcpBusServerProxy<TLocalTcpBusServer>>(
+            config,
+            server->GetPacketTranscoderFactory()));
 #endif
-    return New<TCompositeBusServer>(servers);
+
+    return server;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

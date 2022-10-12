@@ -2,10 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/chunked_memory_allocator.h>
-
-#include <library/cpp/yt/small_containers/compact_vector.h>
-
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,158 +17,65 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
     ((UseUndumpableMemoryZone)  (0x0002))
 );
 
-#pragma pack(push, 4)
-
-constexpr ui32 PacketSignature = 0x78616d4f;
-constexpr ui32 HandshakeMessageSignature = 0x68737562;
-constexpr ui32 NullPacketPartSize = 0xffffffff;
-constexpr int TypicalPacketPartCount = 16;
-constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));
-
-struct TPacketHeader
-{
-    // Should be equal to PacketSignature.
-    ui32 Signature;
-    EPacketType Type;
-    EPacketFlags Flags;
-    TPacketId PacketId;
-    ui32 PartCount;
-    ui64 Checksum;
-};
-
-/*
-  Variable-sized header:
-    ui32 PartSizes[PartCount];
-    ui64 PartChecksums[PartCount];
-    ui64 Checksum;
-*/
-
-#pragma pack(pop)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPacketPhase,
-    (FixedHeader)
-    (VariableHeader)
-    (MessagePart)
-    (Finished)
-);
-
-template <class TDerived>
-class TPacketTranscoderBase
+struct IPacketDecoder
 {
-public:
-    explicit TPacketTranscoderBase(const NLogging::TLogger& logger);
+    virtual ~IPacketDecoder() = default;
 
-    TMutableRef GetFragment();
-    bool IsFinished() const;
+    virtual TMutableRef GetFragment() = 0;
+    virtual bool IsFinished() const = 0;
 
-protected:
-    const NLogging::TLogger& Logger;
+    virtual bool Advance(size_t size) = 0;
+    virtual void Restart() = 0;
 
-    EPacketPhase Phase_ = EPacketPhase::Finished;
-    char* FragmentPtr_ = nullptr;
-    size_t FragmentRemaining_ = 0;
-
-    TPacketHeader FixedHeader_;
-
-    TCompactVector<char, TypicalVariableHeaderSize> VariableHeader_;
-    size_t VariableHeaderSize_;
-    ui32* PartSizes_;
-    ui64* PartChecksums_;
-
-    int PartIndex_ = -1;
-    TSharedRefArray Message_;
-
-    bool IsVariablePacket() const;
-    void AllocateVariableHeader();
-    TChecksum GetFixedChecksum();
-    TChecksum GetVariableChecksum();
-
-    void BeginPhase(EPacketPhase phase, void* fragment, size_t size);
-    bool EndPhase();
-    void SetFinished();
-
-    TDerived* AsDerived();
+    virtual bool IsInProgress() const = 0;
+    virtual EPacketType GetPacketType() const = 0;
+    virtual EPacketFlags GetPacketFlags() const = 0;
+    virtual TPacketId GetPacketId() const = 0;
+    virtual TSharedRefArray GrabMessage() const = 0;
+    virtual size_t GetPacketSize() const = 0;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Enables asynchronous zero-copy packet parsing.
-class TPacketDecoder
-    : public TPacketTranscoderBase<TPacketDecoder>
+struct IPacketEncoder
 {
-public:
-    TPacketDecoder(const NLogging::TLogger& logger, bool verifyChecksum);
+    virtual ~IPacketEncoder() = default;
 
-    bool Advance(size_t size);
-    void Restart();
+    virtual TMutableRef GetFragment() = 0;
+    virtual bool IsFinished() const = 0;
 
-    bool IsInProgress() const;
-    EPacketType GetPacketType() const;
-    EPacketFlags GetPacketFlags() const;
-    TPacketId GetPacketId() const;
-    TSharedRefArray GrabMessage() const;
-    size_t GetPacketSize() const;
-
-private:
-    friend class TPacketTranscoderBase<TPacketDecoder>;
-
-    TChunkedMemoryAllocator Allocator_;
-
-    std::vector<TSharedRef> Parts_;
-
-    size_t PacketSize_ = 0;
-
-    const bool VerifyChecksum_;
-
-    bool EndFixedHeaderPhase();
-    bool EndVariableHeaderPhase();
-    bool EndMessagePartPhase();
-    void NextMessagePartPhase();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Enables asynchronous zero-copy packet writing.
-class TPacketEncoder
-    : public TPacketTranscoderBase<TPacketEncoder>
-{
-public:
-    explicit TPacketEncoder(const NLogging::TLogger& logger);
-
-    static size_t GetPacketSize(
+    virtual size_t GetPacketSize(
         EPacketType type,
         const TSharedRefArray& message,
-        size_t payloadSize);
+        size_t payloadSize) = 0;
 
-    bool Start(
+    virtual bool Start(
         EPacketType type,
         EPacketFlags flags,
         bool generateChecksums,
         int checksummedPartCount,
         TPacketId packetId,
-        TSharedRefArray message);
+        TSharedRefArray message) = 0;
 
-    bool IsFragmentOwned() const;
-    void NextFragment();
+    virtual bool IsFragmentOwned() const = 0;
+    virtual void NextFragment() = 0;
+};
 
-private:
-    friend class TPacketTranscoderBase<TPacketEncoder>;
+struct IPacketTranscoderFactory
+{
+    virtual ~IPacketTranscoderFactory() = default;
 
-    bool EndFixedHeaderPhase();
-    bool EndVariableHeaderPhase();
-    bool EndMessagePartPhase();
-    void NextMessagePartPhase();
+    virtual std::unique_ptr<IPacketDecoder> CreateDecoder(
+        const NLogging::TLogger& logger,
+        bool verifyChecksum) const = 0;
+    virtual std::unique_ptr<IPacketEncoder> CreateEncoder(
+        const NLogging::TLogger& logger) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::unique_ptr<IPacketTranscoderFactory> CreateYTPacketTranscoderFactory();
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NBus
-
-Y_DECLARE_PODTYPE(NYT::NBus::TPacketHeader);
-
-#define PACKET_INL_H_
-#include "packet-inl.h"
-#undef PACKET_INL_H_
-

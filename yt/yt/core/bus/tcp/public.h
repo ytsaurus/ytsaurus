@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_CLASS(TTcpBusConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusServerConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusClientConfig)
 
+struct IPacketTranscoderFactory;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NBus
