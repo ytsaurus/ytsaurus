@@ -149,9 +149,10 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 	var apiConfig = api.HTTPAPIConfig{
 		APIConfig: api.APIConfig{
-			Stage:  config.Strawberry.Stage,
-			Family: app.locations[0].c.Family(),
-			Root:   config.Strawberry.Root,
+			Stage:         config.Strawberry.Stage,
+			Family:        app.locations[0].c.Family(),
+			Root:          config.Strawberry.Root,
+			RobotUsername: config.Strawberry.RobotUsername,
 		},
 		Token:    config.Token,
 		Clusters: config.LocationProxies,

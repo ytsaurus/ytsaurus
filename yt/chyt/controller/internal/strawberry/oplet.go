@@ -560,6 +560,7 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context) error {
 	oplet.l.Info("updating operation parameters")
 
 	acl := toOperationACL(oplet.acl)
+	// TODO(dakovalkov): remove after YT-17557.
 	if oplet.agentInfo.RobotUsername != "" {
 		acl = append(acl, yt.ACE{
 			Action:      yt.ActionAllow,
