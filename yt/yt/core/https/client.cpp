@@ -66,6 +66,13 @@ public:
         return Underlying_->Put(url, body, headers);
     }
 
+    TFuture<IResponsePtr> Delete(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->Delete(url, headers);
+    }
+
 private:
     const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;

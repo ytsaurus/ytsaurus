@@ -151,4 +151,10 @@ TFuture<IResponsePtr> TMockClient::Put(
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
+TFuture<IResponsePtr> TMockClient::Delete(const TString& url, const THeadersPtr& headers)
+{
+    auto mockRsp = Delete(url, headers->Dump());
+    return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
+}
+
 } // namespace NYT::NHttp

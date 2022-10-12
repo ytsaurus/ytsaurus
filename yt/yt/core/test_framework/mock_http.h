@@ -62,6 +62,9 @@ public:
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override;
+    TFuture<IResponsePtr> Delete(
+        const TString& url,
+        const THeadersPtr& headers) override;
 
     MOCK_METHOD(TMockResponse, Get, (
         const TString& url, const TMockHeaders& headers));
@@ -71,6 +74,8 @@ public:
         const TString& url, const TString& body, const TMockHeaders& headers));
     MOCK_METHOD(TMockResponse, Put, (
         const TString& url, const TString& body, const TMockHeaders& headers));
+    MOCK_METHOD(TMockResponse, Delete, (
+        const TString& url, const TMockHeaders& headers));
 }; // class TMockClient
 
 DECLARE_REFCOUNTED_CLASS(TMockClient);
