@@ -1,19 +1,23 @@
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NSecurityServer {
 
+using namespace NChunkServer;
+using namespace NLogging;
+using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
-using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +44,17 @@ i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, con
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void LogAcdUpdate(const TString& attribute, const TYPath& path, const TYsonString& value)
+{
+    LogStructuredEventFluently(SecurityServerLogger, ELogLevel::Info)
+        .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
+        .Item("attribute").Value(attribute)
+        .Item("path").Value(path)
+        .Item("value").Value(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

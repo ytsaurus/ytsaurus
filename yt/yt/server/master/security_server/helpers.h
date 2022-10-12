@@ -29,6 +29,10 @@ i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void LogAcdUpdate(const TString& attribute, const NYPath::TYPath& path, const NYson::TYsonString& value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_
