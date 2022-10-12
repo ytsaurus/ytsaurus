@@ -2118,6 +2118,7 @@ message TReqReadTable
     optional bool enable_range_index = 7 [default = false];
     optional bytes config = 4; // YSON-serialized TTableReaderConfig
     optional ERowsetFormat desired_rowset_format = 8 [default = RF_YT_WIRE];
+    optional ERowsetFormat arrow_fallback_rowset_format = 10 [default = RF_YT_WIRE];
     optional bytes format = 9; // YSON-serialized TFormat
 
     optional TTransactionalOptions transactional_options = 100;
@@ -2143,7 +2144,7 @@ message TReqWriteTable
     required string path = 1; // RichYPath
 
     optional bytes config = 2; // YSON-serialized TTableWriterConfig
-    
+
     optional bytes format = 3; // YSON-serialized TFormat
 
     optional TTransactionalOptions transactional_options = 100;
