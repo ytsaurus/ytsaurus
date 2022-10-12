@@ -77,7 +77,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 Bootstrap_->GetObjectManager()->GetMasterObject(),
                 GetTransaction()
             },
-            false
+            /* canCacheResolve */ false,
+            /* resolveDepth */ 0
         };
     }
 
@@ -97,8 +98,9 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
     TString parentChildKey;
 
     bool canCacheResolve = true;
+    int symlinksPassed = 0;
 
-    for (int resolveDepth = 0; ; ++resolveDepth) {
+    for (int resolveDepth = options.InitialResolveDepth; ; ++resolveDepth) {
         ValidateYPathResolutionDepth(Path_, resolveDepth);
 
         if (!currentObject) {
@@ -107,7 +109,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return {
                     TYPath(Tokenizer_.GetInput()),
                     std::move(rootPayload),
-                    false
+                    false,
+                    resolveDepth
                 };
             }
             currentObject = std::get<TLocalObjectPayload>(rootPayload).Object;
@@ -130,7 +133,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                     trunkObject,
                     GetTransaction()
                 },
-                false
+                false,
+                resolveDepth
             };
         };
 
@@ -198,7 +202,13 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             currentObject = childNode;
         } else if (currentNode->GetType() == EObjectType::Link) {
+            ++symlinksPassed;
+
             if (ampersandSkipped) {
+                return makeCurrentLocalObjectResult();
+            }
+
+            if (options.SymlinkEncounterCountLimit && *options.SymlinkEncounterCountLimit == symlinksPassed) {
                 return makeCurrentLocalObjectResult();
             }
 
@@ -245,7 +255,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             return TResolveResult{
                 TYPath(unresolvedPathSuffix),
                 TRemoteObjectPayload{portalExitNodeId},
-                canCacheResolve
+                canCacheResolve,
+                resolveDepth
             };
         } else {
             return makeCurrentLocalObjectResult();

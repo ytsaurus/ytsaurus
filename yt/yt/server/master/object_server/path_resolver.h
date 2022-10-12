@@ -23,6 +23,8 @@ struct TPathResolverOptions
     bool EnablePartialResolve = true;
     bool PopulateResolveCache = false;
     bool FollowPortals = true;
+    std::optional<int> SymlinkEncounterCountLimit;
+    int InitialResolveDepth = 0;
 };
 
 class TPathResolver
@@ -63,6 +65,7 @@ public:
         NYPath::TYPath UnresolvedPathSuffix;
         TResolvePayload Payload;
         bool CanCacheResolve;
+        int ResolveDepth;
     };
 
     TResolveResult Resolve(const TPathResolverOptions& options = {});
