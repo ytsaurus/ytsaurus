@@ -50,7 +50,7 @@ TBusNetworkStatistics TBusNetworkCounters::ToStatistics() const
 {
     TBusNetworkStatistics result;
     for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-#define XX(camelCaseField, snakeCaseField) result.camelCaseField = PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed);
+#define XX(camelCaseField, snakeCaseField) result.camelCaseField += PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed);
         ITERATE_BUS_NETWORK_STATISTICS_FIELDS(XX)
 #undef XX
     }
