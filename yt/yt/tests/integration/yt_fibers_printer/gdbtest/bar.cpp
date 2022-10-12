@@ -5,4 +5,5 @@ void Bar(NYT::TIntrusivePtr<NYT::NConcurrency::TThreadPool>& threadPool, int x) 
         Foo(threadPool, x - 1);
     }
     AsyncStop(threadPool);
+    exit(0);
 }
