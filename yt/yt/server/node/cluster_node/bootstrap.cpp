@@ -799,14 +799,14 @@ private:
             "StorageLight");
 
         if (Config_->EnableFairThrottler) {
-            Config_->InThrottler->TotalLimit = Config_->NetworkBandwidth;
+            Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr);
             InThrottler_ = New<TFairThrottler>(
                 Config_->InThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler.WithPrefix("/in_throttler"));
             DefaultInThrottler_ = GetInThrottler("default");
 
-            Config_->OutThrottler->TotalLimit = Config_->NetworkBandwidth;
+            Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr);
             OutThrottler_ = New<TFairThrottler>(
                 Config_->OutThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "Out"),
@@ -926,7 +926,7 @@ private:
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
         JobsOrchidServiceProvider_ = CreateOrchidServiceProvider(this);
-        
+
         JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
@@ -1214,7 +1214,7 @@ private:
     void ReconfigureThrottlers(const TClusterNodeDynamicConfigPtr& newConfig)
     {
         auto throttlerConfig = New<TFairThrottlerConfig>();
-        throttlerConfig->TotalLimit = Config_->NetworkBandwidth;
+        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig);
 
         THashMap<TString, TFairThrottlerBucketConfigPtr> inBucketsConfig;
         for (const auto& bucket : EnabledInThrottlers_) {
@@ -1342,6 +1342,14 @@ private:
         for (const auto& cachingObjectService : CachingObjectServices_) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
+    }
+
+    i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig) const
+    {
+        auto throttlerFreeBandwidthRatio = dynamicConfig
+            ? dynamicConfig->ThrottlerFreeBandwidthRatio.value_or(Config_->ThrottlerFreeBandwidthRatio)
+            : Config_->ThrottlerFreeBandwidthRatio;
+        return Config_->NetworkBandwidth * (1. - throttlerFreeBandwidthRatio);
     }
 };
 

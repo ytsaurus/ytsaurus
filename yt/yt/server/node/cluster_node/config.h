@@ -342,8 +342,10 @@ public:
     //! Master connector config.
     TMasterConnectorConfigPtr MasterConnector;
 
-    //! Is used to configure relative network throttler limits.
     i64 NetworkBandwidth;
+
+    //! Network throttler limit is this smaller than NetworkBandwidth.
+    double ThrottlerFreeBandwidthRatio;
 
     bool EnableFairThrottler;
 
@@ -411,6 +413,9 @@ public:
     NIO::TIOTrackerConfigPtr IOTracker;
 
     bool EnableMemoryReferenceTracker;
+
+    //! Network throttler limit is this smaller than NetworkBandwidth.
+    std::optional<double> ThrottlerFreeBandwidthRatio;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
