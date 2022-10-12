@@ -71,6 +71,16 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 		Params: map[string]any{"alias": alias},
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+
+	// Alias with leading *.
+	r = c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": "*" + alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	ok, err = env.YT.NodeExists(env.Ctx, helpers.StrawberryRoot.Child(alias), nil)
+	require.NoError(t, err)
+	require.True(t, ok)
 }
 
 func TestHTTPAPIExists(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"a.yandex-team.ru/library/go/core/log"
 
@@ -149,6 +150,14 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 					params[param.Name] = parsedValue
 				}
 			}
+		}
+	}
+
+	// COMPAT(dakovalkov): We allow to specify alias with leading * for backward compatibility.
+	if value, ok := params["alias"]; ok {
+		alias := value.(string)
+		if strings.HasPrefix(alias, "*") {
+			params["alias"] = alias[1:]
 		}
 	}
 
