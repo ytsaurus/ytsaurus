@@ -197,7 +197,14 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	txOptions := &yt.TransactionOptions{TransactionID: tx.ID()}
 
 	// Create "main" node.
-	_, err = a.ytc.CreateNode(ctx, a.cfg.Root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{TransactionOptions: txOptions})
+	_, err = a.ytc.CreateNode(ctx, a.cfg.Root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
+		Attributes: map[string]any{
+			"strawberry_persistent_state": map[string]any{
+				"creator": user,
+			},
+		},
+		TransactionOptions: txOptions,
+	})
 	if err != nil {
 		return err
 	}
@@ -208,9 +215,6 @@ func (a *API) Create(ctx context.Context, alias string) error {
 			"value": map[string]any{
 				"family": a.cfg.Family,
 				"stage":  a.cfg.Stage,
-			},
-			"strawberry_persistent_state": map[string]any{
-				"creator": user,
 			},
 		},
 		TransactionOptions: txOptions,
