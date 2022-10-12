@@ -66,7 +66,8 @@ public:
         const std::optional<TString>& endpointAddress,
         const std::optional<TString>& unixDomainSocketPath,
         IMessageHandlerPtr handler,
-        NConcurrency::IPollerPtr poller);
+        NConcurrency::IPollerPtr poller,
+        IPacketTranscoderFactory* packetTranscoderFactory);
 
     ~TTcpConnection();
 
@@ -209,7 +210,7 @@ private:
     TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 
-    TPacketDecoder Decoder_;
+    std::unique_ptr<IPacketDecoder> Decoder_;
     const NProfiling::TCpuDuration ReadStallTimeout_;
     std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     TBlob ReadBuffer_;
@@ -218,7 +219,7 @@ private:
     TRingQueue<TPacketPtr> EncodedPackets_;
     TRingQueue<TPacketPtr> UnackedPackets_;
 
-    TPacketEncoder Encoder_;
+    std::unique_ptr<IPacketEncoder> Encoder_;
     const NProfiling::TCpuDuration WriteStallTimeout_;
     std::atomic<NProfiling::TCpuInstant> LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;

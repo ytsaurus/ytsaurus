@@ -1,4 +1,5 @@
 #include "connection.h"
+
 #include "config.h"
 #include "server.h"
 #include "dispatcher_impl.h"
@@ -102,7 +103,8 @@ TTcpConnection::TTcpConnection(
     const std::optional<TString>& endpointAddress,
     const std::optional<TString>& unixDomainSocketPath,
     IMessageHandlerPtr handler,
-    IPollerPtr poller)
+    IPollerPtr poller,
+    IPacketTranscoderFactory* packetTranscoderFactory)
     : Config_(std::move(config))
     , ConnectionType_(connectionType)
     , Id_(id)
@@ -120,9 +122,9 @@ TTcpConnection::TTcpConnection(
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
     , MultiplexingBand_(multiplexingBand)
-    , Decoder_(Logger, Config_->VerifyChecksums)
+    , Decoder_(packetTranscoderFactory->CreateDecoder(Logger, Config_->VerifyChecksums))
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
-    , Encoder_(Logger)
+    , Encoder_(packetTranscoderFactory->CreateEncoder(Logger))
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
 { }
 
@@ -849,7 +851,7 @@ void TTcpConnection::OnSocketRead()
     size_t bytesReadTotal = 0;
     while (true) {
         // Check if the decoder is expecting a chunk of large enough size.
-        auto decoderChunk = Decoder_.GetFragment();
+        auto decoderChunk = Decoder_->GetFragment();
         size_t decoderChunkSize = decoderChunk.Size();
 
         if (decoderChunkSize >= ReadBufferSize) {
@@ -880,7 +882,7 @@ void TTcpConnection::OnSocketRead()
             const char* recvBegin = ReadBuffer_.Begin();
             size_t recvRemaining = bytesRead;
             while (recvRemaining != 0) {
-                decoderChunk = Decoder_.GetFragment();
+                decoderChunk = Decoder_->GetFragment();
                 decoderChunkSize = decoderChunk.Size();
                 size_t bytesToCopy = std::min(recvRemaining, decoderChunkSize);
                 YT_LOG_TRACE("Feeding buffer into decoder (DecoderNeededBytes: %v, RemainingBufferBytes: %v, BytesToCopy: %v)",
@@ -908,7 +910,7 @@ void TTcpConnection::OnSocketRead()
 
 bool TTcpConnection::HasUnreadData() const
 {
-    return Decoder_.IsInProgress();
+    return Decoder_->IsInProgress();
 }
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
@@ -962,15 +964,15 @@ bool TTcpConnection::CheckReadError(ssize_t result)
 
 bool TTcpConnection::AdvanceDecoder(size_t size)
 {
-    if (!Decoder_.Advance(size)) {
+    if (!Decoder_->Advance(size)) {
         IncrementBusCounter(&TBusNetworkBandCounters::DecoderErrors, 1);
         Abort(TError(NBus::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
 
-    if (Decoder_.IsFinished()) {
+    if (Decoder_->IsFinished()) {
         bool result = OnPacketReceived();
-        Decoder_.Restart();
+        Decoder_->Restart();
         return result;
     }
 
@@ -980,15 +982,15 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 bool TTcpConnection::OnPacketReceived() noexcept
 {
     IncrementBusCounter(&TBusNetworkBandCounters::InPackets, 1);
-    switch (Decoder_.GetPacketType()) {
+    switch (Decoder_->GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
         case EPacketType::Message:
             return OnMessagePacketReceived();
         default:
             YT_LOG_ERROR("Packet of unknown type received, ignored (PacketId: %v, PacketType: %v)",
-                Decoder_.GetPacketId(),
-                Decoder_.GetPacketType());
+                Decoder_->GetPacketId(),
+                Decoder_->GetPacketType());
             break;
     }
 }
@@ -1002,16 +1004,16 @@ bool TTcpConnection::OnAckPacketReceived()
 
     auto& unackedMessage = UnackedPackets_.front();
 
-    if (Decoder_.GetPacketId() != unackedMessage->PacketId) {
+    if (Decoder_->GetPacketId() != unackedMessage->PacketId) {
         Abort(TError(
             NBus::EErrorCode::TransportError,
             "Ack for invalid packet ID received: expected %v, found %v",
             unackedMessage->PacketId,
-            Decoder_.GetPacketId()));
+            Decoder_->GetPacketId()));
         return false;
     }
 
-    YT_LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
+    YT_LOG_DEBUG("Ack received (PacketId: %v)", Decoder_->GetPacketId());
 
     if (unackedMessage->Promise) {
         unackedMessage->Promise.TrySet(TError());
@@ -1025,20 +1027,20 @@ bool TTcpConnection::OnAckPacketReceived()
 bool TTcpConnection::OnMessagePacketReceived()
 {
     // COMPAT(babenko)
-    if (Decoder_.GetPacketId() == HandshakePacketId) {
+    if (Decoder_->GetPacketId() == HandshakePacketId) {
         return OnHandshakePacketReceived();
     }
 
     YT_LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v, PacketFlags: %v)",
-        Decoder_.GetPacketId(),
-        Decoder_.GetPacketSize(),
-        Decoder_.GetPacketFlags());
+        Decoder_->GetPacketId(),
+        Decoder_->GetPacketSize(),
+        Decoder_->GetPacketFlags());
 
-    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAcknowledgement)) {
-        EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());
+    if (Any(Decoder_->GetPacketFlags() & EPacketFlags::RequestAcknowledgement)) {
+        EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_->GetPacketId());
     }
 
-    auto message = Decoder_.GrabMessage();
+    auto message = Decoder_->GrabMessage();
     Handler_->HandleMessage(std::move(message), this);
 
     return true;
@@ -1046,7 +1048,7 @@ bool TTcpConnection::OnMessagePacketReceived()
 
 bool TTcpConnection::OnHandshakePacketReceived()
 {
-    auto optionalHandshake = TryParseHandshakeMessage(Decoder_.GrabMessage());
+    auto optionalHandshake = TryParseHandshakeMessage(Decoder_->GrabMessage());
     if (!optionalHandshake) {
         return false;
     }
@@ -1078,7 +1080,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     TSharedRefArray message,
     size_t payloadSize)
 {
-    size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
+    size_t packetSize = Encoder_->GetPacketSize(type, message, payloadSize);
     auto packetHolder = New<TPacket>(
         type,
         flags,
@@ -1283,7 +1285,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         // Encode the packet.
         YT_LOG_TRACE("Starting encoding packet (PacketId: %v)", packet->PacketId);
 
-        bool encodeResult = Encoder_.Start(
+        bool encodeResult = Encoder_->Start(
             packet->Type,
             packet->Flags,
             GenerateChecksums_,
@@ -1297,16 +1299,16 @@ bool TTcpConnection::MaybeEncodeFragments()
         }
 
         do {
-            auto fragment = Encoder_.GetFragment();
-            if (!Encoder_.IsFragmentOwned() || fragment.Size() <= MaxWriteCoalesceSize) {
+            auto fragment = Encoder_->GetFragment();
+            if (!Encoder_->IsFragmentOwned() || fragment.Size() <= MaxWriteCoalesceSize) {
                 coalesce(fragment);
             } else {
                 flushCoalesced();
                 EncodedFragments_.push(fragment);
             }
             YT_LOG_TRACE("Fragment encoded (Size: %v)", fragment.Size());
-            Encoder_.NextFragment();
-        } while (!Encoder_.IsFinished());
+            Encoder_->NextFragment();
+        } while (!Encoder_->IsFinished());
 
         EncodedPacketSizes_.push(packet->PacketSize);
         encodedSize += packet->PacketSize;
