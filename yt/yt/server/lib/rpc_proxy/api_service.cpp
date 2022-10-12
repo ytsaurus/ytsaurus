@@ -265,30 +265,55 @@ TServiceDescriptor GetServiceDescriptor()
         });
 }
 
+[[noreturn]] void ThrowUnsupportedRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat)
+{
+    THROW_ERROR_EXCEPTION(
+        "Unsupported rowset format %Qv",
+        NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+}
+
 IRowStreamEncoderPtr CreateRowStreamEncoder(
     NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat,
+    NApi::NRpcProxy::NProto::ERowsetFormat arrowFallbackRowsetFormat,
     TTableSchemaPtr schema,
     TNameTablePtr nameTable,
     NFormats::TControlAttributesConfigPtr controlAttributesConfig,
     std::optional<NFormats::TFormat> format)
 {
+    auto createNonArrowEncoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat) -> IRowStreamEncoderPtr {
+        switch (rowsetFormat) {
+            case NApi::NRpcProxy::NProto::RF_YT_WIRE:
+                return CreateWireRowStreamEncoder(nameTable);
+            case NApi::NRpcProxy::NProto::RF_FORMAT:
+                if (!format) {
+                    THROW_ERROR_EXCEPTION("No format for %Qv", NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+                }
+                return CreateFormatRowStreamEncoder(
+                    nameTable,
+                    *format,
+                    schema,
+                    controlAttributesConfig);
+            case NApi::NRpcProxy::NProto::RF_ARROW:
+                YT_ABORT();
+            default:
+                ThrowUnsupportedRowsetFormat(rowsetFormat);
+        };
+    };
+
     switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-            return CreateWireRowStreamEncoder(std::move(nameTable));
-
-        case NApi::NRpcProxy::NProto::RF_ARROW:
-            return CreateArrowRowStreamEncoder(std::move(schema), std::move(nameTable));
-        
         case NApi::NRpcProxy::NProto::RF_FORMAT:
-            if (!format) {
-                THROW_ERROR_EXCEPTION("No format for %Qv", NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+            return createNonArrowEncoder(rowsetFormat);
+        case NApi::NRpcProxy::NProto::RF_ARROW: {
+            if (arrowFallbackRowsetFormat == NApi::NRpcProxy::NProto::RF_ARROW) {
+                THROW_ERROR_EXCEPTION("Arrow fallback rowset format must be different from arrow");
             }
-            return CreateFormatRowStreamEncoder(        
-                std::move(nameTable), std::move(*format), std::move(schema), std::move(controlAttributesConfig));
 
+            auto fallbackEncoder = createNonArrowEncoder(arrowFallbackRowsetFormat);
+            return CreateArrowRowStreamEncoder(schema, nameTable, fallbackEncoder);
+        }
         default:
-            THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
-                NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+            ThrowUnsupportedRowsetFormat(rowsetFormat);
     }
 }
 
@@ -4389,13 +4414,15 @@ private:
         }
 
         auto desiredRowsetFormat = request->desired_rowset_format();
+        auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
         context->SetRequestInfo(
-            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v",
+            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
             path,
             options.Unordered,
             options.OmitInaccessibleColumns,
-            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat));
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
 
         PutMethodInfoInTraceContext("read_table");
 
@@ -4414,6 +4441,7 @@ private:
 
         auto encoder = CreateRowStreamEncoder(
             desiredRowsetFormat,
+            arrowFallbackRowsetFormat,
             tableReader->GetTableSchema(),
             tableReader->GetNameTable(),
             controlAttributesConfig,

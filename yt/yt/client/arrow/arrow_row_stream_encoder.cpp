@@ -624,10 +624,11 @@ class TArrowRowStreamEncoder
 public:
     TArrowRowStreamEncoder(
         TTableSchemaPtr schema,
-        TNameTablePtr nameTable)
+        TNameTablePtr nameTable,
+        IRowStreamEncoderPtr fallbackEncoder)
         : Schema_(std::move(schema))
         , NameTable_(std::move(nameTable))
-        , FallbackEncoder_(CreateWireRowStreamEncoder(NameTable_))
+        , FallbackEncoder_(std::move(fallbackEncoder))
     {
         YT_LOG_DEBUG("Row stream encoder created (Schema: %v)",
             *Schema_);
@@ -660,7 +661,6 @@ public:
 private:
     const TTableSchemaPtr Schema_;
     const TNameTablePtr NameTable_;
-
     const IRowStreamEncoderPtr FallbackEncoder_;
 
     bool FirstBatch_ = true;
@@ -1041,11 +1041,13 @@ TSharedRef TArrowRowStreamEncoder::Encode(
 
 IRowStreamEncoderPtr CreateArrowRowStreamEncoder(
     TTableSchemaPtr schema,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    IRowStreamEncoderPtr fallbackEncoder)
 {
     return New<TArrowRowStreamEncoder>(
         std::move(schema),
-        std::move(nameTable));
+        std::move(nameTable),
+        std::move(fallbackEncoder));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
