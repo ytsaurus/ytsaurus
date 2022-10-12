@@ -307,6 +307,9 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("network_bandwidth", &TThis::NetworkBandwidth)
         .Default(1250000000);
+    registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
+        .InRange(0.0, 1.0)
+        .Default(0.1);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
         .Default(false);
     registrar.Parameter("in_throttler", &TThis::InThrottler)
@@ -445,6 +448,9 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_memory_reference_tracker", &TThis::EnableMemoryReferenceTracker)
         .Alias("enable_block_tracker")
         .Default(true);
+    registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
+        .InRange(0.0, 1.0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
