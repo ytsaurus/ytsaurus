@@ -63,19 +63,13 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
-            auto* shard = context.Shard;
             //  Make sure originalLinkPath and originalTargetPath get resolved properly.
+            auto* shard = context.Shard;
             auto linkPath = shard->MaybeRewritePath(originalLinkPath);
             auto targetPath = shard->MaybeRewritePath(originalTargetPath);
 
             static const TString nullService;
             static const TString nullMethod;
-
-            TPathResolver linkPathResolver(Bootstrap_, nullService, nullMethod, linkPath, context.Transaction);
-            TPathResolver targetPathResolver(Bootstrap_, nullService, nullMethod, targetPath, context.Transaction);
-
-            auto linkPathResolveResult = linkPathResolver.Resolve(TPathResolverOptions());
-            auto targetPathResolveResult = targetPathResolver.Resolve(TPathResolverOptions());
 
             auto getPayloadObject = [&] (TPathResolver::TResolveResult result) -> TCypressNode* {
                 auto payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
@@ -85,21 +79,90 @@ private:
                 return nullptr;
             };
 
+            // If original path is a symlink - a "&" should be added to avoid resolving it further.
+            if (!linkPath.EndsWith("&")) {
+                linkPath += "&";
+            }
+
+            TPathResolver linkPathResolver(Bootstrap_, nullService, nullMethod, linkPath, context.Transaction);
+            auto linkPathResolveResult = linkPathResolver.Resolve(TPathResolverOptions());
+
             TCypressNode* linkPathObject = getPayloadObject(linkPathResolveResult);
-            TCypressNode* targetPathObject =  getPayloadObject(targetPathResolveResult);
 
-            if (linkPathObject && targetPathObject) {
-                auto canonicalLinkPath = cypressManager->GetNodePath(linkPathObject->GetTrunkNode(), linkPathObject->GetTransaction());
-                auto canonicalTargetPath = cypressManager->GetNodePath(targetPathObject->GetTrunkNode(), targetPathObject->GetTransaction());
-
+            TString canonicalLinkPath;
+            if (linkPathObject) {
+                canonicalLinkPath = cypressManager->GetNodePath(linkPathObject->GetTrunkNode(), linkPathObject->GetTransaction());
                 canonicalLinkPath += linkPathResolveResult.UnresolvedPathSuffix;
-                canonicalTargetPath += targetPathResolveResult.UnresolvedPathSuffix;
 
-                if (canonicalLinkPath == canonicalTargetPath) {
-                    THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-                        << TErrorAttribute("target_path", targetPath)
-                        << TErrorAttribute("path", originalLinkPath);
+                // Since "&" was added before, we might need to remove it here.
+                if (canonicalLinkPath.EndsWith("&")) {
+                    canonicalLinkPath.pop_back();
                 }
+            }
+
+            auto incrementalResolveWithCheck = [&] (const TString& pathToResolve, const TString& forbiddenPrefix) {
+                auto currentResolvePath = pathToResolve;
+                TPathResolverOptions options;
+
+                // On the first iteration of the loop we need to stop on the first symlink we encounter,
+                // on every consecutive pass the first symlink has to be ignored,
+                // since it's going to be the symlink that was checked on the previous iteration.
+                options.SymlinkEncounterCountLimit = 1;
+
+                // Using this as a bootleg flag to see if we hit the end of the resolve loop.
+                TString previousResolvedPath;
+
+                while (true) {
+                    // Resolving currentResolvePath before we hit the 1st symlink after it.
+                    // Ex.: Let's imagine that the path //tmp/node1/symlink1/node2/symlink2/symlink3/node3 is passed here.
+                    // 1st resolve: //tmp/node1/symlink1
+                    // 2nd resolve: //tmp/node1/symlink1/node2/symlink2
+                    // 3rd resolve: //tmp/node1/symlink1/node2/symlink2/symlink3
+                    // 4th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
+                    // 5th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
+                    // Resolve 4 and 5 returned the same object -> stop the resolve loop.
+                    TPathResolver pathResolver(Bootstrap_, nullService, nullMethod, currentResolvePath, context.Transaction);
+                    auto pathResolveResult = pathResolver.Resolve(options);
+                    auto pathObject = getPayloadObject(pathResolveResult);
+                    // Patching resolve depth to make sure we don't go into an infinite loop.
+                    options.InitialResolveDepth = pathResolveResult.ResolveDepth;
+
+                    if (!pathObject) {
+                        return true;
+                    }
+
+                    // Comparing resolved prefix to check if it matches the forbidden one.
+                    auto resolvedPrefix = cypressManager->GetNodePath(pathObject->GetTrunkNode(), pathObject->GetTransaction());
+                    if (resolvedPrefix == forbiddenPrefix) {
+                        return false;
+                    }
+
+                    // Comparing previous resolved path and current resolved path.
+                    // This is the check that determines if the resolve loop is complete.
+                    auto currentResolvedPath = resolvedPrefix + pathResolveResult.UnresolvedPathSuffix;
+                    if (previousResolvedPath == currentResolvedPath) {
+                        return true;
+                    }
+
+                    previousResolvedPath = currentResolvedPath;
+
+                    // Patching currentResolvePath.
+                    // Ex.: After the first resolve the patch would look like this:
+                    // tmp/node1/symlink1/node2/symlink2/symlink3/node3 -> #<SYMLINK1_ID>/node2/symlink2/symlink3/node3
+                    // This allows resolver to skip verified parts of the path by going directly to the last checked node by id.
+                    auto resolvedTargetPathNodeId = pathObject->GetTrunkNode()->GetId();
+                    currentResolvePath = FromObjectId(resolvedTargetPathNodeId) + pathResolveResult.UnresolvedPathSuffix;
+
+                    // If pathObject is not a link - everything will work just fine, this option will just not be used by the resolver.
+                    // If pathObject is a link, first resolve over it should be ignored for us to go any deeper.
+                    options.SymlinkEncounterCountLimit = 2;
+                }
+            };
+
+            if (!incrementalResolveWithCheck(targetPath, canonicalLinkPath)) {
+                THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
+                    <<TErrorAttribute("target_path", targetPath)
+                    << TErrorAttribute("path", originalLinkPath);
             }
         }
 
