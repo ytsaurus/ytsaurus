@@ -245,8 +245,8 @@ public:
 
             // For last mutation we use signature from the request,
             // for other mutations signature is zero, see comment above.
-            auto mutationPrepareSignature = 0;
-            auto mutationCommitSignature = 0;
+            auto mutationPrepareSignature = InitialTransactionSignature;
+            auto mutationCommitSignature = InitialTransactionSignature;
             if (reader->IsFinished()) {
                 mutationPrepareSignature = prepareSignature;
                 mutationCommitSignature = commitSignature;
@@ -416,19 +416,6 @@ private:
 
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
 
-        auto* mutationContext = GetCurrentMutationContext();
-        if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
-            mutationContext->Request().Reign < ToUnderlying(ETabletReign::SometimesWriteToUnmountedTablet) &&
-            tablet->GetPersistentState() != ETabletState::Mounted)
-        {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
-                "(%v, TransactionId: %v, TabletState: %v)",
-                tablet->GetLoggingTag(),
-                transactionId,
-                tablet->GetPersistentState());
-            return;
-        }
-
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
                 "(%v, TransactionId: %v, MutationMountRevision: %x, CurrentMountRevision: %x)",
@@ -525,10 +512,8 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
-
         // COMPAT(gritukan)
         auto commitSignature = request->has_commit_signature() ? request->commit_signature() : prepareSignature;
-
         auto generation = request->generation();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
@@ -540,19 +525,6 @@ private:
         auto* tablet = Host_->FindTablet(tabletId);
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
-            return;
-        }
-
-        auto* mutationContext = GetCurrentMutationContext();
-        if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DoNotWriteToUnmountedTablet) &&
-            mutationContext->Request().Reign < ToUnderlying(ETabletReign::SometimesWriteToUnmountedTablet) &&
-            tablet->GetPersistentState() != ETabletState::Mounted)
-        {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is not mounted, write ignored "
-                "(%v, TransactionId: %v, TabletState: %v)",
-                tablet->GetLoggingTag(),
-                transactionId,
-                tablet->GetPersistentState());
             return;
         }
 

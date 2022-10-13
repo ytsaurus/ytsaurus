@@ -792,13 +792,7 @@ private:
         TabletMap_.LoadValues(context);
 
         Load(context, CellLifeStage_);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= ETabletReign::SuspendTabletCells) {
-            Load(context, Suspending_);
-        } else {
-            Suspending_ = false;
-        }
+        Load(context, Suspending_);
 
         Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
 
@@ -2518,7 +2512,6 @@ private:
             tablet->GetTotalRowCount(),
             replicaInfo->GetCurrentReplicationTimestamp(),
             newReplicationTimestamp);
-
     }
 
     void HydraCommitReplicateRows(

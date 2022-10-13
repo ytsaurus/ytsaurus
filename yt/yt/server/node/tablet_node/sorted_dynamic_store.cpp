@@ -2017,11 +2017,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     if (Load<bool>(context)) {
-        std::vector<TTimestamp> lastReadLockTimestamps;
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= ETabletReign::PersistLastReadLockTimestamp) {
-            Load(context, lastReadLockTimestamps);
-        }
+        auto lastReadLockTimestamps = Load<std::vector<TTimestamp>>(context);
         auto lastReadLockTimestampPtr = lastReadLockTimestamps.begin();
 
         auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));

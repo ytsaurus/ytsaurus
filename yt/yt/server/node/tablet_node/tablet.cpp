@@ -722,13 +722,11 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->LastCommitTimestamp);
     Load(context, RuntimeData_->LastWriteTimestamp);
     Load(context, Replicas_);
+    Load(context, RetainedTimestamp_);
+    Load(context, CumulativeDataWeight_);
+
     for (auto& [_, replicaInfo] : Replicas_) {
         replicaInfo.SetTablet(this);
-    }
-    Load(context, RetainedTimestamp_);
-    // COMPAT(achulkov2)
-    if (context.GetVersion() >= ETabletReign::CumulativeDataWeight) {
-        Load(context, CumulativeDataWeight_);
     }
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
@@ -823,19 +821,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ChaosData_->ReplicationRound);
     ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::ReplicationTxLocksTablet) {
-        Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-        Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
-    }
+    Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
+    Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::BackupsReplicated) {
-        Load(context, BackupMetadata_);
-    } else {
-        BackupMetadata_.SetCheckpointTimestamp(Load<TTimestamp>(context));
-        BackupMetadata_.SetBackupStage(Load<EBackupStage>(context));
-    }
+    Load(context, BackupMetadata_);
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
@@ -843,13 +832,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, LastDiscardStoresRevision_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SavePreparedReplicatorTxs) {
-        Load(context, PreparedReplicatorTransactionIds_);
-    } else {
-        MaxIgnoredPreparedReplicatorTransactionStartTime_ = TInstant::Now();
-    }
+    Load(context, PreparedReplicatorTransactionIds_);
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
@@ -919,16 +902,9 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Settings_.MountConfig);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::MountConfig) {
-        Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        if (Load<bool>(context)) {
-            Settings_.ProvidedExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        } else {
-            Settings_.ProvidedExtraMountConfig = nullptr;
-        }
-    } else {
-        Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Settings_.MountConfig);
+    Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    if (Load<bool>(context)) {
+        Settings_.ProvidedExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
     }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
@@ -976,8 +952,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
 void TTablet::Clear()
 {
     TabletWriteManager_->Clear();
-
-    MaxIgnoredPreparedReplicatorTransactionStartTime_ = TInstant::Zero();
 }
 
 void TTablet::OnAfterSnapshotLoaded()
@@ -2197,18 +2171,12 @@ void TTablet::RecomputeReplicaStatuses()
     }
 }
 
-void TTablet::RecomputeCommittedReplicationRowIndices(bool useBugForAsyncReplicas)
+void TTablet::RecomputeCommittedReplicationRowIndices()
 {
     for (auto& [replica, replicaInfo] : Replicas()) {
         auto committedReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
-
-        // COMPAT(ifsmirnov)
-        if (useBugForAsyncReplicas) {
+        if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
             committedReplicationRowIndex -= GetDelayedLocklessRowCount();
-        } else {
-            if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
-                committedReplicationRowIndex -= GetDelayedLocklessRowCount();
-            }
         }
         replicaInfo.SetCommittedReplicationRowIndex(committedReplicationRowIndex);
     }
@@ -2260,7 +2228,7 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
     auto replicationProgress = RuntimeData()->ReplicationProgress.Load();
     auto replicationCard = RuntimeData()->ReplicationCard.Load();
 
-    if (!replicationProgress || 
+    if (!replicationProgress ||
         !IsOrderedTabletReplicationProgress(*replicationProgress) ||
         !replicationCard ||
         replicationCard->Replicas.empty())

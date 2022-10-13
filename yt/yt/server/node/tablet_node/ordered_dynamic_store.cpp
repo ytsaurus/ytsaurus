@@ -262,26 +262,17 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
         dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
     }
 
-    i64 dataWeight = 0;
+    // NB: Includes the weight of the $timestamp column if it exists.
+    // NB: Be sure to place writes of all additional columns before this line.
+    auto dataWeight = static_cast<i64>(GetDataWeight(dynamicRow));
+    if (CumulativeDataWeightColumnId_) {
+        // Account for the $cumulative_data_weight column we are adding.
+        dataWeight += static_cast<i64>(GetDataWeight(EValueType::Uint64)) - static_cast<i64>(GetDataWeight(EValueType::Null));
 
-    // COMPAT(achulkov2)
-    auto* mutationContext = NHydra::TryGetCurrentMutationContext();
-    if (mutationContext && mutationContext->Request().Reign >= ToUnderlying(ETabletReign::CumulativeDataWeight)) {
-        // NB: Includes the weight of the $timestamp column if it exists.
-        // NB: Be sure to place writes of all additional columns before this line.
-        dataWeight = static_cast<i64>(GetDataWeight(dynamicRow));
-
-        if (CumulativeDataWeightColumnId_) {
-            // Account for the $cumulative_data_weight column we are adding.
-            dataWeight += static_cast<i64>(GetDataWeight(EValueType::Uint64)) - static_cast<i64>(GetDataWeight(EValueType::Null));
-
-            GetTablet()->IncreaseCumulativeDataWeight(dataWeight);
-            dynamicRow[*CumulativeDataWeightColumnId_] = MakeUnversionedInt64Value(
-                GetTablet()->GetCumulativeDataWeight(),
-                *CumulativeDataWeightColumnId_);
-        }
-    } else {
-        dataWeight = static_cast<i64>(GetDataWeight(row));
+        GetTablet()->IncreaseCumulativeDataWeight(dataWeight);
+        dynamicRow[*CumulativeDataWeightColumnId_] = MakeUnversionedInt64Value(
+            GetTablet()->GetCumulativeDataWeight(),
+            *CumulativeDataWeightColumnId_);
     }
 
     CommitRow(dynamicRow);

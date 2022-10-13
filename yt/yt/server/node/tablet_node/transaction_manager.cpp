@@ -923,12 +923,7 @@ private:
         PersistentTransactionMap_.LoadValues(context);
         Load(context, LastSerializedCommitTimestamps_);
         Load(context, Decommission_);
-
-        if (context.GetVersion() >= ETabletReign::FixSuspendTabletCells) {
-            Load(context, Removing_);
-        } else {
-            Removing_ = false;
-        }
+        Load(context, Removing_);
     }
 
     void LoadAsync(TLoadContext& context)

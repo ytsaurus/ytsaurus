@@ -133,13 +133,9 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PersistentGeneration_);
     TransientGeneration_ = PersistentGeneration_;
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::CommitSignature) {
-        Load(context, CommitSignature_);
-        Load(context, CommitOptions_);
-    } else {
-        CommitSignature_ = PersistentPrepareSignature_;
-    }
+    Load(context, CommitSignature_);
+    Load(context, CommitOptions_);
+
     // COMPAT(gritukan)
     if (context.GetVersion() < ETabletReign::TabletWriteManager) {
         Load(context, CompatRowsPrepared_);

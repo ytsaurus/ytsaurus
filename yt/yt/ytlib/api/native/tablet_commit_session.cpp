@@ -125,10 +125,9 @@ private:
     const TTabletInfoPtr TabletInfo_;
     const TTableMountInfoPtr TableInfo_;
     const ICellCommitSessionPtr CellCommitSession_;
+    const TLogger Logger;
 
     ITabletRequestBatcherPtr Batcher_;
-
-    const TLogger Logger;
 
     std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>> Batches_;
 
@@ -144,11 +143,8 @@ private:
     struct TCommitContext final
     {
         int RetryIndex;
-
         int BatchIndex = 0;
-
         IChannelPtr CellChannel;
-
         TPromise<void> CommitPromise = NewPromise<void>();
     };
     using TCommitContextPtr = TIntrusivePtr<TCommitContext>;

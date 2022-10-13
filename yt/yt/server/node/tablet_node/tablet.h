@@ -528,9 +528,6 @@ public:
     // Ids of prepared transactions issued by replicator.
     DEFINE_BYREF_RW_PROPERTY(TTransactionIdSet, PreparedReplicatorTransactionIds);
 
-    // COMPAT(ifsmirnov): ETabletReign::SavePreparedReplicatorTxs
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, MaxIgnoredPreparedReplicatorTransactionStartTime);
-
     DEFINE_BYVAL_RW_PROPERTY(IChaosAgentPtr, ChaosAgent);
     DEFINE_BYVAL_RW_PROPERTY(ITablePullerPtr, TablePuller);
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
@@ -722,7 +719,7 @@ public:
 
     void RecomputeReplicaStatuses();
 
-    void RecomputeCommittedReplicationRowIndices(bool useBugForAsyncReplicas);
+    void RecomputeCommittedReplicationRowIndices();
 
     void CheckedSetBackupStage(EBackupStage previous, EBackupStage next);
 
