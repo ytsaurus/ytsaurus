@@ -340,8 +340,7 @@ public:
 
         // If transaction is transient, it is going to be removed, so we drop its write states.
         if (transaction->GetTransient()) {
-            YT_VERIFY(!TransactionIdToPersistentWriteState_.contains(transaction->GetId()));
-            TransactionIdToTransientWriteState_.erase(transaction->GetId());
+            EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
         }
     }
 
@@ -440,8 +439,6 @@ public:
         TransactionIdToPersistentWriteState_.clear();
 
         WriteLogsMemoryTrackerGuard_.SetSize(0);
-
-        ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = false;
     }
 
     void Save(TSaveContext& context) const override
@@ -456,10 +453,6 @@ public:
         using NYT::Load;
 
         TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TUnsortedTag>::Load(context, TransactionIdToPersistentWriteState_);
-
-        if (context.GetVersion() < ETabletReign::FixCommittedReplicationRowIndex) {
-            ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = true;
-        }
     }
 
     TCallback<void(TSaveContext&)> AsyncSave() override
@@ -514,8 +507,7 @@ public:
         }
 
         Tablet_->RecomputeReplicaStatuses();
-        Tablet_->RecomputeCommittedReplicationRowIndices(
-            ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_);
+        Tablet_->RecomputeCommittedReplicationRowIndices();
     }
 
 private:
@@ -531,8 +523,6 @@ private:
     // so we don't worry about per-pool management here.
     TMemoryUsageTrackerGuard WriteLogsMemoryTrackerGuard_;
 
-    // COMPAT(ifsmirnov)
-    bool ShouldUseBuggyRecomputeCommittedReplicationRowIndexes_ = false;
 
     struct TTransactionPersistentWriteState
         : public TRefCounted
@@ -723,9 +713,7 @@ private:
     void PrepareLocklessRows(TTransaction* transaction, bool persistent, bool snapshotLoading = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        if (persistent) {
-            YT_VERIFY(HasHydraContext());
-        }
+        YT_VERIFY(!persistent || HasHydraContext());
 
         if (!persistent) {
             return;
@@ -834,18 +822,11 @@ private:
         }
 
         if (IsReplicatorWrite(transaction)) {
-            if (!Tablet_->PreparedReplicatorTransactionIds().contains(transaction->GetId())) {
-                // COMPAT(ifsmirnov): ETabletReign::SavePreparedReplicatorTxs, make always alert later.
-                auto logLevel = transaction->GetStartTime() > Tablet_->GetMaxIgnoredPreparedReplicatorTransactionStartTime()
-                    ? NLogging::ELogLevel::Alert
-                    : NLogging::ELogLevel::Debug;
-
-                YT_LOG_EVENT(Logger, logLevel, "Unknown replicator transaction committed (%v, TransactionId: %v)",
+            if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
+                YT_LOG_ALERT("Unknown replicator transaction committed (%v, TransactionId: %v)",
                     Tablet_->GetLoggingTag(),
                     transaction->GetId());
             }
-
-            Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId());
 
             // May be null in tests.
             if (const auto& backupManager = Host_->GetBackupManager()) {
@@ -875,12 +856,11 @@ private:
         UpdateLocklessRowCounters(transaction, ETransactionState::Aborted);
 
         if (IsReplicatorWrite(transaction) && !writeState->LocklessWriteLog.Empty()) {
-            if (!Tablet_->PreparedReplicatorTransactionIds().contains(transaction->GetId())) {
+            if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
                 YT_LOG_DEBUG("Unknown replicator transaction aborted (%v, TransactionId: %v)",
                     Tablet_->GetLoggingTag(),
                     transaction->GetId());
             }
-            Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId());
 
             // May be null in tests.
             if (const auto& backupManager = Host_->GetBackupManager()) {
@@ -981,9 +961,7 @@ private:
     void PrepareLockedRows(TTransaction* transaction, bool persistent)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        if (persistent) {
-            YT_VERIFY(HasHydraContext());
-        }
+        YT_VERIFY(!persistent || HasHydraContext());
 
         auto transactionId = transaction->GetId();
 

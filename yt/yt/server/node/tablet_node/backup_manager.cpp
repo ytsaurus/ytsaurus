@@ -372,10 +372,7 @@ private:
         using NYT::Load;
 
         Load(context, TabletsAwaitingCheckpointPassing_);
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= ETabletReign::BackupsReplicated) {
-            Load(context, TabletsAwaitingReplicationFinish_);
-        }
+        Load(context, TabletsAwaitingReplicationFinish_);
     }
 
     void HydraSetBackupCheckpoint(NProto::TReqSetBackupCheckpoint* request)
