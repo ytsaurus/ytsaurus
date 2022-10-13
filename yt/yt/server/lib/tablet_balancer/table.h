@@ -25,6 +25,8 @@ struct TTable final
     TTableTabletBalancerConfigPtr TableConfig;
     std::vector<TTabletPtr> Tablets;
 
+    bool EnableParameterizedBalancing = false;
+
     TTable(
         bool sorted,
         NYPath::TYPath path,

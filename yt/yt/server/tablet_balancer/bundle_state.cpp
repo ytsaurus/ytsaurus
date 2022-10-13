@@ -237,6 +237,7 @@ void TBundleState::DoFetchStatistics()
         table->Dynamic = tableSettings.Dynamic;
         table->TableConfig = tableSettings.Config;
         table->InMemoryMode = tableSettings.InMemoryMode;
+        table->EnableParameterizedBalancing = tableSettings.EnableParameterizedBalancing;
 
         // Remove all tablets and write again (with statistics and other parameters).
         // This allows you to overwrite indexes correctly (Tablets[index].Index == index) and remove old tablets.
@@ -402,6 +403,7 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
         Bundle_->Tables,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
+            request->add_user_attribute_keys("enable_parameterized_balancing");
     });
 
     THashMap<TTableId, TTableSettings> tableConfigs;
@@ -421,12 +423,19 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
                 continue;
             }
 
+            bool enableParameterizedBalancing = false;
+            auto enableParameterizedBalancingProto = response.user_attributes()[0];
+            if (!enableParameterizedBalancingProto.empty()) {
+                enableParameterizedBalancing = ConvertTo<bool>(enableParameterizedBalancingProto);
+            }
+
             const auto& attributes = response.balancing_attributes();
             EmplaceOrCrash(tableConfigs, tableId, TTableSettings{
                 .Config = ConvertTo<TTableTabletBalancerConfigPtr>(
                     TYsonStringBuf(attributes.tablet_balancer_config())),
                 .InMemoryMode = FromProto<EInMemoryMode>(attributes.in_memory_mode()),
                 .Dynamic = attributes.dynamic(),
+                .EnableParameterizedBalancing = enableParameterizedBalancing,
             });
         }
     }

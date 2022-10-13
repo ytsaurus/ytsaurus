@@ -199,6 +199,15 @@ private:
                     fillPerformanceCounters(requestedFields, performanceCounters, protoPerformanceCounters);
                 }
             }
+
+            for (const auto& userAttributeName : request->user_attribute_keys()) {
+                auto attribute = table->FindAttribute(userAttributeName);
+                if (attribute) {
+                    protoTable->add_user_attributes(attribute->ToString());
+                } else {
+                    protoTable->add_user_attributes(TString{});
+                }
+            }
         }
 
         context->Reply();
