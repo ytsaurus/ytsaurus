@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NControllerAgent {
@@ -17,6 +19,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using namespace NRpc;
+using namespace NNodeTrackerClient;
 using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////
@@ -69,6 +72,19 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
+        auto incarnationId = FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id());
+
+        {
+            auto nodeId = request->node_id();
+            auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+            context->SetRequestInfo(
+                "NodeId: %v, NodeAddress: %v, JobCount: %v, KnownIncarnationId: %v",
+                nodeId,
+                descriptor.GetDefaultAddress(),
+                request->jobs_size(),
+                incarnationId);
+        }
+
         ProfileHeartbeatRequest(request);
         THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
         for (auto& job : *request->mutable_jobs()) {
@@ -79,7 +95,7 @@ private:
         SwitchTo(Bootstrap_->GetControlInvoker());
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        if (FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id()) != controllerAgent->GetIncarnationId()) {
+        if (incarnationId != controllerAgent->GetIncarnationId()) {
             context->Reply(TError{EErrorCode::IncarnationMismatch, "Controller agent incarnation mismatch"});
             return;
         }
