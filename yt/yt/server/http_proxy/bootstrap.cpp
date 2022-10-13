@@ -7,11 +7,14 @@
 #include "api.h"
 #include "http_authenticator.h"
 #include "private.h"
+#include "zookeeper_bootstrap_proxy.h"
 
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
+
+#include <yt/yt/server/lib/zookeeper_proxy/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -158,6 +161,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
 
+    if (Config_->ZookeeperProxy) {
+        ZookeeperBootstrapProxy_ = CreateZookeeperBootstrapProxy(this);
+        ZookeeperBootstrap_ = NZookeeperProxy::CreateBootstrap(ZookeeperBootstrapProxy_.get());
+    }
+
     AccessChecker_ = CreateAccessChecker(this);
 
     auto driverV3Config = CloneNode(Config_->Driver);
@@ -280,6 +288,10 @@ void TBootstrap::Run()
     Coordinator_->Start();
 
     RpcServer_->Start();
+
+    if (ZookeeperBootstrap_) {
+        ZookeeperBootstrap_->Run();
+    }
 
     Sleep(TDuration::Max());
 }

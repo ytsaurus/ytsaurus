@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/config.h>
 
+#include <yt/yt/server/lib/zookeeper_proxy/config.h>
+
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -199,6 +201,9 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default("//sys/proxies/@config");
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
+
+    registrar.Parameter("zookeeper_proxy", &TThis::ZookeeperProxy)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {

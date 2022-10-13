@@ -1,0 +1,13 @@
+#include "public.h"
+
+#include <yt/yt/server/lib/zookeeper_proxy/public.h>
+
+namespace NYT::NHttpProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<NZookeeperProxy::IBootstrapProxy> CreateZookeeperBootstrapProxy(TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHttpProxy

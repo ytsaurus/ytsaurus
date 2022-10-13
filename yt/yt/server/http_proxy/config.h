@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/zookeeper_proxy/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -223,6 +225,8 @@ public:
     // COMPAT(gritukan): Drop it after migration to tagged configs.
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
+
+    NZookeeperProxy::TZookeeperProxyConfigPtr ZookeeperProxy;
 
     REGISTER_YSON_STRUCT(TProxyConfig);
 

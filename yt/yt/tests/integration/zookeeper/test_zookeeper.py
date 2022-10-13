@@ -11,6 +11,8 @@ from yt_commands import (
 class TestZookeeper(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
 
     @authors("gritukan")
     def test_shard_attributes(self):
