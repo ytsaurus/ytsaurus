@@ -21,7 +21,7 @@ public class ApiServiceTransactionTest {
         private int pingCount = 0;
 
         public ApiServiceClientStub() {
-            super(null, new RpcOptions(), ForkJoinPool.commonPool(), null, new SerializationResolverImpl());
+            super(null, new RpcOptions(), ForkJoinPool.commonPool(), null, YandexSerializationResolver.getInstance());
         }
 
         @Override

@@ -10,6 +10,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -62,6 +63,10 @@ public class PreparedModifyRowRequest
     @Override
     public void serializeRowsetTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
         builder.setCompressedAttachments(codecId, compressedAttachments);
+    }
+
+    @Override
+    public void convertValues(SerializationResolver serializationResolver) {
     }
 
     @Override
@@ -124,7 +129,9 @@ abstract class PreparableModifyRowsRequest<
     /**
      * Serialize and compress rowset.
      */
-    public PreparedModifyRowRequest prepare(RpcCompression rpcCompression) {
+    public PreparedModifyRowRequest prepare(
+            RpcCompression rpcCompression, SerializationResolver serializationResolver) {
+        convertValues(serializationResolver);
         List<byte[]> attachments = new ArrayList<>();
         serializeRowsetTo(attachments);
         Compression codecId = rpcCompression.getRequestCodecId().orElse(Compression.fromValue(0));

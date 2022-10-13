@@ -7,9 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.annotation.Nullable;
-
 import ru.yandex.yt.rpcproxy.ERowModificationType;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -23,20 +22,36 @@ import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
  * @see UnversionedRow
  */
 public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsRequest.Builder, ModifyRowsRequest> {
-    private final List<UnversionedRow> rows = new ArrayList<>();
+    private final List<UnversionedRow> rows;
+    private final List<BuilderBase.RowMeta> unconvertedRows;
 
     public ModifyRowsRequest(BuilderBase<?> builder) {
         super(builder);
-        if (builder.convertedRows != null) {
-            this.rows.addAll(builder.convertedRows);
-        }
-        for (BuilderBase.RowMeta meta : builder.rows) {
+        this.rows = new ArrayList<>(builder.rows);
+        this.unconvertedRows = new ArrayList<>(builder.unconvertedRows);
+    }
+
+    public ModifyRowsRequest(String path, TableSchema schema) {
+        this(builder().setPath(path).setSchema(schema));
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public List<UnversionedRow> getRows() {
+        return Collections.unmodifiableList(rows);
+    }
+
+    @Override
+    public void convertValues(SerializationResolver serializationResolver) {
+        for (BuilderBase.RowMeta meta : unconvertedRows) {
             List<?> values;
             switch (meta.type) {
                 case INSERT: {
                     values = meta.values != null
-                        ? meta.values
-                        : mapToValues(Objects.requireNonNull(meta.map), schema.getColumnsCount());
+                            ? meta.values
+                            : mapToValues(Objects.requireNonNull(meta.map), schema.getColumnsCount());
                     if (values.size() != schema.getColumns().size()) {
                         throw new IllegalArgumentException(
                                 "Number of insert columns must match number of schema columns");
@@ -45,8 +60,8 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
                 }
                 case UPDATE: {
                     values = meta.values != null
-                        ? meta.values
-                        : mapToValues(Objects.requireNonNull(meta.map), schema.getColumnsCount());
+                            ? meta.values
+                            : mapToValues(Objects.requireNonNull(meta.map), schema.getColumnsCount());
                     if (values.size() <= schema.getKeyColumnsCount()
                             || values.size() > schema.getColumns().size()) {
                         throw new IllegalArgumentException(
@@ -69,30 +84,20 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
                 }
             }
 
-            rows.add(convertValuesToRow(values, meta.skipMissingValues, meta.aggregate));
+            rows.add(convertValuesToRow(values, meta.skipMissingValues, meta.aggregate, serializationResolver));
         }
+        this.unconvertedRows.clear();
     }
 
-    public ModifyRowsRequest(String path, TableSchema schema) {
-        this(builder().setPath(path).setSchema(schema));
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public List<UnversionedRow> getRows() {
-        return Collections.unmodifiableList(rows);
-    }
-
-    private UnversionedRow convertValuesToRow(List<?> values, boolean skipMissingValues, boolean aggregate) {
+    private UnversionedRow convertValuesToRow(
+            List<?> values, boolean skipMissingValues, boolean aggregate, SerializationResolver serializationResolver) {
         if (values.size() < schema.getKeyColumnsCount()) {
             throw new IllegalArgumentException(
                     "Number of values must be more than or equal to the number of key columns");
         }
         List<UnversionedValue> row = new ArrayList<>(values.size());
-        ApiServiceUtil.convertKeyColumns(row, schema, values);
-        ApiServiceUtil.convertValueColumns(row, schema, values, skipMissingValues, aggregate);
+        ApiServiceUtil.convertKeyColumns(row, schema, values, serializationResolver);
+        ApiServiceUtil.convertValueColumns(row, schema, values, skipMissingValues, aggregate, serializationResolver);
         return new UnversionedRow(row);
     }
 
@@ -121,6 +126,7 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
     public Builder toBuilder() {
         return builder()
                 .setRows(rows)
+                .setUnconvertedRows(unconvertedRows)
                 .setPath(path)
                 .setSchema(schema)
                 .setRequireSyncReplica(requireSyncReplica)
@@ -147,12 +153,11 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends PreparableModifyRowsRequest.Builder<TBuilder, ModifyRowsRequest> {
-        private final List<RowMeta> rows = new ArrayList<>();
-        @Nullable
-        private List<UnversionedRow> convertedRows;
+        private final List<RowMeta> unconvertedRows = new ArrayList<>();
+        private final List<UnversionedRow> rows = new ArrayList<>();
 
         public TBuilder addInsert(List<?> values) {
-            rows.add(new RowMeta(ModificationType.INSERT, values, false, false));
+            unconvertedRows.add(new RowMeta(ModificationType.INSERT, values, false, false));
             addRowModificationType(ERowModificationType.RMT_WRITE);
             return self();
         }
@@ -165,7 +170,7 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
         }
 
         public TBuilder addUpdate(List<?> values, boolean aggregate) {
-            rows.add(new RowMeta(ModificationType.UPDATE, values, true, aggregate));
+            unconvertedRows.add(new RowMeta(ModificationType.UPDATE, values, true, aggregate));
             addRowModificationType(ERowModificationType.RMT_WRITE);
             return self();
         }
@@ -186,7 +191,7 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
         }
 
         public TBuilder addDelete(List<?> values) {
-            rows.add(new RowMeta(ModificationType.DELETE, values, false, false));
+            unconvertedRows.add(new RowMeta(ModificationType.DELETE, values, false, false));
             addRowModificationType(ERowModificationType.RMT_DELETE);
             return self();
         }
@@ -199,13 +204,13 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
         }
 
         public TBuilder addInsert(Map<String, ?> map) {
-            rows.add(new RowMeta(ModificationType.INSERT, map, false, false));
+            unconvertedRows.add(new RowMeta(ModificationType.INSERT, map, false, false));
             addRowModificationType(ERowModificationType.RMT_WRITE);
             return self();
         }
 
         public TBuilder addUpdate(Map<String, ?> map, boolean aggregate) {
-            rows.add(new RowMeta(ModificationType.UPDATE, map, true, aggregate));
+            unconvertedRows.add(new RowMeta(ModificationType.UPDATE, map, true, aggregate));
             addRowModificationType(ERowModificationType.RMT_WRITE);
             return self();
         }
@@ -215,13 +220,20 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
         }
 
         public TBuilder addDelete(Map<String, ?> map) {
-            rows.add(new RowMeta(ModificationType.DELETE, map, false, false));
+            unconvertedRows.add(new RowMeta(ModificationType.DELETE, map, false, false));
             addRowModificationType(ERowModificationType.RMT_DELETE);
             return self();
         }
 
-        TBuilder setRows(@Nullable List<UnversionedRow> rows) {
-            this.convertedRows = rows;
+        TBuilder setRows(List<UnversionedRow> rows) {
+            this.rows.clear();
+            this.rows.addAll(rows);
+            return self();
+        }
+
+        TBuilder setUnconvertedRows(List<RowMeta> rows) {
+            this.unconvertedRows.clear();
+            this.unconvertedRows.addAll(rows);
             return self();
         }
 

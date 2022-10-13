@@ -26,8 +26,8 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import ru.yandex.yt.ytclient.DefaultSerializationResolver;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.SerializationResolverImpl;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
@@ -115,7 +115,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
                 credentials,
                 compression,
                 options,
-                new SerializationResolverImpl()
+                DefaultSerializationResolver.getInstance()
         );
     }
 
@@ -442,7 +442,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
                                 YtClientConfiguration.builder().setRpcOptions(options).build(),
                                 heavyExecutor,
                                 executorService,
-                                new SerializationResolverImpl()
+                                DefaultSerializationResolver.getInstance()
                         ));
                     }
                 }
@@ -562,7 +562,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
         @Override
         public YtClientOpensource build() {
-            return new YtClientOpensource(new BuilderWithDefaults<>(this), new SerializationResolverImpl());
+            return new YtClientOpensource(new BuilderWithDefaults<>(this), DefaultSerializationResolver.getInstance());
         }
     }
 

@@ -5,10 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
-import com.google.protobuf.Message;
-
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeBooleanNode;
@@ -18,6 +15,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeIntegerNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
 import ru.yandex.yson.YsonConsumer;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
@@ -76,7 +74,8 @@ public class UnversionedValue implements YTreeConvertible {
     /**
      * Конвертирует value в правильный для type тип данных
      */
-    public static Object convertValueTo(Object value, ColumnValueType type) {
+    public static Object convertValueTo(
+            Object value, ColumnValueType type, SerializationResolver serializationResolver) {
         switch (type) {
             case INT64:
                 if (value == null || value instanceof Long) {
@@ -140,15 +139,7 @@ public class UnversionedValue implements YTreeConvertible {
                     return value;
                 }
 
-                YTreeNode node;
-                if (value instanceof Message) {
-                    node = YTreeProtoUtils.marshal((Message) value);
-                } else if (value instanceof YTreeNode) {
-                    node = (YTreeNode) value;
-                } else {
-                    node = YTree.builder().value(value).build();
-                }
-                return node.toBinary();
+                return serializationResolver.toTree(value).toBinary();
             default:
                 throw new IllegalArgumentException("Unexpected type " + type);
         }

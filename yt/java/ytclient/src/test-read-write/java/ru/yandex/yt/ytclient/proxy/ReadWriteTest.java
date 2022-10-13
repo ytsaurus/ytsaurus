@@ -212,7 +212,9 @@ public class ReadWriteTest {
                 List<?> values = List.of(key, value, integer);
                 List<UnversionedValue> row = new ArrayList<>(values.size());
 
-                ApiServiceUtil.convertValueColumns(row, schema, values, true, false);
+                ApiServiceUtil.convertValueColumns(
+                        row, schema, values, true, false,
+                        YandexSerializationResolver.getInstance());
                 rows.add(new UnversionedRow(row));
 
                 currentRowNumber += 1;

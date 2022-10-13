@@ -14,6 +14,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -70,6 +71,8 @@ public abstract class AbstractLookupRowsRequest<
     public List<String> getLookupColumns() {
         return Collections.unmodifiableList(lookupColumns);
     }
+
+    public abstract void convertValues(SerializationResolver serializationResolver);
 
     public abstract void serializeRowsetTo(List<byte[]> attachments);
 

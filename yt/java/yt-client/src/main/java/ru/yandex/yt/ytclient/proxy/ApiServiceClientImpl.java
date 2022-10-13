@@ -509,6 +509,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             AbstractLookupRowsRequest<?, ?> request,
             Function<RpcClientResponse<TRspLookupRows>, T> responseReader
     ) {
+        request.convertValues(serializationResolver);
         return handleHeavyResponse(
                 sendRequest(
                         request.asLookupRowsWritable(),
@@ -530,6 +531,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             AbstractLookupRowsRequest<?, ?> request,
             Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader
     ) {
+        request.convertValues(serializationResolver);
         return handleHeavyResponse(
                 sendRequest(
                         request.asVersionedLookupRowsWritable(),
@@ -590,6 +592,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
+        request.convertValues(serializationResolver);
         return RpcUtil.apply(
                 sendRequest(
                         new ModifyRowsWrapper(transactionId, request),
@@ -651,6 +654,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
+        request.convertValues(serializationResolver);
         return RpcUtil.apply(
                 sendRequest(
                         new GetInSyncReplicasWrapper(timestamp, request),
@@ -691,6 +695,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     /* tables */
     @Override
     public CompletableFuture<Void> reshardTable(ReshardTable req) {
+        req.convertValues(serializationResolver);
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.RESHARD_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null

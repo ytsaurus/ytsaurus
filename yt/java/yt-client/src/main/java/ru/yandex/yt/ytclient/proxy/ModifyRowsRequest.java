@@ -8,7 +8,6 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 /**
  * Row modification request that uses {@link UnversionedRow} as table row representation
  *
- * @see MappedModifyRowsRequest
  * @see UnversionedRow
  */
 public class ModifyRowsRequest extends ru.yandex.yt.ytclient.request.ModifyRowsRequest.BuilderBase<ModifyRowsRequest> {

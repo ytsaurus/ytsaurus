@@ -510,7 +510,7 @@ public class YtClientTest {
             tx.modifyRows(ModifyRowsRequest.builder().setPath(table.toString()).setSchema(schema)
                     .addInsert(Map.of("key", "foo", "value", "bar"))
                     .build()
-                    .prepare(compression)
+                    .prepare(compression, YandexSerializationResolver.getInstance())
             ).join();
             tx.commit().join();
         }

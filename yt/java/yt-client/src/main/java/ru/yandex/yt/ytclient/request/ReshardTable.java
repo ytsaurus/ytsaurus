@@ -2,12 +2,14 @@ package ru.yandex.yt.ytclient.request;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -24,12 +26,14 @@ public class ReshardTable
     @Nullable
     private final TableSchema schema;
     private final List<UnversionedRow> pivotKeys;
+    private final List<List<?>> unconvertedPivotKeys;
 
     public ReshardTable(BuilderBase<?> builder) {
         super(builder);
         this.tabletCount = builder.tabletCount;
         this.schema = builder.schema;
         this.pivotKeys = new ArrayList<>(builder.pivotKeys);
+        this.unconvertedPivotKeys = new ArrayList<>(builder.unconvertedPivotKeys);
     }
 
     public ReshardTable(YPath path) {
@@ -46,6 +50,12 @@ public class ReshardTable
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public void convertValues(SerializationResolver serializationResolver) {
+        this.pivotKeys.addAll(this.unconvertedPivotKeys.stream().map(
+                values -> convertValuesToRow(values, serializationResolver)).collect(Collectors.toList()));
+        this.unconvertedPivotKeys.clear();
     }
 
     @Override
@@ -80,12 +90,25 @@ public class ReshardTable
         writer.finish();
     }
 
+    private UnversionedRow convertValuesToRow(List<?> values, SerializationResolver serializationResolver) {
+        if (schema == null) {
+            throw new IllegalArgumentException("Schema for pivot keys must be set");
+        }
+        if (values.size() > schema.getKeyColumnsCount()) {
+            throw new IllegalArgumentException("Pivot keys must contain only key columns");
+        }
+        List<UnversionedValue> row = new ArrayList<>(values.size());
+        ApiServiceUtil.convertKeyColumns(row, schema, values, true, serializationResolver);
+        return new UnversionedRow(row);
+    }
+
     @Override
     public Builder toBuilder() {
         return builder()
                 .setTabletCount(tabletCount)
                 .setSchema(schema)
                 .setPivotKeys(pivotKeys)
+                .setUnconvertedPivotKeys(unconvertedPivotKeys)
                 .setMutatingOptions(mutatingOptions)
                 .setPath(path)
                 .setTabletRangeOptions(tabletRangeOptions)
@@ -111,6 +134,7 @@ public class ReshardTable
         @Nullable
         private TableSchema schema;
         private final List<UnversionedRow> pivotKeys = new ArrayList<>();
+        private final List<List<?>> unconvertedPivotKeys = new ArrayList<>();
 
         protected BuilderBase() {
         }
@@ -134,7 +158,13 @@ public class ReshardTable
         }
 
         public TBuilder addPivotKey(List<?> values) {
-            pivotKeys.add(convertValuesToRow(values));
+            unconvertedPivotKeys.add(values);
+            return self();
+        }
+
+        public TBuilder setUnconvertedPivotKeys(List<List<?>> pivotKeys) {
+            this.unconvertedPivotKeys.clear();
+            this.unconvertedPivotKeys.addAll(pivotKeys);
             return self();
         }
 
@@ -153,18 +183,6 @@ public class ReshardTable
             if (tabletCount != null) {
                 sb.append("TabletCount: ").append(tabletCount).append("; ");
             }
-        }
-
-        private UnversionedRow convertValuesToRow(List<?> values) {
-            if (schema == null) {
-                throw new IllegalArgumentException("Schema for pivot keys must be set");
-            }
-            if (values.size() > schema.getKeyColumnsCount()) {
-                throw new IllegalArgumentException("Pivot keys must contain only key columns");
-            }
-            List<UnversionedValue> row = new ArrayList<>(values.size());
-            ApiServiceUtil.convertKeyColumns(row, schema, values, true);
-            return new UnversionedRow(row);
         }
 
         @Override

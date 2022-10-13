@@ -12,6 +12,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.object.ObjectsGenerators.Generator;
 import ru.yandex.yt.ytclient.proxy.ModifyRowsRequest;
+import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -131,7 +132,9 @@ public class ObjectsMetadata<T> {
             yTreeSerializer.serialize(row, builder);
             request.addUpdate(builder.build().asMap());
         }
-        return request.build().getRows();
+        ru.yandex.yt.ytclient.request.ModifyRowsRequest req = request.build();
+        req.convertValues(YandexSerializationResolver.getInstance());
+        return req.getRows();
     }
 
 }

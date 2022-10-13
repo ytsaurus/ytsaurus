@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -37,6 +38,10 @@ public class MappedLookupRowsRequest<T>
 
     public static <T> Builder<T> builder() {
         return new Builder<>();
+    }
+
+    @Override
+    public void convertValues(SerializationResolver serializationResolver) {
     }
 
     @Override

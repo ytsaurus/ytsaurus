@@ -3,11 +3,13 @@ package ru.yandex.yt.ytclient.request;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -22,12 +24,14 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
     private final TableSchema schema;
 
     private final List<UnversionedRow> rows;
+    private final List<List<?>> unconvertedRows;
 
     GetInSyncReplicas(Builder builder) {
         super(builder);
         this.path = Objects.requireNonNull(builder.path);
         this.schema = Objects.requireNonNull(builder.schema);
-        this.rows = builder.rows;
+        this.rows = new ArrayList<>(builder.rows);
+        this.unconvertedRows = new ArrayList<>(builder.unconvertedRows);
     }
 
     public GetInSyncReplicas(String path, TableSchema schema) {
@@ -48,6 +52,12 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
         return new Builder();
     }
 
+    public void convertValues(SerializationResolver serializationResolver) {
+        this.rows.addAll(this.unconvertedRows.stream().map(
+                values -> convertValuesToRow(values, serializationResolver)).collect(Collectors.toList()));
+        this.unconvertedRows.clear();
+    }
+
     public String getPath() {
         return path;
     }
@@ -65,12 +75,33 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
         writer.finish();
     }
 
+    private UnversionedRow convertValuesToRow(
+            List<?> values,
+            SerializationResolver serializationResolver
+    ) {
+        if (values.size() < schema.getKeyColumnsCount()) {
+            throw new IllegalArgumentException(
+                    "Number of values must be more than or equal to the number of key columns");
+        }
+        List<UnversionedValue> row = new ArrayList<>(values.size());
+        ApiServiceUtil.convertKeyColumns(row, schema, values, serializationResolver);
+        ApiServiceUtil.convertValueColumns(
+                row, schema, values, false, false, serializationResolver);
+        return new UnversionedRow(row);
+    }
+
     @Override
     public Builder toBuilder() {
         return builder()
                 .setPath(path)
                 .setSchema(schema)
-                .setRows(rows);
+                .setRows(rows)
+                .setUnconvertedRows(unconvertedRows)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
     }
 
     @NonNullApi
@@ -82,6 +113,7 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
         private TableSchema schema;
 
         private final List<UnversionedRow> rows = new ArrayList<>();
+        private final List<List<?>> unconvertedRows = new ArrayList<>();
 
         Builder() {
         }
@@ -105,7 +137,7 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
             if (values.size() != schema.getKeyColumnsCount()) {
                 throw new IllegalArgumentException("Number of delete columns must match number of key columns");
             }
-            rows.add(convertValuesToRow(values, false, false));
+            unconvertedRows.add(values);
             return this;
         }
 
@@ -116,21 +148,16 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, Ge
             return this;
         }
 
+        Builder setUnconvertedRows(List<List<?>> rows) {
+            this.unconvertedRows.clear();
+            this.unconvertedRows.addAll(rows);
+            return this;
+        }
+
         Builder setRows(List<UnversionedRow> rows) {
             this.rows.clear();
             this.rows.addAll(rows);
             return this;
-        }
-
-        private UnversionedRow convertValuesToRow(List<?> values, boolean skipMissingValues, boolean aggregate) {
-            if (values.size() < schema.getKeyColumnsCount()) {
-                throw new IllegalArgumentException(
-                        "Number of values must be more than or equal to the number of key columns");
-            }
-            List<UnversionedValue> row = new ArrayList<>(values.size());
-            ApiServiceUtil.convertKeyColumns(row, schema, values);
-            ApiServiceUtil.convertValueColumns(row, schema, values, skipMissingValues, aggregate);
-            return new UnversionedRow(row);
         }
 
         public GetInSyncReplicas build() {

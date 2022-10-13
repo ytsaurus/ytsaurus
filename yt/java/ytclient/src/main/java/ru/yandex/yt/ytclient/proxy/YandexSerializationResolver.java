@@ -1,9 +1,14 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import com.google.protobuf.Message;
+
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
@@ -13,7 +18,16 @@ import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class SerializationResolverImpl implements SerializationResolver {
+public class YandexSerializationResolver implements SerializationResolver {
+    private static final SerializationResolver INSTANCE = new YandexSerializationResolver();
+
+    private YandexSerializationResolver() {
+    }
+
+    public static SerializationResolver getInstance() {
+        return INSTANCE;
+    }
+
     @Override
     public <T> YTreeRowSerializer<T> forClass(Class<T> clazz, TableSchema schema) {
         YTreeSerializer<T> serializer = YTreeObjectSerializerFactory.forClass(clazz, schema);
@@ -53,5 +67,16 @@ public class SerializationResolverImpl implements SerializationResolver {
     @Override
     public <T> TableSchema asTableSchema(YTreeSerializer<T> serializer) {
         return MappedRowSerializer.asTableSchema(serializer.getFieldMap());
+    }
+
+    @Override
+    public YTreeNode toTree(Object value) {
+        if (value instanceof Message) {
+            return YTreeProtoUtils.marshal((Message) value);
+        } else if (value instanceof YTreeNode) {
+            return (YTreeNode) value;
+        } else {
+            return YTree.builder().value(value).build();
+        }
     }
 }
