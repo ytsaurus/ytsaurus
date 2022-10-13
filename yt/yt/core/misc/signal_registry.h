@@ -20,6 +20,12 @@ public:
     //! execution.
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableCrashSignalProtection, true);
 
+#ifdef _unix_
+    using TSignalHandler = std::function<void(int, siginfo_t*, void*)>;
+#else
+    using TSignalHandler = std::function<void(int)>;
+#endif
+
 public:
     static TSignalRegistry* Get();
 
@@ -30,8 +36,10 @@ public:
 
     //! Add simple callback which should be called for signal. Different signatures are supported for convenience.
     void PushCallback(int signal, std::function<void(void)> callback);
+#ifdef _unix_
     void PushCallback(int signal, std::function<void(int)> callback);
-    void PushCallback(int signal, std::function<void(int, siginfo_t*, void*)> callback);
+#endif
+    void PushCallback(int signal, TSignalHandler callback);
 
     //! Add default signal handler which is called after invoking our custom handlers.
     //! NB: this handler restores default signal handler as a side-effect. Use it only
@@ -43,12 +51,16 @@ private:
 
     struct TSignalSetup
     {
-        std::vector<std::function<void(int, siginfo_t*, void*)>> Callbacks;
+        std::vector<TSignalHandler> Callbacks;
         bool SetUp = false;
     };
     std::array<TSignalSetup, SignalRange> Signals_;
 
+#ifdef _unix_
     static void Handle(int signal, siginfo_t* siginfo, void* ucontext);
+#else
+    static void Handle(int signal);
+#endif
 
     //! Invoke something for `multisignal` which may either be some real signal or signal set like `AllCrashSignals`.
     template <class TCallback>

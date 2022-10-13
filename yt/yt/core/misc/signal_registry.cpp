@@ -12,14 +12,26 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> CrashSignals = {SIGSEGV, SIGILL, SIGFPE, SIGABRT, SIGBUS};
+std::vector<int> CrashSignals = {
+    SIGSEGV,
+    SIGILL,
+    SIGFPE,
+    SIGABRT,
+#ifdef _unix_
+    SIGBUS,
+#endif
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef HAVE_PTHREAD_H
 // This variable is used for protecting signal handlers for crash signals from
 // dumping stuff while another thread is already doing that. Our policy is to let
 // the first thread dump stuff and make other threads wait.
 std::atomic<pthread_t*> CrashingThreadId;
+#else
+std::atomic<bool> HasCrashingThread;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,10 +58,15 @@ void TSignalRegistry::SetupSignal(int signal, int flags)
         YT_VERIFY(sigaction(signal, &sa, NULL) == 0);
         Signals_[signal].SetUp = true;
     });
+#else
+    DispatchMultiSignal(signal, [&] (int signal) {
+        YT_VERIFY(::signal(signal, static_cast<_crt_signal_t>(&Handle)) == 0);
+        Signals_[signal].SetUp = true;
+    });
 #endif
 }
 
-void TSignalRegistry::PushCallback(int signal, std::function<void(int, siginfo_t*, void*)> callback)
+void TSignalRegistry::PushCallback(int signal, TSignalRegistry::TSignalHandler callback)
 {
     DispatchMultiSignal(signal, [&] (int signal) {
         if (!Signals_[signal].SetUp) {
@@ -59,23 +76,32 @@ void TSignalRegistry::PushCallback(int signal, std::function<void(int, siginfo_t
     });
 }
 
+#ifdef _unix_
 void TSignalRegistry::PushCallback(int signal, std::function<void(int)> callback)
 {
     PushCallback(signal, [callback = std::move(callback)] (int signal, siginfo_t* /* siginfo */, void* /* ucontext */) {
         callback(signal);
     });
 }
+#endif
 
 void TSignalRegistry::PushCallback(int signal, std::function<void(void)> callback)
 {
+#ifdef _unix_
     PushCallback(signal, [callback = std::move(callback)] (int /* signal */, siginfo_t* /* siginfo */, void* /* ucontext */) {
         callback();
     });
+#else
+    PushCallback(signal, [callback = std::move(callback)] (int /* signal */) {
+        callback();
+    });
+#endif
 }
 
 void TSignalRegistry::PushDefaultSignalHandler(int signal)
 {
     PushCallback(signal, [] (int signal) {
+    #ifdef _unix_
         struct sigaction sa;
         memset(&sa, 0, sizeof(sa));
         sigemptyset(&sa.sa_mask);
@@ -83,9 +109,17 @@ void TSignalRegistry::PushDefaultSignalHandler(int signal)
         YT_VERIFY(sigaction(signal, &sa, nullptr) == 0);
 
         pthread_kill(pthread_self(), signal);
+    #else
+        YT_VERIFY(::signal(signal, SIG_DFL) != SIG_ERR);
+        YT_VERIFY(::raise(signal) == 0);
+        while (true) {
+            sleep(1);
+        }
+    #endif
     });
 }
 
+#ifdef _unix_
 void TSignalRegistry::Handle(int signal, siginfo_t* siginfo, void* ucontext)
 {
     auto* self = Get();
@@ -131,13 +165,35 @@ void TSignalRegistry::Handle(int signal, siginfo_t* siginfo, void* ucontext)
         callback(signal, siginfo, ucontext);
     }
 }
+#else
+void TSignalRegistry::Handle(int signal)
+{
+    auto* self = Get();
+
+    if (self->EnableCrashSignalProtection_) {
+        if (HasCrashingThread.exchange(true)) {
+            // Syscalls are prohibited in signal handlers on Windows so we cannot distinguish
+            // Is it the same thread or not. Just fallback to default signal handler.
+            YT_VERIFY(::signal(signal, SIG_DFL) != SIG_ERR);
+            YT_VERIFY(::raise(signal) == 0);
+            while (true) {
+                sleep(1);
+            }
+        }
+    }
+
+    for (const auto& callback : self->Signals_[signal].Callbacks) {
+        callback(signal);
+    }
+}
+#endif
 
 template <class TCallback>
 void TSignalRegistry::DispatchMultiSignal(int multiSignal, const TCallback& callback)
 {
     std::vector<int> signals;
     if (multiSignal == AllCrashSignals) {
-        signals = {SIGSEGV, SIGILL, SIGFPE, SIGABRT, SIGBUS};
+        signals = CrashSignals;
     } else {
         signals = {multiSignal};
     }

@@ -26,11 +26,11 @@ void DumpStackTrace(TCallback writeCallback)
 #else
 
 template <class TCallback>
-void DumpStackTrace(TCallback /*writeCallback*/)
+void DumpStackTrace(TCallback writeCallback)
 {
     TRawFormatter<256> formatter;
     formatter.AppendString("(stack trace is not available for this platform)");
-    flushCallback(formatter.GetData(), formatter.GetBytesWritten());
+    writeCallback(TStringBuf(formatter.GetData(), formatter.GetBytesWritten()));
 }
 
 #endif
