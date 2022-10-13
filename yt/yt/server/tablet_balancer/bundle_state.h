@@ -74,6 +74,7 @@ private:
         TTableTabletBalancerConfigPtr Config;
         EInMemoryMode InMemoryMode;
         bool Dynamic;
+        bool EnableParameterizedBalancing = false;
     };
 
     struct TTabletStatisticsResponse

@@ -102,6 +102,7 @@ message TReqGetTableBalancingAttributes
     repeated string requested_performance_counters = 2;
     optional bool fetch_balancing_attributes = 3 [default = false];
     optional bool fetch_statistics = 4 [default = false];
+    repeated string user_attribute_keys = 5;
 }
 
 message TRspGetTableBalancingAttributes
@@ -148,6 +149,7 @@ message TRspGetTableBalancingAttributes
     {
         optional TTableBalancingAttributes balancing_attributes = 1;
         repeated TTablet tablets = 2;
+        repeated string user_attributes = 3;
     }
 
     repeated string statistics_field_names = 1;
