@@ -19,6 +19,7 @@ using NScheduler::EOperationAlertType;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobSummary;
+struct TStartedJobSummary;
 struct TCompletedJobSummary;
 struct TAbortedJobSummary;
 struct TFailedJobSummary;

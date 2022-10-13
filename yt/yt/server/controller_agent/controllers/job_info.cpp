@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -42,18 +40,6 @@ void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobInfo::TJobInfo(const TJobInfoBase& jobInfoBase)
-    : TJobInfoBase(jobInfoBase)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJoblet::TJoblet()
-    : JobIndex(-1)
-    , StartRowIndex(-1)
-    , OutputCookie(-1)
-{ }
-
 TJoblet::TJoblet(
     TTask* task,
     int jobIndex,
@@ -65,7 +51,6 @@ TJoblet::TJoblet(
     , TaskJobIndex(taskJobIndex)
     , TreeId(treeId)
     , TreeIsTentative(treeIsTentative)
-    , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
 
 TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished, bool* monotonicityViolated)
@@ -104,9 +89,25 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
 
 void TJoblet::Persist(const TPersistenceContext& context)
 {
-    TJobInfoBase::Persist(context);
-
     using NYT::Persist;
+    Persist(context, JobId);
+    Persist(context, JobType);
+    Persist(context, NodeDescriptor);
+    Persist(context, StartTime);
+    Persist(context, FinishTime);
+    Persist(context, IsStarted);
+    Persist(context, DebugArtifactsAccount);
+    Persist(context, Suspicious);
+    Persist(context, LastActivityTime);
+    Persist(context, BriefStatistics);
+    Persist(context, Progress);
+    Persist(context, StderrSize);
+    // NB(max42): JobStatistics is not persisted intentionally since
+    // it can increase the size of snapshot significantly.
+    Persist(context, Phase);
+    Persist(context, CompetitionIds);
+    Persist(context, HasCompetitors);
+    Persist(context, TaskName);
     Persist(context, Task);
     Persist(context, TaskJobIndex);
     Persist(context, JobIndex);
@@ -136,31 +137,6 @@ void TJoblet::Persist(const TPersistenceContext& context)
     if (context.IsLoad()) {
         Revived = true;
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TJobInfoBase::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, JobId);
-    Persist(context, JobType);
-    Persist(context, NodeDescriptor);
-    Persist(context, StartTime);
-    Persist(context, FinishTime);
-    Persist(context, IsStarted);
-    Persist(context, DebugArtifactsAccount);
-    Persist(context, Suspicious);
-    Persist(context, LastActivityTime);
-    Persist(context, BriefStatistics);
-    Persist(context, Progress);
-    Persist(context, StderrSize);
-    // NB(max42): JobStatistics is not persisted intentionally since
-    // it can increase the size of snapshot significantly.
-    Persist(context, Phase);
-    Persist(context, CompetitionIds);
-    Persist(context, HasCompetitors);
-    Persist(context, TaskName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
