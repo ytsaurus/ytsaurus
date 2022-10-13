@@ -30,6 +30,7 @@ Y_FORCE_INLINE bool CompareAndSet(
     T1 new1,
     T2 new2)
 {
+#if defined(__x86_64__)
     bool success;
     __asm__ __volatile__
     (
@@ -44,6 +45,32 @@ Y_FORCE_INLINE bool CompareAndSet(
         : "cc"
     );
     return success;
+#elif defined(__arm64__)
+    register ui64 x0 __asm("x0") = (ui64)expected1;
+    register ui64 x1 __asm("x1") = (ui64)expected2;
+    register ui64 x2 __asm("x2") = (ui64)new1;
+    register ui64 x3 __asm("x3") = (ui64)new2;
+    ui64 old1 = (ui64)expected1;
+    ui64 old2 = (ui64)expected2;
+    asm volatile
+    (
+#if defined(RTE_CC_CLANG)
+        ".arch armv8-a+lse\n"
+#endif
+        "caspal %[old0], %[old1], %[upd0], %[upd1], [%[dst]]"
+        : [old0] "+r" (x0)
+        , [old1] "+r" (x1)
+        : [upd0] "r" (x2)
+        , [upd1] "r" (x3)
+        , [dst] "r" (atomic)
+        : "memory"
+    );
+    expected1 = (T1)x0;
+    expected2 = (T2)x1;
+    return x0 == old1 && x1 == old2;
+#else
+#    error Unsupported platform
+#endif
 }
 
 template <class TItem>

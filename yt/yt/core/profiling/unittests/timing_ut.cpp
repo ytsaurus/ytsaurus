@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/tscp.h>
 
 namespace NYT::NProfiling {
 namespace {
@@ -36,6 +37,13 @@ TEST(TTimingTest, DurationVSCpuDuration)
     auto cpuInstant2 = GetCpuInstant();
     auto duration2 = CpuDurationToDuration(cpuInstant2 - cpuInstant1);
     EXPECT_LE(DiffMS(duration1, duration2), 10);
+}
+
+TEST(TTimingTest, TTscp_Get)
+{
+    auto cpuInstant = GetCpuInstant();
+    auto tscp = TTscp::Get();
+    EXPECT_GE(tscp.Instant, cpuInstant);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
