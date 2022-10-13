@@ -11,11 +11,20 @@ namespace NYT::NProfiling {
 
 inline TTscp TTscp::Get()
 {
+#if defined(__x86_64__)
     ui64 rax, rcx, rdx;
     asm volatile ( "rdtscp\n" : "=a" (rax), "=c" (rcx), "=d" (rdx) : : );
+    ui64 t = (rdx << 32) + rax;
+    ui64 c = rcx;
+#elif defined(__arm64__)
+    ui64 c;
+    __asm__ volatile("mrs %x0, tpidrro_el0" : "=r"(c));
+    c = c & 0x07u;
+    TCpuInstant t = GetCpuInstant();
+#endif
     return TTscp{
-        .Instant = static_cast<TCpuInstant>((rdx << 32) + rax),
-        .ProcessorId = static_cast<int>(rcx) & (MaxProcessorId - 1)
+        .Instant = static_cast<TCpuInstant>(t),
+        .ProcessorId = static_cast<int>(c) & (MaxProcessorId - 1)
     };
 }
 

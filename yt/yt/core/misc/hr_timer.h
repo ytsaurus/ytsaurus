@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <util/system/datetime.h>
+
 namespace NYT::NHRTimer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,21 +13,7 @@ namespace NYT::NHRTimer {
 // can be considered constant for practical purposes.
 Y_FORCE_INLINE ui64 GetRdtsc()
 {
-#ifdef _win_
-    return __rdtsc();
-#else
-    #if defined(_x86_64_)
-        unsigned hi, lo;
-        __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-        return ((ui64)lo) | (((ui64)hi) << 32);
-    #elif defined(_i386_)
-        ui64 r;
-        __asm__ __volatile__ ("rdtsc" : "=A" (r));
-        return r;
-    #else
-        #error "Unsupported architecture"
-    #endif
-#endif
+    return GetCycleCount();
 }
 
 // Represents an offset from an arbitrary point in the past;

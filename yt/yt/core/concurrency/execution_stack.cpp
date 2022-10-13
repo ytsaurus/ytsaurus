@@ -7,7 +7,7 @@
 #   include <sys/mman.h>
 #   include <limits.h>
 #   include <unistd.h>
-#   if !defined(__x86_64__)
+#   if !defined(__x86_64__) && !defined(__arm64__)
 #       error Unsupported platform
 #   endif
 #endif

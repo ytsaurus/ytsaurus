@@ -6,7 +6,9 @@
 
 #include <util/system/cpu_id.h>
 
-#include <immintrin.h>
+#if defined(__clang__) && defined(__x86_64__)
+#    include <immintrin.h>
+#endif
 
 namespace NYT::NTableClient {
 
@@ -248,7 +250,7 @@ void BuildBytemapFromRleImpl(
     }
 }
 
-#ifdef __clang__
+#if defined(__clang__) && defined(__x86_64__)
 
 template <typename TByte>
 __attribute__((target("bmi2")))
@@ -620,7 +622,7 @@ void DecodeBytemapFromBitmap(
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
     YT_VERIFY(endIndex - startIndex == std::ssize(dst));
 
-#ifdef __clang__
+#if defined(__clang__) && defined(__x86_64__)
     if (NX86::CachedHaveBMI2()) {
         DecodeBytemapFromBitmapImplBmi2(bitmap, startIndex, endIndex, dst);
         return;
