@@ -1229,6 +1229,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             UnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
         }
     }
+    node->PushReplicationTargetNodeIds().clear();
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& queue : node->ChunkPullReplicationQueues()) {
