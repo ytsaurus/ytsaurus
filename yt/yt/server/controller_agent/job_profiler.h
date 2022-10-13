@@ -2,20 +2,9 @@
 
 #include "private.h"
 
+#include <yt/yt/server/controller_agent/controllers/private.h>
+
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NControllers {
-
-class TJoblet;
-
-}
-
-struct TStartedJobSummary;
-struct TCompletedJobSummary;
-struct TAbortedJobSummary;
-struct TFailedJobSummary;
 
 ////////////////////////////////////////////////////////////////////////////////
 

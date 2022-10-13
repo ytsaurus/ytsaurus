@@ -38,7 +38,8 @@ struct TJobNodeDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobInfoBase
+struct TJoblet
+    : public TRefCounted
 {
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
@@ -66,42 +67,11 @@ struct TJobInfoBase
     TEnumIndexedVector<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
-
-    virtual void Persist(const TPersistenceContext& context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobInfo
-    : public TRefCounted
-    , public TJobInfoBase
-{
-    TJobInfo() = default;
-    TJobInfo(const TJobInfoBase& jobInfoBase);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobInfo)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJoblet
-    : public TJobInfo
-{
-public:
-    //! Default constructor is for serialization only.
-    TJoblet();
-    TJoblet(
-        TTask* task,
-        int jobIndex,
-        int taskJobIndex,
-        const TString& treeId,
-        bool treeIsTentative);
-
     TInstant LastStatisticsUpdateTime;
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
-    int JobIndex;
+    int JobIndex = -1;
     int TaskJobIndex = 0;
     i64 StartRowIndex = -1;
     bool Restarted = false;
@@ -131,7 +101,7 @@ public:
     std::optional<TString> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
-    NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
+    NChunkPools::IChunkPoolOutput::TCookie OutputCookie = -1;
 
     //! All chunk lists allocated for this job.
     /*!
@@ -155,7 +125,17 @@ public:
     std::optional<TString> EnabledProfiler;
     std::optional<TString> PoolPath;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    // Used only for persistence.
+    TJoblet() = default;
+
+    TJoblet(
+        TTask* task,
+        int jobIndex,
+        int taskJobIndex,
+        const TString& treeId,
+        bool treeIsTentative);
+
+    void Persist(const TPersistenceContext& context);
 
     NScheduler::TJobMetrics UpdateJobMetrics(
         const TJobSummary& jobSummary,
