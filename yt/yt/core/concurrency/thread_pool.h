@@ -15,8 +15,7 @@ class TThreadPool
 public:
     TThreadPool(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool startThreads = true);
+        const TString& threadNamePrefix);
 
     virtual ~TThreadPool();
 

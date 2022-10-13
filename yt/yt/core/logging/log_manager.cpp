@@ -400,8 +400,7 @@ public:
             std::nullopt))
         , CompressionThreadPool_(New<TThreadPool>(
             /*threadCount*/ 1,
-            /*threadNamePrefix*/ "LogCompress",
-            /*startThreads*/ false))
+            /*threadNamePrefix*/ "LogCompress"))
     {
         RegisterWriterFactory(TString(TFileLogWriterConfig::Type), GetFileLogWriterFactory());
         RegisterWriterFactory(TString(TStderrLogWriterConfig::Type), GetStderrLogWriterFactory());
