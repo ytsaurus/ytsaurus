@@ -509,12 +509,7 @@ public:
 
     const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override
     {
-        if (EnableMemoryReferenceTracker_.load()) {
-            return NodeMemoryReferenceTracker_;
-        } else {
-            static const INodeMemoryReferenceTrackerPtr nullTracker;
-            return nullTracker;
-        }
+        return NodeMemoryReferenceTracker_;
     }
 
     const IClientBlockCachePtr& GetClientBlockCache() const override
@@ -713,7 +708,6 @@ private:
     IMasterConnectorPtr MasterConnector_;
 
     INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
-    std::atomic<bool> EnableMemoryReferenceTracker_ = true;
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -1280,7 +1274,6 @@ private:
 
         IOTracker_->SetConfig(newConfig->IOTracker);
 
-        EnableMemoryReferenceTracker_ = newConfig->EnableMemoryReferenceTracker;
         auto memoryReferenceTrackerConfig = New<TNodeMemoryReferenceTrackerConfig>();
         memoryReferenceTrackerConfig->EnableMemoryReferenceTracker = newConfig->EnableMemoryReferenceTracker;
         NodeMemoryReferenceTracker_->Reconfigure(std::move(memoryReferenceTrackerConfig));
