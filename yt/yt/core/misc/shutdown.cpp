@@ -84,6 +84,10 @@ public:
             return registeredCallback.Priority;
         });
 
+    // Starting threads in exit handlers on Windows causes immidiate calling exit
+    // so the routine will not be executed. Moreover, if we try to join this thread we'll get deadlock
+    // because this thread will try to acquire atexit lock which is owned by this thread
+    #ifndef _win_
         NThreading::TEvent shutdownCompleteEvent;
         std::thread watchdogThread([&] {
             ::TThread::SetCurrentThreadName("ShutdownWD");
@@ -97,6 +101,7 @@ public:
                 }
             }
         });
+    #endif
 
         for (auto it = registeredCallbacks.rbegin(); it != registeredCallbacks.rend(); it++) {
             const auto& registeredCallback = *it;
@@ -108,8 +113,10 @@ public:
             registeredCallback.Callback();
         }
 
+    #ifndef _win_
         shutdownCompleteEvent.NotifyOne();
         watchdogThread.join();
+    #endif
 
         if (auto* logFile = GetShutdownLogFile()) {
             ::fprintf(logFile, "*** Shutdown completed\n");

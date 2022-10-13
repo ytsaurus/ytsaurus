@@ -497,17 +497,32 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 }
 #endif
 
+#ifdef _win_
+void CrashSignalHandler(int signal, int subcode)
+{
+    Y_UNUSED(signal);
+    Y_UNUSED(subcode);
+    return;
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void PushCodicil(const TString& data)
 {
+#ifdef _unix_
     CodicilsStack->push_back(data);
+#else
+    Y_UNUSED(data);
+#endif
 }
 
 void PopCodicil()
 {
+#ifdef _unix_
     YT_VERIFY(!CodicilsStack->empty());
     CodicilsStack->pop_back();
+#endif
 }
 
 TCodicilGuard::TCodicilGuard()
@@ -552,4 +567,3 @@ void TCodicilGuard::Release()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
