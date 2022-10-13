@@ -170,11 +170,11 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 		scale := float64(*resources.InstanceTotalMemory-memNonElastic) / memElastic
 
 		mem = *memDefault
-		*mem.ChunkMetaCache = uint64(float64(*mem.ChunkMetaCache) * scale)
-		*mem.CompressedCache = uint64(float64(*mem.CompressedCache) * scale)
-		*mem.UncompressedCache = uint64(float64(*mem.UncompressedCache) * scale)
-		*mem.ClickHouse = uint64(float64(*mem.ClickHouse) * scale)
-		*mem.Reader = uint64(float64(*mem.Reader) * scale)
+		mem.ChunkMetaCache = ptr.Uint64(uint64(float64(*mem.ChunkMetaCache) * scale))
+		mem.CompressedCache = ptr.Uint64(uint64(float64(*mem.CompressedCache) * scale))
+		mem.UncompressedCache = ptr.Uint64(uint64(float64(*mem.UncompressedCache) * scale))
+		mem.ClickHouse = ptr.Uint64(uint64(float64(*mem.ClickHouse) * scale))
+		mem.Reader = ptr.Uint64(uint64(float64(*mem.Reader) * scale))
 	} else {
 		mem = *resources.InstanceMemory
 		if mem.ChunkMetaCache == nil {
