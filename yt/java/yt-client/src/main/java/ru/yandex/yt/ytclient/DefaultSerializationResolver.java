@@ -1,9 +1,11 @@
 package ru.yandex.yt.ytclient;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapNodeSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
@@ -11,7 +13,16 @@ import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 import ru.yandex.yt.ytclient.object.YTreeWireRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class SerializationResolverImpl implements SerializationResolver {
+public class DefaultSerializationResolver implements SerializationResolver {
+    private static final SerializationResolver INSTANCE = new DefaultSerializationResolver();
+
+    private DefaultSerializationResolver() {
+    }
+
+    public static SerializationResolver getInstance() {
+        return INSTANCE;
+    }
+
     @Override
     public <T> YTreeRowSerializer<T> forClass(Class<T> clazz, TableSchema schema) {
         if (clazz.equals(YTreeMapNode.class)) {
@@ -43,5 +54,14 @@ public class SerializationResolverImpl implements SerializationResolver {
     @Override
     public <T> TableSchema asTableSchema(YTreeSerializer<T> serializer) {
         return TableSchema.newBuilder().build();
+    }
+
+    @Override
+    public YTreeNode toTree(Object value) {
+        if (value instanceof YTreeNode) {
+            return (YTreeNode) value;
+        } else {
+            return YTree.builder().value(value).build();
+        }
     }
 }

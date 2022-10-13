@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
+import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
@@ -72,7 +73,8 @@ public class WriteTableExample {
             List<?> values = List.of(key, value, integer, randomValue);
             List<UnversionedValue> row = new ArrayList<>(values.size());
 
-            ApiServiceUtil.convertValueColumns(row, schema, values, true, false);
+            ApiServiceUtil.convertValueColumns(row, schema, values, true, false,
+                    YandexSerializationResolver.getInstance());
             rows.add(new UnversionedRow(row));
 
             currentRowNumber += 1;

@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import javax.annotation.Nullable;
+import java.util.stream.Collectors;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -19,16 +19,13 @@ import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 @NonNullApi
 @NonNullFields
 public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsRequest.Builder, LookupRowsRequest> {
-    private final List<UnversionedRow> filters = new ArrayList<>();
+    private final List<UnversionedRow> filters;
+    private final List<List<?>> unconvertedFilters;
 
     public LookupRowsRequest(BuilderBase<?> builder) {
         super(builder);
-        if (builder.convertedFilters != null) {
-            filters.addAll(builder.convertedFilters);
-        }
-        for (List<?> filter : builder.filters) {
-            filters.add(convertFilterToRow(filter));
-        }
+        this.unconvertedFilters = new ArrayList<>(builder.unconvertedFilters);
+        this.filters = new ArrayList<>(builder.filters);
     }
 
     public LookupRowsRequest(String path, TableSchema schema) {
@@ -39,12 +36,19 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
         return new Builder();
     }
 
-    private UnversionedRow convertFilterToRow(List<?> filter) {
+    @Override
+    public void convertValues(SerializationResolver serializationResolver) {
+        this.filters.addAll(this.unconvertedFilters.stream().map(
+                filter -> convertFilterToRow(filter, serializationResolver)).collect(Collectors.toList()));
+        this.unconvertedFilters.clear();
+    }
+
+    private UnversionedRow convertFilterToRow(List<?> filter, SerializationResolver serializationResolver) {
         if (filter.size() != schema.getColumns().size()) {
             throw new IllegalArgumentException("Number of filter columns must match the number key columns");
         }
         List<UnversionedValue> row = new ArrayList<>(schema.getColumns().size());
-        ApiServiceUtil.convertKeyColumns(row, schema, filter);
+        ApiServiceUtil.convertKeyColumns(row, schema, filter, serializationResolver);
         return new UnversionedRow(row);
     }
 
@@ -59,6 +63,7 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
     public Builder toBuilder() {
         return builder()
                 .setFilters(filters)
+                .setUnconvertedFilters(unconvertedFilters)
                 .setPath(path)
                 .setSchema(schema)
                 .setTimestamp(timestamp)
@@ -88,12 +93,11 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends AbstractLookupRowsRequest.Builder<TBuilder, LookupRowsRequest> {
-        private final List<List<?>> filters = new ArrayList<>();
-        @Nullable
-        private List<UnversionedRow> convertedFilters;
+        private final List<List<?>> unconvertedFilters = new ArrayList<>();
+        private final List<UnversionedRow> filters = new ArrayList<>();
 
         public TBuilder addFilter(List<?> filter) {
-            filters.add(Objects.requireNonNull(filter));
+            unconvertedFilters.add(Objects.requireNonNull(filter));
             return self();
         }
 
@@ -108,8 +112,15 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
             return self();
         }
 
+        TBuilder setUnconvertedFilters(List<List<?>> unconvertedFilters) {
+            this.unconvertedFilters.clear();
+            this.unconvertedFilters.addAll(unconvertedFilters);
+            return self();
+        }
+
         TBuilder setFilters(List<UnversionedRow> filters) {
-            this.convertedFilters = filters;
+            this.filters.clear();
+            this.filters.addAll(filters);
             return self();
         }
     }

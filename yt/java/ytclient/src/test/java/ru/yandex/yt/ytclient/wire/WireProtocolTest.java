@@ -28,6 +28,7 @@ import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
+import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -97,7 +98,8 @@ public class WireProtocolTest {
     public static UnversionedValue makeValueSample(int id, ColumnValueType type, boolean aggregate) {
         Object value = makeSampleValue(type);
         if (type == ColumnValueType.ANY && value instanceof byte[]) {
-            value = UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type);
+            value = UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type,
+                    YandexSerializationResolver.getInstance());
         }
         return new UnversionedValue(id, type, aggregate, value);
     }
@@ -392,9 +394,10 @@ public class WireProtocolTest {
             return outputStream.toByteArray();
         } else if (type == ColumnValueType.ANY && value instanceof byte[]) {
             // Набор байтов будет обернут в YSON объект
-            return UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type);
+            return UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type,
+                    YandexSerializationResolver.getInstance());
         } else {
-            return UnversionedValue.convertValueTo(value, type);
+            return UnversionedValue.convertValueTo(value, type, YandexSerializationResolver.getInstance());
         }
     }
 

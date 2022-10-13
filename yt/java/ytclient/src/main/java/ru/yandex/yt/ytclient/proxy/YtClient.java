@@ -62,7 +62,7 @@ public class YtClient extends ru.yandex.yt.ytclient.proxy.YtClientOpensource {
                         .setRpcOptions(options)
                         .disableValidation()
                 // old constructors did not validate their arguments
-        ), new SerializationResolverImpl());
+        ), YandexSerializationResolver.getInstance());
     }
 
     public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
@@ -78,7 +78,7 @@ public class YtClient extends ru.yandex.yt.ytclient.proxy.YtClientOpensource {
     }
 
     private YtClient(BuilderWithDefaults builder) {
-        super(builder, new SerializationResolverImpl());
+        super(builder, YandexSerializationResolver.getInstance());
     }
 
     /**

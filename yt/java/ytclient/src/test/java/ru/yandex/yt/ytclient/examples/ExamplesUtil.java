@@ -15,12 +15,12 @@ import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
-import ru.yandex.yt.ytclient.SerializationResolverImpl;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
+import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
@@ -138,7 +138,7 @@ public final class ExamplesUtil {
                                 ).build(),
                         ForkJoinPool.commonPool(),
                         connector.executorService(),
-                        new SerializationResolverImpl());
+                        YandexSerializationResolver.getInstance());
                 consumer.accept(serviceClient);
             }
         }

@@ -41,7 +41,8 @@ public class ApiServiceUtil {
             List<UnversionedValue> row,
             TableSchema schema,
             List<?> values,
-            boolean allowMissingColumns
+            boolean allowMissingColumns,
+            SerializationResolver serializationResolver
     ) {
         int columnsCount = schema.getKeyColumnsCount();
         if (allowMissingColumns && values.size() < columnsCount) {
@@ -50,7 +51,7 @@ public class ApiServiceUtil {
         for (int id = 0; id < columnsCount; ++id) {
             ColumnSchema column = schema.getColumns().get(id);
             ColumnValueType type = column.getType();
-            Object value = UnversionedValue.convertValueTo(values.get(id), type);
+            Object value = UnversionedValue.convertValueTo(values.get(id), type, serializationResolver);
             if (value == null) {
                 type = ColumnValueType.NULL;
             }
@@ -58,8 +59,13 @@ public class ApiServiceUtil {
         }
     }
 
-    public static void convertKeyColumns(List<UnversionedValue> row, TableSchema schema, List<?> values) {
-        convertKeyColumns(row, schema, values, false);
+    public static void convertKeyColumns(
+            List<UnversionedValue> row,
+            TableSchema schema,
+            List<?> values,
+            SerializationResolver serializationResolver
+    ) {
+        convertKeyColumns(row, schema, values, false, serializationResolver);
     }
 
     public static void convertValueColumns(
@@ -67,7 +73,8 @@ public class ApiServiceUtil {
             TableSchema schema,
             List<?> values,
             boolean skipMissingValues,
-            boolean aggregate
+            boolean aggregate,
+            SerializationResolver serializationResolver
     ) {
         for (int id = schema.getKeyColumnsCount(); id < schema.getColumns().size() && id < values.size(); ++id) {
             ColumnSchema column = schema.getColumns().get(id);
@@ -76,7 +83,7 @@ public class ApiServiceUtil {
                 continue;
             }
             ColumnValueType type = column.getType();
-            Object value = UnversionedValue.convertValueTo(inputValue, type);
+            Object value = UnversionedValue.convertValueTo(inputValue, type, serializationResolver);
             if (value == null) {
                 type = ColumnValueType.NULL;
             }
