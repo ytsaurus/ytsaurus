@@ -23,26 +23,24 @@ struct IPacketDecoder
 {
     virtual ~IPacketDecoder() = default;
 
-    virtual TMutableRef GetFragment() = 0;
-    virtual bool IsFinished() const = 0;
-
-    virtual bool Advance(size_t size) = 0;
     virtual void Restart() = 0;
 
     virtual bool IsInProgress() const = 0;
+    virtual bool IsFinished() const = 0;
+
+    virtual TMutableRef GetFragment() = 0;
+    virtual bool Advance(size_t size) = 0;
+
     virtual EPacketType GetPacketType() const = 0;
     virtual EPacketFlags GetPacketFlags() const = 0;
     virtual TPacketId GetPacketId() const = 0;
-    virtual TSharedRefArray GrabMessage() const = 0;
     virtual size_t GetPacketSize() const = 0;
+    virtual TSharedRefArray GrabMessage() const = 0;
 };
 
 struct IPacketEncoder
 {
     virtual ~IPacketEncoder() = default;
-
-    virtual TMutableRef GetFragment() = 0;
-    virtual bool IsFinished() const = 0;
 
     virtual size_t GetPacketSize(
         EPacketType type,
@@ -57,8 +55,12 @@ struct IPacketEncoder
         TPacketId packetId,
         TSharedRefArray message) = 0;
 
+    virtual TMutableRef GetFragment() = 0;
     virtual bool IsFragmentOwned() const = 0;
+
     virtual void NextFragment() = 0;
+
+    virtual bool IsFinished() const = 0;
 };
 
 struct IPacketTranscoderFactory
@@ -70,6 +72,8 @@ struct IPacketTranscoderFactory
         bool verifyChecksum) const = 0;
     virtual std::unique_ptr<IPacketEncoder> CreateEncoder(
         const NLogging::TLogger& logger) const = 0;
+
+    virtual bool SupportsHandshakes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

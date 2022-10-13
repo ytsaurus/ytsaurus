@@ -126,6 +126,7 @@ TTcpConnection::TTcpConnection(
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(packetTranscoderFactory->CreateEncoder(Logger))
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
+    , SupportsHandshakes_(packetTranscoderFactory->SupportsHandshakes())
 { }
 
 TTcpConnection::~TTcpConnection()
@@ -269,6 +270,10 @@ const TString& TTcpConnection::GetLoggingTag() const
 
 void TTcpConnection::EnqueueHandshake()
 {
+    if (!SupportsHandshakes_) {
+        return;
+    }
+
     NProto::THandshake handshake;
     ToProto(handshake.mutable_foreign_connection_id(), Id_);
     if (ConnectionType_ == EConnectionType::Client) {

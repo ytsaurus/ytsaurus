@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/bus/tcp/packet.h>
+
+namespace NYT::NZookeeper {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<NBus::IPacketTranscoderFactory> CreateZookeeperPacketTranscoderFactory();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NZookeeper
