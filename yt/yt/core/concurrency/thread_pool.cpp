@@ -146,8 +146,7 @@ class TThreadPool::TImpl
 public:
     TImpl(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool startThreads)
+        const TString& threadNamePrefix)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TInvokerQueueAdapter>(
             CallbackEventCount_,
@@ -155,9 +154,6 @@ public:
         , Invoker_(Queue_)
     {
         Configure(threadCount);
-        if (startThreads) {
-            EnsureStarted();
-        }
     }
 
     ~TImpl()
@@ -211,12 +207,10 @@ private:
 
 TThreadPool::TThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool startThreads)
+    const TString& threadNamePrefix)
     : Impl_(New<TImpl>(
         threadCount,
-        threadNamePrefix,
-        startThreads))
+        threadNamePrefix))
 { }
 
 TThreadPool::~TThreadPool() = default;
