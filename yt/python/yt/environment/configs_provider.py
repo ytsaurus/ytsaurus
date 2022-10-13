@@ -891,6 +891,8 @@ def _build_http_proxy_config(proxy_dir,
 
         config["driver"] = driver_config
 
+        config["zookeeper"] = {}
+
         proxy_configs.append(config)
 
     return proxy_configs
