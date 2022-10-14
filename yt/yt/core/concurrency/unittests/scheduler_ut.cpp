@@ -102,6 +102,8 @@ int RecursiveFunction(size_t maxDepth, size_t currentDepth)
         + RecursiveFunction(maxDepth, currentDepth + 1);
 }
 
+// Fiber stack base address is unavailable on Windows (and always returns nullptr).
+#ifndef _win_
 TEST_W(TSchedulerTest, CheckFiberStack)
 {
     auto asyncResult1 = BIND(&RecursiveFunction, 10, 0)
@@ -124,6 +126,7 @@ TEST_W(TSchedulerTest, CheckFiberStack)
         WaitFor(asyncResult2).ThrowOnError(),
         ContainsRegex("Evaluation depth causes stack overflow"));
 }
+#endif
 
 TEST_W(TSchedulerTest, SimpleAsync)
 {
@@ -829,7 +832,7 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
 }
 
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined (YT_ALLOC_ENABLED)
 
 using NYTAlloc::TMemoryTag;
 using NYTAlloc::SetCurrentMemoryTag;
@@ -1558,4 +1561,3 @@ INSTANTIATE_TEST_SUITE_P(
 
 } // namespace
 } // namespace NYT::NConcurrency
-

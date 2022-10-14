@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/proc.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,14 +102,14 @@ struct IPoller
     virtual TFuture<void> Unregister(const IPollablePtr& pollable) = 0;
 
     //! Arms the poller to handle events of a given type for a given entity.
-    virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) = 0;
+    virtual void Arm(TFileDescriptor fd, const IPollablePtr& pollable, EPollControl control) = 0;
 
     //! Schedule call of #IPollable::OnEvent with EPollControl::Retry.
     //! From OnEvent could be called with wakeup = false to not wake new thread.
     virtual void Retry(const IPollablePtr& pollable, bool wakeup = true) = 0;
 
     //! Unarms the poller.
-    virtual void Unarm(int fd, const IPollablePtr& pollable) = 0;
+    virtual void Unarm(TFileDescriptor fd, const IPollablePtr& pollable) = 0;
 
     //! Returns the invoker capable of executing arbitrary callbacks
     //! in the poller's context.

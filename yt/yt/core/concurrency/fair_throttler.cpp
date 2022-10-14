@@ -309,7 +309,7 @@ struct TLeakyCounter
         }
 
         *Value += delta;
-        return std::max(currentValue - maxValue, 0L);
+        return std::max<i64>(currentValue - maxValue, 0);
     }
 };
 
@@ -438,7 +438,7 @@ public:
 
     i64 GetQueueTotalAmount() const override
     {
-        return Max(-Quota_.Value->load(), 0l) + QueueSize_.load();
+        return Max<i64>(-Quota_.Value->load(), 0) + QueueSize_.load();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
@@ -472,7 +472,7 @@ public:
         return TBucketState{
             .Usage = Usage_.exchange(0),
             .Quota = quota,
-            .Overdraft = Max(-quota, 0l),
+            .Overdraft = Max<i64>(-quota, 0),
             .QueueSize = QueueSize_.load(),
         };
     }
