@@ -69,6 +69,7 @@ struct TBundleInfo
     TInstanceResourcesPtr ResourceQuota;
     TInstanceResourcesPtr ResourceAllocated;
     TInstanceResourcesPtr ResourceAlive;
+    TInstanceResourcesPtr ResourceTarget;
 
     THashMap<TString, TInstanceInfoPtr> AllocatedTabletNodes;
     THashMap<TString, TInstanceInfoPtr> AllocatedRpcProxies;
