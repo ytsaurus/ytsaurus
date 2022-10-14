@@ -1619,11 +1619,7 @@ protected:
             YT_LOG_INFO(error, "Aborting all jobs in partition because of chunk mapping invalidation (PartitionIndex: %v)",
                 partitionIndex);
             for (const auto& joblet : ActiveJoblets_[partitionIndex]) {
-                Controller_->Host->AbortJob(
-                    joblet->JobId,
-                    TError("Job is aborted due to chunk mapping invalidation")
-                        << error
-                        << TErrorAttribute("abort_reason", EAbortReason::ChunkMappingInvalidated));
+                Controller_->AbortJobFromController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
                 InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
