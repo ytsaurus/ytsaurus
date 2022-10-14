@@ -64,7 +64,7 @@ TIntrusivePtr<IGenericInvokerPool<TOutputInvoker>> TransformInvokerPool(
         invokers.push_back(functor(inputInvokerPool->GetInvoker(invokerIndex)));
     }
 
-    return New<NDetail::TInvokerPoolWrapper<TOutputInvoker, TIntrusivePtr<IGenericInvokerPool<TInputInvoker>>>>(
+    return New<NYT::NDetail::TInvokerPoolWrapper<TOutputInvoker, TIntrusivePtr<IGenericInvokerPool<TInputInvoker>>>>(
         std::move(invokers),
         std::move(inputInvokerPool));
 }
