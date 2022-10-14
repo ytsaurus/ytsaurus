@@ -1286,6 +1286,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
     for (const auto& error : permissionCheckErrors) {
+        if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            continue;
+        }
         error.ThrowOnError();
     }
 
