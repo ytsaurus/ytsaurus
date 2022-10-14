@@ -105,7 +105,7 @@ struct TCallableBindState;
 
 template <class S1, class R2, class... TArgs2>
 struct TCallableBindState<S1, R2(TArgs2...)>
-    : public NDetail::TBindStateBase
+    : public NYT::NDetail::TBindStateBase
 {
     TCallback<S1> Callback;
 
@@ -114,7 +114,7 @@ struct TCallableBindState<S1, R2(TArgs2...)>
         const TSourceLocation& location,
 #endif
         TCallback<S1> callback)
-        : NDetail::TBindStateBase(
+        : NYT::NDetail::TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
 #endif
@@ -122,7 +122,7 @@ struct TCallableBindState<S1, R2(TArgs2...)>
         , Callback(std::move(callback))
     { }
 
-    static R2 Run(NDetail::TBindStateBase* base, TArgs2&&... args)
+    static R2 Run(NYT::NDetail::TBindStateBase* base, TArgs2&&... args)
     {
         auto* state = static_cast<TCallableBindState*>(base);
         return state->Callback(std::forward<TArgs2>(args)...);
@@ -131,7 +131,7 @@ struct TCallableBindState<S1, R2(TArgs2...)>
 
 template <class S1, class... TArgs2>
 struct TCallableBindState<S1, void(TArgs2...)>
-    : public NDetail::TBindStateBase
+    : public NYT::NDetail::TBindStateBase
 {
     TCallback<S1> Callback;
 
@@ -140,7 +140,7 @@ struct TCallableBindState<S1, void(TArgs2...)>
         const TSourceLocation& location,
 #endif
         TCallback<S1> callback)
-        : NDetail::TBindStateBase(
+        : NYT::NDetail::TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
 #endif
@@ -148,7 +148,7 @@ struct TCallableBindState<S1, void(TArgs2...)>
         , Callback(std::move(callback))
     { }
 
-    static void Run(NDetail::TBindStateBase* base, TArgs2&&... args)
+    static void Run(NYT::NDetail::TBindStateBase* base, TArgs2&&... args)
     {
         auto* state = static_cast<TCallableBindState*>(base);
         state->Callback(std::forward<TArgs2>(args)...);
@@ -179,7 +179,7 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    TCallback(TIntrusivePtr<NDetail::TBindStateBase>&& bindState, TTypedInvokeFunction invokeFunction)
+    TCallback(TIntrusivePtr<NYT::NDetail::TBindStateBase>&& bindState, TTypedInvokeFunction invokeFunction)
         : TCallbackBase(std::move(bindState))
     {
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
