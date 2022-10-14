@@ -54,6 +54,11 @@ public:
     void Stop() override;
 
 private:
+    struct TBundleProfilingCounters
+    {
+        NProfiling::TGauge RunningActions;
+    };
+
     const TDuration ExpirationTime_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
@@ -62,6 +67,7 @@ private:
     THashMap<TString, std::vector<TActionDescriptor>> PendingActionDescriptors_;
     THashMap<TString, THashSet<TTabletActionPtr>> RunningActions_;
     THashMap<TString, std::queue<TTabletActionPtr>> FinishedActions_;
+    THashMap<TString, TBundleProfilingCounters> ProfilingCounters_;
 
     bool Started_ = false;
     TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
@@ -70,6 +76,7 @@ private:
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
     void MoveFinishedActionsFromRunningToFinished();
+    TBundleProfilingCounters& GetOrCreateProfilingCounters(const TString& bundleName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,9 +273,23 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         if (!runningActions.empty()) {
             relevantBundles.emplace(bundleName);
         }
+        
+        GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
     }
 
     DropMissingKeys(&RunningActions_, relevantBundles);
+}
+
+TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const TString& bundleName)
+{
+    if (auto it = ProfilingCounters_.find(bundleName); it != ProfilingCounters_.end()) {
+        return it->second;
+    }
+    return EmplaceOrCrash(ProfilingCounters_, bundleName, TBundleProfilingCounters{
+        .RunningActions = TabletBalancerProfiler
+            .WithTag("tablet_cell_bundle", bundleName)
+            .Gauge("/action_manager/running_actions")
+    })->second;
 }
 
 IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescriptor& descriptor)
