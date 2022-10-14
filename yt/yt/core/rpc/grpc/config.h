@@ -12,6 +12,21 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDispatcherConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int ThreadCount;
+
+    REGISTER_YSON_STRUCT(TDispatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSslPemKeyCertPairConfig
     : public NYTree::TYsonStruct
 {

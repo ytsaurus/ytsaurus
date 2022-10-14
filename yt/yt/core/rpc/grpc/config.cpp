@@ -6,6 +6,15 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDispatcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("thread_count", &TThis::ThreadCount)
+        .GreaterThan(0)
+        .Default(4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSslPemKeyCertPairConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("private_key", &TThis::PrivateKey)
