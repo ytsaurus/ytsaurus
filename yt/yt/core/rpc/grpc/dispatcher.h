@@ -26,6 +26,13 @@ class TDispatcher
 public:
     static TDispatcher* Get();
 
+    //! Configures the dispatcher.
+    /*!
+     *  Can only can called once; subsequent calls will throw.
+    *   The call must be done prior to any GRPC client or server is created.
+     */
+    void Configure(const TDispatcherConfigPtr& config);
+
     TGrpcLibraryLockPtr CreateLibraryLock();
     TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue();
 

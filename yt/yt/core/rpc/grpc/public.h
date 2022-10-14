@@ -6,6 +6,7 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TSslPemKeyCertPairConfig)
 DECLARE_REFCOUNTED_CLASS(TServerCredentialsConfig)
 DECLARE_REFCOUNTED_CLASS(TServerAddressConfig)
