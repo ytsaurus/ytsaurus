@@ -245,12 +245,12 @@ public:
         return cookie->UnregisterPromise.ToFuture();
     }
 
-    void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
+    void Arm(TFileDescriptor fd, const IPollablePtr& pollable, EPollControl control) override
     {
         PollerThread_->Arm(fd, pollable, control);
     }
 
-    void Unarm(int fd, const IPollablePtr& pollable) override
+    void Unarm(TFileDescriptor fd, const IPollablePtr& pollable) override
     {
         PollerThread_->Unarm(fd, pollable);
     }
@@ -299,7 +299,7 @@ private:
             ScheduleWakeup();
         }
 
-        void Arm(int fd, const IPollablePtr& pollable, EPollControl control)
+        void Arm(TFileDescriptor fd, const IPollablePtr& pollable, EPollControl control)
         {
             YT_LOG_DEBUG("Arming poller (%v, FD: %v, Control: %v)",
                 pollable->GetLoggingTag(),
@@ -309,7 +309,7 @@ private:
             PollerImpl_.Set(ToImplPollable(pollable), fd, ToImplControl(control));
         }
 
-        void Unarm(int fd, const IPollablePtr& pollable)
+        void Unarm(TFileDescriptor fd, const IPollablePtr& pollable)
         {
             YT_LOG_DEBUG("Unarming poller (%v, FD: %v)",
                 pollable->GetLoggingTag(),

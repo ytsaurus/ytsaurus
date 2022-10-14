@@ -285,6 +285,7 @@ TEST_F(TFairThrottlerIPCTest, TwoBucket)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef _win_
 TEST(TFileIPC, Test)
 {
     auto path = GetOutputPath() / "test_ipc";
@@ -308,6 +309,7 @@ TEST(TFileIPC, Test)
     ASSERT_EQ(0u, a->ListBuckets().size());
     ASSERT_EQ(0u, b->ListBuckets().size());
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

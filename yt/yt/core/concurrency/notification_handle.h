@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#ifdef _win_
+    #include <util/system/pipe.h>
+#endif
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +33,9 @@ public:
 private:
 #ifdef _linux_
     int EventFD_ = -1;
+#elif defined(_win_)
+    TPipeHandle Reader_;
+    TPipeHandle Writer_;
 #else
     int PipeFDs_[2] = {-1, -1};
 #endif
@@ -38,4 +45,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

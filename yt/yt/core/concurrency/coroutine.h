@@ -11,6 +11,10 @@
 
 #include <type_traits>
 
+#ifdef _win_
+#undef Yield
+#endif
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////

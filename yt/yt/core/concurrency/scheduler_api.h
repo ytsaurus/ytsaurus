@@ -4,6 +4,10 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#ifdef _win_
+#undef Yield
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

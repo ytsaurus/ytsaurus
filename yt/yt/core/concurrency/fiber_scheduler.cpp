@@ -368,14 +368,7 @@ private:
 
     void DoDestroyIdleFibers()
     {
-        // The current thread could be already exiting and MacOS has some issues
-        // with registering new thread-local terminators in this case:
-        // https://github.com/lionheart/openradar-mirror/issues/20926
-        // As a matter of workaround, we offload all finalization logic to a separate
-        // temporary thread.
-        std::thread thread([&] {
-            ::TThread::SetCurrentThreadName("IdleFiberDtor");
-
+        auto destroy_fibers_impl = [&] {
             std::vector<TFiberPtr> fibers;
             IdleFibers_.DequeueAll(&fibers);
 
@@ -392,8 +385,26 @@ private:
             }
 
             fibers.clear();
+        };
+
+    #ifdef _unix_
+        // The current thread could be already exiting and MacOS has some issues
+        // with registering new thread-local terminators in this case:
+        // https://github.com/lionheart/openradar-mirror/issues/20926
+        // As a matter of workaround, we offload all finalization logic to a separate
+        // temporary thread.
+        std::thread thread([&] {
+            ::TThread::SetCurrentThreadName("IdleFiberDtor");
+
+            destroy_fibers_impl();
         });
         thread.join();
+    #else
+        // Starting threads in exit handlers on Windows causes immidiate calling exit
+        // so the routine will not be executed. Moreover, if we try to join this thread we'll get deadlock
+        // because this thread will try to acquire atexit lock which is owned by this thread.
+        destroy_fibers_impl();
+    #endif
     }
 
     DECLARE_LEAKY_SINGLETON_FRIEND()
