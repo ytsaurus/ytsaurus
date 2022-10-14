@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
