@@ -193,7 +193,7 @@ private:
             return;
         }
 
-        const auto& resourceUsage = GetOrCrash(input.BundleResourceAlive, bundleName);
+        const auto& resourceUsage = GetOrCrash(input.BundleResourceTarget, bundleName);
         if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
             YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: %v, ResourceUsage: %v)",
                 bundleName,
@@ -675,6 +675,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 {
     THashMap<TString, TInstanceResourcesPtr> aliveResources;
     THashMap<TString, TInstanceResourcesPtr> allocatedResources;
+    THashMap<TString, TInstanceResourcesPtr> targetResources;
 
     auto calculateResources = [] (
         const auto& aliveNames,
@@ -696,7 +697,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.AllocatedProxiesBySize.clear();
     input.AliveProxiesBySize.clear();
 
-    for (const auto& [bundleName, _] : input.Bundles) {
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         {
             auto aliveResourceUsage = New<TInstanceResources>();
             aliveResourceUsage->Clear();
@@ -718,10 +719,23 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
             allocatedResources[bundleName] = allocated;
         }
+
+        {
+            const auto& targetConfig = bundleInfo->TargetConfig;
+            const auto& nodeGuarantee = targetConfig->TabletNodeResourceGuarantee;
+            const auto& proxyGuarantee = targetConfig->RpcProxyResourceGuarantee;
+
+            auto targetResource = New<TInstanceResources>();
+            targetResource->Vcpu = nodeGuarantee->Vcpu * targetConfig->TabletNodeCount + proxyGuarantee->Vcpu * targetConfig->RpcProxyCount;
+            targetResource->Memory = nodeGuarantee->Memory * targetConfig->TabletNodeCount + proxyGuarantee->Memory * targetConfig->RpcProxyCount;
+
+            targetResources[bundleName] = targetResource;
+        }
     }
 
     input.BundleResourceAlive = aliveResources;
     input.BundleResourceAllocated = allocatedResources;
+    input.BundleResourceTarget = targetResources;
 }
 
 THashSet<TString> GetAliveNodes(

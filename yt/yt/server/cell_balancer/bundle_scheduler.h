@@ -61,6 +61,7 @@ struct TSchedulerInputState
 
     THashMap<TString, TInstanceResourcesPtr> BundleResourceAlive;
     THashMap<TString, TInstanceResourcesPtr> BundleResourceAllocated;
+    THashMap<TString, TInstanceResourcesPtr> BundleResourceTarget;
 
     using TInstanceCountBySize = THashMap<TString, int>;
     THashMap<TString, TInstanceCountBySize> AllocatedNodesBySize;

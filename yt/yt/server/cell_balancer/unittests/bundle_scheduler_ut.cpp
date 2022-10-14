@@ -440,36 +440,52 @@ TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
 {
     auto input = GenerateSimpleInputContext(5);
 
-    GenerateNodesForBundle(input, "default-bundle", 1, false, 5, 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    {
+        auto& bundleInfo = input.Bundles["default-bundle"];
+        bundleInfo->ResourceQuota = New<TResourceQuota>();
+        bundleInfo->ResourceQuota->Cpu = 0.1;
+        bundleInfo->ResourceQuota->Memory = 10_TB;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+
+        EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+        EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
+    }
+
+    {
+        auto& bundleInfo = input.Bundles["default-bundle"];
+        bundleInfo->ResourceQuota->Cpu = 100;
+        bundleInfo->ResourceQuota->Memory = 1;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+
+        EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+        EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
+    }
 
     auto& bundleInfo = input.Bundles["default-bundle"];
-    bundleInfo->ResourceQuota = New<TResourceQuota>();
-    bundleInfo->ResourceQuota->Cpu = 0.1;
-    bundleInfo->ResourceQuota->Memory = 1;
-
-    TSchedulerMutations mutations;
-    ScheduleBundles(input, &mutations);
-
-    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
-
-    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
-
     bundleInfo->ResourceQuota->Cpu = 100;
     bundleInfo->ResourceQuota->Memory = 10_TB;
 
-    mutations = TSchedulerMutations{};
+    TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
     EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    VerifyNodeAllocationRequests(mutations, 3);
+    VerifyNodeAllocationRequests(mutations, 5);
 
-    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)

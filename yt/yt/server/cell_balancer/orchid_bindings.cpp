@@ -49,6 +49,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("resource_alive", &TThis::ResourceAlive)
         .DefaultNew();
+    registrar.Parameter("resource_target", &TThis::ResourceTarget)
+        .DefaultNew();
 
     registrar.Parameter("allocated_tablet_nodes", &TThis::AllocatedTabletNodes)
         .Default();
@@ -158,6 +160,7 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         auto bundleOrchidInfo = New<TBundleInfo>();
         bundleOrchidInfo->ResourceAllocated->Clear();
         bundleOrchidInfo->ResourceAlive->Clear();
+        bundleOrchidInfo->ResourceTarget->Clear();
 
         PopulateInstancies(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
         PopulateInstancies(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
@@ -191,6 +194,10 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
 
         if (auto it = state.BundleResourceAllocated.find(bundleName); it != state.BundleResourceAllocated.end()) {
             bundleOrchidInfo->ResourceAllocated = CloneYsonSerializable(it->second);
+        }
+
+        if (auto it = state.BundleResourceTarget.find(bundleName); it != state.BundleResourceTarget.end()) {
+            bundleOrchidInfo->ResourceTarget = CloneYsonSerializable(it->second);
         }
 
         if (auto it = mergedBundlesState.find(bundleName); it != mergedBundlesState.end()) {
