@@ -228,10 +228,6 @@ TError TPermissionCache::ParseCheckPermissionResponse(
     const TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        // Skip resolve errors, these are better handled elsewhere.
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return {};
-        }
         return TError("Error checking permissions for %v", key.Object)
             << rspOrError;
     }
