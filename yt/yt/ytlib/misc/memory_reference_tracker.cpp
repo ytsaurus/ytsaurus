@@ -13,6 +13,7 @@ namespace NYT {
 /////////////////////////////////////////////////////////////////////////////
 
 constexpr int ReferenceAddressMapShardCount = 256;
+constexpr int ReferenceAddressExpectedAlignmentLog = 4;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +136,7 @@ private:
 
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key)
     {
-        return ReferenceAddressToState_[key.first % ReferenceAddressMapShardCount];
+        return ReferenceAddressToState_[(key.first >> ReferenceAddressExpectedAlignmentLog) % ReferenceAddressMapShardCount];
     }
 
     TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepHolder)
