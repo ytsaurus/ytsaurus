@@ -29,6 +29,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/grpc/dispatcher.h>
 
 #include <yt/yt/core/service_discovery/yp/service_discovery.h>
 
@@ -108,6 +109,8 @@ void ConfigureSingletonsImpl(const TConfig& config)
     NBus::TTcpDispatcher::Get()->Configure(config->TcpDispatcher);
 
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher);
+
+    NRpc::NGrpc::TDispatcher::Get()->Configure(config->GrpcDispatcher);
 
     NRpc::TDispatcher::Get()->SetServiceDiscovery(
         NServiceDiscovery::NYP::CreateServiceDiscovery(config->YPServiceDiscovery));
