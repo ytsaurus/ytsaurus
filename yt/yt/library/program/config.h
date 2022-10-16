@@ -10,6 +10,7 @@
 #include <yt/yt/core/net/config.h>
 
 #include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/grpc/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -74,6 +75,7 @@ public:
     NNet::TAddressResolverConfigPtr AddressResolver;
     NBus::TTcpDispatcherConfigPtr TcpDispatcher;
     NRpc::TDispatcherConfigPtr RpcDispatcher;
+    NRpc::NGrpc::TDispatcherConfigPtr GrpcDispatcher;
     NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
     NProfiling::TProfileManagerConfigPtr ProfileManager;
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;

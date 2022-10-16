@@ -45,6 +45,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("rpc_dispatcher", &TThis::RpcDispatcher)
         .DefaultNew();
+    registrar.Parameter("grpc_dispatcher", &TThis::GrpcDispatcher)
+        .DefaultNew();
     registrar.Parameter("yp_service_discovery", &TThis::YPServiceDiscovery)
         .DefaultNew();
     registrar.Parameter("profile_manager", &TThis::ProfileManager)
