@@ -44,6 +44,7 @@ YT_DEFINE_ERROR_ENUM(
     ((UploadTransactionCannotHaveNested)(11009))
     ((ForeignParentTransaction)         (11010))
     ((ForeignPrerequisiteTransaction)   (11011))
+    ((IncompletePrepareSignature)       (11012))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

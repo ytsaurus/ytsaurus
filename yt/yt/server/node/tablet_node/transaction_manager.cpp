@@ -360,7 +360,9 @@ public:
         }
 
         if (prepareSignature != FinalTransactionSignature) {
-            THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected prepare signature %x, actual signature %x",
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::IncompletePrepareSignature,
+                "Transaction %v is incomplete: expected prepare signature %x, actual signature %x",
                 transactionId,
                 FinalTransactionSignature,
                 prepareSignature);
