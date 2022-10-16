@@ -1912,10 +1912,10 @@ def add_idm_request_or_revoke_parser(parser):
     inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
     inherit_resps_group.add_argument(
         "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles", default=None,
-        help="Enable inheritance responsibles, read apporvers, auditors, boss_approval")
+        help="Enable inheritance of responsibles, read approvers, auditors, boss_approval")
     inherit_resps_group.add_argument(
         "--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
-        help="Disable inheritance of responsibles, read apporvers, auditors, boss_approval")
+        help="Disable inheritance of responsibles, read approvers, auditors, boss_approval")
 
     boss_approval_group = parser.add_mutually_exclusive_group(required=False)
     boss_approval_group.add_argument(
