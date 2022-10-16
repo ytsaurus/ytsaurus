@@ -3139,10 +3139,17 @@ private:
 
         if (auto* formerNode = chunk->GetNodeWithEndorsement()) {
             if (formerNode == nodeWithMaxId) {
+                // If there is an in-flight request to the node that is waiting for
+                // confirmation, we should treat it as outdated and send a new one.
+                auto& revision = GetOrCrash(formerNode->ReplicaEndorsements(), chunk);
+                if (revision) {
+                    revision = NullRevision;
+                }
+
                 return;
             }
 
-            YT_VERIFY(formerNode->ReplicaEndorsements().erase(chunk) == 1);
+            EraseOrCrash(formerNode->ReplicaEndorsements(), chunk);
             --EndorsementCount_;
         }
 
@@ -3163,7 +3170,7 @@ private:
         if (chunk->GetNodeWithEndorsement() != node) {
             return;
         }
-        YT_VERIFY(node->ReplicaEndorsements().erase(chunk) == 1);
+        EraseOrCrash(node->ReplicaEndorsements(), chunk);
         chunk->SetNodeWithEndorsement(nullptr);
         --EndorsementCount_;
     }
