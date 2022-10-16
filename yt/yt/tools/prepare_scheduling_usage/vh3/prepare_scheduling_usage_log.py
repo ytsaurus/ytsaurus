@@ -4,7 +4,7 @@ from typing import Literal
 
 @vh3.decorator.operation(deterministic=True, owner='robot-yt-sch-usage')
 @vh3.decorator.autorelease_to_nirvana_on_trunk_commit(
-    version="https://nirvana.yandex-team.ru/alias/operation/prepare-scheduling-usage-log/1.19",
+    version="https://nirvana.yandex-team.ru/alias/operation/prepare-scheduling-usage-log/1.20",
     ya_make_folder_path="yt/yt/tools/prepare_scheduling_usage/vh3",
 )
 @vh3.decorator.update_defaults(

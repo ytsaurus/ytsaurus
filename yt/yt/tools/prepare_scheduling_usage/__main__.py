@@ -544,7 +544,11 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
         attributes={"schema": [{"name": "pools", "type": "string"}]})
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
-    client.write_table(pools_output_table, [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}])
+    client.write_table(
+        pools_output_table,
+        [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}],
+        table_writer={"max_row_weight": 64 * 1024 * 1024},
+    )
 
     tags_output_table = yt.ypath_join(dir_name, "tags", table_name)
     client.remove(tags_output_table, force=True)
@@ -565,7 +569,11 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
             client=client
         )
 
-        client.write_table(tags_output_table, aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)))
+        client.write_table(
+            tags_output_table,
+            aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)),
+            table_writer={"max_row_weight": 64 * 1024 * 1024},
+        )
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table):
