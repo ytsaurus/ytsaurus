@@ -1345,7 +1345,7 @@ private:
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
-        const TJobletPtr& jobInfo,
+        const TJobletPtr& joblet,
         TJobSummary* jobSummary,
         bool outputStatistics,
         bool hasStderr,
@@ -1353,7 +1353,7 @@ private:
         NYTree::TFluentMap fluent) const;
 
     void AnalyzeBriefStatistics(
-        const TJobletPtr& job,
+        const TJobletPtr& joblet,
         const TSuspiciousJobsOptionsPtr& options,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
