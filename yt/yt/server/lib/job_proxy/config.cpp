@@ -181,6 +181,12 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("upload_debug_artifact_chunks", &TThis::UploadDebugArtifactChunks)
         .Default(true);
 
+    registrar.Parameter("tvm_bridge_connection", &TThis::TvmBridgeConnection)
+        .Default();
+
+    registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

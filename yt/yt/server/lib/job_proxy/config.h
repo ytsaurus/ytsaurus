@@ -4,13 +4,15 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/client/file_client/config.h>
+#include <yt/yt/ytlib/auth/config.h>
 
 #include <yt/yt/ytlib/hydra/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
+
+#include <yt/yt/client/file_client/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -169,6 +171,9 @@ public:
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
+
+    NBus::TTcpBusClientConfigPtr TvmBridgeConnection;
+    NAuth::TTvmBridgeConfigPtr TvmBridge;
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;

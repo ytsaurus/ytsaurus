@@ -23,6 +23,8 @@ public:
     IDynamicTvmServicePtr GetTvmService() const;
     bool IsValidationEnabled() const;
 
+    void SetTvmService(IDynamicTvmServicePtr tvmService);
+
 private:
     TAtomicObject<IDynamicTvmServicePtr> TvmService_;
     std::atomic<bool> EnableValidation_ = false;

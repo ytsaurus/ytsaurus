@@ -24,6 +24,9 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+#include <yt/yt/ytlib/auth/tvm_bridge_service.h>
+
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/ytree/virtual.h>
@@ -160,6 +163,14 @@ public:
         GetRpcServer()->RegisterService(CreateJobProberService(this));
 
         GetRpcServer()->RegisterService(CreateSupervisorService(this));
+
+        if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
+            // TODO(gepardo): Allow this service only for local requests from job proxy. See YT-17806 for details.
+            GetRpcServer()->RegisterService(CreateTvmBridgeService(
+                tvmService,
+                NRpc::TDispatcher::Get()->GetLightInvoker(),
+                /*authenticator*/ nullptr));
+        }
 
         GetRpcServer()->RegisterService(CreateExecNodeAdminService(this));
 
@@ -317,6 +328,14 @@ private:
 
         JobProxyConfigTemplate_->DoNotSetUserId = GetConfig()->ExecNode->DoNotSetUserId;
         JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->CheckUserJobMemoryLimit;
+
+        if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
+            JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TTcpBusClientConfig>();
+            JobProxyConfigTemplate_->TvmBridgeConnection->Address = localAddress;
+
+            JobProxyConfigTemplate_->TvmBridge = New<NAuth::TTvmBridgeConfig>();
+            JobProxyConfigTemplate_->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
+        }
     }
 
     void OnDynamicConfigChanged(
