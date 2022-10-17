@@ -432,6 +432,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
                         },
                     },
                     "max_failed_job_count": 1,
+                    "sanity_check_delay": 60000,
                 },
                 track=False,
             )

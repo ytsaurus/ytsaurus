@@ -668,6 +668,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
+    
+    registrar.Parameter("sanity_check_delay", &TThis::SanityCheckDelay)
+        .Default();
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

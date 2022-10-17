@@ -972,6 +972,9 @@ public:
 
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
+    //! Delay for performing sanity checks for operations (useful in tests).
+    TDuration SanityCheckDelay;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

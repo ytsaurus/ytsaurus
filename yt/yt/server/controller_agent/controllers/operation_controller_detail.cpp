@@ -9276,6 +9276,10 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     if (!CachedMaxAvailableExecNodeResources_) {
         return true;
     }
+    
+    if (TInstant::Now() < StartTime_ + Spec_->SanityCheckDelay) {
+        return true;
+    }
 
     return false;
 }
