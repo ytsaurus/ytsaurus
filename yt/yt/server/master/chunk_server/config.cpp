@@ -127,6 +127,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("reschedule_merge_on_success", &TThis::RescheduleMergeOnSuccess)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("validate_merger_permission", &TThis::ValidateMergerPermission)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

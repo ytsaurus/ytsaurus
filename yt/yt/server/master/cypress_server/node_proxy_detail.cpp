@@ -1965,11 +1965,19 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 
     auto hasInheritableAttributes = node->HasInheritableAttributes();
 
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ChunkMerger; \
+
 #define XX(camelCaseName, snakeCaseName) \
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::camelCaseName) \
         .SetPresent(hasInheritableAttributes && node->Has##camelCaseName()) \
         .SetWritable(true) \
-        .SetRemovable(true));
+        .SetRemovable(true)); \
+    \
+    if (EInternedAttributeKey::camelCaseName == EInternedAttributeKey::ChunkMergerMode && \
+        config->ValidateMergerPermission) \
+    { \
+        descriptors->back().SetWritePermission(EPermission::Administer); \
+    } \
 
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
