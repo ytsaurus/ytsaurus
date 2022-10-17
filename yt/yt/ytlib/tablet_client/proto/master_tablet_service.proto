@@ -149,7 +149,7 @@ message TRspGetTableBalancingAttributes
     {
         optional TTableBalancingAttributes balancing_attributes = 1;
         repeated TTablet tablets = 2;
-        repeated string user_attributes = 3;
+        repeated bytes user_attributes = 3;
     }
 
     repeated string statistics_field_names = 1;
