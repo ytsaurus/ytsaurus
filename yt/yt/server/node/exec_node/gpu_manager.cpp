@@ -224,7 +224,9 @@ void TGpuManager::OnHealthCheck()
             deviceNumbers.insert(info.Index);
         }
 
-        YT_LOG_DEBUG("Found healthy GPU devices (DeviceNumbers: %v)",
+        std::vector<int> freeDeviceNumbers;
+
+        YT_LOG_DEBUG("Updating healthy GPU devices (DeviceNumbers: %v)",
             deviceNumbers);
 
         {
@@ -269,6 +271,7 @@ void TGpuManager::OnHealthCheck()
                     YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
                         slot.GetDeviceName());
                 } else {
+                    freeDeviceNumbers.push_back(slot.GetDeviceNumber());
                     newFreeSlots.emplace_back(std::move(slot));
                 }
             }
@@ -284,6 +287,10 @@ void TGpuManager::OnHealthCheck()
             Error_ = TError();
             Alerts_ = newAlerts;
         }
+
+        YT_LOG_DEBUG("List of healthy GPU devices updated (DeviceNumbers: %v, FreeDeviceNumbers: %v)",
+            deviceNumbers,
+            freeDeviceNumbers);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get healthy GPU devices");
         BannedDeadline_ = TInstant::Now() + GetHealthCheckFailureBackoff();
@@ -385,7 +392,6 @@ void TGpuManager::ReleaseGpuSlot(TGpuSlot* slot)
 TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YT_VERIFY(!FreeSlots_.empty());
 
     auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
         ReleaseGpuSlot(slot);
@@ -393,6 +399,8 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     };
 
     auto guard = Guard(SpinLock_);
+
+    YT_VERIFY(!FreeSlots_.empty());
     TGpuSlotPtr slot(new TGpuSlot(std::move(FreeSlots_.back())), deleter);
     FreeSlots_.pop_back();
 
@@ -411,10 +419,13 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
     // TODO(ignat): use actual topology of GPU-s.
     // nvidia-smi topo -p2p r
     int levelCount = 4;
+    int maxLevelIndex = levelCount - 1;
+
     // NB: std::map used to make the behaviour deterministic.
     std::vector<std::map<int, std::vector<int>>> freeDeviceNumberPerLevelPerGroup(levelCount);
     for (const auto& slot : FreeSlots_) {
         int number = slot.GetDeviceNumber();
+        YT_VERIFY(number < (1 << maxLevelIndex));
         for (int levelIndex = 0; levelIndex < levelCount; ++levelIndex) {
             int groupIndex = number / (1 << levelIndex);
             freeDeviceNumberPerLevelPerGroup[levelIndex][groupIndex].push_back(number);
@@ -428,7 +439,7 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
             if (std::ssize(slots) >= slotCount) {
                 found = true;
                 for (int index = 0; index < slotCount; ++index) {
-                    resultDeviceNumbers.insert(slots[index]);
+                    YT_VERIFY(resultDeviceNumbers.insert(slots[index]).second);
                 }
                 break;
             }
