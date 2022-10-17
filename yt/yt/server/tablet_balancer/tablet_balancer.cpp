@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "public.h"
+#include "tablet_action.h"
 #include "tablet_balancer.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -88,6 +89,9 @@ private:
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const;
 
     std::vector<TString> UpdateBundleList();
+    bool HasUntrackedUnfinishedActions(
+        const TBundleStatePtr& bundle,
+        const IAttributeDictionary* attributes) const;
 
     bool DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle) const;
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle) const;
@@ -165,7 +169,7 @@ void TTabletBalancer::BalancerIteration()
     CurrentIterationStartTime_ = TruncatedNow();
 
     for (auto& [bundleName, bundle] : Bundles_) {
-        if (ActionManager_->HasUnfinishedActions(bundleName)) {
+        if (bundle->GetHasUntrackedUnfinishedActions() || ActionManager_->HasUnfinishedActions(bundleName)) {
             YT_LOG_DEBUG("Skip balancing iteration since bundle has unfinished actions (BundleName: %v)", bundleName);
             continue;
         }
@@ -261,7 +265,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
 std::vector<TString> TTabletBalancer::UpdateBundleList()
 {
     TListNodeOptions options;
-    options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids"};
+    options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids", "tablet_actions"};
 
     auto bundles = WaitFor(Bootstrap_
         ->GetClient()
@@ -283,6 +287,7 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
                 Bootstrap_->GetClient(),
                 WorkerPool_->GetInvoker()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
+        it->second->SetHasUntrackedUnfinishedActions(HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
 
         if (isNew) {
             newBundles.push_back(name);
@@ -292,6 +297,25 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
     // Find bundles that are not in the list of bundles (probably deleted) and erase them.
     DropMissingKeys(&Bundles_, currentBundles);
     return newBundles;
+}
+
+bool TTabletBalancer::HasUntrackedUnfinishedActions(
+    const TBundleStatePtr& bundle,
+    const IAttributeDictionary* attributes) const
+{
+    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
+    for (auto actionMapNode : actions) {
+        auto state = ConvertTo<ETabletActionState>(actionMapNode->FindChild("state"));
+        if (IsTabletActionFinished(state)) {
+            continue;
+        }
+
+        auto actionId = ConvertTo<TTabletActionId>(actionMapNode->FindChild("tablet_action_id"));
+        if (!ActionManager_->IsKnownAction(bundle->GetBundle()->Name, actionId)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool TTabletBalancer::DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle) const

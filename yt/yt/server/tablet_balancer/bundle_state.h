@@ -50,6 +50,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle, nullptr);
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
 
 public:
     TBundleState(

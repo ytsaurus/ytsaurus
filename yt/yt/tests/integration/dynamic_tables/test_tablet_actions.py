@@ -626,7 +626,7 @@ class TestTabletActions(TabletActionsBase):
 
 
 class TabletBalancerBase(TabletActionsBase):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
 
     def _set_enable_tablet_balancer(self, value):
         raise Exception("Function is not implemented")
@@ -1222,6 +1222,75 @@ class TabletBalancerBase(TabletActionsBase):
         sleep(1)
         check_balancer_is_active(False)
 
+    @authors("ifsmirnov")
+    def test_tablet_balancer_with_active_action(self):
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
+
+        create_tablet_cell_bundle("broken")
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/broken/@node_tag_filter", "custom")
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
+
+        cells_on_broken = sync_create_cells(1, tablet_cell_bundle="broken")
+        cells_on_default = sync_create_cells(2, tablet_cell_bundle="default")
+
+        self._create_sorted_table("//tmp/t1", tablet_cell_bundle="broken")
+        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
+
+        sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
+        self._decommission_all_peers(cells_on_broken[0])
+        wait(lambda: get("#{}/@health".format(cells_on_broken[0])) == "failed")
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "tablet_ids": [get("//tmp/t1/@tablets/0/tablet_id")],
+                "cell_ids": [cells_on_broken[0]],
+            },
+        )
+
+        def _check():
+            assert get("#{}/@state".format(action)) == "freezing"
+            self._validate_tablets("//tmp/t1", state=["freezing"], expected_state=["mounted"])
+
+        _check()
+
+        # test tablet balancing
+
+        sync_reshard_table("//tmp/t2", [[], [1]])
+        assert get("//tmp/t2/@tablet_count") == 2
+        sync_mount_table("//tmp/t2")
+        wait(lambda: get("//tmp/t2/@tablet_count") == 1)
+        wait_for_tablet_state("//tmp/t2", "mounted")
+
+        _check()
+
+        # test cell balancing
+
+        sync_unmount_table("//tmp/t2")
+        self._set_enable_tablet_balancer(False)
+        set("//tmp/t2/@in_memory_mode", "uncompressed")
+        sync_reshard_table("//tmp/t2", [[], [1]])
+
+        sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
+        insert_rows("//tmp/t2", [{"key": i, "value": "A" * 128} for i in range(2)])
+        sync_flush_table("//tmp/t2")
+
+        self._set_enable_tablet_balancer(True)
+
+        def wait_func():
+            cells = [tablet["cell_id"] for tablet in list(get("//tmp/t2/@tablets"))]
+            assert len(cells) == 2
+            return cells[0] != cells[1]
+
+        wait(wait_func)
+
+        _check()
+
 
 ##################################################################
 
@@ -1303,75 +1372,6 @@ class TestTabletBalancer(TabletBalancerBase):
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
         assert all(v.attributes["state"] == "completed" for v in list(tablet_actions.values()))
-
-    @authors("ifsmirnov")
-    def test_tablet_balancer_with_active_action(self):
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
-
-        create_tablet_cell_bundle("broken")
-        self._configure_bundle("default")
-        set("//sys/tablet_cell_bundles/broken/@node_tag_filter", "custom")
-        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
-
-        cells_on_broken = sync_create_cells(1, tablet_cell_bundle="broken")
-        cells_on_default = sync_create_cells(2, tablet_cell_bundle="default")
-
-        self._create_sorted_table("//tmp/t1", tablet_cell_bundle="broken")
-        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
-
-        sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
-        self._decommission_all_peers(cells_on_broken[0])
-        wait(lambda: get("#{}/@health".format(cells_on_broken[0])) == "failed")
-
-        action = create(
-            "tablet_action",
-            "",
-            attributes={
-                "kind": "move",
-                "keep_finished": True,
-                "tablet_ids": [get("//tmp/t1/@tablets/0/tablet_id")],
-                "cell_ids": [cells_on_broken[0]],
-            },
-        )
-
-        def _check():
-            assert get("#{}/@state".format(action)) == "freezing"
-            self._validate_tablets("//tmp/t1", state=["freezing"], expected_state=["mounted"])
-
-        _check()
-
-        # test tablet balancing
-
-        sync_reshard_table("//tmp/t2", [[], [1]])
-        assert get("//tmp/t2/@tablet_count") == 2
-        sync_mount_table("//tmp/t2")
-        wait(lambda: get("//tmp/t2/@tablet_count") == 1)
-        wait_for_tablet_state("//tmp/t2", "mounted")
-
-        _check()
-
-        # test cell balancing
-
-        sync_unmount_table("//tmp/t2")
-        self._set_enable_tablet_balancer(False)
-        set("//tmp/t2/@in_memory_mode", "uncompressed")
-        sync_reshard_table("//tmp/t2", [[], [1]])
-
-        sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
-        insert_rows("//tmp/t2", [{"key": i, "value": "A" * 128} for i in range(2)])
-        sync_flush_table("//tmp/t2")
-
-        self._set_enable_tablet_balancer(True)
-
-        def wait_func():
-            cells = [tablet["cell_id"] for tablet in list(get("//tmp/t2/@tablets"))]
-            assert len(cells) == 2
-            return cells[0] != cells[1]
-
-        wait(wait_func)
-
-        _check()
 
     @authors("ifsmirnov")
     def test_min_tablet_count(self):
