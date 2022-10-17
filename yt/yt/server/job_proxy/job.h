@@ -96,6 +96,8 @@ struct IJobHost
     virtual TString AdjustPath(const TString& path) const = 0;
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
+
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

@@ -41,6 +41,11 @@ IDynamicTvmServicePtr TNativeAuthenticationManager::GetTvmService() const
     return TvmService_.Load();
 }
 
+void TNativeAuthenticationManager::SetTvmService(IDynamicTvmServicePtr tvmService)
+{
+    TvmService_.Store(std::move(tvmService));
+}
+
 bool TNativeAuthenticationManager::IsValidationEnabled() const
 {
     return EnableValidation_.load(std::memory_order_relaxed);

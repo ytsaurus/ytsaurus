@@ -5,6 +5,7 @@
 #include <yt/yt/library/auth_server/config.h>
 
 #include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/backoff_strategy.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -43,6 +44,31 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerDynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTvmBridgeConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Source TVM id.
+    TTvmId SelfTvmId;
+
+    //! Period to refresh the TVM tokens.
+    TDuration RefreshPeriod;
+
+    //! Backoff for EnsureDestinationServiceIds().
+    TSerializableExponentialBackoffOptionsPtr EnsureTicketsBackoff;
+
+    //! Timeout for RPC calls.
+    TDuration RpcTimeout;
+
+    REGISTER_YSON_STRUCT(TTvmBridgeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTvmBridgeConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

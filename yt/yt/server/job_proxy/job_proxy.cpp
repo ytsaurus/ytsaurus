@@ -22,6 +22,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+#include <yt/yt/ytlib/auth/tvm_bridge.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -37,6 +40,8 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
+
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -603,6 +608,14 @@ TJobResult TJobProxy::RunJob()
     IJobPtr job;
 
     try {
+        if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
+            auto tvmBridgeClient = CreateTcpBusClient(Config_->TvmBridgeConnection);
+            auto tvmBridgeChannel = NRpc::NBus::CreateBusChannel(tvmBridgeClient);
+
+            TvmBridge_ = NAuth::CreateTvmBridge(GetControlInvoker(), tvmBridgeChannel, Config_->TvmBridge);
+            NAuth::TNativeAuthenticationManager::Get()->SetTvmService(TvmBridge_);
+        }
+
         SolomonExporter_ = New<TSolomonExporter>(
             Config_->SolomonExporter,
             TProfileManager::Get()->GetInvoker());
@@ -619,15 +632,30 @@ TJobResult TJobProxy::RunJob()
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->Start();
 
+        if (TvmBridge_) {
+            YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", TvmBridge_->GetSelfTvmId());
+
+            WaitFor(TvmBridge_->EnsureDestinationServiceIds({TvmBridge_->GetSelfTvmId()}))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Destination service id is ready");
+        }
+
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
+        if (TvmBridge_) {
+            auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmId());
+            supervisorChannel = CreateServiceTicketInjectingChannel(
+                std::move(supervisorChannel),
+                NAuth::TAuthenticationOptions::FromServiceTicketAuth(serviceTicketAuth));
+        }
 
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         RetrieveJobSpec();
 
-        auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
@@ -749,6 +777,20 @@ TJobResult TJobProxy::RunJob()
     CpuMonitor_->Start();
 
     return job->Run();
+}
+
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionConfigPtr config)
+{
+    if (TvmBridge_ && config->TvmId) {
+        YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->TvmId);
+
+        WaitFor(TvmBridge_->EnsureDestinationServiceIds({*config->TvmId}))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Destination service id is ready");
+    }
+
+    return NApi::NNative::CreateConnection(std::move(config));
 }
 
 void TJobProxy::ReportResult(

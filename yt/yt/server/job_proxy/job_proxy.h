@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/auth/public.h>
+
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -71,6 +73,8 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
+
+    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionConfigPtr config) override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -145,6 +149,8 @@ private:
     NChunkClient::IBlockCachePtr ReaderBlockCache_;
 
     NProfiling::TSolomonExporterPtr SolomonExporter_;
+
+    NAuth::ITvmBridgePtr TvmBridge_;
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;

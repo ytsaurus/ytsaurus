@@ -109,9 +109,6 @@ public:
         ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
-
-        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
-        RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
     }
 
     void PopulateInputNodeDirectory() const override
@@ -122,6 +119,9 @@ public:
 
     void Initialize() override
     {
+        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
+        RemoteConnection_ = Host_->CreateNativeConnection(remoteConnectionConfig);
+
         TJob::Initialize();
 
         TExtraChunkTags extraChunkTags;

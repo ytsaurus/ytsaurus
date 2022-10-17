@@ -1,0 +1,28 @@
+package NYT.NAuth.NProto;
+
+import "yt_proto/yt/core/misc/proto/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFetchTickets
+{
+    optional uint32 source = 1; // TVM id
+    repeated uint32 destinations = 2; // TVM ids
+}
+
+message TRspFetchTickets
+{
+    message TSubresult
+    {
+        optional uint32 destination = 2; // TVM id
+
+        oneof result {
+            string ticket = 3;
+            NYT.NProto.TError error = 4;
+        }
+    }
+
+    repeated TSubresult results = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
