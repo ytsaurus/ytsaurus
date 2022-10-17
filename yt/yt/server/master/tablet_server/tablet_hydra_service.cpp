@@ -200,8 +200,8 @@ private:
                 }
             }
 
-            for (const auto& userAttributeName : request->user_attribute_keys()) {
-                auto attribute = table->FindAttribute(userAttributeName);
+            for (const auto& userAttributeKey : request->user_attribute_keys()) {
+                auto attribute = table->FindAttribute(userAttributeKey);
                 if (attribute) {
                     protoTable->add_user_attributes(attribute->ToString());
                 } else {

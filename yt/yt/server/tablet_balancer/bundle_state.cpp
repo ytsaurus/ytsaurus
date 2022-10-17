@@ -405,7 +405,7 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
             request->add_user_attribute_keys("enable_parameterized_balancing");
-    });
+        });
 
     THashMap<TTableId, TTableSettings> tableConfigs;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
@@ -425,9 +425,9 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
             }
 
             bool enableParameterizedBalancing = false;
-            auto enableParameterizedBalancingProto = response.user_attributes()[0];
+            const auto& enableParameterizedBalancingProto = response.user_attributes()[0];
             if (!enableParameterizedBalancingProto.empty()) {
-                enableParameterizedBalancing = ConvertTo<bool>(enableParameterizedBalancingProto);
+                enableParameterizedBalancing = ConvertTo<bool>(TYsonString(enableParameterizedBalancingProto));
             }
 
             const auto& attributes = response.balancing_attributes();
@@ -460,7 +460,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
             ToProto(request->mutable_requested_performance_counters(), performanceCountersKeys);
-    });
+        });
 
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
