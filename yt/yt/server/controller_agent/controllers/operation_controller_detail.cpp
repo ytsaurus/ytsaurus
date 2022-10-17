@@ -8613,12 +8613,12 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 
 // TODO(max42): rename job -> joblet.
 void TOperationControllerBase::AnalyzeBriefStatistics(
-    const TJobletPtr& job,
+    const TJobletPtr& joblet,
     const TSuspiciousJobsOptionsPtr& options,
     const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
     if (!briefStatisticsOrError.IsOK()) {
-        if (job->BriefStatistics) {
+        if (joblet->BriefStatistics) {
             // Failures in brief statistics building are normal during job startup,
             // when readers and writers are not built yet. After we successfully built
             // brief statistics once, we shouldn't fail anymore.
@@ -8626,7 +8626,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
             YT_LOG_WARNING(
                 briefStatisticsOrError,
                 "Failed to build brief job statistics (JobId: %v)",
-                job->JobId);
+                joblet->JobId);
         }
 
         return;
@@ -8634,30 +8634,30 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
     const auto& briefStatistics = briefStatisticsOrError.Value();
 
-    bool wasActive = !job->BriefStatistics ||
+    bool wasActive = !joblet->BriefStatistics ||
         CheckJobActivity(
-            job->BriefStatistics,
+            joblet->BriefStatistics,
             briefStatistics,
             options,
-            job->JobType);
+            joblet->JobType);
 
-    bool wasSuspicious = job->Suspicious;
-    job->Suspicious = (!wasActive && briefStatistics->Timestamp - job->LastActivityTime > options->InactivityTimeout);
-    if (!wasSuspicious && job->Suspicious) {
+    bool wasSuspicious = joblet->Suspicious;
+    joblet->Suspicious = (!wasActive && briefStatistics->Timestamp - joblet->LastActivityTime > options->InactivityTimeout);
+    if (!wasSuspicious && joblet->Suspicious) {
         YT_LOG_DEBUG("Found a suspicious job (JobId: %v, JobType: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
             "OldBriefStatistics: %v, NewBriefStatistics: %v)",
-            job->JobId,
-            job->JobType,
-            job->LastActivityTime,
+            joblet->JobId,
+            joblet->JobType,
+            joblet->LastActivityTime,
             options->InactivityTimeout,
-            job->BriefStatistics,
+            joblet->BriefStatistics,
             briefStatistics);
     }
 
-    job->BriefStatistics = briefStatistics;
+    joblet->BriefStatistics = briefStatistics;
 
     if (wasActive) {
-        job->LastActivityTime = job->BriefStatistics->Timestamp;
+        joblet->LastActivityTime = joblet->BriefStatistics->Timestamp;
     }
 }
 
@@ -9232,7 +9232,7 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     if (!CachedMaxAvailableExecNodeResources_) {
         return true;
     }
-    
+
     if (TInstant::Now() < StartTime_ + Spec_->SanityCheckDelay) {
         return true;
     }
