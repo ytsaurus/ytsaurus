@@ -64,13 +64,13 @@ struct TJobSummary
     std::optional<TInstant> FinishTime;
     NJobAgent::TTimeStatistics TimeStatistics;
 
-    // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    std::optional<TStatistics> Statistics;
-    NYson::TYsonString StatisticsYson;
+    //! Statistics produced by job and node. May be absent for running job events,
+    //! always present for aborted/failed/completed job summaries.
+    std::shared_ptr<const TStatistics> Statistics;
 
     NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 
-    TInstant LastStatusUpdateTime;
+    TInstant StatusTimestamp;
     bool JobExecutionCompleted = false;
 };
 
@@ -139,7 +139,7 @@ struct TFinishedJobSummary
     TOperationId OperationId;
     TJobId Id;
     TInstant FinishTime;
-    
+
     // COMPAT(pogorelov)
     EInterruptReason InterruptReason;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;

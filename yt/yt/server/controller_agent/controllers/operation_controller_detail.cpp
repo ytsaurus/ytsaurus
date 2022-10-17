@@ -332,7 +332,6 @@ TOperationControllerBase::TOperationControllerBase(
     for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         ExternalScheduleJobFailureCounts_[reason] = 0;
     }
-    
 
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType,
@@ -1340,9 +1339,9 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
     auto now = TInstant::Now();
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, abortReason);
-        ParseAndEnrichStatistics(&jobSummary, joblet, joblet->StatisticsYson);
-        joblet->FinishTime = now;
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
+        jobSummary.FinishTime = now;
+        UpdateJobletFromSummary(jobSummary, joblet);
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
             .Item("reason").Value(abortReason);
         UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 
@@ -2136,52 +2135,6 @@ void TOperationControllerBase::BuildFeatureYson(TFluentAny fluent) const
     .EndList();
 }
 
-void TOperationControllerBase::UpdateRunningJobStatistics(
-    TJobletPtr joblet,
-    std::unique_ptr<TRunningJobSummary> jobSummary)
-{
-    if (static_cast<bool>(jobSummary->LastStatusUpdateTime) &&
-        jobSummary->LastStatusUpdateTime <= joblet->LastStatisticsUpdateTime)
-    {
-        YT_LOG_DEBUG(
-            "Stale statistics were ignored (LastStatisticsUpdateTime: %v, StatisticsUpdateTime: %v, JobId: %v)",
-            joblet->LastStatisticsUpdateTime,
-            jobSummary->LastStatusUpdateTime,
-            jobSummary->Id);
-        return;
-    }
-
-    if (jobSummary->StatisticsYson) {
-        joblet->LastStatisticsUpdateTime = jobSummary->LastStatusUpdateTime;
-    }
-
-    joblet->Progress = jobSummary->Progress;
-    joblet->StderrSize = jobSummary->StderrSize;
-
-    if (jobSummary->StatisticsYson) {
-        ParseAndEnrichStatistics(jobSummary.get(), joblet);
-        joblet->StatisticsYson = jobSummary->StatisticsYson;
-        joblet->LastUpdateTime = TInstant::Now();
-
-        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
-    }
-
-    joblet->Task->UpdateRunningJobStatistics(joblet, *jobSummary);
-
-    if (jobSummary->StatisticsYson) {
-        auto statisticsFuture = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
-            .AsyncVia(Host->GetControllerThreadPoolInvoker())
-            .Run();
-
-        statisticsFuture.Subscribe(BIND(
-            &TOperationControllerBase::AnalyzeBriefStatistics,
-            MakeWeak(this),
-            joblet,
-            Config->SuspiciousJobs)
-            .Via(GetCancelableInvoker()));
-    }
-}
-
 void TOperationControllerBase::CommitFeatures()
 {
     LogStructuredEventFluently(ControllerFeatureStructuredLogger, NLogging::ELogLevel::Info)
@@ -2877,10 +2830,11 @@ void TOperationControllerBase::RemoveValueFromEstimatedHistogram(const TJobletPt
     }
 }
 
-void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statistics)
+void TOperationControllerBase::UpdateActualHistogram(const TJobletPtr& joblet)
 {
+    const auto& jobStatistics = *joblet->JobStatistics;
     if (InputDataSizeHistogram_) {
-        auto dataWeight = FindNumericValue(statistics, "/data/input/data_weight");
+        auto dataWeight = FindNumericValue(jobStatistics, "/data/input/data_weight");
         if (dataWeight && *dataWeight > 0) {
             InputDataSizeHistogram_->AddValue(*dataWeight);
         }
@@ -2953,9 +2907,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     auto joblet = GetJoblet(jobId);
 
     YT_LOG_DEBUG(
-        "Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
+        "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
         jobId,
-        jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
         jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
         jobSummary->Abandoned,
         jobSummary->InterruptReason,
@@ -3065,15 +3018,12 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
                 jobSummary->ReadInputDataSlices.size());
         }
 
-        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
+        UpdateJobletFromSummary(*jobSummary, joblet);
 
-        const auto& statistics = *jobSummary->Statistics;
+        joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ false);
+        UpdateActualHistogram(joblet);
 
-        joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ false);
-        UpdateActualHistogram(statistics);
-
-        FinalizeJoblet(joblet, jobSummary.get());
-        LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
+        LogFinishedJobFluently(ELogEventType::JobCompleted, joblet);
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
@@ -3092,7 +3042,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
         // We want to know row count before moving jobSummary to OnJobFinished.
         if (RowCountLimitTableIndex) {
-            optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+            optionalRowCount = FindNumericValue(*jobSummary->Statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
         }
 
         Host->GetJobProfiler()->ProfileCompletedJob(*joblet, *jobSummary);
@@ -3174,10 +3124,9 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
         error = FromProto<TError>(result.error());
 
-        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
+        UpdateJobletFromSummary(*jobSummary, joblet);
 
-        FinalizeJoblet(joblet, jobSummary.get());
-        LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
+        LogFinishedJobFluently(ELogEventType::JobFailed, joblet)
             .Item("error").Value(error);
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
@@ -3284,16 +3233,14 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard guard;
 
-        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
-        const auto& statistics = *jobSummary->Statistics;
+        UpdateJobletFromSummary(*jobSummary, joblet);
 
         if (abortReason == EAbortReason::ResourceOverdraft) {
-            joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ true);
+            joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ true);
         }
 
-        FinalizeJoblet(joblet, jobSummary.get(), jobSummary->Scheduled);
         if (jobSummary->Scheduled) {
-            auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+            auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
                 .Item("reason").Value(abortReason);
             if (jobSummary->PreemptedFor) {
                 fluent
@@ -3437,7 +3384,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     YT_LOG_DEBUG(
         "Process running job (JobId: %v, HasStatistics: %v)",
         jobId,
-        static_cast<bool>(jobSummary->StatisticsYson));
+        static_cast<bool>(jobSummary->Statistics));
 
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
@@ -3470,13 +3417,42 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     }
 
     if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job running, ignored (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Stale job running event ignored because controller is not running (JobId: %v, State: %v)", jobId, State.load());
         return;
     }
 
     auto joblet = GetJoblet(jobSummary->Id);
 
-    UpdateRunningJobStatistics(std::move(joblet), std::move(jobSummary));
+    if (jobSummary->StatusTimestamp <= joblet->LastUpdateTime) {
+        YT_LOG_DEBUG(
+            "Stale job running event ignored because its timestamp is older than joblet last update time "
+            "(JobId: %v, JobletLastUpdateTime: %v, StatusTimestamp: %v)",
+            jobSummary->Id,
+            joblet->LastUpdateTime,
+            jobSummary->StatusTimestamp);
+        return;
+    }
+
+    UpdateJobletFromSummary(*jobSummary, joblet);
+    joblet->Task->OnJobRunning(joblet, *jobSummary);
+
+    if (jobSummary->Statistics) {
+        // We actually got fresh running job statistics.
+
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
+
+        auto statisticsFuture = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
+            // TODO(max42): use another invoker here.
+            .AsyncVia(Host->GetControllerThreadPoolInvoker())
+            .Run();
+
+        statisticsFuture.Subscribe(BIND(
+            &TOperationControllerBase::AnalyzeBriefStatistics,
+            MakeWeak(this),
+            joblet,
+            Config->SuspiciousJobs)
+            .Via(GetCancelableInvoker()));
+    }
 }
 
 void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
@@ -3520,27 +3496,6 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
     OnJobCompleted(CreateAbandonedJobSummary(jobId));
 }
 
-void TOperationControllerBase::FinalizeJoblet(
-    const TJobletPtr& joblet,
-    TJobSummary* jobSummary,
-    bool scheduled)
-{
-    YT_VERIFY(jobSummary->FinishTime);
-
-    if (scheduled) {
-        joblet->FinishTime = *jobSummary->FinishTime;
-
-        YT_VERIFY(jobSummary->Statistics);
-        auto& statistics = *jobSummary->Statistics;
-
-        if (joblet->JobProxyMemoryReserveFactor) {
-            statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
-        }
-    } else {
-        joblet->FinishTime = joblet->StartTime;
-    }
-}
-
 void TOperationControllerBase::BuildJobAttributes(
     const TJobletPtr& joblet,
     EJobState state,
@@ -3548,8 +3503,6 @@ void TOperationControllerBase::BuildJobAttributes(
     i64 stderrSize,
     TFluentMap fluent) const
 {
-    static const auto EmptyMapYson = TYsonString(TStringBuf("{}"));
-
     fluent
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
@@ -3564,8 +3517,8 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("brief_statistics")
             .Value(joblet->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
-            fluent.Item("statistics")
-                .Value(joblet->StatisticsYson ? joblet->StatisticsYson : EmptyMapYson);
+            fluent
+                .Item("statistics").Value(joblet->BuildCombinedStatistics());
         })
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
@@ -3616,16 +3569,19 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
-    const TJobletPtr& joblet,
-    const TJobSummary& jobSummary)
+    const TJobletPtr& joblet)
 {
+    auto statistics = joblet->BuildCombinedStatistics();
+    // Table rows cannot have top-level attributes, so we drop statistics timestamp here.
+    statistics.SetTimestamp(std::nullopt);
+
     return LogEventFluently(eventType)
         .Item("job_id").Value(joblet->JobId)
         .Item("operation_id").Value(OperationId)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("resource_limits").Value(joblet->ResourceLimits)
-        .Item("statistics").Value(jobSummary.Statistics)
+        .Item("statistics").Value(statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
@@ -8618,25 +8574,25 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
+    // TODO(max42): YT-17793.
+    // Extract heavy-lifting to a separate thread pool.
+
     i64 statisticsLimit = Options->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
     TAggregatedJobStatistics runningJobStatistics;
     for (const auto& [jobId, joblet] : JobletMap) {
-        if (joblet->StatisticsYson) {
-            UpdateAggregatedJobStatistics(
-                runningJobStatistics,
-                joblet,
-                ConvertTo<TStatistics>(joblet->StatisticsYson),
-                EJobState::Running,
-                statisticsLimit,
-                isLimitExceeded);
+        UpdateAggregatedJobStatistics(
+            runningJobStatistics,
+            joblet,
+            EJobState::Running,
+            statisticsLimit,
+            isLimitExceeded);
 
-            if (isLimitExceeded) {
-                SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
-                    TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
-                        << TErrorAttribute("limit", statisticsLimit));
-            }
+        if (isLimitExceeded) {
+            SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
+                TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
+                    << TErrorAttribute("limit", statisticsLimit));
         }
     }
     AggregatedRunningJobStatistics_ = runningJobStatistics;
@@ -8655,6 +8611,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     Host->ReleaseJobs(jobsToRelease);
 }
 
+// TODO(max42): rename job -> joblet.
 void TOperationControllerBase::AnalyzeBriefStatistics(
     const TJobletPtr& job,
     const TSuspiciousJobsOptionsPtr& options,
@@ -8712,7 +8669,6 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
     UpdateAggregatedJobStatistics(
         AggregatedFinishedJobStatistics_,
         joblet,
-        *jobSummary.Statistics,
         jobSummary.State,
         statisticsLimit,
         isLimitExceeded);

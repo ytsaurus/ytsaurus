@@ -1275,7 +1275,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateActualHistogram(const TStatistics& statistics);
+    void UpdateActualHistogram(const TJobletPtr& joblet);
 
     void CreateOutputTables(
         const NApi::NNative::IClientPtr& client,
@@ -1311,16 +1311,9 @@ private:
     std::optional<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;
 
-    //! Sets finish time and other timing statistics.
-    void FinalizeJoblet(
-        const TJobletPtr& joblet,
-        TJobSummary* jobSummary,
-        bool scheduled = true);
-
     NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
-        const TJobletPtr& joblet,
-        const TJobSummary& jobSummary);
+        const TJobletPtr& joblet);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
     const NLogging::TLogger* GetEventLogger() override;

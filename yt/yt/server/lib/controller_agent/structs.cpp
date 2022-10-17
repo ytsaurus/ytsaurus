@@ -19,15 +19,18 @@ namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NYson;
+using namespace NYTree;
+using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
-using NLogging::TLogger;
 using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 void MergeJobSummaries(
     TJobSummary& nodeJobSummary,
@@ -61,6 +64,8 @@ void JobEventsCommonPartFromProto(auto* summary, auto* protoEvent)
     summary->Id = FromProto<TJobId>(protoEvent->job_id());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,13 +96,15 @@ TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
     Result = std::move(*status->mutable_result());
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
-        StatisticsYson = TYsonString(status->statistics());
+        auto mutableStatistics = std::make_shared<TStatistics>();
+        *mutableStatistics = ConvertTo<TStatistics>(TYsonStringBuf(status->statistics()));
+        Statistics = std::move(mutableStatistics);
     }
     if (status->has_phase()) {
         Phase = CheckedEnumCast<EJobPhase>(status->phase());
     }
 
-    LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());
+    StatusTimestamp = FromProto<TInstant>(status->status_timestamp());
     JobExecutionCompleted = status->job_execution_completed();
 }
 
@@ -109,8 +116,13 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, Id);
     Persist(context, State);
     Persist(context, FinishTime);
-    Persist(context, Statistics);
-    Persist(context, StatisticsYson);
+    if (context.GetVersion() < ESnapshotVersion::DoNotPersistStatistics) {
+        TStatistics dummyStatistics;
+        Persist(context, dummyStatistics);
+
+        TYsonString dummyYson;
+        Persist(context, dummyYson);
+    }
     Persist(context, ReleaseFlags);
     Persist(context, Phase);
     Persist(context, TimeStatistics);
@@ -180,6 +192,7 @@ std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId)
 {
     TCompletedJobSummary summary{};
 
+    summary.Statistics = std::make_shared<TStatistics>();
     summary.Id = jobId;
     summary.State = EJobState::Completed;
     summary.Abandoned = true;
@@ -374,7 +387,7 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
             !schedulerJobSummary.PreemptedFor,
             "PreemptedFor received from node but not received from scheduler (JobId: %v)",
             schedulerJobSummary.Id);
-        
+
         YT_LOG_FATAL_IF(
             schedulerJobSummary.PreemptedFor != nodeJobSummary->PreemptedFor,
             "PreemptedFor from node and scheduer differ (NodePreemptedFor: %v, SchedulerPreemptedFor: %v)",

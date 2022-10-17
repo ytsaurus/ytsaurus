@@ -52,11 +52,13 @@ bool CheckJobActivity(
     const TSuspiciousJobsOptionsPtr& options,
     EJobType jobType);
 
-// Performs statistics parsing and put it inside jobSummary.
-void ParseAndEnrichStatistics(
-    TJobSummary* jobSummary,
-    const TJobletPtr& joblet,
-    const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
+//! Update joblet as a reaction on running or finished job summary.
+//! - If job summary contains statistics, put them to joblet as job statistics.
+//! - Recalculate joblet controller statistics from scratch.
+//! - Update some auxiliary fields like FinishTime.
+void UpdateJobletFromSummary(
+    const TJobSummary& jobSummary,
+    const TJobletPtr& joblet);
 
 ////////////////////////////////////////////////////////////////////////////////
 

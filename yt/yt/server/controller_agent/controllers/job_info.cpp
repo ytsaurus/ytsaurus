@@ -57,16 +57,14 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
 {
     const auto Logger = ControllerLogger.WithTag("JobId: %v", JobId);
 
-    // Statistics is always presented in job summary.
-    // Therefore looking at StatisticsYson is the only way to check that
-    // job has actual non-zero statistics received from node.
-    if (!jobSummary.StatisticsYson) {
+    if (!jobSummary.Statistics) {
         // Return empty delta if job has no statistics.
         return TJobMetrics();
     }
 
     const auto newJobMetrics = TJobMetrics::FromJobStatistics(
-        *jobSummary.Statistics,
+        *JobStatistics,
+        *ControllerStatistics,
         jobSummary.State,
         Task->GetTaskHost()->GetConfig()->CustomJobMetrics,
         /*considerNonMonotonicMetrics*/ isJobFinished);
@@ -85,6 +83,13 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
     JobMetrics = updatedJobMetrics;
 
     return delta;
+}
+
+TStatistics TJoblet::BuildCombinedStatistics() const
+{
+    auto statistics = *JobStatistics;
+    statistics.MergeWithOverride(*ControllerStatistics);
+    return statistics;
 }
 
 void TJoblet::Persist(const TPersistenceContext& context)

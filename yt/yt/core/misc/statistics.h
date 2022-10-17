@@ -72,7 +72,10 @@ public:
     template <class T>
     void ReplacePathWithSample(const NYPath::TYPath& path, const T& sample);
 
+    //! Merge statistics by merging summaries for each common statistics path.
     void Merge(const TStatistics& statistics);
+    //! Merge statistics by taking summary from #statistics for each common statistics path.
+    void MergeWithOverride(const TStatistics& statistics);
 
     //! Get range of all elements whose path starts with a given strict prefix path (possibly empty).
     /*!

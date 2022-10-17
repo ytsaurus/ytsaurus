@@ -1116,7 +1116,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     return result;
 }
 
-void TTask::UpdateRunningJobStatistics(TJobletPtr joblet, const TRunningJobSummary& jobSummary)
+void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary)
 {
     auto jobId = joblet->JobId;
 
@@ -1435,8 +1435,9 @@ void TTask::ResetCachedMinNeededResources()
     CachedMinNeededResources_.reset();
 }
 
-void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft)
+void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft)
 {
+    const auto& statistics = *joblet->JobStatistics;
     if (auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory")) {
         auto* digest = GetUserJobMemoryDigest();
         YT_VERIFY(digest);
@@ -2045,7 +2046,6 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     UpdateAggregatedJobStatistics(
         AggregatedFinishedJobStatistics_,
         joblet,
-        *jobSummary.Statistics,
         jobSummary.State,
         statisticsLimit,
         isLimitExceeded);
