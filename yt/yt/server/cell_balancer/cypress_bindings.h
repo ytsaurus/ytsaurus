@@ -88,6 +88,8 @@ struct TCpuLimits
     : public NYTree::TYsonStruct
 {
     int WriteThreadPoolSize;
+    int LookupThreadPoolSize;
+    int QueryThreadPoolSize;
 
     REGISTER_YSON_STRUCT(TCpuLimits);
 

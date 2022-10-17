@@ -11,6 +11,12 @@ void TCpuLimits::Register(TRegistrar registrar)
     registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
         .GreaterThan(0)
         .Default(5);
+    registrar.Parameter("lookup_thread_pool_size", &TThis::LookupThreadPoolSize)
+        .GreaterThan(0)
+        .Default(4);
+    registrar.Parameter("query_thread_pool_size", &TThis::QueryThreadPoolSize)
+        .GreaterThan(0)
+        .Default(4);
 }
 
 void TMemoryLimits::Register(TRegistrar registrar)
