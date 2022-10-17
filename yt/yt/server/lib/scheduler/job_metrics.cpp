@@ -90,66 +90,60 @@ void Deserialize(TCustomJobMetricDescription& filter, NYson::TYsonPullParserCurs
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobMetrics TJobMetrics::FromJobStatistics(
-    const TStatistics& statistics,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
     EJobState jobState,
     const std::vector<TCustomJobMetricDescription>& customJobMetricDescriptions,
     bool considerNonMonotonicMetrics)
 {
     TJobMetrics metrics;
+    auto& metricValues = metrics.Values();
+    std::fill(metricValues.begin(), metricValues.end(), 0);
 
-    metrics.Values()[EJobMetricName::UserJobIoReads] =
-        FindNumericValue(statistics, "/user_job/block_io/io_read").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobIoWrites] =
-        FindNumericValue(statistics, "/user_job/block_io/io_write").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobIoTotal] =
-        FindNumericValue(statistics, "/user_job/block_io/io_total").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobBytesRead] =
-        FindNumericValue(statistics, "/user_job/block_io/bytes_read").value_or(0);
-    metrics.Values()[EJobMetricName::UserJobBytesWritten] =
-        FindNumericValue(statistics, "/user_job/block_io/bytes_written").value_or(0);
+    auto setMetricFromStatistics = [&] (EJobMetricName metric, const TStatistics& statistics, const TString& path) {
+        metricValues[metric] = FindNumericValue(statistics, path).value_or(0);
+    };
 
-    metrics.Values()[EJobMetricName::TotalTime] =
-        FindNumericValue(statistics, "/time/total").value_or(0);
-    metrics.Values()[EJobMetricName::ExecTime] =
-        FindNumericValue(statistics, "/time/exec").value_or(0);
-    metrics.Values()[EJobMetricName::PrepareTime] =
-        FindNumericValue(statistics, "/time/prepare").value_or(0);
-    metrics.Values()[EJobMetricName::PrepareRootFSTime] =
-        FindNumericValue(statistics, "/time/prepare_root_fs").value_or(0);
-    metrics.Values()[EJobMetricName::ArtifactsDownloadTime] =
-        FindNumericValue(statistics, "/time/artifacts_download").value_or(0);
+    static std::vector<std::pair<EJobMetricName, TString>> BuiltinJobMetricMapping = {
+        {EJobMetricName::UserJobIoReads, "/user_job/block_io/io_read"},
+        {EJobMetricName::UserJobIoWrites, "/user_job/block_io/io_write"},
+        {EJobMetricName::UserJobIoTotal, "/user_job/block_io/io_total"},
+        {EJobMetricName::UserJobBytesRead, "/user_job/block_io/bytes_read"},
+        {EJobMetricName::UserJobBytesWritten, "/user_job/block_io/bytes_written"},
+        {EJobMetricName::AggregatedSmoothedCpuUsageX100, "/job_proxy/aggregated_smoothed_cpu_usage_x100"},
+        {EJobMetricName::AggregatedMaxCpuUsageX100, "/job_proxy/aggregated_max_cpu_usage_x100"},
+        {EJobMetricName::AggregatedPreemptibleCpuX100, "/job_proxy/aggregated_preemptible_cpu_x100"},
+        {EJobMetricName::AggregatedPreemptedCpuX100, "/job_proxy/aggregated_preempted_cpu_x100"},
+    };
 
-    if (jobState == EJobState::Completed) {
-        metrics.Values()[EJobMetricName::TotalTimeCompleted] =
-            FindNumericValue(statistics, "/time/total").value_or(0);
-    } else if (jobState == EJobState::Aborted) {
-        metrics.Values()[EJobMetricName::TotalTimeAborted] =
-            FindNumericValue(statistics, "/time/total").value_or(0);
+    for (const auto& [metric, path] : BuiltinJobMetricMapping) {
+        setMetricFromStatistics(metric, jobStatistics, path);
     }
 
-    metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = 0;
-    metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = 0;
-    metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = 0;
+    static std::vector<std::pair<EJobMetricName, TString>> BuiltinControllerMetricMapping = {
+        {EJobMetricName::TotalTime, "/time/total"},
+        {EJobMetricName::ExecTime, "/time/exec"},
+        {EJobMetricName::PrepareTime, "/time/prepare"},
+        {EJobMetricName::PrepareRootFSTime, "/time/prepare_root_fs"},
+        {EJobMetricName::ArtifactsDownloadTime, "/time/artifacts_time"},
+    };
 
-    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationCompleted] = 0;
-    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationAborted] = 0;
-    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationFailed] = 0;
+    for (const auto& [metric, path] : BuiltinControllerMetricMapping) {
+        setMetricFromStatistics(metric, controllerStatistics, path);
+    }
 
-    metrics.Values()[EJobMetricName::AggregatedSmoothedCpuUsageX100] =
-        FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").value_or(0);
-    metrics.Values()[EJobMetricName::AggregatedMaxCpuUsageX100] =
-        FindNumericValue(statistics, "/job_proxy/aggregated_max_cpu_usage_x100").value_or(0);
-    metrics.Values()[EJobMetricName::AggregatedPreemptibleCpuX100] =
-        FindNumericValue(statistics, "/job_proxy/aggregated_preemptible_cpu_x100").value_or(0);
-    metrics.Values()[EJobMetricName::AggregatedPreemptedCpuX100] =
-        FindNumericValue(statistics, "/job_proxy/aggregated_preempted_cpu_x100").value_or(0);
+    if (jobState == EJobState::Completed) {
+        setMetricFromStatistics(EJobMetricName::TotalTimeCompleted, controllerStatistics, "/time/total");
+    } else if (jobState == EJobState::Aborted) {
+        setMetricFromStatistics(EJobMetricName::TotalTimeAborted, controllerStatistics, "/time/total");
+    }
 
     for (const auto& jobMetricDescription : customJobMetricDescriptions) {
         if (jobMetricDescription.JobStateFilter && *jobMetricDescription.JobStateFilter != jobState) {
             continue;
         }
         i64 value = 0;
-        auto summary = FindSummary(statistics, jobMetricDescription.StatisticsPath);
+        auto summary = FindSummary(jobStatistics, jobMetricDescription.StatisticsPath);
         if (summary) {
             switch (jobMetricDescription.SummaryValueType) {
                 case ESummaryValueType::Sum:

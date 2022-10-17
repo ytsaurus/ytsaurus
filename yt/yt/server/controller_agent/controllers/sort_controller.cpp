@@ -1147,7 +1147,7 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             if (IsFinalSort_) {
-                Controller_->AccountRows(jobSummary.Statistics);
+                Controller_->AccountRows(*jobSummary.Statistics);
 
                 RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
             } else {
@@ -1741,7 +1741,7 @@ protected:
         {
             for (auto& jobOutputs : JobOutputs_) {
                 for (auto& jobOutput : jobOutputs) {
-                    Controller_->AccountRows(jobOutput.JobSummary.Statistics);
+                    Controller_->AccountRows(*jobOutput.JobSummary.Statistics);
                     RegisterOutput(jobOutput.JobSummary, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
             }
@@ -1948,7 +1948,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            Controller_->AccountRows(jobSummary.Statistics);
+            Controller_->AccountRows(*jobSummary.Statistics);
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
             // TODO(gritukan): It seems to be the easiest way to distgunish data sent from partition task

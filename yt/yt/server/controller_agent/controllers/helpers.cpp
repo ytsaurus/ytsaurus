@@ -2,6 +2,7 @@
 #include "aggregated_job_statistics.h"
 #include "config.h"
 #include "table.h"
+#include "job_info.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
@@ -17,6 +18,8 @@ using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,18 +206,19 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 void UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
     const TJobletPtr& joblet,
-    const TStatistics& statistics,
     EJobState jobState,
     int customStatisticsLimit,
     bool& isLimitExceeded)
 {
+    targetStatistics.UpdateJobStatistics(joblet, *joblet->ControllerStatistics, jobState);
+
     if (targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit) {
         // Limit is already exceeded, so truncate the statistics.
-        auto statisticsCopy = statistics;
-        statisticsCopy.RemoveRangeByPrefix("/custom");
-        targetStatistics.UpdateJobStatistics(joblet, statisticsCopy, jobState);
+        auto jobStatisticsCopy = *joblet->JobStatistics;
+        jobStatisticsCopy.RemoveRangeByPrefix("/custom");
+        targetStatistics.UpdateJobStatistics(joblet, jobStatisticsCopy, jobState);
     } else {
-        targetStatistics.UpdateJobStatistics(joblet, statistics, jobState);
+        targetStatistics.UpdateJobStatistics(joblet, *joblet->JobStatistics, jobState);
     }
 
     // NB. We need the second check of custom statistics count to ensure that the limit was not

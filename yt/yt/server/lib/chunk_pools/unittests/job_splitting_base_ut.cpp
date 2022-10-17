@@ -16,8 +16,9 @@ using namespace NControllerAgent;
 TCompletedJobSummary CreateSummary(int splitJobCount, i64 readRowCount, bool isInterrupted)
 {
     TCompletedJobSummary summary;
-    summary.Statistics.emplace();
-    summary.Statistics->AddSample(InputRowCountPath, readRowCount);
+    auto statistics = std::make_shared<TStatistics>();
+    statistics->AddSample(InputRowCountPath, readRowCount);
+    summary.Statistics = std::move(statistics);
     summary.InterruptReason = isInterrupted ? EInterruptReason::JobSplit : EInterruptReason::None;
     summary.SplitJobCount = splitJobCount;
     return summary;

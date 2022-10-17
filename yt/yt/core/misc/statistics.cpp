@@ -190,6 +190,12 @@ void TStatistics::Merge(const TStatistics& statistics)
     }
 }
 
+void TStatistics::MergeWithOverride(const TStatistics& statistics)
+{
+    const auto& otherData = statistics.Data();
+    Data_.insert(otherData.begin(), otherData.end());
+}
+
 TStatistics::TSummaryRange TStatistics::GetRangeByPrefix(const TString& prefix) const
 {
     auto begin = Data().lower_bound(prefix + '/');

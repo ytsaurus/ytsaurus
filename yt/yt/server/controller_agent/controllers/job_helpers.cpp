@@ -168,62 +168,92 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     return briefStatistics;
 }
 
-void ParseAndEnrichStatistics(
-    TJobSummary* jobSummary,
-    const TJobletPtr& joblet,
-    const TYsonString& lastObservedStatisticsYson)
+void UpdateJobletFromSummary(
+    const TJobSummary& jobSummary,
+    const TJobletPtr& joblet)
 {
-    auto getCumulativeMemory = [] (i64 memory, TDuration period) {
-        double cumulativeMemory = static_cast<double>(memory) * period.MilliSeconds();
-        // Due to possible i64 overflow we consider cumulativeMemory in bytes * seconds.
-        return static_cast<i64>(cumulativeMemory / 1000.0); 
-    };
+    // Note that TJoblet::{Controller,Job}Statistics are intentionally made shared const-pointers.
+    // This allows thread-safe access to statistics from joblet with snapshot semantics, which
+    // is useful for regular running job statistics updating from separate thread-pool.
 
-    auto& statistics = jobSummary->Statistics;
-    const auto& statisticsYson = jobSummary->StatisticsYson
-        ? jobSummary->StatisticsYson
-        : lastObservedStatisticsYson;
-    if (statisticsYson) {
-        statistics = ConvertTo<TStatistics>(statisticsYson);
-        // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
-        // when writing it to the event log, but top-level attributes are disallowed in table rows.
-        statistics->SetTimestamp(std::nullopt);
-    } else {
-        statistics = TStatistics();
+    // Update job statistics.
+
+    if (jobSummary.Statistics) {
+        // We got fresh statistics, take them as job statistics.
+        joblet->JobStatistics = jobSummary.Statistics;
+        joblet->LastStatisticsUpdateTime = jobSummary.StatusTimestamp;
     }
+    const auto& jobStatistics = joblet->JobStatistics;
 
+    // Update controller statistics.
+
+    auto controllerStatistics = std::make_shared<TStatistics>();
+
+    // Time statistics may or may not be present in job statistics. If they are
+    // not present, we force them from job summary time statistics.
     bool hasTimeStatistics = false;
     {
-        const auto& data = statistics->Data();
+        const auto& data = jobStatistics->Data();
         auto iterator = data.lower_bound("/time");
         if (iterator != data.end() && HasPrefix(iterator->first, "/time")) {
             hasTimeStatistics = true;
         }
     }
     if (!hasTimeStatistics) {
-        jobSummary->TimeStatistics.AddSamplesTo(&statistics.value());
+        jobSummary.TimeStatistics.AddSamplesTo(controllerStatistics.get());
     }
 
-    {
-        auto endTime = std::max(
-            jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(),
-            joblet->LastUpdateTime);
-        auto duration = endTime - joblet->StartTime;
-        statistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
-        statistics->ReplacePathWithSample("/job_proxy/estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory());
-        statistics->ReplacePathWithSample("/job_proxy/cumulative_estimated_memory", getCumulativeMemory(joblet->EstimatedResourceUsage.GetJobProxyMemory(), duration));
-        if (auto userJobMaxMemoryUsage = FindNumericValue(*statistics, "/user_job/max_memory")) {
-            statistics->ReplacePathWithSample("/user_job/cumulative_max_memory", getCumulativeMemory(*userJobMaxMemoryUsage, duration));
+    auto endTime = std::max(
+        jobSummary.FinishTime.value_or(TInstant::Now()),
+        joblet->LastUpdateTime);
+    auto duration = endTime - joblet->StartTime;
+
+    controllerStatistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
+
+    auto getCumulativeMemory = [] (i64 memory, TDuration period) {
+        double cumulativeMemory = static_cast<double>(memory) * period.MilliSeconds();
+        // Due to possible i64 overflow we consider cumulativeMemory in bytes * seconds.
+        return static_cast<i64>(cumulativeMemory / 1000.0);
+    };
+
+    controllerStatistics->ReplacePathWithSample(
+        "/job_proxy/estimated_memory",
+        joblet->EstimatedResourceUsage.GetJobProxyMemory());
+    controllerStatistics->ReplacePathWithSample(
+        "/job_proxy/cumulative_estimated_memory",
+        getCumulativeMemory(joblet->EstimatedResourceUsage.GetJobProxyMemory(), duration));
+    controllerStatistics->AddSample(
+        "/job_proxy/memory_reserve_factor_x10000",
+        static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
+
+    auto addCumulativeMemoryStatistics = [&] (const TString& originalPath, const TString& cumulativePath) {
+        if (auto usage = FindNumericValue(*jobStatistics, originalPath)) {
+            controllerStatistics->ReplacePathWithSample(
+                cumulativePath,
+                getCumulativeMemory(*usage, duration));
         }
-        if (auto userJobMemoryReserve = FindNumericValue(*statistics, "/user_job/memory_reserve")) {
-            statistics->ReplacePathWithSample("/user_job/cumulative_memory_reserve", getCumulativeMemory(*userJobMemoryReserve, duration));
-        }
-        if (auto jobProxyMaxMemoryUsage = FindNumericValue(*statistics, "/job_proxy/max_memory")) {
-            statistics->ReplacePathWithSample("/job_proxy/cumulative_max_memory", getCumulativeMemory(*jobProxyMaxMemoryUsage, duration));
+    };
+    addCumulativeMemoryStatistics("/user_job/max_memory", "/user_job/cumulative_max_memory");
+    addCumulativeMemoryStatistics("/user_job/memory_reserve", "/user_job/cumulative_memory_reserve");
+    addCumulativeMemoryStatistics("/job_proxy/max_memory", "/job_proxy/cumulative_max_memory");
+
+    joblet->ControllerStatistics = std::move(controllerStatistics);
+
+    // Update other joblet fields.
+
+    joblet->LastUpdateTime = jobSummary.StatusTimestamp;
+    if (jobSummary.FinishTime) {
+        joblet->FinishTime = *jobSummary.FinishTime;
+    }
+    if (const auto* runningJobSummary = dynamic_cast<const TRunningJobSummary*>(&jobSummary)) {
+        joblet->Progress = runningJobSummary->Progress;
+        joblet->StderrSize = runningJobSummary->StderrSize;
+    } else if (const auto* abortedJobSummary = dynamic_cast<const TAbortedJobSummary*>(&jobSummary)) {
+        // TODO(pogorelov): introduce a test for this logic.
+        if (!abortedJobSummary->Scheduled) {
+            joblet->FinishTime = joblet->StartTime;
         }
     }
-
-    jobSummary->StatisticsYson = ConvertToYsonString(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

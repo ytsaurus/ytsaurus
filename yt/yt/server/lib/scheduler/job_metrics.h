@@ -98,7 +98,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TCustomValues, CustomValues);
 
     static TJobMetrics FromJobStatistics(
-        const TStatistics& statistics,
+        const TStatistics& jobStatistics,
+        const TStatistics& controllerStatistics,
         NJobTrackerClient::EJobState jobState,
         const std::vector<TCustomJobMetricDescription>& customJobMetrics,
         bool considerNonMonotonicMetrics);

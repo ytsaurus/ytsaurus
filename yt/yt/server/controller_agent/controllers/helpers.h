@@ -60,7 +60,6 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 void UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
     const TJobletPtr& joblet,
-    const TStatistics& statistics,
     EJobState jobState,
     int customStatisticsLimit,
     bool& wasTruncated);
