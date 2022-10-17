@@ -55,7 +55,7 @@ constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
 
 TRequestQueuePtr CreateRequestQueue(TString name, const NProfiling::TProfiler& profiler)
 {
-    return New<TRequestQueue>(std::move(name), profiler.WithTag("user", name));
+    return New<TRequestQueue>(name, profiler.WithTag("user", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
