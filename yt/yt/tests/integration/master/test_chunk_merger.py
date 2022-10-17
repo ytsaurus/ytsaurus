@@ -613,10 +613,16 @@ class TestChunkMerger(YTEnvSetup):
             set("//sys/accounts/b/@chunk_merger_node_traversal_concurrency", 10, authenticated_user="u")
 
         create("table", "//tmp/t")
+        create("map_node", "//tmp/m")
         with pytest.raises(YtError):
             set("//tmp/t/@chunk_merger_mode", "shallow", authenticated_user="u")
         with pytest.raises(YtError):
             set("//tmp/t/@chunk_merger_mode", "deep", authenticated_user="u")
+
+        set("//sys/@config/chunk_manager/chunk_merger/validate_merger_permission", True)
+        with pytest.raises(YtError):
+            set("//tmp/m/@chunk_merger_mode", "shallow", authenticated_user="u")
+        set("//tmp/m/@chunk_merger_mode", "shallow")
 
     @authors("aleksandra-zh")
     def test_do_not_crash_on_dynamic_table(self):

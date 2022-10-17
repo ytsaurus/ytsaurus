@@ -123,6 +123,7 @@ public:
     int ShallowMergeValidationProbability;
 
     bool RescheduleMergeOnSuccess;
+    bool ValidateMergerPermission;
 
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
