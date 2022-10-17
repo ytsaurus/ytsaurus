@@ -3810,7 +3810,6 @@ private:
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         auto agent = agentTracker->PickAgentForOperation(operation);
         if (!agent) {
-            YT_LOG_DEBUG("Failed to assign operation to agent; backing off (OperationId: %v)", operation->GetId());
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
             return false;
         }

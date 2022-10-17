@@ -262,27 +262,33 @@ public:
         auto controllerAgentTag = operation->GetRuntimeParameters()->ControllerAgentTag;
 
         if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {
-            YT_LOG_DEBUG(
-                "Failed to pick agent for operation (OperationId: %v, ControllerAgentTag: %v",
+            YT_LOG_INFO(
+                "Failed to pick agent since number of agent with matching tag is too low (OperationId: %v, ControllerAgentTag: %v)",
                 operation->GetId(),
                 controllerAgentTag);
 
             return nullptr;
         }
 
-        int excludedByTagCount = 0;
+        int nonMathcingTagCount = 0;
+        int nonRegisteredCount = 0;
+        int missingMemoryStatisticsCount = 0;
+        int notEnoughMemoryCount = 0;
 
         std::vector<TControllerAgentPtr> aliveAgents;
         for (const auto& [agentId, agent] : IdToAgent_) {
             if (agent->GetState() != EControllerAgentState::Registered) {
+                ++nonRegisteredCount;
                 continue;
             }
             if (!agent->GetTags().contains(controllerAgentTag)) {
-                ++excludedByTagCount;
+                ++nonMathcingTagCount;
                 continue;
             }
             aliveAgents.push_back(agent);
         }
+
+        TControllerAgentPtr pickedAgent = nullptr;
 
         switch (Config_->AgentPickStrategy) {
             case EControllerAgentPickStrategy::Random: {
@@ -294,20 +300,24 @@ public:
                             Config_->MinAgentAvailableMemory,
                             static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
                         if (memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
+                            ++notEnoughMemoryCount;
                             continue;
                         }
                     }
                     agents.push_back(agent);
                 }
 
-                return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
+                if (!agents.empty()) {
+                    pickedAgent = agents[RandomNumber(agents.size())];
+                }
+                break;
             }
             case EControllerAgentPickStrategy::MemoryUsageBalanced: {
-                TControllerAgentPtr pickedAgent;
                 double scoreSum = 0.0;
                 for (const auto& agent : aliveAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
                     if (!memoryStatistics) {
+                        ++missingMemoryStatisticsCount;
                         YT_LOG_WARNING("Controller agent skipped since it did not report memory information "
                             "and memory usage balanced pick strategy used (AgentId: %v)",
                             agent->GetId());
@@ -318,6 +328,7 @@ public:
                         Config_->MinAgentAvailableMemory,
                         static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
                     if (memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
+                        ++notEnoughMemoryCount;
                         continue;
                     }
 
@@ -330,11 +341,28 @@ public:
                         pickedAgent = agent;
                     }
                 }
-                return pickedAgent;
+                break;
             }
-            default:
+            default: {
                 YT_ABORT();
+            }
         }
+
+        if (!pickedAgent) {
+            YT_LOG_INFO(
+                "Failed to pick agent for operation ("
+                "OperationId: %v, ControllerAgentTag: %v, "
+                "NonMathcingTagCount: %v, NonRegisteredCount: %v, "
+                "MissingMemoryStatisticsCount: %v, NotEnoughMemoryCount: %v)",
+                operation->GetId(),
+                controllerAgentTag,
+                nonMathcingTagCount,
+                nonRegisteredCount,
+                missingMemoryStatisticsCount,
+                notEnoughMemoryCount);
+        }
+
+        return pickedAgent;
     }
 
     void AssignOperationToAgent(
@@ -538,10 +566,12 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v, OperationCount: %v",
+        context->SetRequestInfo("AgentId: %v, IncarnationId: %v, OperationCount: %v, Memory: %v/%v",
             agentId,
             incarnationId,
-            request->operations_size());
+            request->operations_size(),
+            request->controller_memory_usage(),
+            request->controller_memory_limit());
 
         auto agent = GetAgentOrThrow(agentId);
         if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
