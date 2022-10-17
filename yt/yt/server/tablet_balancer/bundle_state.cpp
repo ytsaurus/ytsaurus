@@ -127,6 +127,7 @@ void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes
     Health_ = attributes->Get<ETabletCellHealth>("health");
     Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
+    HasUntrackedUnfinishedActions_ = false;
 }
 
 TFuture<void> TBundleState::UpdateState()

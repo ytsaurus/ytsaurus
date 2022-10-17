@@ -49,6 +49,7 @@ public:
     void CreateActions(const TString& bundleName) override;
 
     bool HasUnfinishedActions(const TString& bundleName) const override;
+    bool IsKnownAction(const TString& bundleName, TTabletActionId actionId) const override;
 
     void Start(const TTransactionId& prerequisiteTransactionId) override;
     void Stop() override;
@@ -66,7 +67,7 @@ private:
 
     THashMap<TString, std::vector<TActionDescriptor>> PendingActionDescriptors_;
     THashMap<TString, THashSet<TTabletActionPtr>> RunningActions_;
-    THashMap<TString, std::queue<TTabletActionPtr>> FinishedActions_;
+    THashMap<TString, std::deque<TTabletActionPtr>> FinishedActions_;
     THashMap<TString, TBundleProfilingCounters> ProfilingCounters_;
 
     bool Started_ = false;
@@ -168,6 +169,37 @@ bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
     return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
 }
 
+bool TActionManager::IsKnownAction(const TString& bundleName, TTabletActionId actionId) const
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
+        auto action = std::find_if(
+            it->second.begin(),
+            it->second.end(),
+            [actionId = actionId] (const TTabletActionPtr& action) {
+                return action->GetId() == actionId;
+            });
+
+        if (action != it->second.end()) {
+            return true;
+        }
+    }
+
+    if (auto it = FinishedActions_.find(bundleName); it != FinishedActions_.end()) {
+        auto action = std::find_if(
+            it->second.begin(),
+            it->second.end(),
+            [actionId = actionId] (const TTabletActionPtr& action) {
+                return action->GetId() == actionId;
+            });
+
+        return action != it->second.end();
+    }
+
+    return false;
+}
+
 void TActionManager::Start(const TTransactionId& prerequisiteTransactionId)
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -260,9 +292,9 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
 
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
             if ((*it)->IsFinished()) {
-                finishedActions.emplace(*it);
+                finishedActions.push_back(*it);
                 if (std::ssize(finishedActions) > MaxQueueSize) {
-                    finishedActions.pop();
+                    finishedActions.pop_front();
                 }
                 runningActions.erase(it++);
             } else {

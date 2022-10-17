@@ -28,9 +28,15 @@ TTabletAction::TTabletAction(
 
 bool TTabletAction::IsFinished() const
 {
-    return Lost_ ||
-        State_ == ETabletActionState::Completed ||
-        State_ == ETabletActionState::Failed;
+    return Lost_ || IsTabletActionFinished(State_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsTabletActionFinished(ETabletActionState state)
+{
+    return state == ETabletActionState::Completed ||
+        state == ETabletActionState::Failed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
