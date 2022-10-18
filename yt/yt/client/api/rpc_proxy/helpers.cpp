@@ -1182,18 +1182,18 @@ void ToProto(
 {
     protoMultiTablePartition->Clear();
 
-    NYT::ToProto(
-        protoMultiTablePartition->mutable_table_ranges(),
-        multiTablePartition.TableRanges);
+    for (const auto& range : multiTablePartition.TableRanges) {
+        protoMultiTablePartition->add_table_ranges(ToString(range));
+    }
 }
 
 void FromProto(
     NApi::TMultiTablePartition* multiTablePartition,
     const NProto::TMultiTablePartition& protoMultiTablePartition)
 {
-    NYT::FromProto(
-        &multiTablePartition->TableRanges,
-        protoMultiTablePartition.table_ranges());
+    for (const auto& range : protoMultiTablePartition.table_ranges()) {
+        multiTablePartition->TableRanges.emplace_back(NYPath::TRichYPath::Parse(range));
+    }
 }
 
 void FromProto(

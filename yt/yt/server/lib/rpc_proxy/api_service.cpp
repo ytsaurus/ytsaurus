@@ -4711,7 +4711,7 @@ private:
 
         std::vector<TRichYPath> paths;
         for (const auto& path : request->paths()) {
-            paths.emplace_back(ConvertTo<TRichYPath>(TYsonStringBuf(path)));
+            paths.emplace_back(NYPath::TRichYPath::Parse(path));
         }
 
         TPartitionTablesOptions options;
