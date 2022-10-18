@@ -75,11 +75,6 @@ TYPath StripAttributes(const TYPath& path)
     return path;
 }
 
-TYPath YPathJoin(const TYPath& path, TStringBuf literal)
-{
-    return TString::Join(path, "/", ToYPathLiteral(literal));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

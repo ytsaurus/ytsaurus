@@ -19,8 +19,13 @@ bool IsPathPointingToAttributes(const TYPath& path);
 //! Eliminates path suffix after the @ token, if it exists.
 TYPath StripAttributes(const TYPath& path);
 
-TYPath YPathJoin(const TYPath& path, TStringBuf literal);
+template <typename ...TArgs>
+TYPath YPathJoin(const TYPath& path, TArgs&&... literals);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath
+
+#define HELPERS_INL_H
+#include "helpers-inl.h"
+#undef HELPERS_INL_H

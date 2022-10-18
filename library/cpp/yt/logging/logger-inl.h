@@ -85,7 +85,7 @@ public:
 
 protected:
     void DoReset() override;
-    void DoPreallocate(size_t newLength) override;
+    void DoReserve(size_t newLength) override;
 
 private:
     struct TPerThreadCache
