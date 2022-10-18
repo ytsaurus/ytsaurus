@@ -213,6 +213,20 @@ TEST(TYPathHelpersTest, DirNameAndBaseName)
     EXPECT_EQ(DirNameAndBaseName("/path"), toPair("", "path"));
 }
 
+TEST(TYPathHelpersTest, YPathJoin)
+{
+    EXPECT_EQ(
+        YPathJoin("//path/prefix/to/some_table"),
+        "//path/prefix/to/some_table");
+    EXPECT_EQ(
+        YPathJoin("//path/prefix/to", "some_table"),
+        "//path/prefix/to/some_table");
+
+    EXPECT_EQ(
+        YPathJoin("//path", "prefix", "to", "some_table"),
+        "//path/prefix/to/some_table");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

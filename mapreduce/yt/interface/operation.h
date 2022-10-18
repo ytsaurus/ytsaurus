@@ -1276,7 +1276,7 @@ struct TRemoteCopyOperationSpec
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 
     ///
-    /// @brief Copy user attributes from input to output table (allowed only for single output table).
+    /// @brief Copy user attributes from input to output table (allowed only for single input table).
     FLUENT_FIELD_DEFAULT(bool, CopyAttributes, false);
 
     ///

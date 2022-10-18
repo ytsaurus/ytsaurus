@@ -26,7 +26,7 @@ void TMessageStringBuilder::DoReset()
     Buffer_.Reset();
 }
 
-void TMessageStringBuilder::DoPreallocate(size_t newCapacity)
+void TMessageStringBuilder::DoReserve(size_t newCapacity)
 {
     auto oldLength = GetLength();
     newCapacity = FastClp2(newCapacity);
