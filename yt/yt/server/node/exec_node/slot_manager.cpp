@@ -357,7 +357,7 @@ void TSlotManager::Disable(const TError& error)
         return;
     }
 
-    auto wrappedError = TError("Scheduler jobs disabled")
+    auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
         << error;
 
     YT_LOG_WARNING(wrappedError, "Disabling slot manager");

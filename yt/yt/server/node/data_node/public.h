@@ -118,7 +118,8 @@ DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 
 YT_DEFINE_ERROR_ENUM(
     ((LocalChunkReaderFailed)    (1300))
-    ((LayerUnpackingFailed)      (1301))
+    // This is deprecated, since volume manager is now a part of data node.
+    // ((LayerUnpackingFailed)      (1301)) 
 );
 
 DEFINE_ENUM(EDataNodeThrottlerKind,

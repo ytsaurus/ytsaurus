@@ -248,7 +248,7 @@ protected:
 
         Enabled_ = false;
 
-        auto alert = TError("Job environment is disabled") << error;
+        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << error;
         YT_LOG_ERROR(alert);
 
         Alert_.Store(alert);

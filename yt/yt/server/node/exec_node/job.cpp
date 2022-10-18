@@ -2364,7 +2364,7 @@ std::optional<EAbortReason> TJob::GetAbortReason()
     }
 
     // This is most probably user error, still we don't want to make it fatal.
-    if (resultError.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
+    if (resultError.FindMatching(EErrorCode::LayerUnpackingFailed)) {
         return std::nullopt;
     }
 
