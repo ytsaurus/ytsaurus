@@ -2066,6 +2066,8 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"event_log": {"flush_period": 1000}}}
 
+    LOG_WRITE_WAIT_TIME = 0.5
+
     @authors("ignat")
     def test_scheduler_event_log(self):
         create("table", "//tmp/t1")
@@ -2294,6 +2296,9 @@ class TestEventLog(YTEnvSetup):
         op = run_test_vanilla("sleep 5.2", pool="test_pool", track=True)
 
         scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
+
         to_barrier = write_log_barrier(scheduler_address)
 
         structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
