@@ -520,9 +520,9 @@ struct TPacketTranscoderFactory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IPacketTranscoderFactory> CreateYTPacketTranscoderFactory()
+IPacketTranscoderFactory* GetYTPacketTranscoderFactory()
 {
-    return std::make_unique<TPacketTranscoderFactory>();
+    return LeakySingleton<TPacketTranscoderFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

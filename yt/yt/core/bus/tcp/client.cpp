@@ -135,9 +135,9 @@ class TTcpBusClient
 public:
     TTcpBusClient(
         TTcpBusClientConfigPtr config,
-        std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
+        IPacketTranscoderFactory* packetTranscoderFactory)
         : Config_(std::move(config))
-        , PacketTranscoderFactory_(std::move(packetTranscoderFactory))
+        , PacketTranscoderFactory_(packetTranscoderFactory)
     {
         if (Config_->Address) {
             EndpointDescription_ = *Config_->Address;
@@ -193,7 +193,7 @@ public:
             Config_->UnixDomainSocketPath,
             std::move(handler),
             std::move(poller),
-            PacketTranscoderFactory_.get());
+            PacketTranscoderFactory_);
         connection->Start();
 
         return New<TTcpClientBusProxy>(std::move(connection));
@@ -202,7 +202,7 @@ public:
 private:
     const TTcpBusClientConfigPtr Config_;
 
-    std::unique_ptr<IPacketTranscoderFactory> PacketTranscoderFactory_;
+    IPacketTranscoderFactory* const PacketTranscoderFactory_;
 
     TString EndpointDescription_;
     IAttributeDictionaryPtr EndpointAttributes_;
@@ -212,9 +212,9 @@ private:
 
 IBusClientPtr CreateTcpBusClient(
     TTcpBusClientConfigPtr config,
-    std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
+    IPacketTranscoderFactory* packetTranscoderFactory)
 {
-    return New<TTcpBusClient>(std::move(config), std::move(packetTranscoderFactory));
+    return New<TTcpBusClient>(std::move(config), packetTranscoderFactory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -435,9 +435,8 @@ class TCompositeBusServer
     : public IBusServer
 {
 public:
-    explicit TCompositeBusServer(
-        std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
-        : PacketTranscoderFactory_(std::move(packetTranscoderFactory))
+    explicit TCompositeBusServer(std::vector<IBusServerPtr> servers)
+        : Servers_(std::move(servers))
     { }
 
     // IBusServer implementation.
@@ -458,43 +457,33 @@ public:
         return AllSucceeded(asyncResults);
     }
 
-    void RegisterServer(IBusServerPtr server)
-    {
-        Servers_.push_back(std::move(server));
-    }
-
-    IPacketTranscoderFactory* GetPacketTranscoderFactory() const
-    {
-        return PacketTranscoderFactory_.get();
-    }
-
 private:
-    std::vector<IBusServerPtr> Servers_;
-
-    std::unique_ptr<IPacketTranscoderFactory> PacketTranscoderFactory_;
+    const std::vector<IBusServerPtr> Servers_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IBusServerPtr CreateTcpBusServer(
     TTcpBusServerConfigPtr config,
-    std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory)
+    IPacketTranscoderFactory* packetTranscoderFactory)
 {
-    auto server = New<TCompositeBusServer>(std::move(packetTranscoderFactory));
+    std::vector<IBusServerPtr> servers;
 
     if (config->Port) {
-        server->RegisterServer(
+        servers.push_back(
             New<TTcpBusServerProxy<TRemoteTcpBusServer>>(
                 config,
-                server->GetPacketTranscoderFactory()));
+                packetTranscoderFactory));
     }
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
-    server->RegisterServer(
+    servers.push_back(
         New<TTcpBusServerProxy<TLocalTcpBusServer>>(
             config,
-            server->GetPacketTranscoderFactory()));
+            packetTranscoderFactory));
 #endif
 
-    return server;
+    return New<TCompositeBusServer>(std::move(servers));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

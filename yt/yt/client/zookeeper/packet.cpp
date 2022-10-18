@@ -289,9 +289,9 @@ struct TPacketTranscoderFactory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IPacketTranscoderFactory> CreateZookeeperPacketTranscoderFactory()
+IPacketTranscoderFactory* GetZookeeperPacketTranscoderFactory()
 {
-    return std::make_unique<TPacketTranscoderFactory>();
+    return LeakySingleton<TPacketTranscoderFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
