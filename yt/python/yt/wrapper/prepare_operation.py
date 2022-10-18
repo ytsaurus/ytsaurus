@@ -11,6 +11,11 @@ from yt.yson import to_yson_type
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
+try:
+    from yt.packages.six import add_metaclass
+except ImportError:
+    from six import add_metaclass
+
 if is_schema_module_available():
     from .schema import Variant, OutputRow, RowIterator
 
@@ -22,8 +27,6 @@ class TypedJob:
     Interface for jobs that use structured data as input and output.
     The types for input and output rows are specified in :func:`~TypedJob.prepare_operation`.
     """
-
-    __metaclass__ = ABCMeta
 
     def prepare_operation(self, context, preparer):
         """
@@ -49,7 +52,6 @@ class TypedJob:
 
         return
 
-    @abstractmethod
     def get_intermediate_stream_count(self):
         """
         Override this method in mapper jobs of MapReduce operation to specify
@@ -60,12 +62,11 @@ class TypedJob:
         return None
 
 
+@add_metaclass(ABCMeta)
 class OperationPreparationContext:
     """
     Interface used to provide information on input and output tables.
     """
-
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def get_input_count(self):
