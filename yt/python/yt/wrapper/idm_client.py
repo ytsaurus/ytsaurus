@@ -154,7 +154,7 @@ class YtIdmClient(object):
         else:
             response.raise_for_status()
 
-        return decode_latin1(response.json())
+        return response.json()
 
     @_with_object_id
     def get_acl(self, object_id, include_managed_ace=False):
