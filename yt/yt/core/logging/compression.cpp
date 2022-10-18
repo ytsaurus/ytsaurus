@@ -20,7 +20,7 @@ TAppendableCompressedFile::TAppendableCompressedFile(
     , MaxBlockSize_(static_cast<size_t>(Codec_->GetMaxBlockSize()))
     , File_(std::move(file))
 {
-    i64 fileSize = file.GetLength();
+    i64 fileSize = File_.GetLength();
     Codec_->Repair(&File_, OutputPosition_);
     if (OutputPosition_ != fileSize && writeTruncateMessage) {
         TStringBuilder message;
