@@ -308,7 +308,7 @@ void TSchemalessFormatWriterBase::RegisterError(const TError& error)
 
 void TSchemalessFormatWriterBase::Flush()
 {
-    TryFlushBuffer(true);
+    TryFlushBuffer(/*force*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

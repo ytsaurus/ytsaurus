@@ -594,7 +594,7 @@ TFuture<void> TWriterForWebJson<TValueWriter>::Close()
 template <typename TValueWriter>
 void TWriterForWebJson<TValueWriter>::Flush()
 {
-    DoFlush(true);
+    DoFlush(/*force*/ true);
 }
 
 template <typename TValueWriter>

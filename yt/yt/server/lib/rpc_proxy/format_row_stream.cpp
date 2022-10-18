@@ -19,6 +19,8 @@
 
 namespace NYT::NApi::NRpcProxy {
 
+using namespace NConcurrency;
+using namespace NFormats;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,22 +29,22 @@ class TFormatStreamEncoder
     : public IRowStreamEncoder
 {
 public:
-    explicit TFormatStreamEncoder(
+    TFormatStreamEncoder(
         TNameTablePtr nameTable,
-        NFormats::TFormat format,
+        TFormat format,
         TTableSchemaPtr tableSchema,
-        NFormats::TControlAttributesConfigPtr controlAttributesConfig)
+        TControlAttributesConfigPtr controlAttributesConfig)
         : NameTable_(std::move(nameTable))
         , OutputStream_(Data_)
-        , AsyncOutputStream_(NConcurrency::CreateAsyncAdapter(&OutputStream_))
-        , Writer_(NFormats::CreateStaticTableWriterForFormat(
+        , AsyncOutputStream_(CreateAsyncAdapter(&OutputStream_))
+        , Writer_(CreateStaticTableWriterForFormat(
             format,
             NameTable_,
             {tableSchema},
             AsyncOutputStream_,
-            false,
+            /*enableContextSaving*/ false,
             controlAttributesConfig,
-            0))
+            /*keyColumnCount*/ 0))
     { }
 
     TSharedRef Encode(
@@ -81,53 +83,62 @@ public:
 
 private:
     const TNameTablePtr NameTable_;
-    const NFormats::TFormat Format_;
+    const TFormat Format_;
     const TTableSchemaPtr TableSchema_;
-    const NFormats::TControlAttributesConfigPtr ControlAttributesConfig_;
+    const TControlAttributesConfigPtr ControlAttributesConfig_;
 
     TString Data_;
     TStringOutput OutputStream_;
-    NConcurrency::IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
+    IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
 
-    NFormats::ISchemalessFormatWriterPtr Writer_;
+    const ISchemalessFormatWriterPtr Writer_;
 
     int NameTableSize_ = 0;
 };
 
 IRowStreamEncoderPtr CreateFormatRowStreamEncoder(
-        TNameTablePtr nameTable,
-        NFormats::TFormat format,
-        TTableSchemaPtr tableSchema,
-        NFormats::TControlAttributesConfigPtr controlAttributesConfig)
+    TNameTablePtr nameTable,
+    TFormat format,
+    TTableSchemaPtr tableSchema,
+    TControlAttributesConfigPtr controlAttributesConfig)
 {
     return New<TFormatStreamEncoder>(
-        std::move(nameTable), std::move(format), std::move(tableSchema), std::move(controlAttributesConfig));
+        std::move(nameTable),
+        std::move(format),
+        std::move(tableSchema),
+        std::move(controlAttributesConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorageTableWriter : public ITableWriter
+struct TCapturingTableWriterBufferTag
+{ };
+
+class TCapturingTableWriter
+    : public ITableWriter
 {
 public:
-    TStorageTableWriter(TNameTablePtr nameTable, NTableClient::TTableSchemaPtr tableSchema)
+    TCapturingTableWriter(TNameTablePtr nameTable, NTableClient::TTableSchemaPtr tableSchema)
         : NameTable_(std::move(nameTable))
         , TableSchema_(std::move(tableSchema))
+        , RowBuffer_(New<TRowBuffer>(TCapturingTableWriterBufferTag()))
     { }
 
     bool Write(TRange<NTableClient::TUnversionedRow> rows) override
     {
-        std::move(rows.begin(), rows.end(), std::back_inserter(WrittenRanges_));
+        auto capturedRows = RowBuffer_->CaptureRows(rows);
+        std::move(capturedRows.begin(), capturedRows.end(), std::back_inserter(WrittenRows_));
         return true;
     }
 
     TFuture<void> GetReadyEvent() override
     {
-        return MakeFuture<void>({});
+        return VoidFuture;
     }
 
     TFuture<void> Close() override
     {
-        return MakeFuture<void>({});
+        return VoidFuture;
     }
 
     const NTableClient::TNameTablePtr& GetNameTable() const override
@@ -142,47 +153,48 @@ public:
 
     void Clear()
     {
-        WrittenRanges_.clear();
+        WrittenRows_.clear();
+        RowBuffer_->Clear();
     }
 
     const std::vector<NTableClient::TUnversionedRow>& GetWrittenRows()
     {
-        return WrittenRanges_;
+        return WrittenRows_;
     }
 
 private:
     const TNameTablePtr NameTable_;
     const NTableClient::TTableSchemaPtr TableSchema_;
+    const TRowBufferPtr RowBuffer_;
 
-    std::vector<NTableClient::TUnversionedRow> WrittenRanges_;
+    std::vector<NTableClient::TUnversionedRow> WrittenRows_;
 };
 
 class TFormatStreamDecoder
     : public IRowStreamDecoder
 {
 public:
-    explicit TFormatStreamDecoder(TNameTablePtr nameTable, NFormats::TFormat format, NTableClient::TTableSchemaPtr tableSchema)
+    TFormatStreamDecoder(TNameTablePtr nameTable, TFormat format, NTableClient::TTableSchemaPtr tableSchema)
         : NameTable_(std::move(nameTable))
         , Format_(std::move(format))
         , TableSchema_(std::move(tableSchema))
-        , TableWriter_(New<TStorageTableWriter>(NameTable_, TableSchema_))
+        , TableWriter_(New<TCapturingTableWriter>(NameTable_, TableSchema_))
         , SchemalessWriter_(CreateSchemalessFromApiWriterAdapter(TableWriter_))
         , ValueConsumer_(
             SchemalessWriter_,
             ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))
-        , Output_(NFormats::CreateParserForFormat(Format_, &ValueConsumer_))
+        , Output_(CreateParserForFormat(Format_, &ValueConsumer_))
     {
     }
 
     IUnversionedRowBatchPtr Decode(
         const TSharedRef& payloadRef,
-        const NProto::TRowsetDescriptor& descriptorDelta) override
+        const NProto::TRowsetDescriptor& /*descriptorDelta*/) override
     {
-        Y_UNUSED(descriptorDelta);
-
         TableWriter_->Clear();
         Output_.Write(payloadRef.Begin(), payloadRef.Size());
-        NConcurrency::WaitFor(ValueConsumer_.Flush()).ThrowOnError();
+        WaitFor(ValueConsumer_.Flush())
+            .ThrowOnError();
 
         auto rows = MakeSharedRange(TableWriter_->GetWrittenRows());
 
@@ -191,16 +203,16 @@ public:
 
 private:
     const TNameTablePtr NameTable_;
-    const NFormats::TFormat Format_;
+    const TFormat Format_;
     const NTableClient::TTableSchemaPtr TableSchema_;
+    const TIntrusivePtr<TCapturingTableWriter> TableWriter_;
 
-    TIntrusivePtr<TStorageTableWriter> TableWriter_;
     IUnversionedWriterPtr SchemalessWriter_;
     TWritingValueConsumer ValueConsumer_;
     TTableOutput Output_;
 };
 
-IRowStreamDecoderPtr CreateFormatRowStreamDecoder(TNameTablePtr nameTable, NFormats::TFormat format, NTableClient::TTableSchemaPtr tableSchema)
+IRowStreamDecoderPtr CreateFormatRowStreamDecoder(TNameTablePtr nameTable, TFormat format, NTableClient::TTableSchemaPtr tableSchema)
 {
     return New<TFormatStreamDecoder>(std::move(nameTable), std::move(format), std::move(tableSchema));
 }
