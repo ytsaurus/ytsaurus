@@ -117,7 +117,7 @@ public:
         auto config = TTcpBusServerConfig::CreateTcp(Port);
         auto server = CreateTcpBusServer(
             config,
-            CreateZookeeperPacketTranscoderFactory());
+            GetZookeeperPacketTranscoderFactory());
         server->Start(handler);
         return server;
     }
@@ -127,7 +127,7 @@ public:
         auto server = StartBusServer(New<TReplyingBusHandler>(message));
         auto client = CreateTcpBusClient(
             TTcpBusClientConfig::CreateTcp(Address),
-            CreateZookeeperPacketTranscoderFactory());
+            GetZookeeperPacketTranscoderFactory());
         auto handler = New<TCheckingBusHandler>(numRequests, message);
         auto bus = client->CreateBus(handler);
 

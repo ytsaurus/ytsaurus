@@ -10,7 +10,7 @@ namespace NYT::NBus {
 
 IBusServerPtr CreateTcpBusServer(
     TTcpBusServerConfigPtr config,
-    std::unique_ptr<IPacketTranscoderFactory> packetTranscoderFactory = CreateYTPacketTranscoderFactory());
+    IPacketTranscoderFactory* packetTranscoderFactory = GetYTPacketTranscoderFactory());
 
 ////////////////////////////////////////////////////////////////////////////////
 
