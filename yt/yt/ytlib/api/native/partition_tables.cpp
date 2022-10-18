@@ -22,6 +22,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/ytree/permission.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -78,7 +80,7 @@ void TMultiTablePartitioner::CollectInput()
     std::vector<TInputTable> inputTables;
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        GetCurrentInvoker(),
+        CreateSerializedInvoker(GetCurrentInvoker()),
         Client_,
         TColumnarStatisticsFetcher::TOptions{
             .Config = Options_.FetcherConfig,
