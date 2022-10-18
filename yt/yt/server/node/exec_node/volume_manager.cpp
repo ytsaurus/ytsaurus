@@ -664,7 +664,8 @@ private:
                 YT_LOG_WARNING(ex, "Failed to cleanup directory after failed layer internalization");
             }
 
-            THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer internalization failed")
+            THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer internalization failed")
+                << TErrorAttribute("layer_path", layerMeta.artifact_key().data_source().path())
                 << ex;
         }
     }
@@ -759,7 +760,7 @@ private:
                         id,
                         archivePath,
                         tag);
-                    THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                    THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                         << ex;
                 }
 
@@ -791,10 +792,11 @@ private:
             return layerMeta;
         } catch (const std::exception& ex) {
             auto error = TError("Failed to import layer %v", id)
+                << TErrorAttribute("layer_path", artifactKey.data_source().path())
                 << ex;
 
             auto innerError = TError(ex);
-            if (innerError.GetCode() == NDataNode::EErrorCode::LayerUnpackingFailed) {
+            if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
                 THROW_ERROR error;
             }
 
@@ -1116,6 +1118,9 @@ public:
         , HitCounter_(ExecNodeProfiler
             .WithTag("cache_name", CacheName_)
             .Counter("/layer_cache/tmpfs_cache_hits"))
+        , UpdateFailedCounter_(ExecNodeProfiler
+            .WithTag("cache_name", CacheName_)
+            .Gauge("/layer_cache/update_failed"))
     {  }
 
     TLayerPtr FindLayer(const TArtifactKey& artifactKey)
@@ -1255,6 +1260,7 @@ private:
     TPromise<void> Initialized_ = NewPromise<void>();
 
     TCounter HitCounter_;
+    TGauge UpdateFailedCounter_;
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
@@ -1269,8 +1275,10 @@ private:
         auto guard = Guard(AlertSpinLock_);
         if (error.IsOK() && !Alert_.IsOK()) {
             YT_LOG_INFO("Tmpfs layer cache alert reset (CacheName: %v)", CacheName_);
+            UpdateFailedCounter_.Update(0);
         } else if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Tmpfs layer cache alert set (CacheName: %v)", CacheName_);
+            UpdateFailedCounter_.Update(1);
         }
 
         Alert_ = error;
@@ -1293,7 +1301,7 @@ private:
             listNodeOptions));
 
         if (!listNodeRspOrError.IsOK()) {
-            SetAlert(TError("Failed to list %v tmpfs layers directory %v",
+            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to list %v tmpfs layers directory %v",
                 CacheName_,
                 Config_->LayersDirectoryPath)
                 << listNodeRspOrError);
@@ -1310,7 +1318,7 @@ private:
                 paths.insert(FromObjectId(id));
             }
         } catch (const std::exception& ex) {
-            SetAlert(TError("Tmpfs layers directory %v has invalid structure",
+            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Tmpfs layers directory %v has invalid structure",
                 Config_->LayersDirectoryPath)
                 << ex);
             return;
@@ -1355,7 +1363,7 @@ private:
 
         auto fetchResultsOrError = WaitFor(AllSucceeded(futures));
         if (!fetchResultsOrError.IsOK()) {
-            SetAlert(TError("Failed to fetch tmpfs layer descriptions")
+            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to fetch tmpfs layer descriptions")
                 << fetchResultsOrError);
             return;
         }
@@ -1413,7 +1421,7 @@ private:
 
         auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
         if (!newLayersOrError.IsOK()) {
-            SetAlert(TError("Failed to import new tmpfs layers")
+            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to import new tmpfs layers")
                 << newLayersOrError);
             return;
         }
@@ -1423,7 +1431,7 @@ private:
         for (const auto& newLayerOrError : newLayersOrError.Value()) {
             if (!newLayerOrError.IsOK()) {
                 hasFailedLayer = true;
-                SetAlert(TError("Failed to import new %v tmpfs layer", CacheName_)
+                SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to import new %v tmpfs layer", CacheName_)
                     << newLayerOrError);
                 continue;
             }
@@ -1709,9 +1717,9 @@ private:
             auto fullStderr = WaitFor(asyncFullStderr)
                 .ValueOrThrow();
 
-            THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer conversion failed")
-                << ex
-                << TErrorAttribute("tar2squash_error", fullStderr);
+            THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer conversion failed")
+                << TErrorAttribute("tar2squash_error", fullStderr)
+                << ex;
         };
 
         while (auto block = WaitFor(input->Read()).ValueOrThrow()) {
