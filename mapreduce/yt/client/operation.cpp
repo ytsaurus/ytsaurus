@@ -2281,7 +2281,6 @@ TString TOperation::TOperationImpl::GetStatus()
     }
     TMaybe<TString> state;
     UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
-        Y_VERIFY(attributes.Result);
         state = attributes.State;
     });
 
