@@ -1620,7 +1620,7 @@ message TReqPartitionTables
 
 message TMultiTablePartition
 {
-    repeated bytes table_ranges = 1; // RichYPath
+    repeated string table_ranges = 1; // RichYPath
 }
 
 message TRspPartitionTables

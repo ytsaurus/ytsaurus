@@ -1453,7 +1453,7 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
     SetTimeoutOptions(*req, options);
 
     for (const auto& path : paths) {
-        req->add_paths(ConvertToYsonString(path).ToString());
+        req->add_paths(ToString(path));
     }
 
     ToProto(req->mutable_fetch_chunk_spec_config(), options.FetchChunkSpecConfig);
