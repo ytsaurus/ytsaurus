@@ -54,6 +54,11 @@ public:
         Offset_ += length;
     }
 
+    TSharedRef GetSuffix() const override
+    {
+        return Data_.Slice(Offset_, Data_.Size());
+    }
+
     bool IsFinished() const override
     {
         return Offset_ == std::ssize(Data_);

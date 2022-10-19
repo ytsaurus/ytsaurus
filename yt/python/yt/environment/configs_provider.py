@@ -891,7 +891,11 @@ def _build_http_proxy_config(proxy_dir,
 
         config["driver"] = driver_config
 
-        config["zookeeper"] = {}
+        config["zookeeper_proxy"] = {
+            "server": {
+                "port": next(ports_generator),
+            },
+        }
 
         proxy_configs.append(config)
 

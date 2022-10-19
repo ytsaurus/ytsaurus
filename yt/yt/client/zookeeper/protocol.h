@@ -21,6 +21,8 @@ struct IZookeeperProtocolReader
     virtual TString ReadString() = 0;
     virtual void ReadString(TString* result) = 0;
 
+    virtual TSharedRef GetSuffix() const = 0;
+
     //! Returns true if input is fully consumed and false otherwise.
     virtual bool IsFinished() const = 0;
     //! Throws an error if input is not fully consumed. Does nothing otherwise.

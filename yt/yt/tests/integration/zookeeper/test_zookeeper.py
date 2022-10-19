@@ -4,6 +4,7 @@ from yt_commands import (
     authors, create_zookeeper_shard, remove_zookeeper_shard, get,
     raises_yt_error, exists)
 
+from kazoo.client import KazooClient
 
 ##################################################################
 
@@ -13,6 +14,12 @@ class TestZookeeper(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
+
+    def _get_client(self):
+        port = self.Env.configs["http_proxy"][0]["zookeeper_proxy"]["server"]["port"]
+        client = KazooClient(hosts=f'[::1]:{port}')
+        client.start()
+        return client
 
     @authors("gritukan")
     def test_shard_attributes(self):
@@ -41,3 +48,9 @@ class TestZookeeper(YTEnvSetup):
             create_zookeeper_shard("foo", "/foo")
         with raises_yt_error("Zookeeper shard \"/\" is already created"):
             create_zookeeper_shard("root2", "/")
+
+    @authors("gritukan")
+    def test_start_session(self):
+        client = self._get_client()
+        session_id, _ = client.client_id
+        assert session_id == 123456
