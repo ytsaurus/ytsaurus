@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
+#include <yt/yt/server/lib/job_agent/job_report.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/core/profiling/profiler.h>
@@ -16,6 +18,7 @@
 namespace NYT::NScheduler {
 
 using namespace NProfiling;
+using namespace NJobAgent;
 using namespace NJobTrackerClient;
 using namespace NPhoenix;
 using namespace NYTree;
@@ -92,6 +95,7 @@ void Deserialize(TCustomJobMetricDescription& filter, NYson::TYsonPullParserCurs
 TJobMetrics TJobMetrics::FromJobStatistics(
     const TStatistics& jobStatistics,
     const TStatistics& controllerStatistics,
+    const NJobAgent::TTimeStatistics& timeStatistics,
     EJobState jobState,
     const std::vector<TCustomJobMetricDescription>& customJobMetricDescriptions,
     bool considerNonMonotonicMetrics)
@@ -120,16 +124,17 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         setMetricFromStatistics(metric, jobStatistics, path);
     }
 
-    static std::vector<std::pair<EJobMetricName, TString>> BuiltinControllerMetricMapping = {
-        {EJobMetricName::TotalTime, "/time/total"},
-        {EJobMetricName::ExecTime, "/time/exec"},
-        {EJobMetricName::PrepareTime, "/time/prepare"},
-        {EJobMetricName::PrepareRootFSTime, "/time/prepare_root_fs"},
-        {EJobMetricName::ArtifactsDownloadTime, "/time/artifacts_time"},
+    metricValues[EJobMetricName::TotalTime] = FindNumericValue(controllerStatistics, "/time/total").value_or(0);
+
+    static std::vector BuiltinControllerMetricMapping{
+        std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
+        {EJobMetricName::PrepareTime, &TTimeStatistics::PrepareDuration},
+        {EJobMetricName::PrepareRootFSTime, &TTimeStatistics::PrepareRootFSDuration},
+        {EJobMetricName::ArtifactsDownloadTime, &TTimeStatistics::ArtifactsDownloadDuration},
     };
 
-    for (const auto& [metric, path] : BuiltinControllerMetricMapping) {
-        setMetricFromStatistics(metric, controllerStatistics, path);
+    for (const auto& [metric, field] : BuiltinControllerMetricMapping) {
+        metricValues[metric] = (timeStatistics.*field).value_or(TDuration{}).MilliSeconds();
     }
 
     if (jobState == EJobState::Completed) {
