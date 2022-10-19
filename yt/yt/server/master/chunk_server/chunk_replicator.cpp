@@ -1219,17 +1219,17 @@ void TChunkReplicator::OnNodeDisposed(TNode* node)
     for (const auto& queue : node->ChunkPushReplicationQueues()) {
         YT_VERIFY(queue.empty());
     }
+
+    // ChunksBeingPulled may still contain chunks and it is ok, as it is a responsibility
+    // of source nodes to remove corresponding chunks.
+
     YT_VERIFY(node->PushReplicationTargetNodeIds().empty());
 }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
-    for (const auto& [chunkId, mediumToNode] : node->PushReplicationTargetNodeIds()) {
-        for (auto [mediumIndex, nodeId] : mediumToNode) {
-            UnrefChunkBeingPulled(nodeId, chunkId, mediumIndex);
-        }
-    }
-    node->PushReplicationTargetNodeIds().clear();
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    node->ClearPushReplicationTargetNodeIds(nodeTracker);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& queue : node->ChunkPullReplicationQueues()) {
