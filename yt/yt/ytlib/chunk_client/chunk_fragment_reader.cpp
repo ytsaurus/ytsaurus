@@ -201,7 +201,6 @@ private:
     }
 
     // TODO(babenko): deal with erasure
-    // TODO(babenko): drop something in replica cache?
     void DropChunkReplica(TChunkId chunkId, const TPeerInfoPtr& peerInfo)
     {
         auto mapGuard = ReaderGuard(ChunkIdToChunkInfoLock_);
@@ -1432,13 +1431,12 @@ private:
                 auto chunkId = controller.GetChunkId();
 
                 if (!subresponse.has_complete_chunk()) {
+                    // NB: We do not ban peer or invalidate chunk replica cache
+                    // because replica set may happen to be out of date due to eventually consistent nature of DRT.
                     Reader_->DropChunkReplica(chunkId, peerInfo);
-                    auto error = TError("Peer %v does not contain chunk %v",
+                    OnError(TError("Peer %v does not contain chunk %v",
                         peerInfo->Address,
-                        chunkId);
-                    // TODO(babenko): maybe ban it "strongly"?
-                    BanPeer(peerInfo);
-                    OnError(std::move(error));
+                        chunkId));
                     continue;
                 }
 
