@@ -124,16 +124,16 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         setMetricFromStatistics(metric, jobStatistics, path);
     }
 
-    metricValues[EJobMetricName::TotalTime] = FindNumericValue(controllerStatistics, "/time/total").value_or(0);
+    setMetricFromStatistics(EJobMetricName::TotalTime, controllerStatistics, "/time/total");
 
-    static std::vector BuiltinControllerMetricMapping{
+    static std::vector BuiltinControllerTimeMetricMapping{
         std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
         {EJobMetricName::PrepareTime, &TTimeStatistics::PrepareDuration},
         {EJobMetricName::PrepareRootFSTime, &TTimeStatistics::PrepareRootFSDuration},
         {EJobMetricName::ArtifactsDownloadTime, &TTimeStatistics::ArtifactsDownloadDuration},
     };
 
-    for (const auto& [metric, field] : BuiltinControllerMetricMapping) {
+    for (const auto& [metric, field] : BuiltinControllerTimeMetricMapping) {
         metricValues[metric] = (timeStatistics.*field).value_or(TDuration{}).MilliSeconds();
     }
 
