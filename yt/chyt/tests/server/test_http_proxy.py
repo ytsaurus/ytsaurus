@@ -3,13 +3,16 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 from helpers import get_scheduling_options
 
 from yt_commands import (get, write_table, authors, raises_yt_error, abort_job, update_op_parameters, print_debug,
-                         create, sync_create_cells, create_user, create_group, add_member, ls)
+                         create, sync_create_cells, create_user, create_group, add_member, ls,
+                         create_access_control_object_namespace, create_access_control_object, make_ace, set as yt_set)
 
 from yt.common import wait
 
 from yt_helpers import profiler_factory, write_log_barrier, read_structured_log
 
 import yt.environment.init_operation_archive as init_operation_archive
+
+from yt_env_setup import Restarter, SCHEDULERS_SERVICE
 
 import os
 import pytest
@@ -28,6 +31,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 "refresh_time": 100,
                 "expire_after_failed_update_time": 100,
             },
+            "operation_id_update_period": 100,
+            "discovery_server_update_period": 1000,
         },
     }
 
@@ -344,6 +349,36 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             for user in ("u1", "u2", "u3"):
                 with raises_yt_error(901):  # AuthorizationError
                     assert clique.make_query_via_proxy("select 1 as a", user=user)
+
+    @authors("gudqeit")
+    def test_clique_works_without_scheduler(self):
+        patch = {
+            "yt": {
+                "discovery": {
+                    "version": 2
+                }
+            }
+        }
+        create_user("u1")
+        create_access_control_object_namespace(name="chyt")
+        create_access_control_object(name="ch_alias", namespace="chyt")
+        acl = [make_ace("allow", "u1", "use")]
+        yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
+        with Clique(1, config_patch=patch, alias="*ch_alias") as clique:
+            # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
+            create("map_node",
+                   "//sys/clickhouse/strawberry/ch_alias",
+                   recursive=True,
+                   attributes={
+                       "strawberry_persistent_state": {
+                           "yt_operation_id": clique.op.id,
+                           "yt_operation_state": "running",
+                       }
+                   }
+                   )
+            time.sleep(1)
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                assert clique.make_query_via_proxy("select 1 as a", user="u1") == [{"a": 1}]
 
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):

@@ -60,6 +60,8 @@ public:
 
     TDuration DiscoveryServerUpdatePeriod;
 
+    TDuration OperationIdUpdatePeriod;
+
     REGISTER_YSON_STRUCT(TStaticClickHouseConfig);
 
     static void Register(TRegistrar registrar);

@@ -160,6 +160,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_, Config_->Coordinator);
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
+    ClickHouseHandler_->Start();
 
     if (Config_->ZookeeperProxy) {
         ZookeeperBootstrapProxy_ = CreateZookeeperBootstrapProxy(this);
