@@ -43,6 +43,9 @@ class Subject(object):
         if "user" in subject:
             self.kind = "user"
             self.user = subject["user"]
+        elif "tvm_id" in subject:
+            self.kind = "tvm_app"
+            self.tvm_id = subject["tvm_id"]
         else:
             self.kind = "group"
             self.group = subject["group"]
@@ -53,6 +56,8 @@ class Subject(object):
     def _signature(self):
         if self.kind == "user":
             return ("user", self.user)
+        elif self.kind == "tvm_app":
+            return ("tvm_app", self.tvm_id)
         else:
             return ("group", self.group)
 
@@ -78,12 +83,16 @@ class Subject(object):
         postfix = "*" if self.inherited else ""
         if self.kind == "user":
             return self.user + postfix
+        elif self.kind == "tvm_app":
+            return "{} (tvm-app:{}){}".format(self.url, self.tvm_id, postfix)
         else:
             return "{} (idm-group:{}){}".format(self.url, self.group, postfix)
 
     def to_json_type(self):
         if self.kind == "user":
             return dict(user=self.user, url=self.url)
+        elif self.kind == "tvm_app":
+            return dict(tvm_id=self.tvm_id, url=self.url)
         else:
             return dict(group=self.group, group_name=self.human_readable_name, url=self.url)
 
