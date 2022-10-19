@@ -32,6 +32,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -110,7 +111,9 @@ import ru.yandex.yt.ytclient.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.MoveNode;
+import ru.yandex.yt.ytclient.request.MultiTablePartition;
 import ru.yandex.yt.ytclient.request.MutateNode;
+import ru.yandex.yt.ytclient.request.PartitionTables;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
@@ -466,6 +469,18 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CONCATENATE_NODES.createRequestBuilder(rpcOptions)),
                 response -> null);
+    }
+
+    @Override
+    public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PARTITION_TABLES.createRequestBuilder(rpcOptions)),
+                response -> response.body().getPartitionsList().stream()
+                        .map(p -> new MultiTablePartition(p.getTableRangesList().stream()
+                                .map(range -> YPath.fromTree(YTreeTextSerializer.deserialize(
+                                        new ByteArrayInputStream(range.getBytes()))))
+                                .collect(Collectors.toList())))
+                        .collect(Collectors.toList()));
     }
 
     // TODO: TReqAttachTransaction

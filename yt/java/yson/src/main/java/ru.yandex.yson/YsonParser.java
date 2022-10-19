@@ -376,7 +376,7 @@ public class YsonParser {
     private byte[] tryReadUnquotedString(byte firstByte) {
         boolean isUnquotedString = 'a' <= firstByte && firstByte <= 'z' ||
                 'A' <= firstByte && firstByte <= 'Z' ||
-                firstByte == '_';
+                firstByte == '_' || firstByte == '/';
         if (!isUnquotedString) {
             return null;
         }
@@ -394,7 +394,8 @@ public class YsonParser {
                     '0' <= b && b <= '9' ||
                     b == '_' ||
                     b == '.' ||
-                    b == '-'
+                    b == '-' ||
+                    b == '/'
             ) {
                 out.write(b);
             } else {
