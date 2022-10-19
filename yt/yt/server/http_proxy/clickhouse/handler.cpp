@@ -95,6 +95,7 @@ public:
         const TCounter forceUpdateCounter,
         const TCounter bannedCounter,
         const std::vector<TString>& discoveryServers,
+        const TClickHouseHandlerPtr& handler,
         IInvokerPtr controlInvoker,
         NLogging::TLogger logger)
         : Logger(logger)
@@ -111,6 +112,7 @@ public:
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
         , DiscoveryServers_(discoveryServers)
+        , Handler_(handler)
         , ChannelFactory_(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()))
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
@@ -226,6 +228,7 @@ private:
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
     std::vector<TString> DiscoveryServers_;
+    TClickHouseHandlerPtr Handler_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
     static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
@@ -604,13 +607,18 @@ private:
             Logger);
     }
 
+    TString GetOperationIdOrAliasWithoutAsterisk()
+    {
+        auto operationIdOrAlias = ToString(OperationIdOrAlias_);
+        if (operationIdOrAlias.StartsWith('*')) {
+            operationIdOrAlias = operationIdOrAlias.erase(0, 1);
+        }
+        return operationIdOrAlias;
+    }
+
     TString GetDiscoveryGroupId()
     {
-        auto groupId = OperationAlias_.value_or(ToString(OperationId_));
-        if (groupId.StartsWith('*')) {
-            groupId = groupId.erase(0, 1);
-        }
-        return "/chyt/" + groupId;
+        return "/chyt/" + GetOperationIdOrAliasWithoutAsterisk();
     }
 
     IDiscoveryPtr CreateDiscoveryV2()
@@ -667,7 +675,7 @@ private:
         try {
             auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", OperationId_);
+                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", OperationIdOrAlias_);
 
                 auto discovery = TryChooseDiscovery();
 
@@ -677,7 +685,7 @@ private:
                     OperationId_,
                     std::move(discovery)));
 
-                YT_LOG_DEBUG("New discovery inserted to the cache (OperationId: %v)", OperationId_);
+                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", OperationIdOrAlias_);
             }
 
             YT_PROFILE_TIMING("/clickhouse_proxy/query_time/find_discovery") {
@@ -794,6 +802,22 @@ private:
 
     bool TryGetOperation()
     {
+        if (OperationAlias_) {
+            auto operationId = Handler_->GetOperationId(GetOperationIdOrAliasWithoutAsterisk());
+            if (operationId) {
+                OperationId_ = operationId;
+                YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
+                    OperationAlias_,
+                    OperationId_);
+                return true;
+            }
+
+            YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
+                OperationAlias_);
+        }
+
+        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", OperationIdOrAlias_);
+
         try {
             auto operationYson = WaitFor(OperationCache_->Get(OperationIdOrAlias_))
                 .ValueOrThrow();
@@ -845,23 +869,41 @@ private:
 
     bool TryAuthorize()
     {
-        auto error = WaitFor(PermissionCache_->Get(TPermissionKey{
+        TFuture<void> future;
+        if (OperationAcl_) {
+            future = PermissionCache_->Get(TPermissionKey{
                 .Acl = OperationAcl_,
                 .User = User_,
-                .Permission = EPermission::Read
-            }));
-
-        if (!error.IsOK()) {
-            ReplyWithError(
-                EStatusCode::Forbidden,
-                TError("User %Qv has no access to clique %v",
-                    User_,
-                    OperationIdOrAlias_)
-                    << TErrorAttribute("operation_acl", OperationAcl_)
-                    << error);
-            return false;
+                .Permission = EPermission::Read,
+            });
+        } else {
+            future = PermissionCache_->Get(TPermissionKey{
+                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", GetOperationIdOrAliasWithoutAsterisk()),
+                .User = User_,
+                .Permission = EPermission::Use,
+            });
         }
 
+        auto error = WaitFor(future);
+        if (!error.IsOK()) {
+            if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                ReplyWithError(
+                    EStatusCode::Forbidden,
+                    TError("User %Qv has no access to clique %v",
+                        User_,
+                        OperationIdOrAlias_)
+                        << TErrorAttribute("operation_acl", OperationAcl_)
+                        << error);
+            } else {
+                ReplyWithError(
+                    EStatusCode::BadRequest,
+                    TError("Failed to authorize user %Qv to clique %v",
+                        User_,
+                        OperationIdOrAlias_)
+                        << error);
+            }
+            return false;
+        }
         return true;
     }
 
@@ -976,7 +1018,7 @@ private:
     {
         Discovery_.Reset();
         DiscoveryCache_->TryRemove(OperationId_);
-        YT_LOG_DEBUG("Discovery was removed from cache (OperationId: %v)", OperationId_);
+        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", OperationIdOrAlias_);
     }
 };
 
@@ -998,6 +1040,10 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         ControlInvoker_,
         BIND(&TClickHouseHandler::UpdateDiscoveryServers, MakeWeak(this)),
         Config_->DiscoveryServerUpdatePeriod))
+    , OperationIdUpdateExecutor_(New<TPeriodicExecutor>(
+        ControlInvoker_,
+        BIND(&TClickHouseHandler::UpdateOperationIds, MakeWeak(this)),
+        Config_->OperationIdUpdatePeriod))
 {
     OperationCache_ = New<TOperationCache>(
         Config_->OperationCache,
@@ -1010,7 +1056,21 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         ClickHouseProfiler.WithPrefix("/permission_cache"));
 
     DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.WithPrefix("/discovery_cache"));
+}
+
+void TClickHouseHandler::Start()
+{
     DiscoveryServerUpdateExecutor_->Start();
+    OperationIdUpdateExecutor_->Start();
+
+    auto futures = std::vector{
+        DiscoveryServerUpdateExecutor_->GetExecutedEvent(),
+        OperationIdUpdateExecutor_->GetExecutedEvent()};
+
+    DiscoveryServerUpdateExecutor_->ScheduleOutOfBand();
+    OperationIdUpdateExecutor_->ScheduleOutOfBand();
+    WaitFor(AllSucceeded(futures))
+        .ThrowOnError();
 }
 
 void TClickHouseHandler::HandleRequest(
@@ -1052,6 +1112,7 @@ void TClickHouseHandler::HandleRequest(
             ForceUpdateCount_,
             BannedCount_,
             GetDiscoveryServers(),
+            MakeStrong(this),
             ControlInvoker_,
             Logger);
 
@@ -1103,13 +1164,57 @@ void TClickHouseHandler::UpdateDiscoveryServers()
         discoveryServers = ConvertTo<std::vector<TString>>(discoveryServersYson);
     } catch (const std::exception& ex) {
         // Non-throwing method for periodic executor
-        YT_LOG_DEBUG(ex, "Can not list '//sys/discovery_servers'");
+        YT_LOG_DEBUG(ex, "Cannot list '//sys/discovery_servers'");
     }
 
-    auto guard = WriterGuard(DiscoveryServerLock_);
     if (!discoveryServers.empty()) {
-        DiscoveryServers_ = discoveryServers;
+        auto guard = WriterGuard(DiscoveryServerLock_);
+        DiscoveryServers_.swap(discoveryServers);
     }
+}
+
+void TClickHouseHandler::UpdateOperationIds()
+{
+    auto Logger = ClickHouseUnstructuredLogger;
+    THashMap<TString, TOperationId> aliasToOperationId;
+    try {
+        TListNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::MasterCache;
+        options.Attributes = {"strawberry_persistent_state"};
+        auto listResult = WaitFor(Client_->ListNode("//sys/clickhouse/strawberry", options))
+            .ValueOrThrow();
+        auto strawberryNodes = ConvertTo<std::vector<IStringNodePtr>>(listResult);
+        for (const auto& node : strawberryNodes) {
+            auto alias = node->GetValue();
+            try {
+                auto strawberryPersistentState = node->Attributes()
+                    .Get<IMapNodePtr>("strawberry_persistent_state");
+                auto ytOperationState = ConvertTo<EOperationState>(strawberryPersistentState->GetChildOrThrow("yt_operation_state"));
+                if (ytOperationState == EOperationState::Running) {
+                    auto operationId = ConvertTo<TOperationId>(strawberryPersistentState->GetChildOrThrow("yt_operation_id"));
+                    aliasToOperationId[alias] = operationId;
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Cannot extract operation id from strawberry node (Clique: %v)", alias);
+                continue;
+            }
+        }
+    } catch (const std::exception& ex) {
+        // Non-throwing method for periodic executor
+        YT_LOG_DEBUG(ex, "Cannot update operation information map");
+    }
+
+    if (!aliasToOperationId.empty()) {
+        auto guard = WriterGuard(OperationIdLock_);
+        AliasToOperationId_.swap(aliasToOperationId);
+    }
+}
+
+TOperationId TClickHouseHandler::GetOperationId(const TString& alias) const
+{
+    auto guard = ReaderGuard(OperationIdLock_);
+    auto it = AliasToOperationId_.find(alias);
+    return (it != AliasToOperationId_.end()) ? it->second : TOperationId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,9 +26,13 @@ class TClickHouseHandler
 public:
     explicit TClickHouseHandler(TBootstrap* bootstrap);
 
+    void Start();
+
     void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
+
+    NScheduler::TOperationId GetOperationId(const TString& alias) const;
 
 private:
     TBootstrap* const Bootstrap_;
@@ -52,13 +56,20 @@ private:
     NProfiling::TCounter ForceUpdateCount_;
     NProfiling::TCounter BannedCount_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoveryServerLock_);
     NConcurrency::TPeriodicExecutorPtr DiscoveryServerUpdateExecutor_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoveryServerLock_);
     std::vector<TString> DiscoveryServers_;
 
+    NConcurrency::TPeriodicExecutorPtr OperationIdUpdateExecutor_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, OperationIdLock_);
+    THashMap<TString, NScheduler::TOperationId> AliasToOperationId_;
+
     void AdjustQueryCount(const TString& user, int delta);
+
     void UpdateDiscoveryServers();
     std::vector<TString> GetDiscoveryServers();
+
+    void UpdateOperationIds();
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseHandler)
