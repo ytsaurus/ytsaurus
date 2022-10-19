@@ -2823,7 +2823,8 @@ private:
 
         ChunkReplicator_->OnNodeUnregistered(node);
 
-        node->Reset();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        node->Reset(nodeTracker);
     }
 
     void OnNodeDecommissionChanged(TNode* node)
@@ -2869,7 +2870,8 @@ private:
 
         ChunkReplicator_->OnNodeUnregistered(node);
 
-        node->Reset();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        node->Reset(nodeTracker);
 
         DiscardEndorsements(node);
 

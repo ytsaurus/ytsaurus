@@ -409,7 +409,8 @@ public:
 
     void ShrinkHashTables();
 
-    void Reset();
+    void ClearPushReplicationTargetNodeIds(const INodeTrackerPtr& nodeTracker);
+    void Reset(const INodeTrackerPtr& nodeTracker);
 
     static ui64 GenerateVisitMark();
 

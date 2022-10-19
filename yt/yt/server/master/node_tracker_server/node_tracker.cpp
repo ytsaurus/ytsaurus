@@ -1517,8 +1517,9 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [nodeId, node] : NodeMap_) {
-            node->Reset();
+            node->Reset(nodeTracker);
         }
 
         BufferedProducer_->SetEnabled(false);

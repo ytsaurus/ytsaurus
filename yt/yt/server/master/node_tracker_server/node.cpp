@@ -940,7 +940,19 @@ void TNode::ShrinkHashTables()
     }
 }
 
-void TNode::Reset()
+void TNode::ClearPushReplicationTargetNodeIds(const INodeTrackerPtr& nodeTracker)
+{
+    for (const auto& [chunkId, mediumToNode] : PushReplicationTargetNodeIds()) {
+        for (auto [mediumIndex, nodeId] : mediumToNode) {
+            if (auto* node = nodeTracker->FindNode(nodeId)) {
+                node->UnrefChunkBeingPulled(chunkId, mediumIndex);
+            }
+        }
+    }
+    PushReplicationTargetNodeIds_.clear();
+}
+
+void TNode::Reset(const INodeTrackerPtr& nodeTracker)
 {
     LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
@@ -950,8 +962,14 @@ void TNode::Reset()
     for (auto& queue : ChunkPullReplicationQueues_) {
         queue.clear();
     }
-    ChunksBeingPulled_.clear();
-    PushReplicationTargetNodeIds_.clear();
+
+    // ChunksBeingPulled_ should be cleared by other nodes and jobs.
+
+    ClearPushReplicationTargetNodeIds(nodeTracker);
+
+    // PushReplicationTargetNodeIds_ should be cleared somewhere else
+    // (in order to unref chunks being pulled for other nodes).
+
     ChunkSealQueue_.clear();
     FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
