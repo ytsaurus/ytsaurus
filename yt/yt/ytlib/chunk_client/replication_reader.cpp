@@ -430,6 +430,7 @@ protected:
         i64 DiskQueueSize;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
+        bool HasCompleteChunk;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
@@ -443,7 +444,8 @@ protected:
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
             .PeerDescriptors = rsp->peer_descriptors(),
-            .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas())
+            .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
+            .HasCompleteChunk = rsp->has_complete_chunk()
         };
     }
 
@@ -1057,9 +1059,9 @@ protected:
         }
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
-            .Apply(BIND(
+            .ApplyUnique(BIND(
                 [=, this_ = MakeWeak(this)]
-                (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& peerAndProbeResultsOrError)
+                (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
                 return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
@@ -1279,7 +1281,6 @@ private:
         TPeer peer,
         const TErrorOr<TRspPtr>& rspOrError)
     {
-        // TODO(akozhikhov): We probably should not ignore HasCompleteChunk field.
         if (rspOrError.IsOK()) {
             return {
                 std::move(peer),
@@ -1483,6 +1484,13 @@ private:
                     peer.Address,
                     probeResult.NetThrottling,
                     probeResult.DiskThrottling);
+                continue;
+            }
+
+            if (!probeResult.HasCompleteChunk && peer.Type == EPeerType::Seed) {
+                YT_LOG_DEBUG("Peer has no complete chunk (Address: %v)",
+                    peer.Address);
+                BanPeer(peer.Address, /*forever*/ false);
                 continue;
             }
 
