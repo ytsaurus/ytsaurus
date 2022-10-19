@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_agent/public.h>
+
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/core/misc/phoenix.h>
@@ -100,6 +102,7 @@ public:
     static TJobMetrics FromJobStatistics(
         const TStatistics& jobStatistics,
         const TStatistics& controllerStatistics,
+        const NJobAgent::TTimeStatistics& timeStatistics,
         NJobTrackerClient::EJobState jobState,
         const std::vector<TCustomJobMetricDescription>& customJobMetrics,
         bool considerNonMonotonicMetrics);

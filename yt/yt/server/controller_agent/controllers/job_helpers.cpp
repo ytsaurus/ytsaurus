@@ -188,21 +188,7 @@ void UpdateJobletFromSummary(
     // Update controller statistics.
 
     auto controllerStatistics = std::make_shared<TStatistics>();
-
-    // Time statistics may or may not be present in job statistics. If they are
-    // not present, we force them from job summary time statistics.
-    bool hasTimeStatistics = false;
-    {
-        const auto& data = jobStatistics->Data();
-        auto iterator = data.lower_bound("/time");
-        if (iterator != data.end() && HasPrefix(iterator->first, "/time")) {
-            hasTimeStatistics = true;
-        }
-    }
-    if (!hasTimeStatistics) {
-        jobSummary.TimeStatistics.AddSamplesTo(controllerStatistics.get());
-    }
-
+    
     auto endTime = std::max(
         jobSummary.FinishTime.value_or(TInstant::Now()),
         joblet->LastUpdateTime);

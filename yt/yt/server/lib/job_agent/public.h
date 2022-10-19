@@ -7,6 +7,7 @@ namespace NYT::NJobAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobReport;
+struct TTimeStatistics;
 
 DECLARE_REFCOUNTED_CLASS(TGpuInfoSourceConfig)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)

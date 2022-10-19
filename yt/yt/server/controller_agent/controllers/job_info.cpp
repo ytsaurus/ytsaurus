@@ -65,6 +65,7 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
     const auto newJobMetrics = TJobMetrics::FromJobStatistics(
         *JobStatistics,
         *ControllerStatistics,
+        jobSummary.TimeStatistics,
         jobSummary.State,
         Task->GetTaskHost()->GetConfig()->CustomJobMetrics,
         /*considerNonMonotonicMetrics*/ isJobFinished);
