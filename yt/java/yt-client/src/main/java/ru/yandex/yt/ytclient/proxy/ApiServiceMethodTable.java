@@ -42,6 +42,7 @@ import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
+import ru.yandex.yt.rpcproxy.TReqPartitionTables;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
@@ -95,6 +96,7 @@ import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspMoveNode;
+import ru.yandex.yt.rpcproxy.TRspPartitionTables;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
@@ -200,6 +202,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqConcatenateNodes.Builder, TRspConcatenateNodes> CONCATENATE_NODES =
             apiServiceMethod("ConcatenateNodes", TReqConcatenateNodes::newBuilder, TRspConcatenateNodes.parser());
+
+    public static final RpcMethodDescriptor<TReqPartitionTables.Builder, TRspPartitionTables> PARTITION_TABLES =
+            apiServiceMethod("PartitionTables", TReqPartitionTables::newBuilder, TRspPartitionTables.parser());
 
     public static final RpcMethodDescriptor<TReqMountTable.Builder, TRspMountTable> MOUNT_TABLE =
             apiServiceMethod("MountTable", TReqMountTable::newBuilder, TRspMountTable.parser());

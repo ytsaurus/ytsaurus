@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -35,6 +36,8 @@ import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
+import ru.yandex.yt.ytclient.request.MultiTablePartition;
+import ru.yandex.yt.ytclient.request.PartitionTables;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.request.ReadFile;
@@ -171,6 +174,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     default CompletableFuture<Void> concatenateNodes(ConcatenateNodes.BuilderBase<?> req) {
         return concatenateNodes(req.build());
     }
+
+    CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req);
 
     /**
      * @deprected prefer to use {@link #readTable(ReadTable)}

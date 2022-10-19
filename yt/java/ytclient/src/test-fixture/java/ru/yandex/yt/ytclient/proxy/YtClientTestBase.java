@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -87,7 +88,10 @@ public class YtClientTestBase {
     }
 
     protected void writeTable(YtClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
-        yt.createNode(path.toString(), ObjectType.Table).join();
+        try {
+            yt.createNode(path.justPath().toString(), ObjectType.Table).join();
+        } catch (CompletionException ignored) {
+        }
 
         TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(path, YTreeMapNode.class)).join();
         try {

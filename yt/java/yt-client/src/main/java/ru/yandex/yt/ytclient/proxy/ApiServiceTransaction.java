@@ -44,6 +44,8 @@ import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MoveNode;
+import ru.yandex.yt.ytclient.request.MultiTablePartition;
+import ru.yandex.yt.ytclient.request.PartitionTables;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
 import ru.yandex.yt.ytclient.request.ReadFile;
@@ -410,6 +412,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return client.concatenateNodes(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
+        return client.partitionTables(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
     @Override

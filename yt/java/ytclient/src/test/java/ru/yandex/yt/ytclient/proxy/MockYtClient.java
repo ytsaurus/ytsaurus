@@ -63,6 +63,8 @@ import ru.yandex.yt.ytclient.request.MapReduceOperation;
 import ru.yandex.yt.ytclient.request.MergeOperation;
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.MoveNode;
+import ru.yandex.yt.ytclient.request.MultiTablePartition;
+import ru.yandex.yt.ytclient.request.PartitionTables;
 import ru.yandex.yt.ytclient.request.PingTransaction;
 import ru.yandex.yt.ytclient.request.PutFileToCache;
 import ru.yandex.yt.ytclient.request.PutFileToCacheResult;
@@ -243,6 +245,11 @@ public class MockYtClient implements BaseYtClient {
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return (CompletableFuture<Void>) callMethod("concatenateNodes");
+    }
+
+    @Override
+    public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
+        return (CompletableFuture<List<MultiTablePartition>>) callMethod("partitionTables");
     }
 
     @Override
