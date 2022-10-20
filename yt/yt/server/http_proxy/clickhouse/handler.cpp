@@ -887,13 +887,14 @@ private:
         auto error = WaitFor(future);
         if (!error.IsOK()) {
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
-                ReplyWithError(
-                    EStatusCode::Forbidden,
-                    TError("User %Qv has no access to clique %v",
-                        User_,
-                        OperationIdOrAlias_)
-                        << TErrorAttribute("operation_acl", OperationAcl_)
-                        << error);
+                auto replyError = TError("User %Qv has no access to clique %v",
+                    User_,
+                    OperationIdOrAlias_)
+                    << error;
+                if (OperationAcl_) {
+                    replyError.MutableAttributes()->Set("operation_acl", OperationAcl_);
+                }
+                ReplyWithError(EStatusCode::Forbidden, replyError);
             } else {
                 ReplyWithError(
                     EStatusCode::BadRequest,
