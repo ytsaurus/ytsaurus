@@ -1397,6 +1397,9 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         assert get("//tmp/q/@queue_agent_stage") == "production"
 
+        set("//sys/@config/queue_agent_server/default_queue_agent_stage", "another_default")
+        assert get("//tmp/q/@queue_agent_stage") == "another_default"
+
         set("//tmp/q/@queue_agent_stage", "testing")
         assert get("//tmp/q/@queue_agent_stage") == "testing"
 
@@ -1417,11 +1420,19 @@ class TestMasterIntegration(TestQueueAgentBase):
                                                        {"name": "value", "type": "string"}]})
         create("replicated_table", "//tmp/q_ordered_replicated",
                attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
-        attributes = ["queue_agent_stage", "queue_status", "queue_partitions"]
-        result = get("//tmp", attributes=attributes)
+        queue_attributes = ["queue_status", "queue_partitions"]
+
+        result = get("//tmp", attributes=queue_attributes)
         for name in ("q_static", "q_sorted_dynamic", "q_ordered_replicated"):
             assert not result[name].attributes
-            for attribute in attributes:
+            for attribute in queue_attributes:
+                assert not exists("//tmp/" + name + "/@" + attribute)
+
+        dynamic_table_attributes = ["queue_agent_stage"]
+        result = get("//tmp", attributes=dynamic_table_attributes)
+        for name in ("q_static",):
+            assert not result[name].attributes
+            for attribute in dynamic_table_attributes:
                 assert not exists("//tmp/" + name + "/@" + attribute)
 
     def _set_and_assert_revision_change(self, path, attribute, value, enable_revision_changing):

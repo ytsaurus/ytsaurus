@@ -18,8 +18,6 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/yt/ytlib/queue_client/public.h>
-
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -81,7 +79,7 @@ private:
         NTabletClient::EBackupMode BackupMode = NTabletClient::EBackupMode::None;
         TError BackupError;
         std::vector<NTabletClient::TTableReplicaBackupDescriptor> ReplicaBackupDescriptors;
-        TString QueueAgentStage = NQueueClient::ProductionStage;
+        std::optional<TString> QueueAgentStage;
         bool TreatAsConsumer = false;
         bool IsVitalConsumer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;

@@ -1,5 +1,8 @@
 #include "helpers.h"
 
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -16,6 +19,14 @@ using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TString GetEffectiveQueueAgentStage(
+    TBootstrap* bootstrap,
+    const TTableNode* table)
+{
+    return table->GetQueueAgentStage().value_or(
+        bootstrap->GetConfigManager()->GetConfig()->QueueAgentServer->DefaultQueueAgentStage);
+}
 
 TFuture<TYsonString> GetQueueAgentAttributeAsync(
     TBootstrap* bootstrap,
@@ -43,8 +54,10 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
             YT_ABORT();
     }
 
+    auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, table);
+
     auto queueAgentObjectService = CreateQueueAgentYPathService(
-        connection->GetQueueAgentChannelOrThrow(table->GetQueueAgentStage()),
+        connection->GetQueueAgentChannelOrThrow(queueAgentStage),
         *clusterName,
         objectKind,
         path);

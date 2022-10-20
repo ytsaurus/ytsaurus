@@ -40,6 +40,8 @@
 
 #include <yt/yt/ytlib/hive/config.h>
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/library/program/config.h>
@@ -281,6 +283,14 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicQueueAgentServerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_queue_agent_stage", &TThis::DefaultQueueAgentStage)
+        .Default(NQueueClient::ProductionStage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicClusterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_safe_mode", &TThis::EnableSafeMode)
@@ -323,6 +333,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_service", &TThis::ChunkService)
         .DefaultNew();
     registrar.Parameter("incumbent_manager", &TThis::IncumbentManager)
+        .DefaultNew();
+    registrar.Parameter("queue_agent_server", &TThis::QueueAgentServer)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

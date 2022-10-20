@@ -162,7 +162,16 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, BackupMode);
     Load(context, BackupError);
     Load(context, ReplicaBackupDescriptors);
-    Load(context, QueueAgentStage);
+
+    // COMPAT(achulkov2): Set QueueAgentStage to std::nullopt for old reigns.
+    if (context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults) {
+        TString oldQueueAgentStage;
+        Load(context, oldQueueAgentStage);
+        QueueAgentStage = {};
+    } else {
+        Load(context, QueueAgentStage);
+    }
+
     Load(context, TreatAsConsumer);
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);

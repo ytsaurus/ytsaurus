@@ -66,6 +66,7 @@ DEFINE_ENUM(EMasterReign,
     ((ClearRevisionOnDuplicateEndorsement)                          (2130))  // ifsmirnov
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
+    ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
 );
 
 ////////////////////////////////////////////////////////////////////////////////
