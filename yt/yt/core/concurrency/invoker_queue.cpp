@@ -21,24 +21,56 @@ constinit thread_local TCpuProfilerTagGuard CpuProfilerTagGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int MaxTryDequeueCount = 100;
+
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
 {
     Queue_.enqueue(std::move(action));
+    Size_.fetch_add(1, std::memory_order_release);
 }
 
 Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
 {
-    if (token) {
-        return Queue_.try_dequeue(*token, *action);
-    } else {
-        return Queue_.try_dequeue(*action);
+    if (Size_.load() <= 0) {
+        return false;
     }
+
+    // Fast path.
+    if (Size_.fetch_sub(1) <= 0) {
+        Size_.fetch_add(1);
+
+        // Slow path.
+        auto queueSize = Size_.load();
+        while (queueSize > 0 && !Size_.compare_exchange_weak(queueSize, queueSize - 1));
+
+        if (queueSize <= 0) {
+            return false;
+        }
+    }
+
+    for (int tryIndex = 0; tryIndex < MaxTryDequeueCount; ++tryIndex) {
+        bool result = token
+            ? Queue_.try_dequeue(*token, *action)
+            : Queue_.try_dequeue(*action);
+        if (result) {
+            if (tryIndex > 1) {
+                YT_LOG_DEBUG("Action has been dequeued (TryIndex: %v)", tryIndex);
+            }
+
+            return true;
+        }
+    }
+
+    YT_ABORT();
 }
 
 void TMpmcQueueImpl::DrainProducer()
 {
+    auto size = Size_.exchange(0);
     TEnqueuedAction action;
-    while (Queue_.try_dequeue(action));
+    while (size-- > 0) {
+        YT_VERIFY(Queue_.try_dequeue(action));
+    }
 }
 
 void TMpmcQueueImpl::DrainConsumer()
@@ -49,6 +81,11 @@ void TMpmcQueueImpl::DrainConsumer()
 TMpmcQueueImpl::TConsumerToken TMpmcQueueImpl::MakeConsumerToken()
 {
     return TConsumerToken(Queue_);
+}
+
+bool TMpmcQueueImpl::IsEmpty() const
+{
+    return Size_.load() <= 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +113,11 @@ void TMpscQueueImpl::DrainConsumer()
 TMpscQueueImpl::TConsumerToken TMpscQueueImpl::MakeConsumerToken()
 {
     return {};
+}
+
+bool TMpscQueueImpl::IsEmpty() const
+{
+    return Queue_.IsEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,8 +236,6 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
 
     auto cpuInstant = GetCpuInstant();
 
-    Size_ += 1;
-
     auto updateCounters = [&] (const TCountersPtr& counters) {
         if (counters) {
             counters->ActiveCallbacks += 1;
@@ -249,7 +289,6 @@ void TInvokerQueue<TQueueImpl>::DrainProducer()
     YT_VERIFY(!Running_.load(std::memory_order_relaxed));
 
     QueueImpl_.DrainProducer();
-    Size_.store(0);
 }
 
 template <class TQueueImpl>
@@ -258,7 +297,6 @@ void TInvokerQueue<TQueueImpl>::DrainConsumer()
     YT_VERIFY(!Running_.load(std::memory_order_relaxed));
 
     QueueImpl_.DrainConsumer();
-    Size_.store(0);
 }
 
 template <class TQueueImpl>
@@ -315,8 +353,6 @@ void TInvokerQueue<TQueueImpl>::EndExecute(TEnqueuedAction* action)
     auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
     auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
 
-    Size_ -= 1;
-
     auto updateCounters = [&] (const TCountersPtr& counters) {
         if (counters) {
             counters->ExecTimer.Record(timeFromStart);
@@ -336,15 +372,9 @@ typename TQueueImpl::TConsumerToken TInvokerQueue<TQueueImpl>::MakeConsumerToken
 }
 
 template <class TQueueImpl>
-int TInvokerQueue<TQueueImpl>::GetSize() const
-{
-    return Size_.load();
-}
-
-template <class TQueueImpl>
 bool TInvokerQueue<TQueueImpl>::IsEmpty() const
 {
-    return GetSize() == 0;
+    return QueueImpl_.IsEmpty();
 }
 
 template <class TQueueImpl>
