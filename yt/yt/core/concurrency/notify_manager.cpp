@@ -33,9 +33,10 @@ TCpuInstant TNotifyManager::UpdateMinEnqueuedAt(TCpuInstant newMinEnqueuedAt)
 {
     auto minEnqueuedAt = MinEnqueuedAt_.load();
 
-    while (newMinEnqueuedAt > minEnqueuedAt) {
+    while (newMinEnqueuedAt < minEnqueuedAt) {
         if (MinEnqueuedAt_.compare_exchange_weak(minEnqueuedAt, newMinEnqueuedAt)) {
             minEnqueuedAt = newMinEnqueuedAt;
+            YT_VERIFY(minEnqueuedAt != SentinelMinEnqueuedAt);
             break;
         }
     }
@@ -43,28 +44,31 @@ TCpuInstant TNotifyManager::UpdateMinEnqueuedAt(TCpuInstant newMinEnqueuedAt)
     return minEnqueuedAt;
 }
 
-void TNotifyManager::ResetMinEnqueuedAtIfEqual(TCpuInstant expected)
+TCpuInstant TNotifyManager::ResetMinEnqueuedAt()
 {
-    // Resetting MinEnqueuedAt is needed to force NotifyOne from NotifyFromInvoke when there are no
-    // running threads.
-    // MinEnqueuedAt denotes no running threads.
-    MinEnqueuedAt_.compare_exchange_strong(expected, 0);
+    // Disables notifies of already enqueued actions from invoke and
+    // allows to set MinEnqueuedAt in NotifyFromInvoke for new actions.
+    return MinEnqueuedAt_.exchange(SentinelMinEnqueuedAt);
 }
 
-void TNotifyManager::NotifyFromInvoke(TCpuInstant cpuInstant)
+void TNotifyManager::NotifyFromInvoke(TCpuInstant cpuInstant, bool force)
 {
     auto minEnqueuedAt = GetMinEnqueuedAt();
+
+    if (minEnqueuedAt == SentinelMinEnqueuedAt) {
+        MinEnqueuedAt_.compare_exchange_strong(minEnqueuedAt, cpuInstant);
+    }
+
     auto waitTime = CpuDurationToDuration(cpuInstant - minEnqueuedAt);
+    bool needNotify = force || waitTime > WaitLimit;
 
-    auto waiters = GetWaiters();
-
-    YT_LOG_TRACE("Notify from invoke (Waiters: %v, WaitTime: %v, MinEnqueuedAt: %v, Decision: %v)",
-        waiters,
+    YT_LOG_TRACE("Notify from invoke (Force: %v, Decision: %v, WaitTime: %v, MinEnqueuedAt: %v)",
+        force,
+        needNotify,
         waitTime,
-        minEnqueuedAt,
-        waitTime > WaitLimit);
+        minEnqueuedAt);
 
-    if (waitTime > WaitLimit) {
+    if (needNotify) {
         NotifyOne(cpuInstant);
     }
 }
@@ -73,15 +77,11 @@ void TNotifyManager::NotifyAfterFetch(TCpuInstant cpuInstant, TCpuInstant newMin
 {
     auto minEnqueuedAt = UpdateMinEnqueuedAt(newMinEnqueuedAt);
 
-    YT_VERIFY(minEnqueuedAt > 0);
-
     // If there are actions and wait time is small do not wakeup other threads.
     auto waitTime = CpuDurationToDuration(cpuInstant - minEnqueuedAt);
 
     if (waitTime > WaitLimit) {
-        auto waiters = GetWaiters();
-        YT_LOG_TRACE("Notify after fetch (Waiters: %v, WaitTime: %v, MinEnqueuedAt: %v)",
-            waiters,
+        YT_LOG_TRACE("Notify after fetch (WaitTime: %v, MinEnqueuedAt: %v)",
             waitTime,
             minEnqueuedAt);
 
@@ -110,19 +110,17 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
                 break;
             }
 
-            if (GetQueueSize() > 0) {
-                // Check wait time.
-                auto minEnqueuedAt = GetMinEnqueuedAt();
-                auto cpuInstant = GetCpuInstant();
-                auto waitTime = CpuDurationToDuration(cpuInstant - minEnqueuedAt);
+            // Check wait time.
+            auto minEnqueuedAt = GetMinEnqueuedAt();
+            auto cpuInstant = GetCpuInstant();
+            auto waitTime = CpuDurationToDuration(cpuInstant - minEnqueuedAt);
 
-                if (waitTime > WaitLimit) {
-                    YT_LOG_DEBUG("Wake up by timeout (WaitTime: %v, MinEnqueuedAt: %v)",
-                        waitTime,
-                        minEnqueuedAt);
+            if (waitTime > WaitLimit) {
+                YT_LOG_DEBUG("Wake up by timeout (WaitTime: %v, MinEnqueuedAt: %v)",
+                    waitTime,
+                    minEnqueuedAt);
 
-                    break;
-                }
+                break;
             }
 
             cookie = EventCount_->PrepareWait();
@@ -155,6 +153,7 @@ void TNotifyManager::CancelWait()
 {
     EventCount_->CancelWait();
 
+    // TODO(lukyan): This logic can be moved into NotifyAfterFetch.
 #ifdef PERIODIC_POLLING
     // If we got an action and PollingWaiterLock_ is not locked (no polling waiter) wake up other thread.
     if (!PollingWaiterLock_.load()) {
@@ -185,36 +184,13 @@ void TNotifyManager::NotifyOne(TCpuInstant cpuInstant)
         auto lockedInstant = LockedInstant_.load();
         auto waitTime = CpuDurationToDuration(cpuInstant - lockedInstant);
         if (waitTime > TDuration::Seconds(30)) {
-            // Notifications are locked during more than 90 seconds.
-            YT_LOG_WARNING("Action is probably stuck (MinEnqueuedAt: %v, LockedInstant: %v, WaitTime: %v, QueueSize: %v)",
+            // Notifications are locked during more than 30 seconds.
+            YT_LOG_WARNING("Action is probably stuck (MinEnqueuedAt: %v, LockedInstant: %v, WaitTime: %v)",
                 GetMinEnqueuedAt(),
                 lockedInstant,
-                waitTime,
-                GetQueueSize());
+                waitTime);
         }
     }
-}
-
-int TNotifyManager::GetWaiters()
-{
-#ifndef NDEBUG
-    return WaitingThreads_.load();
-#else
-    return -1;
-#endif
-}
-
-void TNotifyManager::IncrementWaiters()
-{
-#ifndef NDEBUG
-    ++WaitingThreads_;
-#endif
-}
-void TNotifyManager::DecrementWaiters()
-{
-#ifndef NDEBUG
-    --WaitingThreads_;
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

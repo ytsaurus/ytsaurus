@@ -32,50 +32,40 @@ public:
         , TNotifyManager(callbackEventCount, counterTagSet)
     { }
 
-    int GetQueueSize() const override
-    {
-        return TMpmcInvokerQueue::GetSize();
-    }
-
     TClosure OnExecute(TEnqueuedAction* action, bool fetchNext, std::function<bool()> isStopping)
     {
-        TMpmcInvokerQueue::EndExecute(action);
-
-        if (!fetchNext) {
-            return {};
-        }
-
-        IncrementWaiters();
-        auto finally = Finally([this] {
-            DecrementWaiters();
-        });
-
         while (true) {
-            auto cookie = GetEventCount()->PrepareWait();
+            int activeThreadDelta = !action->Finished ? -1 : 0;
+            TMpmcInvokerQueue::EndExecute(action);
 
-            auto minEnqueuedAt = GetMinEnqueuedAt();
-            auto callback = TMpmcInvokerQueue::BeginExecute(action);
+            auto cookie = GetEventCount()->PrepareWait();
+            auto minEnqueuedAt = ResetMinEnqueuedAt();
+
+            TClosure callback;
+            if (fetchNext) {
+                callback = TMpmcInvokerQueue::BeginExecute(action);
+
+                if (callback) {
+                    YT_ASSERT(action->EnqueuedAt > 0);
+                    minEnqueuedAt = action->EnqueuedAt;
+                    activeThreadDelta += 1;
+                }
+            }
+
+            YT_VERIFY(activeThreadDelta <= 1 && activeThreadDelta >= -1);
+            if (activeThreadDelta != 0) {
+                auto activeThreads = ActiveThreads_.fetch_add(activeThreadDelta) + activeThreadDelta;
+                YT_VERIFY(activeThreads >= 0 && activeThreads <= TThreadPoolBase::MaxThreadCount);
+            }
 
             if (callback || isStopping()) {
                 CancelWait();
 
-                if (callback) {
-                    YT_ASSERT(action->EnqueuedAt > 0);
-
-                    // Increment minEnqueuedAt to prevent minEnqueuedAt to be resetted.
-                    minEnqueuedAt = std::max(minEnqueuedAt + 1, action->EnqueuedAt);
-
-                    auto cpuInstant = GetCpuInstant();
-                    NotifyAfterFetch(cpuInstant, minEnqueuedAt);
-                }
-
+                NotifyAfterFetch(GetCpuInstant(), minEnqueuedAt);
                 return callback;
             }
 
-            ResetMinEnqueuedAtIfEqual(minEnqueuedAt);
-
             Wait(cookie, isStopping);
-            TMpmcInvokerQueue::EndExecute(action);
         }
     }
 
@@ -86,7 +76,7 @@ public:
             /*profilingTag*/ 0,
             /*profilerTag*/ nullptr);
 
-        NotifyFromInvoke(cpuInstant);
+        NotifyFromInvoke(cpuInstant, ActiveThreads_.load() == 0);
     }
 
     void Configure(int threadCount)
@@ -96,6 +86,7 @@ public:
 
 private:
     std::atomic<int> ThreadCount_ = 0;
+    std::atomic<int> ActiveThreads_ = 0;
 };
 
 class TThreadPoolThread

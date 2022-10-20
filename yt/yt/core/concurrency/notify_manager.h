@@ -21,13 +21,11 @@ public:
         TIntrusivePtr<NThreading::TEventCount> eventCount,
         const NProfiling::TTagSet& counterTagSet);
 
-    TCpuInstant GetMinEnqueuedAt() const;
+    TCpuInstant ResetMinEnqueuedAt();
 
     TCpuInstant UpdateMinEnqueuedAt(TCpuInstant newMinEnqueuedAt);
 
-    void ResetMinEnqueuedAtIfEqual(TCpuInstant expected);
-
-    void NotifyFromInvoke(TCpuInstant cpuInstant);
+    void NotifyFromInvoke(TCpuInstant cpuInstant, bool force);
 
     // Must be called after DoCancelWait.
     void NotifyAfterFetch(TCpuInstant cpuInstant, TCpuInstant newMinEnqueuedAt);
@@ -38,13 +36,9 @@ public:
 
     NThreading::TEventCount* GetEventCount();
 
-    virtual int GetQueueSize() const = 0;
-
-    int GetWaiters();
-    void IncrementWaiters();
-    void DecrementWaiters();
-
 private:
+    static constexpr TCpuInstant SentinelMinEnqueuedAt = std::numeric_limits<TCpuInstant>::max();
+
     const TIntrusivePtr<NThreading::TEventCount> EventCount_;
     const NProfiling::TCounter WakeupCounter_;
 
@@ -52,17 +46,14 @@ private:
     // LockedInstant is used for debug and check purpose.
     std::atomic<TCpuInstant> LockedInstant_ = 0;
     std::atomic<bool> PollingWaiterLock_ = false;
-
-    std::atomic<TCpuInstant> MinEnqueuedAt_ = 0;
-
-#ifndef NDEBUG
-    std::atomic<int> WaitingThreads_ = 0;
-#endif
+    std::atomic<TCpuInstant> MinEnqueuedAt_ = SentinelMinEnqueuedAt;
 
     // Returns true if was locked.
     bool UnlockNotifies();
 
     void NotifyOne(TCpuInstant cpuInstant);
+
+    TCpuInstant GetMinEnqueuedAt() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

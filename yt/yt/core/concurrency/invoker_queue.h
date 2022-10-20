@@ -48,8 +48,11 @@ public:
 
     TConsumerToken MakeConsumerToken();
 
+    bool IsEmpty() const;
+
 private:
     moodycamel::ConcurrentQueue<TEnqueuedAction> Queue_;
+    std::atomic<int> Size_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +69,8 @@ public:
     void DrainConsumer();
 
     TConsumerToken MakeConsumerToken();
+
+    bool IsEmpty() const;
 
 private:
     TMpscQueue<TEnqueuedAction> Queue_;
@@ -115,7 +120,6 @@ public:
 
     typename TQueueImpl::TConsumerToken MakeConsumerToken();
 
-    int GetSize() const;
     bool IsEmpty() const;
     bool IsRunning() const;
 
@@ -128,7 +132,6 @@ private:
 
     NConcurrency::TThreadId ThreadId_ = NConcurrency::InvalidThreadId;
     std::atomic<bool> Running_ = true;
-    std::atomic<int> Size_ = 0;
 
     struct TCounters
     {
