@@ -18,6 +18,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -49,7 +50,6 @@ public:
 
     TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        TTransactionId transactionId,
         IWireProtocolReader* reader,
         EAtomicity atomicity,
         bool versioned,
@@ -57,7 +57,7 @@ public:
         i64 dataWeight) override
     {
         auto context = atomicity == EAtomicity::None
-            ? CreateWriteContext(transactionId)
+            ? TWriteContext{}
             : CreateWriteContext(transaction);
         context.Phase = EWritePhase::Prelock;
 
@@ -584,6 +584,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
+
         auto it = TransactionIdToPersistentWriteState_.find(transactionId);
         if (it == TransactionIdToPersistentWriteState_.end()) {
             return nullptr;
@@ -596,6 +598,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+
+        YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         auto it = TransactionIdToPersistentWriteState_.find(transactionId);
         if (it == TransactionIdToPersistentWriteState_.end()) {
@@ -611,6 +615,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
+
         auto it = TransactionIdToTransientWriteState_.find(transactionId);
         if (it == TransactionIdToTransientWriteState_.end()) {
             return nullptr;
@@ -622,6 +628,8 @@ private:
     TTransactionTransientWriteStatePtr GetTransactionTransientWriteState(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         auto it = TransactionIdToTransientWriteState_.find(transactionId);
         if (it == TransactionIdToTransientWriteState_.end()) {
@@ -1428,18 +1436,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto writeContext = CreateWriteContext(transaction->GetId());
-        writeContext.Transaction = transaction;
-
-        return writeContext;
-    }
-
-    TWriteContext CreateWriteContext(TTransactionId transactionId)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& transientWriteState = GetTransactionTransientWriteState(transactionId);
+        const auto& transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
         return TWriteContext{
+            .Transaction = transaction,
             .PrelockedRows = &transientWriteState->PrelockedRows,
             .LockedRows = &transientWriteState->LockedRows,
         };

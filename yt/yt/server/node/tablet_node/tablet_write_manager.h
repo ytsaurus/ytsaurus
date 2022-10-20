@@ -37,7 +37,6 @@ struct ITabletWriteManager
 {
     virtual TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        TTransactionId transactionId,
         NTableClient::IWireProtocolReader* reader,
         NTransactionClient::EAtomicity atomicity,
         bool versioned,
