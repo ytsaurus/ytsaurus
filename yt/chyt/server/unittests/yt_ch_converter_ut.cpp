@@ -28,6 +28,7 @@
 #include <DataTypes/IDataType.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeTuple.h>
@@ -55,12 +56,12 @@ void AppendVector(std::vector<TString>& lhs, std::vector<TString>& rhs)
     lhs.insert(lhs.end(), rhs.begin(), rhs.end());
 };
 
-void ValidateTypeEquality(const DB::DataTypePtr& lhs, const DB::DataTypePtr& rhs)
+void ValidateTypeEquality(const DB::DataTypePtr& actualType, const DB::DataTypePtr& expectedType)
 {
-    ASSERT_NE(lhs, nullptr);
-    ASSERT_NE(rhs, nullptr);
-    EXPECT_TRUE(lhs->equals(*rhs));
-    EXPECT_EQ(lhs->getName(), rhs->getName());
+    ASSERT_NE(actualType, nullptr);
+    ASSERT_NE(expectedType, nullptr);
+    ASSERT_EQ(actualType->getName(), expectedType->getName());
+    ASSERT_TRUE(actualType->equals(*expectedType));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -499,8 +500,10 @@ TEST_F(TTestYTCHConversion, TestOptionalSimpleTypeAsUnversionedValue)
 
 TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
 {
+    // Nesting level is the number of optional<> wrappers around int.
+
     std::vector<std::vector<TString>> ysonStringsByNestingLevel = {
-        {},
+        {}, // unused
         {"", "#", "42"},
         {"", "#", "[#]", "[42]"},
         {"", "#", "[#]", "[[#]]", "[[42]]"},
@@ -543,6 +546,60 @@ TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
             // so in this case we deal with string yt columns. They should be dispatched to YSON-based consumers.
             auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
             ExpectDataConversion(descriptor, ytColumn, expectedFields);
+        }
+    }
+}
+
+TEST_F(TTestYTCHConversion, TestNullAndVoid)
+{
+    // Nesting level is the number of optional<> wrappers around null or void.
+
+    std::vector<std::vector<TString>> ysonStringsByNestingLevel = {
+        {"", "#"},
+        {"", "#", "[#]"},
+        {"", "#", "[#]", "[[#]]"},
+    };
+
+    auto expectedDataType = DB::makeNullable(std::make_shared<DB::DataTypeNothing>());
+
+    for (auto simpleLogicalValueType : {ESimpleLogicalValueType::Null, ESimpleLogicalValueType::Void}) {
+        auto logicalType = SimpleLogicalType(simpleLogicalValueType);
+
+        for (int nestingLevel = 0; nestingLevel <= 2; ++nestingLevel) {
+            if (nestingLevel != 0) {
+                logicalType = OptionalLogicalType(std::move(logicalType));
+            }
+
+            YT_LOG_TRACE(
+                "Running tests (SimpleLogicalValueType: %v, NestingLevel: %v)",
+                simpleLogicalValueType,
+                nestingLevel);
+
+            TComplexTypeFieldDescriptor descriptor(logicalType);
+            ExpectTypeConversion(descriptor, expectedDataType);
+
+            auto ysons = ToYsonStringBufs(ysonStringsByNestingLevel[nestingLevel]);
+            // <Null>s or <Any>s.
+            auto [variadicUnversionedValues, variadicUnversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
+            // <Any>s.
+            auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysons);
+            std::vector<DB::Field> expectedFields(nestingLevel + 2);
+
+            ExpectDataConversion(descriptor, ysons, expectedFields);
+            ExpectDataConversion(descriptor, variadicUnversionedValues, expectedFields);
+
+            TColumnSchema columnSchema(/* name */ "", logicalType);
+
+            if (nestingLevel == 0) {
+                // We may interpret values as unversioned values <Null> and <Null>.
+                auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(variadicUnversionedValues, columnSchema);
+                ExpectDataConversion(descriptor, ytColumn, expectedFields);
+            } else {
+                // Physical type for optional<null/void> (and more nested types) is any,
+                // so in this case we deal with string yt columns. They should be dispatched to YSON-based consumers.
+                auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
+                ExpectDataConversion(descriptor, ytColumn, expectedFields);
+            }
         }
     }
 }

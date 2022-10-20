@@ -91,6 +91,12 @@ class TestColumnarRead(ClickHouseTestBase):
             self._check_single_column(clique, "string", False, ["hello", "world", None] * 100)
             self._check_single_column(clique, "string", False, ["hello"] * 1000 + [None] * 1000 + ["world"] * 1000)
 
+    @authors("max42")
+    def test_null_and_void(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            self._check_single_column(clique, "null", False, [None] * 1000)
+            self._check_single_column(clique, "void", False, [None] * 1000)
+
     @authors("babenko")
     def test_yson(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
@@ -119,6 +125,8 @@ class TestColumnarRead(ClickHouseTestBase):
                 {"name": "timestamp", "type": "timestamp"},
                 {"name": "interval", "type": "interval"},
                 {"name": "any", "type": "any"},
+                {"name": "null", "type": "null"},
+                {"name": "void", "type": "void"},
             ]
             create("table", "//tmp/s1", attributes={"schema": schema, "optimize_for": "scan"})
             create(
@@ -138,6 +146,8 @@ class TestColumnarRead(ClickHouseTestBase):
                 "timestamp": 3,
                 "interval": 4,
                 "any": {"hello": "world"},
+                "null": None,
+                "void": None,
             }
             null_row = {key: None for key, value in row.iteritems()}
             write_table("//tmp/s1", [row, null_row])
@@ -149,7 +159,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 fields += "ConvertYson({}, 'text') as {}".format(column["name"], column["name"])
             results = clique.make_query("select {} from `//tmp/s2`".format(fields))
             for key, value in results[0].iteritems():
-                assert yson.loads(value) == row[key]
+                assert (yson.loads(value) if value is not None else None) == row[key]
             for key, value in results[1].iteritems():
                 assert value is None
 

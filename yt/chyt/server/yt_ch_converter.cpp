@@ -243,9 +243,12 @@ public:
             case ESimpleLogicalValueType::Float:
                 intermediateColumn = ConvertFloatYTColumnToCHColumn(column);
                 break;
+            case ESimpleLogicalValueType::Null:
+            case ESimpleLogicalValueType::Void:
+                intermediateColumn = ConvertNullYTColumnToCHColumn(column);
+                break;
             default:
-                // TODO(max42)
-                YT_UNIMPLEMENTED();
+                THROW_ERROR_EXCEPTION("Cannot represent simple logical type %Qlv", v1Type);
         }
 
         ReplaceColumnTypeChecked(Column_, ConvertCHColumnToAny(
@@ -986,6 +989,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNothingConverter
+    : public IConverter
+{
+public:
+    void ConsumeYson(TYsonPullParserCursor* /*cursor*/) override
+    {
+        Column_->insertDefault();
+    }
+
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    {
+        Column_->insertManyDefaults(values.size());
+    }
+
+    void ConsumeNulls(int count) override
+    {
+        Column_->insertManyDefaults(count);
+    }
+
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) override
+    {
+        Column_->insertManyDefaults(column.ValueCount);
+    }
+
+    DB::ColumnPtr FlushColumn() override
+    {
+        return std::move(Column_);
+    }
+
+    DB::DataTypePtr GetDataType() const override
+    {
+        return DataType_;
+    }
+
+private:
+    const DB::DataTypePtr DataType_ = std::make_shared<DB::DataTypeNothing>();
+    DB::IColumn::MutablePtr Column_ = DataType_->createColumn();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1093,21 +1137,58 @@ private:
 
     IConverterPtr CreateOptionalConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost)
     {
-        // Descend to first non-optional enclosed type.
-        auto nonOptionalDescriptor = descriptor;
+        // These fields represent either a first non-nullable type inside ours, or will all be nullopt/nullptr
+        // in when the innermost type is null/void.
+        std::optional<TComplexTypeFieldDescriptor> innerDescriptor;
+        TLogicalTypePtr innerLogicalType;
+        std::optional<ELogicalMetatype> innerMetatype;
+
+        // Number of outermost optional's + possibly one if the innermost type is null or void. E.g.:
+        // optional<int> -> 1
+        // optional<optional<int>> -> 2
+        // null -> 1
+        // optional<void> -> 2.
         int nestingLevel = 0;
-        while (nonOptionalDescriptor.GetType()->IsNullable()) {
-            nonOptionalDescriptor = nonOptionalDescriptor.OptionalElement();
-            ++nestingLevel;
+
+        {
+            // Descend to first non-optional enclosed type.
+            auto currentDescriptor = descriptor;
+
+            while (true) {
+                if (!currentDescriptor.GetType()->IsNullable()) {
+                    innerDescriptor = std::move(currentDescriptor);
+                    innerLogicalType = innerDescriptor->GetType();
+                    innerMetatype = innerLogicalType->GetMetatype();
+                    break;
+                }
+
+                ++nestingLevel;
+                auto metatype = currentDescriptor.GetType()->GetMetatype();
+                if (metatype == ELogicalMetatype::Optional) {
+                    currentDescriptor = currentDescriptor.OptionalElement();
+                } else if (metatype == ELogicalMetatype::Simple) {
+                    // Null or Void. They can be seen as optional<nothing> where nothing is a non-existent type
+                    // (ClickHouse has such type while type_v3 does not).
+                    break;
+                } else {
+                    THROW_ERROR_EXCEPTION("Unknown nullable metatype %Qv", metatype);
+                }
+            }
         }
 
         YT_VERIFY(nestingLevel > 0);
 
-        auto metatype = nonOptionalDescriptor.GetType()->GetMetatype();
-        bool isV1Optional = isOutermost && (nestingLevel == 1) &&
-            (metatype == ELogicalMetatype::Simple || metatype == ELogicalMetatype::Decimal);
+        bool isV1Optional = isOutermost && nestingLevel == 1 &&
+            (innerMetatype == ELogicalMetatype::Simple || innerMetatype == ELogicalMetatype::Decimal ||
+             innerMetatype == std::nullopt);
 
-        auto underlyingConverter = CreateConverter(nonOptionalDescriptor);
+        IConverterPtr underlyingConverter;
+
+        if (innerDescriptor) {
+            underlyingConverter = CreateConverter(*innerDescriptor);
+        } else {
+            underlyingConverter = CreateNothingConverter();
+        }
 
         if (!underlyingConverter->GetDataType()->canBeInsideNullable() || nestingLevel >= 2) {
             ValidateReadOnly(descriptor);
@@ -1118,7 +1199,6 @@ private:
         } else {
             return std::make_unique<TOptionalConverter<false>>(std::move(underlyingConverter), nestingLevel);
         }
-
     }
 
     IConverterPtr CreateListConverter(const TComplexTypeFieldDescriptor& descriptor)
@@ -1180,16 +1260,25 @@ private:
         YT_ABORT();
     }
 
+    IConverterPtr CreateNothingConverter()
+    {
+        return std::make_unique<TNothingConverter>();
+    }
+
     IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
     {
         const auto& type = descriptor.GetType();
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
             const auto& simpleType = type->AsSimpleTypeRef();
-            if (simpleType.GetElement() == ESimpleLogicalValueType::Any ||
+            if (simpleType.GetElement() == ESimpleLogicalValueType::Any) {
+                return std::make_unique<TRawYsonToStringConverter>(descriptor, Settings_);
+            } else if (
                 simpleType.GetElement() == ESimpleLogicalValueType::Null ||
                 simpleType.GetElement() == ESimpleLogicalValueType::Void)
             {
-                return std::make_unique<TRawYsonToStringConverter>(descriptor, Settings_);
+                // Despite the fact we do not have a data type similar to CH's nothing,
+                // the easiest way to treat null and void as optional<nothing>.
+                return CreateOptionalConverter(descriptor, isOutermost);
             } else {
                 return CreateSimpleLogicalTypeConverter(simpleType.GetElement(), descriptor);
             }

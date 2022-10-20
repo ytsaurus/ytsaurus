@@ -161,6 +161,9 @@ static TCompatibilityPair CheckTypeCompatibilitySimple(
             case ESimpleLogicalValueType::Timestamp:
             case ESimpleLogicalValueType::Interval:
 
+            case ESimpleLogicalValueType::Null:
+            case ESimpleLogicalValueType::Void:
+
             case ESimpleLogicalValueType::Any:
                 result = ESchemaCompatibility::FullyCompatible;
                 break;
