@@ -14,11 +14,16 @@ using namespace std::placeholders;
 
 void BuildEmaCounterYson(const TEmaCounter& counter, TFluentAny fluent)
 {
+    auto immediateRate = counter.ImmediateRate;
+    auto oneMinuteRate = counter.GetRate(0).value_or(immediateRate);
+    auto oneHourRate = counter.GetRate(1).value_or(oneMinuteRate);
+    auto oneDayRate = counter.GetRate(2).value_or(oneHourRate);
+
     fluent.BeginMap()
-        .Item("current").Value(counter.ImmediateRate)
-        .Item("1m").Value(counter.WindowRates[0])
-        .Item("1h").Value(counter.WindowRates[1])
-        .Item("1d").Value(counter.WindowRates[2])
+        .Item("current").Value(immediateRate)
+        .Item("1m").Value(oneMinuteRate)
+        .Item("1h").Value(oneHourRate)
+        .Item("1d").Value(oneDayRate)
     .EndMap();
 }
 
