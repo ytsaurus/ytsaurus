@@ -29,7 +29,7 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TTagSet& counterTagSet)
         : TMpmcInvokerQueue(callbackEventCount, counterTagSet)
-        , TNotifyManager(callbackEventCount)
+        , TNotifyManager(callbackEventCount, counterTagSet)
     { }
 
     int GetQueueSize() const override
