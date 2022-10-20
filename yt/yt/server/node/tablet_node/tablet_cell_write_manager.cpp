@@ -236,7 +236,6 @@ public:
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             auto context = tabletWriteManager->TransientWriteRows(
                 transaction,
-                transactionId,
                 reader,
                 atomicity,
                 versioned,
