@@ -15,14 +15,16 @@ TEST(TEmaCounterTest, Simple)
 
     TEmaCounter counter({min});
 
-    EXPECT_EQ(std::nullopt, counter.Timestamp);
+    EXPECT_EQ(std::nullopt, counter.LastTimestamp);
+    EXPECT_EQ(std::nullopt, counter.StartTimestamp);
     EXPECT_EQ(0, counter.Count);
     EXPECT_EQ(0.0, counter.ImmediateRate);
     EXPECT_EQ(0.0, counter.WindowRates[0]);
 
     counter.Update(10, TInstant::Zero());
 
-    EXPECT_EQ(TInstant::Zero(), counter.Timestamp);
+    EXPECT_EQ(TInstant::Zero(), counter.LastTimestamp);
+    EXPECT_EQ(TInstant::Zero(), counter.StartTimestamp);
     EXPECT_EQ(10, counter.Count);
     // Still no information about rates.
     EXPECT_EQ(0.0, counter.ImmediateRate);
@@ -30,7 +32,8 @@ TEST(TEmaCounterTest, Simple)
 
     counter.Update(20, TInstant::Zero() + min);
 
-    EXPECT_EQ(TInstant::Zero() + min, counter.Timestamp);
+    EXPECT_EQ(TInstant::Zero() + min, counter.LastTimestamp);
+    EXPECT_EQ(TInstant::Zero(), counter.StartTimestamp);
     EXPECT_EQ(20, counter.Count);
     EXPECT_DOUBLE_EQ(10.0 / 60.0, counter.ImmediateRate);
     // New rate should be considered with weight 1 - e^{-2}, new one with 1/e^{-2}.
@@ -49,34 +52,42 @@ TEST(TEmaCounterTest, MockTime)
     // Set up some history.
 
     i64 currentCount = 0;
+    TInstant currentTimestamp = TInstant::Zero();
 
-    for (int index = 0; index < 300; ++index) {
+    for (int index = 0; index < 300; ++index, currentTimestamp += sec) {
         currentCount += obsoleteRate;
-        counter.Update(currentCount, TInstant::Zero() + index * sec);
+        counter.Update(currentCount, currentTimestamp);
+
+        if (index < 60) {
+            EXPECT_FALSE(counter.GetRate(0, TInstant::Zero() + index * sec));
+        }
     }
 
     EXPECT_DOUBLE_EQ(1.0, counter.ImmediateRate);
     // Result should be almost 1 (recall that the initial rate value of 0
     // is remembered by EMA for some time).
     EXPECT_NEAR(1.0, counter.WindowRates[0], 1e-3);
+    EXPECT_TRUE(counter.GetRate(0, currentTimestamp));
 
-    for (int index = 300; index < 360; ++index) {
+    for (int index = 300; index < 360; ++index, currentTimestamp += sec) {
         currentCount += actualRate;
-        counter.Update(currentCount, TInstant::Zero() + index * sec);
+        counter.Update(currentCount, currentTimestamp);
     }
 
     EXPECT_DOUBLE_EQ(10.0, counter.ImmediateRate);
     // Actual value would be 8.78, which is quite close to 10.0.
     EXPECT_NEAR(10.0, counter.WindowRates[0], 2.0);
+    EXPECT_TRUE(counter.GetRate(0, currentTimestamp));
 
-    for (int index = 360; index < 420; ++index) {
+    for (int index = 360; index < 420; ++index, currentTimestamp += sec) {
         currentCount += actualRate;
-        counter.Update(currentCount, TInstant::Zero() + index * sec);
+        counter.Update(currentCount, currentTimestamp);
     }
 
     EXPECT_DOUBLE_EQ(10.0, counter.ImmediateRate);
     // Actual value would be 9.83, which is notably close to 10.0.
     EXPECT_NEAR(10.0, counter.WindowRates[0], 0.2);
+    EXPECT_TRUE(counter.GetRate(0, currentTimestamp));
 }
 
 TEST(TEmaCounterTest, RealTime)
@@ -101,6 +112,9 @@ TEST(TEmaCounterTest, RealTime)
     for (int index = 0; index < valueCount; ++index) {
         counter.Update(values[index]);
         Sleep(quant);
+        if (TInstant::Now() - start < sec * 0.9) {
+            EXPECT_FALSE(counter.GetRate(0));
+        }
     }
 
     auto end = TInstant::Now();
@@ -116,6 +130,7 @@ TEST(TEmaCounterTest, RealTime)
     Cerr << "Relative error = " << counter.WindowRates[0] / expectedRate - 1.0 << Endl;
 
     EXPECT_NEAR(1, counter.WindowRates[0] / expectedRate, relativeTolerance);
+    EXPECT_TRUE(counter.GetRate(0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

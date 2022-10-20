@@ -16,7 +16,9 @@ struct TEmaCounter
     //! Current value of the counter.
     i64 Count = 0;
     //! Last update time.
-    std::optional<TInstant> Timestamp;
+    std::optional<TInstant> LastTimestamp;
+    //! First update time.
+    std::optional<TInstant> StartTimestamp;
     //! Rate (measured in units per second) calculated based on the last update,
     //! i.e. #Count delta divided by the time delta measured in seconds
     //! according to the last update.
@@ -36,6 +38,11 @@ struct TEmaCounter
 
     //! Set new value of counter, optionally providing a current timestamp.
     void Update(i64 newCount, TInstant newTimestamp = TInstant::Now());
+
+    //! Returns the rate for the given window after enough time has passed
+    //! for the values to be accurate (at least the duration of the window itself).
+    //! Optionally a current timestamp can be provided.
+    std::optional<double> GetRate(int windowIndex, TInstant currentTimestamp = TInstant::Now()) const;
 };
 
 // Operators for linear transformations (addition, scaling) of counters over the fixed set of windows.
