@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <library/cpp/yt/cpu_clock/clock.h>
 
 #include <library/cpp/yt/threading/event_count.h>
@@ -15,7 +17,9 @@ namespace NYT::NConcurrency {
 class TNotifyManager
 {
 public:
-    explicit TNotifyManager(TIntrusivePtr<NThreading::TEventCount> eventCount);
+    TNotifyManager(
+        TIntrusivePtr<NThreading::TEventCount> eventCount,
+        const NProfiling::TTagSet& counterTagSet);
 
     TCpuInstant GetMinEnqueuedAt() const;
 
@@ -42,6 +46,7 @@ public:
 
 private:
     const TIntrusivePtr<NThreading::TEventCount> EventCount_;
+    const NProfiling::TCounter WakeupCounter_;
 
     std::atomic<bool> NotifyLock_ = false;
     // LockedInstant is used for debug and check purpose.

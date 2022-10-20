@@ -14,8 +14,14 @@ constexpr auto PollingPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNotifyManager::TNotifyManager(TIntrusivePtr<NThreading::TEventCount> eventCount)
+TNotifyManager::TNotifyManager(
+    TIntrusivePtr<NThreading::TEventCount> eventCount,
+    const NProfiling::TTagSet& tagSet)
     : EventCount_(std::move(eventCount))
+    , WakeupCounter_(NProfiling::TProfiler("/action_queue")
+        .WithTags(tagSet)
+        .WithHot()
+        .Counter("/wakeup"))
 { }
 
 TCpuInstant TNotifyManager::GetMinEnqueuedAt() const
@@ -141,6 +147,8 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
 #endif
 
     UnlockNotifies();
+
+    WakeupCounter_.Increment();
 }
 
 void TNotifyManager::CancelWait()
