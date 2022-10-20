@@ -34,9 +34,12 @@ public:
 
     void ReadColumnarBatch(
         i64 /*startRowIndex*/,
-        i64 /*rowCount*/,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> /*columns*/)
-    { }
+        i64 rowCount,
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 1);
+        columns[0].ValueCount = rowCount;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,11 +174,12 @@ public:
 
     void ReadColumnarBatch(
         TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
-        i64 /*rowCount*/) override
+        i64 rowCount) override
     {
         YT_VERIFY(columns.size() == 1);
         auto& column = columns[0];
         column.Type = SimpleLogicalType(ESimpleLogicalValueType::Null);
+        column.ValueCount = rowCount;
     }
 
     i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override

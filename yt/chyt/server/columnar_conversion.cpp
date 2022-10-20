@@ -12,6 +12,7 @@
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnString.h>
+#include <Columns/ColumnNothing.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -87,6 +88,14 @@ DB::ColumnString::MutablePtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& c
         });
 }
 
+DB::ColumnString::MutablePtr ConvertCHNothingColumnToAnyImpl(const DB::IColumn& column)
+{
+    auto valueCount = column.size();
+    auto chColumn = DB::ColumnString::create();
+    chColumn->insertManyDefaults(valueCount);
+    return chColumn;
+}
+
 template <EExtendedYsonFormat ysonFormat>
 DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column, ESimpleLogicalValueType type)
 {
@@ -139,6 +148,10 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column,
             return ConvertCHStringColumnToAnyImpl<ysonFormat>(
                 column,
                 [] (TStringBuf value, auto* writer) { writer->OnStringScalar(value); });
+
+        case ESimpleLogicalValueType::Null:
+        case ESimpleLogicalValueType::Void:
+            return ConvertCHNothingColumnToAnyImpl(column);
 
         default:
             THROW_ERROR_EXCEPTION("Cannot convert CH column to %Qlv type",
@@ -476,6 +489,16 @@ DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnar
     return chColumn;
 }
 
+DB::MutableColumnPtr ConvertNullYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    YT_LOG_TRACE("Converting null column (Count: %v)",
+        ytColumn.ValueCount);
+
+    auto chColumn = DB::ColumnNothing::create(ytColumn.ValueCount);
+
+    return chColumn;
+}
+
 DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
@@ -484,10 +507,12 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumn
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Buliding null bytemap (Value: %v, Rle: %v, Dictionary: %v)",
+    YT_LOG_TRACE("Buliding null bytemap (ValueCount: %v, Rle: %v, Dictionary: %v, NullBitmap: %v, Values: %v)",
         ytColumn.ValueCount,
         static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes));
+        static_cast<bool>(dictionaryIndexes),
+        static_cast<bool>(ytColumn.NullBitmap),
+        static_cast<bool>(ytColumn.Values));
 
     if (rleIndexes && dictionaryIndexes) {
         BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
@@ -504,10 +529,17 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumn
             ytColumn.StartIndex,
             ytColumn.StartIndex + ytColumn.ValueCount,
             nullBytemap);
-    } else if (!rleIndexes && dictionaryIndexes)  {
+    } else if (!rleIndexes && dictionaryIndexes) {
         BuildNullBytemapFromDictionaryIndexesWithZeroNull(
             dictionaryIndexes.Slice(ytColumn.StartIndex, ytColumn.StartIndex + ytColumn.ValueCount),
             nullBytemap);
+    } else if (!ytColumn.NullBitmap) {
+        // Refer to a comment around IUnversionedColumnarRowBatch::TColumn::NullBitmap.
+        if (ytColumn.Values) {
+            ::memset(nullBytemap.begin(), 0, nullBytemap.size());
+        } else {
+            ::memset(nullBytemap.begin(), 1, nullBytemap.size());
+        }
     } else {
         YT_VERIFY(ytColumn.NullBitmap);
         DecodeBytemapFromBitmap(
