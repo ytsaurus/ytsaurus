@@ -380,6 +380,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 assert clique.make_query_via_proxy("select 1 as a", user="u1") == [{"a": 1}]
 
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1", user="u2")
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
