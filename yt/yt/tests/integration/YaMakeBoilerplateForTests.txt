@@ -23,7 +23,7 @@ OWNER(
 )
 
 REQUIREMENTS(
-    sb_vault:YT_TOKEN=value:prime:robot-yt-test-token
+    sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
 )
 
 PEERDIR(
