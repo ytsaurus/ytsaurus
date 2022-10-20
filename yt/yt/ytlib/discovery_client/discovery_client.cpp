@@ -32,9 +32,8 @@ public:
         NRpc::IChannelFactoryPtr channelFactory)
         : ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , AddressPool_(New<TServerAddressPool>(
-            config->ServerBanTimeout,
             DiscoveryClientLogger,
-            config->ServerAddresses))
+            config))
         , Config_(std::move(config))
     { }
 
@@ -71,20 +70,14 @@ public:
     {
         auto guard = WriterGuard(Lock_);
 
-        if (config->ServerBanTimeout != Config_->ServerBanTimeout) {
-            AddressPool_->SetBanTimeout(config->ServerBanTimeout);
-        }
-        if (config->ServerAddresses != Config_->ServerAddresses) {
-            AddressPool_->SetAddresses(config->ServerAddresses);
-        }
-
         Config_ = std::move(config);
+        AddressPool_->SetConfig(Config_);
     }
 
 private:
     const NLogging::TLogger Logger;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const NRpc::TServerAddressPoolPtr AddressPool_;
+    const TServerAddressPoolPtr AddressPool_;
 
     NThreading::TReaderWriterSpinLock Lock_;
     TDiscoveryClientConfigPtr Config_;

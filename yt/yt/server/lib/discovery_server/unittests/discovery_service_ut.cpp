@@ -103,10 +103,10 @@ public:
     IDiscoveryClientPtr CreateDiscoveryClient(
         const TDiscoveryClientConfigPtr& discoveryClientConfig = New<TDiscoveryClientConfig>())
     {
-        if (discoveryClientConfig->ServerAddresses.empty()) {
+        if (!discoveryClientConfig->ServerAddresses) {
             discoveryClientConfig->ServerAddresses = Addresses_;
         }
-        discoveryClientConfig->ReadQuorum = discoveryClientConfig->ServerAddresses.size();
+        discoveryClientConfig->ReadQuorum = discoveryClientConfig->ServerAddresses->size();
 
         return NDiscoveryClient::CreateDiscoveryClient(discoveryClientConfig, ChannelFactory_);
     }
@@ -116,7 +116,7 @@ public:
         const TString& memberId,
         const TMemberClientConfigPtr& memberClientConfig = New<TMemberClientConfig>())
     {
-        if (memberClientConfig->ServerAddresses.empty()) {
+        if (!memberClientConfig->ServerAddresses) {
             memberClientConfig->ServerAddresses = Addresses_;
         }
         memberClientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
