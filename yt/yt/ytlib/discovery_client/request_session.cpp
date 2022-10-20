@@ -6,17 +6,180 @@
 
 #include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/service_discovery/service_discovery.h>
 
 namespace NYT::NDiscoveryClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NServiceDiscovery;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TServerAddressPool::TServerAddressPool(
+    const NLogging::TLogger& logger,
+    const TDiscoveryClientBaseConfigPtr& config)
+    : Logger(logger)
+{
+    EndpointsUpdateExecutor_ = New<TPeriodicExecutor>(
+        TDispatcher::Get()->GetHeavyInvoker(),
+        BIND(&TServerAddressPool::UpdateEndpoints, MakeWeak(this)));
+    SetConfig(config);
+}
+
+std::vector<TString> TServerAddressPool::GetUpAddresses()
+{
+    auto guard = Guard(Lock_);
+    return {UpAddresses_.begin(), UpAddresses_.end()};
+}
+
+std::vector<TString> TServerAddressPool::GetProbationAddresses()
+{
+    auto guard = Guard(Lock_);
+    return {ProbationAddresses_.begin(), ProbationAddresses_.end()};
+}
+
+void TServerAddressPool::BanAddress(const TString& address)
+{
+    {
+        auto guard = Guard(Lock_);
+        auto it = UpAddresses_.find(address);
+        if (it == UpAddresses_.end()) {
+            YT_LOG_WARNING("Cannot ban server: server is already banned (Address: %v)", address);
+            return;
+        }
+        UpAddresses_.erase(it);
+        DownAddresses_.insert(address);
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TServerAddressPool::OnBanTimeoutExpired, MakeWeak(this), address),
+        Config_->ServerBanTimeout);
+
+    YT_LOG_DEBUG("Server banned (Address: %v)", address);
+}
+
+void TServerAddressPool::UnbanAddress(const TString& address)
+{
+    auto guard = Guard(Lock_);
+
+    auto it = ProbationAddresses_.find(address);
+    if (it == ProbationAddresses_.end()) {
+        return;
+    }
+    YT_LOG_DEBUG("Server unbanned (Address: %v)", address);
+    ProbationAddresses_.erase(it);
+    UpAddresses_.insert(address);
+}
+
+void TServerAddressPool::SetConfig(const TDiscoveryClientBaseConfigPtr& config)
+{
+    YT_VERIFY(!config->ServerAddresses != !config->Endpoints);
+
+    auto guard = Guard(Lock_);
+
+    if (config->ServerAddresses && (!Config_ || config->ServerAddresses != Config_->ServerAddresses)) {
+        YT_LOG_INFO("Server address pool config changed (Addresses: %v)",
+            config->ServerAddresses);
+
+        EndpointsUpdateExecutor_->Stop();
+
+        SetAddresses(*config->ServerAddresses);
+    } else if (config->Endpoints && (!Config_ || config->Endpoints != Config_->Endpoints)) {
+        YT_LOG_INFO("Server address pool config changed (EndpointSetId: %v)",
+            config->Endpoints->EndpointSetId);
+
+        ServiceDiscovery_ = TDispatcher::Get()->GetServiceDiscovery();
+        if (!ServiceDiscovery_) {
+            YT_LOG_ALERT("No service discovery present");
+            return;
+        }
+
+        EndpointsUpdateExecutor_->SetPeriod(config->Endpoints->UpdatePeriod);
+        EndpointsUpdateExecutor_->Start();
+    }
+
+    Config_ = config;
+}
+
+void TServerAddressPool::UpdateEndpoints()
+{
+    auto guard = Guard(Lock_);
+
+    std::vector<TFuture<TEndpointSet>> endpointSetFutures;
+    for (const auto& cluster : Config_->Endpoints->Clusters) {
+        endpointSetFutures.push_back(ServiceDiscovery_->ResolveEndpoints(
+            cluster,
+            Config_->Endpoints->EndpointSetId));
+    }
+
+    AllSet(endpointSetFutures)
+        .Subscribe(BIND(&TServerAddressPool::OnEndpointsResolved, MakeWeak(this), Config_->Endpoints->EndpointSetId));
+}
+
+void TServerAddressPool::OnEndpointsResolved(
+    const TString& endpointSetId,
+    const TErrorOr<std::vector<TErrorOr<TEndpointSet>>>& endpointSetsOrError)
+{
+    YT_VERIFY(endpointSetsOrError.IsOK());
+    const auto& endpointSets = endpointSetsOrError.Value();
+
+    std::vector<TString> allAddresses;
+    std::vector<TError> errors;
+    for (const auto& endpointSetOrError : endpointSets) {
+        if (!endpointSetOrError.IsOK()) {
+            errors.push_back(endpointSetOrError);
+            YT_LOG_WARNING(endpointSetOrError, "Could not resolve endpoints from cluster (EndpointSetId: %v)",
+                endpointSetId);
+            continue;
+        }
+
+        auto addresses = AddressesFromEndpointSet(endpointSetOrError.Value());
+        allAddresses.insert(allAddresses.end(), addresses.begin(), addresses.end());
+    }
+
+    if (errors.size() == endpointSets.size()) {
+        YT_LOG_ERROR("Endpoints could not be resolved in any cluster (EndpointSetId: %v)",
+            endpointSetId);
+        return;
+    }
+
+    auto guard = Guard(Lock_);
+    SetAddresses(allAddresses);
+}
+
+void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
+{
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+    DownAddresses_.clear();
+    UpAddresses_.clear();
+    ProbationAddresses_ = {addresses.begin(), addresses.end()};
+}
+
+void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
+{
+    auto guard = Guard(Lock_);
+
+    auto it = DownAddresses_.find(address);
+    if (it == DownAddresses_.end()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Server moved to probation list (Address: %v)", address);
+    DownAddresses_.erase(it);
+    ProbationAddresses_.insert(address);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

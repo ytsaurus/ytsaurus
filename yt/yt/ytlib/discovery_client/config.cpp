@@ -4,17 +4,6 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDiscoveryClientBaseConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("server_addresses", &TThis::ServerAddresses);
-    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("server_ban_timeout", &TThis::ServerBanTimeout)
-        .Default(TDuration::Seconds(30));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TMemberClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
@@ -35,6 +24,20 @@ void TDiscoveryClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("read_quorum", &TThis::ReadQuorum)
         .Default(2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDiscoveryClientBaseConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("server_addresses", &TThis::ServerAddresses)
+        .Optional();
+    registrar.Parameter("endpoints", &TThis::Endpoints)
+        .Optional();
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("server_ban_timeout", &TThis::ServerBanTimeout)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

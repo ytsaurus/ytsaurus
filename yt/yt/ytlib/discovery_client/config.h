@@ -16,7 +16,8 @@ class TDiscoveryClientBaseConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    std::vector<TString> ServerAddresses;
+    std::optional<std::vector<TString>> ServerAddresses;
+    NRpc::TServiceDiscoveryEndpointsConfigPtr Endpoints;
     TDuration RpcTimeout;
     TDuration ServerBanTimeout;
 
@@ -50,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TMemberClientConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryClientConfig
-    : public NRpc::TRetryingChannelConfig
+    : public virtual NRpc::TRetryingChannelConfig
     , public virtual TDiscoveryClientBaseConfig
 {
 public:

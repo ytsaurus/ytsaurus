@@ -17,7 +17,7 @@
 
 #include <util/random/shuffle.h>
 
-namespace NYT::NRpc {
+namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,4 +109,4 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NRpc
+} // namespace NYT::NDiscoveryClient

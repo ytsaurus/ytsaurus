@@ -90,9 +90,8 @@ public:
             GroupId_,
             Id_))
         , AddressPool_(New<TServerAddressPool>(
-            config->ServerBanTimeout,
             Logger,
-            config->ServerAddresses))
+            config))
         , Config_(std::move(config))
         , Attributes_(CreateMemberAttributes(CreateEphemeralAttributes()))
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.Get()))
@@ -133,14 +132,9 @@ public:
         if (config->HeartbeatPeriod != Config_->HeartbeatPeriod) {
             PeriodicExecutor_->SetPeriod(config->HeartbeatPeriod);
         }
-        if (config->ServerBanTimeout != Config_->ServerBanTimeout) {
-            AddressPool_->SetBanTimeout(config->ServerBanTimeout);
-        }
-        if (config->ServerAddresses != Config_->ServerAddresses) {
-            AddressPool_->SetAddresses(config->ServerAddresses);
-        }
 
         Config_ = std::move(config);
+        AddressPool_->SetConfig(Config_);
     }
 
 private:

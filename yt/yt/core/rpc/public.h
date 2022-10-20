@@ -82,7 +82,6 @@ DECLARE_REFCOUNTED_CLASS(TAttachmentsOutputStream)
 
 DECLARE_REFCOUNTED_STRUCT(IViablePeerRegistry)
 DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
-DECLARE_REFCOUNTED_CLASS(TServerAddressPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
