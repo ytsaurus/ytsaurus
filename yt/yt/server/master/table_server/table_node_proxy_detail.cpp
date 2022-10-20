@@ -347,7 +347,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(table->HasDataWeight()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
         .SetWritable(true)
-        .SetPresent(isQueue || isConsumer));
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
         .SetPresent(isQueue)
         .SetOpaque(true));
@@ -385,7 +385,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
-    bool isQueue = table->IsQueue();
     bool isConsumer = table->IsConsumer();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -863,12 +862,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::QueueAgentStage:
-            if (!isQueue && !isConsumer) {
+            if (!isDynamic) {
                 break;
             }
 
             BuildYsonFluently(consumer)
-                .Value(table->GetQueueAgentStage());
+                .Value(GetEffectiveQueueAgentStage(Bootstrap_, table));
             return true;
 
         case EInternedAttributeKey::TreatAsQueueConsumer:
@@ -1360,7 +1359,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::QueueAgentStage: {
             ValidateNoTransaction();
 
-            if (!table->IsQueue() && !table->IsConsumer()) {
+            if (!table->IsDynamic()) {
                 break;
             }
 

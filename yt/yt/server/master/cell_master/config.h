@@ -288,6 +288,21 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicQueueAgentServerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString DefaultQueueAgentStage;
+
+    REGISTER_YSON_STRUCT(TDynamicQueueAgentServerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicQueueAgentServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicClusterConfig
     : public NYTree::TYsonStruct
 {
@@ -313,6 +328,7 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NIncumbentServer::TIncumbentManagerConfigPtr IncumbentManager;
+    TDynamicQueueAgentServerConfigPtr QueueAgentServer;
 
     REGISTER_YSON_STRUCT(TDynamicClusterConfig);
 
