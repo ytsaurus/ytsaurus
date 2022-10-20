@@ -214,13 +214,18 @@ class ObjectIdmSnapshot(object):
             self._new_roles.append(role)
             self.roles.append(role)
 
-    def remove_roles(self, subjects, comment=""):
+    def remove_roles(self, subjects, permissions, comment=""):
         subjects = set(subjects)
+        permissions = set(permissions)
+
         for role in self.roles:
-            if role.subject in subjects:
+            can_remove = not permissions or set(role.permissions) <= permissions
+            if role.subject in subjects and can_remove:
                 role.comment = comment
                 self._roles_to_remove.append(role)
-        self.roles = [role for role in self.roles if role.subject not in subjects]
+
+        removed = set(self._roles_to_remove)
+        self.roles = [role for role in self.roles if role not in removed]
 
     def remove_all_immediate_roles(self, comment=""):
         for role in self.roles:
@@ -258,7 +263,8 @@ class ObjectIdmSnapshot(object):
                 self._new_roles.append(role)
 
     def effective_roles(self):
-        return self.roles + self._new_roles
+        role_set = set(r for r in self.roles)
+        return self.roles + [r for r in self._new_roles if r not in role_set]
 
     def commit(self):
         subjects_to_json = lambda subjects: [subj.to_json_type() for subj in subjects]
@@ -422,6 +428,7 @@ def revoke(object_idm_snapshot, args):
         else:
             object_idm_snapshot.remove_roles(
                 subjects_from_string(args.subjects),
+                args.permissions,
                 args.comment,
             )
 

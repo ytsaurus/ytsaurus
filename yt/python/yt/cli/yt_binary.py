@@ -1873,6 +1873,10 @@ def add_idm_parser(root_subparsers):
     # idm revoke
     revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", help="Revoke IDM role"))
     add_idm_request_or_revoke_parser(revoke_parser)
+    revoke_parser.add_argument(
+        "--permissions", "-p", action="store", dest="permissions",
+        type=idm.decode_permissions, default=[],
+        help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
     revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
     revoke_parser.set_defaults(func=idm.revoke)
 
