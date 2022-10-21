@@ -9,9 +9,6 @@ import pytest
 
 
 class TestQueryLog(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @staticmethod
     def _get_engine_specification(period):
         return (
@@ -65,7 +62,7 @@ class TestQueryLog(ClickHouseTestBase):
                         if state["state"] == "unseen":
                             state["state"] = "seen"
                             state["seen_at"] = now
-                for identifier, state in identifier_to_state.iteritems():
+                for identifier, state in identifier_to_state.items():
                     if identifier in seen_now:
                         continue
                     if state["state"] == "seen":

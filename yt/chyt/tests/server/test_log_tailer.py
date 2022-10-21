@@ -49,7 +49,7 @@ class TestLogTailer(YTEnvSetup):
         os.mkdir(os.path.join(self.path_to_run, "logs", "dummy_logger"))
         log_tailer_config_file = os.path.join(self.path_to_run, "logs", "dummy_logger", "log_tailer_config.yson")
 
-        with open(log_tailer_config_file, "w") as config:
+        with open(log_tailer_config_file, "wb") as config:
             config.write(yson.dumps(log_tailer_config, yson_format="pretty"))
 
         create_tablet_cell_bundle("sys")
@@ -189,9 +189,6 @@ class TestLogTailer(YTEnvSetup):
 
 
 class TestClickHouseWithLogTailer(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("gritukan")
     def test_log_tailer(self):
         # Prepare log tailer config and upload it to Cypress.

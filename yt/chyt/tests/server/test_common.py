@@ -23,9 +23,6 @@ import signal
 class TestClickHouseCommon(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 4
 
-    def setup(self):
-        self._setup()
-
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -121,7 +118,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("evgenstf", "dakovalkov")
     def test_yson_extract_raw_functions(self):
         def convert_yson(s, format='binary'):
-            return yson.dumps(yson.loads(s), yson_format=format)
+            return yson.dumps(yson.loads(s.encode()), yson_format=format).decode()
 
         with Clique(1) as clique:
             assert clique.make_query('select YSONExtractArrayRaw(\'["a";0;[1;2;3];{a=10}]\') as a, toTypeName(a) as t') == [
@@ -378,6 +375,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
+        print_debug("ZZZ", Clique.path_to_run)
         with Clique(instance_count) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             for i in range(5):
@@ -725,7 +723,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 for item in clique_list:
                     assert item["self"] == (1 if str(instance) == item["job_id"] else 0)
                     del item["self"]
-                return sorted(clique_list)
+                return sorted(clique_list, key=lambda row: row["job_cookie"])
 
             for instance in instances:
                 responses.append(get_clique_list(instance))
@@ -838,7 +836,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 2
             wait(lambda: len(clique.make_direct_query(instances[0], "select * from system.clique")) == 2)
 
-            # Set timeout because clique with hanged control invoker can never response.
+            # Set timeout because clique with hanged control invoker can never respond.
             try:
                 clique.make_direct_query(
                     instances[1],
@@ -998,22 +996,22 @@ class TestClickHouseCommon(ClickHouseTestBase):
         )
         with Clique(1) as clique:
             value = {"key": [1, 2]}
-            func = "ConvertYson('" + yson.dumps(value, yson_format="text") + "', 'pretty')"
-            assert clique.make_query("select " + func) == [{func: yson.dumps(value, yson_format="pretty")}]
+            func = "ConvertYson('" + yson.dumps(value, yson_format="text").decode() + "', 'pretty')"
+            assert clique.make_query("select " + func) == [{func: yson.dumps(value, yson_format="pretty").decode()}]
             func = "ConvertYson(NULL, 'text')"
             assert clique.make_query("select " + func) == [{func: None}]
             func = "ConvertYson(i, 'text')"
             assert clique.make_query("select " + func + ' from "//tmp/table"') == [
-                {func: yson.dumps(value1, yson_format="text")},
-                {func: yson.dumps(value2, yson_format="text")},
-                {func: yson.dumps(value3, yson_format="text")},
+                {func: yson.dumps(value1, yson_format="text").decode()},
+                {func: yson.dumps(value2, yson_format="text").decode()},
+                {func: yson.dumps(value3, yson_format="text").decode()},
                 {func: None},
             ]
             func = "ConvertYson(i, fmt)"
             assert clique.make_query("select " + func + ' from "//tmp/table"') == [
-                {func: yson.dumps(value1, yson_format="binary")},
-                {func: yson.dumps(value2, yson_format="pretty")},
-                {func: yson.dumps(value3, yson_format="text")},
+                {func: yson.dumps(value1, yson_format="binary").decode()},
+                {func: yson.dumps(value2, yson_format="pretty").decode()},
+                {func: yson.dumps(value3, yson_format="text").decode()},
                 {func: None},
             ]
             with raises_yt_error(QueryFailedError):
@@ -1035,12 +1033,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         value1 = ["test", "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ\nабвгдежзийклмнопрстуфхцчшщъыьэюя\n"]
         # yson.dumps does not support our unescaped formats, so hard code it :(
-        value1_dumped = '["test";"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ\\nабвгдежзийклмнопрстуфхцчшщъыьэюя\\n";]'
+        value1_dumped = '["test";"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ\\nабвгдежзийклмнопрстуфхцчшщъыьэюя\\n";]'.encode()
         assert yson.loads(value1_dumped) == value1
         assert yson.dumps(value1, 'text') != value1_dumped
 
         value2 = {"key": "\\знач\rение\""}
-        value2_dumped = '{\n' + '    "key" = "\\\\знач\\rение\\\"";\n' + '}'
+        value2_dumped = ('{\n' + '    "key" = "\\\\знач\\rение\\\"";\n' + '}').encode()
         assert yson.loads(value2_dumped) == value2
         assert yson.dumps(value2, 'pretty') != value2_dumped
 
@@ -1204,7 +1202,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query("select YSONExtractKeysAndValues('[{a=5};{a=5;b=6;c=10}]', 2, 'Int8') as a")[0]["a"]
             ) == [["a", 5], ["b", 6], ["c", 10]]
 
-            assert yson.loads(clique.make_query("select YSONExtractRaw('[{a=5};{a=5;b=6;c=10}]', 2) as a")[0]["a"]) == {
+            assert yson.loads(clique.make_query("select YSONExtractRaw('[{a=5};{a=5;b=6;c=10}]', 2) as a")
+                              [0]["a"].encode()) == {
                 "a": 5,
                 "b": 6,
                 "c": 10,
@@ -1324,8 +1323,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             # Virtual columns are not visible via 'select *' and 'describe'.
             assert clique.make_query("select * from `//tmp/t0`") == [{"key": 0}]
-            query = "select * from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')"
-            assert sorted(clique.make_query(query)) == [{"key": index} for index in range(4)]
+            query = "select * from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3') order by key"
+            assert clique.make_query(query) == [{"key": index} for index in range(4)]
             assert len(clique.make_query("describe `//tmp/t0`")) == 1
             assert len(clique.make_query("describe concatYtTables('//tmp/t0', '//tmp/t1')")) == 1
 
@@ -1345,16 +1344,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query(query) == [get_table_content(0)]
             query = '''
                 select *, $table_index, $table_path, $table_name
-                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
+                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3') order by key
             '''
-            assert sorted(clique.make_query(query)) == [get_table_content(index) for index in range(4)]
+            assert clique.make_query(query) == [get_table_content(index) for index in range(4)]
 
             # Select only virtual values.
             query = '''
                 select $table_index, $table_path, $table_name
-                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
+                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3') order by key
             '''
-            assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(4)]
+            assert clique.make_query(query) == [get_table_virtual_values(index) for index in range(4)]
 
             # Join on virtual column.
             # XXX(dakovalkov): this does not work (https://github.com/ClickHouse/ClickHouse/issues/17860).
@@ -1370,9 +1369,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             query = '''
                 select * from concatYtTables("//tmp/t0", "//tmp/t1") as a
                 global join (select *, $table_index from concatYtTables("//tmp/t2", "//tmp/t3")) as b
-                using $table_index
+                using $table_index order by key
             '''
-            assert sorted(clique.make_query(query)) == [
+            assert clique.make_query(query) == [
                 {"key": 0, "b.key": 2},
                 {"key": 1, "b.key": 3},
             ]
@@ -1464,29 +1463,29 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         with Clique(1) as clique:
             # Simple.
-            query = "select * from concatYtTablesRange('//tmp') where $table_index = 2"
-            assert sorted(clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table))) == \
+            query = "select * from concatYtTablesRange('//tmp') where $table_index = 2 order by (key, subkey)"
+            assert clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table)) == \
                    table_data[2]
 
             # Non-monotonic transformation.
-            query = "select * from concatYtTablesRange('//tmp') where $table_index % 2 = 0"
-            assert sorted(clique.make_query_and_validate_row_count(query, exact=(2 * rows_per_table))) == \
+            query = "select * from concatYtTablesRange('//tmp') where $table_index % 2 = 0 order by (key, subkey)"
+            assert clique.make_query_and_validate_row_count(query, exact=(2 * rows_per_table)) == \
                    table_data[0] + table_data[2]
 
             # Several expressions.
             query = """
             select * from concatYtTablesRange('//tmp')
-            where $table_index = 0 or $table_name = 't1' or $table_path = '//tmp/t2'
+            where $table_index = 0 or $table_name = 't1' or $table_path = '//tmp/t2' order by (key, subkey)
             """
-            assert sorted(clique.make_query_and_validate_row_count(query, exact=(3 * rows_per_table))) == \
+            assert clique.make_query_and_validate_row_count(query, exact=(3 * rows_per_table)) == \
                    table_data[0] + table_data[1] + table_data[2]
 
             # Non-monotonic transformation + $table_index check.
             query = """
             select *, $table_index from concatYtTablesRange('//tmp')
-            where endsWith($table_path, '1')
+            where endsWith($table_path, '1') order by (key, subkey)
             """
-            assert sorted(clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table))) == \
+            assert clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table)) == \
                    [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
     @authors("dakovalkov")
@@ -1528,10 +1527,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-        remove_user("yt-clickhouse-cache")
-
     @authors("dakovalkov")
     def test_no_clickhouse_cache(self):
         patch = {
@@ -1544,6 +1539,7 @@ class TestClickHouseNoCache(ClickHouseTestBase):
                 },
             }
         }
+        remove_user("yt-clickhouse-cache")
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 123}])
         with Clique(1, config_patch=patch) as clique:
@@ -1554,9 +1550,6 @@ class TestClickHouseNoCache(ClickHouseTestBase):
 
 
 class TestCustomSettings(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_simple(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})

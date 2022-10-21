@@ -36,9 +36,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         },
     }
 
-    def setup(self):
-        self._setup()
-
     def _get_proxy_metric(self, metric_name):
         return profiler_factory().at_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
 
@@ -218,7 +215,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                     print_debug(full_response)
                     print_debug(full_response.json())
                     assert full_response.status_code == 200
-                    response = sorted(full_response.json()["data"])
+                    response = sorted(full_response.json()["data"], key=lambda row: row["i"])
                     assert response == [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}]
                     time.sleep(0.1)
 
@@ -396,9 +393,6 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             },
         },
     }
-
-    def setup(self):
-        self._setup()
 
     def setup_method(self, method):
         super(TestClickHouseProxyStructuredLog, self).setup_method(method)

@@ -17,9 +17,6 @@ import time
 class TestClickHouseDynamicTables(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 2
 
-    def setup(self):
-        self._setup()
-
     def _get_config_patch(self):
         return {
             "yt": {
@@ -254,15 +251,16 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         sync_mount_table("//tmp/t")
 
         with Clique(1, config_patch=self._get_config_patch()) as clique:
-            clique.make_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(10)")
-            assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(10)]
+            clique.make_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(10) "
+                              "order by key")
+            assert read_table("//tmp/t") == [{"key": i, "value": str(i)} for i in range(10)]
 
             clique.make_query(
                 "insert into `//tmp/t` select number as key, toString(number) as value from numbers(25000)"
             )
             rows = [{"key": i, "value": str(i)} for i in range(25000)]
             # Somehow select * from ... works faster than read_table.
-            written_rows = sorted(clique.make_query("select * from `//tmp/t`", verbose=False))
+            written_rows = clique.make_query("select * from `//tmp/t` order by key", verbose=False)
             # "assert rows == written_rows" is a bad idea. In case of error printing diff will take too long.
             # These checks can detect simple failures and avoid printing 500'000 rows.
             assert len(rows) == len(written_rows)
@@ -290,12 +288,13 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                 )
 
             t = clique.make_async_query(
-                "insert into `//tmp/t` select number as key, toString(number) as value from numbers(20)"
+                "insert into `//tmp/t` select number as key, toString(number) as value from numbers(20) "
+                "order by key"
             )
             time.sleep(2)
             sync_mount_table("//tmp/t")
             t.join()
-            assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(20)]
+            assert read_table("//tmp/t") == [{"key": i, "value": str(i)} for i in range(20)]
 
 
 class TestClickHouseDynamicTablesFetchFromTablets(TestClickHouseDynamicTables):

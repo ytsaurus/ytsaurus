@@ -10,9 +10,6 @@ import pytest
 
 
 class TestClickHouseSchema(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("evgenstf")
     def test_int_types(self):
         with Clique(5) as clique:
@@ -57,7 +54,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
 
     @staticmethod
     def _strip_description(rows):
-        return [{key: value for key, value in row.iteritems() if key in ("name", "type")} for row in rows]
+        return [{key: value for key, value in row.items() if key in ("name", "type")} for row in rows]
 
     @authors("max42", "dakovalkov")
     def test_common_schema_unsorted(self):
@@ -134,8 +131,8 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"name": "d", "type": "Nullable(Float64)"},
             ]
             assert clique.make_query('select * from concatYtTables("//tmp/t2", "//tmp/t3") order by a', settings=settings) == [
-                {"a": yson.dumps("1", yson_format='binary'), "d": None},
-                {"a": yson.dumps(17, yson_format='binary'), "d": 2.71},
+                {"a": yson.dumps("1", yson_format='binary').decode(), "d": None},
+                {"a": yson.dumps(17, yson_format='binary').decode(), "d": 2.71},
             ]
 
             assert self._strip_description(clique.make_query('describe concatYtTables("//tmp/t3", "//tmp/t4")')) == [
@@ -145,7 +142,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"name": "a", "type": "String"}
             ]
 
-            assert sorted(clique.make_query('select * from concatYtTables("//tmp/t3", "//tmp/t4")')) == [
+            assert clique.make_query('select * from concatYtTables("//tmp/t3", "//tmp/t4") order by a') == [
                 {"a": "1"},
                 {"a": "2"},
             ]
@@ -268,8 +265,8 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"name": "b", "type": "Nullable(String)"},
             ]
             assert clique.make_query("select * from concatYtTables('//tmp/t1', '//tmp/t3') order by a", settings=settings) == [
-                {"a": 10, "b": yson.dumps(20, yson_format="binary")},
-                {"a": 30, "b": yson.dumps("40", yson_format="binary")},
+                {"a": 10, "b": yson.dumps(20, yson_format="binary").decode()},
+                {"a": 30, "b": yson.dumps("40", yson_format="binary").decode()},
             ]
 
             with raises_yt_error(QueryFailedError):
@@ -286,8 +283,8 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"name": "b", "type": "Nullable(String)"},
             ]
             assert clique.make_query("select * from concatYtTables('//tmp/t1', '//tmp/t4') order by a", settings=settings) == [
-                {"a": yson.dumps(10, yson_format="binary"), "b": yson.dumps(20, yson_format="binary")},
-                {"a": yson.dumps(40, yson_format="binary"), "b": None},
+                {"a": yson.dumps(10, yson_format="binary").decode(), "b": yson.dumps(20, yson_format="binary").decode()},
+                {"a": yson.dumps(40, yson_format="binary").decode(), "b": None},
             ]
 
     @authors("max42")

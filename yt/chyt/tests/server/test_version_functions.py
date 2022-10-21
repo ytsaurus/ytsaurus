@@ -4,9 +4,6 @@ from base import ClickHouseTestBase, Clique
 
 
 class TestVersionFunctions(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("gudqeit")
     def test_version_functions(self):
         with Clique(1) as clique:

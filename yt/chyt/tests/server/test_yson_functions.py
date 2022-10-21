@@ -6,9 +6,8 @@ import yt.yson as yson
 
 
 class TestYsonFunctions(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
+    def setup_method(self, method):
+        super().setup_method(method)
         create(
             "table",
             "//tmp/t",
@@ -86,7 +85,7 @@ class TestYsonFunctions(ClickHouseTestBase):
     @authors("max42")
     def test_read_int64_strict(self):
         with Clique(1) as clique:
-            for i in xrange(4):
+            for i in range(4):
                 query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
                 if i != 0:
                     with raises_yt_error(QueryFailedError):
@@ -212,11 +211,11 @@ class TestYsonFunctions(ClickHouseTestBase):
 
         with Clique(1) as clique:
             result = clique.make_query("select YPathRaw(a, '') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object, "binary")}]
+            assert result == [{"i": yson.dumps(object, "binary").decode()}]
             result = clique.make_query("select YPathRawStrict(a, '/a') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object["a"], "binary")}]
+            assert result == [{"i": yson.dumps(object["a"], "binary").decode()}]
             result = clique.make_query("select YPathRaw(a, '', 'text') as i from \"//tmp/s1\"")
-            assert result == [{"i": yson.dumps(object, "text")}]
+            assert result == [{"i": yson.dumps(object, "text").decode()}]
             result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
             assert result == [{"i": None}]
             with raises_yt_error(QueryFailedError):
@@ -249,5 +248,5 @@ class TestYsonFunctions(ClickHouseTestBase):
     def test_different_format_per_row(self):
         with Clique(1) as clique:
             assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
-                {"a": yson.dumps(row["v"], row["fmt"])} for row in read_table("//tmp/t[#1:#5]")
+                {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
             ]

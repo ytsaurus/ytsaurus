@@ -2,6 +2,8 @@ from yt_commands import authors, raises_yt_error, create, get, remove, write_tab
 
 from yt_type_helpers import make_schema, normalize_schema
 
+from yt.test_helpers import assert_items_equal
+
 from base import ClickHouseTestBase, QueryFailedError, Clique
 
 from helpers import get_object_attribute_cache_config, get_schema_from_description
@@ -11,9 +13,6 @@ import copy
 
 
 class TestMutations(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_insert_values(self):
         create(
@@ -228,7 +227,7 @@ class TestMutations(ClickHouseTestBase):
         with Clique(5, config_patch={"clickhouse": {"settings": {"max_threads": 1}},
                                      "yt": {"subquery": {"min_data_weight_per_subquery": 1}}}) as clique:
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`")
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == 1
 
             # Distributed INSERT is suitable in cases below.
@@ -236,17 +235,17 @@ class TestMutations(ClickHouseTestBase):
 
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == 5
 
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == sorted(rows + rows)
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows + rows)
             assert get("//tmp/t_out/@chunk_count") == 10
 
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == 5
 
             # Distributed INSERT produces underaggregated result, but we did our best.
@@ -263,11 +262,11 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in` "
                               "union all select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == sorted(rows + rows)
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows + rows)
             assert get("//tmp/t_out/@chunk_count") == 1
 
             clique.make_query("insert into `<append=%false>//tmp/t_out` select 1 union all select 2 union all select 3")
-            assert sorted(read_table("//tmp/t_out", verbose=False)) == [{"a": 1}, {"a": 2}, {"a": 3}]
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), [{"a": 1}, {"a": 2}, {"a": 3}])
             assert get("//tmp/t_out/@chunk_count") == 1
 
     @authors("max42")
@@ -514,7 +513,7 @@ class TestMutations(ClickHouseTestBase):
             def check_output_table(expected_rows, expected_chunk_count):
                 assert get("//tmp/out/@chunk_count") == expected_chunk_count
                 rows = read_table("//tmp/out")
-                assert sorted(rows) == sorted(expected_rows)
+                assert_items_equal(rows, expected_rows)
 
             expected_rows = [{"a": 1}, {"a": 1}, {"a": 2}, {"a": 2}, {"a": 3}, {"a": 3}]
             expected_distinct_rows = [{"a": 1}, {"a": 2}, {"a": 3}]
@@ -639,7 +638,7 @@ class TestMutations(ClickHouseTestBase):
             def check_output_table(expected_rows, expected_chunk_count):
                 assert get("//tmp/out/@chunk_count") == expected_chunk_count
                 rows = read_table("//tmp/out")
-                assert sorted(rows) == sorted(expected_rows)
+                assert_items_equal(rows, expected_rows)
 
             expected_distinct_rows = [{"a": 1}, {"a": 2}, {"a": 3}]
 

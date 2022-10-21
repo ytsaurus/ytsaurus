@@ -10,9 +10,6 @@ from decimal_helpers import encode_decimal
 
 
 class TestComposite(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_dict(self):
         create("table", "//tmp/t", attributes={"schema": [

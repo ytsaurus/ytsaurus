@@ -11,9 +11,6 @@ import pprint
 
 
 class TestQueryRegistry(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_query_registry(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})

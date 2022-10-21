@@ -21,9 +21,6 @@ class TestColumnarRead(ClickHouseTestBase):
         }
     }
 
-    def setup(self):
-        self._setup()
-
     @staticmethod
     def _check_single_column(clique, type, required, values):
         create(
@@ -41,12 +38,12 @@ class TestColumnarRead(ClickHouseTestBase):
     def test_integer(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]:
-                self._check_single_column(clique, type, True, [i for i in xrange(10)])
+                self._check_single_column(clique, type, True, [i for i in range(10)])
                 self._check_single_column(clique, type, True, [77] * 1000)
                 self._check_single_column(clique, type, True, [1, 2, 3] * 100)
                 self._check_single_column(clique, type, True, [11] * 1000 + [22] * 1000 + [33] * 1000)
 
-                self._check_single_column(clique, type, False, [i if i % 3 == 0 else None for i in xrange(10)])
+                self._check_single_column(clique, type, False, [i if i % 3 == 0 else None for i in range(10)])
                 self._check_single_column(clique, type, False, [None] * 1000)
                 self._check_single_column(clique, type, False, [1, 2, 3, None] * 100)
                 self._check_single_column(clique, type, False, [1] * 1000 + [None] * 1000 + [2] * 1000)
@@ -60,12 +57,12 @@ class TestColumnarRead(ClickHouseTestBase):
                 "int32",
                 "int64",
             ]:
-                self._check_single_column(clique, type, True, [-i for i in xrange(10)])
+                self._check_single_column(clique, type, True, [-i for i in range(10)])
 
     @authors("babenko")
     def test_boolean(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
-            self._check_single_column(clique, "boolean", True, [i % 2 == 0 for i in xrange(10)])
+            self._check_single_column(clique, "boolean", True, [i % 2 == 0 for i in range(10)])
             self._check_single_column(clique, "boolean", True, [False] * 100 + [True] * 200 + [True] * 100)
 
             self._check_single_column(clique, "boolean", False, [True, None, False, None, True, True, None, False])
@@ -108,7 +105,7 @@ class TestColumnarRead(ClickHouseTestBase):
             )
             row = {"x": {"some": {"yson": True}}}
             write_table("//tmp/t", [row])
-            assert yson.loads(clique.make_query("select * from `//tmp/t`")[0]["x"]) == row["x"]
+            assert yson.loads(clique.make_query("select * from `//tmp/t`")[0]["x"].encode()) == row["x"]
 
     @authors("babenko")
     def test_any_upcast(self):
@@ -149,7 +146,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 "null": None,
                 "void": None,
             }
-            null_row = {key: None for key, value in row.iteritems()}
+            null_row = {key: None for key, value in row.items()}
             write_table("//tmp/s1", [row, null_row])
             merge(in_="//tmp/s1", out="//tmp/s2")
             fields = ""
@@ -158,9 +155,9 @@ class TestColumnarRead(ClickHouseTestBase):
                     fields += ", "
                 fields += "ConvertYson({}, 'text') as {}".format(column["name"], column["name"])
             results = clique.make_query("select {} from `//tmp/s2`".format(fields))
-            for key, value in results[0].iteritems():
-                assert (yson.loads(value) if value is not None else None) == row[key]
-            for key, value in results[1].iteritems():
+            for key, value in results[0].items():
+                assert (yson.loads(value.encode()) if value is not None else None) == row[key]
+            for key, value in results[1].items():
                 assert value is None
 
     @authors("babenko")
