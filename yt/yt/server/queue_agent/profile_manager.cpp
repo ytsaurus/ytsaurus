@@ -32,11 +32,15 @@ struct TQueuePartitionProfilingCounters
     TCounter RowsWritten;
     TCounter RowsTrimmed;
     TCounter DataWeightWritten;
+    TGauge RowCount;
+    TGauge DataWeight;
 
     TQueuePartitionProfilingCounters(const TProfiler& profiler, const TProfiler& aggregationProfiler)
         : RowsWritten(profiler.Counter("/rows_written"))
         , RowsTrimmed(profiler.Counter("/rows_trimmed"))
         , DataWeightWritten(profiler.Counter("/data_weight_written"))
+        , RowCount(profiler.Gauge("/row_count"))
+        , DataWeight(profiler.Gauge("/data_weight"))
     {
         Y_UNUSED(aggregationProfiler);
     }
@@ -123,6 +127,11 @@ public:
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
             const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
+
+            if (!previousQueuePartitionSnapshot->Error.IsOK() || !currentQueuePartitionSnapshot->Error.IsOK()) {
+                continue;
+            }
+
             auto& profilingCounters = QueuePartitionProfilingCounters_[partitionIndex];
 
             auto rowsWritten = currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex;
@@ -131,14 +140,25 @@ public:
             auto rowsTrimmed = currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex;
             SafeIncrement(profilingCounters.RowsTrimmed, rowsTrimmed);
 
-            auto dataWeightWriten = currentQueuePartitionSnapshot->CumulativeDataWeight - previousQueuePartitionSnapshot->CumulativeDataWeight;
-            SafeIncrement(profilingCounters.DataWeightWritten, dataWeightWriten);
+            SafeIncrement(profilingCounters.DataWeightWritten, OptionalSub(
+                currentQueuePartitionSnapshot->CumulativeDataWeight,
+                previousQueuePartitionSnapshot->CumulativeDataWeight));
+
+            profilingCounters.RowCount.Update(currentQueuePartitionSnapshot->AvailableRowCount);
+            SafeUpdate(profilingCounters.DataWeight, currentQueuePartitionSnapshot->AvailableDataWeight);
         }
 
         for (const auto& consumerRef : GetKeys(currentQueueSnapshot->ConsumerSnapshots)) {
-            const auto& previousConsumerPartitionSnapshots = previousQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
-            Y_UNUSED(previousConsumerPartitionSnapshots);
-            const auto& currentConsumerPartitionSnapshots = currentQueueSnapshot->ConsumerSnapshots[consumerRef]->PartitionSnapshots;
+            const auto& previousConsumerSnapshot = previousQueueSnapshot->ConsumerSnapshots[consumerRef];
+            const auto& currentConsumerSnapshot = currentQueueSnapshot->ConsumerSnapshots[consumerRef];
+
+            if (!previousConsumerSnapshot->Error.IsOK() || !currentConsumerSnapshot->Error.IsOK()) {
+                continue;
+            }
+
+            const auto& previousConsumerPartitionSnapshots = previousConsumerSnapshot->PartitionSnapshots;
+            const auto& currentConsumerPartitionSnapshots = currentConsumerSnapshot->PartitionSnapshots;
+            
             auto& consumerProfilingCounters = *ConsumerProfilingCounters_[consumerRef];
             Y_UNUSED(consumerProfilingCounters);
             auto& consumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[consumerRef];
@@ -146,16 +166,23 @@ public:
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
                 const auto& previousConsumerPartitionSnapshot = previousConsumerPartitionSnapshots[partitionIndex];
                 const auto& currentConsumerPartitionSnapshot = currentConsumerPartitionSnapshots[partitionIndex];
+
+                if (!previousConsumerPartitionSnapshot->Error.IsOK() || !currentConsumerPartitionSnapshot->Error.IsOK()) {
+                    continue;
+                }
+
                 auto& profilingCounters = consumerPartitionProfilingCounters[partitionIndex];
 
                 auto rowsConsumed = currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex;
                 SafeIncrement(profilingCounters.RowsConsumed, rowsConsumed);
 
-                auto dataWeightConsumed = currentConsumerPartitionSnapshot->CumulativeDataWeight - previousConsumerPartitionSnapshot->CumulativeDataWeight;
-                SafeIncrement(profilingCounters.DataWeightConsumed, dataWeightConsumed);
+
+                SafeIncrement(profilingCounters.DataWeightConsumed, OptionalSub(
+                    currentConsumerPartitionSnapshot->CumulativeDataWeight,
+                    previousConsumerPartitionSnapshot->CumulativeDataWeight));
 
                 profilingCounters.LagRows.Update(currentConsumerPartitionSnapshot->UnreadRowCount);
-                profilingCounters.LagDataWeight.Update(currentConsumerPartitionSnapshot->UnreadDataWeight);
+                SafeUpdate(profilingCounters.LagDataWeight, currentConsumerPartitionSnapshot->UnreadDataWeight);
                 profilingCounters.LagTime.Update(currentConsumerPartitionSnapshot->ProcessingLag);
                 profilingCounters.LagTimeHistogram.Reset();
                 profilingCounters.LagTimeHistogram.Add(currentConsumerPartitionSnapshot->ProcessingLag.MillisecondsFloat());
@@ -174,11 +201,35 @@ private:
     THashMap<TCrossClusterReference, std::unique_ptr<TConsumerProfilingCounters>> ConsumerProfilingCounters_;
     THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> ConsumerPartitionProfilingCounters_;
 
+    static std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
+    {
+        if (lhs && rhs) {
+            return *lhs - *rhs;
+        }
+        return {};
+    }
+
     //! Helper for incrementing a counter only if delta is non-negative.
-    void SafeIncrement(TCounter& counter, i64 delta)
+    static void SafeIncrement(TCounter& counter, i64 delta)
     {
         if (delta >= 0) {
             counter.Increment(delta);
+        }
+    }
+
+    //! Helper for incrementing a counter only if delta is non-null and non-negative.
+    static void SafeIncrement(TCounter& counter, std::optional<i64> delta)
+    {
+        if (delta) {
+            SafeIncrement(counter, *delta);
+        }
+    }
+
+    //! Helper for updating a gauge only if value is non-null.
+    static void SafeUpdate(TGauge& gauge, std::optional<i64> value)
+    {
+        if (value) {
+            gauge.Update(*value);
         }
     }
 
@@ -187,6 +238,10 @@ private:
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot)
     {
+        if (!previousQueueSnapshot->Error.IsOK() || currentQueueSnapshot->Error.IsOK()) {
+            return false;
+        }
+
         if (previousQueueSnapshot->PartitionCount != currentQueueSnapshot->PartitionCount) {
             return false;
         }

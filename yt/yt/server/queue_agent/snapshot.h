@@ -46,7 +46,11 @@ struct TQueuePartitionSnapshot
     TInstant LastRowCommitTime;
     TDuration CommitIdleTime;
 
-    i64 CumulativeDataWeight = 0;
+    std::optional<i64> CumulativeDataWeight;
+    // Currently, this value is an approximation and includes the weight of the first row of the snapshot.
+    std::optional<i64> TrimmedDataWeight;
+    // Currently, this value does not include the first available row.
+    std::optional<i64> AvailableDataWeight;
 
     //! Write counters for the given partition.
     TPerformanceCounters WriteRate;
@@ -116,15 +120,15 @@ struct TConsumerPartitionSnapshot
     //! Offset of the next row with respect to the upper row index in the partition.
     //! May be negative if the consumer is ahead of the partition.
     i64 UnreadRowCount = -1;
-    //! Amount of data unread by the consumer. Zero if the consumer is aheaed of the partition, expired or "almost expired".
-    i64 UnreadDataWeight = -1;
+    //! Amount of data unread by the consumer. std::nullopt if the consumer is aheaed of the partition, expired or "almost expired".
+    std::optional<i64> UnreadDataWeight;
     //! If #Disposition == PendingConsumption and commit timestamp is set up, the commit timestamp of the next row to be read by the consumer;
     //! std::nullopt otherwise.
     std::optional<TInstant> NextRowCommitTime;
     //! If #NextRowCommitTime is set, difference between Now() and *NextRowCommitTime; zero otherwise.
     TDuration ProcessingLag;
 
-    i64 CumulativeDataWeight = 0;
+    std::optional<i64> CumulativeDataWeight;
 
     //! Read counters of the given consumer for the partition.
     TPerformanceCounters ReadRate;
