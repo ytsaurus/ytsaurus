@@ -54,6 +54,11 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     }
 }
 
+bool TTimeStatistics::IsEmpty() const
+{
+    return !PrepareDuration && !ArtifactsDownloadDuration && !PrepareRootFSDuration && !GpuCheckDuration;
+}
+
 void ToProto(
     NJobTrackerClient::NProto::TTimeStatistics* timeStatisticsProto,
     const TTimeStatistics& timeStatistics)
