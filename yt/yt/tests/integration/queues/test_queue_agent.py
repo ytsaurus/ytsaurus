@@ -241,6 +241,10 @@ class TestQueueAgentBase(YTEnvSetup):
         else:
             insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
 
+    @staticmethod
+    def _wait_for_row_count(path, tablet_index, count):
+        wait(lambda: len(select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")) == count)
+
 
 class TestQueueAgent(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
@@ -566,12 +570,36 @@ class TestQueueController(TestQueueAgentBase):
 
         trim_rows("//tmp/q", 0, 1)
 
+        self._wait_for_row_count("//tmp/q", 0, 0)
+
         orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
         assert_partition(queue_partitions[0], 1, 1)
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
+
+        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}] * 100)
+
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+
+        assert_partition(queue_partitions[0], 1, 101)
+        assert queue_partitions[0]["cumulative_data_weight"] == 2020
+        assert queue_partitions[0]["trimmed_data_weight"] <= 2 * 20
+
+        trim_rows("//tmp/q", 0, 91)
+        self._wait_for_row_count("//tmp/q", 0, 10)
+
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+
+        assert_partition(queue_partitions[0], 91, 101)
+        assert queue_partitions[0]["cumulative_data_weight"] == 2020
+        assert 89 * 20 <= queue_partitions[0]["trimmed_data_weight"] <= 92 * 20
+        assert 9 * 20 <= queue_partitions[0]["available_data_weight"] <= 11 * 20
 
     @authors("max42")
     def test_consumer_status(self):
@@ -779,10 +807,6 @@ class TestAutomaticTrimming(TestQueueAgentBase):
             "clusters": ["primary"],
         },
     }
-
-    @staticmethod
-    def _wait_for_row_count(path, tablet_index, count):
-        wait(lambda: len(select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")) == count)
 
     @authors("achulkov2")
     def test_basic(self):

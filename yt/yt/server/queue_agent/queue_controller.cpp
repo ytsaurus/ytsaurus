@@ -13,6 +13,8 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -48,8 +50,8 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Collect cumulative row indices from rows with given (tablet_index, row_index) pairs and
-//! return them as a collection of (tablet_index, cumulative_data_weight) pairs.
-std::vector<std::pair<int, i64>> CollectCumulativeDataWeights(
+//! return them as a tablet_index: (row_index: cumulative_data_weight) map
+THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
     const TYPath& path,
     NApi::IClientPtr client,
     const std::vector<std::pair<int, i64>>& tabletAndRowIndices,
@@ -62,7 +64,7 @@ std::vector<std::pair<int, i64>> CollectCumulativeDataWeights(
     }
 
     TStringBuilder queryBuilder;
-    queryBuilder.AppendFormat("[$tablet_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
+    queryBuilder.AppendFormat("[$tablet_index], [$row_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
         path);
     bool isFirstTuple = true;
     for (const auto& [partitionIndex, rowIndex] : tabletAndRowIndices) {
@@ -82,20 +84,29 @@ std::vector<std::pair<int, i64>> CollectCumulativeDataWeights(
     auto selectResult = WaitFor(client->SelectRows(query))
         .ValueOrThrow();
 
-    std::vector<std::pair<int, i64>> result;
-    result.reserve(selectResult.Rowset->GetRows().size());
+    THashMap<int, THashMap<i64, i64>> result;
 
     for (const auto& row : selectResult.Rowset->GetRows()) {
-        YT_VERIFY(row.GetCount() == 2);
-        YT_VERIFY(row[0].Type == EValueType::Int64);
-        auto tabletIndex = row[0].Data.Int64;
+        YT_VERIFY(row.GetCount() == 3);
 
-        YT_VERIFY(row[1].Type == EValueType::Int64);
-        auto cumulativeDataWeight = row[1].Data.Int64;
-        result.emplace_back(tabletIndex, cumulativeDataWeight);
+        auto tabletIndex = FromUnversionedValue<int>(row[0]);
+        auto rowIndex = FromUnversionedValue<i64>(row[1]);
+        auto cumulativeDataWeight = FromUnversionedValue<i64>(row[2]);
+
+        result[tabletIndex].emplace(rowIndex, cumulativeDataWeight);
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
+{
+    if (lhs && rhs) {
+        return *lhs - *rhs;
+    }
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,17 +266,33 @@ private:
         for (const auto& [partitionIndex, partitionSnapshot] : Enumerate(QueueSnapshot_->PartitionSnapshots)) {
             // Partition should not be erroneous and contain at least one row.
             if (partitionSnapshot->Error.IsOK() && partitionSnapshot->UpperRowIndex > 0) {
-                tabletAndRowIndices.emplace_back(partitionIndex, partitionSnapshot->UpperRowIndex - 1);
+                tabletAndRowIndices.emplace_back(partitionIndex, partitionSnapshot->LowerRowIndex);
+                if (partitionSnapshot->UpperRowIndex - 1 != partitionSnapshot->LowerRowIndex) {
+                    tabletAndRowIndices.emplace_back(partitionIndex, partitionSnapshot->UpperRowIndex - 1);
+                }
             }
         }
 
         const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
 
-        for (const auto& [tabletIndex, cumulativeDataWeight] : result) {
+        for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
             auto& partitionSnapshot = QueueSnapshot_->PartitionSnapshots[tabletIndex];
-            partitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
-            partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->CumulativeDataWeight);
+
+            auto trimmedDataWeightIt = cumulativeDataWeights.find(partitionSnapshot->LowerRowIndex);
+            if (trimmedDataWeightIt != cumulativeDataWeights.end()) {
+                partitionSnapshot->TrimmedDataWeight = cumulativeDataWeights.find(partitionSnapshot->LowerRowIndex)->second;
+            }
+
+            auto cumulativeDataWeightIt = cumulativeDataWeights.find(partitionSnapshot->UpperRowIndex - 1);
+            if (cumulativeDataWeightIt != cumulativeDataWeights.end()) {
+                partitionSnapshot->CumulativeDataWeight = cumulativeDataWeights.find(partitionSnapshot->UpperRowIndex - 1)->second;
+                partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
+            }
+
+            partitionSnapshot->AvailableDataWeight = NDetail::OptionalSub(
+                partitionSnapshot->CumulativeDataWeight,
+                partitionSnapshot->TrimmedDataWeight);
         }
 
         YT_LOG_DEBUG("Consumer cumulative data weights collected");
@@ -385,8 +412,9 @@ private:
                 // NB: may be negative if the consumer is ahead of the partition.
                 consumerPartitionSnapshot->UnreadRowCount =
                     queuePartitionSnapshot->UpperRowIndex - consumerPartitionSnapshot->NextRowIndex;
-                consumerPartitionSnapshot->UnreadDataWeight =
-                    queuePartitionSnapshot->CumulativeDataWeight - consumerPartitionSnapshot->CumulativeDataWeight;
+                consumerPartitionSnapshot->UnreadDataWeight = NDetail::OptionalSub(
+                    queuePartitionSnapshot->CumulativeDataWeight,
+                    consumerPartitionSnapshot->CumulativeDataWeight);
 
                 if (consumerPartitionSnapshot->UnreadRowCount < 0) {
                     consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::Ahead;
@@ -505,10 +533,10 @@ private:
         const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
 
-        for (const auto& [tabletIndex, cumulativeDataWeight] : result) {
+        for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
             auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
-            consumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
-            consumerPartitionSnapshot->ReadRate.DataWeight.Update(consumerPartitionSnapshot->CumulativeDataWeight);
+            consumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeights.begin()->second;
+            consumerPartitionSnapshot->ReadRate.DataWeight.Update(*consumerPartitionSnapshot->CumulativeDataWeight);
         }
 
         YT_LOG_DEBUG("Consumer cumulative data weights collected");
