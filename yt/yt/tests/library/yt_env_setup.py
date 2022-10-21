@@ -28,13 +28,6 @@ import yt.test_helpers.cleanup as test_cleanup
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
-try:
-    from yt.packages.six import iteritems, PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import iteritems, PY3
-    from six.moves import xrange
-
 from yt_driver_bindings import reopen_logs
 
 import pytest
@@ -354,9 +347,7 @@ class YTEnvSetup(object):
 
         partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
         for item in items:
-            nodeid = item.nodeid
-            if PY3:
-                nodeid = nodeid.encode("utf-8")
+            nodeid = item.nodeid.encode("utf-8")
             hexdigest = hashlib.md5(nodeid).hexdigest()
             partitions[int(hexdigest, 16) % len(partitions)].append(item)
         return partitions
@@ -441,7 +432,7 @@ class YTEnvSetup(object):
 
     @classmethod
     def get_cluster_names(cls):
-        return [cls.get_cluster_name(cluster_index) for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1)]
+        return [cls.get_cluster_name(cluster_index) for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1)]
 
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
@@ -514,7 +505,7 @@ class YTEnvSetup(object):
     @classmethod
     def start_envs(cls):
         cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
-        for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
+        for cluster_index in range(1, cls.NUM_REMOTE_CLUSTERS + 1):
             cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
             cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
@@ -553,7 +544,7 @@ class YTEnvSetup(object):
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"],
                 }
 
-            for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
+            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 cluster_name = cls.get_cluster_name(cluster_index)
                 driver = yt_commands.get_driver(cluster=cluster_name)
                 if driver is None:
@@ -598,7 +589,7 @@ class YTEnvSetup(object):
             yt_commands.sync_mount_table("//sys/sequoia/chunk_meta_extensions")
 
         if cls.USE_DYNAMIC_TABLES:
-            for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
+            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
                 if driver is None:
                     continue
@@ -694,7 +685,7 @@ class YTEnvSetup(object):
             configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
 
-        for key, config in iteritems(configs["driver"]):
+        for key, config in configs["driver"].items():
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
             configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
 
@@ -738,7 +729,7 @@ class YTEnvSetup(object):
                 + "You can split class into smaller chunks, using NUM_TEST_PARTITIONS option.")
 
     def setup_method(self, method):
-        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+        for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
@@ -905,7 +896,7 @@ class YTEnvSetup(object):
         for env in [self.Env] + self.remote_envs:
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
-        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+        for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue

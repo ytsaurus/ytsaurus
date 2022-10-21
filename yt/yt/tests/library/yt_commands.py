@@ -17,16 +17,10 @@ from yt.common import (
 )
 from yt.ypath import parse_ypath
 
-try:
-    from yt.packages.six import PY3, itervalues, iteritems, iterkeys
-    from yt.packages.six.moves import xrange, builtins
-except ImportError:
-    from six import PY3, itervalues, iteritems, iterkeys
-    from six.moves import xrange, builtins
-
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
+import builtins
 import contextlib
 import copy as pycopy
 import os
@@ -128,11 +122,7 @@ def assert_yt_error(error, *args, **kwargs):
 
 def print_debug(*args):
     def decode(arg):
-        if PY3:
-            return arg.decode("utf-8", "backslashreplace")
-        else:
-            # COMPAT(gepardo): Remove this when the tests will be Python3-only.
-            return str(arg)
+        return arg.decode("utf-8", "backslashreplace")
 
     if args:
         root_logger.debug(" ".join(
@@ -175,7 +165,7 @@ def init_drivers(clusters):
 
             secondary_drivers = [
                 create_driver_per_api(instance.configs["driver_secondary_" + str(i)])
-                for i in xrange(instance.yt_config.secondary_cell_count)
+                for i in range(instance.yt_config.secondary_cell_count)
             ]
 
             _clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
@@ -225,7 +215,7 @@ def wait_drivers():
 def terminate_drivers():
     for cluster in _clusters_drivers:
         for drivers_by_cell_tag in _clusters_drivers[cluster]:
-            for driver in list(itervalues(drivers_by_cell_tag)):
+            for driver in list(drivers_by_cell_tag.values()):
                 driver.terminate()
     _clusters_drivers.clear()
 
@@ -479,7 +469,7 @@ def execute_command(
                 unwrap_v4_result
                 and driver.get_config()["api_version"] == 4
                 and isinstance(result, dict)
-                and len(list(iterkeys(result))) == 1
+                and len(list(result.keys())) == 1
             ):
                 result = list(result.values())[0]
             if driver.get_config()["api_version"] == 3 and command_name == "lock":
@@ -510,7 +500,7 @@ def _assert_true_for_cell(cell_index, predicate):
 
 
 def assert_true_for_secondary_cells(env, predicate):
-    for i in xrange(env.yt_config.secondary_cell_count):
+    for i in range(env.yt_config.secondary_cell_count):
         _assert_true_for_cell(i + 1, predicate)
 
 
@@ -520,7 +510,7 @@ def assert_true_for_all_cells(env, predicate):
 
 
 def _check_true_for_all_cells(env, predicate):
-    for i in xrange(env.yt_config.secondary_cell_count + 1):
+    for i in range(env.yt_config.secondary_cell_count + 1):
         if not predicate(get_driver(i)):
             return False
     return True
@@ -888,13 +878,13 @@ def abort_transaction(tx, **kwargs):
 
 def abort_all_transactions():
     topmost_transactions = ls("//sys/topmost_transactions")
-    for i in xrange(len(topmost_transactions) / 100 + 1):
+    for i in range(len(topmost_transactions) / 100 + 1):
         start = i * 100
         end = min(len(topmost_transactions), (i + 1) * 100)
         if start >= end:
             break
         requests = []
-        for j in xrange(start, end):
+        for j in range(start, end):
             requests.append(
                 {
                     "command": "abort_transaction",
@@ -989,7 +979,7 @@ def _parse_backup_manifest(*args):
             "clusters": {
                 cluster: list(builtins.map(_make_table_manifest, tables))
                 for cluster, tables
-                in list(iteritems(args[0]))
+                in list(args[0].items())
             }
         }
 
@@ -1279,7 +1269,7 @@ class Operation(object):
     def wait_for_fresh_snapshot(self):
         # It is important to repeat this procedure twice as there may already be an ongoing
         # snapshotting procedure which saved state arbitrarily long before the moment of calling.
-        for _ in xrange(2):
+        for _ in range(2):
             timepoint = datetime.utcnow()
             snapshot_path = self.get_path() + "/snapshot"
             wait(
@@ -1820,12 +1810,12 @@ def remove_user(name, **kwargs):
 
 
 def make_random_string(length=10):
-    return "".join(random.choice(ascii_letters) for _ in xrange(length))
+    return "".join(random.choice(ascii_letters) for _ in range(length))
 
 
 def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_in", **kwargs)
-    write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
+    write_table("//tmp/t_in", [{"x": str(i)} for i in range(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
 
@@ -2193,8 +2183,8 @@ def cluster_resources_equal(a, b):
             or a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0)):
         return False
 
-    media = builtins.set(iterkeys(a.get("disk_space_per_medium", {})))
-    media.union(builtins.set(iterkeys(b.get("disk_space_per_medium", {}))))
+    media = builtins.set(a.get("disk_space_per_medium", {}).keys())
+    media.union(builtins.set(b.get("disk_space_per_medium", {}).keys()))
     return all(
         a.get("disk_space_per_medium", {}).get(medium, 0) == b.get("disk_space_per_medium", {}).get(medium, 0)
         for medium in media
@@ -2251,7 +2241,7 @@ def _generate_uuid_part(limit=2 ** 32):
 
 
 def generate_uuid():
-    return "-".join([_generate_uuid_part() for _ in xrange(4)])
+    return "-".join([_generate_uuid_part() for _ in range(4)])
 
 
 def _format_chaos_cell_id(cell_tag):
@@ -2522,7 +2512,7 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
 # TODO(babenko): rename to sync_create_tablet_cells
 def sync_create_cells(cell_count, driver=None, **attributes):
     cell_ids = []
-    for _ in xrange(cell_count):
+    for _ in range(cell_count):
         cell_id = create_tablet_cell(attributes=attributes, driver=driver)
         cell_ids.append(cell_id)
     wait_for_cells(cell_ids, driver=driver)
@@ -2922,10 +2912,10 @@ def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):
-    for option, value in iteritems(config):
+    for option, value in config.items():
         update_pool_tree_config_option(tree, option, value, wait_for_orchid=False)
     if wait_for_orchid:
-        for option, value in iteritems(config):
+        for option, value in config.items():
             wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option), default=None) == value)
 
 
