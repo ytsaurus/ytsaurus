@@ -238,7 +238,7 @@ private:
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot)
     {
-        if (!previousQueueSnapshot->Error.IsOK() || currentQueueSnapshot->Error.IsOK()) {
+        if (!previousQueueSnapshot->Error.IsOK() || !currentQueueSnapshot->Error.IsOK()) {
             return false;
         }
 
