@@ -205,25 +205,26 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 
 void UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
-    const TJobletPtr& joblet,
-    EJobState jobState,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
     int customStatisticsLimit,
-    bool& isLimitExceeded)
+    bool* isLimitExceeded)
 {
-    targetStatistics.UpdateJobStatistics(joblet, *joblet->ControllerStatistics, jobState);
+    targetStatistics.AppendStatistics(controllerStatistics, tags);
 
     if (targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit) {
         // Limit is already exceeded, so truncate the statistics.
-        auto jobStatisticsCopy = *joblet->JobStatistics;
+        auto jobStatisticsCopy = jobStatistics;
         jobStatisticsCopy.RemoveRangeByPrefix("/custom");
-        targetStatistics.UpdateJobStatistics(joblet, jobStatisticsCopy, jobState);
+        targetStatistics.AppendStatistics(jobStatisticsCopy, tags);
     } else {
-        targetStatistics.UpdateJobStatistics(joblet, *joblet->JobStatistics, jobState);
+        targetStatistics.AppendStatistics(jobStatistics, tags);
     }
 
     // NB. We need the second check of custom statistics count to ensure that the limit was not
     // violated after the update.
-    isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
+    *isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

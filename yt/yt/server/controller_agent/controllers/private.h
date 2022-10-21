@@ -50,6 +50,7 @@ struct TJobNodeDescriptor;
 
 struct IJobSplitter;
 
+struct TJobStatisticsTags;
 class TAggregatedJobStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////

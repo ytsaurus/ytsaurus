@@ -161,6 +161,8 @@ struct TJoblet
     //! common paths) and return result.
     //! This method traverses both statistics fields, so do not call it often.
     TStatistics BuildCombinedStatistics() const;
+
+    TJobStatisticsTags GetAggregationTags(EJobState state);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

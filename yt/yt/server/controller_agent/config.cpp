@@ -585,6 +585,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(16)
         .GreaterThan(0);
 
+    registrar.Parameter("statistics_offload_thread_count", &TThis::StatisticsOffloadThreadCount)
+        .Default(16)
+        .GreaterThan(0);
+
     registrar.Parameter("controller_static_orchid_update_period", &TThis::ControllerStaticOrchidUpdatePeriod)
         .Default(TDuration::Seconds(10));
 

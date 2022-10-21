@@ -19,8 +19,8 @@ struct TJobStatisticsTags
 
 void Serialize(const TJobStatisticsTags& statistics, NYson::IYsonConsumer* consumer);
 
-inline bool operator<(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs);
-inline bool operator==(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs);
+bool operator<(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs);
+bool operator==(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,15 +28,12 @@ inline bool operator==(const TJobStatisticsTags& lhs, const TJobStatisticsTags& 
  *  Convenient wrapper around TStatistics providing helpers for controller-specific aggregations.
  */
 class TAggregatedJobStatistics
+    : public TTaggedStatistics<TJobStatisticsTags>
 {
 public:
     using TTaggedSummaries = THashMap<TJobStatisticsTags, TSummary>;
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const TStatistics& statistics, EJobState jobState);
-
     i64 CalculateCustomStatisticsCount() const;
-
-    void Persist(const TPersistenceContext& context);
 
     i64 GetSumByJobStateAndType(
         const TString& statisticPath,
@@ -56,9 +53,6 @@ public:
 private:
     TTaggedStatistics<TJobStatisticsTags> TaggedJobStatistics_;
 
-    static EJobState GetStatisticsJobState(const TJobletPtr& joblet, EJobState state);
-
-    friend void Serialize(const TAggregatedJobStatistics& statistics, NYson::IYsonConsumer* consumer);
     friend TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
 };
 
