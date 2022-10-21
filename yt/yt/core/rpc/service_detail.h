@@ -296,53 +296,77 @@ protected:
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;
     typename TObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>::TObjectPtr Response_;
 
+    struct TSerializedResponse
+    {
+        TSharedRef Body;
+        std::vector<TSharedRef> Attachments;
+    };
+
+    TSerializedResponse SerializeResponse()
+    {
+        const auto& requestHeader = GetRequestHeader();
+
+        // COMPAT(kiselyovp): legacy RPC codecs
+        NCompression::ECodec attachmentCodecId;
+        auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
+        TSharedRef serializedBody;
+        if (requestHeader.has_response_codec()) {
+            serializedBody = SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
+            attachmentCodecId = bodyCodecId;
+        } else {
+            serializedBody = SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId);
+            attachmentCodecId = NCompression::ECodec::None;
+        }
+
+        if (requestHeader.has_response_format()) {
+            int intFormat = requestHeader.response_format();
+            EMessageFormat format;
+            if (!TryEnumCast(intFormat, &format)) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::ProtocolError,
+                    "Message format %v is not supported",
+                    intFormat);
+            }
+
+            NYson::TYsonString formatOptionsYson;
+            if (requestHeader.has_response_format_options()) {
+                formatOptionsYson = NYson::TYsonString(requestHeader.response_format_options());
+            }
+
+            if (format != EMessageFormat::Protobuf) {
+                serializedBody = ConvertMessageToFormat(
+                    serializedBody,
+                    format,
+                    NYson::ReflectProtobufMessageType<TResponseMessage>(),
+                    formatOptionsYson);
+            }
+        }
+
+        auto responseAttachments = CompressAttachments(Response_->Attachments(), attachmentCodecId);
+
+        return TSerializedResponse{
+            .Body = std::move(serializedBody),
+            .Attachments = std::move(responseAttachments),
+        };
+    }
+
     void DoReply(const TError& error)
     {
+        const auto& context = this->UnderlyingContext_;
+
         if (error.IsOK()) {
-            const auto& requestHeader = GetRequestHeader();
-
-            // COMPAT(kiselyovp): legacy RPC codecs
-            NCompression::ECodec attachmentCodecId;
-            auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
-            TSharedRef serializedBody;
-            if (requestHeader.has_response_codec()) {
-                serializedBody = SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
-                attachmentCodecId = bodyCodecId;
-            } else {
-                serializedBody = SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId);
-                attachmentCodecId = NCompression::ECodec::None;
+            TSerializedResponse response;
+            try {
+                response = SerializeResponse();
+            } catch (const std::exception& ex) {
+                context->Reply(TError(ex));
+                return;
             }
 
-            if (requestHeader.has_response_format()) {
-                int intFormat = requestHeader.response_format();
-                EMessageFormat format;
-                if (!TryEnumCast(intFormat, &format)) {
-                    UnderlyingContext_->Reply(TError(
-                        NRpc::EErrorCode::ProtocolError,
-                        "Message format %v is not supported",
-                        intFormat));
-                    return;
-                }
-
-                NYson::TYsonString formatOptionsYson;
-                if (requestHeader.has_response_format_options()) {
-                    formatOptionsYson = NYson::TYsonString(requestHeader.response_format_options());
-                }
-
-                if (format != EMessageFormat::Protobuf) {
-                    serializedBody = ConvertMessageToFormat(
-                        serializedBody,
-                        format,
-                        NYson::ReflectProtobufMessageType<TResponseMessage>(),
-                        formatOptionsYson);
-                }
-            }
-
-            auto responseAttachments = CompressAttachments(Response_->Attachments(), attachmentCodecId);
-
-            this->UnderlyingContext_->SetResponseBody(std::move(serializedBody));
-            this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);
+            this->UnderlyingContext_->SetResponseBody(std::move(response.Body));
+            this->UnderlyingContext_->ResponseAttachments() = std::move(response.Attachments);
         }
+
         this->UnderlyingContext_->Reply(error);
     }
 };
@@ -691,8 +715,8 @@ protected:
                 return Profiler_.WithSparse().WithRequiredTag("user_agent", TString(userAgent)).Counter("/user_agent");
             }).first->Increment();
         }
-       
-    private: 
+
+    private:
         const NProfiling::TProfiler& Profiler_;
 
         //! Number of requests per user agent.
