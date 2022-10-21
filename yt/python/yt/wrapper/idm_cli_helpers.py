@@ -45,10 +45,10 @@ class Subject(object):
             self.user = subject["user"]
         elif "tvm_id" in subject:
             self.kind = "tvm_app"
-            self.tvm_id = subject["tvm_id"]
+            self.tvm_id = int(subject["tvm_id"])
         else:
             self.kind = "group"
-            self.group = subject["group"]
+            self.group = int(subject["group"])
             self.human_readable_name = subject.get("group_name", "")
         self.inherited = inherited
         self.url = subject.get("url", "")
@@ -76,6 +76,13 @@ class Subject(object):
                 logger.error("Invalid IDM group format: %s", string)
                 sys.exit(1)
             return cls(dict(group=group_id))
+        if string.startswith("tvm-app:"):
+            try:
+                tvm_id = int(string[len("tmv-app:"):])
+            except ValueError:
+                logger.error("Invalid TVM app format: %s", string)
+                sys.exit(1)
+            return cls(dict(tvm_id=tvm_id))
         else:
             return cls(dict(user=string))
 

@@ -1935,7 +1935,7 @@ def add_idm_request_or_revoke_parser(parser):
 
     parser.add_argument(
         "--subjects", "-s", dest="subjects", nargs="*", default=[],
-        help="Space separated user logins or staff/ABC groups like idm-group:ID")
+        help="Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID")
 
     parser.add_argument("--comment", dest="comment", help="Comment for the role")
     parser.add_argument(
