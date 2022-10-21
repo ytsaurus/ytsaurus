@@ -13,7 +13,7 @@ class TJobProfiler
 {
 public:
     TJobProfiler();
-    void ProfileStartedJob(const NControllers::TJoblet& joblet, const TStartedJobSummary& jobSummary);
+    void ProfileStartedJob(const NControllers::TJoblet& joblet);
     void ProfileCompletedJob(const NControllers::TJoblet& joblet, const TCompletedJobSummary& jobSummary);
     void ProfileFailedJob(const NControllers::TJoblet& joblet, const TFailedJobSummary& jobSummary);
     void ProfileAbortedJob(const NControllers::TJoblet& joblet, const TAbortedJobSummary& jobSummary);

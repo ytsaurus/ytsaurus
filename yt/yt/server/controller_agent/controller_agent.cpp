@@ -1730,7 +1730,6 @@ private:
     {
         struct TOperationJobEvents
         {
-            std::vector<TStartedJobSummary> StartedJobEvents;
             std::vector<TFinishedJobSummary> FinishedJobEvents;
             std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
         };
@@ -1741,9 +1740,6 @@ private:
                 auto handleJobSummary = [&] (auto&& jobSummary) {
                     auto& operationJobEvents = jobEventsPerOperationId[jobSummary.OperationId];
                     auto& storage = TOverloaded{
-                        [&] (const TStartedJobSummary&) -> auto& {
-                            return operationJobEvents.StartedJobEvents;
-                        },
                         [&] (const TFinishedJobSummary&) -> auto& {
                             return operationJobEvents.FinishedJobEvents;
                         },
@@ -1781,9 +1777,6 @@ private:
             auto controller = operation->GetController();
             controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
                 BIND([rsp, controller, this_ = MakeStrong(this), events = std::move(events)] () mutable {
-                    for (auto& startedJobSummary : events.StartedJobEvents) {
-                        controller->OnJobStarted(std::make_unique<TStartedJobSummary>(std::move(startedJobSummary)));
-                    }
                     for (auto& finishedJobInfo : events.FinishedJobEvents) {
                         controller->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobInfo));
                     }

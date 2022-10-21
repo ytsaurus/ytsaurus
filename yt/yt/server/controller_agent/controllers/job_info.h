@@ -163,6 +163,8 @@ struct TJoblet
     TStatistics BuildCombinedStatistics() const;
 
     TJobStatisticsTags GetAggregationTags(EJobState state);
+    
+    bool ShouldLogFinishedEvent() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

@@ -39,7 +39,7 @@ TJobProfiler::TJobProfiler()
     , TotalAbortedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_aborted_wall_time"))
 { }
 
-void TJobProfiler::ProfileStartedJob(const TJoblet& joblet, [[maybe_unused]] const TStartedJobSummary& jobSummary)
+void TJobProfiler::ProfileStartedJob(const TJoblet& joblet)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     const auto jobType = joblet.JobType;

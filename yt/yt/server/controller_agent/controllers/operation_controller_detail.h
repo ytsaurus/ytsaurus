@@ -160,8 +160,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnJobStarted,
-        (std::unique_ptr<TStartedJobSummary> jobSummary),
-        (std::move(jobSummary)),
+        (TJobId jobId),
+        (jobId),
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
@@ -306,7 +306,7 @@ public:
     NYson::TYsonString GetProgress() const override;
     NYson::TYsonString GetBriefProgress() const override;
 
-    TSharedRef ExtractJobSpec(TJobId jobId) const override;
+    TSharedRef ExtractJobSpec(TJobId jobId) override;
 
     NYson::TYsonString GetSuspiciousJobsYson() const override;
 

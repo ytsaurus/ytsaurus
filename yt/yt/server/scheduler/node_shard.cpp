@@ -2329,10 +2329,6 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
             continue;
         }
 
-        if (!controller->OnJobStarted(job)) {
-            continue;
-        }
-
         RegisterJob(job);
 
         auto* startInfo = response->add_jobs_to_start();

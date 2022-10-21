@@ -107,6 +107,15 @@ TJobStatisticsTags TJoblet::GetAggregationTags(EJobState state)
     };
 }
 
+bool TJoblet::ShouldLogFinishedEvent() const
+{
+    // We should log finished event only for started jobs.
+    // But there is a situation when job has been saved to snapshot before
+    // OnJobStarted, after that it has been actually started, but we failed to recognize it after revive.
+    // In case of revived job we cannot definitely recognize wether job has been actually started or not, but want to log finished event.
+    return Revived || IsStarted;
+}
+
 void TJoblet::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
