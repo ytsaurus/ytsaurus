@@ -799,6 +799,8 @@ void TJobProxy::ReportResult(
     TInstant startTime,
     TInstant finishTime)
 {
+    TTraceContextGuard guard(RootSpan_);
+
     YT_LOG_INFO("Reporting job result");
 
     if (!SupervisorProxy_) {
