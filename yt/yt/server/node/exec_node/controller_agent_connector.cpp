@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/misc/statistics.h>
+
 namespace NYT::NExecNode {
 
 using namespace NConcurrency;
@@ -154,6 +156,22 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     ToProto(request->mutable_node_descriptor(), ControllerAgentConnectorPool_->Bootstrap_->GetLocalDescriptor());
     ToProto(request->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
 
+    auto getJobStatistics = [] (const TJobPtr& job) {
+        auto statistics = job->GetStatistics();
+        if (!statistics) {
+            if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
+                TStatistics timeStatisticsToSend;
+                timeStatisticsToSend.SetTimestamp(TInstant::Now());
+                
+                timeStatistics.AddSamplesTo(&timeStatisticsToSend);
+
+                statistics = NYson::ConvertToYsonString(timeStatisticsToSend);
+            }
+        }
+
+        return statistics;
+    };
+
     i64 finishedJobsStatisticsSize = 0;
     for (const auto& job : sentEnqueuedJobs) {
         auto* const jobStatus = request->add_jobs();
@@ -163,7 +181,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
         job->ResetStatisticsLastSendTime();
 
-        if (auto statistics = job->GetStatistics()) {
+        if (auto statistics = getJobStatistics(job)) {
             auto statisticsString = statistics.ToString();
             finishedJobsStatisticsSize += std::ssize(statisticsString);
             jobStatus->set_statistics(std::move(statisticsString));
@@ -190,7 +208,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
         ++consideredRunnigJobCount;
 
-        if (auto statistics = job->GetStatistics()) {
+        if (auto statistics = getJobStatistics(job)) {
             auto statisticsString = statistics.ToString();
             if (StatisticsThrottler_->TryAcquire(statisticsString.size())) {
                 ++reportedRunningJobCount;

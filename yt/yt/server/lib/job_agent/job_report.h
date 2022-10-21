@@ -36,6 +36,8 @@ struct TTimeStatistics
     void Persist(const TStreamPersistenceContext& context);
 
     void AddSamplesTo(TStatistics* statistics) const;
+
+    bool IsEmpty() const;
 };
 
 void ToProto(
