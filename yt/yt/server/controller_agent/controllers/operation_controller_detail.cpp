@@ -2768,11 +2768,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     }
 }
 
-void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
-
-    auto jobId = jobSummary->Id;
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale job started, ignored (JobId: %v)", jobId);
@@ -2788,10 +2786,9 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
 
     YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
 
-    YT_VERIFY(jobSummary);
-    Host->GetJobProfiler()->ProfileStartedJob(*joblet, *jobSummary);
+    Host->GetJobProfiler()->ProfileStartedJob(*joblet);
 
-    joblet->LastActivityTime = jobSummary->StartTime;
+    joblet->LastActivityTime = TInstant::Now();
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
     joblet->IsStarted = true;
 
@@ -3023,7 +3020,9 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ false);
         UpdateActualHistogram(joblet);
 
-        LogFinishedJobFluently(ELogEventType::JobCompleted, joblet);
+        if (joblet->ShouldLogFinishedEvent()) {
+            LogFinishedJobFluently(ELogEventType::JobCompleted, joblet);
+        }
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
@@ -3240,11 +3239,13 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         }
 
         if (jobSummary->Scheduled) {
-            auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
-                .Item("reason").Value(abortReason);
-            if (jobSummary->PreemptedFor) {
-                fluent
-                    .Item("preempted_for").Value(jobSummary->PreemptedFor);
+            if (joblet->ShouldLogFinishedEvent()) {
+                auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
+                    .Item("reason").Value(abortReason);
+                if (jobSummary->PreemptedFor) {
+                    fluent
+                        .Item("preempted_for").Value(jobSummary->PreemptedFor);
+                }
             }
             UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
         }
@@ -8496,7 +8497,7 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
     return joblet->Task->BuildJobSpecProto(joblet, scheduleJobSpec);
 }
 
-TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
+TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
 
@@ -8516,6 +8517,8 @@ TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
     auto result = WaitFor(joblet->JobSpecProtoFuture)
         .ValueOrThrow();
     joblet->JobSpecProtoFuture.Reset();
+
+    OnJobStarted(jobId);
 
     return result;
 }

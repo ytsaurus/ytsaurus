@@ -453,27 +453,6 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
     return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
 }
 
-bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (ShouldSkipJobEvent(job)) {
-        return false;
-    }
-
-    TStartedJobSummary eventSummary{
-        .OperationId = OperationId_,
-        .Id = job->GetId(),
-        .StartTime = job->GetStartTime()
-    };
-
-    JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{std::move(eventSummary)});
-    YT_LOG_TRACE("Job start notification enqueued (JobId: %v)",
-        job->GetId());
-
-    return true;
-}
-
 void TOperationControllerImpl::OnJobFinished(
     const TJobPtr& job)
 {

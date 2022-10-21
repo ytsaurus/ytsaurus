@@ -89,14 +89,6 @@ message TAgentToSchedulerJobEvent
     optional NYT.NJobTrackerClient.NProto.TReleaseJobFlags release_job_flags = 9;
 }
 
-message TSchedulerToAgentStartedJobEvent
-{
-    required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
-
-    required uint64 start_time = 3;
-}
-
 message TSchedulerToAgentFinishedJobEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
@@ -127,9 +119,8 @@ message TSchedulerToAgentAbortedJobEvent
 message TSchedulerToAgentJobEvent
 {
     oneof job_event {
-        TSchedulerToAgentStartedJobEvent started = 1;
-        TSchedulerToAgentFinishedJobEvent finished = 2;
-        TSchedulerToAgentAbortedJobEvent aborted_by_scheduler = 3;
+        TSchedulerToAgentFinishedJobEvent finished = 1;
+        TSchedulerToAgentAbortedJobEvent aborted_by_scheduler = 2;
     }
 }
 

@@ -20,14 +20,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: This particular summary does not inherit from TJobSummary.
-struct TStartedJobSummary
-{
-    TOperationId OperationId;
-    TJobId Id;
-    TInstant StartTime;
-};
-
 // TODO(max42): does this need to belong to server/lib?
 // TODO(max42): make this structure non-copyable.
 struct TJobSummary
@@ -158,11 +150,9 @@ struct TAbortedBySchedulerJobSummary
 
 struct TSchedulerToAgentJobEvent
 {
-    std::variant<TStartedJobSummary, TFinishedJobSummary, TAbortedBySchedulerJobSummary> EventSummary;
+    std::variant<TFinishedJobSummary, TAbortedBySchedulerJobSummary> EventSummary;
 };
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentStartedJobEvent* proto, const TStartedJobSummary& summary);
-void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent);
 void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, const TFinishedJobSummary& summary);
 void FromProto(TFinishedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent);
 void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* proto, const TAbortedBySchedulerJobSummary& summary);

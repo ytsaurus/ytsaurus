@@ -303,12 +303,6 @@ struct IOperationControllerSchedulerHost
      */
     virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
-    //! Called in the end of heartbeat when scheduler agrees to run operation job.
-    /*!
-     *  \note Invoker affinity: cancellable Controller invoker
-     */
-    virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) = 0;
-
     //! Called during heartbeat processing to notify the controller that a job has finished.
     /*!
      *  \note Invoker affinity: cancellable Controller invoker
@@ -553,7 +547,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
-    virtual TSharedRef ExtractJobSpec(TJobId jobId) const = 0;
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) = 0;
 
     //! Called during node heartbeat processing to process job info.
     /*!

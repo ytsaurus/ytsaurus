@@ -299,11 +299,6 @@ public:
         return Underlying_->GetMinNeededJobResources();
     }
 
-    void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobStarted(std::move(jobSummary));
-    }
-
     void OnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary) override
     {
         Underlying_->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobSummary));
@@ -372,7 +367,7 @@ public:
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    TSharedRef ExtractJobSpec(TJobId jobId) const override
+    TSharedRef ExtractJobSpec(TJobId jobId) override
     {
         return Underlying_->ExtractJobSpec(jobId);
     }

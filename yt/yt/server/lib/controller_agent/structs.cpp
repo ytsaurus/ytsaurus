@@ -70,19 +70,6 @@ void JobEventsCommonPartFromProto(auto* summary, auto* protoEvent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent, const TStartedJobSummary& summary)
-{
-    JobEventsCommonPartToProto(protoEvent, summary);
-    protoEvent->set_start_time(ToProto<ui64>(summary.StartTime));
-}
-
-void FromProto(TStartedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentStartedJobEvent* protoEvent)
-{
-    JobEventsCommonPartFromProto(summary, protoEvent);
-    summary->StartTime = FromProto<TInstant>(protoEvent->start_time());
-}
-////////////////////////////////////////////////////////////////////////////////
-
 TJobSummary::TJobSummary(TJobId id, EJobState state)
     : Result()
     , Id(id)
@@ -327,9 +314,6 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedu
 {
     Visit(
         event.EventSummary,
-        [&] (const TStartedJobSummary& summary) {
-            ToProto(proto->mutable_started(), summary);
-        },
         [&] (const TFinishedJobSummary& summary) {
             ToProto(proto->mutable_finished(), summary);
         },
@@ -342,12 +326,6 @@ void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerT
 {
     using TProtoMessage = NScheduler::NProto::TSchedulerToAgentJobEvent;
     switch (proto->job_event_case()) {
-        case TProtoMessage::JobEventCase::kStarted: {
-            TStartedJobSummary summary;
-            FromProto(&summary, proto->mutable_started());
-            event->EventSummary = std::move(summary);
-            return;
-        }
         case TProtoMessage::JobEventCase::kFinished: {
             TFinishedJobSummary summary;
             FromProto(&summary, proto->mutable_finished());
