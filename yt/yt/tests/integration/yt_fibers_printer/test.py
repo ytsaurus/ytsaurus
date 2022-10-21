@@ -75,10 +75,10 @@ def check_backtraces(actual_output):
             bar_count += 1
         if line.find("AsyncStop") != -1:
             async_stop_count += 1
-    assert fibers_count >= 2
+    assert fibers_count > 0
     assert foo_count == 6
     assert bar_count == 5
-    assert async_stop_count == 1
+    assert async_stop_count > 0
 
 
 def check_tags(actual_output):
