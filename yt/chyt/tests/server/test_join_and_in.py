@@ -9,9 +9,6 @@ import pytest
 
 
 class TestJoinAndIn(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_global_join(self):
         create(
@@ -70,15 +67,13 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query('select a from "//tmp/t2" where a global in '
                                      '(select * from "//tmp/t1") order by a') == expected
 
-            assert clique.make_query('select toInt64(42) global in (select * from "//tmp/t2")')[0].values() == [1]
-            assert clique.make_query('select toInt64(43) global in (select * from "//tmp/t2")')[0].values() == [0]
+            assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2")')[0].values()) == [1]
+            assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2")')[0].values()) == [0]
 
-            assert clique.make_query('select toInt64(42) global in (select * from "//tmp/t2") from "//tmp/t1" limit 1')[
-                0
-            ].values() == [1]
-            assert clique.make_query('select toInt64(43) global in (select * from "//tmp/t2") from "//tmp/t1" limit 1')[
-                0
-            ].values() == [0]
+            assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2") '
+                                          'from "//tmp/t1" limit 1')[0].values()) == [1]
+            assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2") '
+                                          'from "//tmp/t1" limit 1')[0].values()) == [0]
 
     @authors("max42")
     def test_sorted_join_simple(self):
@@ -300,17 +295,6 @@ class TestJoinAndIn(ClickHouseTestBase):
         for kind in ("inner", "left", "right", "full"):
             expected_results[kind] = expected_result(kind, key_range, lhs_rows, rhs_rows)
 
-        # Transform unicode strings into non-unicode.
-        def sanitize(obj):
-            if type(obj) == unicode:
-                return str(obj)
-            else:
-                return obj
-
-        # Same for dictionaries
-        def sanitize_dict(unicode_dict):
-            return dict([(sanitize(key), sanitize(value)) for key, value in unicode_dict.iteritems()])
-
         index = 0
         for instance_count in range(1, 5):
             with Clique(instance_count) as clique:
@@ -323,7 +307,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                                     "select key, lhs, rhs from {lhs_arg} l {globalness} {kind} join {rhs_arg} r "
                                     "using key order by key, lhs, rhs nulls first".format(**locals())
                                 )
-                                result = list(map(sanitize_dict, clique.make_query(query, verbose=False)))
+                                result = list(clique.make_query(query, verbose=False))
 
                                 expected = expected_results[kind]
                                 print_debug(

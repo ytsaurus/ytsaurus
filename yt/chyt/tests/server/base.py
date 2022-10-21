@@ -117,9 +117,9 @@ class Clique(object):
             except OSError as e:
                 if e.errno == errno.EEXIST:
                     pass
-            os.chmod(root, 0777)
+            os.chmod(root, 0o777)
 
-        for writer_key, writer in config["logging"]["writers"].iteritems():
+        for writer_key, writer in config["logging"]["writers"].items():
             if writer["type"] == "file":
                 writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
 
@@ -344,7 +344,7 @@ class Clique(object):
             if "X-Yt-Error" in result.headers:
                 error = YtError(**json.loads(result.headers["X-Yt-Error"]))
             else:
-                error = self._parse_error(result.content)
+                error = self._parse_error(result.text)
 
             if error:
                 output += "Error: {}\n".format(error)
@@ -357,7 +357,7 @@ class Clique(object):
             output += "Headers:\n"
             output += json.dumps(dict(result.headers)) + "\n"
             output += "Data:\n"
-            output += result.content
+            output += result.text
 
         print_debug(output)
 
@@ -436,7 +436,7 @@ class Clique(object):
                     ) != "running"
                 )
                 print_debug("Instance {} has failed".format(str(instance)))
-                stderr = self.op.read_stderr(str(instance))
+                stderr = self.op.read_stderr(str(instance)).decode()
                 if verbose:
                     print_debug("Stderr:\n" + stderr)
             except YtError as err2:
@@ -588,24 +588,23 @@ class ClickHouseTestBase(YTEnvSetup):
         }
     }
 
-    def _get_proxy_address(self):
-        return "http://" + self.Env.get_http_proxy_address()
+    @classmethod
+    def _get_proxy_address(cls):
+        return "http://" + cls.Env.get_http_proxy_address()
 
     @staticmethod
     def _signal_instance(pid, signal_number):
         print_debug("Killing instance with with os.kill({}, {})".format(pid, signal_number))
         os.kill(pid, signal_number)
 
-    def _setup(self):
-        Clique.path_to_run = self.path_to_run
-        Clique.core_dump_path = os.path.join(self.path_to_run, "core_dumps")
+    @classmethod
+    def setup_class(cls, test_name=None, run_id=None):
+        super().setup_class(test_name=test_name, run_id=run_id)
+        Clique.path_to_run = cls.path_to_run
+        Clique.core_dump_path = os.path.join(cls.path_to_run, "core_dumps")
         if not os.path.exists(Clique.core_dump_path):
             os.mkdir(Clique.core_dump_path)
             os.chmod(Clique.core_dump_path, 0o777)
-
-        create_user("yt-clickhouse-cache")
-        create_user("yt-clickhouse")
-        sync_create_cells(1)
 
         if exists("//sys/clickhouse"):
             return
@@ -617,5 +616,12 @@ class ClickHouseTestBase(YTEnvSetup):
         # COMPAT(max42): see get_clickhouse_server_config() compats.
         Clique.base_config["clickhouse"] = Clique.base_config["engine"]
         del Clique.base_config["engine"]
-        Clique.base_config["cluster_connection"] = self.Env.configs["driver"]
-        Clique.proxy_address = self._get_proxy_address()
+        Clique.base_config["cluster_connection"] = cls.Env.configs["driver"]
+        Clique.proxy_address = cls._get_proxy_address()
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        create_user("yt-clickhouse-cache")
+        create_user("yt-clickhouse")
+        sync_create_cells(1)

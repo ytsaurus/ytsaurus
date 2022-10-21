@@ -89,7 +89,7 @@ def validate_query_statistics(clique, query, expected_structure):
         filtered_secondary_queries.sort(key=lambda query: query["select_query_index"])
 
         filtered_ancestor_query_ids = [row for row in ancestor_query_ids if row["parent_query_id"] == query_id]
-        filtered_ancestor_query_ids.sort()
+        filtered_ancestor_query_ids.sort(key=lambda row: row["secondary_query_id"])
 
         # Query did not initialize any subqueries.
         if len(expected_structure) == 0:
@@ -155,8 +155,8 @@ class TestStatistisTables(ClickHouseTestBase):
         },
     }
 
-    def setup(self):
-        self._setup()
+    def setup_method(self, method):
+        super().setup_method(method)
 
         create(
             "table",

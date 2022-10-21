@@ -7,9 +7,6 @@ import yt.yson as yson
 
 
 class TestTableFunctions(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("dakovalkov")
     def test_yt_list_dir(self):
         create("map_node", "//tmp/dir")
@@ -88,7 +85,7 @@ class TestTableFunctions(ClickHouseTestBase):
 
             # Yson attributes.
             query = '''select ConvertYson(resource_usage, 'text') as resource_usage from ytListTables('//tmp/dir') order by $key'''
-            resource_usages = [yson.loads(x["resource_usage"]) for x in clique.make_query(query)]
+            resource_usages = [yson.loads(x["resource_usage"].encode()) for x in clique.make_query(query)]
             assert resource_usages == [
                 get("//tmp/dir/t0/@resource_usage"),
                 get("//tmp/dir/t1/@resource_usage"),

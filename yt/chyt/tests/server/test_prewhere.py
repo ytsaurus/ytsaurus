@@ -10,9 +10,6 @@ import random
 
 
 class TestClickHousePrewhere(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     def get_config_patch(self, value):
         return {"clickhouse": {"settings": {"optimize_move_to_prewhere": int(value)}}}
 

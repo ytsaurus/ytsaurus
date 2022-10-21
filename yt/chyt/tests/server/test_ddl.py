@@ -1,6 +1,7 @@
 from helpers import get_object_attribute_cache_config
 
-from yt_commands import (authors, raises_yt_error, create, create_dynamic_table, exists, sync_mount_table, write_table)
+from yt_commands import (authors, raises_yt_error, create, create_dynamic_table, exists, sync_mount_table, write_table,
+                         sync_create_cells)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
@@ -8,9 +9,6 @@ import time
 
 
 class TestClickHouseDdl(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("evgenstf")
     def test_drop_nonexistent_table(self):
         patch = get_object_attribute_cache_config(500, 500, None)
@@ -80,6 +78,8 @@ class TestClickHouseDdl(ClickHouseTestBase):
 
     @authors("gudqeit")
     def test_truncate_error(self):
+        sync_create_cells(1)
+
         with Clique(1) as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query('truncate table "//tmp/t"')

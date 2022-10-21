@@ -12,9 +12,6 @@ def is_tracing_enabled():
 
 
 class TestTracing(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     @pytest.mark.parametrize("trace_method", ["x-yt-sampled", "traceparent", "chyt.enable_tracing"])
     def test_tracing_via_http_proxy(self, trace_method):

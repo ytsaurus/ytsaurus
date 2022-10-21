@@ -9,9 +9,6 @@ from flaky import flaky
 
 
 class TestYtDictionaries(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     @authors("max42")
     def test_int_key_flat(self):
         create(

@@ -21,14 +21,11 @@ import pytest
 class TestInputFetching(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 2
 
-    def setup(self):
-        self._setup()
-
     @authors("max42", "evgenstf")
     @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])
     def test_chunk_filter(self, where_prewhere):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=%true>//tmp/t", [{"i": i}])
         with Clique(1) as clique:
             clique.make_query_and_validate_row_count(
@@ -56,7 +53,7 @@ class TestInputFetching(ClickHouseTestBase):
                 ]
             },
         )
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=%true>//tmp/t", [{"i": 2 * i}, {"i": 2 * i + 1}])
 
         for enable_computed_column_deduction in (False, True):
@@ -118,11 +115,11 @@ class TestInputFetching(ClickHouseTestBase):
         )
         tablet_count = 100
         sync_reshard_table(
-            "//tmp/t", [[]] + [[yson.YsonUint64(i * 2 ** 64 // tablet_count)] for i in xrange(tablet_count)]
+            "//tmp/t", [[]] + [[yson.YsonUint64(i * 2 ** 64 // tablet_count)] for i in range(tablet_count)]
         )
         sync_mount_table("//tmp/t")
         key_count = 5
-        for i in xrange(key_count):
+        for i in range(key_count):
             insert_rows("//tmp/t", [{"key": "k" + str(i), "value": "v" + str(i)}])
 
         with Clique(
@@ -161,11 +158,11 @@ class TestInputFetching(ClickHouseTestBase):
         )
         tablet_count = 100
         sync_reshard_table(
-            "//tmp/t", [[]] + [[yson.YsonUint64(i * 2 ** 64 // tablet_count)] for i in xrange(tablet_count)]
+            "//tmp/t", [[]] + [[yson.YsonUint64(i * 2 ** 64 // tablet_count)] for i in range(tablet_count)]
         )
         sync_mount_table("//tmp/t")
         key_count = 5
-        for i in xrange(key_count):
+        for i in range(key_count):
             insert_rows("//tmp/t", [{"key": "k" + str(i), "subkey": "sk" + str(i), "value": "v" + str(i)}])
 
         with Clique(
@@ -849,9 +846,6 @@ class TestInputFetching(ClickHouseTestBase):
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
     def _create_table(self):
         create(
             "table",
@@ -865,7 +859,7 @@ class TestInputFetchingYPath(ClickHouseTestBase):
             },
         )
         rows = []
-        for ki in xrange(9):
+        for ki in range(9):
             for ks in ("abc", "def", "ghi"):
                 rows.append({"ki": ki, "ks": ks, "v": str(ki) + ks})
             if ki % 3 == 2:
@@ -911,7 +905,7 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                     range_spec = {"exact": lower_limit}
                 else:
                     range_spec = {"lower": lower_limit, "upper": upper_limit}
-                table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text"))
+                table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text").decode())
                 expected_rows = read_table(table_path)
                 actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
                 assert actual_rows == expected_rows
